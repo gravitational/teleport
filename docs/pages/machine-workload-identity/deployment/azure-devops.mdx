@@ -27,7 +27,7 @@ match, the authentication attempt will succeed.
 
 This mitigates the risk of long-lived secrets such as passwords or SSH private
 keys being exfiltrated from your Azure DevOps organization and provides many of
-the other benefits of Teleport such as auditing and finely-grained access
+the other benefits of Teleport such as auditing and fine-grained access
 control.
 
 ## Prerequisites
@@ -36,7 +36,7 @@ control.
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Determine your Azure DevOps organization ID
+## Step 1/4. Determine your Azure DevOps organization ID
 
 Before we can grant access to a `tbot` running within an Azure DevOps pipeline,
 we must determine the ID of the Azure DevOps organization that the pipeline
@@ -70,11 +70,11 @@ Organization ID: 0ca3ddd9-0000-1111-2222-example58665
 
 Record this organization ID as you will need it later: <Var name="organization-id" />
 
-## Step 2/5. Create a Bot
+## Step 2/4. Create a Bot
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 3/5. Create a join token
+## Step 3/4. Create a join token
 
 To allow the Azure DevOps pipeline to authenticate to your Teleport cluster,
 you'll first need to create a join token. An Azure DevOps join token contains
@@ -119,7 +119,7 @@ Apply this to your Teleport cluster using `tctl`:
 $ tctl create -f bot-token.yaml
 ```
 
-## Step 4/5. Configure an Azure DevOps pipeline
+## Step 4/4. Configure an Azure DevOps pipeline
 
 With the bot and join token created, you can now configure an Azure DevOps
 pipeline that sets up `tbot` to use these.
@@ -147,7 +147,7 @@ Replace:
 
 - <Var name="example.teleport.sh" /> with the address of your Teleport Proxy Service or
 Auth Service. Prefer using the address of the Teleport Proxy Service.
-- `example-bot` with the name of the token you created in the second step
+- `example-bot` with the name of the token you created in the third step.
 
 Now you'll modify your Azure DevOps pipeline to install `tbot` and run it with
 the configuration you just created.
@@ -190,11 +190,11 @@ Check the status of your Azure DevOps pipeline run. If everything is configured
 correctly, you should see `tbot` successfully start, join the cluster, and then
 exit.
 
-## Step 5/5. Configure services
-
-(!docs/pages/includes/machine-id/configure-services.mdx!)
-
 ## Further steps
+
+You have now prepared the base configuration for `tbot`. At this point, it
+identifies itself to the Teleport cluster and renews its own credentials but
+does not output any credentials for other applications to use.
 
 - For more information about the Azure DevOps join method, read the
   [join method reference page.](../../reference/deployment/join-methods.mdx#azure-devops-azure_devops)

@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/join/v1/joinservice.proto
 
+//go:build !protoopaque
+
 package joinv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -92,15 +93,10 @@ func (x GivingUp_Reason) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use GivingUp_Reason.Descriptor instead.
-func (GivingUp_Reason) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{27, 0}
-}
-
 // ClientInit is the first message sent from the client during the join process, it
 // holds parameters common to all join methods.
 type ClientInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// JoinMethod is the name of the join method that the client is configured to use.
 	// This parameter is optional, the client can leave it empty to allow the
 	// server to determine the join method based on the provision token named by
@@ -147,11 +143,6 @@ func (x *ClientInit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClientInit.ProtoReflect.Descriptor instead.
-func (*ClientInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ClientInit) GetJoinMethod() string {
 	if x != nil && x.JoinMethod != nil {
 		return *x.JoinMethod
@@ -187,10 +178,86 @@ func (x *ClientInit) GetProxySuppliedParameters() *ClientInit_ProxySuppliedParam
 	return nil
 }
 
+func (x *ClientInit) SetJoinMethod(v string) {
+	x.JoinMethod = &v
+}
+
+func (x *ClientInit) SetTokenName(v string) {
+	x.TokenName = v
+}
+
+func (x *ClientInit) SetSystemRole(v string) {
+	x.SystemRole = v
+}
+
+func (x *ClientInit) SetForwardedByProxy(v bool) {
+	x.ForwardedByProxy = v
+}
+
+func (x *ClientInit) SetProxySuppliedParameters(v *ClientInit_ProxySuppliedParams) {
+	x.ProxySuppliedParameters = v
+}
+
+func (x *ClientInit) HasJoinMethod() bool {
+	if x == nil {
+		return false
+	}
+	return x.JoinMethod != nil
+}
+
+func (x *ClientInit) HasProxySuppliedParameters() bool {
+	if x == nil {
+		return false
+	}
+	return x.ProxySuppliedParameters != nil
+}
+
+func (x *ClientInit) ClearJoinMethod() {
+	x.JoinMethod = nil
+}
+
+func (x *ClientInit) ClearProxySuppliedParameters() {
+	x.ProxySuppliedParameters = nil
+}
+
+type ClientInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// JoinMethod is the name of the join method that the client is configured to use.
+	// This parameter is optional, the client can leave it empty to allow the
+	// server to determine the join method based on the provision token named by
+	// TokenName, it will be sent to the client in the ServerInit message.
+	JoinMethod *string
+	// TokenName is the name of the join token.
+	// This is a secret if using the token join method, otherwise it is a
+	// non-secret name of a provision token resource.
+	TokenName string
+	// SystemRole is the system role requested, e.g. Proxy, Node, Instance, Bot.
+	SystemRole string
+	// ForwardedByProxy will be set to true when the message is forwarded by the
+	// Proxy service. When this is set the Auth service must ignore any
+	// any credentials authenticating the request, except for the purpose of
+	// accepting ProxySuppliedParams.
+	ForwardedByProxy        bool
+	ProxySuppliedParameters *ClientInit_ProxySuppliedParams
+}
+
+func (b0 ClientInit_builder) Build() *ClientInit {
+	m0 := &ClientInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.JoinMethod = b.JoinMethod
+	x.TokenName = b.TokenName
+	x.SystemRole = b.SystemRole
+	x.ForwardedByProxy = b.ForwardedByProxy
+	x.ProxySuppliedParameters = b.ProxySuppliedParameters
+	return m0
+}
+
 // PublicKeys holds public keys sent by the client requested subject keys for
 // issued certificates.
 type PublicKeys struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PublicTlsKey is the public key requested for the subject of the x509 certificate.
 	// It must be encoded in PKIX, ASN.1 DER form.
 	PublicTlsKey []byte `protobuf:"bytes,1,opt,name=public_tls_key,json=publicTlsKey,proto3" json:"public_tls_key,omitempty"`
@@ -226,11 +293,6 @@ func (x *PublicKeys) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PublicKeys.ProtoReflect.Descriptor instead.
-func (*PublicKeys) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *PublicKeys) GetPublicTlsKey() []byte {
 	if x != nil {
 		return x.PublicTlsKey
@@ -245,9 +307,43 @@ func (x *PublicKeys) GetPublicSshKey() []byte {
 	return nil
 }
 
+func (x *PublicKeys) SetPublicTlsKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicTlsKey = v
+}
+
+func (x *PublicKeys) SetPublicSshKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicSshKey = v
+}
+
+type PublicKeys_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PublicTlsKey is the public key requested for the subject of the x509 certificate.
+	// It must be encoded in PKIX, ASN.1 DER form.
+	PublicTlsKey []byte
+	// PublicSshKey is the public key requested for the subject of the SSH certificate.
+	// It must be encoded in SSH wire format.
+	PublicSshKey []byte
+}
+
+func (b0 PublicKeys_builder) Build() *PublicKeys {
+	m0 := &PublicKeys{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PublicTlsKey = b.PublicTlsKey
+	x.PublicSshKey = b.PublicSshKey
+	return m0
+}
+
 // HostParams holds parameters required for host joining.
 type HostParams struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PublicKeys holds the host public keys.
 	PublicKeys *PublicKeys `protobuf:"bytes,1,opt,name=public_keys,json=publicKeys,proto3" json:"public_keys,omitempty"`
 	// HostName is the user-friendly node name for the host. This comes from
@@ -287,11 +383,6 @@ func (x *HostParams) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HostParams.ProtoReflect.Descriptor instead.
-func (*HostParams) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *HostParams) GetPublicKeys() *PublicKeys {
 	if x != nil {
 		return x.PublicKeys
@@ -320,9 +411,62 @@ func (x *HostParams) GetDnsNames() []string {
 	return nil
 }
 
+func (x *HostParams) SetPublicKeys(v *PublicKeys) {
+	x.PublicKeys = v
+}
+
+func (x *HostParams) SetHostName(v string) {
+	x.HostName = v
+}
+
+func (x *HostParams) SetAdditionalPrincipals(v []string) {
+	x.AdditionalPrincipals = v
+}
+
+func (x *HostParams) SetDnsNames(v []string) {
+	x.DnsNames = v
+}
+
+func (x *HostParams) HasPublicKeys() bool {
+	if x == nil {
+		return false
+	}
+	return x.PublicKeys != nil
+}
+
+func (x *HostParams) ClearPublicKeys() {
+	x.PublicKeys = nil
+}
+
+type HostParams_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PublicKeys holds the host public keys.
+	PublicKeys *PublicKeys
+	// HostName is the user-friendly node name for the host. This comes from
+	// teleport.nodename in the service configuration and defaults to the
+	// hostname. It is encoded as a valid principal in issued certificates.
+	HostName string
+	// AdditionalPrincipals is a list of additional principals requested.
+	AdditionalPrincipals []string
+	// DnsNames is a list of DNS names requested for inclusion in the x509 certificate.
+	DnsNames []string
+}
+
+func (b0 HostParams_builder) Build() *HostParams {
+	m0 := &HostParams{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PublicKeys = b.PublicKeys
+	x.HostName = b.HostName
+	x.AdditionalPrincipals = b.AdditionalPrincipals
+	x.DnsNames = b.DnsNames
+	return m0
+}
+
 // BotParams holds parameters required for bot joining.
 type BotParams struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PublicKeys holds the bot public keys.
 	PublicKeys *PublicKeys `protobuf:"bytes,1,opt,name=public_keys,json=publicKeys,proto3" json:"public_keys,omitempty"`
 	// Expires is a desired time of the expiry of the returned certificates.
@@ -356,11 +500,6 @@ func (x *BotParams) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BotParams.ProtoReflect.Descriptor instead.
-func (*BotParams) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *BotParams) GetPublicKeys() *PublicKeys {
 	if x != nil {
 		return x.PublicKeys
@@ -375,9 +514,57 @@ func (x *BotParams) GetExpires() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *BotParams) SetPublicKeys(v *PublicKeys) {
+	x.PublicKeys = v
+}
+
+func (x *BotParams) SetExpires(v *timestamppb.Timestamp) {
+	x.Expires = v
+}
+
+func (x *BotParams) HasPublicKeys() bool {
+	if x == nil {
+		return false
+	}
+	return x.PublicKeys != nil
+}
+
+func (x *BotParams) HasExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.Expires != nil
+}
+
+func (x *BotParams) ClearPublicKeys() {
+	x.PublicKeys = nil
+}
+
+func (x *BotParams) ClearExpires() {
+	x.Expires = nil
+}
+
+type BotParams_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PublicKeys holds the bot public keys.
+	PublicKeys *PublicKeys
+	// Expires is a desired time of the expiry of the returned certificates.
+	Expires *timestamppb.Timestamp
+}
+
+func (b0 BotParams_builder) Build() *BotParams {
+	m0 := &BotParams{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PublicKeys = b.PublicKeys
+	x.Expires = b.Expires
+	return m0
+}
+
 // ClientParams holds either host or bot join parameters.
 type ClientParams struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*ClientParams_HostParams
@@ -412,11 +599,6 @@ func (x *ClientParams) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClientParams.ProtoReflect.Descriptor instead.
-func (*ClientParams) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ClientParams) GetPayload() isClientParams_Payload {
 	if x != nil {
 		return x.Payload
@@ -440,6 +622,111 @@ func (x *ClientParams) GetBotParams() *BotParams {
 		}
 	}
 	return nil
+}
+
+func (x *ClientParams) SetHostParams(v *HostParams) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &ClientParams_HostParams{v}
+}
+
+func (x *ClientParams) SetBotParams(v *BotParams) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &ClientParams_BotParams{v}
+}
+
+func (x *ClientParams) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *ClientParams) HasHostParams() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*ClientParams_HostParams)
+	return ok
+}
+
+func (x *ClientParams) HasBotParams() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*ClientParams_BotParams)
+	return ok
+}
+
+func (x *ClientParams) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *ClientParams) ClearHostParams() {
+	if _, ok := x.Payload.(*ClientParams_HostParams); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *ClientParams) ClearBotParams() {
+	if _, ok := x.Payload.(*ClientParams_BotParams); ok {
+		x.Payload = nil
+	}
+}
+
+const ClientParams_Payload_not_set_case case_ClientParams_Payload = 0
+const ClientParams_HostParams_case case_ClientParams_Payload = 1
+const ClientParams_BotParams_case case_ClientParams_Payload = 2
+
+func (x *ClientParams) WhichPayload() case_ClientParams_Payload {
+	if x == nil {
+		return ClientParams_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *ClientParams_HostParams:
+		return ClientParams_HostParams_case
+	case *ClientParams_BotParams:
+		return ClientParams_BotParams_case
+	default:
+		return ClientParams_Payload_not_set_case
+	}
+}
+
+type ClientParams_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	HostParams *HostParams
+	BotParams  *BotParams
+	// -- end of Payload
+}
+
+func (b0 ClientParams_builder) Build() *ClientParams {
+	m0 := &ClientParams{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.HostParams != nil {
+		x.Payload = &ClientParams_HostParams{b.HostParams}
+	}
+	if b.BotParams != nil {
+		x.Payload = &ClientParams_BotParams{b.BotParams}
+	}
+	return m0
+}
+
+type case_ClientParams_Payload protoreflect.FieldNumber
+
+func (x case_ClientParams_Payload) String() string {
+	md := file_teleport_join_v1_joinservice_proto_msgTypes[4].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
 }
 
 type isClientParams_Payload interface {
@@ -467,7 +754,7 @@ func (*ClientParams_BotParams) isClientParams_Payload() {}
 // 3. client->server: TokenInit
 // 4. server->client: Result
 type TokenInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
 	// The secret value that must be provided when using the token join method.
@@ -501,11 +788,6 @@ func (x *TokenInit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TokenInit.ProtoReflect.Descriptor instead.
-func (*TokenInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *TokenInit) GetClientParams() *ClientParams {
 	if x != nil {
 		return x.ClientParams
@@ -520,6 +802,43 @@ func (x *TokenInit) GetSecret() string {
 	return ""
 }
 
+func (x *TokenInit) SetClientParams(v *ClientParams) {
+	x.ClientParams = v
+}
+
+func (x *TokenInit) SetSecret(v string) {
+	x.Secret = v
+}
+
+func (x *TokenInit) HasClientParams() bool {
+	if x == nil {
+		return false
+	}
+	return x.ClientParams != nil
+}
+
+func (x *TokenInit) ClearClientParams() {
+	x.ClientParams = nil
+}
+
+type TokenInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams *ClientParams
+	// The secret value that must be provided when using the token join method.
+	Secret string
+}
+
+func (b0 TokenInit_builder) Build() *TokenInit {
+	m0 := &TokenInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClientParams = b.ClientParams
+	x.Secret = b.Secret
+	return m0
+}
+
 // OIDCInit holds the OIDC identity token used for all OIDC-based join methods.
 //
 // The join flow for all OIDC-based join methods is:
@@ -528,7 +847,7 @@ func (x *TokenInit) GetSecret() string {
 // 3. client->server: OIDCInit
 // 4. server->client: Result
 type OIDCInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
 	// IdToken is the OIDC identity token.
@@ -562,11 +881,6 @@ func (x *OIDCInit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OIDCInit.ProtoReflect.Descriptor instead.
-func (*OIDCInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *OIDCInit) GetClientParams() *ClientParams {
 	if x != nil {
 		return x.ClientParams
@@ -579,6 +893,46 @@ func (x *OIDCInit) GetIdToken() []byte {
 		return x.IdToken
 	}
 	return nil
+}
+
+func (x *OIDCInit) SetClientParams(v *ClientParams) {
+	x.ClientParams = v
+}
+
+func (x *OIDCInit) SetIdToken(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.IdToken = v
+}
+
+func (x *OIDCInit) HasClientParams() bool {
+	if x == nil {
+		return false
+	}
+	return x.ClientParams != nil
+}
+
+func (x *OIDCInit) ClearClientParams() {
+	x.ClientParams = nil
+}
+
+type OIDCInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams *ClientParams
+	// IdToken is the OIDC identity token.
+	IdToken []byte
+}
+
+func (b0 OIDCInit_builder) Build() *OIDCInit {
+	m0 := &OIDCInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClientParams = b.ClientParams
+	x.IdToken = b.IdToken
+	return m0
 }
 
 // BoundKeypairInit is sent from the client in response to the ServerInit
@@ -598,7 +952,7 @@ func (x *OIDCInit) GetIdToken() []byte {
 //     client->server: BoundKeypairChallengeSolution
 //  6. server->client: Result containing BoundKeypairResult
 type BoundKeypairInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
 	// If set, attempts to bind a new keypair using an initial join secret.
@@ -637,11 +991,6 @@ func (x *BoundKeypairInit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BoundKeypairInit.ProtoReflect.Descriptor instead.
-func (*BoundKeypairInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *BoundKeypairInit) GetClientParams() *ClientParams {
 	if x != nil {
 		return x.ClientParams
@@ -663,11 +1012,61 @@ func (x *BoundKeypairInit) GetPreviousJoinState() []byte {
 	return nil
 }
 
+func (x *BoundKeypairInit) SetClientParams(v *ClientParams) {
+	x.ClientParams = v
+}
+
+func (x *BoundKeypairInit) SetInitialJoinSecret(v string) {
+	x.InitialJoinSecret = v
+}
+
+func (x *BoundKeypairInit) SetPreviousJoinState(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PreviousJoinState = v
+}
+
+func (x *BoundKeypairInit) HasClientParams() bool {
+	if x == nil {
+		return false
+	}
+	return x.ClientParams != nil
+}
+
+func (x *BoundKeypairInit) ClearClientParams() {
+	x.ClientParams = nil
+}
+
+type BoundKeypairInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams *ClientParams
+	// If set, attempts to bind a new keypair using an initial join secret.
+	// Any value set here will be ignored if a keypair is already bound.
+	InitialJoinSecret string
+	// A document signed by Auth containing join state parameters from the
+	// previous join attempt. Not required on initial join; required on all
+	// subsequent joins.
+	PreviousJoinState []byte
+}
+
+func (b0 BoundKeypairInit_builder) Build() *BoundKeypairInit {
+	m0 := &BoundKeypairInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClientParams = b.ClientParams
+	x.InitialJoinSecret = b.InitialJoinSecret
+	x.PreviousJoinState = b.PreviousJoinState
+	return m0
+}
+
 // BoundKeypairChallenge is a challenge issued by the server that joining
 // clients are expected to complete.
 // The client is expected to respond with a BoundKeypairChallengeSolution.
 type BoundKeypairChallenge struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The desired public key corresponding to the private key that should be used
 	// to sign this challenge, in SSH authorized keys format.
 	PublicKey []byte `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
@@ -704,11 +1103,6 @@ func (x *BoundKeypairChallenge) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BoundKeypairChallenge.ProtoReflect.Descriptor instead.
-func (*BoundKeypairChallenge) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *BoundKeypairChallenge) GetPublicKey() []byte {
 	if x != nil {
 		return x.PublicKey
@@ -723,12 +1117,44 @@ func (x *BoundKeypairChallenge) GetChallenge() string {
 	return ""
 }
 
+func (x *BoundKeypairChallenge) SetPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicKey = v
+}
+
+func (x *BoundKeypairChallenge) SetChallenge(v string) {
+	x.Challenge = v
+}
+
+type BoundKeypairChallenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The desired public key corresponding to the private key that should be used
+	// to sign this challenge, in SSH authorized keys format.
+	PublicKey []byte
+	// A challenge to sign with the requested public key. During keypair rotation,
+	// a second challenge will be provided to verify the new keypair before certs
+	// are returned.
+	Challenge string
+}
+
+func (b0 BoundKeypairChallenge_builder) Build() *BoundKeypairChallenge {
+	m0 := &BoundKeypairChallenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PublicKey = b.PublicKey
+	x.Challenge = b.Challenge
+	return m0
+}
+
 // BoundKeypairChallengeSolution is sent from the client in response to the
 // BoundKeypairChallenge.
 // The server is expected to respond with either a Result or a
 // BoundKeypairRotationRequest.
 type BoundKeypairChallengeSolution struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A solution to a challenge from the server. This generated by signing the
 	// challenge as a JWT using the keypair associated with the requested public
 	// key.
@@ -762,11 +1188,6 @@ func (x *BoundKeypairChallengeSolution) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BoundKeypairChallengeSolution.ProtoReflect.Descriptor instead.
-func (*BoundKeypairChallengeSolution) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *BoundKeypairChallengeSolution) GetSolution() []byte {
 	if x != nil {
 		return x.Solution
@@ -774,12 +1195,36 @@ func (x *BoundKeypairChallengeSolution) GetSolution() []byte {
 	return nil
 }
 
+func (x *BoundKeypairChallengeSolution) SetSolution(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Solution = v
+}
+
+type BoundKeypairChallengeSolution_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A solution to a challenge from the server. This generated by signing the
+	// challenge as a JWT using the keypair associated with the requested public
+	// key.
+	Solution []byte
+}
+
+func (b0 BoundKeypairChallengeSolution_builder) Build() *BoundKeypairChallengeSolution {
+	m0 := &BoundKeypairChallengeSolution{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Solution = b.Solution
+	return m0
+}
+
 // BoundKeypairRotationRequest is sent by the server in response to a
 // BoundKeypairChallenge when a keypair rotation is required. It acts like an
 // additional challenge, the client is expected to respond with a
 // BoundKeypairRotationResponse.
 type BoundKeypairRotationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The signature algorithm suite in use by the cluster.
 	SignatureAlgorithmSuite string `protobuf:"bytes,1,opt,name=signature_algorithm_suite,json=signatureAlgorithmSuite,proto3" json:"signature_algorithm_suite,omitempty"`
 	unknownFields           protoimpl.UnknownFields
@@ -811,11 +1256,6 @@ func (x *BoundKeypairRotationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BoundKeypairRotationRequest.ProtoReflect.Descriptor instead.
-func (*BoundKeypairRotationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *BoundKeypairRotationRequest) GetSignatureAlgorithmSuite() string {
 	if x != nil {
 		return x.SignatureAlgorithmSuite
@@ -823,12 +1263,31 @@ func (x *BoundKeypairRotationRequest) GetSignatureAlgorithmSuite() string {
 	return ""
 }
 
+func (x *BoundKeypairRotationRequest) SetSignatureAlgorithmSuite(v string) {
+	x.SignatureAlgorithmSuite = v
+}
+
+type BoundKeypairRotationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The signature algorithm suite in use by the cluster.
+	SignatureAlgorithmSuite string
+}
+
+func (b0 BoundKeypairRotationRequest_builder) Build() *BoundKeypairRotationRequest {
+	m0 := &BoundKeypairRotationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SignatureAlgorithmSuite = b.SignatureAlgorithmSuite
+	return m0
+}
+
 // BoundKeypairRotationResponse is sent by the client in response to a
 // BoundKeypairRotationRequest from the server.
 // The server is expected to respond with an additional BoundKeypairChallenge
 // for the new key.
 type BoundKeypairRotationResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The public key to be registered with auth. Clients should expect a
 	// subsequent challenge against this public key to be sent. This is encoded in
 	// SSH authorized keys format.
@@ -862,11 +1321,6 @@ func (x *BoundKeypairRotationResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BoundKeypairRotationResponse.ProtoReflect.Descriptor instead.
-func (*BoundKeypairRotationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *BoundKeypairRotationResponse) GetPublicKey() []byte {
 	if x != nil {
 		return x.PublicKey
@@ -874,10 +1328,34 @@ func (x *BoundKeypairRotationResponse) GetPublicKey() []byte {
 	return nil
 }
 
+func (x *BoundKeypairRotationResponse) SetPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicKey = v
+}
+
+type BoundKeypairRotationResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The public key to be registered with auth. Clients should expect a
+	// subsequent challenge against this public key to be sent. This is encoded in
+	// SSH authorized keys format.
+	PublicKey []byte
+}
+
+func (b0 BoundKeypairRotationResponse_builder) Build() *BoundKeypairRotationResponse {
+	m0 := &BoundKeypairRotationResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PublicKey = b.PublicKey
+	return m0
+}
+
 // BoundKeypairResult holds additional result parameters relevant to the bound
 // keypair join method.
 type BoundKeypairResult struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A signed join state document to be provided on the next join attempt.
 	JoinState []byte `protobuf:"bytes,2,opt,name=join_state,json=joinState,proto3" json:"join_state,omitempty"`
 	// The public key registered with Auth at the end of the joining ceremony.
@@ -913,11 +1391,6 @@ func (x *BoundKeypairResult) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BoundKeypairResult.ProtoReflect.Descriptor instead.
-func (*BoundKeypairResult) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *BoundKeypairResult) GetJoinState() []byte {
 	if x != nil {
 		return x.JoinState
@@ -932,6 +1405,40 @@ func (x *BoundKeypairResult) GetPublicKey() []byte {
 	return nil
 }
 
+func (x *BoundKeypairResult) SetJoinState(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.JoinState = v
+}
+
+func (x *BoundKeypairResult) SetPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicKey = v
+}
+
+type BoundKeypairResult_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A signed join state document to be provided on the next join attempt.
+	JoinState []byte
+	// The public key registered with Auth at the end of the joining ceremony.
+	// After a successful keypair rotation, this should reflect the newly
+	// registered public key. This is encoded in SSH authorized keys format.
+	PublicKey []byte
+}
+
+func (b0 BoundKeypairResult_builder) Build() *BoundKeypairResult {
+	m0 := &BoundKeypairResult{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.JoinState = b.JoinState
+	x.PublicKey = b.PublicKey
+	return m0
+}
+
 // IAMInit is sent from the client in response to the ServerInit message for
 // the IAM join method.
 //
@@ -943,7 +1450,7 @@ func (x *BoundKeypairResult) GetPublicKey() []byte {
 // 5. client->server: IAMChallengeSolution
 // 6. server->client: Result
 type IAMInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams  *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -975,11 +1482,6 @@ func (x *IAMInit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IAMInit.ProtoReflect.Descriptor instead.
-func (*IAMInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *IAMInit) GetClientParams() *ClientParams {
 	if x != nil {
 		return x.ClientParams
@@ -987,10 +1489,40 @@ func (x *IAMInit) GetClientParams() *ClientParams {
 	return nil
 }
 
+func (x *IAMInit) SetClientParams(v *ClientParams) {
+	x.ClientParams = v
+}
+
+func (x *IAMInit) HasClientParams() bool {
+	if x == nil {
+		return false
+	}
+	return x.ClientParams != nil
+}
+
+func (x *IAMInit) ClearClientParams() {
+	x.ClientParams = nil
+}
+
+type IAMInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams *ClientParams
+}
+
+func (b0 IAMInit_builder) Build() *IAMInit {
+	m0 := &IAMInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClientParams = b.ClientParams
+	return m0
+}
+
 // IAMChallenge is from the server in response to the IAMInit message from the client.
 // The client is expected to respond with a IAMChallengeSolution.
 type IAMChallenge struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Challenge is a a crypto-random string that should be included by the
 	// client in the IAMChallengeSolution message.
 	Challenge     string `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
@@ -1023,11 +1555,6 @@ func (x *IAMChallenge) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IAMChallenge.ProtoReflect.Descriptor instead.
-func (*IAMChallenge) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *IAMChallenge) GetChallenge() string {
 	if x != nil {
 		return x.Challenge
@@ -1035,10 +1562,30 @@ func (x *IAMChallenge) GetChallenge() string {
 	return ""
 }
 
+func (x *IAMChallenge) SetChallenge(v string) {
+	x.Challenge = v
+}
+
+type IAMChallenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Challenge is a a crypto-random string that should be included by the
+	// client in the IAMChallengeSolution message.
+	Challenge string
+}
+
+func (b0 IAMChallenge_builder) Build() *IAMChallenge {
+	m0 := &IAMChallenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Challenge = b.Challenge
+	return m0
+}
+
 // IAMChallengeSolution must be sent from the client in response to the
 // IAMChallenge message.
 type IAMChallengeSolution struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// STSIdentityRequest is a signed sts:GetCallerIdentity API request used
 	// to prove the AWS identity of a joining node. It must include the
 	// challenge string as a signed header.
@@ -1072,16 +1619,35 @@ func (x *IAMChallengeSolution) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IAMChallengeSolution.ProtoReflect.Descriptor instead.
-func (*IAMChallengeSolution) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *IAMChallengeSolution) GetStsIdentityRequest() []byte {
 	if x != nil {
 		return x.StsIdentityRequest
 	}
 	return nil
+}
+
+func (x *IAMChallengeSolution) SetStsIdentityRequest(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.StsIdentityRequest = v
+}
+
+type IAMChallengeSolution_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// STSIdentityRequest is a signed sts:GetCallerIdentity API request used
+	// to prove the AWS identity of a joining node. It must include the
+	// challenge string as a signed header.
+	StsIdentityRequest []byte
+}
+
+func (b0 IAMChallengeSolution_builder) Build() *IAMChallengeSolution {
+	m0 := &IAMChallengeSolution{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.StsIdentityRequest = b.StsIdentityRequest
+	return m0
 }
 
 // EC2Init is sent from the client in response to the ServerInit message for
@@ -1093,7 +1659,7 @@ func (x *IAMChallengeSolution) GetStsIdentityRequest() []byte {
 // 3. client->server: EC2Init
 // 4. server->client: Result
 type EC2Init struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
 	// Document is a signed EC2 Instance Identity Document used to prove the
@@ -1128,11 +1694,6 @@ func (x *EC2Init) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EC2Init.ProtoReflect.Descriptor instead.
-func (*EC2Init) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *EC2Init) GetClientParams() *ClientParams {
 	if x != nil {
 		return x.ClientParams
@@ -1147,6 +1708,47 @@ func (x *EC2Init) GetDocument() []byte {
 	return nil
 }
 
+func (x *EC2Init) SetClientParams(v *ClientParams) {
+	x.ClientParams = v
+}
+
+func (x *EC2Init) SetDocument(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Document = v
+}
+
+func (x *EC2Init) HasClientParams() bool {
+	if x == nil {
+		return false
+	}
+	return x.ClientParams != nil
+}
+
+func (x *EC2Init) ClearClientParams() {
+	x.ClientParams = nil
+}
+
+type EC2Init_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams *ClientParams
+	// Document is a signed EC2 Instance Identity Document used to prove the
+	// identity of a joining EC2 instance.
+	Document []byte
+}
+
+func (b0 EC2Init_builder) Build() *EC2Init {
+	m0 := &EC2Init{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClientParams = b.ClientParams
+	x.Document = b.Document
+	return m0
+}
+
 // OracleInit is sent from the client in response to the ServerInit message for
 // the Oracle join method.
 //
@@ -1158,7 +1760,7 @@ func (x *EC2Init) GetDocument() []byte {
 // 5. client->server: OracleChallengeSolution
 // 6. client<-server: Result
 type OracleInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams  *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1190,11 +1792,6 @@ func (x *OracleInit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OracleInit.ProtoReflect.Descriptor instead.
-func (*OracleInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *OracleInit) GetClientParams() *ClientParams {
 	if x != nil {
 		return x.ClientParams
@@ -1202,10 +1799,40 @@ func (x *OracleInit) GetClientParams() *ClientParams {
 	return nil
 }
 
+func (x *OracleInit) SetClientParams(v *ClientParams) {
+	x.ClientParams = v
+}
+
+func (x *OracleInit) HasClientParams() bool {
+	if x == nil {
+		return false
+	}
+	return x.ClientParams != nil
+}
+
+func (x *OracleInit) ClearClientParams() {
+	x.ClientParams = nil
+}
+
+type OracleInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams *ClientParams
+}
+
+func (b0 OracleInit_builder) Build() *OracleInit {
+	m0 := &OracleInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClientParams = b.ClientParams
+	return m0
+}
+
 // OracleChallenge is sent from the server in response to the OracleInit message from the client.
 // The client is expected to respond with a OracleChallengeSolution.
 type OracleChallenge struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Challenge is a a crypto-random string that should be included by the
 	// client in the OracleChallengeSolution message.
 	Challenge     string `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
@@ -1238,11 +1865,6 @@ func (x *OracleChallenge) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OracleChallenge.ProtoReflect.Descriptor instead.
-func (*OracleChallenge) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *OracleChallenge) GetChallenge() string {
 	if x != nil {
 		return x.Challenge
@@ -1250,10 +1872,30 @@ func (x *OracleChallenge) GetChallenge() string {
 	return ""
 }
 
+func (x *OracleChallenge) SetChallenge(v string) {
+	x.Challenge = v
+}
+
+type OracleChallenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Challenge is a a crypto-random string that should be included by the
+	// client in the OracleChallengeSolution message.
+	Challenge string
+}
+
+func (b0 OracleChallenge_builder) Build() *OracleChallenge {
+	m0 := &OracleChallenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Challenge = b.Challenge
+	return m0
+}
+
 // OracleChallengeSolution must be sent from the client in response to the
 // OracleChallenge message.
 type OracleChallengeSolution struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Cert is the OCI instance identity certificate, an X509 certificate in PEM format.
 	Cert []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
 	// Intermediate encodes the intermediate CAs that issued the instance
@@ -1294,11 +1936,6 @@ func (x *OracleChallengeSolution) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OracleChallengeSolution.ProtoReflect.Descriptor instead.
-func (*OracleChallengeSolution) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *OracleChallengeSolution) GetCert() []byte {
 	if x != nil {
 		return x.Cert
@@ -1327,6 +1964,61 @@ func (x *OracleChallengeSolution) GetSignedRootCaReq() []byte {
 	return nil
 }
 
+func (x *OracleChallengeSolution) SetCert(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Cert = v
+}
+
+func (x *OracleChallengeSolution) SetIntermediate(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Intermediate = v
+}
+
+func (x *OracleChallengeSolution) SetSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Signature = v
+}
+
+func (x *OracleChallengeSolution) SetSignedRootCaReq(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.SignedRootCaReq = v
+}
+
+type OracleChallengeSolution_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Cert is the OCI instance identity certificate, an X509 certificate in PEM format.
+	Cert []byte
+	// Intermediate encodes the intermediate CAs that issued the instance
+	// identity certificate, in PEM format.
+	Intermediate []byte
+	// Signature is a signature over the challenge, signed by the private key
+	// matching the instance identity certificate.
+	Signature []byte
+	// SignedRootCaReq is a signed request to the Oracle API for retreiving the
+	// root CAs that issued the instance identity certificate.
+	SignedRootCaReq []byte
+}
+
+func (b0 OracleChallengeSolution_builder) Build() *OracleChallengeSolution {
+	m0 := &OracleChallengeSolution{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cert = b.Cert
+	x.Intermediate = b.Intermediate
+	x.Signature = b.Signature
+	x.SignedRootCaReq = b.SignedRootCaReq
+	return m0
+}
+
 // TPMInit is the message sent from the client in response to the ServerInit
 // message for the TPM join flow.
 // The server is expected to respond with a TPMEncryptedCredential message.
@@ -1339,7 +2031,7 @@ func (x *OracleChallengeSolution) GetSignedRootCaReq() []byte {
 // 5. client->server: TPMSolution
 // 6. client<-server: Result
 type TPMInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
 	// The encoded TPMT_PUBLIC structure containing the attestation public key
@@ -1385,11 +2077,6 @@ func (x *TPMInit) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TPMInit.ProtoReflect.Descriptor instead.
-func (*TPMInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *TPMInit) GetClientParams() *ClientParams {
@@ -1452,6 +2139,175 @@ func (x *TPMInit) GetEkKey() []byte {
 	return nil
 }
 
+func (x *TPMInit) SetClientParams(v *ClientParams) {
+	x.ClientParams = v
+}
+
+func (x *TPMInit) SetPublic(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Public = v
+}
+
+func (x *TPMInit) SetCreateData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.CreateData = v
+}
+
+func (x *TPMInit) SetCreateAttestation(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.CreateAttestation = v
+}
+
+func (x *TPMInit) SetCreateSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.CreateSignature = v
+}
+
+func (x *TPMInit) SetEkCert(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Ek = &TPMInit_EkCert{v}
+}
+
+func (x *TPMInit) SetEkKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Ek = &TPMInit_EkKey{v}
+}
+
+func (x *TPMInit) HasClientParams() bool {
+	if x == nil {
+		return false
+	}
+	return x.ClientParams != nil
+}
+
+func (x *TPMInit) HasEk() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ek != nil
+}
+
+func (x *TPMInit) HasEkCert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Ek.(*TPMInit_EkCert)
+	return ok
+}
+
+func (x *TPMInit) HasEkKey() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Ek.(*TPMInit_EkKey)
+	return ok
+}
+
+func (x *TPMInit) ClearClientParams() {
+	x.ClientParams = nil
+}
+
+func (x *TPMInit) ClearEk() {
+	x.Ek = nil
+}
+
+func (x *TPMInit) ClearEkCert() {
+	if _, ok := x.Ek.(*TPMInit_EkCert); ok {
+		x.Ek = nil
+	}
+}
+
+func (x *TPMInit) ClearEkKey() {
+	if _, ok := x.Ek.(*TPMInit_EkKey); ok {
+		x.Ek = nil
+	}
+}
+
+const TPMInit_Ek_not_set_case case_TPMInit_Ek = 0
+const TPMInit_EkCert_case case_TPMInit_Ek = 6
+const TPMInit_EkKey_case case_TPMInit_Ek = 7
+
+func (x *TPMInit) WhichEk() case_TPMInit_Ek {
+	if x == nil {
+		return TPMInit_Ek_not_set_case
+	}
+	switch x.Ek.(type) {
+	case *TPMInit_EkCert:
+		return TPMInit_EkCert_case
+	case *TPMInit_EkKey:
+		return TPMInit_EkKey_case
+	default:
+		return TPMInit_Ek_not_set_case
+	}
+}
+
+type TPMInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams *ClientParams
+	// The encoded TPMT_PUBLIC structure containing the attestation public key
+	// and signing parameters.
+	Public []byte
+	// The properties of the attestation key, encoded as a TPMS_CREATION_DATA
+	// structure.
+	CreateData []byte
+	// An assertion as to the details of the key, encoded as a TPMS_ATTEST
+	// structure.
+	CreateAttestation []byte
+	// A signature of create_attestation, encoded as a TPMT_SIGNATURE structure.
+	CreateSignature []byte
+	// Fields of oneof Ek:
+	// The device's endorsement certificate in X509, ASN.1 DER form. This
+	// certificate contains the public key of the endorsement key. This is
+	// preferred to ek_key.
+	EkCert []byte
+	// The device's public endorsement key in PKIX, ASN.1 DER form. This is
+	// used when a TPM does not contain any endorsement certificates.
+	EkKey []byte
+	// -- end of Ek
+}
+
+func (b0 TPMInit_builder) Build() *TPMInit {
+	m0 := &TPMInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClientParams = b.ClientParams
+	x.Public = b.Public
+	x.CreateData = b.CreateData
+	x.CreateAttestation = b.CreateAttestation
+	x.CreateSignature = b.CreateSignature
+	if b.EkCert != nil {
+		x.Ek = &TPMInit_EkCert{b.EkCert}
+	}
+	if b.EkKey != nil {
+		x.Ek = &TPMInit_EkKey{b.EkKey}
+	}
+	return m0
+}
+
+type case_TPMInit_Ek protoreflect.FieldNumber
+
+func (x case_TPMInit_Ek) String() string {
+	md := file_teleport_join_v1_joinservice_proto_msgTypes[20].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isTPMInit_Ek interface {
 	isTPMInit_Ek()
 }
@@ -1477,7 +2333,7 @@ func (*TPMInit_EkKey) isTPMInit_Ek() {}
 // TPMInit message.
 // The client is expected to respond with a TPMSolution message.
 type TPMEncryptedCredential struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The `credential_blob` parameter to be used with the `ActivateCredential`
 	// command. This is used with the decrypted value of `secret` in a
 	// cryptographic process to decrypt the solution.
@@ -1515,11 +2371,6 @@ func (x *TPMEncryptedCredential) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMEncryptedCredential.ProtoReflect.Descriptor instead.
-func (*TPMEncryptedCredential) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{21}
-}
-
 func (x *TPMEncryptedCredential) GetCredentialBlob() []byte {
 	if x != nil {
 		return x.CredentialBlob
@@ -1534,11 +2385,47 @@ func (x *TPMEncryptedCredential) GetSecret() []byte {
 	return nil
 }
 
+func (x *TPMEncryptedCredential) SetCredentialBlob(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.CredentialBlob = v
+}
+
+func (x *TPMEncryptedCredential) SetSecret(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Secret = v
+}
+
+type TPMEncryptedCredential_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The `credential_blob` parameter to be used with the `ActivateCredential`
+	// command. This is used with the decrypted value of `secret` in a
+	// cryptographic process to decrypt the solution.
+	CredentialBlob []byte
+	// The `secret` parameter to be used with `ActivateCredential`. This is a
+	// seed which can be decrypted with the EK. The decrypted seed is then used
+	// when decrypting `credential_blob`.
+	Secret []byte
+}
+
+func (b0 TPMEncryptedCredential_builder) Build() *TPMEncryptedCredential {
+	m0 := &TPMEncryptedCredential{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CredentialBlob = b.CredentialBlob
+	x.Secret = b.Secret
+	return m0
+}
+
 // TPMSolution is the message sent from the client in response to the
 // TPMEncryptedCredential message. The server is expected to respond with a
 // Result message.
 type TPMSolution struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The client's solution to TPMEncryptedCredential using ActivateCredential.
 	Solution      []byte `protobuf:"bytes,1,opt,name=solution,proto3" json:"solution,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1570,16 +2457,33 @@ func (x *TPMSolution) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMSolution.ProtoReflect.Descriptor instead.
-func (*TPMSolution) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{22}
-}
-
 func (x *TPMSolution) GetSolution() []byte {
 	if x != nil {
 		return x.Solution
 	}
 	return nil
+}
+
+func (x *TPMSolution) SetSolution(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Solution = v
+}
+
+type TPMSolution_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The client's solution to TPMEncryptedCredential using ActivateCredential.
+	Solution []byte
+}
+
+func (b0 TPMSolution_builder) Build() *TPMSolution {
+	m0 := &TPMSolution{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Solution = b.Solution
+	return m0
 }
 
 // AzureInit is sent from the client in response to the ServerInit message for
@@ -1593,7 +2497,7 @@ func (x *TPMSolution) GetSolution() []byte {
 // 5. client->server: AzureChallengeSolution
 // 6. client<-server: Result
 type AzureInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClientParams holds parameters for the specific type of client trying to join.
 	ClientParams  *ClientParams `protobuf:"bytes,1,opt,name=client_params,json=clientParams,proto3" json:"client_params,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1625,11 +2529,6 @@ func (x *AzureInit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AzureInit.ProtoReflect.Descriptor instead.
-func (*AzureInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{23}
-}
-
 func (x *AzureInit) GetClientParams() *ClientParams {
 	if x != nil {
 		return x.ClientParams
@@ -1637,10 +2536,40 @@ func (x *AzureInit) GetClientParams() *ClientParams {
 	return nil
 }
 
+func (x *AzureInit) SetClientParams(v *ClientParams) {
+	x.ClientParams = v
+}
+
+func (x *AzureInit) HasClientParams() bool {
+	if x == nil {
+		return false
+	}
+	return x.ClientParams != nil
+}
+
+func (x *AzureInit) ClearClientParams() {
+	x.ClientParams = nil
+}
+
+type AzureInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClientParams holds parameters for the specific type of client trying to join.
+	ClientParams *ClientParams
+}
+
+func (b0 AzureInit_builder) Build() *AzureInit {
+	m0 := &AzureInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClientParams = b.ClientParams
+	return m0
+}
+
 // AzureChallenge is sent from the server in response to the AzureInit message from the client.
 // The client is expected to respond with a AzureChallengeSolution.
 type AzureChallenge struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Challenge is a a crypto-random string that should be included by the
 	// client in the challenge response message.
 	Challenge     string `protobuf:"bytes,1,opt,name=challenge,proto3" json:"challenge,omitempty"`
@@ -1673,11 +2602,6 @@ func (x *AzureChallenge) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AzureChallenge.ProtoReflect.Descriptor instead.
-func (*AzureChallenge) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{24}
-}
-
 func (x *AzureChallenge) GetChallenge() string {
 	if x != nil {
 		return x.Challenge
@@ -1685,10 +2609,30 @@ func (x *AzureChallenge) GetChallenge() string {
 	return ""
 }
 
+func (x *AzureChallenge) SetChallenge(v string) {
+	x.Challenge = v
+}
+
+type AzureChallenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Challenge is a a crypto-random string that should be included by the
+	// client in the challenge response message.
+	Challenge string
+}
+
+func (b0 AzureChallenge_builder) Build() *AzureChallenge {
+	m0 := &AzureChallenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Challenge = b.Challenge
+	return m0
+}
+
 // AzureChallengeSolution must be sent from the client in response to the
 // AzureChallenge message.
 type AzureChallengeSolution struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AttestedData is a signed JSON document from an Azure VM's attested data
 	// metadata endpoint used to prove the identity of a joining node. It must
 	// include the challenge string as the nonce.
@@ -1728,11 +2672,6 @@ func (x *AzureChallengeSolution) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AzureChallengeSolution.ProtoReflect.Descriptor instead.
-func (*AzureChallengeSolution) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{25}
-}
-
 func (x *AzureChallengeSolution) GetAttestedData() []byte {
 	if x != nil {
 		return x.AttestedData
@@ -1754,9 +2693,52 @@ func (x *AzureChallengeSolution) GetAccessToken() string {
 	return ""
 }
 
+func (x *AzureChallengeSolution) SetAttestedData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.AttestedData = v
+}
+
+func (x *AzureChallengeSolution) SetIntermediate(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Intermediate = v
+}
+
+func (x *AzureChallengeSolution) SetAccessToken(v string) {
+	x.AccessToken = v
+}
+
+type AzureChallengeSolution_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AttestedData is a signed JSON document from an Azure VM's attested data
+	// metadata endpoint used to prove the identity of a joining node. It must
+	// include the challenge string as the nonce.
+	AttestedData []byte
+	// Intermediate encodes the intermediate CAs that issued the leaf certificate
+	// used to sign the attested data document, in x509 DER format.
+	Intermediate []byte
+	// AccessToken is a JWT signed by Azure, used to prove the identity of a
+	// joining node.
+	AccessToken string
+}
+
+func (b0 AzureChallengeSolution_builder) Build() *AzureChallengeSolution {
+	m0 := &AzureChallengeSolution{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AttestedData = b.AttestedData
+	x.Intermediate = b.Intermediate
+	x.AccessToken = b.AccessToken
+	return m0
+}
+
 // ChallengeSolution holds a solution to a challenge issued by the server.
 type ChallengeSolution struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*ChallengeSolution_BoundKeypairChallengeSolution
@@ -1793,11 +2775,6 @@ func (x *ChallengeSolution) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ChallengeSolution.ProtoReflect.Descriptor instead.
-func (*ChallengeSolution) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{26}
 }
 
 func (x *ChallengeSolution) GetPayload() isChallengeSolution_Payload {
@@ -1861,6 +2838,227 @@ func (x *ChallengeSolution) GetAzureChallengeSolution() *AzureChallengeSolution 
 	return nil
 }
 
+func (x *ChallengeSolution) SetBoundKeypairChallengeSolution(v *BoundKeypairChallengeSolution) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &ChallengeSolution_BoundKeypairChallengeSolution{v}
+}
+
+func (x *ChallengeSolution) SetBoundKeypairRotationResponse(v *BoundKeypairRotationResponse) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &ChallengeSolution_BoundKeypairRotationResponse{v}
+}
+
+func (x *ChallengeSolution) SetIamChallengeSolution(v *IAMChallengeSolution) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &ChallengeSolution_IamChallengeSolution{v}
+}
+
+func (x *ChallengeSolution) SetOracleChallengeSolution(v *OracleChallengeSolution) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &ChallengeSolution_OracleChallengeSolution{v}
+}
+
+func (x *ChallengeSolution) SetTpmSolution(v *TPMSolution) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &ChallengeSolution_TpmSolution{v}
+}
+
+func (x *ChallengeSolution) SetAzureChallengeSolution(v *AzureChallengeSolution) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &ChallengeSolution_AzureChallengeSolution{v}
+}
+
+func (x *ChallengeSolution) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *ChallengeSolution) HasBoundKeypairChallengeSolution() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*ChallengeSolution_BoundKeypairChallengeSolution)
+	return ok
+}
+
+func (x *ChallengeSolution) HasBoundKeypairRotationResponse() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*ChallengeSolution_BoundKeypairRotationResponse)
+	return ok
+}
+
+func (x *ChallengeSolution) HasIamChallengeSolution() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*ChallengeSolution_IamChallengeSolution)
+	return ok
+}
+
+func (x *ChallengeSolution) HasOracleChallengeSolution() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*ChallengeSolution_OracleChallengeSolution)
+	return ok
+}
+
+func (x *ChallengeSolution) HasTpmSolution() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*ChallengeSolution_TpmSolution)
+	return ok
+}
+
+func (x *ChallengeSolution) HasAzureChallengeSolution() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*ChallengeSolution_AzureChallengeSolution)
+	return ok
+}
+
+func (x *ChallengeSolution) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *ChallengeSolution) ClearBoundKeypairChallengeSolution() {
+	if _, ok := x.Payload.(*ChallengeSolution_BoundKeypairChallengeSolution); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *ChallengeSolution) ClearBoundKeypairRotationResponse() {
+	if _, ok := x.Payload.(*ChallengeSolution_BoundKeypairRotationResponse); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *ChallengeSolution) ClearIamChallengeSolution() {
+	if _, ok := x.Payload.(*ChallengeSolution_IamChallengeSolution); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *ChallengeSolution) ClearOracleChallengeSolution() {
+	if _, ok := x.Payload.(*ChallengeSolution_OracleChallengeSolution); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *ChallengeSolution) ClearTpmSolution() {
+	if _, ok := x.Payload.(*ChallengeSolution_TpmSolution); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *ChallengeSolution) ClearAzureChallengeSolution() {
+	if _, ok := x.Payload.(*ChallengeSolution_AzureChallengeSolution); ok {
+		x.Payload = nil
+	}
+}
+
+const ChallengeSolution_Payload_not_set_case case_ChallengeSolution_Payload = 0
+const ChallengeSolution_BoundKeypairChallengeSolution_case case_ChallengeSolution_Payload = 1
+const ChallengeSolution_BoundKeypairRotationResponse_case case_ChallengeSolution_Payload = 2
+const ChallengeSolution_IamChallengeSolution_case case_ChallengeSolution_Payload = 3
+const ChallengeSolution_OracleChallengeSolution_case case_ChallengeSolution_Payload = 4
+const ChallengeSolution_TpmSolution_case case_ChallengeSolution_Payload = 5
+const ChallengeSolution_AzureChallengeSolution_case case_ChallengeSolution_Payload = 6
+
+func (x *ChallengeSolution) WhichPayload() case_ChallengeSolution_Payload {
+	if x == nil {
+		return ChallengeSolution_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *ChallengeSolution_BoundKeypairChallengeSolution:
+		return ChallengeSolution_BoundKeypairChallengeSolution_case
+	case *ChallengeSolution_BoundKeypairRotationResponse:
+		return ChallengeSolution_BoundKeypairRotationResponse_case
+	case *ChallengeSolution_IamChallengeSolution:
+		return ChallengeSolution_IamChallengeSolution_case
+	case *ChallengeSolution_OracleChallengeSolution:
+		return ChallengeSolution_OracleChallengeSolution_case
+	case *ChallengeSolution_TpmSolution:
+		return ChallengeSolution_TpmSolution_case
+	case *ChallengeSolution_AzureChallengeSolution:
+		return ChallengeSolution_AzureChallengeSolution_case
+	default:
+		return ChallengeSolution_Payload_not_set_case
+	}
+}
+
+type ChallengeSolution_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	BoundKeypairChallengeSolution *BoundKeypairChallengeSolution
+	BoundKeypairRotationResponse  *BoundKeypairRotationResponse
+	IamChallengeSolution          *IAMChallengeSolution
+	OracleChallengeSolution       *OracleChallengeSolution
+	TpmSolution                   *TPMSolution
+	AzureChallengeSolution        *AzureChallengeSolution
+	// -- end of Payload
+}
+
+func (b0 ChallengeSolution_builder) Build() *ChallengeSolution {
+	m0 := &ChallengeSolution{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.BoundKeypairChallengeSolution != nil {
+		x.Payload = &ChallengeSolution_BoundKeypairChallengeSolution{b.BoundKeypairChallengeSolution}
+	}
+	if b.BoundKeypairRotationResponse != nil {
+		x.Payload = &ChallengeSolution_BoundKeypairRotationResponse{b.BoundKeypairRotationResponse}
+	}
+	if b.IamChallengeSolution != nil {
+		x.Payload = &ChallengeSolution_IamChallengeSolution{b.IamChallengeSolution}
+	}
+	if b.OracleChallengeSolution != nil {
+		x.Payload = &ChallengeSolution_OracleChallengeSolution{b.OracleChallengeSolution}
+	}
+	if b.TpmSolution != nil {
+		x.Payload = &ChallengeSolution_TpmSolution{b.TpmSolution}
+	}
+	if b.AzureChallengeSolution != nil {
+		x.Payload = &ChallengeSolution_AzureChallengeSolution{b.AzureChallengeSolution}
+	}
+	return m0
+}
+
+type case_ChallengeSolution_Payload protoreflect.FieldNumber
+
+func (x case_ChallengeSolution_Payload) String() string {
+	md := file_teleport_join_v1_joinservice_proto_msgTypes[26].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isChallengeSolution_Payload interface {
 	isChallengeSolution_Payload()
 }
@@ -1904,7 +3102,7 @@ func (*ChallengeSolution_AzureChallengeSolution) isChallengeSolution_Payload() {
 // GivingUp should be sent by clients that fail to complete the join flow so
 // that the Auth service can log an informative error message.
 type GivingUp struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Reason is the reason the client is giving up.
 	Reason GivingUp_Reason `protobuf:"varint,1,opt,name=reason,proto3,enum=teleport.join.v1.GivingUp_Reason" json:"reason,omitempty"`
 	// Msg is an error message related to the failure.
@@ -1938,11 +3136,6 @@ func (x *GivingUp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GivingUp.ProtoReflect.Descriptor instead.
-func (*GivingUp) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{27}
-}
-
 func (x *GivingUp) GetReason() GivingUp_Reason {
 	if x != nil {
 		return x.Reason
@@ -1957,9 +3150,35 @@ func (x *GivingUp) GetMsg() string {
 	return ""
 }
 
+func (x *GivingUp) SetReason(v GivingUp_Reason) {
+	x.Reason = v
+}
+
+func (x *GivingUp) SetMsg(v string) {
+	x.Msg = v
+}
+
+type GivingUp_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Reason is the reason the client is giving up.
+	Reason GivingUp_Reason
+	// Msg is an error message related to the failure.
+	Msg string
+}
+
+func (b0 GivingUp_builder) Build() *GivingUp {
+	m0 := &GivingUp{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Reason = b.Reason
+	x.Msg = b.Msg
+	return m0
+}
+
 // JoinRequest is the message type sent from the joining client to the server.
 type JoinRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*JoinRequest_ClientInit
@@ -2001,11 +3220,6 @@ func (x *JoinRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use JoinRequest.ProtoReflect.Descriptor instead.
-func (*JoinRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{28}
 }
 
 func (x *JoinRequest) GetPayload() isJoinRequest_Payload {
@@ -2114,6 +3328,372 @@ func (x *JoinRequest) GetAzureInit() *AzureInit {
 	return nil
 }
 
+func (x *JoinRequest) SetClientInit(v *ClientInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinRequest_ClientInit{v}
+}
+
+func (x *JoinRequest) SetTokenInit(v *TokenInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinRequest_TokenInit{v}
+}
+
+func (x *JoinRequest) SetBoundKeypairInit(v *BoundKeypairInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinRequest_BoundKeypairInit{v}
+}
+
+func (x *JoinRequest) SetSolution(v *ChallengeSolution) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinRequest_Solution{v}
+}
+
+func (x *JoinRequest) SetIamInit(v *IAMInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinRequest_IamInit{v}
+}
+
+func (x *JoinRequest) SetGivingUp(v *GivingUp) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinRequest_GivingUp{v}
+}
+
+func (x *JoinRequest) SetEc2Init(v *EC2Init) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinRequest_Ec2Init{v}
+}
+
+func (x *JoinRequest) SetOidcInit(v *OIDCInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinRequest_OidcInit{v}
+}
+
+func (x *JoinRequest) SetOracleInit(v *OracleInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinRequest_OracleInit{v}
+}
+
+func (x *JoinRequest) SetTpmInit(v *TPMInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinRequest_TpmInit{v}
+}
+
+func (x *JoinRequest) SetAzureInit(v *AzureInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinRequest_AzureInit{v}
+}
+
+func (x *JoinRequest) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *JoinRequest) HasClientInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinRequest_ClientInit)
+	return ok
+}
+
+func (x *JoinRequest) HasTokenInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinRequest_TokenInit)
+	return ok
+}
+
+func (x *JoinRequest) HasBoundKeypairInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinRequest_BoundKeypairInit)
+	return ok
+}
+
+func (x *JoinRequest) HasSolution() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinRequest_Solution)
+	return ok
+}
+
+func (x *JoinRequest) HasIamInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinRequest_IamInit)
+	return ok
+}
+
+func (x *JoinRequest) HasGivingUp() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinRequest_GivingUp)
+	return ok
+}
+
+func (x *JoinRequest) HasEc2Init() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinRequest_Ec2Init)
+	return ok
+}
+
+func (x *JoinRequest) HasOidcInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinRequest_OidcInit)
+	return ok
+}
+
+func (x *JoinRequest) HasOracleInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinRequest_OracleInit)
+	return ok
+}
+
+func (x *JoinRequest) HasTpmInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinRequest_TpmInit)
+	return ok
+}
+
+func (x *JoinRequest) HasAzureInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinRequest_AzureInit)
+	return ok
+}
+
+func (x *JoinRequest) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *JoinRequest) ClearClientInit() {
+	if _, ok := x.Payload.(*JoinRequest_ClientInit); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinRequest) ClearTokenInit() {
+	if _, ok := x.Payload.(*JoinRequest_TokenInit); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinRequest) ClearBoundKeypairInit() {
+	if _, ok := x.Payload.(*JoinRequest_BoundKeypairInit); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinRequest) ClearSolution() {
+	if _, ok := x.Payload.(*JoinRequest_Solution); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinRequest) ClearIamInit() {
+	if _, ok := x.Payload.(*JoinRequest_IamInit); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinRequest) ClearGivingUp() {
+	if _, ok := x.Payload.(*JoinRequest_GivingUp); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinRequest) ClearEc2Init() {
+	if _, ok := x.Payload.(*JoinRequest_Ec2Init); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinRequest) ClearOidcInit() {
+	if _, ok := x.Payload.(*JoinRequest_OidcInit); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinRequest) ClearOracleInit() {
+	if _, ok := x.Payload.(*JoinRequest_OracleInit); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinRequest) ClearTpmInit() {
+	if _, ok := x.Payload.(*JoinRequest_TpmInit); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinRequest) ClearAzureInit() {
+	if _, ok := x.Payload.(*JoinRequest_AzureInit); ok {
+		x.Payload = nil
+	}
+}
+
+const JoinRequest_Payload_not_set_case case_JoinRequest_Payload = 0
+const JoinRequest_ClientInit_case case_JoinRequest_Payload = 1
+const JoinRequest_TokenInit_case case_JoinRequest_Payload = 2
+const JoinRequest_BoundKeypairInit_case case_JoinRequest_Payload = 3
+const JoinRequest_Solution_case case_JoinRequest_Payload = 4
+const JoinRequest_IamInit_case case_JoinRequest_Payload = 5
+const JoinRequest_GivingUp_case case_JoinRequest_Payload = 6
+const JoinRequest_Ec2Init_case case_JoinRequest_Payload = 7
+const JoinRequest_OidcInit_case case_JoinRequest_Payload = 8
+const JoinRequest_OracleInit_case case_JoinRequest_Payload = 9
+const JoinRequest_TpmInit_case case_JoinRequest_Payload = 10
+const JoinRequest_AzureInit_case case_JoinRequest_Payload = 11
+
+func (x *JoinRequest) WhichPayload() case_JoinRequest_Payload {
+	if x == nil {
+		return JoinRequest_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *JoinRequest_ClientInit:
+		return JoinRequest_ClientInit_case
+	case *JoinRequest_TokenInit:
+		return JoinRequest_TokenInit_case
+	case *JoinRequest_BoundKeypairInit:
+		return JoinRequest_BoundKeypairInit_case
+	case *JoinRequest_Solution:
+		return JoinRequest_Solution_case
+	case *JoinRequest_IamInit:
+		return JoinRequest_IamInit_case
+	case *JoinRequest_GivingUp:
+		return JoinRequest_GivingUp_case
+	case *JoinRequest_Ec2Init:
+		return JoinRequest_Ec2Init_case
+	case *JoinRequest_OidcInit:
+		return JoinRequest_OidcInit_case
+	case *JoinRequest_OracleInit:
+		return JoinRequest_OracleInit_case
+	case *JoinRequest_TpmInit:
+		return JoinRequest_TpmInit_case
+	case *JoinRequest_AzureInit:
+		return JoinRequest_AzureInit_case
+	default:
+		return JoinRequest_Payload_not_set_case
+	}
+}
+
+type JoinRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	ClientInit       *ClientInit
+	TokenInit        *TokenInit
+	BoundKeypairInit *BoundKeypairInit
+	Solution         *ChallengeSolution
+	IamInit          *IAMInit
+	GivingUp         *GivingUp
+	Ec2Init          *EC2Init
+	OidcInit         *OIDCInit
+	OracleInit       *OracleInit
+	TpmInit          *TPMInit
+	AzureInit        *AzureInit
+	// -- end of Payload
+}
+
+func (b0 JoinRequest_builder) Build() *JoinRequest {
+	m0 := &JoinRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.ClientInit != nil {
+		x.Payload = &JoinRequest_ClientInit{b.ClientInit}
+	}
+	if b.TokenInit != nil {
+		x.Payload = &JoinRequest_TokenInit{b.TokenInit}
+	}
+	if b.BoundKeypairInit != nil {
+		x.Payload = &JoinRequest_BoundKeypairInit{b.BoundKeypairInit}
+	}
+	if b.Solution != nil {
+		x.Payload = &JoinRequest_Solution{b.Solution}
+	}
+	if b.IamInit != nil {
+		x.Payload = &JoinRequest_IamInit{b.IamInit}
+	}
+	if b.GivingUp != nil {
+		x.Payload = &JoinRequest_GivingUp{b.GivingUp}
+	}
+	if b.Ec2Init != nil {
+		x.Payload = &JoinRequest_Ec2Init{b.Ec2Init}
+	}
+	if b.OidcInit != nil {
+		x.Payload = &JoinRequest_OidcInit{b.OidcInit}
+	}
+	if b.OracleInit != nil {
+		x.Payload = &JoinRequest_OracleInit{b.OracleInit}
+	}
+	if b.TpmInit != nil {
+		x.Payload = &JoinRequest_TpmInit{b.TpmInit}
+	}
+	if b.AzureInit != nil {
+		x.Payload = &JoinRequest_AzureInit{b.AzureInit}
+	}
+	return m0
+}
+
+type case_JoinRequest_Payload protoreflect.FieldNumber
+
+func (x case_JoinRequest_Payload) String() string {
+	md := file_teleport_join_v1_joinservice_proto_msgTypes[28].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isJoinRequest_Payload interface {
 	isJoinRequest_Payload()
 }
@@ -2187,7 +3767,7 @@ func (*JoinRequest_AzureInit) isJoinRequest_Payload() {}
 // ServerInit is the first message sent from the server in response to the
 // ClientInit message.
 type ServerInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// JoinMethod is the name of the selected join method.
 	JoinMethod string `protobuf:"bytes,1,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
 	// SignatureAlgorithmSuite is the name of the signature algorithm suite
@@ -2222,11 +3802,6 @@ func (x *ServerInit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ServerInit.ProtoReflect.Descriptor instead.
-func (*ServerInit) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{29}
-}
-
 func (x *ServerInit) GetJoinMethod() string {
 	if x != nil {
 		return x.JoinMethod
@@ -2241,9 +3816,36 @@ func (x *ServerInit) GetSignatureAlgorithmSuite() string {
 	return ""
 }
 
+func (x *ServerInit) SetJoinMethod(v string) {
+	x.JoinMethod = v
+}
+
+func (x *ServerInit) SetSignatureAlgorithmSuite(v string) {
+	x.SignatureAlgorithmSuite = v
+}
+
+type ServerInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// JoinMethod is the name of the selected join method.
+	JoinMethod string
+	// SignatureAlgorithmSuite is the name of the signature algorithm suite
+	// currently configured for the cluster.
+	SignatureAlgorithmSuite string
+}
+
+func (b0 ServerInit_builder) Build() *ServerInit {
+	m0 := &ServerInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.JoinMethod = b.JoinMethod
+	x.SignatureAlgorithmSuite = b.SignatureAlgorithmSuite
+	return m0
+}
+
 // Challenge is a challenge message sent from the server that the client must solve.
 type Challenge struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*Challenge_BoundKeypairChallenge
@@ -2280,11 +3882,6 @@ func (x *Challenge) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Challenge.ProtoReflect.Descriptor instead.
-func (*Challenge) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *Challenge) GetPayload() isChallenge_Payload {
@@ -2348,6 +3945,227 @@ func (x *Challenge) GetAzureChallenge() *AzureChallenge {
 	return nil
 }
 
+func (x *Challenge) SetBoundKeypairChallenge(v *BoundKeypairChallenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Challenge_BoundKeypairChallenge{v}
+}
+
+func (x *Challenge) SetBoundKeypairRotationRequest(v *BoundKeypairRotationRequest) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Challenge_BoundKeypairRotationRequest{v}
+}
+
+func (x *Challenge) SetIamChallenge(v *IAMChallenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Challenge_IamChallenge{v}
+}
+
+func (x *Challenge) SetOracleChallenge(v *OracleChallenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Challenge_OracleChallenge{v}
+}
+
+func (x *Challenge) SetTpmEncryptedCredential(v *TPMEncryptedCredential) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Challenge_TpmEncryptedCredential{v}
+}
+
+func (x *Challenge) SetAzureChallenge(v *AzureChallenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Challenge_AzureChallenge{v}
+}
+
+func (x *Challenge) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *Challenge) HasBoundKeypairChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Challenge_BoundKeypairChallenge)
+	return ok
+}
+
+func (x *Challenge) HasBoundKeypairRotationRequest() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Challenge_BoundKeypairRotationRequest)
+	return ok
+}
+
+func (x *Challenge) HasIamChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Challenge_IamChallenge)
+	return ok
+}
+
+func (x *Challenge) HasOracleChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Challenge_OracleChallenge)
+	return ok
+}
+
+func (x *Challenge) HasTpmEncryptedCredential() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Challenge_TpmEncryptedCredential)
+	return ok
+}
+
+func (x *Challenge) HasAzureChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Challenge_AzureChallenge)
+	return ok
+}
+
+func (x *Challenge) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *Challenge) ClearBoundKeypairChallenge() {
+	if _, ok := x.Payload.(*Challenge_BoundKeypairChallenge); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Challenge) ClearBoundKeypairRotationRequest() {
+	if _, ok := x.Payload.(*Challenge_BoundKeypairRotationRequest); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Challenge) ClearIamChallenge() {
+	if _, ok := x.Payload.(*Challenge_IamChallenge); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Challenge) ClearOracleChallenge() {
+	if _, ok := x.Payload.(*Challenge_OracleChallenge); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Challenge) ClearTpmEncryptedCredential() {
+	if _, ok := x.Payload.(*Challenge_TpmEncryptedCredential); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Challenge) ClearAzureChallenge() {
+	if _, ok := x.Payload.(*Challenge_AzureChallenge); ok {
+		x.Payload = nil
+	}
+}
+
+const Challenge_Payload_not_set_case case_Challenge_Payload = 0
+const Challenge_BoundKeypairChallenge_case case_Challenge_Payload = 1
+const Challenge_BoundKeypairRotationRequest_case case_Challenge_Payload = 2
+const Challenge_IamChallenge_case case_Challenge_Payload = 3
+const Challenge_OracleChallenge_case case_Challenge_Payload = 4
+const Challenge_TpmEncryptedCredential_case case_Challenge_Payload = 5
+const Challenge_AzureChallenge_case case_Challenge_Payload = 6
+
+func (x *Challenge) WhichPayload() case_Challenge_Payload {
+	if x == nil {
+		return Challenge_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *Challenge_BoundKeypairChallenge:
+		return Challenge_BoundKeypairChallenge_case
+	case *Challenge_BoundKeypairRotationRequest:
+		return Challenge_BoundKeypairRotationRequest_case
+	case *Challenge_IamChallenge:
+		return Challenge_IamChallenge_case
+	case *Challenge_OracleChallenge:
+		return Challenge_OracleChallenge_case
+	case *Challenge_TpmEncryptedCredential:
+		return Challenge_TpmEncryptedCredential_case
+	case *Challenge_AzureChallenge:
+		return Challenge_AzureChallenge_case
+	default:
+		return Challenge_Payload_not_set_case
+	}
+}
+
+type Challenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	BoundKeypairChallenge       *BoundKeypairChallenge
+	BoundKeypairRotationRequest *BoundKeypairRotationRequest
+	IamChallenge                *IAMChallenge
+	OracleChallenge             *OracleChallenge
+	TpmEncryptedCredential      *TPMEncryptedCredential
+	AzureChallenge              *AzureChallenge
+	// -- end of Payload
+}
+
+func (b0 Challenge_builder) Build() *Challenge {
+	m0 := &Challenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.BoundKeypairChallenge != nil {
+		x.Payload = &Challenge_BoundKeypairChallenge{b.BoundKeypairChallenge}
+	}
+	if b.BoundKeypairRotationRequest != nil {
+		x.Payload = &Challenge_BoundKeypairRotationRequest{b.BoundKeypairRotationRequest}
+	}
+	if b.IamChallenge != nil {
+		x.Payload = &Challenge_IamChallenge{b.IamChallenge}
+	}
+	if b.OracleChallenge != nil {
+		x.Payload = &Challenge_OracleChallenge{b.OracleChallenge}
+	}
+	if b.TpmEncryptedCredential != nil {
+		x.Payload = &Challenge_TpmEncryptedCredential{b.TpmEncryptedCredential}
+	}
+	if b.AzureChallenge != nil {
+		x.Payload = &Challenge_AzureChallenge{b.AzureChallenge}
+	}
+	return m0
+}
+
+type case_Challenge_Payload protoreflect.FieldNumber
+
+func (x case_Challenge_Payload) String() string {
+	md := file_teleport_join_v1_joinservice_proto_msgTypes[30].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isChallenge_Payload interface {
 	isChallenge_Payload()
 }
@@ -2392,7 +4210,7 @@ func (*Challenge_AzureChallenge) isChallenge_Payload() {}
 // contains the result of the joining process including the assigned host ID
 // and issued certificates.
 type Result struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*Result_HostResult
@@ -2427,11 +4245,6 @@ func (x *Result) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Result.ProtoReflect.Descriptor instead.
-func (*Result) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{31}
-}
-
 func (x *Result) GetPayload() isResult_Payload {
 	if x != nil {
 		return x.Payload
@@ -2457,6 +4270,111 @@ func (x *Result) GetBotResult() *BotResult {
 	return nil
 }
 
+func (x *Result) SetHostResult(v *HostResult) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Result_HostResult{v}
+}
+
+func (x *Result) SetBotResult(v *BotResult) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &Result_BotResult{v}
+}
+
+func (x *Result) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *Result) HasHostResult() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Result_HostResult)
+	return ok
+}
+
+func (x *Result) HasBotResult() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*Result_BotResult)
+	return ok
+}
+
+func (x *Result) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *Result) ClearHostResult() {
+	if _, ok := x.Payload.(*Result_HostResult); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *Result) ClearBotResult() {
+	if _, ok := x.Payload.(*Result_BotResult); ok {
+		x.Payload = nil
+	}
+}
+
+const Result_Payload_not_set_case case_Result_Payload = 0
+const Result_HostResult_case case_Result_Payload = 1
+const Result_BotResult_case case_Result_Payload = 2
+
+func (x *Result) WhichPayload() case_Result_Payload {
+	if x == nil {
+		return Result_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *Result_HostResult:
+		return Result_HostResult_case
+	case *Result_BotResult:
+		return Result_BotResult_case
+	default:
+		return Result_Payload_not_set_case
+	}
+}
+
+type Result_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	HostResult *HostResult
+	BotResult  *BotResult
+	// -- end of Payload
+}
+
+func (b0 Result_builder) Build() *Result {
+	m0 := &Result{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.HostResult != nil {
+		x.Payload = &Result_HostResult{b.HostResult}
+	}
+	if b.BotResult != nil {
+		x.Payload = &Result_BotResult{b.BotResult}
+	}
+	return m0
+}
+
+type case_Result_Payload protoreflect.FieldNumber
+
+func (x case_Result_Payload) String() string {
+	md := file_teleport_join_v1_joinservice_proto_msgTypes[31].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isResult_Payload interface {
 	isResult_Payload()
 }
@@ -2475,7 +4393,7 @@ func (*Result_BotResult) isResult_Payload() {}
 
 // Certificates holds issued certificates and cluster CAs.
 type Certificates struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// TlsCert is an X.509 certificate encoded in ASN.1 DER form.
 	TlsCert []byte `protobuf:"bytes,1,opt,name=tls_cert,json=tlsCert,proto3" json:"tls_cert,omitempty"`
 	// TlsCaCerts is a list of TLS certificate authorities that the client should trust.
@@ -2515,11 +4433,6 @@ func (x *Certificates) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Certificates.ProtoReflect.Descriptor instead.
-func (*Certificates) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{32}
-}
-
 func (x *Certificates) GetTlsCert() []byte {
 	if x != nil {
 		return x.TlsCert
@@ -2548,17 +4461,67 @@ func (x *Certificates) GetSshCaKeys() [][]byte {
 	return nil
 }
 
+func (x *Certificates) SetTlsCert(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.TlsCert = v
+}
+
+func (x *Certificates) SetTlsCaCerts(v [][]byte) {
+	x.TlsCaCerts = v
+}
+
+func (x *Certificates) SetSshCert(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.SshCert = v
+}
+
+func (x *Certificates) SetSshCaKeys(v [][]byte) {
+	x.SshCaKeys = v
+}
+
+type Certificates_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TlsCert is an X.509 certificate encoded in ASN.1 DER form.
+	TlsCert []byte
+	// TlsCaCerts is a list of TLS certificate authorities that the client should trust.
+	// Each certificate is encoding in ASN.1 DER form.
+	TlsCaCerts [][]byte
+	// SshCert is an SSH certificate encoded in SSH wire format.
+	SshCert []byte
+	// SshCaKey is a list of SSH certificate authority public keys that the client should trust.
+	// Each CA key is encoded in SSH wire format.
+	SshCaKeys [][]byte
+}
+
+func (b0 Certificates_builder) Build() *Certificates {
+	m0 := &Certificates{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TlsCert = b.TlsCert
+	x.TlsCaCerts = b.TlsCaCerts
+	x.SshCert = b.SshCert
+	x.SshCaKeys = b.SshCaKeys
+	return m0
+}
+
 // HostResult holds results for host joining.
 type HostResult struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Certificates holds issued certificates and cluster CAs.
 	Certificates *Certificates `protobuf:"bytes,1,opt,name=certificates,proto3" json:"certificates,omitempty"`
 	// HostId is the unique ID assigned to the host.
 	HostId string `protobuf:"bytes,2,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
 	// The immutable labels assigned to the host by their join token.
 	ImmutableLabels *v1.ImmutableLabels `protobuf:"bytes,3,opt,name=immutable_labels,json=immutableLabels,proto3" json:"immutable_labels,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
+	BoundKeypairResult *BoundKeypairResult `protobuf:"bytes,4,opt,name=bound_keypair_result,json=boundKeypairResult,proto3,oneof" json:"bound_keypair_result,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *HostResult) Reset() {
@@ -2586,11 +4549,6 @@ func (x *HostResult) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HostResult.ProtoReflect.Descriptor instead.
-func (*HostResult) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{33}
-}
-
 func (x *HostResult) GetCertificates() *Certificates {
 	if x != nil {
 		return x.Certificates
@@ -2612,9 +4570,89 @@ func (x *HostResult) GetImmutableLabels() *v1.ImmutableLabels {
 	return nil
 }
 
+func (x *HostResult) GetBoundKeypairResult() *BoundKeypairResult {
+	if x != nil {
+		return x.BoundKeypairResult
+	}
+	return nil
+}
+
+func (x *HostResult) SetCertificates(v *Certificates) {
+	x.Certificates = v
+}
+
+func (x *HostResult) SetHostId(v string) {
+	x.HostId = v
+}
+
+func (x *HostResult) SetImmutableLabels(v *v1.ImmutableLabels) {
+	x.ImmutableLabels = v
+}
+
+func (x *HostResult) SetBoundKeypairResult(v *BoundKeypairResult) {
+	x.BoundKeypairResult = v
+}
+
+func (x *HostResult) HasCertificates() bool {
+	if x == nil {
+		return false
+	}
+	return x.Certificates != nil
+}
+
+func (x *HostResult) HasImmutableLabels() bool {
+	if x == nil {
+		return false
+	}
+	return x.ImmutableLabels != nil
+}
+
+func (x *HostResult) HasBoundKeypairResult() bool {
+	if x == nil {
+		return false
+	}
+	return x.BoundKeypairResult != nil
+}
+
+func (x *HostResult) ClearCertificates() {
+	x.Certificates = nil
+}
+
+func (x *HostResult) ClearImmutableLabels() {
+	x.ImmutableLabels = nil
+}
+
+func (x *HostResult) ClearBoundKeypairResult() {
+	x.BoundKeypairResult = nil
+}
+
+type HostResult_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Certificates holds issued certificates and cluster CAs.
+	Certificates *Certificates
+	// HostId is the unique ID assigned to the host.
+	HostId string
+	// The immutable labels assigned to the host by their join token.
+	ImmutableLabels *v1.ImmutableLabels
+	// BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
+	BoundKeypairResult *BoundKeypairResult
+}
+
+func (b0 HostResult_builder) Build() *HostResult {
+	m0 := &HostResult{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Certificates = b.Certificates
+	x.HostId = b.HostId
+	x.ImmutableLabels = b.ImmutableLabels
+	x.BoundKeypairResult = b.BoundKeypairResult
+	return m0
+}
+
 // HostResult holds results for bot joining.
 type BotResult struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Certificates holds issued certificates and cluster CAs.
 	Certificates *Certificates `protobuf:"bytes,1,opt,name=certificates,proto3" json:"certificates,omitempty"`
 	// BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
@@ -2648,11 +4686,6 @@ func (x *BotResult) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BotResult.ProtoReflect.Descriptor instead.
-func (*BotResult) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{34}
-}
-
 func (x *BotResult) GetCertificates() *Certificates {
 	if x != nil {
 		return x.Certificates
@@ -2667,9 +4700,57 @@ func (x *BotResult) GetBoundKeypairResult() *BoundKeypairResult {
 	return nil
 }
 
+func (x *BotResult) SetCertificates(v *Certificates) {
+	x.Certificates = v
+}
+
+func (x *BotResult) SetBoundKeypairResult(v *BoundKeypairResult) {
+	x.BoundKeypairResult = v
+}
+
+func (x *BotResult) HasCertificates() bool {
+	if x == nil {
+		return false
+	}
+	return x.Certificates != nil
+}
+
+func (x *BotResult) HasBoundKeypairResult() bool {
+	if x == nil {
+		return false
+	}
+	return x.BoundKeypairResult != nil
+}
+
+func (x *BotResult) ClearCertificates() {
+	x.Certificates = nil
+}
+
+func (x *BotResult) ClearBoundKeypairResult() {
+	x.BoundKeypairResult = nil
+}
+
+type BotResult_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Certificates holds issued certificates and cluster CAs.
+	Certificates *Certificates
+	// BoundKeypairResult holds extra result parameters relevant to the bound keypair join method.
+	BoundKeypairResult *BoundKeypairResult
+}
+
+func (b0 BotResult_builder) Build() *BotResult {
+	m0 := &BotResult{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Certificates = b.Certificates
+	x.BoundKeypairResult = b.BoundKeypairResult
+	return m0
+}
+
 // JoinResponse is the message type sent from the server to the joining client.
 type JoinResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*JoinResponse_Init
@@ -2703,11 +4784,6 @@ func (x *JoinResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use JoinResponse.ProtoReflect.Descriptor instead.
-func (*JoinResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{35}
 }
 
 func (x *JoinResponse) GetPayload() isJoinResponse_Payload {
@@ -2744,6 +4820,148 @@ func (x *JoinResponse) GetResult() *Result {
 	return nil
 }
 
+func (x *JoinResponse) SetInit(v *ServerInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinResponse_Init{v}
+}
+
+func (x *JoinResponse) SetChallenge(v *Challenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinResponse_Challenge{v}
+}
+
+func (x *JoinResponse) SetResult(v *Result) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &JoinResponse_Result{v}
+}
+
+func (x *JoinResponse) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *JoinResponse) HasInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinResponse_Init)
+	return ok
+}
+
+func (x *JoinResponse) HasChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinResponse_Challenge)
+	return ok
+}
+
+func (x *JoinResponse) HasResult() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*JoinResponse_Result)
+	return ok
+}
+
+func (x *JoinResponse) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *JoinResponse) ClearInit() {
+	if _, ok := x.Payload.(*JoinResponse_Init); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinResponse) ClearChallenge() {
+	if _, ok := x.Payload.(*JoinResponse_Challenge); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *JoinResponse) ClearResult() {
+	if _, ok := x.Payload.(*JoinResponse_Result); ok {
+		x.Payload = nil
+	}
+}
+
+const JoinResponse_Payload_not_set_case case_JoinResponse_Payload = 0
+const JoinResponse_Init_case case_JoinResponse_Payload = 1
+const JoinResponse_Challenge_case case_JoinResponse_Payload = 2
+const JoinResponse_Result_case case_JoinResponse_Payload = 3
+
+func (x *JoinResponse) WhichPayload() case_JoinResponse_Payload {
+	if x == nil {
+		return JoinResponse_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *JoinResponse_Init:
+		return JoinResponse_Init_case
+	case *JoinResponse_Challenge:
+		return JoinResponse_Challenge_case
+	case *JoinResponse_Result:
+		return JoinResponse_Result_case
+	default:
+		return JoinResponse_Payload_not_set_case
+	}
+}
+
+type JoinResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	// Init is the initial message sent from the server in response to the
+	// ClientInit message. It specifies the join method used by the provision token.
+	Init *ServerInit
+	// Challenge is a challenge issued by the server that the client must solve
+	// in order to complete the join flow. The challenge type depends on the join method.
+	// Each method may issue zero or more challenges that the client must solve.
+	Challenge *Challenge
+	// Result is the result of the join flow, it is the final message sent from
+	// the cluster when the join flow is successful.
+	// For the token join method, it is sent immediately in response to the ClientInit request.
+	Result *Result
+	// -- end of Payload
+}
+
+func (b0 JoinResponse_builder) Build() *JoinResponse {
+	m0 := &JoinResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Init != nil {
+		x.Payload = &JoinResponse_Init{b.Init}
+	}
+	if b.Challenge != nil {
+		x.Payload = &JoinResponse_Challenge{b.Challenge}
+	}
+	if b.Result != nil {
+		x.Payload = &JoinResponse_Result{b.Result}
+	}
+	return m0
+}
+
+type case_JoinResponse_Payload protoreflect.FieldNumber
+
+func (x case_JoinResponse_Payload) String() string {
+	md := file_teleport_join_v1_joinservice_proto_msgTypes[35].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isJoinResponse_Payload interface {
 	isJoinResponse_Payload()
 }
@@ -2778,7 +4996,7 @@ func (*JoinResponse_Result) isJoinResponse_Payload() {}
 // via the proxy address. They must only be trusted if the incoming join
 // request is authenticated as the Proxy.
 type ClientInit_ProxySuppliedParams struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// RemoteAddr is the remote address of the host requesting a host certificate.
 	// It replaces 0.0.0.0 in the list of additional principals.
 	RemoteAddr string `protobuf:"bytes,1,opt,name=remote_addr,json=remoteAddr,proto3" json:"remote_addr,omitempty"`
@@ -2813,11 +5031,6 @@ func (x *ClientInit_ProxySuppliedParams) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClientInit_ProxySuppliedParams.ProtoReflect.Descriptor instead.
-func (*ClientInit_ProxySuppliedParams) Descriptor() ([]byte, []int) {
-	return file_teleport_join_v1_joinservice_proto_rawDescGZIP(), []int{0, 0}
-}
-
 func (x *ClientInit_ProxySuppliedParams) GetRemoteAddr() string {
 	if x != nil {
 		return x.RemoteAddr
@@ -2830,6 +5043,33 @@ func (x *ClientInit_ProxySuppliedParams) GetClientVersion() string {
 		return x.ClientVersion
 	}
 	return ""
+}
+
+func (x *ClientInit_ProxySuppliedParams) SetRemoteAddr(v string) {
+	x.RemoteAddr = v
+}
+
+func (x *ClientInit_ProxySuppliedParams) SetClientVersion(v string) {
+	x.ClientVersion = v
+}
+
+type ClientInit_ProxySuppliedParams_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// RemoteAddr is the remote address of the host requesting a host certificate.
+	// It replaces 0.0.0.0 in the list of additional principals.
+	RemoteAddr string
+	// ClientVersion is the Teleport version of the client attempting to join.
+	ClientVersion string
+}
+
+func (b0 ClientInit_ProxySuppliedParams_builder) Build() *ClientInit_ProxySuppliedParams {
+	m0 := &ClientInit_ProxySuppliedParams{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RemoteAddr = b.RemoteAddr
+	x.ClientVersion = b.ClientVersion
+	return m0
 }
 
 var File_teleport_join_v1_joinservice_proto protoreflect.FileDescriptor
@@ -3002,12 +5242,14 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\ftls_ca_certs\x18\x02 \x03(\fR\n" +
 	"tlsCaCerts\x12\x19\n" +
 	"\bssh_cert\x18\x03 \x01(\fR\asshCert\x12\x1e\n" +
-	"\vssh_ca_keys\x18\x04 \x03(\fR\tsshCaKeys\"\xc1\x01\n" +
+	"\vssh_ca_keys\x18\x04 \x03(\fR\tsshCaKeys\"\xb7\x02\n" +
 	"\n" +
 	"HostResult\x12B\n" +
 	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\x12\x17\n" +
 	"\ahost_id\x18\x02 \x01(\tR\x06hostId\x12V\n" +
-	"\x10immutable_labels\x18\x03 \x01(\v2+.teleport.scopes.joining.v1.ImmutableLabelsR\x0fimmutableLabels\"\xc5\x01\n" +
+	"\x10immutable_labels\x18\x03 \x01(\v2+.teleport.scopes.joining.v1.ImmutableLabelsR\x0fimmutableLabels\x12[\n" +
+	"\x14bound_keypair_result\x18\x04 \x01(\v2$.teleport.join.v1.BoundKeypairResultH\x00R\x12boundKeypairResult\x88\x01\x01B\x17\n" +
+	"\x15_bound_keypair_result\"\xc5\x01\n" +
 	"\tBotResult\x12B\n" +
 	"\fcertificates\x18\x01 \x01(\v2\x1e.teleport.join.v1.CertificatesR\fcertificates\x12[\n" +
 	"\x14bound_keypair_result\x18\x02 \x01(\v2$.teleport.join.v1.BoundKeypairResultH\x00R\x12boundKeypairResult\x88\x01\x01B\x17\n" +
@@ -3019,18 +5261,6 @@ const file_teleport_join_v1_joinservice_proto_rawDesc = "" +
 	"\apayload2X\n" +
 	"\vJoinService\x12I\n" +
 	"\x04Join\x12\x1d.teleport.join.v1.JoinRequest\x1a\x1e.teleport.join.v1.JoinResponse(\x010\x01BLZJgithub.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1;joinv1b\x06proto3"
-
-var (
-	file_teleport_join_v1_joinservice_proto_rawDescOnce sync.Once
-	file_teleport_join_v1_joinservice_proto_rawDescData []byte
-)
-
-func file_teleport_join_v1_joinservice_proto_rawDescGZIP() []byte {
-	file_teleport_join_v1_joinservice_proto_rawDescOnce.Do(func() {
-		file_teleport_join_v1_joinservice_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_join_v1_joinservice_proto_rawDesc), len(file_teleport_join_v1_joinservice_proto_rawDesc)))
-	})
-	return file_teleport_join_v1_joinservice_proto_rawDescData
-}
 
 var file_teleport_join_v1_joinservice_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_join_v1_joinservice_proto_msgTypes = make([]protoimpl.MessageInfo, 37)
@@ -3119,18 +5349,19 @@ var file_teleport_join_v1_joinservice_proto_depIdxs = []int32{
 	35, // 39: teleport.join.v1.Result.bot_result:type_name -> teleport.join.v1.BotResult
 	33, // 40: teleport.join.v1.HostResult.certificates:type_name -> teleport.join.v1.Certificates
 	39, // 41: teleport.join.v1.HostResult.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
-	33, // 42: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
-	13, // 43: teleport.join.v1.BotResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
-	30, // 44: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
-	31, // 45: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
-	32, // 46: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
-	29, // 47: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
-	36, // 48: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
-	48, // [48:49] is the sub-list for method output_type
-	47, // [47:48] is the sub-list for method input_type
-	47, // [47:47] is the sub-list for extension type_name
-	47, // [47:47] is the sub-list for extension extendee
-	0,  // [0:47] is the sub-list for field type_name
+	13, // 42: teleport.join.v1.HostResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
+	33, // 43: teleport.join.v1.BotResult.certificates:type_name -> teleport.join.v1.Certificates
+	13, // 44: teleport.join.v1.BotResult.bound_keypair_result:type_name -> teleport.join.v1.BoundKeypairResult
+	30, // 45: teleport.join.v1.JoinResponse.init:type_name -> teleport.join.v1.ServerInit
+	31, // 46: teleport.join.v1.JoinResponse.challenge:type_name -> teleport.join.v1.Challenge
+	32, // 47: teleport.join.v1.JoinResponse.result:type_name -> teleport.join.v1.Result
+	29, // 48: teleport.join.v1.JoinService.Join:input_type -> teleport.join.v1.JoinRequest
+	36, // 49: teleport.join.v1.JoinService.Join:output_type -> teleport.join.v1.JoinResponse
+	49, // [49:50] is the sub-list for method output_type
+	48, // [48:49] is the sub-list for method input_type
+	48, // [48:48] is the sub-list for extension type_name
+	48, // [48:48] is the sub-list for extension extendee
+	0,  // [0:48] is the sub-list for field type_name
 }
 
 func init() { file_teleport_join_v1_joinservice_proto_init() }
@@ -3181,6 +5412,7 @@ func file_teleport_join_v1_joinservice_proto_init() {
 		(*Result_HostResult)(nil),
 		(*Result_BotResult)(nil),
 	}
+	file_teleport_join_v1_joinservice_proto_msgTypes[33].OneofWrappers = []any{}
 	file_teleport_join_v1_joinservice_proto_msgTypes[34].OneofWrappers = []any{}
 	file_teleport_join_v1_joinservice_proto_msgTypes[35].OneofWrappers = []any{
 		(*JoinResponse_Init)(nil),

@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/accesslist/v1/accesslist.proto
 
+//go:build !protoopaque
+
 package accesslistv1
 
 import (
@@ -28,7 +30,6 @@ import (
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -90,11 +91,6 @@ func (x ReviewFrequency) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ReviewFrequency.Descriptor instead.
-func (ReviewFrequency) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{0}
-}
-
 // ReviewDayOfMonth is the day of month that reviews will repeat on.
 type ReviewDayOfMonth int32
 
@@ -141,11 +137,6 @@ func (ReviewDayOfMonth) Type() protoreflect.EnumType {
 
 func (x ReviewDayOfMonth) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use ReviewDayOfMonth.Descriptor instead.
-func (ReviewDayOfMonth) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{1}
 }
 
 // MembershipKind represents the different kinds of list membership
@@ -195,11 +186,6 @@ func (MembershipKind) Type() protoreflect.EnumType {
 
 func (x MembershipKind) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use MembershipKind.Descriptor instead.
-func (MembershipKind) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{2}
 }
 
 // IneligibleStatus describes how the user is ineligible.
@@ -262,11 +248,6 @@ func (x IneligibleStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use IneligibleStatus.Descriptor instead.
-func (IneligibleStatus) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{3}
-}
-
 // AccessListUserAssignmentType describes the type of membership anr/or ownership
 // a user has in an access list.
 type AccessListUserAssignmentType int32
@@ -316,16 +297,11 @@ func (x AccessListUserAssignmentType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AccessListUserAssignmentType.Descriptor instead.
-func (AccessListUserAssignmentType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{4}
-}
-
 // AccessList describes the basic building block of access grants, which are
 // similar to access requests but for longer lived permissions that need to be
 // regularly audited.
 type AccessList struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// header is the header for the resource.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// spec is the specification for the Access List.
@@ -361,11 +337,6 @@ func (x *AccessList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessList.ProtoReflect.Descriptor instead.
-func (*AccessList) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AccessList) GetHeader() *v1.ResourceHeader {
 	if x != nil {
 		return x.Header
@@ -387,9 +358,75 @@ func (x *AccessList) GetStatus() *AccessListStatus {
 	return nil
 }
 
+func (x *AccessList) SetHeader(v *v1.ResourceHeader) {
+	x.Header = v
+}
+
+func (x *AccessList) SetSpec(v *AccessListSpec) {
+	x.Spec = v
+}
+
+func (x *AccessList) SetStatus(v *AccessListStatus) {
+	x.Status = v
+}
+
+func (x *AccessList) HasHeader() bool {
+	if x == nil {
+		return false
+	}
+	return x.Header != nil
+}
+
+func (x *AccessList) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *AccessList) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *AccessList) ClearHeader() {
+	x.Header = nil
+}
+
+func (x *AccessList) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *AccessList) ClearStatus() {
+	x.Status = nil
+}
+
+type AccessList_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// header is the header for the resource.
+	Header *v1.ResourceHeader
+	// spec is the specification for the Access List.
+	Spec *AccessListSpec
+	// status contains dynamically calculated fields.
+	Status *AccessListStatus
+}
+
+func (b0 AccessList_builder) Build() *AccessList {
+	m0 := &AccessList{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Header = b.Header
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // AccessListSpec is the specification for an Access List.
 type AccessListSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// description is an optional plaintext description of the Access List.
 	Description string `protobuf:"bytes,1,opt,name=description,proto3" json:"description,omitempty"`
 	// owners is a list of owners of the Access List.
@@ -443,11 +480,6 @@ func (x *AccessListSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AccessListSpec.ProtoReflect.Descriptor instead.
-func (*AccessListSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AccessListSpec) GetDescription() string {
@@ -513,9 +545,147 @@ func (x *AccessListSpec) GetType() string {
 	return ""
 }
 
+func (x *AccessListSpec) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *AccessListSpec) SetOwners(v []*AccessListOwner) {
+	x.Owners = v
+}
+
+func (x *AccessListSpec) SetAudit(v *AccessListAudit) {
+	x.Audit = v
+}
+
+func (x *AccessListSpec) SetMembershipRequires(v *AccessListRequires) {
+	x.MembershipRequires = v
+}
+
+func (x *AccessListSpec) SetOwnershipRequires(v *AccessListRequires) {
+	x.OwnershipRequires = v
+}
+
+func (x *AccessListSpec) SetGrants(v *AccessListGrants) {
+	x.Grants = v
+}
+
+func (x *AccessListSpec) SetTitle(v string) {
+	x.Title = v
+}
+
+func (x *AccessListSpec) SetOwnerGrants(v *AccessListGrants) {
+	x.OwnerGrants = v
+}
+
+func (x *AccessListSpec) SetType(v string) {
+	x.Type = v
+}
+
+func (x *AccessListSpec) HasAudit() bool {
+	if x == nil {
+		return false
+	}
+	return x.Audit != nil
+}
+
+func (x *AccessListSpec) HasMembershipRequires() bool {
+	if x == nil {
+		return false
+	}
+	return x.MembershipRequires != nil
+}
+
+func (x *AccessListSpec) HasOwnershipRequires() bool {
+	if x == nil {
+		return false
+	}
+	return x.OwnershipRequires != nil
+}
+
+func (x *AccessListSpec) HasGrants() bool {
+	if x == nil {
+		return false
+	}
+	return x.Grants != nil
+}
+
+func (x *AccessListSpec) HasOwnerGrants() bool {
+	if x == nil {
+		return false
+	}
+	return x.OwnerGrants != nil
+}
+
+func (x *AccessListSpec) ClearAudit() {
+	x.Audit = nil
+}
+
+func (x *AccessListSpec) ClearMembershipRequires() {
+	x.MembershipRequires = nil
+}
+
+func (x *AccessListSpec) ClearOwnershipRequires() {
+	x.OwnershipRequires = nil
+}
+
+func (x *AccessListSpec) ClearGrants() {
+	x.Grants = nil
+}
+
+func (x *AccessListSpec) ClearOwnerGrants() {
+	x.OwnerGrants = nil
+}
+
+type AccessListSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// description is an optional plaintext description of the Access List.
+	Description string
+	// owners is a list of owners of the Access List.
+	Owners []*AccessListOwner
+	// audit describes the frequency that this Access List must be audited.
+	Audit *AccessListAudit
+	// membership_requires describes the requirements for a user to be a member of
+	// the Access List. For a membership to an Access List to be effective, the
+	// user must meet the requirements of Membership_requires and must be in the
+	// members list.
+	MembershipRequires *AccessListRequires
+	// ownership_requires describes the requirements for a user to be an owner of
+	// the Access List. For ownership of an Access List to be effective, the user
+	// must meet the requirements of ownership_requires and must be in the owners
+	// list.
+	OwnershipRequires *AccessListRequires
+	// grants describes the access granted by membership to this Access List.
+	Grants *AccessListGrants
+	// title is a plaintext short description of the Access List.
+	Title string
+	// owner_grants describes the access granted by owners to this Access List.
+	OwnerGrants *AccessListGrants
+	// type can be an empty string which denotes a regular Access List, "scim" which represents
+	// an Access List created from SCIM group or "static" for Access Lists managed by IaC
+	// tools.
+	Type string
+}
+
+func (b0 AccessListSpec_builder) Build() *AccessListSpec {
+	m0 := &AccessListSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Description = b.Description
+	x.Owners = b.Owners
+	x.Audit = b.Audit
+	x.MembershipRequires = b.MembershipRequires
+	x.OwnershipRequires = b.OwnershipRequires
+	x.Grants = b.Grants
+	x.Title = b.Title
+	x.OwnerGrants = b.OwnerGrants
+	x.Type = b.Type
+	return m0
+}
+
 // AccessListOwner is an owner of an Access List.
 type AccessListOwner struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the username of the owner.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// description is the plaintext description of the owner and why they are an
@@ -556,11 +726,6 @@ func (x *AccessListOwner) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessListOwner.ProtoReflect.Descriptor instead.
-func (*AccessListOwner) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *AccessListOwner) GetName() string {
 	if x != nil {
 		return x.Name
@@ -589,9 +754,52 @@ func (x *AccessListOwner) GetMembershipKind() MembershipKind {
 	return MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED
 }
 
+func (x *AccessListOwner) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AccessListOwner) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *AccessListOwner) SetIneligibleStatus(v IneligibleStatus) {
+	x.IneligibleStatus = v
+}
+
+func (x *AccessListOwner) SetMembershipKind(v MembershipKind) {
+	x.MembershipKind = v
+}
+
+type AccessListOwner_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the username of the owner.
+	Name string
+	// description is the plaintext description of the owner and why they are an
+	// owner.
+	Description string
+	// ineligible_status describes if this owner is eligible or not
+	// and if not, describes how they're lacking eligibility.
+	IneligibleStatus IneligibleStatus
+	// membership_kind describes the type of membership, either
+	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+	MembershipKind MembershipKind
+}
+
+func (b0 AccessListOwner_builder) Build() *AccessListOwner {
+	m0 := &AccessListOwner{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Description = b.Description
+	x.IneligibleStatus = b.IneligibleStatus
+	x.MembershipKind = b.MembershipKind
+	return m0
+}
+
 // AccessListAudit describes the audit configuration for an Access List.
 type AccessListAudit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// next_audit_date is when the next audit date should be done by.
 	NextAuditDate *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=next_audit_date,json=nextAuditDate,proto3" json:"next_audit_date,omitempty"`
 	// recurrence is the recurrence definition
@@ -627,11 +835,6 @@ func (x *AccessListAudit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessListAudit.ProtoReflect.Descriptor instead.
-func (*AccessListAudit) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *AccessListAudit) GetNextAuditDate() *timestamppb.Timestamp {
 	if x != nil {
 		return x.NextAuditDate
@@ -653,9 +856,75 @@ func (x *AccessListAudit) GetNotifications() *Notifications {
 	return nil
 }
 
+func (x *AccessListAudit) SetNextAuditDate(v *timestamppb.Timestamp) {
+	x.NextAuditDate = v
+}
+
+func (x *AccessListAudit) SetRecurrence(v *Recurrence) {
+	x.Recurrence = v
+}
+
+func (x *AccessListAudit) SetNotifications(v *Notifications) {
+	x.Notifications = v
+}
+
+func (x *AccessListAudit) HasNextAuditDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.NextAuditDate != nil
+}
+
+func (x *AccessListAudit) HasRecurrence() bool {
+	if x == nil {
+		return false
+	}
+	return x.Recurrence != nil
+}
+
+func (x *AccessListAudit) HasNotifications() bool {
+	if x == nil {
+		return false
+	}
+	return x.Notifications != nil
+}
+
+func (x *AccessListAudit) ClearNextAuditDate() {
+	x.NextAuditDate = nil
+}
+
+func (x *AccessListAudit) ClearRecurrence() {
+	x.Recurrence = nil
+}
+
+func (x *AccessListAudit) ClearNotifications() {
+	x.Notifications = nil
+}
+
+type AccessListAudit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// next_audit_date is when the next audit date should be done by.
+	NextAuditDate *timestamppb.Timestamp
+	// recurrence is the recurrence definition
+	Recurrence *Recurrence
+	// notifications is the configuration for notifying users.
+	Notifications *Notifications
+}
+
+func (b0 AccessListAudit_builder) Build() *AccessListAudit {
+	m0 := &AccessListAudit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.NextAuditDate = b.NextAuditDate
+	x.Recurrence = b.Recurrence
+	x.Notifications = b.Notifications
+	return m0
+}
+
 // Recurrence is the definition for when reviews will be scheduled.
 type Recurrence struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// frequency is the frequency of reviews. This represents the period in months
 	// between two reviews.
 	// Supported values are 0, 1, 3, 6, and 12.
@@ -692,11 +961,6 @@ func (x *Recurrence) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Recurrence.ProtoReflect.Descriptor instead.
-func (*Recurrence) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *Recurrence) GetFrequency() ReviewFrequency {
 	if x != nil {
 		return x.Frequency
@@ -711,10 +975,39 @@ func (x *Recurrence) GetDayOfMonth() ReviewDayOfMonth {
 	return ReviewDayOfMonth_REVIEW_DAY_OF_MONTH_UNSPECIFIED
 }
 
+func (x *Recurrence) SetFrequency(v ReviewFrequency) {
+	x.Frequency = v
+}
+
+func (x *Recurrence) SetDayOfMonth(v ReviewDayOfMonth) {
+	x.DayOfMonth = v
+}
+
+type Recurrence_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// frequency is the frequency of reviews. This represents the period in months
+	// between two reviews.
+	// Supported values are 0, 1, 3, 6, and 12.
+	Frequency ReviewFrequency
+	// day_of_month is the day of month that reviews will be scheduled on.
+	// Supported values are 0, 1, 15, and 31.
+	DayOfMonth ReviewDayOfMonth
+}
+
+func (b0 Recurrence_builder) Build() *Recurrence {
+	m0 := &Recurrence{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Frequency = b.Frequency
+	x.DayOfMonth = b.DayOfMonth
+	return m0
+}
+
 // Notifications contains the configuration for notifying users of a nearing
 // next audit date.
 type Notifications struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// start specifies when to start notifying users that the next audit date is
 	// coming up.
 	Start         *durationpb.Duration `protobuf:"bytes,1,opt,name=start,proto3" json:"start,omitempty"`
@@ -747,11 +1040,6 @@ func (x *Notifications) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Notifications.ProtoReflect.Descriptor instead.
-func (*Notifications) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *Notifications) GetStart() *durationpb.Duration {
 	if x != nil {
 		return x.Start
@@ -759,10 +1047,41 @@ func (x *Notifications) GetStart() *durationpb.Duration {
 	return nil
 }
 
+func (x *Notifications) SetStart(v *durationpb.Duration) {
+	x.Start = v
+}
+
+func (x *Notifications) HasStart() bool {
+	if x == nil {
+		return false
+	}
+	return x.Start != nil
+}
+
+func (x *Notifications) ClearStart() {
+	x.Start = nil
+}
+
+type Notifications_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// start specifies when to start notifying users that the next audit date is
+	// coming up.
+	Start *durationpb.Duration
+}
+
+func (b0 Notifications_builder) Build() *Notifications {
+	m0 := &Notifications{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Start = b.Start
+	return m0
+}
+
 // AccessListRequires describes a requirement section for an Access List. A user
 // must meet the following criteria to obtain the specific access to the list.
 type AccessListRequires struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// roles are the user roles that must be present for the user to obtain
 	// access.
 	Roles []string `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
@@ -797,11 +1116,6 @@ func (x *AccessListRequires) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessListRequires.ProtoReflect.Descriptor instead.
-func (*AccessListRequires) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *AccessListRequires) GetRoles() []string {
 	if x != nil {
 		return x.Roles
@@ -816,16 +1130,43 @@ func (x *AccessListRequires) GetTraits() []*v11.Trait {
 	return nil
 }
 
+func (x *AccessListRequires) SetRoles(v []string) {
+	x.Roles = v
+}
+
+func (x *AccessListRequires) SetTraits(v []*v11.Trait) {
+	x.Traits = v
+}
+
+type AccessListRequires_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// roles are the user roles that must be present for the user to obtain
+	// access.
+	Roles []string
+	// traits are the traits that must be present for the user to obtain access.
+	Traits []*v11.Trait
+}
+
+func (b0 AccessListRequires_builder) Build() *AccessListRequires {
+	m0 := &AccessListRequires{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Roles = b.Roles
+	x.Traits = b.Traits
+	return m0
+}
+
 // AccessListGrants describes what access is granted by membership to the Access
 // List.
 type AccessListGrants struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// roles are the roles that are granted to users who are members of the Access
-	// List.
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// roles are the names of roles to be granted to users.
 	Roles []string `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
-	// traits are the traits that are granted to users who are members of the
-	// Access List.
-	Traits        []*v11.Trait `protobuf:"bytes,2,rep,name=traits,proto3" json:"traits,omitempty"`
+	// traits are the traits to be granted to users.
+	Traits []*v11.Trait `protobuf:"bytes,2,rep,name=traits,proto3" json:"traits,omitempty"`
+	// scoped_roles are scoped roles to be granted to users.
+	ScopedRoles   []*ScopedRoleGrant `protobuf:"bytes,3,rep,name=scoped_roles,json=scopedRoles,proto3" json:"scoped_roles,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -855,11 +1196,6 @@ func (x *AccessListGrants) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessListGrants.ProtoReflect.Descriptor instead.
-func (*AccessListGrants) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *AccessListGrants) GetRoles() []string {
 	if x != nil {
 		return x.Roles
@@ -874,31 +1210,72 @@ func (x *AccessListGrants) GetTraits() []*v11.Trait {
 	return nil
 }
 
-// Member describes a member of an Access List.
-type Member struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// header is the header for the resource.
-	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
-	// spec is the specification for the Access List member.
-	Spec          *MemberSpec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
+func (x *AccessListGrants) GetScopedRoles() []*ScopedRoleGrant {
+	if x != nil {
+		return x.ScopedRoles
+	}
+	return nil
+}
+
+func (x *AccessListGrants) SetRoles(v []string) {
+	x.Roles = v
+}
+
+func (x *AccessListGrants) SetTraits(v []*v11.Trait) {
+	x.Traits = v
+}
+
+func (x *AccessListGrants) SetScopedRoles(v []*ScopedRoleGrant) {
+	x.ScopedRoles = v
+}
+
+type AccessListGrants_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// roles are the names of roles to be granted to users.
+	Roles []string
+	// traits are the traits to be granted to users.
+	Traits []*v11.Trait
+	// scoped_roles are scoped roles to be granted to users.
+	ScopedRoles []*ScopedRoleGrant
+}
+
+func (b0 AccessListGrants_builder) Build() *AccessListGrants {
+	m0 := &AccessListGrants{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Roles = b.Roles
+	x.Traits = b.Traits
+	x.ScopedRoles = b.ScopedRoles
+	return m0
+}
+
+// ScopedRoleGrant describes a scoped role granted at a specific scope.
+type ScopedRoleGrant struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// role is the name of the scoped role to be granted.
+	Role string `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
+	// scope is the scope the role will be assigned at. It must be an assignable
+	// scope of the role.
+	Scope         string `protobuf:"bytes,2,opt,name=scope,proto3" json:"scope,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *Member) Reset() {
-	*x = Member{}
+func (x *ScopedRoleGrant) Reset() {
+	*x = ScopedRoleGrant{}
 	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *Member) String() string {
+func (x *ScopedRoleGrant) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*Member) ProtoMessage() {}
+func (*ScopedRoleGrant) ProtoMessage() {}
 
-func (x *Member) ProtoReflect() protoreflect.Message {
+func (x *ScopedRoleGrant) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -910,9 +1287,81 @@ func (x *Member) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Member.ProtoReflect.Descriptor instead.
-func (*Member) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{8}
+func (x *ScopedRoleGrant) GetRole() string {
+	if x != nil {
+		return x.Role
+	}
+	return ""
+}
+
+func (x *ScopedRoleGrant) GetScope() string {
+	if x != nil {
+		return x.Scope
+	}
+	return ""
+}
+
+func (x *ScopedRoleGrant) SetRole(v string) {
+	x.Role = v
+}
+
+func (x *ScopedRoleGrant) SetScope(v string) {
+	x.Scope = v
+}
+
+type ScopedRoleGrant_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// role is the name of the scoped role to be granted.
+	Role string
+	// scope is the scope the role will be assigned at. It must be an assignable
+	// scope of the role.
+	Scope string
+}
+
+func (b0 ScopedRoleGrant_builder) Build() *ScopedRoleGrant {
+	m0 := &ScopedRoleGrant{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Role = b.Role
+	x.Scope = b.Scope
+	return m0
+}
+
+// Member describes a member of an Access List.
+type Member struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// header is the header for the resource.
+	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
+	// spec is the specification for the Access List member.
+	Spec          *MemberSpec `protobuf:"bytes,2,opt,name=spec,proto3" json:"spec,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Member) Reset() {
+	*x = Member{}
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Member) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Member) ProtoMessage() {}
+
+func (x *Member) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
 }
 
 func (x *Member) GetHeader() *v1.ResourceHeader {
@@ -929,9 +1378,57 @@ func (x *Member) GetSpec() *MemberSpec {
 	return nil
 }
 
+func (x *Member) SetHeader(v *v1.ResourceHeader) {
+	x.Header = v
+}
+
+func (x *Member) SetSpec(v *MemberSpec) {
+	x.Spec = v
+}
+
+func (x *Member) HasHeader() bool {
+	if x == nil {
+		return false
+	}
+	return x.Header != nil
+}
+
+func (x *Member) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *Member) ClearHeader() {
+	x.Header = nil
+}
+
+func (x *Member) ClearSpec() {
+	x.Spec = nil
+}
+
+type Member_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// header is the header for the resource.
+	Header *v1.ResourceHeader
+	// spec is the specification for the Access List member.
+	Spec *MemberSpec
+}
+
+func (b0 Member_builder) Build() *Member {
+	m0 := &Member{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Header = b.Header
+	x.Spec = b.Spec
+	return m0
+}
+
 // MemberSpec is the specification for an Access List member.
 type MemberSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// associated Access List
 	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
 	// name is the name of the member of the Access List.
@@ -956,7 +1453,7 @@ type MemberSpec struct {
 
 func (x *MemberSpec) Reset() {
 	*x = MemberSpec{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[9]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -968,7 +1465,7 @@ func (x *MemberSpec) String() string {
 func (*MemberSpec) ProtoMessage() {}
 
 func (x *MemberSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[9]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -977,11 +1474,6 @@ func (x *MemberSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use MemberSpec.ProtoReflect.Descriptor instead.
-func (*MemberSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *MemberSpec) GetAccessList() string {
@@ -1040,9 +1532,101 @@ func (x *MemberSpec) GetMembershipKind() MembershipKind {
 	return MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED
 }
 
+func (x *MemberSpec) SetAccessList(v string) {
+	x.AccessList = v
+}
+
+func (x *MemberSpec) SetName(v string) {
+	x.Name = v
+}
+
+func (x *MemberSpec) SetJoined(v *timestamppb.Timestamp) {
+	x.Joined = v
+}
+
+func (x *MemberSpec) SetExpires(v *timestamppb.Timestamp) {
+	x.Expires = v
+}
+
+func (x *MemberSpec) SetReason(v string) {
+	x.Reason = v
+}
+
+func (x *MemberSpec) SetAddedBy(v string) {
+	x.AddedBy = v
+}
+
+func (x *MemberSpec) SetIneligibleStatus(v IneligibleStatus) {
+	x.IneligibleStatus = v
+}
+
+func (x *MemberSpec) SetMembershipKind(v MembershipKind) {
+	x.MembershipKind = v
+}
+
+func (x *MemberSpec) HasJoined() bool {
+	if x == nil {
+		return false
+	}
+	return x.Joined != nil
+}
+
+func (x *MemberSpec) HasExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.Expires != nil
+}
+
+func (x *MemberSpec) ClearJoined() {
+	x.Joined = nil
+}
+
+func (x *MemberSpec) ClearExpires() {
+	x.Expires = nil
+}
+
+type MemberSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// associated Access List
+	AccessList string
+	// name is the name of the member of the Access List.
+	Name string
+	// joined is when the user joined the Access List.
+	Joined *timestamppb.Timestamp
+	// expires is when the user's membership to the Access List expires.
+	Expires *timestamppb.Timestamp
+	// reason is the reason this user was added to the Access List.
+	Reason string
+	// added_by is the user that added this user to the Access List.
+	AddedBy string
+	// ineligible_status describes if this member is eligible or not
+	// and if not, describes how they're lacking eligibility.
+	IneligibleStatus IneligibleStatus
+	// membership_kind describes the type of membership, either
+	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
+	MembershipKind MembershipKind
+}
+
+func (b0 MemberSpec_builder) Build() *MemberSpec {
+	m0 := &MemberSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AccessList = b.AccessList
+	x.Name = b.Name
+	x.Joined = b.Joined
+	x.Expires = b.Expires
+	x.Reason = b.Reason
+	x.AddedBy = b.AddedBy
+	x.IneligibleStatus = b.IneligibleStatus
+	x.MembershipKind = b.MembershipKind
+	return m0
+}
+
 // Review is a review of an Access List.
 type Review struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// header is the header for the resource.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// spec is the specification for the Access List review.
@@ -1053,7 +1637,7 @@ type Review struct {
 
 func (x *Review) Reset() {
 	*x = Review{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[10]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1065,7 +1649,7 @@ func (x *Review) String() string {
 func (*Review) ProtoMessage() {}
 
 func (x *Review) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[10]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1074,11 +1658,6 @@ func (x *Review) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Review.ProtoReflect.Descriptor instead.
-func (*Review) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Review) GetHeader() *v1.ResourceHeader {
@@ -1095,9 +1674,57 @@ func (x *Review) GetSpec() *ReviewSpec {
 	return nil
 }
 
+func (x *Review) SetHeader(v *v1.ResourceHeader) {
+	x.Header = v
+}
+
+func (x *Review) SetSpec(v *ReviewSpec) {
+	x.Spec = v
+}
+
+func (x *Review) HasHeader() bool {
+	if x == nil {
+		return false
+	}
+	return x.Header != nil
+}
+
+func (x *Review) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *Review) ClearHeader() {
+	x.Header = nil
+}
+
+func (x *Review) ClearSpec() {
+	x.Spec = nil
+}
+
+type Review_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// header is the header for the resource.
+	Header *v1.ResourceHeader
+	// spec is the specification for the Access List review.
+	Spec *ReviewSpec
+}
+
+func (b0 Review_builder) Build() *Review {
+	m0 := &Review{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Header = b.Header
+	x.Spec = b.Spec
+	return m0
+}
+
 // ReviewSpec is the specification for an Access List review.
 type ReviewSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// access_list is the name of the Access List that this review is for.
 	AccessList string `protobuf:"bytes,1,opt,name=access_list,json=accessList,proto3" json:"access_list,omitempty"`
 	// reviewers are the users who performed the review.
@@ -1115,7 +1742,7 @@ type ReviewSpec struct {
 
 func (x *ReviewSpec) Reset() {
 	*x = ReviewSpec{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[11]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1127,7 +1754,7 @@ func (x *ReviewSpec) String() string {
 func (*ReviewSpec) ProtoMessage() {}
 
 func (x *ReviewSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[11]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1136,11 +1763,6 @@ func (x *ReviewSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReviewSpec.ProtoReflect.Descriptor instead.
-func (*ReviewSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *ReviewSpec) GetAccessList() string {
@@ -1178,9 +1800,79 @@ func (x *ReviewSpec) GetChanges() *ReviewChanges {
 	return nil
 }
 
+func (x *ReviewSpec) SetAccessList(v string) {
+	x.AccessList = v
+}
+
+func (x *ReviewSpec) SetReviewers(v []string) {
+	x.Reviewers = v
+}
+
+func (x *ReviewSpec) SetReviewDate(v *timestamppb.Timestamp) {
+	x.ReviewDate = v
+}
+
+func (x *ReviewSpec) SetNotes(v string) {
+	x.Notes = v
+}
+
+func (x *ReviewSpec) SetChanges(v *ReviewChanges) {
+	x.Changes = v
+}
+
+func (x *ReviewSpec) HasReviewDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.ReviewDate != nil
+}
+
+func (x *ReviewSpec) HasChanges() bool {
+	if x == nil {
+		return false
+	}
+	return x.Changes != nil
+}
+
+func (x *ReviewSpec) ClearReviewDate() {
+	x.ReviewDate = nil
+}
+
+func (x *ReviewSpec) ClearChanges() {
+	x.Changes = nil
+}
+
+type ReviewSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// access_list is the name of the Access List that this review is for.
+	AccessList string
+	// reviewers are the users who performed the review.
+	Reviewers []string
+	// review_date is the date that this review was created.
+	ReviewDate *timestamppb.Timestamp
+	// notes is an optional plaintext attached to the review that can be used by
+	// the review for arbitrary note taking on the review.
+	Notes string
+	// changes are the changes made as part of the review.
+	Changes *ReviewChanges
+}
+
+func (b0 ReviewSpec_builder) Build() *ReviewSpec {
+	m0 := &ReviewSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AccessList = b.AccessList
+	x.Reviewers = b.Reviewers
+	x.ReviewDate = b.ReviewDate
+	x.Notes = b.Notes
+	x.Changes = b.Changes
+	return m0
+}
+
 // ReviewChanges are the changes that were made as part of the review.
 type ReviewChanges struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// membership_requirements_changed is populated if the requirements were
 	// changed as part of this review.
 	MembershipRequirementsChanged *AccessListRequires `protobuf:"bytes,2,opt,name=membership_requirements_changed,json=membershipRequirementsChanged,proto3" json:"membership_requirements_changed,omitempty"`
@@ -1198,7 +1890,7 @@ type ReviewChanges struct {
 
 func (x *ReviewChanges) Reset() {
 	*x = ReviewChanges{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[12]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1210,7 +1902,7 @@ func (x *ReviewChanges) String() string {
 func (*ReviewChanges) ProtoMessage() {}
 
 func (x *ReviewChanges) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[12]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1219,11 +1911,6 @@ func (x *ReviewChanges) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReviewChanges.ProtoReflect.Descriptor instead.
-func (*ReviewChanges) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ReviewChanges) GetMembershipRequirementsChanged() *AccessListRequires {
@@ -1254,9 +1941,63 @@ func (x *ReviewChanges) GetReviewDayOfMonthChanged() ReviewDayOfMonth {
 	return ReviewDayOfMonth_REVIEW_DAY_OF_MONTH_UNSPECIFIED
 }
 
+func (x *ReviewChanges) SetMembershipRequirementsChanged(v *AccessListRequires) {
+	x.MembershipRequirementsChanged = v
+}
+
+func (x *ReviewChanges) SetRemovedMembers(v []string) {
+	x.RemovedMembers = v
+}
+
+func (x *ReviewChanges) SetReviewFrequencyChanged(v ReviewFrequency) {
+	x.ReviewFrequencyChanged = v
+}
+
+func (x *ReviewChanges) SetReviewDayOfMonthChanged(v ReviewDayOfMonth) {
+	x.ReviewDayOfMonthChanged = v
+}
+
+func (x *ReviewChanges) HasMembershipRequirementsChanged() bool {
+	if x == nil {
+		return false
+	}
+	return x.MembershipRequirementsChanged != nil
+}
+
+func (x *ReviewChanges) ClearMembershipRequirementsChanged() {
+	x.MembershipRequirementsChanged = nil
+}
+
+type ReviewChanges_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// membership_requirements_changed is populated if the requirements were
+	// changed as part of this review.
+	MembershipRequirementsChanged *AccessListRequires
+	// removed_members contains the members that were removed as part of this
+	// review.
+	RemovedMembers []string
+	// review_frequency_changed is populated if the review frequency has changed.
+	ReviewFrequencyChanged ReviewFrequency
+	// review_day_of_month_changed is populated if the review day of month has
+	// changed.
+	ReviewDayOfMonthChanged ReviewDayOfMonth
+}
+
+func (b0 ReviewChanges_builder) Build() *ReviewChanges {
+	m0 := &ReviewChanges{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.MembershipRequirementsChanged = b.MembershipRequirementsChanged
+	x.RemovedMembers = b.RemovedMembers
+	x.ReviewFrequencyChanged = b.ReviewFrequencyChanged
+	x.ReviewDayOfMonthChanged = b.ReviewDayOfMonthChanged
+	return m0
+}
+
 // CurrentUserAssignments describes the current user's ownership and membership status in the access list.
 type CurrentUserAssignments struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ownership_type represents the current user's ownership type (explicit, inherited, or none) in the access list.
 	OwnershipType AccessListUserAssignmentType `protobuf:"varint,1,opt,name=ownership_type,json=ownershipType,proto3,enum=teleport.accesslist.v1.AccessListUserAssignmentType" json:"ownership_type,omitempty"`
 	// membership_type represents the current user's membership type (explicit, inherited, or none) in the access list.
@@ -1267,7 +2008,7 @@ type CurrentUserAssignments struct {
 
 func (x *CurrentUserAssignments) Reset() {
 	*x = CurrentUserAssignments{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[13]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1279,7 +2020,7 @@ func (x *CurrentUserAssignments) String() string {
 func (*CurrentUserAssignments) ProtoMessage() {}
 
 func (x *CurrentUserAssignments) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[13]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1288,11 +2029,6 @@ func (x *CurrentUserAssignments) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CurrentUserAssignments.ProtoReflect.Descriptor instead.
-func (*CurrentUserAssignments) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *CurrentUserAssignments) GetOwnershipType() AccessListUserAssignmentType {
@@ -1309,9 +2045,35 @@ func (x *CurrentUserAssignments) GetMembershipType() AccessListUserAssignmentTyp
 	return AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
 }
 
+func (x *CurrentUserAssignments) SetOwnershipType(v AccessListUserAssignmentType) {
+	x.OwnershipType = v
+}
+
+func (x *CurrentUserAssignments) SetMembershipType(v AccessListUserAssignmentType) {
+	x.MembershipType = v
+}
+
+type CurrentUserAssignments_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ownership_type represents the current user's ownership type (explicit, inherited, or none) in the access list.
+	OwnershipType AccessListUserAssignmentType
+	// membership_type represents the current user's membership type (explicit, inherited, or none) in the access list.
+	MembershipType AccessListUserAssignmentType
+}
+
+func (b0 CurrentUserAssignments_builder) Build() *CurrentUserAssignments {
+	m0 := &CurrentUserAssignments{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.OwnershipType = b.OwnershipType
+	x.MembershipType = b.MembershipType
+	return m0
+}
+
 // UserAssignments describes the requested user's ownership and membership assignment types in the access list.
 type UserAssignments struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the access list.
 	OwnershipType AccessListUserAssignmentType `protobuf:"varint,1,opt,name=ownership_type,json=ownershipType,proto3,enum=teleport.accesslist.v1.AccessListUserAssignmentType" json:"ownership_type,omitempty"`
 	// membership_type represents the requested user's membership type (explicit, inherited, or none) in the access list.
@@ -1322,7 +2084,7 @@ type UserAssignments struct {
 
 func (x *UserAssignments) Reset() {
 	*x = UserAssignments{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[14]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1334,7 +2096,7 @@ func (x *UserAssignments) String() string {
 func (*UserAssignments) ProtoMessage() {}
 
 func (x *UserAssignments) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[14]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1343,11 +2105,6 @@ func (x *UserAssignments) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UserAssignments.ProtoReflect.Descriptor instead.
-func (*UserAssignments) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *UserAssignments) GetOwnershipType() AccessListUserAssignmentType {
@@ -1364,9 +2121,35 @@ func (x *UserAssignments) GetMembershipType() AccessListUserAssignmentType {
 	return AccessListUserAssignmentType_ACCESS_LIST_USER_ASSIGNMENT_TYPE_UNSPECIFIED
 }
 
+func (x *UserAssignments) SetOwnershipType(v AccessListUserAssignmentType) {
+	x.OwnershipType = v
+}
+
+func (x *UserAssignments) SetMembershipType(v AccessListUserAssignmentType) {
+	x.MembershipType = v
+}
+
+type UserAssignments_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ownership_type represents the requested user's ownership type (explicit, inherited, or none) in the access list.
+	OwnershipType AccessListUserAssignmentType
+	// membership_type represents the requested user's membership type (explicit, inherited, or none) in the access list.
+	MembershipType AccessListUserAssignmentType
+}
+
+func (b0 UserAssignments_builder) Build() *UserAssignments {
+	m0 := &UserAssignments{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.OwnershipType = b.OwnershipType
+	x.MembershipType = b.MembershipType
+	return m0
+}
+
 // AccessListStatus contains dynamic fields calculated during retrieval.
 type AccessListStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// member_count is the number of members in the Access List.
 	MemberCount *uint32 `protobuf:"varint,1,opt,name=member_count,json=memberCount,proto3,oneof" json:"member_count,omitempty"`
 	// member_list_count is the number of nested list members in the Access List.
@@ -1385,7 +2168,7 @@ type AccessListStatus struct {
 
 func (x *AccessListStatus) Reset() {
 	*x = AccessListStatus{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[15]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1397,7 +2180,7 @@ func (x *AccessListStatus) String() string {
 func (*AccessListStatus) ProtoMessage() {}
 
 func (x *AccessListStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[15]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1406,11 +2189,6 @@ func (x *AccessListStatus) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AccessListStatus.ProtoReflect.Descriptor instead.
-func (*AccessListStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *AccessListStatus) GetMemberCount() uint32 {
@@ -1453,6 +2231,104 @@ func (x *AccessListStatus) GetUserAssignments() *UserAssignments {
 		return x.UserAssignments
 	}
 	return nil
+}
+
+func (x *AccessListStatus) SetMemberCount(v uint32) {
+	x.MemberCount = &v
+}
+
+func (x *AccessListStatus) SetMemberListCount(v uint32) {
+	x.MemberListCount = &v
+}
+
+func (x *AccessListStatus) SetOwnerOf(v []string) {
+	x.OwnerOf = v
+}
+
+func (x *AccessListStatus) SetMemberOf(v []string) {
+	x.MemberOf = v
+}
+
+func (x *AccessListStatus) SetCurrentUserAssignments(v *CurrentUserAssignments) {
+	x.CurrentUserAssignments = v
+}
+
+func (x *AccessListStatus) SetUserAssignments(v *UserAssignments) {
+	x.UserAssignments = v
+}
+
+func (x *AccessListStatus) HasMemberCount() bool {
+	if x == nil {
+		return false
+	}
+	return x.MemberCount != nil
+}
+
+func (x *AccessListStatus) HasMemberListCount() bool {
+	if x == nil {
+		return false
+	}
+	return x.MemberListCount != nil
+}
+
+func (x *AccessListStatus) HasCurrentUserAssignments() bool {
+	if x == nil {
+		return false
+	}
+	return x.CurrentUserAssignments != nil
+}
+
+func (x *AccessListStatus) HasUserAssignments() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserAssignments != nil
+}
+
+func (x *AccessListStatus) ClearMemberCount() {
+	x.MemberCount = nil
+}
+
+func (x *AccessListStatus) ClearMemberListCount() {
+	x.MemberListCount = nil
+}
+
+func (x *AccessListStatus) ClearCurrentUserAssignments() {
+	x.CurrentUserAssignments = nil
+}
+
+func (x *AccessListStatus) ClearUserAssignments() {
+	x.UserAssignments = nil
+}
+
+type AccessListStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// member_count is the number of members in the Access List.
+	MemberCount *uint32
+	// member_list_count is the number of nested list members in the Access List.
+	MemberListCount *uint32
+	// owner_of describes Access Lists where this Access List is an explicit owner.
+	OwnerOf []string
+	// member_of describes Access Lists where this Access List is an explicit member.
+	MemberOf []string
+	// current_user_assignments describes the current user's ownership and membership status in the access list.
+	CurrentUserAssignments *CurrentUserAssignments
+	// user_assignments describes the requested user's ownership and membership assignment types in the access list.
+	UserAssignments *UserAssignments
+}
+
+func (b0 AccessListStatus_builder) Build() *AccessListStatus {
+	m0 := &AccessListStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.MemberCount = b.MemberCount
+	x.MemberListCount = b.MemberListCount
+	x.OwnerOf = b.OwnerOf
+	x.MemberOf = b.MemberOf
+	x.CurrentUserAssignments = b.CurrentUserAssignments
+	x.UserAssignments = b.UserAssignments
+	return m0
 }
 
 var File_teleport_accesslist_v1_accesslist_proto protoreflect.FileDescriptor
@@ -1498,10 +2374,14 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\x05start\x18\x01 \x01(\v2\x19.google.protobuf.DurationR\x05start\"\\\n" +
 	"\x12AccessListRequires\x12\x14\n" +
 	"\x05roles\x18\x01 \x03(\tR\x05roles\x120\n" +
-	"\x06traits\x18\x02 \x03(\v2\x18.teleport.trait.v1.TraitR\x06traits\"Z\n" +
+	"\x06traits\x18\x02 \x03(\v2\x18.teleport.trait.v1.TraitR\x06traits\"\xa6\x01\n" +
 	"\x10AccessListGrants\x12\x14\n" +
 	"\x05roles\x18\x01 \x03(\tR\x05roles\x120\n" +
-	"\x06traits\x18\x02 \x03(\v2\x18.teleport.trait.v1.TraitR\x06traits\"|\n" +
+	"\x06traits\x18\x02 \x03(\v2\x18.teleport.trait.v1.TraitR\x06traits\x12J\n" +
+	"\fscoped_roles\x18\x03 \x03(\v2'.teleport.accesslist.v1.ScopedRoleGrantR\vscopedRoles\";\n" +
+	"\x0fScopedRoleGrant\x12\x12\n" +
+	"\x04role\x18\x01 \x01(\tR\x04role\x12\x14\n" +
+	"\x05scope\x18\x02 \x01(\tR\x05scope\"|\n" +
 	"\x06Member\x12:\n" +
 	"\x06header\x18\x01 \x01(\v2\".teleport.header.v1.ResourceHeaderR\x06header\x126\n" +
 	"\x04spec\x18\x02 \x01(\v2\".teleport.accesslist.v1.MemberSpecR\x04spec\"\x98\x03\n" +
@@ -1575,20 +2455,8 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	")ACCESS_LIST_USER_ASSIGNMENT_TYPE_EXPLICIT\x10\x01\x12.\n" +
 	"*ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED\x10\x02BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1;accesslistv1b\x06proto3"
 
-var (
-	file_teleport_accesslist_v1_accesslist_proto_rawDescOnce sync.Once
-	file_teleport_accesslist_v1_accesslist_proto_rawDescData []byte
-)
-
-func file_teleport_accesslist_v1_accesslist_proto_rawDescGZIP() []byte {
-	file_teleport_accesslist_v1_accesslist_proto_rawDescOnce.Do(func() {
-		file_teleport_accesslist_v1_accesslist_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_accesslist_v1_accesslist_proto_rawDesc), len(file_teleport_accesslist_v1_accesslist_proto_rawDesc)))
-	})
-	return file_teleport_accesslist_v1_accesslist_proto_rawDescData
-}
-
 var file_teleport_accesslist_v1_accesslist_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_teleport_accesslist_v1_accesslist_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_teleport_accesslist_v1_accesslist_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_teleport_accesslist_v1_accesslist_proto_goTypes = []any{
 	(ReviewFrequency)(0),              // 0: teleport.accesslist.v1.ReviewFrequency
 	(ReviewDayOfMonth)(0),             // 1: teleport.accesslist.v1.ReviewDayOfMonth
@@ -1603,23 +2471,24 @@ var file_teleport_accesslist_v1_accesslist_proto_goTypes = []any{
 	(*Notifications)(nil),             // 10: teleport.accesslist.v1.Notifications
 	(*AccessListRequires)(nil),        // 11: teleport.accesslist.v1.AccessListRequires
 	(*AccessListGrants)(nil),          // 12: teleport.accesslist.v1.AccessListGrants
-	(*Member)(nil),                    // 13: teleport.accesslist.v1.Member
-	(*MemberSpec)(nil),                // 14: teleport.accesslist.v1.MemberSpec
-	(*Review)(nil),                    // 15: teleport.accesslist.v1.Review
-	(*ReviewSpec)(nil),                // 16: teleport.accesslist.v1.ReviewSpec
-	(*ReviewChanges)(nil),             // 17: teleport.accesslist.v1.ReviewChanges
-	(*CurrentUserAssignments)(nil),    // 18: teleport.accesslist.v1.CurrentUserAssignments
-	(*UserAssignments)(nil),           // 19: teleport.accesslist.v1.UserAssignments
-	(*AccessListStatus)(nil),          // 20: teleport.accesslist.v1.AccessListStatus
-	(*v1.ResourceHeader)(nil),         // 21: teleport.header.v1.ResourceHeader
-	(*timestamppb.Timestamp)(nil),     // 22: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),       // 23: google.protobuf.Duration
-	(*v11.Trait)(nil),                 // 24: teleport.trait.v1.Trait
+	(*ScopedRoleGrant)(nil),           // 13: teleport.accesslist.v1.ScopedRoleGrant
+	(*Member)(nil),                    // 14: teleport.accesslist.v1.Member
+	(*MemberSpec)(nil),                // 15: teleport.accesslist.v1.MemberSpec
+	(*Review)(nil),                    // 16: teleport.accesslist.v1.Review
+	(*ReviewSpec)(nil),                // 17: teleport.accesslist.v1.ReviewSpec
+	(*ReviewChanges)(nil),             // 18: teleport.accesslist.v1.ReviewChanges
+	(*CurrentUserAssignments)(nil),    // 19: teleport.accesslist.v1.CurrentUserAssignments
+	(*UserAssignments)(nil),           // 20: teleport.accesslist.v1.UserAssignments
+	(*AccessListStatus)(nil),          // 21: teleport.accesslist.v1.AccessListStatus
+	(*v1.ResourceHeader)(nil),         // 22: teleport.header.v1.ResourceHeader
+	(*timestamppb.Timestamp)(nil),     // 23: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),       // 24: google.protobuf.Duration
+	(*v11.Trait)(nil),                 // 25: teleport.trait.v1.Trait
 }
 var file_teleport_accesslist_v1_accesslist_proto_depIdxs = []int32{
-	21, // 0: teleport.accesslist.v1.AccessList.header:type_name -> teleport.header.v1.ResourceHeader
+	22, // 0: teleport.accesslist.v1.AccessList.header:type_name -> teleport.header.v1.ResourceHeader
 	6,  // 1: teleport.accesslist.v1.AccessList.spec:type_name -> teleport.accesslist.v1.AccessListSpec
-	20, // 2: teleport.accesslist.v1.AccessList.status:type_name -> teleport.accesslist.v1.AccessListStatus
+	21, // 2: teleport.accesslist.v1.AccessList.status:type_name -> teleport.accesslist.v1.AccessListStatus
 	7,  // 3: teleport.accesslist.v1.AccessListSpec.owners:type_name -> teleport.accesslist.v1.AccessListOwner
 	8,  // 4: teleport.accesslist.v1.AccessListSpec.audit:type_name -> teleport.accesslist.v1.AccessListAudit
 	11, // 5: teleport.accesslist.v1.AccessListSpec.membership_requires:type_name -> teleport.accesslist.v1.AccessListRequires
@@ -1628,38 +2497,39 @@ var file_teleport_accesslist_v1_accesslist_proto_depIdxs = []int32{
 	12, // 8: teleport.accesslist.v1.AccessListSpec.owner_grants:type_name -> teleport.accesslist.v1.AccessListGrants
 	3,  // 9: teleport.accesslist.v1.AccessListOwner.ineligible_status:type_name -> teleport.accesslist.v1.IneligibleStatus
 	2,  // 10: teleport.accesslist.v1.AccessListOwner.membership_kind:type_name -> teleport.accesslist.v1.MembershipKind
-	22, // 11: teleport.accesslist.v1.AccessListAudit.next_audit_date:type_name -> google.protobuf.Timestamp
+	23, // 11: teleport.accesslist.v1.AccessListAudit.next_audit_date:type_name -> google.protobuf.Timestamp
 	9,  // 12: teleport.accesslist.v1.AccessListAudit.recurrence:type_name -> teleport.accesslist.v1.Recurrence
 	10, // 13: teleport.accesslist.v1.AccessListAudit.notifications:type_name -> teleport.accesslist.v1.Notifications
 	0,  // 14: teleport.accesslist.v1.Recurrence.frequency:type_name -> teleport.accesslist.v1.ReviewFrequency
 	1,  // 15: teleport.accesslist.v1.Recurrence.day_of_month:type_name -> teleport.accesslist.v1.ReviewDayOfMonth
-	23, // 16: teleport.accesslist.v1.Notifications.start:type_name -> google.protobuf.Duration
-	24, // 17: teleport.accesslist.v1.AccessListRequires.traits:type_name -> teleport.trait.v1.Trait
-	24, // 18: teleport.accesslist.v1.AccessListGrants.traits:type_name -> teleport.trait.v1.Trait
-	21, // 19: teleport.accesslist.v1.Member.header:type_name -> teleport.header.v1.ResourceHeader
-	14, // 20: teleport.accesslist.v1.Member.spec:type_name -> teleport.accesslist.v1.MemberSpec
-	22, // 21: teleport.accesslist.v1.MemberSpec.joined:type_name -> google.protobuf.Timestamp
-	22, // 22: teleport.accesslist.v1.MemberSpec.expires:type_name -> google.protobuf.Timestamp
-	3,  // 23: teleport.accesslist.v1.MemberSpec.ineligible_status:type_name -> teleport.accesslist.v1.IneligibleStatus
-	2,  // 24: teleport.accesslist.v1.MemberSpec.membership_kind:type_name -> teleport.accesslist.v1.MembershipKind
-	21, // 25: teleport.accesslist.v1.Review.header:type_name -> teleport.header.v1.ResourceHeader
-	16, // 26: teleport.accesslist.v1.Review.spec:type_name -> teleport.accesslist.v1.ReviewSpec
-	22, // 27: teleport.accesslist.v1.ReviewSpec.review_date:type_name -> google.protobuf.Timestamp
-	17, // 28: teleport.accesslist.v1.ReviewSpec.changes:type_name -> teleport.accesslist.v1.ReviewChanges
-	11, // 29: teleport.accesslist.v1.ReviewChanges.membership_requirements_changed:type_name -> teleport.accesslist.v1.AccessListRequires
-	0,  // 30: teleport.accesslist.v1.ReviewChanges.review_frequency_changed:type_name -> teleport.accesslist.v1.ReviewFrequency
-	1,  // 31: teleport.accesslist.v1.ReviewChanges.review_day_of_month_changed:type_name -> teleport.accesslist.v1.ReviewDayOfMonth
-	4,  // 32: teleport.accesslist.v1.CurrentUserAssignments.ownership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
-	4,  // 33: teleport.accesslist.v1.CurrentUserAssignments.membership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
-	4,  // 34: teleport.accesslist.v1.UserAssignments.ownership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
-	4,  // 35: teleport.accesslist.v1.UserAssignments.membership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
-	18, // 36: teleport.accesslist.v1.AccessListStatus.current_user_assignments:type_name -> teleport.accesslist.v1.CurrentUserAssignments
-	19, // 37: teleport.accesslist.v1.AccessListStatus.user_assignments:type_name -> teleport.accesslist.v1.UserAssignments
-	38, // [38:38] is the sub-list for method output_type
-	38, // [38:38] is the sub-list for method input_type
-	38, // [38:38] is the sub-list for extension type_name
-	38, // [38:38] is the sub-list for extension extendee
-	0,  // [0:38] is the sub-list for field type_name
+	24, // 16: teleport.accesslist.v1.Notifications.start:type_name -> google.protobuf.Duration
+	25, // 17: teleport.accesslist.v1.AccessListRequires.traits:type_name -> teleport.trait.v1.Trait
+	25, // 18: teleport.accesslist.v1.AccessListGrants.traits:type_name -> teleport.trait.v1.Trait
+	13, // 19: teleport.accesslist.v1.AccessListGrants.scoped_roles:type_name -> teleport.accesslist.v1.ScopedRoleGrant
+	22, // 20: teleport.accesslist.v1.Member.header:type_name -> teleport.header.v1.ResourceHeader
+	15, // 21: teleport.accesslist.v1.Member.spec:type_name -> teleport.accesslist.v1.MemberSpec
+	23, // 22: teleport.accesslist.v1.MemberSpec.joined:type_name -> google.protobuf.Timestamp
+	23, // 23: teleport.accesslist.v1.MemberSpec.expires:type_name -> google.protobuf.Timestamp
+	3,  // 24: teleport.accesslist.v1.MemberSpec.ineligible_status:type_name -> teleport.accesslist.v1.IneligibleStatus
+	2,  // 25: teleport.accesslist.v1.MemberSpec.membership_kind:type_name -> teleport.accesslist.v1.MembershipKind
+	22, // 26: teleport.accesslist.v1.Review.header:type_name -> teleport.header.v1.ResourceHeader
+	17, // 27: teleport.accesslist.v1.Review.spec:type_name -> teleport.accesslist.v1.ReviewSpec
+	23, // 28: teleport.accesslist.v1.ReviewSpec.review_date:type_name -> google.protobuf.Timestamp
+	18, // 29: teleport.accesslist.v1.ReviewSpec.changes:type_name -> teleport.accesslist.v1.ReviewChanges
+	11, // 30: teleport.accesslist.v1.ReviewChanges.membership_requirements_changed:type_name -> teleport.accesslist.v1.AccessListRequires
+	0,  // 31: teleport.accesslist.v1.ReviewChanges.review_frequency_changed:type_name -> teleport.accesslist.v1.ReviewFrequency
+	1,  // 32: teleport.accesslist.v1.ReviewChanges.review_day_of_month_changed:type_name -> teleport.accesslist.v1.ReviewDayOfMonth
+	4,  // 33: teleport.accesslist.v1.CurrentUserAssignments.ownership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
+	4,  // 34: teleport.accesslist.v1.CurrentUserAssignments.membership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
+	4,  // 35: teleport.accesslist.v1.UserAssignments.ownership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
+	4,  // 36: teleport.accesslist.v1.UserAssignments.membership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
+	19, // 37: teleport.accesslist.v1.AccessListStatus.current_user_assignments:type_name -> teleport.accesslist.v1.CurrentUserAssignments
+	20, // 38: teleport.accesslist.v1.AccessListStatus.user_assignments:type_name -> teleport.accesslist.v1.UserAssignments
+	39, // [39:39] is the sub-list for method output_type
+	39, // [39:39] is the sub-list for method input_type
+	39, // [39:39] is the sub-list for extension type_name
+	39, // [39:39] is the sub-list for extension extendee
+	0,  // [0:39] is the sub-list for field type_name
 }
 
 func init() { file_teleport_accesslist_v1_accesslist_proto_init() }
@@ -1667,14 +2537,14 @@ func file_teleport_accesslist_v1_accesslist_proto_init() {
 	if File_teleport_accesslist_v1_accesslist_proto != nil {
 		return
 	}
-	file_teleport_accesslist_v1_accesslist_proto_msgTypes[15].OneofWrappers = []any{}
+	file_teleport_accesslist_v1_accesslist_proto_msgTypes[16].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_accesslist_v1_accesslist_proto_rawDesc), len(file_teleport_accesslist_v1_accesslist_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   16,
+			NumMessages:   17,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -27,13 +27,13 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/zitadel/oidc/v3/pkg/client"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/observability/otelhttp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/tool/tctl/sso/configure/flags"
 	"github.com/gravitational/teleport/tool/tctl/sso/tester"
@@ -150,7 +150,7 @@ func addOIDCCommand(cmd *SSOConfigureCommand) *AuthKindCommand {
 
 	sub := cmd.ConfigureCmd.Command("oidc", fmt.Sprintf("Configure OIDC auth connector, optionally using a preset. Available presets: %v.", oidcPresets.getNames()))
 	// commonly used flags
-	sub.Flag("preset", fmt.Sprintf("Preset. One of: %v", oidcPresets.getNames())).Short('p').EnumVar(&extra.chosenPreset, oidcPresets.getNames()...)
+	sub.Flag("preset", "Preset.").Short('p').EnumVar(&extra.chosenPreset, oidcPresets.getNames()...)
 	sub.Flag("name", "Connector name. Required, unless implied from preset.").Short('n').StringVar(&extra.connectorName)
 	sub.Flag("claims-to-roles", "Sets claim-to-roles mapping using format 'claim_name,claim_value,role1,role2,...'. Repeatable.").Short('r').Required().PlaceHolder("name,value,role1,role2,...").SetValue(flags.NewClaimsToRolesParser(&spec.ClaimsToRoles))
 	sub.Flag("display", "Sets the connector display name.").StringVar(&spec.Display)

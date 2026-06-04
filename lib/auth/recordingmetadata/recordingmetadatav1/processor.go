@@ -1,0 +1,155 @@
+/**
+ * Teleport
+ * Copyright (C) 2026 Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package recordingmetadatav1
+
+import (
+	"context"
+	"io"
+	"log/slog"
+	"math"
+	"time"
+
+	"google.golang.org/protobuf/encoding/protodelim"
+	"google.golang.org/protobuf/types/known/durationpb"
+
+	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth/recordingmetadata"
+)
+
+// recordingProcessor consumes audit events from a session recording and produces metadata and a representative
+// thumbnail. Implementations are specific to a session type (e.g. TTY for now, desktop and database in the future).
+type recordingProcessor interface {
+	// handleEvent processes a single audit event and updates the processor's internal state. Returning an error aborts
+	// metadata generation for the recording.
+	handleEvent(event apievents.AuditEvent) error
+	// collect finalizes the metadata and returns the session recording metadata along with the chosen thumbnail.
+	// It should be called after all events have been processed.
+	collect() (*pb.SessionRecordingMetadata, *pb.SessionRecordingThumbnail)
+	// release releases any resources held by the processor, such as thumbnail generators. It should be called after
+	// metadata collection is complete.
+	release()
+}
+
+func newRecordingProcessor(writer io.WriteCloser, logger *slog.Logger, sessionType recordingmetadata.SessionType, startTime time.Time, duration time.Duration) recordingProcessor {
+	base := baseRecordingProcessor{
+		metadata:      &pb.SessionRecordingMetadata{},
+		writer:        writer,
+		logger:        logger,
+		startTime:     startTime,
+		thumbnailTime: getRandomThumbnailTime(duration),
+	}
+
+	switch sessionType {
+	case recordingmetadata.SessionTypeTTY:
+		return newTTYRecordingProcessor(base, duration)
+	case recordingmetadata.SessionTypeDesktop:
+		return newDesktopProcessor(base, duration)
+	default:
+		logger.WarnContext(context.Background(), "unsupported session type for recording metadata generation, skipping thumbnail generation", "session_type", sessionType)
+	}
+
+	return &noopRecordingProcessor{}
+}
+
+// baseRecordingProcessor holds the shared state and helpers used by all session-type-specific processors, such as
+// the writer for streaming thumbnail frames and the logic for selecting the best representative thumbnail.
+type baseRecordingProcessor struct {
+	metadata           *pb.SessionRecordingMetadata
+	thumbnailGenerator thumbnailGenerator
+
+	lastEvent        apievents.AuditEvent
+	lastActivityTime time.Time
+	startTime        time.Time
+
+	thumbnailTime     time.Duration
+	lastThumbnailTime time.Time
+	thumbnail         *pb.SessionRecordingThumbnail
+
+	writer io.WriteCloser
+	logger *slog.Logger
+}
+
+func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time, interval time.Duration) {
+	if eventTime.Sub(b.lastThumbnailTime) < interval {
+		return
+	}
+
+	frame, err := b.thumbnailGenerator.produceThumbnail(frameMaxDimensions)
+	if err != nil {
+		b.logger.WarnContext(context.Background(), "Failed to produce thumbnail", "error", err)
+
+		return
+	}
+
+	if frame == nil {
+		return
+	}
+
+	b.lastThumbnailTime = eventTime
+
+	startOffset := durationpb.New(eventTime.Sub(b.startTime))
+	endOffset := durationpb.New(eventTime.Add(interval).Add(-1 * time.Millisecond).Sub(b.startTime))
+	frame.StartOffset = startOffset
+	frame.EndOffset = endOffset
+
+	if _, err := protodelim.MarshalTo(b.writer, frame); err != nil {
+		// log the error but continue processing other thumbnails and the session metadata (metadata is more important)
+		b.logger.WarnContext(context.Background(), "Failed to marshal thumbnail entry", "error", err)
+	}
+
+	// Decide whether this frame should become the representative thumbnail. We only re-encode at
+	// the higher resolution when the frame is actually being kept, to avoid wasted work.
+	if b.thumbnail != nil {
+		previousDiff := math.Abs(float64(b.thumbnailTime - b.thumbnail.StartOffset.AsDuration()))
+		diff := math.Abs(float64(b.thumbnailTime - eventTime.Sub(b.startTime)))
+		if diff >= previousDiff {
+			return
+		}
+	}
+
+	representative, err := b.thumbnailGenerator.produceThumbnail(thumbnailMaxDimensions)
+	if err != nil {
+		b.logger.WarnContext(context.Background(), "Failed to produce representative thumbnail", "error", err)
+
+		return
+	}
+	if representative == nil {
+		return
+	}
+	representative.StartOffset = startOffset
+	representative.EndOffset = endOffset
+	b.thumbnail = representative
+}
+
+func (b *baseRecordingProcessor) release() {
+	b.thumbnailGenerator.release()
+}
+
+type noopRecordingProcessor struct{}
+
+func (n *noopRecordingProcessor) handleEvent(event apievents.AuditEvent) error {
+	return nil
+}
+
+func (n *noopRecordingProcessor) collect() (*pb.SessionRecordingMetadata, *pb.SessionRecordingThumbnail) {
+	return nil, nil
+}
+
+func (n *noopRecordingProcessor) release() {}

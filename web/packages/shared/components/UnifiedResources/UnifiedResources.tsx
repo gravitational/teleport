@@ -31,9 +31,6 @@ import styled from 'styled-components';
 import { Box, ButtonBorder, ButtonSecondary, Flex, Text } from 'design';
 import { Danger } from 'design/Alert';
 import { Icon, Magnifier, PushPin } from 'design/Icon';
-
-import './unifiedStyles.css';
-
 import { HoverTooltip } from 'design/Tooltip';
 import {
   AvailableResourceMode,
@@ -77,6 +74,7 @@ import {
   VisibleFilterPanelFields,
   VisibleResourceItemFields,
 } from './types';
+import './unifiedStyles.css';
 
 // get 48 resources to start
 const INITIAL_FETCH_SIZE = 48;
@@ -152,6 +150,7 @@ const filterKindNameMap: Record<ResourceFilterKind, string> = {
   app: 'Applications',
   db: 'Databases',
   windows_desktop: 'Desktops',
+  linux_desktop: 'Desktops',
   kube_cluster: 'Kubernetes Clusters',
   node: 'SSH Resources',
   user_group: 'User Groups',
@@ -260,11 +259,18 @@ export interface UnifiedResourcesProps {
    */
   visibleResourceItemFields?: VisibleResourceItemFields;
   /**
-   * If true, renders a check icon at the top right corner of cards
-   * or right next to resource name for list view rows for all
-   * resources.
+   * Controls rendering of a check icon at the top right corner of cards
+   * or right next to resource name for list view rows.
+   *
+   * If a boolean, applies to all resources uniformly.
+   * If a function, called per resource with its labels to determine
+   * whether the icon should be shown.
    */
-  showResourcesSelectedIcon?: boolean;
+  showResourceSelectedIcon?: boolean | ((labels: ResourceLabel[]) => boolean);
+  /**
+   * Optional content rendered on the left side of the filter panel.
+   */
+  FilterPanelLeftContent?: JSX.Element;
 }
 
 export function UnifiedResources(props: UnifiedResourcesProps) {
@@ -290,7 +296,8 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
     className,
     forceNoResources,
     noResultCustomText,
-    showResourcesSelectedIcon,
+    showResourceSelectedIcon,
+    FilterPanelLeftContent,
   } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -623,6 +630,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
         setCurrentViewMode={selectViewMode}
         expandAllLabels={expandAllLabels}
         ClusterDropdown={ClusterDropdown}
+        LeftContent={FilterPanelLeftContent}
         setExpandAllLabels={expandAllLabels => {
           setLabelsViewMode(
             expandAllLabels ? LabelsViewMode.EXPANDED : LabelsViewMode.COLLAPSED
@@ -695,7 +703,7 @@ export function UnifiedResources(props: UnifiedResourcesProps) {
                   query: makeAdvancedSearchQueryForLabel(label, params),
                 })
         }
-        showResourcesSelectedIcon={showResourcesSelectedIcon}
+        showResourceSelectedIcon={showResourceSelectedIcon}
         resourceLabelConfig={resourceLabelConfig}
         pinnedResources={pinnedResources}
         selectedResources={selectedResources}

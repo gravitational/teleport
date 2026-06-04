@@ -17,7 +17,7 @@
  */
 
 import { useState } from 'react';
-import { Link, MemoryRouter } from 'react-router-dom';
+import { Link, MemoryRouter } from 'react-router';
 
 import { Box, ButtonPrimary, ButtonText } from 'design';
 import { UNSUPPORTED_KINDS } from 'shared/components/AccessRequests/NewRequest/RequestCheckout/LongTerm';
@@ -157,6 +157,41 @@ export const LoadedResourceRequestWithConstraints = () => {
           'arn:aws:iam::123456789012:role/Admin',
           'arn:aws:iam::123456789012:role/DevOps',
         ],
+      },
+    },
+  } satisfies ResourceConstraintsMap;
+
+  return (
+    <MemoryRouter>
+      <RequestCheckoutWithSlider
+        {...baseProps}
+        isResourceRequest={true}
+        fetchResourceRequestRolesAttempt={{ status: 'success' }}
+        pendingAccessRequests={pendingAccessRequests}
+        addedResourceConstraints={addedResourceConstraints}
+        setResourceConstraints={() => {}}
+      />
+    </MemoryRouter>
+  );
+};
+
+export const LoadedResourceRequestWithSSHConstraints = () => {
+  const pendingAccessRequests = [
+    {
+      kind: 'node',
+      id: 'test-node',
+      name: 'test-node.example.com',
+      clusterName: 'localhost',
+    },
+  ] satisfies RequestCheckoutWithSliderProps['pendingAccessRequests'];
+  const addedResourceConstraints = {
+    [getResourceIDString({
+      kind: 'node',
+      name: 'test-node',
+      cluster: 'localhost',
+    })]: {
+      ssh: {
+        logins: ['root', 'ubuntu', 'admin'],
       },
     },
   } satisfies ResourceConstraintsMap;

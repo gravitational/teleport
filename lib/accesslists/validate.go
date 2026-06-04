@@ -24,7 +24,13 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
+
+// ErrDeniedAccessListDeletion is returned when an Access List which also also a
+// member of another Access List is attempted for deletion.
+var ErrDeniedAccessListDeletion = &trace.AccessDeniedError{Message: "Access List with nested Access List membership cannot be deleted without first removing the membership"}
 
 // ValidateAccessListWithMembers makes sure the given AccessList and it's members is valid before
 // storing it. If the existingAccessList is non-nil it also checks if this is a valid update
@@ -79,6 +85,55 @@ func validateAccessList(a *accesslist.AccessList) error {
 		}
 	}
 
+	if err := validateScopedRoleGrants(a); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func validateScopedRoleGrants(a *accesslist.AccessList) error {
+	// Access lists that assign scoped roles cannot contain membership_requires or ownership_requires.
+	hasScopedRoleGrants := len(a.Spec.Grants.ScopedRoles) > 0 || len(a.Spec.OwnerGrants.ScopedRoles) > 0
+	hasRequires := !a.Spec.MembershipRequires.IsEmpty() || !a.Spec.OwnershipRequires.IsEmpty()
+	if hasScopedRoleGrants && hasRequires {
+		return trace.BadParameter("access lists cannot contain both scoped_role grants and non-empty membership_requires or ownership_requires blocks")
+	}
+
+	uniqueScopedRoleGrants := make(map[accesslist.ScopedRoleGrant]struct{})
+	validateScopedRoleGrant := func(grant accesslist.ScopedRoleGrant) error {
+		if _, alreadyValidated := uniqueScopedRoleGrants[grant]; alreadyValidated {
+			return nil
+		}
+		switch {
+		case grant.Role == "":
+			return trace.BadParameter("role is empty")
+		case grant.Scope == "":
+			return trace.BadParameter("scope is empty")
+		}
+		if err := scopes.StrongValidate(grant.Scope); err != nil {
+			return trace.Wrap(err, "validating scope")
+		}
+		uniqueScopedRoleGrants[grant] = struct{}{}
+		return nil
+	}
+	for i, grant := range a.Spec.Grants.ScopedRoles {
+		if err := validateScopedRoleGrant(grant); err != nil {
+			return trace.Wrap(err, "validating grants.scoped_roles[%d]", i)
+		}
+	}
+	for i, grant := range a.Spec.OwnerGrants.ScopedRoles {
+		if err := validateScopedRoleGrant(grant); err != nil {
+			return trace.Wrap(err, "validating owner_grants.scoped_roles[%d]", i)
+		}
+	}
+	// Unique scoped role grants per access list have the same limit as role
+	// grants per scoped_role_assignment for the same reason: each role may
+	// require two backend.ConditionalActions to include in an AtomicWrite.
+	if len(uniqueScopedRoleGrants) > scopedaccess.MaxRolesPerAssignment {
+		return trace.BadParameter("access list contains too many unique scoped role grants (max %d)", scopedaccess.MaxRolesPerAssignment)
+	}
+
 	return nil
 }
 
@@ -131,7 +186,7 @@ func ValidateAccessListMember(
 	member *accesslist.AccessListMember,
 	g AccessListAndMembersGetter,
 ) error {
-	if err := validateAccessListMemberBasic(member); err != nil {
+	if err := validateAccessListMemberBasic(parentList, member); err != nil {
 		return trace.Wrap(err)
 	}
 	if err := validateAccessListMemberOrOwnerNesting(ctx, parentList, member.GetName(), RelationshipKindMember, member.Spec.MembershipKind, g); err != nil {
@@ -140,8 +195,9 @@ func ValidateAccessListMember(
 	return nil
 }
 
-// validateAccessListMemberBasic performs basic fields validation for AccessListMember.
-func validateAccessListMemberBasic(member *accesslist.AccessListMember) error {
+// validateAccessListMemberBasic performs basic fields validation for AccessListMember
+// and performs the cross membership integrity check.
+func validateAccessListMemberBasic(parent *accesslist.AccessList, member *accesslist.AccessListMember) error {
 	if member.Spec.AccessList == "" {
 		return trace.BadParameter("member %s: access_list field empty", member.Metadata.Name)
 	}
@@ -153,6 +209,10 @@ func validateAccessListMemberBasic(member *accesslist.AccessListMember) error {
 	}
 	if member.Spec.AddedBy == "" {
 		return trace.BadParameter("member %s: added_by field is empty", member.Metadata.Name)
+	}
+	// The member must belong to the parent access list.
+	if member.Spec.AccessList != parent.GetName() {
+		return trace.BadParameter("member %s: spec.access_list field %q doesn't match parent list name %q", member.Metadata.Name, member.Spec.AccessList, parent.GetName())
 	}
 	return nil
 }

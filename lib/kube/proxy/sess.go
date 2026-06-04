@@ -182,6 +182,9 @@ func (p *kubeProxyClientStreams) stderrStream() io.Writer {
 
 func (p *kubeProxyClientStreams) resizeQueue() <-chan terminalResizeMessage {
 	ch := make(chan terminalResizeMessage)
+	if p.sizeQueue == nil {
+		return ch
+	}
 	p.wg.Add(1)
 	go func() {
 		defer p.wg.Done()
@@ -446,14 +449,25 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	log.DebugContext(req.Context(), "Creating session")
 
 	var policySets []*types.SessionTrackerPolicySet
-	roles := ctx.Checker.Roles()
-	for _, role := range roles {
-		policySet := role.GetSessionPolicySet()
-		policySets = append(policySets, &policySet)
+	unscopedCtx, isUnscoped := ctx.UnscopedContext()
+	// TODO(eriktate/scopes): scoped identities don't support policy sets, so we skip attempting to aggregate
+	// them unless the identity is unscoped.
+	if isUnscoped {
+		roles := unscopedCtx.Checker.Roles()
+		for _, role := range roles {
+			policySet := role.GetSessionPolicySet()
+			policySets = append(policySets, &policySet)
+		}
 	}
 
 	q := req.URL.Query()
 	accessEvaluator := moderation.NewSessionAccessEvaluator(policySets, types.KubernetesSessionKind, ctx.User.GetName())
+	if accessEvaluator.IsModerated() && forwarder.cfg.Scope != "" {
+		// If the kube forwarder is scoped then moderated sessions are not supported and access to
+		// KindKubernetesWaitingContainer will be denied. We need to return an explicit error for unscoped,
+		// moderated sessions in order to prevent any sort of bypass interacting with kube waiting containers.
+		return nil, trace.AccessDenied("scoped kubernetes clusters do not support moderated sessions")
+	}
 
 	io := srv.NewTermManager()
 	streamContext, streamContextCancel := context.WithCancel(forwarder.ctx)
@@ -554,7 +568,7 @@ func (s *session) disconnectPartyOnErr(idString string, err error) {
 		return
 	}
 
-	wasActive, leaveErr := s.leave(id)
+	wasActive, leaveErr := s.leave(s.streamContext, id)
 	if leaveErr != nil {
 		s.log.ErrorContext(s.sess.sessionCtx, "Failed to disconnect party from the session",
 			"party_id", idString,
@@ -572,7 +586,7 @@ func (s *session) disconnectPartyOnErr(idString string, err error) {
 
 // checkPresence checks the presence timestamp of involved moderators
 // and kicks them if they are not active.
-func (s *session) checkPresence() error {
+func (s *session) checkPresence(ctx context.Context) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -584,7 +598,7 @@ func (s *session) checkPresence() error {
 		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.log.DebugContext(s.sess.sessionCtx, "Participant is not active, kicking", "participant_id", participant.ID)
 			id, _ := uuid.Parse(participant.ID)
-			_, err := s.unlockedLeave(id)
+			_, err := s.unlockedLeave(ctx, id)
 			if err != nil {
 				s.log.WarnContext(s.sess.sessionCtx, "Failed to kick participant for inactivity",
 					"participant_id", participant.ID,
@@ -950,7 +964,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 			for {
 				select {
 				case <-ticker.C:
-					err := s.checkPresence()
+					err := s.checkPresence(s.streamContext)
 					if err != nil {
 						s.log.ErrorContext(s.forwarder.ctx, "Failed to check presence, closing session as a security measure", "error", err)
 						if err := s.Close(); err != nil {
@@ -968,9 +982,13 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, eventPodMeta 
 }
 
 // join attempts to connect a party to the session.
-func (s *session) join(p *party, emitJoinEvent bool) error {
+func (s *session) join(ctx context.Context, p *party, emitJoinEvent bool) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
-		roles := p.Ctx.Checker.Roles()
+		unscopedCtx, isUnscoped := p.Ctx.UnscopedContext()
+		if !isUnscoped {
+			return trace.Wrap(services.ErrScopedIdentity, "joining moderated session")
+		}
+		roles := unscopedCtx.Checker.Roles()
 
 		accessContext := moderation.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),
@@ -1073,7 +1091,10 @@ func (s *session) join(p *party, emitJoinEvent bool) error {
 		}()
 	}
 
-	canStart, _, err := s.canStart()
+	// Detach cancellation: the participant is already registered above, so a
+	// canceled request context here would leak them in s.parties/partiesWg
+	// because the caller treats this error as fatal and never calls leave.
+	canStart, _, err := s.canStart(context.WithoutCancel(ctx))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1137,6 +1158,12 @@ func (s *session) createEphemeralContainer() (*corev1.ContainerStatus, error) {
 	podName := s.params.ByName("podName")
 	container := s.req.URL.Query().Get("container")
 
+	if s.forwarder.cfg.Scope != "" {
+		// If the kube forwarder is scoped then moderated sessions are not supported and access to
+		// KindKubernetesWaitingContainer will be denied. We need to return without error to prevent
+		// interactive exec from failing
+		return nil, nil
+	}
 	waitingCont, err := s.forwarder.cfg.CachingAuthClient.GetKubernetesWaitingContainer(
 		s.forwarder.ctx,
 		&kubewaitingcontainerpb.GetKubernetesWaitingContainerRequest{
@@ -1224,17 +1251,17 @@ func (s *session) prepareAndEmitEvent(evt apievents.AuditEvent) {
 
 // leave removes a party from the session and returns if the party was still active
 // in the session. If the party wasn't found, it returns false, nil.
-func (s *session) leave(id uuid.UUID) (bool, error) {
+func (s *session) leave(ctx context.Context, id uuid.UUID) (bool, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	return s.unlockedLeave(id)
+	return s.unlockedLeave(ctx, id)
 }
 
 // unlockedLeave removes a party from the session without locking the mutex.
 // The boolean returned identifies if the party was still active in the session.
 // If the party wasn't found, it returns false, nil.
 // In order to call this function, lock the mutex before.
-func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
+func (s *session) unlockedLeave(ctx context.Context, id uuid.UUID) (bool, error) {
 	var errs []error
 	stringID := id.String()
 	party := s.parties[id]
@@ -1295,7 +1322,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		return true, trace.NewAggregate(errs...)
 	}
 
-	canStart, options, err := s.canStart()
+	canStart, options, err := s.canStart(ctx)
 	if err != nil {
 		return true, trace.Wrap(err)
 	}
@@ -1346,7 +1373,7 @@ func (s *session) allParticipants() []string {
 }
 
 // canStart checks if a session can start with the current set of participants.
-func (s *session) canStart() (bool, moderation.PolicyOptions, error) {
+func (s *session) canStart(ctx context.Context) (bool, moderation.PolicyOptions, error) {
 	var participants []moderation.SessionAccessContext
 	for _, party := range s.parties {
 		if party.Ctx.User.GetName() == s.ctx.User.GetName() {
@@ -1354,7 +1381,7 @@ func (s *session) canStart() (bool, moderation.PolicyOptions, error) {
 		}
 
 		roleNames := party.Ctx.Identity.GetIdentity().Groups
-		roles, err := getRolesByName(s.forwarder, roleNames)
+		roles, err := getRolesByName(ctx, s.forwarder, roleNames)
 		if err != nil {
 			return false, moderation.PolicyOptions{}, trace.Wrap(err)
 		}
@@ -1410,11 +1437,11 @@ func (s *session) Close() error {
 	return nil
 }
 
-func getRolesByName(forwarder *Forwarder, roleNames []string) ([]types.Role, error) {
+func getRolesByName(ctx context.Context, forwarder *Forwarder, roleNames []string) ([]types.Role, error) {
 	var roles []types.Role
 
 	for _, roleName := range roleNames {
-		role, err := forwarder.cfg.CachingAuthClient.GetRole(context.TODO(), roleName)
+		role, err := forwarder.cfg.CachingAuthClient.GetRole(ctx, roleName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

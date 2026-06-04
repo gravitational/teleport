@@ -63,7 +63,7 @@ type ServicesTestSuite struct {
 	Access         services.Access
 	TrustS         services.Trust
 	TrustInternalS services.TrustInternal
-	PresenceS      services.Presence
+	PresenceS      services.PresenceInternal
 	ProvisioningS  services.Provisioner
 	WebS           services.Identity
 	ConfigS        services.ClusterConfiguration
@@ -98,7 +98,7 @@ func userSlicesEqual(t *testing.T, a []types.User, b []types.User) {
 }
 
 func usersEqual(t *testing.T, a types.User, b types.User) {
-	require.True(t, services.UsersEquals(a, b), cmp.Diff(a, b))
+	require.True(t, a.IsEqual(b), cmp.Diff(a, b))
 }
 
 func newUser(name string, roles []string) types.User {
@@ -395,7 +395,8 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
 	proxy.Spec.Hostname = "proxy.llama"
-	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
+	_, err = s.PresenceS.UpsertProxyServer(ctx, proxy)
+	require.NoError(t, err)
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetProxies()
@@ -403,7 +404,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.Server{proxy}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.PresenceS.DeleteProxy(ctx, proxy.GetName())
+	err = s.PresenceS.DeleteProxyServer(ctx, proxy.GetName())
 	require.NoError(t, err)
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -718,6 +719,12 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 				PrivateKey: fixtures.TLSCAKeyPEM,
 				Cert:       fixtures.TLSCACertPEM,
 			},
+			Credentials: &types.SAMLConnectorCredentials{
+				Oauth: &types.OAuthClientCredentials{
+					ClientId:     "test-id",
+					ClientSecret: "test-secret",
+				},
+			},
 		},
 	}
 	err := services.ValidateSAMLConnector(connector, nil)
@@ -738,6 +745,9 @@ func (s *ServicesTestSuite) SAMLCRUD(t *testing.T) {
 	require.NoError(t, err)
 	connectorNoSecrets := *connector
 	connectorNoSecrets.Spec.SigningKeyPair.PrivateKey = ""
+	oauthNoSecrets := *connectorNoSecrets.GetOAuthClientCredentials()
+	oauthNoSecrets.ClientSecret = ""
+	connectorNoSecrets.SetOAuthClientCredentials(&oauthNoSecrets)
 	require.Empty(t, cmp.Diff(out2, &connectorNoSecrets, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	connectorsNoSecrets, err := s.WebS.GetSAMLConnectors(ctx, false)
@@ -1248,15 +1258,12 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.TrustS.DeleteAllTunnelConnections()
+	out, err = s.TrustS.GetAllTunnelConnections()
 	require.NoError(t, err)
-
-	out, err = s.TrustS.GetTunnelConnections(clusterName)
-	require.NoError(t, err)
-	require.Empty(t, out)
-
-	err = s.TrustS.DeleteAllTunnelConnections()
-	require.NoError(t, err)
+	for _, tc := range out {
+		err = s.TrustS.DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
+		require.NoError(t, err)
+	}
 
 	// test delete individual connection
 	err = s.TrustS.UpsertTunnelConnection(conn)
@@ -2214,15 +2221,16 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			crud: func(context.Context) types.Resource {
 				srv := NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 
-				err := s.PresenceS.UpsertProxy(ctx, srv)
+				_, err := s.PresenceS.UpsertProxyServer(ctx, srv)
 				require.NoError(t, err)
 
 				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 				out, err := s.PresenceS.GetProxies()
 				require.NoError(t, err)
 
-				err = s.PresenceS.DeleteAllProxies()
-				require.NoError(t, err)
+				for _, p := range out {
+					require.NoError(t, s.PresenceS.DeleteProxyServer(ctx, p.GetName()))
+				}
 
 				return out[0]
 			},
@@ -2246,7 +2254,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				out, err := s.TrustS.GetTunnelConnections("example.com")
 				require.NoError(t, err)
 
-				err = s.TrustS.DeleteAllTunnelConnections()
+				err = s.TrustS.DeleteTunnelConnection(conn.GetClusterName(), conn.GetName())
 				require.NoError(t, err)
 
 				return out[0]
@@ -2292,6 +2300,42 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				require.NoError(t, err)
 
 				return out[0]
+			},
+		},
+		{
+			name: "SAMLConnector",
+			kind: types.WatchKind{
+				Kind: types.KindSAMLConnector,
+			},
+			crud: func(ctx context.Context) types.Resource {
+				connector, err := types.NewSAMLConnector("test-saml-connector", types.SAMLConnectorSpecV2{
+					Display:                  "SAML",
+					Issuer:                   "http://example.com",
+					SSO:                      "https://example.com/saml/sso",
+					AssertionConsumerService: "https://localhost/acs",
+					Audience:                 "https://localhost/aud",
+					ServiceProviderIssuer:    "https://localhost/iss",
+					AttributesToRoles: []types.AttributeMapping{
+						{Name: "groups", Value: "admin", Roles: []string{"admin"}},
+					},
+					Cert: fixtures.TLSCACertPEM,
+					SigningKeyPair: &types.AsymmetricKeyPair{
+						PrivateKey: fixtures.TLSCAKeyPEM,
+						Cert:       fixtures.TLSCACertPEM,
+					},
+				})
+				require.NoError(t, err)
+
+				_, err = s.WebS.CreateSAMLConnector(ctx, connector)
+				require.NoError(t, err)
+
+				out, err := s.WebS.GetSAMLConnector(ctx, connector.GetName(), false)
+				require.NoError(t, err)
+
+				err = s.WebS.DeleteSAMLConnector(ctx, connector.GetName())
+				require.NoError(t, err)
+
+				return out
 			},
 		},
 	}
@@ -2497,17 +2541,33 @@ skiploop:
 
 		ExpectResource(t, w, 3*time.Second, resource)
 
-		meta := resource.GetMetadata()
-		header := &types.ResourceHeader{
-			Kind:    resource.GetKind(),
-			SubKind: resource.GetSubKind(),
-			Version: resource.GetVersion(),
-			Metadata: types.Metadata{
-				Name:      meta.Name,
-				Namespace: meta.Namespace,
-			},
+		// Explicitly handle watchers that emit a concrete type on delete, rather than
+		// a ResourceHeader.
+		var deleteResource types.Resource
+		switch r := resource.(type) {
+		case *types.SAMLConnectorV2:
+			meta := r.GetMetadata()
+			deleteResource = &types.SAMLConnectorV2{
+				Kind:    r.GetKind(),
+				Version: r.GetVersion(),
+				Metadata: types.Metadata{
+					Name:      meta.Name,
+					Namespace: meta.Namespace,
+				},
+			}
+		default:
+			meta := r.GetMetadata()
+			deleteResource = &types.ResourceHeader{
+				Kind:    r.GetKind(),
+				SubKind: r.GetSubKind(),
+				Version: r.GetVersion(),
+				Metadata: types.Metadata{
+					Name:      meta.Name,
+					Namespace: meta.Namespace,
+				},
+			}
 		}
-		ExpectDeleteResource(t, w, 3*time.Second, header)
+		ExpectDeleteResource(t, w, 3*time.Second, deleteResource)
 	}
 }
 

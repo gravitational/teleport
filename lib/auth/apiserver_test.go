@@ -37,6 +37,8 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+// TODO(noah): In a separate PR soon, nuke this test. We cover this elsewhere
+// much better. This test awkwardly skips some important layers.
 func TestUpsertServer(t *testing.T) {
 	t.Parallel()
 
@@ -93,7 +95,7 @@ func TestUpsertServer(t *testing.T) {
 				Version:  types.V2,
 				Kind:     types.KindAuthServer,
 			},
-			assertErr: require.NoError,
+			assertErr: require.Error,
 		},
 		{
 			desc: "unknown",

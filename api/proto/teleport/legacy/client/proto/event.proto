@@ -20,6 +20,8 @@ import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/accessmonitoringrules/v1/access_monitoring_rules.proto";
 import "teleport/appauthconfig/v1/appauthconfig.proto";
 import "teleport/autoupdate/v1/autoupdate.proto";
+import "teleport/beams/v1/beam.proto";
+import "teleport/beams/v1/beams_config.proto";
 import "teleport/clusterconfig/v1/access_graph_settings.proto";
 import "teleport/crownjewel/v1/crownjewel.proto";
 import "teleport/dbobject/v1/dbobject.proto";
@@ -31,6 +33,8 @@ import "teleport/legacy/types/types.proto";
 import "teleport/linuxdesktop/v1/linux_desktop.proto";
 import "teleport/machineid/v1/bot_instance.proto";
 import "teleport/machineid/v1/federation.proto";
+import "teleport/mfa/v1/validated_challenge.proto";
+import "teleport/mfa/v2/validated_challenge.proto";
 import "teleport/notifications/v1/notifications.proto";
 import "teleport/presence/v1/relay_server.proto";
 import "teleport/provisioning/v1/provisioning.proto";
@@ -38,6 +42,8 @@ import "teleport/recordingencryption/v1/recording_encryption.proto";
 import "teleport/scopes/access/v1/assignment.proto";
 import "teleport/scopes/access/v1/role.proto";
 import "teleport/secreports/v1/secreports.proto";
+import "teleport/subca/v1/cert_authority_override.proto";
+import "teleport/summarizer/v1/summarizer.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
 import "teleport/usertasks/v1/user_tasks.proto";
@@ -63,9 +69,11 @@ message Event {
   reserved 49;
   reserved 63;
   reserved 68;
+  reserved 88;
   reserved "ExternalCloudAudit";
   reserved "StaticHostUser";
   reserved "AutoUpdateAgentPlan";
+  reserved "WorkloadCluster";
 
   // Operation identifies operation
   Operation Type = 1;
@@ -240,5 +248,23 @@ message Event {
     teleport.appauthconfig.v1.AppAuthConfig AppAuthConfig = 86;
     // LinuxDesktop is a resource for linux desktop.
     teleport.linuxdesktop.v1.LinuxDesktop LinuxDesktop = 87;
+    // ValidatedMFAChallenge is a resource for representing a validated MFA challenge.
+    teleport.mfa.v1.ValidatedMFAChallenge ValidatedMFAChallenge = 89 [deprecated = true];
+    // CertAuthorityOverride allows admins to override Teleport CA certificates.
+    teleport.subca.v1.CertAuthorityOverride CertAuthorityOverride = 90;
+    // InferenceModel is a resource for defining inference models.
+    teleport.summarizer.v1.InferenceModel InferenceModel = 91;
+    // InferenceSecret is a resource for defining inference secrets.
+    teleport.summarizer.v1.InferenceSecret InferenceSecret = 92;
+    // InferencePolicy is a resource for defining inference policies.
+    teleport.summarizer.v1.InferencePolicy InferencePolicy = 93;
+    // RetrievalModel is a resource for defining retrieval models.
+    teleport.summarizer.v1.RetrievalModel RetrievalModel = 94;
+    // Beam is an ephemeral AI-optimized compute environment.
+    teleport.beams.v1.Beam Beam = 95;
+    // ValidatedMFAChallengeV2 is a resource for representing a validated MFA challenge.
+    teleport.mfa.v2.ValidatedMFAChallenge ValidatedMFAChallengeV2 = 96;
+    // BeamsConfig is the user-provided configuration for Beams.
+    teleport.beams.v1.BeamsConfig BeamsConfig = 97;
   }
 }

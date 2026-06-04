@@ -42,11 +42,13 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestAuth_RegisterUsingToken(t *testing.T) {
+	t.Parallel()
 	ctx := t.Context()
 	p := newAuthSuite(t)
 
@@ -315,7 +317,7 @@ func TestJoin_Bot(t *testing.T) {
 		Spec: &machineidv1pb.BotSpec{
 			Roles: []string{},
 		},
-	}, srv.Clock().Now(), "")
+	}, srv.Clock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	later := srv.Clock().Now().Add(4 * time.Hour)
@@ -459,7 +461,7 @@ func TestJoin_Bot_Expiry(t *testing.T) {
 					Roles:  []string{},
 					Traits: []*machineidv1pb.Trait{},
 				},
-			}, srv.Clock().Now(), "")
+			}, srv.Clock().Now(), "", scopes.Features{})
 			require.NoError(t, err)
 			tok := newBotToken(t, uuid.NewString(), botName, types.RoleBot, srv.Clock().Now().Add(time.Hour))
 			require.NoError(t, srv.Auth().UpsertToken(ctx, tok))

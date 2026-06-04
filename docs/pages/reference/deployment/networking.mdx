@@ -1,6 +1,7 @@
 ---
-title: Networking
+title: Teleport Networking Reference
 description: This reference explains the networking requirements of a Teleport cluster, including its public address, ports, and support for HTTP CONNECT proxies.
+sidebar_label: Networking
 tags:
  - conceptual
  - platform-wide
@@ -14,7 +15,147 @@ manage Agents and `tbot` instances.
 This reference guide describes the networking requirements of a Teleport
 cluster.
 
-## Public address
+## Architecture overview
+
+A Teleport cluster is a distributed system consisting of components that can run
+in both public and private networks. Teleport also supports fully air-gapped
+environments.
+
+The **Teleport Auth Service**, which manages backend data and issues
+certificates, typically runs in a private network. The **Teleport Proxy
+Service** should be the only component of your Teleport cluster that is
+addressable from the public internet, and can run in a private network as long
+as end-users can dial it.
+
+We expect all other components, including Teleport Agents and Machine & Workload
+ID Bots, to run in private networks. Components in private networks connect to
+the Teleport Proxy Service and establish reverse tunnels that the Proxy Service
+uses to communicate with them.
+
+For a comprehensive explanation of how a Teleport cluster works, see [Teleport
+Architecture](../architecture/architecture.mdx). For a glossary of terms, see
+[Core Concepts](../../core-concepts.mdx).
+
+```mermaid
+architecture-beta
+
+%%%%%%%%%%%
+%% Groups %
+%%%%%%%%%%%
+
+group public_net(carbon-network-public)[Public Internet]
+group dmz_net(carbon-network-public)[DMZ or Public Subnet]
+group private_net2(carbon-virtual-private-cloud)[Private Network]
+
+%% private_net contains Teleport Agents and protected resources.
+group private_net(carbon-virtual-private-cloud)[Private Network]
+group k8s_net(logos-kubernetes)[Kubernetes Cluster] in private_net
+group k8s_net2(logos-kubernetes)[Kubernetes Cluster] in private_net
+
+
+%%%%%%%%%%%%%
+%% Services %
+%%%%%%%%%%%%%
+
+service user(carbon-user)[User] in public_net
+
+%% Teleport control plane
+service proxy(teleport-logo-purple)[Proxy Service] in dmz_net
+service auth(teleport-logo-purple)[Auth Service] in private_net2
+
+%% Agents and a protected server in the private network
+service agent(teleport-logo-purple)[Teleport Agents] in private_net
+service ssh_node(teleport-logo-purple)[Protected Server] in private_net
+
+%% Resources that Teleport Agents protect
+service db(carbon-db2-database)[Databases] in private_net
+service windows(carbon-virtual-desktop)[Desktops] in private_net
+service webapp(carbon-code)[Web Apps] in private_net
+
+%% Protected Kubernetes clusters representing two enrollment methods:
+%% running in the same cluster as the protected API server and using a
+%% kubeconfig to protect a remote cluster.
+%%   k8s_agent runs as a Pod inside the cluster it manages
+%%   k8s_agent_external runs outside its target cluster and connects via kubeconfig
+service k8s_agent(teleport-logo-purple)[Teleport Agent Pod] in k8s_net
+service k8s_pods(logos-kubernetes)[Kubernetes API Server] in k8s_net
+service k8s_agent_external(teleport-logo-purple)[External Teleport Agent with Kubeconfig] in private_net
+service k8s_pods2(logos-kubernetes)[Kubernetes API Server] in k8s_net2
+
+%%%%%%%%%%%%%%
+%% Junctions %
+%%%%%%%%%%%%%%
+
+%% p_conn: collects the external Kubernetes agent's reverse-tunnel wire
+%% connection routing it into the Proxy Service from below.
+junction p_conn in private_net
+
+%% j_mid / j_top / j_bot form a vertical spine for connections from the Teleport
+%% Agents service: 
+%%   j_mid is the center junction, and connects to Desktops and branches to j_top/j_bot
+%%   j_top sits above j_mid and connects to Databases
+%%   j_bot sits below j_mid and connects to Web Apps
+junction j_mid in private_net
+junction j_top in private_net
+junction j_bot in private_net
+
+%% j_proxy_auth_bend: L-bend that routes the User connection above the
+%% Proxy Service so that the Public Internet group appears at the top of
+%% the diagram.
+junction j_proxy_auth_bend
+
+%% j_ssh_proxy / j_ssh_proxy_buf: connects Protected Server reverse-tunnel to
+%% the Proxy Service. j_ssh_proxy also serves as part of the connection between
+%% Teleport Agents and Proxy Service.
+junction j_ssh_proxy
+junction j_ssh_proxy_buf
+
+%% j_agents_buf1 / j_agents_buf2: extend the Teleport Agents reverse tunnel %%
+%% vertically until it meets j_ssh_proxy at the private_net boundary.
+junction j_agents_buf1
+junction j_agents_buf2
+
+%%%%%%%%%%%%%%%%
+%% Connections %
+%%%%%%%%%%%%%%%%
+
+%% Proxy Service to Auth Service
+proxy:L --> R:auth
+j_proxy_auth_bend:L -- R:user
+j_proxy_auth_bend:B --> T:proxy
+
+%% Kubernetes Agent Pod to Proxy Service and Kubernetes API server
+k8s_agent:L --> R:proxy
+k8s_agent:R --> L:k8s_pods
+
+%% External Kubernetes agent to Proxy Service and the remote Kubernetes
+%% cluster's API server
+k8s_agent_external:L -- R:p_conn
+k8s_agent_external:R --> L:k8s_pods2
+p_conn:L --> B:proxy
+
+%% Protected Server and Teleport Agents to the Proxy Service via reverse
+%% tunnel
+ssh_node:L -- R:j_ssh_proxy
+j_ssh_proxy:T -- B:j_ssh_proxy_buf
+j_ssh_proxy_buf:T --> B:proxy
+
+%% Vertical spine connecting the Proxy Service to Teleport Agents in the private
+%% network
+j_ssh_proxy:B -- T:j_agents_buf1
+j_agents_buf1:B -- T:j_agents_buf2
+j_agents_buf2:R -- L:agent
+agent:R -- L:j_mid
+j_mid:B -- T:j_top
+j_mid:T -- B:j_bot
+
+%% Agents to protected databases, desktops, and web apps
+j_top:R --> L:db
+j_mid:R --> L:windows
+j_bot:R --> L:webapp
+```
+
+## Public addresses
 
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
@@ -242,7 +383,7 @@ agents to the public internet.
 ### Direct connections to agents
 
 If you run a self-hosted Teleport cluster, you can join an agent [directly to
-the Teleport Auth Service](../../enroll-resources/agents/join-token.mdx).
+the Teleport Auth Service](../../installation/agents/join-token.mdx).
 In this setup, certain Teleport services open their own listeners rather than
 accepting connections via reverse tunnel. The Proxy Service connects to these
 agent services by dialing them directly.
@@ -262,5 +403,81 @@ use reverse tunnel connections through the Teleport Proxy Service and cannot
 expose ports directly.
 
 <Admonition type="important">
-Direct auth joining is only supported for ssh and kube agents. Application, database, and other discovery-based features are not supported when joining auth directly.
+Direct Auth Service joining is only supported for Teleport Agents running the Teleport SSH Service, Kubernetes Service, and Windows Desktop Service. Using Auth Service joining to enroll applications, databases, and for other discovery-based features, is not supported.
 </Admonition>
+
+## Troubleshooting
+
+Logs emitted by a Teleport process can include the following messages if you
+have set up your Teleport cluster network incorrectly.
+
+### Connection reset by peer
+
+If you see the message, `connection reset by peer`, it means that the remote
+server (usually the Teleport control plane) closed the client's connection.
+
+There is a variety of reasons why an upstream server may reset the connection,
+and they may or may not have to do with the components of a Teleport cluster.
+For example, a `tsh` client can emit a `connection reset by peer` message if it
+is behind the Teleport Proxy Service, which closes a connection if it receives
+traffic from an outdated `tsh` client. It could also be that a Teleport Agent
+proxying a connection exited without closing the connection. A device between
+the Teleport component and the other side of the connection, such as a load
+balancer, may also be closing the connection.
+
+To investigate:
+
+1. If the connection involves two Teleport components, make sure their versions
+   abide by the Teleport [version compatibility
+   guarantees](../../upgrading/overview.mdx).
+1. Examine the logs of the remote Teleport process and check whether the process
+   was healthy at the time you saw the error.
+
+### First record does not look like a TLS handshake
+
+You may see an error similar to the following, indicating an issue with a TLS
+handshake:
+
+```
+transport: authentication handshake failed: tls: first record does not look like a TLS handshake
+```
+
+The library that Teleport uses for TLS prints this error if the server and
+client have not negotiated a TLS version and the TLS record in question is not a
+handshake. In other words, the Teleport process that printed the log was
+expecting a TLS handshake from the other side of the connection and did not
+receive one. This can happen if the other side was replying to the Teleport
+process in a different protocol.
+
+In this case, check the address of the upstream host and make sure it is one
+that is configured to use TLS, rather than (for example) HTTP or unencrypted
+TCP.
+
+### Authentication handshake failed
+
+Your `teleport` or `tbot` logs may report a certificate with a subject that does
+not match the expected domain name, a subdomain of `teleport.cluster.local`.
+The following example assumes your cluster's address is `example.teleport.sh`:
+
+```
+transport: authentication handshake failed: tls: failed to verify certificate: x509: certificate is valid for *.example.teleport.sh, example.teleport.sh, not 6578616d706c652e74656c65706f72742e7368.teleport.cluster.local
+```
+
+As explained in
+[Troubleshooting](../../zero-trust-access/management/diagnostics/troubleshooting.mdx#teleportclusterlocal),
+Teleport issues certificates with `teleport.cluster.local` as a Subject
+Alternative Name (SAN) for the Teleport Auth Service. In this case, the
+certificate your Teleport component received does not include the intended SAN.
+
+One reason this situation could take place is that the cluster is configured to
+use [TLS
+multiplexing](../../zero-trust-access/management/tls-routing.mdx), but you
+are running the Teleport Proxy Service behind a Layer 7 load balancer that only
+returns the load balancer's main certificate instead of allowing the Teleport
+internal certificate. Your infrastructure may be interfering with TLS
+connections by altering the certificate that your Teleport instance presents.
+
+Investigate whether the certificate your client receives is signed by, for
+example, a corporate TLS proxy, or has otherwise been transformed between the
+time the Teleport Auth Service issued it and it reached your client during the
+attempted TLS handshake.

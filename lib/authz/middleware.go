@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -147,11 +148,10 @@ func (a *Middleware) GetUser(ctx context.Context, connState tls.ConnectionState)
 	// for connections without auth, but this is not active use-case
 	// therefore it is not allowed to reduce scope
 	if len(peers) == 0 {
-		return BuiltinRole{
+		return UnauthenticatedRole{
 			Role:        types.RoleNop,
 			Username:    string(types.RoleNop),
 			ClusterName: a.ClusterName,
-			Identity:    tlsca.Identity{},
 		}, nil
 	}
 	clientCert := peers[0]
@@ -209,6 +209,10 @@ func (a *Middleware) GetUser(ctx context.Context, connState tls.ConnectionState)
 			}, nil
 		}
 
+		if identity.ScopePin != nil {
+			return nil, trace.AccessDenied("access denied: scoped identities cannot interact with remote clusters")
+		}
+
 		return RemoteUser{
 			ClusterName:      certClusterName,
 			Username:         identity.Username,
@@ -221,6 +225,7 @@ func (a *Middleware) GetUser(ctx context.Context, connState tls.ConnectionState)
 			Identity:         *identity,
 		}, nil
 	}
+
 	// code below expects user or service from local cluster, to distinguish between
 	// interactive users and services (e.g. proxies), the code below
 	// checks for presence of system roles issued in certificate identity
@@ -236,6 +241,23 @@ func (a *Middleware) GetUser(ctx context.Context, connState tls.ConnectionState)
 			Identity:              *identity,
 		}, nil
 	}
+
+	if identity.ScopePin != nil {
+		switch identity.ScopePin.GetKind() {
+		case scopesv1.PinKind_PIN_KIND_AGENT:
+			return ScopedBuiltinRole{
+				ScopePin:    identity.ScopePin,
+				ServerFQDN:  identity.Username,
+				ClusterName: a.ClusterName,
+				Identity:    *identity,
+			}, nil
+		case scopesv1.PinKind_PIN_KIND_USER:
+			// valid user scope pin, fall through to LocalUser
+		default:
+			return nil, trace.AccessDenied("access denied: identity has scope pin with unrecognized kind %v", identity.ScopePin.GetKind())
+		}
+	}
+
 	// otherwise assume that is a local role, no need to pass the roles
 	// as it will be fetched from the local database
 	return LocalUser{

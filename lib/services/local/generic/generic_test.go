@@ -32,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
@@ -225,13 +226,13 @@ func TestGenericCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	// Retrieve all resources from the stream
+	// Retrieve resources within an exclusive end range from the stream.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, r1.GetName(), r2.GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff(paginatedOut, streamedResources,
+	require.Empty(t, cmp.Diff([]*testResource{r1}, streamedResources,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -245,15 +246,13 @@ func TestGenericCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	// Retrieve a single resource from the stream
+	// An exclusive end equal to the first resource yields nothing.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, "", r1.GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff([]*testResource{r1}, streamedResources,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
+	require.Empty(t, streamedResources)
 
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetName())
@@ -370,6 +369,56 @@ func TestGenericCRUD(t *testing.T) {
 	count, err = service.CountResources(ctx)
 	require.NoError(t, err)
 	require.Equal(t, uint(0), count)
+}
+
+// TestResourcesSkipsUnmarshalErrors guards against a regression where a single
+// malformed backend item would terminate iteration over Resources rather than
+// being skipped.
+func TestResourcesSkipsUnmarshalErrors(t *testing.T) {
+	ctx := t.Context()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     200,
+		BackendPrefix: backend.NewKey("generic_prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+	})
+	require.NoError(t, err)
+
+	// Insert valid resources at "r1" and "r3".
+	r1 := newTestResource("r1")
+	_, err = service.CreateResource(ctx, r1)
+	require.NoError(t, err)
+	r3 := newTestResource("r3")
+	_, err = service.CreateResource(ctx, r3)
+	require.NoError(t, err)
+
+	// Insert a malformed item at "r2", bypassing marshal so the unmarshal
+	// path will fail when iterating.
+	_, err = memBackend.Put(ctx, backend.Item{
+		Key:   service.MakeKey(backend.NewKey("r2")),
+		Value: []byte("not-valid-json"),
+	})
+	require.NoError(t, err)
+
+	// Resources must skip the malformed item and continue past it.
+	var got []*testResource
+	for r, err := range service.Resources(ctx, "", "") {
+		require.NoError(t, err)
+		got = append(got, r)
+	}
+	require.Empty(t, cmp.Diff(
+		[]*testResource{r1, r3}, got,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
 }
 
 func TestGenericListResourcesReturnNextResource(t *testing.T) {
@@ -646,7 +695,7 @@ func TestGenericKeyOverride(t *testing.T) {
 		BackendPrefix: backend.NewKey("generic_prefix"),
 		UnmarshalFunc: unmarshalResource,
 		MarshalFunc:   marshalResource,
-		NameKeyFunc:   func(string) string { return "llama" },
+		NameKeyFunc:   func() backend.Key { return backend.NewKey("llama") },
 	})
 	require.NoError(t, err)
 
@@ -725,4 +774,32 @@ func TestGenericKeyOverride(t *testing.T) {
 	require.NoError(t, err)
 	_, err = memBackend.Get(ctx, backend.NewKey("generic_prefix", "llama"))
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
+
+	t.Run("WithNameKeyFunc", func(t *testing.T) {
+		s := service.WithNameKeyFunc(func() backend.Key {
+			return backend.NewKey("camelid", "thellama")
+		})
+
+		ctx := t.Context()
+		r1 := newTestResource("r1")
+
+		// Test a few basic operations to make sure the With is sound.
+		created, err := s.CreateResource(ctx, r1)
+		require.NoError(t, err, "CreateResource")
+
+		// Test that the customized key exists.
+		wantKey := backend.NewKey("generic_prefix", "camelid", "thellama")
+		_, err = memBackend.Get(ctx, wantKey)
+		require.NoError(t, err, "Get by customized key")
+
+		// Get.
+		stored, err := s.GetResource(ctx, "")
+		require.NoError(t, err, "GetResource")
+		assert.Equal(t, created, stored, "GetResource mismatch")
+
+		// Delete.
+		require.NoError(t, s.DeleteResource(ctx, ""), "DeleteResource")
+		// 2nd Delete.
+		require.ErrorAs(t, s.DeleteResource(ctx, ""), new(*trace.NotFoundError), "2nd DeleteResource error mismatch")
+	})
 }

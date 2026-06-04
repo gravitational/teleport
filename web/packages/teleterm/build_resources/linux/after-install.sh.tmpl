@@ -3,8 +3,7 @@ set -eu
 
 ###
 # Based on the default after-install.tpl copied from electron-builder.
-# https://github.com/electron-userland/electron-builder/blob/e394e0c48be965bd8a02c593ecda7e57b84b4f15/packages/app-builder-lib/templates/linux/after-install.tpl
-# Our copy has all the changes from upstream up to commit e1ea62b0029c4adca20196ef060948777caeac37.
+# https://github.com/electron-userland/electron-builder/blob/ec9e2dbbd864f0858cf0d3b719ad75a84c59f29c/packages/app-builder-lib/templates/linux/after-install.tpl
 ###
 
 # Check if user namespaces are supported by the kernel and working with a quick test:
@@ -73,7 +72,7 @@ TSH_SYMLINK_TARGET=$BIN/tsh
 [ ! -d "$BIN" ] && mkdir -p "$BIN"
 
 # Link to the Electron app binary.
-if type update-alternatives 2>/dev/null >&1; then
+if type update-alternatives >/dev/null 2>&1; then
   # Remove previous link if it doesn't use update-alternatives
   # shellcheck disable=SC2154 # This is custom electron-builder macro expansion, not Bash templating.
   if [ -L "$BIN/${executable}" ] && [ -e "$BIN/${executable}" ] && [ "$(readlink "$BIN/${executable}")" != "/etc/alternatives/${executable}" ]; then
@@ -104,6 +103,46 @@ else
     message+=" because $TSH_SYMLINK_TARGET already exists and it isn't a symlink."
     echo "$message"
   fi
+fi
+
+has_systemd() {
+  [ -d /run/systemd/system ] && command -v systemctl >/dev/null 2>&1
+}
+
+install_vnet_file() {
+  src="$1"
+  dst="$2"
+  mode="$3"
+
+  [ -f "$src" ] || return 0
+  mkdir -p "$(dirname "$dst")"
+  install -m "$mode" "$src" "$dst"
+}
+
+reload_dbus_config() {
+  # Normally packages that install files into
+  # D-Bus configuration directories (for example):
+  #   /usr/share/dbus-1/system.d/
+  #   /usr/share/dbus-1/system-services/
+  #
+  # rely on package manager to reload the system bus configuration after installation.
+  #
+  # In our case, these files are copied into place by post-install script, so we reload
+  # dbus config manually.
+  dbus-send --print-reply --system \
+    --dest=org.freedesktop.DBus \
+    /org/freedesktop/DBus \
+    org.freedesktop.DBus.ReloadConfig >/dev/null 2>&1 || true
+}
+
+if has_systemd; then
+  VNET_SOURCE_DIR=$APP/resources/vnet
+  install_vnet_file "$VNET_SOURCE_DIR/polkit/org.teleport.vnet1.policy" /usr/share/polkit-1/actions/org.teleport.vnet1.policy 0644
+  install_vnet_file "$VNET_SOURCE_DIR/dbus/org.teleport.vnet1.conf" /usr/share/dbus-1/system.d/org.teleport.vnet1.conf 0644
+  install_vnet_file "$VNET_SOURCE_DIR/dbus/org.teleport.vnet1.service" /usr/share/dbus-1/system-services/org.teleport.vnet1.service 0644
+  install_vnet_file "$VNET_SOURCE_DIR/teleport-vnet.service" /usr/lib/systemd/system/teleport-vnet.service 0644
+  systemctl daemon-reload || true
+  reload_dbus_config
 fi
 
 # vim: syntax=sh

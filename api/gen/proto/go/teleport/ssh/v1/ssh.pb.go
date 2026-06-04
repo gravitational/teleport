@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/ssh/v1/ssh.proto
 
+//go:build !protoopaque
+
 package sshpb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // AuthPrompt is shown to the user during SSH keyboard-interactive authentication.
 type AuthPrompt struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Prompt:
 	//
 	//	*AuthPrompt_MfaPrompt
@@ -71,11 +72,6 @@ func (x *AuthPrompt) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuthPrompt.ProtoReflect.Descriptor instead.
-func (*AuthPrompt) Descriptor() ([]byte, []int) {
-	return file_teleport_ssh_v1_ssh_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AuthPrompt) GetPrompt() isAuthPrompt_Prompt {
 	if x != nil {
 		return x.Prompt
@@ -92,6 +88,82 @@ func (x *AuthPrompt) GetMfaPrompt() *MFAPrompt {
 	return nil
 }
 
+func (x *AuthPrompt) SetMfaPrompt(v *MFAPrompt) {
+	if v == nil {
+		x.Prompt = nil
+		return
+	}
+	x.Prompt = &AuthPrompt_MfaPrompt{v}
+}
+
+func (x *AuthPrompt) HasPrompt() bool {
+	if x == nil {
+		return false
+	}
+	return x.Prompt != nil
+}
+
+func (x *AuthPrompt) HasMfaPrompt() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Prompt.(*AuthPrompt_MfaPrompt)
+	return ok
+}
+
+func (x *AuthPrompt) ClearPrompt() {
+	x.Prompt = nil
+}
+
+func (x *AuthPrompt) ClearMfaPrompt() {
+	if _, ok := x.Prompt.(*AuthPrompt_MfaPrompt); ok {
+		x.Prompt = nil
+	}
+}
+
+const AuthPrompt_Prompt_not_set_case case_AuthPrompt_Prompt = 0
+const AuthPrompt_MfaPrompt_case case_AuthPrompt_Prompt = 1
+
+func (x *AuthPrompt) WhichPrompt() case_AuthPrompt_Prompt {
+	if x == nil {
+		return AuthPrompt_Prompt_not_set_case
+	}
+	switch x.Prompt.(type) {
+	case *AuthPrompt_MfaPrompt:
+		return AuthPrompt_MfaPrompt_case
+	default:
+		return AuthPrompt_Prompt_not_set_case
+	}
+}
+
+type AuthPrompt_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Prompt:
+	MfaPrompt *MFAPrompt
+	// -- end of Prompt
+}
+
+func (b0 AuthPrompt_builder) Build() *AuthPrompt {
+	m0 := &AuthPrompt{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.MfaPrompt != nil {
+		x.Prompt = &AuthPrompt_MfaPrompt{b.MfaPrompt}
+	}
+	return m0
+}
+
+type case_AuthPrompt_Prompt protoreflect.FieldNumber
+
+func (x case_AuthPrompt_Prompt) String() string {
+	md := file_teleport_ssh_v1_ssh_proto_msgTypes[0].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAuthPrompt_Prompt interface {
 	isAuthPrompt_Prompt()
 }
@@ -104,7 +176,7 @@ func (*AuthPrompt_MfaPrompt) isAuthPrompt_Prompt() {}
 
 // MFAPrompt indicates MFA is required for SSH keyboard-interactive authentication.
 type MFAPrompt struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Message to display to the user.
 	Message       string `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -136,11 +208,6 @@ func (x *MFAPrompt) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MFAPrompt.ProtoReflect.Descriptor instead.
-func (*MFAPrompt) Descriptor() ([]byte, []int) {
-	return file_teleport_ssh_v1_ssh_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *MFAPrompt) GetMessage() string {
 	if x != nil {
 		return x.Message
@@ -148,9 +215,28 @@ func (x *MFAPrompt) GetMessage() string {
 	return ""
 }
 
+func (x *MFAPrompt) SetMessage(v string) {
+	x.Message = v
+}
+
+type MFAPrompt_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Message to display to the user.
+	Message string
+}
+
+func (b0 MFAPrompt_builder) Build() *MFAPrompt {
+	m0 := &MFAPrompt{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Message = b.Message
+	return m0
+}
+
 // MFAPromptResponse is the user's response to an MFA prompt.
 type MFAPromptResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Response:
 	//
 	//	*MFAPromptResponse_Reference
@@ -184,11 +270,6 @@ func (x *MFAPromptResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MFAPromptResponse.ProtoReflect.Descriptor instead.
-func (*MFAPromptResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_ssh_v1_ssh_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *MFAPromptResponse) GetResponse() isMFAPromptResponse_Response {
 	if x != nil {
 		return x.Response
@@ -205,6 +286,82 @@ func (x *MFAPromptResponse) GetReference() *MFAPromptResponseReference {
 	return nil
 }
 
+func (x *MFAPromptResponse) SetReference(v *MFAPromptResponseReference) {
+	if v == nil {
+		x.Response = nil
+		return
+	}
+	x.Response = &MFAPromptResponse_Reference{v}
+}
+
+func (x *MFAPromptResponse) HasResponse() bool {
+	if x == nil {
+		return false
+	}
+	return x.Response != nil
+}
+
+func (x *MFAPromptResponse) HasReference() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Response.(*MFAPromptResponse_Reference)
+	return ok
+}
+
+func (x *MFAPromptResponse) ClearResponse() {
+	x.Response = nil
+}
+
+func (x *MFAPromptResponse) ClearReference() {
+	if _, ok := x.Response.(*MFAPromptResponse_Reference); ok {
+		x.Response = nil
+	}
+}
+
+const MFAPromptResponse_Response_not_set_case case_MFAPromptResponse_Response = 0
+const MFAPromptResponse_Reference_case case_MFAPromptResponse_Response = 1
+
+func (x *MFAPromptResponse) WhichResponse() case_MFAPromptResponse_Response {
+	if x == nil {
+		return MFAPromptResponse_Response_not_set_case
+	}
+	switch x.Response.(type) {
+	case *MFAPromptResponse_Reference:
+		return MFAPromptResponse_Reference_case
+	default:
+		return MFAPromptResponse_Response_not_set_case
+	}
+}
+
+type MFAPromptResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Response:
+	Reference *MFAPromptResponseReference
+	// -- end of Response
+}
+
+func (b0 MFAPromptResponse_builder) Build() *MFAPromptResponse {
+	m0 := &MFAPromptResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Reference != nil {
+		x.Response = &MFAPromptResponse_Reference{b.Reference}
+	}
+	return m0
+}
+
+type case_MFAPromptResponse_Response protoreflect.FieldNumber
+
+func (x case_MFAPromptResponse_Response) String() string {
+	md := file_teleport_ssh_v1_ssh_proto_msgTypes[2].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isMFAPromptResponse_Response interface {
 	isMFAPromptResponse_Response()
 }
@@ -217,7 +374,7 @@ func (*MFAPromptResponse_Reference) isMFAPromptResponse_Response() {}
 
 // MFAPromptResponseReference instructs the SSH service to retrieve the MFA response from the MFA service.
 type MFAPromptResponseReference struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// challenge_name is the name of the MFA challenge created by the client.
 	ChallengeName string `protobuf:"bytes,1,opt,name=challenge_name,json=challengeName,proto3" json:"challenge_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -249,16 +406,30 @@ func (x *MFAPromptResponseReference) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use MFAPromptResponseReference.ProtoReflect.Descriptor instead.
-func (*MFAPromptResponseReference) Descriptor() ([]byte, []int) {
-	return file_teleport_ssh_v1_ssh_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *MFAPromptResponseReference) GetChallengeName() string {
 	if x != nil {
 		return x.ChallengeName
 	}
 	return ""
+}
+
+func (x *MFAPromptResponseReference) SetChallengeName(v string) {
+	x.ChallengeName = v
+}
+
+type MFAPromptResponseReference_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// challenge_name is the name of the MFA challenge created by the client.
+	ChallengeName string
+}
+
+func (b0 MFAPromptResponseReference_builder) Build() *MFAPromptResponseReference {
+	m0 := &MFAPromptResponseReference{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ChallengeName = b.ChallengeName
+	return m0
 }
 
 var File_teleport_ssh_v1_ssh_proto protoreflect.FileDescriptor
@@ -279,18 +450,6 @@ const file_teleport_ssh_v1_ssh_proto_rawDesc = "" +
 	"\bresponse\"C\n" +
 	"\x1aMFAPromptResponseReference\x12%\n" +
 	"\x0echallenge_name\x18\x01 \x01(\tR\rchallengeNameBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1;sshpbb\x06proto3"
-
-var (
-	file_teleport_ssh_v1_ssh_proto_rawDescOnce sync.Once
-	file_teleport_ssh_v1_ssh_proto_rawDescData []byte
-)
-
-func file_teleport_ssh_v1_ssh_proto_rawDescGZIP() []byte {
-	file_teleport_ssh_v1_ssh_proto_rawDescOnce.Do(func() {
-		file_teleport_ssh_v1_ssh_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_ssh_v1_ssh_proto_rawDesc), len(file_teleport_ssh_v1_ssh_proto_rawDesc)))
-	})
-	return file_teleport_ssh_v1_ssh_proto_rawDescData
-}
 
 var file_teleport_ssh_v1_ssh_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_ssh_v1_ssh_proto_goTypes = []any{

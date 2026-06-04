@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/auth_settings.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -96,22 +97,13 @@ func (x ClientVersionStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ClientVersionStatus.Descriptor instead.
-func (ClientVersionStatus) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescGZIP(), []int{0}
-}
-
 // AuthSettings contains the form of authentication the auth server supports.
 type AuthSettings struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// local_auth_enabled is a flag that enables local authentication
 	LocalAuthEnabled bool `protobuf:"varint,1,opt,name=local_auth_enabled,json=localAuthEnabled,proto3" json:"local_auth_enabled,omitempty"`
 	// auth_providers contains a list of auth providers
 	AuthProviders []*AuthProvider `protobuf:"bytes,4,rep,name=auth_providers,json=authProviders,proto3" json:"auth_providers,omitempty"`
-	// has_message_of_the_day is a flag indicating that the cluster has MOTD
-	// banner text that must be retrieved, displayed and acknowledged by
-	// the user.
-	HasMessageOfTheDay bool `protobuf:"varint,5,opt,name=has_message_of_the_day,json=hasMessageOfTheDay,proto3" json:"has_message_of_the_day,omitempty"`
 	// auth_type is the authentication type e.g. "local", "github", "saml", "oidc"
 	AuthType string `protobuf:"bytes,6,opt,name=auth_type,json=authType,proto3" json:"auth_type,omitempty"`
 	// allow_passwordless is true if passwordless logins are allowed.
@@ -122,8 +114,10 @@ type AuthSettings struct {
 	// against the version of the server.
 	ClientVersionStatus ClientVersionStatus `protobuf:"varint,9,opt,name=client_version_status,json=clientVersionStatus,proto3,enum=teleport.lib.teleterm.v1.ClientVersionStatus" json:"client_version_status,omitempty"`
 	Versions            *Versions           `protobuf:"bytes,10,opt,name=versions,proto3" json:"versions,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	// message_of_the_day is a message shown before login that the user must acknowledge.
+	MessageOfTheDay string `protobuf:"bytes,11,opt,name=message_of_the_day,json=messageOfTheDay,proto3" json:"message_of_the_day,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *AuthSettings) Reset() {
@@ -151,11 +145,6 @@ func (x *AuthSettings) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuthSettings.ProtoReflect.Descriptor instead.
-func (*AuthSettings) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AuthSettings) GetLocalAuthEnabled() bool {
 	if x != nil {
 		return x.LocalAuthEnabled
@@ -168,13 +157,6 @@ func (x *AuthSettings) GetAuthProviders() []*AuthProvider {
 		return x.AuthProviders
 	}
 	return nil
-}
-
-func (x *AuthSettings) GetHasMessageOfTheDay() bool {
-	if x != nil {
-		return x.HasMessageOfTheDay
-	}
-	return false
 }
 
 func (x *AuthSettings) GetAuthType() string {
@@ -212,10 +194,96 @@ func (x *AuthSettings) GetVersions() *Versions {
 	return nil
 }
 
+func (x *AuthSettings) GetMessageOfTheDay() string {
+	if x != nil {
+		return x.MessageOfTheDay
+	}
+	return ""
+}
+
+func (x *AuthSettings) SetLocalAuthEnabled(v bool) {
+	x.LocalAuthEnabled = v
+}
+
+func (x *AuthSettings) SetAuthProviders(v []*AuthProvider) {
+	x.AuthProviders = v
+}
+
+func (x *AuthSettings) SetAuthType(v string) {
+	x.AuthType = v
+}
+
+func (x *AuthSettings) SetAllowPasswordless(v bool) {
+	x.AllowPasswordless = v
+}
+
+func (x *AuthSettings) SetLocalConnectorName(v string) {
+	x.LocalConnectorName = v
+}
+
+func (x *AuthSettings) SetClientVersionStatus(v ClientVersionStatus) {
+	x.ClientVersionStatus = v
+}
+
+func (x *AuthSettings) SetVersions(v *Versions) {
+	x.Versions = v
+}
+
+func (x *AuthSettings) SetMessageOfTheDay(v string) {
+	x.MessageOfTheDay = v
+}
+
+func (x *AuthSettings) HasVersions() bool {
+	if x == nil {
+		return false
+	}
+	return x.Versions != nil
+}
+
+func (x *AuthSettings) ClearVersions() {
+	x.Versions = nil
+}
+
+type AuthSettings_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// local_auth_enabled is a flag that enables local authentication
+	LocalAuthEnabled bool
+	// auth_providers contains a list of auth providers
+	AuthProviders []*AuthProvider
+	// auth_type is the authentication type e.g. "local", "github", "saml", "oidc"
+	AuthType string
+	// allow_passwordless is true if passwordless logins are allowed.
+	AllowPasswordless bool
+	// local_connector_name is the name of the local connector.
+	LocalConnectorName string
+	// client_version_status describes the compatibility status of the client version when compared
+	// against the version of the server.
+	ClientVersionStatus ClientVersionStatus
+	Versions            *Versions
+	// message_of_the_day is a message shown before login that the user must acknowledge.
+	MessageOfTheDay string
+}
+
+func (b0 AuthSettings_builder) Build() *AuthSettings {
+	m0 := &AuthSettings{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LocalAuthEnabled = b.LocalAuthEnabled
+	x.AuthProviders = b.AuthProviders
+	x.AuthType = b.AuthType
+	x.AllowPasswordless = b.AllowPasswordless
+	x.LocalConnectorName = b.LocalConnectorName
+	x.ClientVersionStatus = b.ClientVersionStatus
+	x.Versions = b.Versions
+	x.MessageOfTheDay = b.MessageOfTheDay
+	return m0
+}
+
 // AuthProvider describes a way of authentication that is supported by the server. Auth provider is
 // referred to as "auth connector" on the backend.
 type AuthProvider struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Type is the auth provider type (github|oidc|etc)
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// Name is the internal name of the connector.
@@ -251,11 +319,6 @@ func (x *AuthProvider) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuthProvider.ProtoReflect.Descriptor instead.
-func (*AuthProvider) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AuthProvider) GetType() string {
 	if x != nil {
 		return x.Type
@@ -277,11 +340,44 @@ func (x *AuthProvider) GetDisplayName() string {
 	return ""
 }
 
+func (x *AuthProvider) SetType(v string) {
+	x.Type = v
+}
+
+func (x *AuthProvider) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AuthProvider) SetDisplayName(v string) {
+	x.DisplayName = v
+}
+
+type AuthProvider_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Type is the auth provider type (github|oidc|etc)
+	Type string
+	// Name is the internal name of the connector.
+	Name string
+	// Display is the display name for the connector.
+	DisplayName string
+}
+
+func (b0 AuthProvider_builder) Build() *AuthProvider {
+	m0 := &AuthProvider{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.Name = b.Name
+	x.DisplayName = b.DisplayName
+	return m0
+}
+
 // Versions contains versions of different components that can be used to show the client
 // incompatibility warning. This way Connect can show the warning before the cluster is added to the
 // app.
 type Versions struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
+	state     protoimpl.MessageState `protogen:"hybrid.v1"`
 	MinClient string                 `protobuf:"bytes,1,opt,name=min_client,json=minClient,proto3" json:"min_client,omitempty"`
 	// client is the version of tsh. Included for convenience, in theory the Electron app knows this
 	// without asking tsh.
@@ -316,11 +412,6 @@ func (x *Versions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Versions.ProtoReflect.Descriptor instead.
-func (*Versions) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *Versions) GetMinClient() string {
 	if x != nil {
 		return x.MinClient
@@ -342,21 +433,53 @@ func (x *Versions) GetServer() string {
 	return ""
 }
 
+func (x *Versions) SetMinClient(v string) {
+	x.MinClient = v
+}
+
+func (x *Versions) SetClient(v string) {
+	x.Client = v
+}
+
+func (x *Versions) SetServer(v string) {
+	x.Server = v
+}
+
+type Versions_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	MinClient string
+	// client is the version of tsh. Included for convenience, in theory the Electron app knows this
+	// without asking tsh.
+	Client string
+	Server string
+}
+
+func (b0 Versions_builder) Build() *Versions {
+	m0 := &Versions{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.MinClient = b.MinClient
+	x.Client = b.Client
+	x.Server = b.Server
+	return m0
+}
+
 var File_teleport_lib_teleterm_v1_auth_settings_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_auth_settings_proto_rawDesc = "" +
 	"\n" +
-	",teleport/lib/teleterm/v1/auth_settings.proto\x12\x18teleport.lib.teleterm.v1\"\x8a\x04\n" +
+	",teleport/lib/teleterm/v1/auth_settings.proto\x12\x18teleport.lib.teleterm.v1\"\xa1\x04\n" +
 	"\fAuthSettings\x12,\n" +
 	"\x12local_auth_enabled\x18\x01 \x01(\bR\x10localAuthEnabled\x12M\n" +
-	"\x0eauth_providers\x18\x04 \x03(\v2&.teleport.lib.teleterm.v1.AuthProviderR\rauthProviders\x122\n" +
-	"\x16has_message_of_the_day\x18\x05 \x01(\bR\x12hasMessageOfTheDay\x12\x1b\n" +
+	"\x0eauth_providers\x18\x04 \x03(\v2&.teleport.lib.teleterm.v1.AuthProviderR\rauthProviders\x12\x1b\n" +
 	"\tauth_type\x18\x06 \x01(\tR\bauthType\x12-\n" +
 	"\x12allow_passwordless\x18\a \x01(\bR\x11allowPasswordless\x120\n" +
 	"\x14local_connector_name\x18\b \x01(\tR\x12localConnectorName\x12a\n" +
 	"\x15client_version_status\x18\t \x01(\x0e2-.teleport.lib.teleterm.v1.ClientVersionStatusR\x13clientVersionStatus\x12>\n" +
 	"\bversions\x18\n" +
-	" \x01(\v2\".teleport.lib.teleterm.v1.VersionsR\bversionsJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04R\rsecond_factorR\rpreferred_mfa\"Y\n" +
+	" \x01(\v2\".teleport.lib.teleterm.v1.VersionsR\bversions\x12+\n" +
+	"\x12message_of_the_day\x18\v \x01(\tR\x0fmessageOfTheDayJ\x04\b\x02\x10\x03J\x04\b\x03\x10\x04J\x04\b\x05\x10\x06R\rsecond_factorR\rpreferred_mfaR\x16has_message_of_the_day\"Y\n" +
 	"\fAuthProvider\x12\x12\n" +
 	"\x04type\x18\x01 \x01(\tR\x04type\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -371,18 +494,6 @@ const file_teleport_lib_teleterm_v1_auth_settings_proto_rawDesc = "" +
 	"\x18CLIENT_VERSION_STATUS_OK\x10\x01\x12!\n" +
 	"\x1dCLIENT_VERSION_STATUS_TOO_OLD\x10\x02\x12!\n" +
 	"\x1dCLIENT_VERSION_STATUS_TOO_NEW\x10\x03BTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_auth_settings_proto_rawDesc), len(file_teleport_lib_teleterm_v1_auth_settings_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_auth_settings_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_v1_auth_settings_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_lib_teleterm_v1_auth_settings_proto_msgTypes = make([]protoimpl.MessageInfo, 3)

@@ -41,27 +41,23 @@ import (
 	crownjewelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/crownjewel/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	healthcheckconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1"
-	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
-	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/trail"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/externalauditstorage"
 	"github.com/gravitational/teleport/api/types/secreports"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
-	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
 
@@ -115,26 +111,20 @@ Same as above, but using JSON output:
 // Initialize allows ResourceCommand to plug itself into the CLI parser
 func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	rc.CreateHandlers = map[string]ResourceCreateHandler{
-		types.KindTrustedCluster:       rc.createTrustedCluster,
-		types.KindExternalAuditStorage: rc.createExternalAuditStorage,
-		types.KindNetworkRestrictions:  rc.createNetworkRestrictions,
-		types.KindLoginRule:            rc.createLoginRule,
-		types.KindDevice:               rc.createDevice,
-		types.KindOktaImportRule:       rc.createOktaImportRule,
-		types.KindIntegration:          rc.createIntegration,
-		types.KindSecurityReport:       rc.createSecurityReport,
-		types.KindCrownJewel:           rc.createCrownJewel,
-		types.KindVnetConfig:           rc.createVnetConfig,
-		types.KindPlugin:               rc.createPlugin,
-		types.KindHealthCheckConfig:    rc.createHealthCheckConfig,
-		types.KindInferencePolicy:      rc.createInferencePolicy,
+		types.KindTrustedCluster:      rc.createTrustedCluster,
+		types.KindNetworkRestrictions: rc.createNetworkRestrictions,
+		types.KindDevice:              rc.createDevice,
+		types.KindOktaImportRule:      rc.createOktaImportRule,
+		types.KindIntegration:         rc.createIntegration,
+		types.KindSecurityReport:      rc.createSecurityReport,
+		types.KindCrownJewel:          rc.createCrownJewel,
+		types.KindPlugin:              rc.createPlugin,
+		types.KindHealthCheckConfig:   rc.createHealthCheckConfig,
 	}
 	rc.UpdateHandlers = map[string]ResourceCreateHandler{
 		types.KindCrownJewel:        rc.updateCrownJewel,
-		types.KindVnetConfig:        rc.updateVnetConfig,
 		types.KindPlugin:            rc.updatePlugin,
 		types.KindHealthCheckConfig: rc.updateHealthCheckConfig,
-		types.KindInferencePolicy:   rc.updateInferencePolicy,
 	}
 	rc.config = config
 
@@ -234,7 +224,13 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 			mfaKinds = append(mfaKinds, kind)
 		}
 	}
-	mfaRequired := rc.withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+
+	withSecrets := rc.withSecrets || slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
+		// tokens cannot be retrieved without secrets.
+		return r.Kind == types.KindToken
+	})
+
+	mfaRequired := withSecrets && slices.ContainsFunc(rc.refs, func(r services.Ref) bool {
 		return slices.Contains(mfaKinds, r.Kind)
 	})
 
@@ -278,6 +274,15 @@ func (rc *ResourceCommand) Get(ctx context.Context, client *authclient.Client) e
 }
 
 func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Client) error {
+	const skipNotSupported = false
+	return trace.Wrap(rc.getMany(ctx, client, skipNotSupported))
+}
+
+func (rc *ResourceCommand) getMany(
+	ctx context.Context,
+	client *authclient.Client,
+	skipNotSupported bool,
+) error {
 	if rc.format != teleport.YAML {
 		return trace.BadParameter("mixed resource types only support YAML formatting")
 	}
@@ -286,6 +291,9 @@ func (rc *ResourceCommand) GetMany(ctx context.Context, client *authclient.Clien
 	for _, ref := range rc.refs {
 		rc.ref = ref
 		collection, err := rc.getCollection(ctx, client)
+		if skipNotSupported && errors.As(err, new(*errNotSupported)) {
+			continue
+		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -308,7 +316,12 @@ func (rc *ResourceCommand) GetAll(ctx context.Context, client *authclient.Client
 		allRefs = append(allRefs, ref)
 	}
 	rc.refs = services.Refs(allRefs)
-	return rc.GetMany(ctx, client)
+
+	// This lets OSS query Enterprise-only kinds without failing when the
+	// corresponding RPCs return "NotImplemented".
+	const skipNotSupported = true
+
+	return rc.getMany(ctx, client, skipNotSupported)
 }
 
 // Create updates or inserts one or many resources
@@ -428,27 +441,6 @@ func (rc *ResourceCommand) createTrustedCluster(ctx context.Context, client *aut
 	return nil
 }
 
-// createExternalAuditStorage implements `tctl create external_audit_storage` command.
-func (rc *ResourceCommand) createExternalAuditStorage(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	draft, err := services.UnmarshalExternalAuditStorage(raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	externalAuditClient := client.ExternalAuditStorageClient()
-	if rc.force {
-		if _, err := externalAuditClient.UpsertDraftExternalAuditStorage(ctx, draft); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("External Audit Storage configuration has been updated\n")
-	} else {
-		if _, err := externalAuditClient.CreateDraftExternalAuditStorage(ctx, draft); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("External Audit Storage configuration has been created\n")
-	}
-	return nil
-}
-
 // createNetworkRestrictions implements `tctl create net_restrict.yaml` command.
 func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
 	newNetRestricts, err := services.UnmarshalNetworkRestrictions(raw.Raw, services.DisallowUnknown())
@@ -494,33 +486,6 @@ func (rc *ResourceCommand) updateCrownJewel(ctx context.Context, client *authcli
 		return trace.Wrap(err)
 	}
 	fmt.Printf("crown jewel %q has been updated\n", in.GetMetadata().GetName())
-	return nil
-}
-
-func (rc *ResourceCommand) createLoginRule(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	rule, err := loginrule.UnmarshalLoginRule(raw.Raw)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	loginRuleClient := client.LoginRuleClient()
-	if rc.IsForced() {
-		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
-			LoginRule: rule,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-	} else {
-		_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
-			LoginRule: rule,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-	}
-	verb := UpsertVerb(false /* we don't know if it existed before */, rc.IsForced() /* force update */)
-	fmt.Printf("login_rule %q has been %s\n", rule.GetMetadata().GetName(), verb)
 	return nil
 }
 
@@ -708,18 +673,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("semaphore '%s/%s' has been deleted\n", rc.ref.SubKind, rc.ref.Name)
-	case types.KindExternalAuditStorage:
-		if rc.ref.Name == types.MetaNameExternalAuditStorageCluster {
-			if err := client.ExternalAuditStorageClient().DisableClusterExternalAuditStorage(ctx); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("cluster External Audit Storage configuration has been disabled\n")
-		} else {
-			if err := client.ExternalAuditStorageClient().DeleteDraftExternalAuditStorage(ctx); err != nil {
-				return trace.Wrap(err)
-			}
-			fmt.Printf("draft External Audit Storage configuration has been deleted\n")
-		}
 	case types.KindDatabaseServer:
 		servers, err := client.GetDatabaseServers(ctx, apidefaults.Namespace)
 		if err != nil {
@@ -748,15 +701,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 		fmt.Printf("crown_jewel %q has been deleted\n", rc.ref.Name)
-	case types.KindLoginRule:
-		loginRuleClient := client.LoginRuleClient()
-		_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
-			Name: rc.ref.Name,
-		})
-		if err != nil {
-			return trail.FromGRPC(err)
-		}
-		fmt.Printf("login rule %q has been deleted\n", rc.ref.Name)
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		device, err := findDeviceByIDOrTag(ctx, remote, rc.ref.Name)
@@ -798,8 +742,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 		fmt.Printf("Security report %q has been deleted\n", rc.ref.Name)
 	case types.KindHealthCheckConfig:
 		return trace.Wrap(rc.deleteHealthCheckConfig(ctx, client))
-	case types.KindInferencePolicy:
-		return trace.Wrap(rc.deleteInferencePolicy(ctx, client))
 	default:
 		return trace.BadParameter("deleting resources of type %q is not supported", rc.ref.Kind)
 	}
@@ -819,7 +761,7 @@ func (rc *ResourceCommand) UpdateFields(ctx context.Context, clt *authclient.Cli
 	var err error
 	var labels map[string]string
 	if rc.labels != "" {
-		labels, err = client.ParseLabelSpec(rc.labels)
+		labels, err = parse.LabelSelectorSpec(rc.labels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -878,7 +820,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		coll, err := handler.Get(ctx, client, rc.ref, resources.GetOpts{WithSecrets: rc.withSecrets})
 		if err != nil {
 			if trace.IsNotImplemented(err) {
-				return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+				return nil, &errNotSupported{trace.BadParameter("getting %q is not supported", rc.ref.String())}
 			}
 			return nil, trace.Wrap(err, "getting resource %q of type %q", rc.ref.Name, rc.ref.Kind)
 		}
@@ -985,7 +927,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			ResourceType: types.KindDatabaseService,
 		}
 		if resourceName != "" {
-			listReq.PredicateExpression = fmt.Sprintf(`name == "%s"`, resourceName)
+			listReq.PredicateExpression = fmt.Sprintf(`name == %q`, resourceName)
 		}
 
 		getResp, err := apiclient.GetResourcesWithFilters(ctx, client, listReq)
@@ -1003,26 +945,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &databaseServiceCollection{databaseServices: databaseServices}, nil
-	case types.KindLoginRule:
-		loginRuleClient := client.LoginRuleClient()
-		if rc.ref.Name == "" {
-			rules, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*loginrulepb.LoginRule, string, error) {
-				resp, err := loginRuleClient.ListLoginRules(ctx, &loginrulepb.ListLoginRulesRequest{
-					PageSize:  int32(limit),
-					PageToken: token,
-				})
-				return resp.GetLoginRules(), resp.GetNextPageToken(), trace.Wrap(err)
-			}))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-
-			return &loginRuleCollection{rules}, trace.Wrap(err)
-		}
-		rule, err := loginRuleClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
-			Name: rc.ref.Name,
-		})
-		return &loginRuleCollection{[]*loginrulepb.LoginRule{rule}}, trail.FromGRPC(err)
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		if rc.ref.Name != "" {
@@ -1111,43 +1033,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &userGroupCollection{userGroups: resources}, nil
-	case types.KindExternalAuditStorage:
-		out := []*externalauditstorage.ExternalAuditStorage{}
-		name := rc.ref.Name
-		switch name {
-		case "":
-			cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return nil, trace.Wrap(err)
-				}
-			} else {
-				out = append(out, cluster)
-			}
-			draft, err := client.ExternalAuditStorageClient().GetDraftExternalAuditStorage(ctx)
-			if err != nil {
-				if !trace.IsNotFound(err) {
-					return nil, trace.Wrap(err)
-				}
-			} else {
-				out = append(out, draft)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: out}, nil
-		case types.MetaNameExternalAuditStorageCluster:
-			cluster, err := client.ExternalAuditStorageClient().GetClusterExternalAuditStorage(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{cluster}}, nil
-		case types.MetaNameExternalAuditStorageDraft:
-			draft, err := client.ExternalAuditStorageClient().GetDraftExternalAuditStorage(ctx)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return &externalAuditStorageCollection{externalAuditStorages: []*externalauditstorage.ExternalAuditStorage{draft}}, nil
-		default:
-			return nil, trace.BadParameter("unsupported resource name for external_audit_storage, valid for get are: '', %q, %q", types.MetaNameExternalAuditStorageDraft, types.MetaNameExternalAuditStorageCluster)
-		}
 	case types.KindIntegration:
 		if rc.ref.Name != "" {
 			ig, err := client.GetIntegration(ctx, rc.ref.Name)
@@ -1177,12 +1062,6 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 			return nil, trace.Wrap(err)
 		}
 		return &securityReportCollection{items: resources}, nil
-	case types.KindVnetConfig:
-		vnetConfig, err := client.VnetConfigServiceClient().GetVnetConfig(ctx, &vnet.GetVnetConfigRequest{})
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return &vnetConfigCollection{vnetConfig: vnetConfig}, nil
 	case types.KindPlugin:
 		if rc.ref.Name != "" {
 			plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})
@@ -1229,11 +1108,22 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		}
 
 		return &healthCheckConfigCollection{items: items}, nil
-	case types.KindInferencePolicy:
-		policies, err := rc.getInferencePolicies(ctx, client)
-		return policies, trace.Wrap(err)
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
+}
+
+// errNotSupported is used to mark NotImplemented errors that were transformed
+// into BadParameter, so they can later be identified.
+type errNotSupported struct {
+	cause error
+}
+
+func (e *errNotSupported) Error() string {
+	return e.cause.Error()
+}
+
+func (e *errNotSupported) Unwrap() error {
+	return e.cause
 }
 
 // UpsertVerb generates the correct string form of a verb based on the action taken
@@ -1280,37 +1170,6 @@ func (rc *ResourceCommand) createSecurityReport(ctx context.Context, client *aut
 	if err = client.SecReportsClient().UpsertSecurityReport(ctx, in); err != nil {
 		return trace.Wrap(err)
 	}
-	return nil
-}
-
-func (rc *ResourceCommand) createVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if rc.IsForced() {
-		_, err = client.VnetConfigServiceClient().UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
-	} else {
-		_, err = client.VnetConfigServiceClient().CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
-	}
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("vnet_config has been created")
-	return nil
-}
-
-func (rc *ResourceCommand) updateVnetConfig(ctx context.Context, client *authclient.Client, raw services.UnknownResource) error {
-	vnetConfig, err := services.UnmarshalProtoResource[*vnet.VnetConfig](raw.Raw, services.DisallowUnknown())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if _, err := client.VnetConfigServiceClient().UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig}); err != nil {
-		return trace.Wrap(err)
-	}
-	fmt.Println("vnet_config has been updated")
 	return nil
 }
 

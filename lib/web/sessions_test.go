@@ -32,7 +32,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/utils"
@@ -188,14 +187,8 @@ func TestGetUserClient(t *testing.T) {
 }
 
 func TestSessionCache_watcher(t *testing.T) {
-	// Can't t.Parallel because of modules.SetTestModules.
-
-	// Requires Enterprise to work.
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise,
-	})
-
-	webSuite := newWebSuite(t)
+	testModules := modulestest.EnterpriseModules()
+	webSuite := newWebSuiteWithConfig(t, webSuiteConfig{modules: testModules})
 	authServer := webSuite.server.AuthServer.AuthServer
 	authClient := webSuite.proxyClient
 	clock := webSuite.clock
@@ -203,8 +196,10 @@ func TestSessionCache_watcher(t *testing.T) {
 	// cancel is used to make sure the sessionCache stops cleanly.
 	ctx := t.Context()
 
+	initializedC := make(chan struct{})
 	processedC := make(chan struct{})
 	sessionCache, err := newSessionCache(ctx, sessionCacheOptions{
+		buildType:   testModules.BuildType(),
 		proxyClient: authClient,
 		accessPoint: authClient,
 		servers: []utils.NetAddr{
@@ -213,10 +208,19 @@ func TestSessionCache_watcher(t *testing.T) {
 		clock:                               clock,
 		sessionLingeringThreshold:           1 * time.Minute,
 		sessionWatcherStartImmediately:      true,
+		sessionWatcherInitializedChannel:    initializedC,
 		sessionWatcherEventProcessedChannel: processedC,
 	})
 	require.NoError(t, err, "newSessionCache() failed")
 	defer sessionCache.Close()
+
+	// Wait for watcher initialization. This guarantees that the watcher is ready
+	// to observe updates.
+	select {
+	case <-initializedC:
+	case <-time.After(10 * time.Second):
+		t.Fatal("Timed out waiting for sessionCache watcher initialization")
+	}
 
 	// Sanity check active sessions.
 	require.Zero(t,

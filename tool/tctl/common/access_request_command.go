@@ -20,7 +20,6 @@ package common
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -39,6 +38,8 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -80,18 +81,18 @@ type AccessRequestCommand struct {
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
 func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, config *servicecfg.Config) {
 	c.config = config
-	requests := app.Command("requests", "Manage access requests.").Alias("request")
+	requests := app.Command("requests", "Manage Access Requests.").Alias("request")
 
-	c.requestList = requests.Command("ls", "Show active access requests.")
-	c.requestList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
+	c.requestList = requests.Command("ls", "Show active Access Requests.")
+	c.requestList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.requestList.Flag("sort-index", "Request sort index, 'created' or 'state'").Default("created").StringVar(&c.sortIndex)
 	c.requestList.Flag("sort-order", "Request sort order, 'ascending' or 'descending'").Default("descending").StringVar(&c.sortOrder)
 
-	c.requestGet = requests.Command("get", "Show access request by ID.")
+	c.requestGet = requests.Command("get", "Show Access Request by ID.")
 	c.requestGet.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
-	c.requestGet.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
+	c.requestGet.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
-	c.requestApprove = requests.Command("approve", "Approve pending access request.")
+	c.requestApprove = requests.Command("approve", "Approve pending Access Request.")
 	c.requestApprove.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
 	c.requestApprove.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 	c.requestApprove.Flag("reason", "Optional reason message").StringVar(&c.reason)
@@ -99,27 +100,27 @@ func (c *AccessRequestCommand) Initialize(app *kingpin.Application, _ *tctlcfg.G
 	c.requestApprove.Flag("roles", "Override requested roles <role>[,...]").StringVar(&c.roles)
 	c.requestApprove.Flag("assume-start-time", "Sets time roles can be assumed by requestor (RFC3339 e.g 2023-12-12T23:20:50.52Z)").StringVar(&c.assumeStartTimeRaw)
 
-	c.requestDeny = requests.Command("deny", "Deny pending access request.")
+	c.requestDeny = requests.Command("deny", "Deny pending Access Request.")
 	c.requestDeny.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
 	c.requestDeny.Flag("delegator", "Optional delegating identity").StringVar(&c.delegator)
 	c.requestDeny.Flag("reason", "Optional reason message").StringVar(&c.reason)
 	c.requestDeny.Flag("annotations", "Resolution annotations <key>=<val>[,...]").StringVar(&c.annotations)
 
-	c.requestCreate = requests.Command("create", "Create pending access request.")
+	c.requestCreate = requests.Command("create", "Create pending Access Request.")
 	c.requestCreate.Arg("username", "Name of target user").Required().StringVar(&c.user)
 	c.requestCreate.Flag("roles", "Roles to be requested").StringVar(&c.roles)
 	c.requestCreate.Flag("resource", "Resource ID to be requested").StringsVar(&c.requestedResourceIDs)
 	c.requestCreate.Flag("reason", "Optional reason message").StringVar(&c.reason)
-	c.requestCreate.Flag("dry-run", "Don't actually generate the access request").BoolVar(&c.dryRun)
+	c.requestCreate.Flag("dry-run", "Don't actually generate the Access Request").BoolVar(&c.dryRun)
 
-	c.requestDelete = requests.Command("rm", "Delete an access request.")
+	c.requestDelete = requests.Command("rm", "Delete an Access Request.")
 	c.requestDelete.Arg("request-id", "ID of target request(s)").Required().StringVar(&c.reqIDs)
-	c.requestDelete.Flag("force", "Force the deletion of an active access request").Short('f').BoolVar(&c.force)
+	c.requestDelete.Flag("force", "Force the deletion of an active Access Request").Short('f').BoolVar(&c.force)
 
 	c.requestCaps = requests.Command("capabilities", "Check a user's access capabilities.").Alias("caps").Hidden()
 	c.requestCaps.Arg("username", "Name of target user").Required().StringVar(&c.user)
-	c.requestCaps.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
-	c.requestReview = requests.Command("review", "Review an access request.")
+	c.requestCaps.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
+	c.requestReview = requests.Command("review", "Review an Access Request.")
 	c.requestReview.Arg("request-id", "ID of target request").Required().StringVar(&c.reqIDs)
 	c.requestReview.Flag("author", "Username of reviewer").Required().StringVar(&c.user)
 	c.requestReview.Flag("approve", "Review proposes approval").BoolVar(&c.approve)
@@ -336,7 +337,7 @@ func (c *AccessRequestCommand) Create(ctx context.Context, client *authclient.Cl
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		return trace.Wrap(printJSON(req, "request"))
+		return trace.Wrap(utils.WriteJSON(os.Stdout, req), "failed to marshal request")
 	}
 	req, err = client.CreateAccessRequestV2(ctx, req)
 	if err != nil {
@@ -416,9 +417,11 @@ func (c *AccessRequestCommand) Caps(ctx context.Context, client *authclient.Clie
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
 		return trace.Wrap(err)
 	case teleport.JSON:
-		return printJSON(caps, "capabilities")
+		return trace.Wrap(utils.WriteJSON(os.Stdout, caps), "failed to marshal capabilities")
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(os.Stdout, caps), "failed to marshal capabilities")
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", c.format, teleport.Text, teleport.JSON)
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 }
 
@@ -487,7 +490,9 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 			"Full reason was truncated, use the `tctl requests get` subcommand to view the full reason.",
 		)
 		for _, req := range reqs {
-			resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+			// This table isn't a comprehensive overview of each request; omit constraints on resources for brevity
+			// and only print their stringified ResourceIDs.
+			resourceIDsString, err := types.ResourceIDsToString(types.RiskyExtractResourceIDs(req.GetAllRequestedResourceIDs()))
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -507,9 +512,11 @@ func printRequestsOverview(reqs []types.AccessRequest, format string) error {
 		_, err := table.AsBuffer().WriteTo(os.Stdout)
 		return trace.Wrap(err)
 	case teleport.JSON:
-		return printJSON(reqs, "requests")
+		return trace.Wrap(utils.WriteJSONArray(os.Stdout, reqs), "failed to marshal requests")
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(os.Stdout, reqs), "failed to marshal requests")
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", format, teleport.Text, teleport.JSON)
+		return trace.BadParameter("unknown format %q", format)
 	}
 }
 
@@ -518,7 +525,7 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 	switch format {
 	case teleport.Text:
 		for _, req := range reqs {
-			resourceIDsString, err := types.ResourceIDsToString(req.GetRequestedResourceIDs())
+			resourceIDsString, err := common.FormatResourceAccessIDs(req.GetAllRequestedResourceIDs())
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -543,19 +550,12 @@ func printRequestsDetailed(reqs []types.AccessRequest, format string) error {
 		}
 		return nil
 	case teleport.JSON:
-		return printJSON(reqs, "requests")
+		return trace.Wrap(utils.WriteJSONArray(os.Stdout, reqs), "failed to marshal requests")
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(os.Stdout, reqs), "failed to marshal requests")
 	default:
-		return trace.BadParameter("unknown format %q, must be one of [%q, %q]", format, teleport.Text, teleport.JSON)
+		return trace.BadParameter("unknown format %q", format)
 	}
-}
-
-func printJSON(in any, desc string) error {
-	out, err := json.MarshalIndent(in, "", "  ")
-	if err != nil {
-		return trace.Wrap(err, fmt.Sprintf("failed to marshal %v", desc))
-	}
-	fmt.Printf("%s\n", out)
-	return nil
 }
 
 func quoteOrDefault(s, d string) string {

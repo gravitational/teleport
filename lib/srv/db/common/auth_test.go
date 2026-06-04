@@ -23,6 +23,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"net/url"
@@ -35,10 +36,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/redshift"
 	rss "github.com/aws/aws-sdk-go-v2/service/redshiftserverless"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
+	googlecmp "github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
@@ -49,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
+	subcaenv "github.com/gravitational/teleport/lib/subca/testenv"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
@@ -107,7 +111,7 @@ func TestAuthGetAzureCacheForRedisToken(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			token, err := auth.GetAzureCacheForRedisToken(context.TODO(), newAzureRedisDatabase(t, test.resourceID))
+			token, err := auth.GetAzureCacheForRedisToken(t.Context(), newAzureRedisDatabase(t, test.resourceID))
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -139,7 +143,7 @@ func TestAuthGetRedshiftServerlessAuthToken(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	dbUser, dbPassword, err := auth.GetRedshiftServerlessAuthToken(context.TODO(),
+	dbUser, dbPassword, err := auth.GetRedshiftServerlessAuthToken(t.Context(),
 		newRedshiftServerlessDatabase(t),
 		"some-user",
 		"some-database",
@@ -260,7 +264,7 @@ func TestAuthGetTLSConfig(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			tlsConfig, err := auth.GetTLSConfig(context.TODO(),
+			tlsConfig, err := auth.GetTLSConfig(t.Context(),
 				time.Now().Add(time.Hour),
 				test.sessionDatabase,
 				"defaultUser")
@@ -285,6 +289,101 @@ func TestAuthGetTLSConfig(t *testing.T) {
 	}
 }
 
+func TestAuthGetTLSConfig_caOverrides(t *testing.T) {
+	t.Parallel()
+
+	// Simulate an external CA chain, such as one that would be used by a CA
+	// override.
+	const chainLen = 2
+	externalChain, err := subcaenv.MakeCAChain(chainLen, &subcaenv.CAParams{})
+	require.NoError(t, err)
+	ca0 := externalChain[0]
+	ca1 := externalChain[1]
+
+	wantRootCAs := x509.NewCertPool()
+	require.True(t,
+		wantRootCAs.AppendCertsFromPEM(ca1.CertPEM),
+		"CertPool.AppendCertsFromPEM() errored")
+
+	// Leaf-to-root.
+	wantTrustChainDER := [][]byte{
+		ca1.Cert.Raw,
+		ca0.Cert.Raw,
+	}
+
+	wantOverrideDetails := &proto.CAOverrideCertificateDetails{
+		// "Fake" hash.
+		PublicKeyHash: "9ce8baa9093e80846d30c4277a303b1c5d79f2432412382d1aaee3b1d05bcb21",
+	}
+
+	ca1KeyDER, err := x509.MarshalPKCS8PrivateKey(ca1.Key)
+	require.NoError(t, err)
+	ca1KeyPEM := pem.EncodeToMemory(&pem.Block{
+		Type:  "PRIVATE KEY",
+		Bytes: ca1KeyDER,
+	})
+
+	fakeAuth := &authClientMock{
+		caCertPEM: ca1.CertPEM,
+		caKeyPEM:  ca1KeyPEM,
+		trustChain: [][]byte{
+			// Leaf-to-root.
+			ca1.CertPEM,
+			// Throw in some leading/trailing spaces for good measure.
+			[]byte("  " + string(ca0.CertPEM) + "  "),
+		},
+		// Take a defensive copy.
+		caOverride: &proto.CAOverrideCertificateDetails{
+			PublicKeyHash: wantOverrideDetails.PublicKeyHash,
+		},
+	}
+
+	auth, err := NewAuth(AuthConfig{
+		AuthClient:        fakeAuth,
+		AccessPoint:       &accessPointMock{},
+		AzureClients:      &azuretest.Clients{},
+		GCPClients:        &gcptest.Clients{},
+		AWSConfigProvider: &mocks.AWSConfigProvider{},
+	})
+	require.NoError(t, err)
+
+	db := newSelfHostedDatabase(t, "localhost:8888")
+	const user = "defaultUser"
+
+	t.Run("ok", func(t *testing.T) {
+		expiry := time.Now().Add(1 * time.Hour)
+
+		session := &Session{
+			Database: db,
+		}
+		auth := NewAuthForSession(auth, session)
+
+		tlsConfig, err := auth.GetTLSConfig(t.Context(), expiry, db, user)
+		require.NoError(t, err)
+
+		// Verify roots.
+		assert.True(t,
+			wantRootCAs.Equal(tlsConfig.RootCAs),
+			"tlsConfig.RootCAs comparison failed, roots differ from wanted")
+
+		// Verify certificate+trust chain.
+		certs := tlsConfig.Certificates
+		require.Len(t, certs, 1, "tlsConfig.Certificates length mismatch")
+		gotChainDER := certs[0].Certificate
+		wantChainDER := make([][]byte, len(wantTrustChainDER)+1)
+		wantChainDER[0] = gotChainDER[0] // Take client cert as-is. This is the generated cert.
+		for i, der := range wantTrustChainDER {
+			wantChainDER[i+1] = der
+		}
+		assert.Equal(t, wantChainDER, gotChainDER, "tlsConfig.Certifices[0] mismatch")
+
+		// Verify override details recorded in session.
+		if diff := googlecmp.Diff(wantOverrideDetails, session.caOverrideDetails, protocmp.Transform()); diff != "" {
+			t.Errorf("session.caOverrideDetails mismatch (-want +got)\n%s", diff)
+		}
+	})
+}
+
 func TestGetAzureIdentityResourceID(t *testing.T) {
 	for _, tc := range []struct {
 		desc                string
@@ -302,9 +401,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
-					GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
-				}, nil /* scaleSetAPI */),
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					VirtualMachineAPI: &azure.ARMComputeMock{
+						GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
+					},
+				}),
 			},
 			errAssertion: require.NoError,
 			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
@@ -319,9 +420,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
-					GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
-				}, nil /* scaleSetAPI */),
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					VirtualMachineAPI: &azure.ARMComputeMock{
+						GetResult: mocks.AzureVM([]string{identityResourceID(t, "identity")}),
+					},
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -334,9 +437,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
-					GetResult: mocks.AzureVM([]string{"identity"}),
-				}, nil /* scaleSetAPI */),
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					VirtualMachineAPI: &azure.ARMComputeMock{
+						GetResult: mocks.AzureVM([]string{"identity"}),
+					},
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -359,9 +464,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(&azure.ARMComputeMock{
-					GetErr: errors.New("failed to get VM"),
-				}, nil /* scaleSetAPI */),
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					VirtualMachineAPI: &azure.ARMComputeMock{
+						GetErr: errors.New("failed to get VM"),
+					},
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -374,12 +481,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(
-					nil, /* api */
-					&azure.ARMScaleSetMock{
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{
 						GetResult: mocks.AzureScaleSetVM([]string{identityResourceID(t, "identity")}),
 					},
-				),
+				}),
 			},
 			errAssertion: require.NoError,
 			resourceIDAssertion: func(requireT require.TestingT, value any, _ ...any) {
@@ -394,12 +500,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(
-					nil, /* api */
-					&azure.ARMScaleSetMock{
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{
 						GetResult: mocks.AzureScaleSetVM([]string{identityResourceID(t, "identity")}),
 					},
-				),
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -412,12 +517,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(
-					nil, /* api */
-					&azure.ARMScaleSetMock{
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{
 						GetResult: mocks.AzureScaleSetVM([]string{"identity"}),
 					},
-				),
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -430,12 +534,11 @@ func TestGetAzureIdentityResourceID(t *testing.T) {
 				instanceType: types.InstanceMetadataTypeAzure,
 			},
 			cloud: &azuretest.Clients{
-				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(
-					nil, /* api */
-					&azure.ARMScaleSetMock{
+				AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+					ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{
 						GetErr: trace.NotFound("vm not found"),
 					},
-				),
+				}),
 			},
 			errAssertion:        require.Error,
 			resourceIDAssertion: require.Empty,
@@ -474,7 +577,9 @@ func TestGetAzureIdentityResourceIDCache(t *testing.T) {
 		AuthClient:  new(authClientMock),
 		AccessPoint: new(accessPointMock),
 		AzureClients: &azuretest.Clients{
-			AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(virtualMachinesMock, nil /* scaleSetAPI */),
+			AzureVirtualMachines: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+				VirtualMachineAPI: virtualMachinesMock,
+			}),
 		},
 		azureIMDSClient: &imdsMock{
 			id:           "/subscriptions/00000000-0000-0000-0000-000000000000/resourcegroups/rg/providers/microsoft.compute/virtualmachines/vm",
@@ -1088,7 +1193,11 @@ func identityResourceID(t *testing.T, identityName string) string {
 }
 
 // authClientMock is a mock that implements AuthClient interface.
-type authClientMock struct{}
+type authClientMock struct {
+	caCertPEM, caKeyPEM []byte // defaults to fixtures.TLSCACertPEM / TLSCAKeyPEM.
+	trustChain          [][]byte
+	caOverride          *proto.CAOverrideCertificateDetails
+}
 
 // GenerateDatabaseCert generates a cert using fixtures TLS CA.
 func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.DatabaseCertRequest) (*proto.DatabaseCertResponse, error) {
@@ -1099,7 +1208,16 @@ func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.Da
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	tlsCACert, err := tls.X509KeyPair([]byte(fixtures.TLSCACertPEM), []byte(fixtures.TLSCAKeyPEM))
+
+	caCert := m.caCertPEM
+	if caCert == nil {
+		caCert = []byte(fixtures.TLSCACertPEM)
+	}
+	caKey := m.caKeyPEM
+	if caKey == nil {
+		caKey = []byte(fixtures.TLSCAKeyPEM)
+	}
+	tlsCACert, err := tls.X509KeyPair(caCert, caKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1121,8 +1239,10 @@ func (m *authClientMock) GenerateDatabaseCert(ctx context.Context, req *proto.Da
 	return &proto.DatabaseCertResponse{
 		Cert: cert,
 		CACerts: [][]byte{
-			[]byte(fixtures.TLSCACertPEM),
+			caCert,
 		},
+		TrustChain: m.trustChain,
+		CAOverride: m.caOverride,
 	}, nil
 }
 

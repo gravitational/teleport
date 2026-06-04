@@ -21,6 +21,7 @@ syntax = "proto3";
 package teleport.lib.teleterm.v1;
 
 import "teleport/lib/teleterm/v1/app.proto";
+import "teleport/mfa/v1/challenge.proto";
 
 option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
@@ -191,6 +192,8 @@ message PromptMFARequest {
   // per-session MFA but we may still need to know that the user has TOTP
   // configured as an option.
   bool per_session_mfa = 7;
+  // BrowserMFAChallenge is sent when browser-based MFA is supported.
+  teleport.mfa.v1.BrowserMFAChallenge browser = 8;
 }
 
 // SSOChallenge contains SSO challenge details.

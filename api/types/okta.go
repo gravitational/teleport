@@ -228,6 +228,8 @@ type OktaAssignment interface {
 	SetFinalized(bool)
 	// Copy returns a copy of this Okta assignment resource.
 	Copy() OktaAssignment
+	// IsEqual determines if two Okta assignments are equivalent to one another.
+	IsEqual(OktaAssignment) bool
 }
 
 // NewOktaAssignment creates a new Okta assignment object.
@@ -369,8 +371,8 @@ func (o *OktaAssignmentV1) Copy() OktaAssignment {
 
 // String returns the Okta assignment rule string representation.
 func (o *OktaAssignmentV1) String() string {
-	return fmt.Sprintf("OktaAssignmentV1(Name=%v, Labels=%v)",
-		o.GetName(), o.GetAllLabels())
+	return fmt.Sprintf("OktaAssignmentV1(Name=%v, Labels=%v, User=%s, Status=%s, LastTransition=%s, CleanupTime=%s)",
+		o.GetName(), o.GetAllLabels(), o.GetUser(), o.GetStatus(), o.Spec.LastTransition.UTC().Format(time.RFC3339), o.Spec.CleanupTime.UTC().Format(time.RFC3339))
 }
 
 // MatchSearch goes through select field values and tries to
@@ -418,6 +420,13 @@ type OktaAssignmentTarget interface {
 	GetTargetType() string
 	// GetID returns the ID of the target.
 	GetID() string
+	// GetStatus returns the processing status of the target.
+	GetStatus() *OktaAssignmentTargetStatus
+	// RecordStatus sets the processing outcome, op type, and last processing time.
+	// In the case of a failed outcome, the failure count is incremented.
+	// In the case of a successful outcome, the failure count is reset.
+	// If an invalid value is provided for op or outcome, then an error is returned.
+	RecordStatus(t time.Time, op constants.OktaAssignmentTargetOp, outcome constants.OktaAssignmentTargetOutcome) error
 }
 
 // GetTargetType returns the target type.
@@ -435,6 +444,51 @@ func (o *OktaAssignmentTargetV1) GetTargetType() string {
 // GetID returns the ID of the action target.
 func (o *OktaAssignmentTargetV1) GetID() string {
 	return o.Id
+}
+
+// GetStatus returns the processing status of the target.
+func (o *OktaAssignmentTargetV1) GetStatus() *OktaAssignmentTargetStatus {
+	return o.Status
+}
+
+// RecordStatus sets the processing outcome, op type, and last processing time.
+// In the case of a failed outcome, the failure count is incremented.
+// In the case of a successful outcome, the failure count is reset.
+// If an invalid value is provided for op or outcome, then an error is returned.
+func (o *OktaAssignmentTargetV1) RecordStatus(
+	t time.Time,
+	op constants.OktaAssignmentTargetOp,
+	outcome constants.OktaAssignmentTargetOutcome,
+) error {
+	switch op {
+	case constants.OktaAssignmentTargetOpProvision:
+	case constants.OktaAssignmentTargetOpCleanup:
+	default:
+		return trace.BadParameter("invalid op provided %q", op)
+	}
+
+	failureCount := int32(0)
+	if o.Status != nil {
+		failureCount = o.Status.FailureCount
+	}
+
+	switch outcome {
+	case constants.OktaAssignmentTargetOutcomeSuccessful:
+		failureCount = 0
+	case constants.OktaAssignmentTargetOutcomeFailed:
+		failureCount++
+	default:
+		return trace.BadParameter("invalid outcome provided %q", outcome)
+	}
+
+	o.Status = &OktaAssignmentTargetStatus{
+		Outcome:       string(outcome),
+		Op:            string(op),
+		LastProcessed: t.UTC(),
+		FailureCount:  failureCount,
+	}
+
+	return nil
 }
 
 // OktaAssignments is a list of OktaAssignment resources.

@@ -30,15 +30,14 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"text/template"
 	"time"
 
+	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/gravitational/trace"
 	oidcclient "github.com/zitadel/oidc/v3/pkg/client"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
-	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -49,12 +48,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/observability/otelhttp"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/lib/utils/teleportassets"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -170,7 +170,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 	c.tokenAdd.Flag("db-name", "Name of the database to add").StringVar(&c.dbName)
 	c.tokenAdd.Flag("db-protocol", fmt.Sprintf("Database protocol to use. Supported are: %v", defaults.DatabaseProtocols)).StringVar(&c.dbProtocol)
 	c.tokenAdd.Flag("db-uri", "Address the database is reachable at").StringVar(&c.dbURI)
-	c.tokenAdd.Flag("format", "Output format, 'text', 'json', or 'yaml'").EnumVar(&c.format, formats...)
+	c.tokenAdd.Flag("format", "Output format.").EnumVar(&c.format, formats...)
 
 	// "tctl tokens rm ..."
 	c.tokenDel = tokens.Command("rm", "Delete/revoke an invitation token.").Alias("del")
@@ -178,7 +178,7 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 
 	// "tctl tokens ls"
 	c.tokenList = tokens.Command("ls", "List node and user invitation tokens.")
-	c.tokenList.Flag("format", "Output format, 'text', 'json' or 'yaml'").EnumVar(&c.format, formats...)
+	c.tokenList.Flag("format", "Output format.").EnumVar(&c.format, formats...)
 	c.tokenList.Flag("with-secrets", "Do not redact join tokens").BoolVar(&c.withSecrets)
 	c.tokenList.Flag("labels", labelHelp).StringVar(&c.labels)
 
@@ -189,10 +189,10 @@ func (c *TokensCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCL
 	c.tokenKubeOIDC.Flag("context", "Kubernetes context to use. When not set, defaults to the active context.").StringVar(&c.kubeContext)
 	c.tokenKubeOIDC.Flag("cluster-name", "Name of the Kubernetes cluster. When not set, defaults to the context name.").StringVar(&c.kubeName)
 	c.tokenKubeOIDC.Flag("token-name", "Optional name of the created join token. When not set, default to '<CLUSTER_NAME>(-<BOT_NAME>)'").StringVar(&c.tokenName)
-	c.tokenKubeOIDC.Flag("bot", "Name of the the bot that this token will grant access to. When set, creates a bot token. Overrides --type").StringVar(&c.botName)
+	c.tokenKubeOIDC.Flag("bot", "Name of the bot that this token will grant access to. When set, creates a bot token. Overrides --type").StringVar(&c.botName)
 	c.tokenKubeOIDC.Flag("type", "Type(s) of token to add, e.g. --type=kube,app,db,discovery,proxy,etc").Default("kube,app,discovery").StringVar(&c.tokenType)
 	c.tokenKubeOIDC.Flag("service-account", "Name of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release name.").Short('s').Required().StringVar(&c.serviceAccountName)
-	c.tokenKubeOIDC.Flag("namespace", "Namespace of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is release namespace.").Short('n').Default("teleport").StringVar(&c.namespace)
+	c.tokenKubeOIDC.Flag("namespace", "Namespace of the Kubernetes Service Account using the token. For 'teleport-kube-agent' and 'tbot' Helm charts, this is the release namespace.").Short('n').Default("teleport").StringVar(&c.namespace)
 	c.tokenKubeOIDC.Flag("update-group", "Optional update group used for version detection and agent updater configuration").StringVar(&c.updateGroup)
 	c.tokenKubeOIDC.Flag("force", "Force the token creation, even if the token already exists").Default("false").Short('f').BoolVar(&c.force)
 
@@ -255,7 +255,7 @@ func (c *TokensCommand) Add(ctx context.Context, client *authclient.Client) erro
 	}
 
 	if c.labels != "" {
-		labels, err := libclient.ParseLabelSpec(c.labels)
+		labels, err := parse.LabelSelectorSpec(c.labels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -345,7 +345,7 @@ func (c *TokensCommand) Del(ctx context.Context, client *authclient.Client) erro
 
 // List is called to execute "tokens ls" command.
 func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(c.labels)
+	labels, err := parse.LabelSelectorSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -412,7 +412,7 @@ func (c *TokensCommand) List(ctx context.Context, client *authclient.Client) err
 					expdur := t.Expiry().Sub(now).Round(time.Second)
 					expiry = fmt.Sprintf("%s (%s)", exptime, expdur.String())
 				}
-				table.AddRow([]string{nameFunc(t), t.GetRoles().String(), printMetadataLabels(t.GetMetadata().Labels), expiry})
+				table.AddRow([]string{nameFunc(t), t.GetRoles().String(), resources.PrintMetadataLabels(t.GetMetadata().Labels), expiry})
 			}
 			return table.AsBuffer().String()
 		}

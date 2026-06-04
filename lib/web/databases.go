@@ -498,7 +498,7 @@ func (h *Handler) dbConnect(
 	databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, clt, &proto.ListResourcesRequest{
 		Namespace:           apidefaults.Namespace,
 		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, req.ServiceName),
+		PredicateExpression: fmt.Sprintf(`name == %q`, req.ServiceName),
 		Limit:               1,
 	})
 	if err != nil {
@@ -559,6 +559,13 @@ type DatabaseSessionRequest struct {
 	DatabaseRoles []string `json:"dbRoles"`
 }
 
+func (r *DatabaseSessionRequest) check() error {
+	if err := types.ValidateDatabaseName(r.ServiceName); err != nil {
+		return trace.Wrap(err, "database service name %q is invalid", r.ServiceName)
+	}
+	return nil
+}
+
 // databaseConnectionRequestWaitTimeout defines how long the server will wait
 // for the user to send the connection request.
 const databaseConnectionRequestWaitTimeout = defaults.HeadlessLoginTimeout
@@ -595,6 +602,10 @@ func readDatabaseSessionRequest(ws *websocket.Conn) (*DatabaseSessionRequest, er
 
 	var req DatabaseSessionRequest
 	if err := json.Unmarshal([]byte(envelope.Payload), &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := req.check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -939,7 +950,7 @@ func fetchDatabaseServersWithName(ctx context.Context, clt resourcesAPIGetter, r
 	resp, err := clt.ListResources(ctx, proto.ListResourcesRequest{
 		Limit:               defaults.MaxIterationLimit,
 		ResourceType:        types.KindDatabaseServer,
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, databaseName),
+		PredicateExpression: fmt.Sprintf(`name == %q`, databaseName),
 		UseSearchAsRoles:    r.URL.Query().Get("searchAsRoles") == "yes",
 	})
 	if err != nil {

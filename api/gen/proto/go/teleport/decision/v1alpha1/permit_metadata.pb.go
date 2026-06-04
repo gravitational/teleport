@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/permit_metadata.proto
 
+//go:build !protoopaque
+
 package decisionpb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // Metadata for access permits.
 type PermitMetadata struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// FeatureAssertions is a list of EnforcementFeature that the PEP (Policy
 	// Enforcement Point) *must* implement in order to correctly enforce the
 	// decision. Note that where possible new features should be structured to
@@ -75,11 +76,6 @@ func (x *PermitMetadata) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PermitMetadata.ProtoReflect.Descriptor instead.
-func (*PermitMetadata) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_permit_metadata_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *PermitMetadata) GetFeatureAssertions() []EnforcementFeature {
 	if x != nil {
 		return x.FeatureAssertions
@@ -94,6 +90,36 @@ func (x *PermitMetadata) GetPdpVersion() string {
 	return ""
 }
 
+func (x *PermitMetadata) SetFeatureAssertions(v []EnforcementFeature) {
+	x.FeatureAssertions = v
+}
+
+func (x *PermitMetadata) SetPdpVersion(v string) {
+	x.PdpVersion = v
+}
+
+type PermitMetadata_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// FeatureAssertions is a list of EnforcementFeature that the PEP (Policy
+	// Enforcement Point) *must* implement in order to correctly enforce the
+	// decision. Note that where possible new features should be structured to
+	// "fail safe" rather than relying on feature assertions.
+	FeatureAssertions []EnforcementFeature
+	// PdpVersion is the version of the PDP (Policy Decision Point) that evaluated
+	// the decision request.
+	PdpVersion string
+}
+
+func (b0 PermitMetadata_builder) Build() *PermitMetadata {
+	m0 := &PermitMetadata{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.FeatureAssertions = b.FeatureAssertions
+	x.PdpVersion = b.PdpVersion
+	return m0
+}
+
 var File_teleport_decision_v1alpha1_permit_metadata_proto protoreflect.FileDescriptor
 
 const file_teleport_decision_v1alpha1_permit_metadata_proto_rawDesc = "" +
@@ -103,18 +129,6 @@ const file_teleport_decision_v1alpha1_permit_metadata_proto_rawDesc = "" +
 	"\x12feature_assertions\x18\x01 \x03(\x0e2..teleport.decision.v1alpha1.EnforcementFeatureR\x11featureAssertions\x12\x1f\n" +
 	"\vpdp_version\x18\x02 \x01(\tR\n" +
 	"pdpVersionBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
-
-var (
-	file_teleport_decision_v1alpha1_permit_metadata_proto_rawDescOnce sync.Once
-	file_teleport_decision_v1alpha1_permit_metadata_proto_rawDescData []byte
-)
-
-func file_teleport_decision_v1alpha1_permit_metadata_proto_rawDescGZIP() []byte {
-	file_teleport_decision_v1alpha1_permit_metadata_proto_rawDescOnce.Do(func() {
-		file_teleport_decision_v1alpha1_permit_metadata_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_permit_metadata_proto_rawDesc), len(file_teleport_decision_v1alpha1_permit_metadata_proto_rawDesc)))
-	})
-	return file_teleport_decision_v1alpha1_permit_metadata_proto_rawDescData
-}
 
 var file_teleport_decision_v1alpha1_permit_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_decision_v1alpha1_permit_metadata_proto_goTypes = []any{

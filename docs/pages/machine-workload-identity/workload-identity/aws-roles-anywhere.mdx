@@ -35,7 +35,7 @@ AWS APIs in a few ways:
 
 Whilst this guide is primarily aimed at allowing a machine to access AWS,
 the `tsh svid issue` command can be used in place of `tbot` to allow a human
-user to authenticate with using AWS Roles Anywhere.
+user to authenticate using AWS Roles Anywhere.
 
 ## OIDC Federation vs Roles Anywhere
 
@@ -166,7 +166,7 @@ Click "Next" to proceed to the "Add permissions" page. Now select the
 permissions you wish to grant to your workload on AWS.
 
 Click "Next" to proceed to the "Name, review, and create" page. Give your role
-a descriptive name, e.g "my-workload-roles-anywhere".
+a descriptive name, e.g. "my-workload-roles-anywhere".
 
 Click "Create role".
 
@@ -177,7 +177,7 @@ Finally, you must create a Roles Anywhere profile.
 Navigate back to the "Roles Anywhere" section of the AWS IAM console and click
 "Create a profile".
 
-Give your profile a descriptive name, e.g "my-workload".
+Give your profile a descriptive name, e.g. "my-workload".
 
 Select the role you created in the previous step.
 
@@ -283,10 +283,10 @@ services:
 ```
 Replace:
 
-- /opt/roles-anywhere-svid with the directory where you want the X509 to be
+- `/opt/roles-anywhere-svid` with the directory where you want the X509 to be
   written.
-- example-workload-identity with the name of the Workload Identity you have
-  created
+- `example-workload-identity` with the name of the Workload Identity you have
+  created.
 
 Restart your `tbot` service to apply the new configuration.
 

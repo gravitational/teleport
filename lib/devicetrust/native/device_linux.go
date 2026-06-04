@@ -30,7 +30,6 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"strings"
 	"time"
 
 	"github.com/google/go-attestation/attest"
@@ -175,6 +174,12 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 
 	osRelease := <-osReleaseC
 
+	displayName := u.Name
+	const maxUsernameLen = 40 // Matches server-side validation.
+	if len(displayName) > maxUsernameLen {
+		displayName = displayName[:maxUsernameLen]
+	}
+
 	return &devicepb.DeviceCollectedData{
 		CollectTime:           timestamppb.Now(),
 		OsType:                devicepb.OSType_OS_TYPE_LINUX,
@@ -183,7 +188,8 @@ func collectDeviceData(mode CollectDataMode) (*devicepb.DeviceCollectedData, err
 		OsId:                  osRelease.ID,
 		OsVersion:             osRelease.VersionID,
 		OsBuild:               osRelease.Version,
-		OsUsername:            u.Name,
+		OsUsername:            displayName, // Wrong, but kept for backwards compatibility.
+		OsLoginUser:           u.Username,
 		ReportedAssetTag:      reportedAssetTag,
 		SystemSerialNumber:    systemSerialNumber,
 		BaseBoardSerialNumber: baseBoardSerialNumber,
@@ -296,17 +302,23 @@ func readDMIInfoEscalated() (*linux.DMIInfo, error) {
 		return nil, trace.Wrap(err, "running `sudo tsh device dmi-read`")
 	}
 
-	// Strip any leading output before the first `{`, just in case.
-	val := dmiOut.String()
-	if n := strings.Index(val, "{"); n > 0 {
-		val = val[n-1:]
-	}
-
-	var dmiInfo linux.DMIInfo
-	if err := json.Unmarshal([]byte(val), &dmiInfo); err != nil {
+	dmiInfo, err := parseDMIReadOutput(dmiOut.Bytes())
+	if err != nil {
 		return nil, trace.Wrap(err, "parsing dmi-read output")
 	}
 
+	return dmiInfo, nil
+}
+
+func parseDMIReadOutput(text []byte) (*linux.DMIInfo, error) {
+	if i := bytes.IndexByte(text, '{'); i > 0 {
+		text = text[i:]
+	}
+
+	var dmiInfo linux.DMIInfo
+	if err := json.NewDecoder(bytes.NewReader(text)).Decode(&dmiInfo); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	return &dmiInfo, nil
 }
 

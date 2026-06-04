@@ -163,17 +163,23 @@ func (g *oktaImportRuleTestingPrimitives) CompareTeleportAndKubernetesResource(t
 func TestOktaImportRuleCreation(t *testing.T) {
 	t.Skip("Skipping test since okta reconsider is not available in OSS")
 	test := &oktaImportRuleTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, resources.NewOktaImportRuleReconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewOktaImportRuleReconciler, test)
+}
+
+func TestOktaImportRuleDeletion(t *testing.T) {
+	t.Skip("Skipping test since okta reconsider is not available in OSS")
+	test := &oktaImportRuleTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewOktaImportRuleReconciler, test)
 }
 
 func TestOktaImportRuleDeletionDrift(t *testing.T) {
 	t.Skip("Skipping test since okta reconsider is not available in OSS")
 	test := &oktaImportRuleTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, resources.NewOktaImportRuleReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewOktaImportRuleReconciler, test)
 }
 
 func TestOktaImportRuleUpdate(t *testing.T) {
 	t.Skip("Skipping test since okta reconsider is not available in OSS")
 	test := &oktaImportRuleTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.OktaImportRule, *resourcesv1.TeleportOktaImportRule](t, resources.NewOktaImportRuleReconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewOktaImportRuleReconciler, test)
 }

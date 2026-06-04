@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { NavLink } from 'react-router-dom';
+import { NavLink } from 'react-router';
 import styled from 'styled-components';
 
 import { space, SpaceProps } from 'design/system';
@@ -28,12 +28,17 @@ interface TabsContainerProps extends SpaceProps {
    * bottom.
    */
   withBottomBorder?: boolean;
+  /**
+   * When set to 'small', renders tabs with smaller font size,
+   * padding, and gap.
+   */
+  size?: 'small';
 }
 
 export const TabsContainer = styled.div<TabsContainerProps>`
   position: relative;
   display: flex;
-  gap: ${p => p.theme.space[5]}px;
+  gap: ${p => (p.size === 'small' ? p.theme.space[3] : p.theme.space[5])}px;
   align-items: center;
   border-bottom: ${p =>
     p.withBottomBorder ? `1px solid ${p.theme.colors.spotBackground[0]}` : 0};
@@ -41,7 +46,11 @@ export const TabsContainer = styled.div<TabsContainerProps>`
   ${space}
 `;
 
-export const TabContainer = styled.div<{ selected?: boolean }>`
+export const TabContainer = styled.div<{
+  selected?: boolean;
+  size?: 'small';
+  disabled?: boolean;
+}>`
   padding: ${p => p.theme.space[1] + p.theme.space[2]}px
     ${p => p.theme.space[2]}px;
   position: relative;
@@ -59,6 +68,26 @@ export const TabContainer = styled.div<{ selected?: boolean }>`
   &:hover {
     opacity: 1;
   }
+
+  ${p =>
+    p.size === 'small' &&
+    `
+    padding: ${p.theme.space[1]}px ${p.theme.space[2]}px;
+    font-weight: 400;
+    font-size: ${p.theme.fontSizes[2]}px;
+    line-height: 20px;
+  `}
+
+  ${p =>
+    p.disabled &&
+    `
+    cursor: not-allowed;
+    pointer-events: none;
+    opacity: 0.3;
+    &:hover {
+      opacity: 0.3;
+    }
+  `}
 `;
 
 export const TabContainerNavLink = styled(TabContainer).attrs({

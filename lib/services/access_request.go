@@ -102,13 +102,18 @@ func ValidateAccessRequest(ar types.AccessRequest) error {
 		if err := r.GetConstraints().CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
-		switch r.GetResourceID().Kind {
-		// For now, only AWS Console apps are supported, but without fetching the backing resource, the most specific we
-		// can do is check for KindApp.
-		case types.KindApp:
-			continue
+		kind := r.GetResourceID().Kind
+		switch c := r.GetConstraints().Details.(type) {
+		case *types.ResourceConstraints_AwsConsole:
+			if kind != types.KindApp {
+				return trace.BadParameter("aws_console constraints are not valid for resource kind %q", kind)
+			}
+		case *types.ResourceConstraints_Ssh:
+			if kind != types.KindNode {
+				return trace.BadParameter("ssh constraints are not valid for resource kind %q", kind)
+			}
 		default:
-			return trace.BadParameter("resource kind %q does not support resource constraints", r.GetResourceID().Kind)
+			return trace.BadParameter("unsupported constraint type %T for resource kind %q", c, kind)
 		}
 	}
 
@@ -382,6 +387,10 @@ type DynamicAccessExt interface {
 	CreateAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest, accessLists *types.AccessRequestAllowedPromotions) error
 	// GetAccessRequestAllowedPromotions returns a lists of allowed access list promotions for the given access request.
 	GetAccessRequestAllowedPromotions(ctx context.Context, req types.AccessRequest) (*types.AccessRequestAllowedPromotions, error)
+	// ListExpiredAccessRequests lists all access requests that are expired. This is used by
+	// the expiry service. Access requests expiration handling is done outside the backend
+	// because we need to emit audit events on the access requests expiry.
+	ListExpiredAccessRequests(ctx context.Context, limit int, pageToken string) ([]*types.AccessRequestV3, string, error)
 }
 
 // reviewParamsContext is a simplified view of an access review
@@ -1204,6 +1213,13 @@ func NewRequestValidatorForUser(ctx context.Context, clock clockwork.Clock, gett
 	return m, nil
 }
 
+func (m *RequestValidator) roleTemplateContext() RoleTemplateContext {
+	return RoleTemplateContext{
+		Username: m.userState.GetName(),
+		Traits:   m.userState.GetTraits(),
+	}
+}
+
 // validate validates an access request and potentially modifies it depending on what the validator
 // options were configured in the requestValidator.
 //
@@ -1733,6 +1749,7 @@ func (m *RequestValidator) getRequestableRoles(ctx context.Context, identity tls
 		Traits:                   m.userState.GetTraits(),
 		Username:                 m.userState.GetName(),
 		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
+		DelegationSessionID:      identity.DelegationSessionID,
 	}, cluster.GetClusterName(), m.getter)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2218,7 +2235,7 @@ func (m *RequestValidator) insertAllowedAnnotations(ctx context.Context, conditi
 		// iterate through all new values and expand any
 		// variable interpolation syntax they contain.
 		for _, template := range annotationValueTemplates {
-			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
+			expandedValues, err := ApplyValueTraitsWithContext(template, m.roleTemplateContext())
 			if err != nil {
 				// skip values that failed variable expansion
 				m.logger.WarnContext(ctx, "Failed to expand trait template in access request annotation",
@@ -2243,7 +2260,7 @@ func (m *RequestValidator) insertDeniedAnnotations(ctx context.Context, conditio
 		// iterate through all new values and expand any
 		// variable interpolation syntax they contain.
 		for _, template := range annotationValueTemplates {
-			expandedValues, err := ApplyValueTraits(template, m.userState.GetTraits())
+			expandedValues, err := ApplyValueTraitsWithContext(template, m.roleTemplateContext())
 			if err != nil {
 				// skip values that failed variable expansion
 				m.logger.WarnContext(ctx, "Failed to expand trait template in access request annotation",
@@ -2441,7 +2458,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 		}
 	}
 
-	allRoles, err := FetchRoles(roles, m.getter, m.userState.GetTraits())
+	allRoles, err := FetchRolesWithContext(roles, m.getter, m.roleTemplateContext())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2487,11 +2504,23 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			matchers = append(matchers, NewIdentityCenterAccountAssignmentMatcher(rr.UnwrapT()))
 		}
 
-		// If ResourceConstraints were provided for this Resource, wrap existing matchers.
+		// If ResourceConstraints were provided for this Resource, wrap existing
+		// matchers and add constraint-derived matchers. The wrapping gates
+		// principal-bearing matchers on the constraint's allowed set, while the
+		// constraint-derived matchers ensure roles are pruned to only those
+		// granting at least one of the constrained principals (e.g. SSH logins,
+		// AWS role ARNs).
 		if constraints != nil {
 			guard := WithConstraints(constraints)
 			for i := range matchers {
 				matchers[i] = guard(matchers[i])
+			}
+			constraintMatcher, err := MatcherFromConstraints(constraints)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			if constraintMatcher != nil {
+				matchers = append(matchers, constraintMatcher)
 			}
 		}
 
@@ -2585,7 +2614,7 @@ func (m *RequestValidator) roleAllowsResource(
 		matchers = append(matchers, NewLoginMatcher(loginHint))
 	}
 	matchers = append(matchers, extraMatchers...)
-	err := roleSet.checkAccess(resource, m.userState.GetTraits(), AccessState{MFAVerified: true}, matchers...)
+	_, err := roleSet.checkAccess(resource, m.userState.GetName(), m.userState.GetTraits(), AccessState{MFAVerified: true}, matchers...)
 	if trace.IsAccessDenied(err) {
 		// Access denied, this role does not allow access to this resource, no
 		// unexpected error to report.

@@ -104,7 +104,17 @@ func TestTunnelConnections(t *testing.T) {
 		cacheList: getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.cache.GetAllTunnelConnections() }),
 		update:    modifyNoContext(p.trustS.UpsertTunnelConnection),
 		deleteAll: func(ctx context.Context) error {
-			return p.trustS.DeleteAllTunnelConnections()
+			all, err := p.trustS.GetAllTunnelConnections()
+			if err != nil {
+				return err
+			}
+			for _, tc := range all {
+				err := p.trustS.DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
+				if err != nil {
+					return err
+				}
+			}
+			return nil
 		},
 	}, withSkipPaginationTest())
 

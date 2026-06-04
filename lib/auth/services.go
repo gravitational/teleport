@@ -19,7 +19,7 @@ package auth
 import (
 	"context"
 
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -34,18 +34,20 @@ import (
 type Services struct {
 	services.TrustInternal
 	services.PresenceInternal
-	services.Provisioner
-	services.Identity
-	services.Access
+	services.ProvisionerInternal
+	services.IdentityInternal
+	services.AccessInternal
 	services.DynamicAccessExt
 	services.ClusterConfigurationInternal
 	services.Restrictions
-	services.Applications
+	services.ApplicationsInternal
 	services.Kubernetes
 	services.Databases
 	services.DatabaseServices
+	services.DelegationSessions
 	services.WindowsDesktops
 	services.DynamicWindowsDesktops
+	services.LinuxDesktops
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.SessionTrackerService
@@ -97,21 +99,31 @@ type Services struct {
 	services.ScopedTokenService
 	MFAService
 	services.WorkloadClusterService
+	services.Beams
+	services.SubCAService
 }
 
 // MFAService defines the interface for managing MFA resources in the backend.
 type MFAService interface {
-	// CreateValidatedMFAChallenge stores a ValidatedMFAChallenge resource for a given username.
+	// CreateValidatedMFAChallenge stores a ValidatedMFAChallenge resource for a given target cluster.
 	CreateValidatedMFAChallenge(
 		ctx context.Context,
-		username string,
-		challenge *mfav1.ValidatedMFAChallenge,
-	) (*mfav1.ValidatedMFAChallenge, error)
+		targetCluster string,
+		challenge *mfav2.ValidatedMFAChallenge,
+	) (*mfav2.ValidatedMFAChallenge, error)
 
-	// GetValidatedMFAChallenge retrieves a ValidatedMFAChallenge resource by username and challengeName.
+	// GetValidatedMFAChallenge retrieves a ValidatedMFAChallenge resource by target cluster and challenge name.
 	GetValidatedMFAChallenge(
 		ctx context.Context,
-		username string,
+		targetCluster string,
 		challengeName string,
-	) (*mfav1.ValidatedMFAChallenge, error)
+	) (*mfav2.ValidatedMFAChallenge, error)
+
+	// ListValidatedMFAChallenges lists ValidatedMFAChallenge resources for all users.
+	ListValidatedMFAChallenges(
+		ctx context.Context,
+		pageSize int32,
+		pageToken string,
+		targetCluster string,
+	) ([]*mfav2.ValidatedMFAChallenge, string, error)
 }

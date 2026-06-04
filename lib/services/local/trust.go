@@ -291,7 +291,7 @@ func (s *CA) CompareAndSwapCertAuthority(new, expected types.CertAuthority) erro
 		return trace.Wrap(err)
 	}
 
-	if !services.CertAuthoritiesEquivalent(actual, expected) {
+	if !actual.IsEqual(expected) {
 		return trace.CompareFailed("cluster %v settings have been updated, try again", new.GetName())
 	}
 
@@ -909,23 +909,6 @@ func (s *CA) DeleteTunnelConnection(clusterName, connectionName string) error {
 		return trace.BadParameter("missing connection name")
 	}
 	return s.Delete(context.TODO(), backend.NewKey(tunnelConnectionsPrefix, clusterName, connectionName))
-}
-
-// DeleteTunnelConnections deletes all tunnel connections for cluster
-func (s *CA) DeleteTunnelConnections(clusterName string) error {
-	if clusterName == "" {
-		return trace.BadParameter("missing cluster name")
-	}
-	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
-	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
-	return trace.Wrap(err)
-}
-
-// DeleteAllTunnelConnections deletes all tunnel connections
-func (s *CA) DeleteAllTunnelConnections() error {
-	startKey := backend.ExactKey(tunnelConnectionsPrefix)
-	err := s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
-	return trace.Wrap(err)
 }
 
 // CreateRemoteCluster creates a remote cluster

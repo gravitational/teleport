@@ -48,12 +48,29 @@ export interface BackendUserPreferences {
   keyboardLayout: number;
 }
 
-export async function getUserPreferences(): Promise<UserPreferences> {
-  const res: BackendUserPreferences = await api.get(
-    cfg.api.userPreferencesPath
-  );
+const cache: { pendingPreferences: Promise<UserPreferences> | null } = {
+  pendingPreferences: null,
+};
 
-  return convertBackendUserPreferences(res);
+export function clearCachedPreferences() {
+  cache.pendingPreferences = null;
+}
+
+export function getUserPreferences(fromCache = true): Promise<UserPreferences> {
+  if (fromCache && cache.pendingPreferences) {
+    return cache.pendingPreferences;
+  }
+
+  // Keep track of any in-flight fetch so that we don't make this request multiple times.
+  cache.pendingPreferences = api
+    .get(cfg.api.userPreferencesPath)
+    .then(convertBackendUserPreferences)
+    .catch(err => {
+      cache.pendingPreferences = null;
+      throw err;
+    });
+
+  return cache.pendingPreferences;
 }
 
 export async function getUserClusterPreferences(
@@ -101,7 +118,7 @@ export function makeDefaultUserPreferences(): UserPreferences {
       availableResourceMode: AvailableResourceMode.ALL,
     },
     clusterPreferences: makeDefaultUserClusterPreferences(),
-    sideNavDrawerMode: SideNavDrawerMode.COLLAPSED,
+    sideNavDrawerMode: SideNavDrawerMode.UNSPECIFIED,
     discoverResourcePreferences: {},
     keyboardLayout: 0,
   };

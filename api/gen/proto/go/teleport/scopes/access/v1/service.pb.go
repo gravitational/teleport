@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/scopes/access/v1/service.proto
 
+//go:build !protoopaque
+
 package accessv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // GetScopedRoleRequest is the request to get a scoped role.
 type GetScopedRoleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the scoped role.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *GetScopedRoleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetScopedRoleRequest.ProtoReflect.Descriptor instead.
-func (*GetScopedRoleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *GetScopedRoleRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -82,9 +78,28 @@ func (x *GetScopedRoleRequest) GetName() string {
 	return ""
 }
 
+func (x *GetScopedRoleRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetScopedRoleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the scoped role.
+	Name string
+}
+
+func (b0 GetScopedRoleRequest_builder) Build() *GetScopedRoleRequest {
+	m0 := &GetScopedRoleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // GetScopedRoleResponse is the response to get a scoped role.
 type GetScopedRoleResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Role is the scoped role.
 	Role          *ScopedRole `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -116,11 +131,6 @@ func (x *GetScopedRoleResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetScopedRoleResponse.ProtoReflect.Descriptor instead.
-func (*GetScopedRoleResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetScopedRoleResponse) GetRole() *ScopedRole {
 	if x != nil {
 		return x.Role
@@ -128,9 +138,39 @@ func (x *GetScopedRoleResponse) GetRole() *ScopedRole {
 	return nil
 }
 
+func (x *GetScopedRoleResponse) SetRole(v *ScopedRole) {
+	x.Role = v
+}
+
+func (x *GetScopedRoleResponse) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	return x.Role != nil
+}
+
+func (x *GetScopedRoleResponse) ClearRole() {
+	x.Role = nil
+}
+
+type GetScopedRoleResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Role is the scoped role.
+	Role *ScopedRole
+}
+
+func (b0 GetScopedRoleResponse_builder) Build() *GetScopedRoleResponse {
+	m0 := &GetScopedRoleResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Role = b.Role
+	return m0
+}
+
 // ListScopedRolesRequest is the request to list scoped roles.
 type ListScopedRolesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PageSize is the maximum number of results to return.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// PageToken is the pagination cursor used to start from where a previous request left off.
@@ -139,8 +179,11 @@ type ListScopedRolesRequest struct {
 	ResourceScope *v1.Filter `protobuf:"bytes,3,opt,name=resource_scope,json=resourceScope,proto3" json:"resource_scope,omitempty"`
 	// AssignableScope filters roles by their assignable scope if specified.
 	AssignableScope *v1.Filter `protobuf:"bytes,4,opt,name=assignable_scope,json=assignableScope,proto3" json:"assignable_scope,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// NameFilter filters roles by their name using a case-insensitive substring
+	// match if specified.
+	NameFilter    string `protobuf:"bytes,5,opt,name=name_filter,json=nameFilter,proto3" json:"name_filter,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ListScopedRolesRequest) Reset() {
@@ -166,11 +209,6 @@ func (x *ListScopedRolesRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListScopedRolesRequest.ProtoReflect.Descriptor instead.
-func (*ListScopedRolesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListScopedRolesRequest) GetPageSize() int32 {
@@ -201,9 +239,86 @@ func (x *ListScopedRolesRequest) GetAssignableScope() *v1.Filter {
 	return nil
 }
 
+func (x *ListScopedRolesRequest) GetNameFilter() string {
+	if x != nil {
+		return x.NameFilter
+	}
+	return ""
+}
+
+func (x *ListScopedRolesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListScopedRolesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListScopedRolesRequest) SetResourceScope(v *v1.Filter) {
+	x.ResourceScope = v
+}
+
+func (x *ListScopedRolesRequest) SetAssignableScope(v *v1.Filter) {
+	x.AssignableScope = v
+}
+
+func (x *ListScopedRolesRequest) SetNameFilter(v string) {
+	x.NameFilter = v
+}
+
+func (x *ListScopedRolesRequest) HasResourceScope() bool {
+	if x == nil {
+		return false
+	}
+	return x.ResourceScope != nil
+}
+
+func (x *ListScopedRolesRequest) HasAssignableScope() bool {
+	if x == nil {
+		return false
+	}
+	return x.AssignableScope != nil
+}
+
+func (x *ListScopedRolesRequest) ClearResourceScope() {
+	x.ResourceScope = nil
+}
+
+func (x *ListScopedRolesRequest) ClearAssignableScope() {
+	x.AssignableScope = nil
+}
+
+type ListScopedRolesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PageSize is the maximum number of results to return.
+	PageSize int32
+	// PageToken is the pagination cursor used to start from where a previous request left off.
+	PageToken string
+	// ResourceScope filters roles by their resource scope if specified.
+	ResourceScope *v1.Filter
+	// AssignableScope filters roles by their assignable scope if specified.
+	AssignableScope *v1.Filter
+	// NameFilter filters roles by their name using a case-insensitive substring
+	// match if specified.
+	NameFilter string
+}
+
+func (b0 ListScopedRolesRequest_builder) Build() *ListScopedRolesRequest {
+	m0 := &ListScopedRolesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.ResourceScope = b.ResourceScope
+	x.AssignableScope = b.AssignableScope
+	x.NameFilter = b.NameFilter
+	return m0
+}
+
 // ListScopedRolesResponse is the response to list scoped roles.
 type ListScopedRolesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Roles is the list of scoped roles.
 	Roles []*ScopedRole `protobuf:"bytes,1,rep,name=roles,proto3" json:"roles,omitempty"`
 	// NextPageToken is a pagination cursor usable to fetch the next page of results.
@@ -237,11 +352,6 @@ func (x *ListScopedRolesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListScopedRolesResponse.ProtoReflect.Descriptor instead.
-func (*ListScopedRolesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListScopedRolesResponse) GetRoles() []*ScopedRole {
 	if x != nil {
 		return x.Roles
@@ -256,9 +366,35 @@ func (x *ListScopedRolesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListScopedRolesResponse) SetRoles(v []*ScopedRole) {
+	x.Roles = v
+}
+
+func (x *ListScopedRolesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListScopedRolesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Roles is the list of scoped roles.
+	Roles []*ScopedRole
+	// NextPageToken is a pagination cursor usable to fetch the next page of results.
+	NextPageToken string
+}
+
+func (b0 ListScopedRolesResponse_builder) Build() *ListScopedRolesResponse {
+	m0 := &ListScopedRolesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Roles = b.Roles
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // CreateScopedRoleRequest is the request to create a scoped role.
 type CreateScopedRoleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Role is the scoped role to create.
 	Role          *ScopedRole `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -290,11 +426,6 @@ func (x *CreateScopedRoleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateScopedRoleRequest.ProtoReflect.Descriptor instead.
-func (*CreateScopedRoleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *CreateScopedRoleRequest) GetRole() *ScopedRole {
 	if x != nil {
 		return x.Role
@@ -302,9 +433,39 @@ func (x *CreateScopedRoleRequest) GetRole() *ScopedRole {
 	return nil
 }
 
+func (x *CreateScopedRoleRequest) SetRole(v *ScopedRole) {
+	x.Role = v
+}
+
+func (x *CreateScopedRoleRequest) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	return x.Role != nil
+}
+
+func (x *CreateScopedRoleRequest) ClearRole() {
+	x.Role = nil
+}
+
+type CreateScopedRoleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Role is the scoped role to create.
+	Role *ScopedRole
+}
+
+func (b0 CreateScopedRoleRequest_builder) Build() *CreateScopedRoleRequest {
+	m0 := &CreateScopedRoleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Role = b.Role
+	return m0
+}
+
 // CreateScopedRoleResponse is the response to create a scoped role.
 type CreateScopedRoleResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Role is the scoped role that was created.
 	Role          *ScopedRole `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -336,11 +497,6 @@ func (x *CreateScopedRoleResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateScopedRoleResponse.ProtoReflect.Descriptor instead.
-func (*CreateScopedRoleResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *CreateScopedRoleResponse) GetRole() *ScopedRole {
 	if x != nil {
 		return x.Role
@@ -348,9 +504,39 @@ func (x *CreateScopedRoleResponse) GetRole() *ScopedRole {
 	return nil
 }
 
+func (x *CreateScopedRoleResponse) SetRole(v *ScopedRole) {
+	x.Role = v
+}
+
+func (x *CreateScopedRoleResponse) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	return x.Role != nil
+}
+
+func (x *CreateScopedRoleResponse) ClearRole() {
+	x.Role = nil
+}
+
+type CreateScopedRoleResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Role is the scoped role that was created.
+	Role *ScopedRole
+}
+
+func (b0 CreateScopedRoleResponse_builder) Build() *CreateScopedRoleResponse {
+	m0 := &CreateScopedRoleResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Role = b.Role
+	return m0
+}
+
 // UpdateScopedRoleRequest is the request to update a scoped role.
 type UpdateScopedRoleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Role is the scoped role to update.
 	Role          *ScopedRole `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -382,11 +568,6 @@ func (x *UpdateScopedRoleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateScopedRoleRequest.ProtoReflect.Descriptor instead.
-func (*UpdateScopedRoleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *UpdateScopedRoleRequest) GetRole() *ScopedRole {
 	if x != nil {
 		return x.Role
@@ -394,9 +575,39 @@ func (x *UpdateScopedRoleRequest) GetRole() *ScopedRole {
 	return nil
 }
 
+func (x *UpdateScopedRoleRequest) SetRole(v *ScopedRole) {
+	x.Role = v
+}
+
+func (x *UpdateScopedRoleRequest) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	return x.Role != nil
+}
+
+func (x *UpdateScopedRoleRequest) ClearRole() {
+	x.Role = nil
+}
+
+type UpdateScopedRoleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Role is the scoped role to update.
+	Role *ScopedRole
+}
+
+func (b0 UpdateScopedRoleRequest_builder) Build() *UpdateScopedRoleRequest {
+	m0 := &UpdateScopedRoleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Role = b.Role
+	return m0
+}
+
 // UpdateScopedRoleResponse is the response to update a scoped role.
 type UpdateScopedRoleResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Role is the post-update scoped role.
 	Role          *ScopedRole `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -428,11 +639,6 @@ func (x *UpdateScopedRoleResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateScopedRoleResponse.ProtoReflect.Descriptor instead.
-func (*UpdateScopedRoleResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *UpdateScopedRoleResponse) GetRole() *ScopedRole {
 	if x != nil {
 		return x.Role
@@ -440,31 +646,59 @@ func (x *UpdateScopedRoleResponse) GetRole() *ScopedRole {
 	return nil
 }
 
-// DeleteScopedRoleRequest is the request to delete a scoped role.
-type DeleteScopedRoleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
-	// Name is the name of the scoped role to delete.
-	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
-	// Revision asserts the revision of the scoped role to delete (optional).
-	Revision      string `protobuf:"bytes,2,opt,name=revision,proto3" json:"revision,omitempty"`
+func (x *UpdateScopedRoleResponse) SetRole(v *ScopedRole) {
+	x.Role = v
+}
+
+func (x *UpdateScopedRoleResponse) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	return x.Role != nil
+}
+
+func (x *UpdateScopedRoleResponse) ClearRole() {
+	x.Role = nil
+}
+
+type UpdateScopedRoleResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Role is the post-update scoped role.
+	Role *ScopedRole
+}
+
+func (b0 UpdateScopedRoleResponse_builder) Build() *UpdateScopedRoleResponse {
+	m0 := &UpdateScopedRoleResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Role = b.Role
+	return m0
+}
+
+// UpsertScopedRoleRequest is the request to upsert a scoped role.
+type UpsertScopedRoleRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Role is the scoped role to upsert.
+	Role          *ScopedRole `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
-func (x *DeleteScopedRoleRequest) Reset() {
-	*x = DeleteScopedRoleRequest{}
+func (x *UpsertScopedRoleRequest) Reset() {
+	*x = UpsertScopedRoleRequest{}
 	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *DeleteScopedRoleRequest) String() string {
+func (x *UpsertScopedRoleRequest) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*DeleteScopedRoleRequest) ProtoMessage() {}
+func (*UpsertScopedRoleRequest) ProtoMessage() {}
 
-func (x *DeleteScopedRoleRequest) ProtoReflect() protoreflect.Message {
+func (x *UpsertScopedRoleRequest) ProtoReflect() protoreflect.Message {
 	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
@@ -476,9 +710,148 @@ func (x *DeleteScopedRoleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteScopedRoleRequest.ProtoReflect.Descriptor instead.
-func (*DeleteScopedRoleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{8}
+func (x *UpsertScopedRoleRequest) GetRole() *ScopedRole {
+	if x != nil {
+		return x.Role
+	}
+	return nil
+}
+
+func (x *UpsertScopedRoleRequest) SetRole(v *ScopedRole) {
+	x.Role = v
+}
+
+func (x *UpsertScopedRoleRequest) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	return x.Role != nil
+}
+
+func (x *UpsertScopedRoleRequest) ClearRole() {
+	x.Role = nil
+}
+
+type UpsertScopedRoleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Role is the scoped role to upsert.
+	Role *ScopedRole
+}
+
+func (b0 UpsertScopedRoleRequest_builder) Build() *UpsertScopedRoleRequest {
+	m0 := &UpsertScopedRoleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Role = b.Role
+	return m0
+}
+
+// UpsertScopedRoleResponse is the response to upsert a scoped role.
+type UpsertScopedRoleResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Role is the post-upsert scoped role.
+	Role          *ScopedRole `protobuf:"bytes,1,opt,name=role,proto3" json:"role,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertScopedRoleResponse) Reset() {
+	*x = UpsertScopedRoleResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertScopedRoleResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertScopedRoleResponse) ProtoMessage() {}
+
+func (x *UpsertScopedRoleResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertScopedRoleResponse) GetRole() *ScopedRole {
+	if x != nil {
+		return x.Role
+	}
+	return nil
+}
+
+func (x *UpsertScopedRoleResponse) SetRole(v *ScopedRole) {
+	x.Role = v
+}
+
+func (x *UpsertScopedRoleResponse) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	return x.Role != nil
+}
+
+func (x *UpsertScopedRoleResponse) ClearRole() {
+	x.Role = nil
+}
+
+type UpsertScopedRoleResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Role is the post-upsert scoped role.
+	Role *ScopedRole
+}
+
+func (b0 UpsertScopedRoleResponse_builder) Build() *UpsertScopedRoleResponse {
+	m0 := &UpsertScopedRoleResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Role = b.Role
+	return m0
+}
+
+// DeleteScopedRoleRequest is the request to delete a scoped role.
+type DeleteScopedRoleRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Name is the name of the scoped role to delete.
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// Revision asserts the revision of the scoped role to delete (optional).
+	Revision      string `protobuf:"bytes,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteScopedRoleRequest) Reset() {
+	*x = DeleteScopedRoleRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteScopedRoleRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteScopedRoleRequest) ProtoMessage() {}
+
+func (x *DeleteScopedRoleRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
 }
 
 func (x *DeleteScopedRoleRequest) GetName() string {
@@ -495,16 +868,42 @@ func (x *DeleteScopedRoleRequest) GetRevision() string {
 	return ""
 }
 
+func (x *DeleteScopedRoleRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *DeleteScopedRoleRequest) SetRevision(v string) {
+	x.Revision = v
+}
+
+type DeleteScopedRoleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the scoped role to delete.
+	Name string
+	// Revision asserts the revision of the scoped role to delete (optional).
+	Revision string
+}
+
+func (b0 DeleteScopedRoleRequest_builder) Build() *DeleteScopedRoleRequest {
+	m0 := &DeleteScopedRoleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Revision = b.Revision
+	return m0
+}
+
 // DeleteScopedRoleResponse is the response to delete a scoped role.
 type DeleteScopedRoleResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeleteScopedRoleResponse) Reset() {
 	*x = DeleteScopedRoleResponse{}
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[9]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -516,7 +915,7 @@ func (x *DeleteScopedRoleResponse) String() string {
 func (*DeleteScopedRoleResponse) ProtoMessage() {}
 
 func (x *DeleteScopedRoleResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[9]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -527,23 +926,32 @@ func (x *DeleteScopedRoleResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteScopedRoleResponse.ProtoReflect.Descriptor instead.
-func (*DeleteScopedRoleResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{9}
+type DeleteScopedRoleResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteScopedRoleResponse_builder) Build() *DeleteScopedRoleResponse {
+	m0 := &DeleteScopedRoleResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GetScopedRoleAssignmentRequest is the request to get a scoped role assignment.
 type GetScopedRoleAssignmentRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the scoped role assignment.
-	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	// SubKind is the sub kind of the scoped role assignment.
+	SubKind       string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *GetScopedRoleAssignmentRequest) Reset() {
 	*x = GetScopedRoleAssignmentRequest{}
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[10]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -555,7 +963,7 @@ func (x *GetScopedRoleAssignmentRequest) String() string {
 func (*GetScopedRoleAssignmentRequest) ProtoMessage() {}
 
 func (x *GetScopedRoleAssignmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[10]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -566,11 +974,6 @@ func (x *GetScopedRoleAssignmentRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetScopedRoleAssignmentRequest.ProtoReflect.Descriptor instead.
-func (*GetScopedRoleAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *GetScopedRoleAssignmentRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -578,9 +981,42 @@ func (x *GetScopedRoleAssignmentRequest) GetName() string {
 	return ""
 }
 
+func (x *GetScopedRoleAssignmentRequest) GetSubKind() string {
+	if x != nil {
+		return x.SubKind
+	}
+	return ""
+}
+
+func (x *GetScopedRoleAssignmentRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GetScopedRoleAssignmentRequest) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+type GetScopedRoleAssignmentRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the scoped role assignment.
+	Name string
+	// SubKind is the sub kind of the scoped role assignment.
+	SubKind string
+}
+
+func (b0 GetScopedRoleAssignmentRequest_builder) Build() *GetScopedRoleAssignmentRequest {
+	m0 := &GetScopedRoleAssignmentRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.SubKind = b.SubKind
+	return m0
+}
+
 // GetScopedRoleAssignmentResponse is the response to get a scoped role assignment.
 type GetScopedRoleAssignmentResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Assignment is the scoped role assignment.
 	Assignment    *ScopedRoleAssignment `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -589,7 +1025,7 @@ type GetScopedRoleAssignmentResponse struct {
 
 func (x *GetScopedRoleAssignmentResponse) Reset() {
 	*x = GetScopedRoleAssignmentResponse{}
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[11]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -601,7 +1037,7 @@ func (x *GetScopedRoleAssignmentResponse) String() string {
 func (*GetScopedRoleAssignmentResponse) ProtoMessage() {}
 
 func (x *GetScopedRoleAssignmentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[11]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -612,11 +1048,6 @@ func (x *GetScopedRoleAssignmentResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetScopedRoleAssignmentResponse.ProtoReflect.Descriptor instead.
-func (*GetScopedRoleAssignmentResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *GetScopedRoleAssignmentResponse) GetAssignment() *ScopedRoleAssignment {
 	if x != nil {
 		return x.Assignment
@@ -624,9 +1055,39 @@ func (x *GetScopedRoleAssignmentResponse) GetAssignment() *ScopedRoleAssignment 
 	return nil
 }
 
+func (x *GetScopedRoleAssignmentResponse) SetAssignment(v *ScopedRoleAssignment) {
+	x.Assignment = v
+}
+
+func (x *GetScopedRoleAssignmentResponse) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *GetScopedRoleAssignmentResponse) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type GetScopedRoleAssignmentResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Assignment is the scoped role assignment.
+	Assignment *ScopedRoleAssignment
+}
+
+func (b0 GetScopedRoleAssignmentResponse_builder) Build() *GetScopedRoleAssignmentResponse {
+	m0 := &GetScopedRoleAssignmentResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
 // ListScopedRoleAssignmentsRequest is the request to list scoped role assignments.
 type ListScopedRoleAssignmentsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PageSize is the maximum number of results to return.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// PageToken is the pagination cursor used to start from where a previous request left off.
@@ -651,7 +1112,7 @@ type ListScopedRoleAssignmentsRequest struct {
 
 func (x *ListScopedRoleAssignmentsRequest) Reset() {
 	*x = ListScopedRoleAssignmentsRequest{}
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[12]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -663,7 +1124,7 @@ func (x *ListScopedRoleAssignmentsRequest) String() string {
 func (*ListScopedRoleAssignmentsRequest) ProtoMessage() {}
 
 func (x *ListScopedRoleAssignmentsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[12]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -672,11 +1133,6 @@ func (x *ListScopedRoleAssignmentsRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListScopedRoleAssignmentsRequest.ProtoReflect.Descriptor instead.
-func (*ListScopedRoleAssignmentsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *ListScopedRoleAssignmentsRequest) GetPageSize() int32 {
@@ -728,9 +1184,96 @@ func (x *ListScopedRoleAssignmentsRequest) GetAllCallerAssignments() bool {
 	return false
 }
 
+func (x *ListScopedRoleAssignmentsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListScopedRoleAssignmentsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListScopedRoleAssignmentsRequest) SetResourceScope(v *v1.Filter) {
+	x.ResourceScope = v
+}
+
+func (x *ListScopedRoleAssignmentsRequest) SetAssignedScope(v *v1.Filter) {
+	x.AssignedScope = v
+}
+
+func (x *ListScopedRoleAssignmentsRequest) SetUser(v string) {
+	x.User = v
+}
+
+func (x *ListScopedRoleAssignmentsRequest) SetRole(v string) {
+	x.Role = v
+}
+
+func (x *ListScopedRoleAssignmentsRequest) SetAllCallerAssignments(v bool) {
+	x.AllCallerAssignments = v
+}
+
+func (x *ListScopedRoleAssignmentsRequest) HasResourceScope() bool {
+	if x == nil {
+		return false
+	}
+	return x.ResourceScope != nil
+}
+
+func (x *ListScopedRoleAssignmentsRequest) HasAssignedScope() bool {
+	if x == nil {
+		return false
+	}
+	return x.AssignedScope != nil
+}
+
+func (x *ListScopedRoleAssignmentsRequest) ClearResourceScope() {
+	x.ResourceScope = nil
+}
+
+func (x *ListScopedRoleAssignmentsRequest) ClearAssignedScope() {
+	x.AssignedScope = nil
+}
+
+type ListScopedRoleAssignmentsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PageSize is the maximum number of results to return.
+	PageSize int32
+	// PageToken is the pagination cursor used to start from where a previous request left off.
+	PageToken string
+	// ResourceScope filters assignments by their resource scope if specified.
+	ResourceScope *v1.Filter
+	// AssignedScope filters assignments by the scopes they assign to if specified (note: matches assignment
+	// resources with 1 or more maching scopes, not all scopes within the assignment will necessarily match).
+	AssignedScope *v1.Filter
+	// User optionally limits the list to assignments for a specific user.
+	User string
+	// Role optionally limits the list to assignments for a specific role.
+	Role string
+	// AllCallerAssignments, if set to true, overrides the default behavior in favor of returning all
+	// assignments that apply to the caller, including those assigned in parent/orthogonal scopes. This flag
+	// is specifically used to support users discovering where they have been granted privileges across scopes,
+	// and is not intended for general use.
+	AllCallerAssignments bool
+}
+
+func (b0 ListScopedRoleAssignmentsRequest_builder) Build() *ListScopedRoleAssignmentsRequest {
+	m0 := &ListScopedRoleAssignmentsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.ResourceScope = b.ResourceScope
+	x.AssignedScope = b.AssignedScope
+	x.User = b.User
+	x.Role = b.Role
+	x.AllCallerAssignments = b.AllCallerAssignments
+	return m0
+}
+
 // ListScopedRoleAssignmentsResponse is the response to list scoped role assignments.
 type ListScopedRoleAssignmentsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Assignments is the list of scoped role assignments.
 	Assignments []*ScopedRoleAssignment `protobuf:"bytes,1,rep,name=assignments,proto3" json:"assignments,omitempty"`
 	// NextPageToken is a pagination cursor usable to fetch the next page of results.
@@ -741,7 +1284,7 @@ type ListScopedRoleAssignmentsResponse struct {
 
 func (x *ListScopedRoleAssignmentsResponse) Reset() {
 	*x = ListScopedRoleAssignmentsResponse{}
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[13]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -753,7 +1296,7 @@ func (x *ListScopedRoleAssignmentsResponse) String() string {
 func (*ListScopedRoleAssignmentsResponse) ProtoMessage() {}
 
 func (x *ListScopedRoleAssignmentsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[13]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -762,11 +1305,6 @@ func (x *ListScopedRoleAssignmentsResponse) ProtoReflect() protoreflect.Message 
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListScopedRoleAssignmentsResponse.ProtoReflect.Descriptor instead.
-func (*ListScopedRoleAssignmentsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *ListScopedRoleAssignmentsResponse) GetAssignments() []*ScopedRoleAssignment {
@@ -783,20 +1321,44 @@ func (x *ListScopedRoleAssignmentsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListScopedRoleAssignmentsResponse) SetAssignments(v []*ScopedRoleAssignment) {
+	x.Assignments = v
+}
+
+func (x *ListScopedRoleAssignmentsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListScopedRoleAssignmentsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Assignments is the list of scoped role assignments.
+	Assignments []*ScopedRoleAssignment
+	// NextPageToken is a pagination cursor usable to fetch the next page of results.
+	NextPageToken string
+}
+
+func (b0 ListScopedRoleAssignmentsResponse_builder) Build() *ListScopedRoleAssignmentsResponse {
+	m0 := &ListScopedRoleAssignmentsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignments = b.Assignments
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // CreateScopedRoleAssignmentRequest is the request to create a scoped role assignment.
 type CreateScopedRoleAssignmentRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Assignment is the scoped role assignment to create.
-	Assignment *ScopedRoleAssignment `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
-	// RoleRevisions asserts the revisions of the roles assigned by the assignments (optional).
-	RoleRevisions map[string]string `protobuf:"bytes,2,rep,name=role_revisions,json=roleRevisions,proto3" json:"role_revisions,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	Assignment    *ScopedRoleAssignment `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *CreateScopedRoleAssignmentRequest) Reset() {
 	*x = CreateScopedRoleAssignmentRequest{}
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[14]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -808,7 +1370,7 @@ func (x *CreateScopedRoleAssignmentRequest) String() string {
 func (*CreateScopedRoleAssignmentRequest) ProtoMessage() {}
 
 func (x *CreateScopedRoleAssignmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[14]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -819,11 +1381,6 @@ func (x *CreateScopedRoleAssignmentRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateScopedRoleAssignmentRequest.ProtoReflect.Descriptor instead.
-func (*CreateScopedRoleAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *CreateScopedRoleAssignmentRequest) GetAssignment() *ScopedRoleAssignment {
 	if x != nil {
 		return x.Assignment
@@ -831,16 +1388,39 @@ func (x *CreateScopedRoleAssignmentRequest) GetAssignment() *ScopedRoleAssignmen
 	return nil
 }
 
-func (x *CreateScopedRoleAssignmentRequest) GetRoleRevisions() map[string]string {
-	if x != nil {
-		return x.RoleRevisions
+func (x *CreateScopedRoleAssignmentRequest) SetAssignment(v *ScopedRoleAssignment) {
+	x.Assignment = v
+}
+
+func (x *CreateScopedRoleAssignmentRequest) HasAssignment() bool {
+	if x == nil {
+		return false
 	}
-	return nil
+	return x.Assignment != nil
+}
+
+func (x *CreateScopedRoleAssignmentRequest) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type CreateScopedRoleAssignmentRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Assignment is the scoped role assignment to create.
+	Assignment *ScopedRoleAssignment
+}
+
+func (b0 CreateScopedRoleAssignmentRequest_builder) Build() *CreateScopedRoleAssignmentRequest {
+	m0 := &CreateScopedRoleAssignmentRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
 }
 
 // CreateScopedRoleAssignmentResponse is the response to create a scoped role assignment.
 type CreateScopedRoleAssignmentResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Assignment is the scoped role assignment that was created.
 	Assignment    *ScopedRoleAssignment `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -849,7 +1429,7 @@ type CreateScopedRoleAssignmentResponse struct {
 
 func (x *CreateScopedRoleAssignmentResponse) Reset() {
 	*x = CreateScopedRoleAssignmentResponse{}
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[15]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -861,7 +1441,7 @@ func (x *CreateScopedRoleAssignmentResponse) String() string {
 func (*CreateScopedRoleAssignmentResponse) ProtoMessage() {}
 
 func (x *CreateScopedRoleAssignmentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[15]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -872,11 +1452,6 @@ func (x *CreateScopedRoleAssignmentResponse) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateScopedRoleAssignmentResponse.ProtoReflect.Descriptor instead.
-func (*CreateScopedRoleAssignmentResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *CreateScopedRoleAssignmentResponse) GetAssignment() *ScopedRoleAssignment {
 	if x != nil {
 		return x.Assignment
@@ -884,20 +1459,336 @@ func (x *CreateScopedRoleAssignmentResponse) GetAssignment() *ScopedRoleAssignme
 	return nil
 }
 
+func (x *CreateScopedRoleAssignmentResponse) SetAssignment(v *ScopedRoleAssignment) {
+	x.Assignment = v
+}
+
+func (x *CreateScopedRoleAssignmentResponse) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *CreateScopedRoleAssignmentResponse) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type CreateScopedRoleAssignmentResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Assignment is the scoped role assignment that was created.
+	Assignment *ScopedRoleAssignment
+}
+
+func (b0 CreateScopedRoleAssignmentResponse_builder) Build() *CreateScopedRoleAssignmentResponse {
+	m0 := &CreateScopedRoleAssignmentResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
+// UpdateScopedRoleAssignmentRequest is the request to update a scoped role assignment.
+type UpdateScopedRoleAssignmentRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Assignment is the scoped role assignment to update.
+	Assignment    *ScopedRoleAssignment `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateScopedRoleAssignmentRequest) Reset() {
+	*x = UpdateScopedRoleAssignmentRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateScopedRoleAssignmentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateScopedRoleAssignmentRequest) ProtoMessage() {}
+
+func (x *UpdateScopedRoleAssignmentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpdateScopedRoleAssignmentRequest) GetAssignment() *ScopedRoleAssignment {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+func (x *UpdateScopedRoleAssignmentRequest) SetAssignment(v *ScopedRoleAssignment) {
+	x.Assignment = v
+}
+
+func (x *UpdateScopedRoleAssignmentRequest) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *UpdateScopedRoleAssignmentRequest) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type UpdateScopedRoleAssignmentRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Assignment is the scoped role assignment to update.
+	Assignment *ScopedRoleAssignment
+}
+
+func (b0 UpdateScopedRoleAssignmentRequest_builder) Build() *UpdateScopedRoleAssignmentRequest {
+	m0 := &UpdateScopedRoleAssignmentRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
+// UpdateScopedRoleAssignmentResponse is the response to update a scoped role assignment.
+type UpdateScopedRoleAssignmentResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Assignment is the post-update scoped role assignment.
+	Assignment    *ScopedRoleAssignment `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateScopedRoleAssignmentResponse) Reset() {
+	*x = UpdateScopedRoleAssignmentResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateScopedRoleAssignmentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateScopedRoleAssignmentResponse) ProtoMessage() {}
+
+func (x *UpdateScopedRoleAssignmentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpdateScopedRoleAssignmentResponse) GetAssignment() *ScopedRoleAssignment {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+func (x *UpdateScopedRoleAssignmentResponse) SetAssignment(v *ScopedRoleAssignment) {
+	x.Assignment = v
+}
+
+func (x *UpdateScopedRoleAssignmentResponse) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *UpdateScopedRoleAssignmentResponse) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type UpdateScopedRoleAssignmentResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Assignment is the post-update scoped role assignment.
+	Assignment *ScopedRoleAssignment
+}
+
+func (b0 UpdateScopedRoleAssignmentResponse_builder) Build() *UpdateScopedRoleAssignmentResponse {
+	m0 := &UpdateScopedRoleAssignmentResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
+// UpsertScopedRoleAssignmentRequest is the request to upsert a scoped role assignment.
+type UpsertScopedRoleAssignmentRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Assignment is the scoped role assignment to upsert.
+	Assignment    *ScopedRoleAssignment `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertScopedRoleAssignmentRequest) Reset() {
+	*x = UpsertScopedRoleAssignmentRequest{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertScopedRoleAssignmentRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertScopedRoleAssignmentRequest) ProtoMessage() {}
+
+func (x *UpsertScopedRoleAssignmentRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertScopedRoleAssignmentRequest) GetAssignment() *ScopedRoleAssignment {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+func (x *UpsertScopedRoleAssignmentRequest) SetAssignment(v *ScopedRoleAssignment) {
+	x.Assignment = v
+}
+
+func (x *UpsertScopedRoleAssignmentRequest) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *UpsertScopedRoleAssignmentRequest) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type UpsertScopedRoleAssignmentRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Assignment is the scoped role assignment to upsert.
+	Assignment *ScopedRoleAssignment
+}
+
+func (b0 UpsertScopedRoleAssignmentRequest_builder) Build() *UpsertScopedRoleAssignmentRequest {
+	m0 := &UpsertScopedRoleAssignmentRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
+// UpsertScopedRoleAssignmentResponse is the response to upsert a scoped role assignment.
+type UpsertScopedRoleAssignmentResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Assignment is the post-upsert scoped role assignment.
+	Assignment    *ScopedRoleAssignment `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertScopedRoleAssignmentResponse) Reset() {
+	*x = UpsertScopedRoleAssignmentResponse{}
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertScopedRoleAssignmentResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertScopedRoleAssignmentResponse) ProtoMessage() {}
+
+func (x *UpsertScopedRoleAssignmentResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertScopedRoleAssignmentResponse) GetAssignment() *ScopedRoleAssignment {
+	if x != nil {
+		return x.Assignment
+	}
+	return nil
+}
+
+func (x *UpsertScopedRoleAssignmentResponse) SetAssignment(v *ScopedRoleAssignment) {
+	x.Assignment = v
+}
+
+func (x *UpsertScopedRoleAssignmentResponse) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *UpsertScopedRoleAssignmentResponse) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type UpsertScopedRoleAssignmentResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Assignment is the post-upsert scoped role assignment.
+	Assignment *ScopedRoleAssignment
+}
+
+func (b0 UpsertScopedRoleAssignmentResponse_builder) Build() *UpsertScopedRoleAssignmentResponse {
+	m0 := &UpsertScopedRoleAssignmentResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
 // DeleteScopedRoleAssignmentRequest is the request to delete a scoped role assignment.
 type DeleteScopedRoleAssignmentRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the scoped role assignment to delete.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Revision asserts the revision of the scoped role assignment to delete (optional).
-	Revision      string `protobuf:"bytes,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	Revision string `protobuf:"bytes,2,opt,name=revision,proto3" json:"revision,omitempty"`
+	// SubKind is the sub kind of the scoped role assignment.
+	SubKind       string `protobuf:"bytes,3,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeleteScopedRoleAssignmentRequest) Reset() {
 	*x = DeleteScopedRoleAssignmentRequest{}
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[16]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[22]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -909,7 +1800,7 @@ func (x *DeleteScopedRoleAssignmentRequest) String() string {
 func (*DeleteScopedRoleAssignmentRequest) ProtoMessage() {}
 
 func (x *DeleteScopedRoleAssignmentRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[16]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[22]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -918,11 +1809,6 @@ func (x *DeleteScopedRoleAssignmentRequest) ProtoReflect() protoreflect.Message 
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DeleteScopedRoleAssignmentRequest.ProtoReflect.Descriptor instead.
-func (*DeleteScopedRoleAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *DeleteScopedRoleAssignmentRequest) GetName() string {
@@ -939,16 +1825,56 @@ func (x *DeleteScopedRoleAssignmentRequest) GetRevision() string {
 	return ""
 }
 
+func (x *DeleteScopedRoleAssignmentRequest) GetSubKind() string {
+	if x != nil {
+		return x.SubKind
+	}
+	return ""
+}
+
+func (x *DeleteScopedRoleAssignmentRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *DeleteScopedRoleAssignmentRequest) SetRevision(v string) {
+	x.Revision = v
+}
+
+func (x *DeleteScopedRoleAssignmentRequest) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+type DeleteScopedRoleAssignmentRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the scoped role assignment to delete.
+	Name string
+	// Revision asserts the revision of the scoped role assignment to delete (optional).
+	Revision string
+	// SubKind is the sub kind of the scoped role assignment.
+	SubKind string
+}
+
+func (b0 DeleteScopedRoleAssignmentRequest_builder) Build() *DeleteScopedRoleAssignmentRequest {
+	m0 := &DeleteScopedRoleAssignmentRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Revision = b.Revision
+	x.SubKind = b.SubKind
+	return m0
+}
+
 // DeleteScopedRoleAssignmentResponse is the response to delete a scoped role assignment.
 type DeleteScopedRoleAssignmentResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
 
 func (x *DeleteScopedRoleAssignmentResponse) Reset() {
 	*x = DeleteScopedRoleAssignmentResponse{}
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[17]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[23]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -960,7 +1886,7 @@ func (x *DeleteScopedRoleAssignmentResponse) String() string {
 func (*DeleteScopedRoleAssignmentResponse) ProtoMessage() {}
 
 func (x *DeleteScopedRoleAssignmentResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[17]
+	mi := &file_teleport_scopes_access_v1_service_proto_msgTypes[23]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -971,9 +1897,16 @@ func (x *DeleteScopedRoleAssignmentResponse) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteScopedRoleAssignmentResponse.ProtoReflect.Descriptor instead.
-func (*DeleteScopedRoleAssignmentResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_service_proto_rawDescGZIP(), []int{17}
+type DeleteScopedRoleAssignmentResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteScopedRoleAssignmentResponse_builder) Build() *DeleteScopedRoleAssignmentResponse {
+	m0 := &DeleteScopedRoleAssignmentResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_scopes_access_v1_service_proto protoreflect.FileDescriptor
@@ -984,13 +1917,15 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\x14GetScopedRoleRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\"R\n" +
 	"\x15GetScopedRoleResponse\x129\n" +
-	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"\xde\x01\n" +
+	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"\xff\x01\n" +
 	"\x16ListScopedRolesRequest\x12\x1b\n" +
 	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
 	"\n" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\x12A\n" +
 	"\x0eresource_scope\x18\x03 \x01(\v2\x1a.teleport.scopes.v1.FilterR\rresourceScope\x12E\n" +
-	"\x10assignable_scope\x18\x04 \x01(\v2\x1a.teleport.scopes.v1.FilterR\x0fassignableScope\"~\n" +
+	"\x10assignable_scope\x18\x04 \x01(\v2\x1a.teleport.scopes.v1.FilterR\x0fassignableScope\x12\x1f\n" +
+	"\vname_filter\x18\x05 \x01(\tR\n" +
+	"nameFilter\"~\n" +
 	"\x17ListScopedRolesResponse\x12;\n" +
 	"\x05roles\x18\x01 \x03(\v2%.teleport.scopes.access.v1.ScopedRoleR\x05roles\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"T\n" +
@@ -1001,13 +1936,18 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\x17UpdateScopedRoleRequest\x129\n" +
 	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"U\n" +
 	"\x18UpdateScopedRoleResponse\x129\n" +
+	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"T\n" +
+	"\x17UpsertScopedRoleRequest\x129\n" +
+	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"U\n" +
+	"\x18UpsertScopedRoleResponse\x129\n" +
 	"\x04role\x18\x01 \x01(\v2%.teleport.scopes.access.v1.ScopedRoleR\x04role\"I\n" +
 	"\x17DeleteScopedRoleRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
 	"\brevision\x18\x02 \x01(\tR\brevision\"\x1a\n" +
-	"\x18DeleteScopedRoleResponse\"4\n" +
+	"\x18DeleteScopedRoleResponse\"O\n" +
 	"\x1eGetScopedRoleAssignmentRequest\x12\x12\n" +
-	"\x04name\x18\x01 \x01(\tR\x04name\"r\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\x12\x19\n" +
+	"\bsub_kind\x18\x02 \x01(\tR\asubKind\"r\n" +
 	"\x1fGetScopedRoleAssignmentResponse\x12O\n" +
 	"\n" +
 	"assignment\x18\x01 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\n" +
@@ -1023,47 +1963,51 @@ const file_teleport_scopes_access_v1_service_proto_rawDesc = "" +
 	"\x16all_caller_assignments\x18\a \x01(\bR\x14allCallerAssignments\"\x9e\x01\n" +
 	"!ListScopedRoleAssignmentsResponse\x12Q\n" +
 	"\vassignments\x18\x01 \x03(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\vassignments\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\xae\x02\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"\x8a\x01\n" +
 	"!CreateScopedRoleAssignmentRequest\x12O\n" +
 	"\n" +
 	"assignment\x18\x01 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\n" +
-	"assignment\x12v\n" +
-	"\x0erole_revisions\x18\x02 \x03(\v2O.teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.RoleRevisionsEntryR\rroleRevisions\x1a@\n" +
-	"\x12RoleRevisionsEntry\x12\x10\n" +
-	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"u\n" +
+	"assignmentJ\x04\b\x02\x10\x03R\x0erole_revisions\"u\n" +
 	"\"CreateScopedRoleAssignmentResponse\x12O\n" +
 	"\n" +
 	"assignment\x18\x01 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\n" +
-	"assignment\"S\n" +
+	"assignment\"t\n" +
+	"!UpdateScopedRoleAssignmentRequest\x12O\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\n" +
+	"assignment\"u\n" +
+	"\"UpdateScopedRoleAssignmentResponse\x12O\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\n" +
+	"assignment\"t\n" +
+	"!UpsertScopedRoleAssignmentRequest\x12O\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\n" +
+	"assignment\"u\n" +
+	"\"UpsertScopedRoleAssignmentResponse\x12O\n" +
+	"\n" +
+	"assignment\x18\x01 \x01(\v2/.teleport.scopes.access.v1.ScopedRoleAssignmentR\n" +
+	"assignment\"n\n" +
 	"!DeleteScopedRoleAssignmentRequest\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x1a\n" +
-	"\brevision\x18\x02 \x01(\tR\brevision\"$\n" +
-	"\"DeleteScopedRoleAssignmentResponse2\xde\t\n" +
+	"\brevision\x18\x02 \x01(\tR\brevision\x12\x19\n" +
+	"\bsub_kind\x18\x03 \x01(\tR\asubKind\"$\n" +
+	"\"DeleteScopedRoleAssignmentResponse2\x93\r\n" +
 	"\x13ScopedAccessService\x12r\n" +
 	"\rGetScopedRole\x12/.teleport.scopes.access.v1.GetScopedRoleRequest\x1a0.teleport.scopes.access.v1.GetScopedRoleResponse\x12x\n" +
 	"\x0fListScopedRoles\x121.teleport.scopes.access.v1.ListScopedRolesRequest\x1a2.teleport.scopes.access.v1.ListScopedRolesResponse\x12{\n" +
 	"\x10CreateScopedRole\x122.teleport.scopes.access.v1.CreateScopedRoleRequest\x1a3.teleport.scopes.access.v1.CreateScopedRoleResponse\x12{\n" +
 	"\x10UpdateScopedRole\x122.teleport.scopes.access.v1.UpdateScopedRoleRequest\x1a3.teleport.scopes.access.v1.UpdateScopedRoleResponse\x12{\n" +
+	"\x10UpsertScopedRole\x122.teleport.scopes.access.v1.UpsertScopedRoleRequest\x1a3.teleport.scopes.access.v1.UpsertScopedRoleResponse\x12{\n" +
 	"\x10DeleteScopedRole\x122.teleport.scopes.access.v1.DeleteScopedRoleRequest\x1a3.teleport.scopes.access.v1.DeleteScopedRoleResponse\x12\x90\x01\n" +
 	"\x17GetScopedRoleAssignment\x129.teleport.scopes.access.v1.GetScopedRoleAssignmentRequest\x1a:.teleport.scopes.access.v1.GetScopedRoleAssignmentResponse\x12\x96\x01\n" +
 	"\x19ListScopedRoleAssignments\x12;.teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest\x1a<.teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse\x12\x99\x01\n" +
 	"\x1aCreateScopedRoleAssignment\x12<.teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest\x1a=.teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse\x12\x99\x01\n" +
+	"\x1aUpdateScopedRoleAssignment\x12<.teleport.scopes.access.v1.UpdateScopedRoleAssignmentRequest\x1a=.teleport.scopes.access.v1.UpdateScopedRoleAssignmentResponse\x12\x99\x01\n" +
+	"\x1aUpsertScopedRoleAssignment\x12<.teleport.scopes.access.v1.UpsertScopedRoleAssignmentRequest\x1a=.teleport.scopes.access.v1.UpsertScopedRoleAssignmentResponse\x12\x99\x01\n" +
 	"\x1aDeleteScopedRoleAssignment\x12<.teleport.scopes.access.v1.DeleteScopedRoleAssignmentRequest\x1a=.teleport.scopes.access.v1.DeleteScopedRoleAssignmentResponseBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
 
-var (
-	file_teleport_scopes_access_v1_service_proto_rawDescOnce sync.Once
-	file_teleport_scopes_access_v1_service_proto_rawDescData []byte
-)
-
-func file_teleport_scopes_access_v1_service_proto_rawDescGZIP() []byte {
-	file_teleport_scopes_access_v1_service_proto_rawDescOnce.Do(func() {
-		file_teleport_scopes_access_v1_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_service_proto_rawDesc), len(file_teleport_scopes_access_v1_service_proto_rawDesc)))
-	})
-	return file_teleport_scopes_access_v1_service_proto_rawDescData
-}
-
-var file_teleport_scopes_access_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_teleport_scopes_access_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_teleport_scopes_access_v1_service_proto_goTypes = []any{
 	(*GetScopedRoleRequest)(nil),               // 0: teleport.scopes.access.v1.GetScopedRoleRequest
 	(*GetScopedRoleResponse)(nil),              // 1: teleport.scopes.access.v1.GetScopedRoleResponse
@@ -1073,60 +2017,76 @@ var file_teleport_scopes_access_v1_service_proto_goTypes = []any{
 	(*CreateScopedRoleResponse)(nil),           // 5: teleport.scopes.access.v1.CreateScopedRoleResponse
 	(*UpdateScopedRoleRequest)(nil),            // 6: teleport.scopes.access.v1.UpdateScopedRoleRequest
 	(*UpdateScopedRoleResponse)(nil),           // 7: teleport.scopes.access.v1.UpdateScopedRoleResponse
-	(*DeleteScopedRoleRequest)(nil),            // 8: teleport.scopes.access.v1.DeleteScopedRoleRequest
-	(*DeleteScopedRoleResponse)(nil),           // 9: teleport.scopes.access.v1.DeleteScopedRoleResponse
-	(*GetScopedRoleAssignmentRequest)(nil),     // 10: teleport.scopes.access.v1.GetScopedRoleAssignmentRequest
-	(*GetScopedRoleAssignmentResponse)(nil),    // 11: teleport.scopes.access.v1.GetScopedRoleAssignmentResponse
-	(*ListScopedRoleAssignmentsRequest)(nil),   // 12: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest
-	(*ListScopedRoleAssignmentsResponse)(nil),  // 13: teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse
-	(*CreateScopedRoleAssignmentRequest)(nil),  // 14: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest
-	(*CreateScopedRoleAssignmentResponse)(nil), // 15: teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse
-	(*DeleteScopedRoleAssignmentRequest)(nil),  // 16: teleport.scopes.access.v1.DeleteScopedRoleAssignmentRequest
-	(*DeleteScopedRoleAssignmentResponse)(nil), // 17: teleport.scopes.access.v1.DeleteScopedRoleAssignmentResponse
-	nil,                          // 18: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.RoleRevisionsEntry
-	(*ScopedRole)(nil),           // 19: teleport.scopes.access.v1.ScopedRole
-	(*v1.Filter)(nil),            // 20: teleport.scopes.v1.Filter
-	(*ScopedRoleAssignment)(nil), // 21: teleport.scopes.access.v1.ScopedRoleAssignment
+	(*UpsertScopedRoleRequest)(nil),            // 8: teleport.scopes.access.v1.UpsertScopedRoleRequest
+	(*UpsertScopedRoleResponse)(nil),           // 9: teleport.scopes.access.v1.UpsertScopedRoleResponse
+	(*DeleteScopedRoleRequest)(nil),            // 10: teleport.scopes.access.v1.DeleteScopedRoleRequest
+	(*DeleteScopedRoleResponse)(nil),           // 11: teleport.scopes.access.v1.DeleteScopedRoleResponse
+	(*GetScopedRoleAssignmentRequest)(nil),     // 12: teleport.scopes.access.v1.GetScopedRoleAssignmentRequest
+	(*GetScopedRoleAssignmentResponse)(nil),    // 13: teleport.scopes.access.v1.GetScopedRoleAssignmentResponse
+	(*ListScopedRoleAssignmentsRequest)(nil),   // 14: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest
+	(*ListScopedRoleAssignmentsResponse)(nil),  // 15: teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse
+	(*CreateScopedRoleAssignmentRequest)(nil),  // 16: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest
+	(*CreateScopedRoleAssignmentResponse)(nil), // 17: teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse
+	(*UpdateScopedRoleAssignmentRequest)(nil),  // 18: teleport.scopes.access.v1.UpdateScopedRoleAssignmentRequest
+	(*UpdateScopedRoleAssignmentResponse)(nil), // 19: teleport.scopes.access.v1.UpdateScopedRoleAssignmentResponse
+	(*UpsertScopedRoleAssignmentRequest)(nil),  // 20: teleport.scopes.access.v1.UpsertScopedRoleAssignmentRequest
+	(*UpsertScopedRoleAssignmentResponse)(nil), // 21: teleport.scopes.access.v1.UpsertScopedRoleAssignmentResponse
+	(*DeleteScopedRoleAssignmentRequest)(nil),  // 22: teleport.scopes.access.v1.DeleteScopedRoleAssignmentRequest
+	(*DeleteScopedRoleAssignmentResponse)(nil), // 23: teleport.scopes.access.v1.DeleteScopedRoleAssignmentResponse
+	(*ScopedRole)(nil),                         // 24: teleport.scopes.access.v1.ScopedRole
+	(*v1.Filter)(nil),                          // 25: teleport.scopes.v1.Filter
+	(*ScopedRoleAssignment)(nil),               // 26: teleport.scopes.access.v1.ScopedRoleAssignment
 }
 var file_teleport_scopes_access_v1_service_proto_depIdxs = []int32{
-	19, // 0: teleport.scopes.access.v1.GetScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
-	20, // 1: teleport.scopes.access.v1.ListScopedRolesRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
-	20, // 2: teleport.scopes.access.v1.ListScopedRolesRequest.assignable_scope:type_name -> teleport.scopes.v1.Filter
-	19, // 3: teleport.scopes.access.v1.ListScopedRolesResponse.roles:type_name -> teleport.scopes.access.v1.ScopedRole
-	19, // 4: teleport.scopes.access.v1.CreateScopedRoleRequest.role:type_name -> teleport.scopes.access.v1.ScopedRole
-	19, // 5: teleport.scopes.access.v1.CreateScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
-	19, // 6: teleport.scopes.access.v1.UpdateScopedRoleRequest.role:type_name -> teleport.scopes.access.v1.ScopedRole
-	19, // 7: teleport.scopes.access.v1.UpdateScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
-	21, // 8: teleport.scopes.access.v1.GetScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
-	20, // 9: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
-	20, // 10: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.assigned_scope:type_name -> teleport.scopes.v1.Filter
-	21, // 11: teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse.assignments:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
-	21, // 12: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
-	18, // 13: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.role_revisions:type_name -> teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.RoleRevisionsEntry
-	21, // 14: teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
-	0,  // 15: teleport.scopes.access.v1.ScopedAccessService.GetScopedRole:input_type -> teleport.scopes.access.v1.GetScopedRoleRequest
-	2,  // 16: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoles:input_type -> teleport.scopes.access.v1.ListScopedRolesRequest
-	4,  // 17: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRole:input_type -> teleport.scopes.access.v1.CreateScopedRoleRequest
-	6,  // 18: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedRole:input_type -> teleport.scopes.access.v1.UpdateScopedRoleRequest
-	8,  // 19: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRole:input_type -> teleport.scopes.access.v1.DeleteScopedRoleRequest
-	10, // 20: teleport.scopes.access.v1.ScopedAccessService.GetScopedRoleAssignment:input_type -> teleport.scopes.access.v1.GetScopedRoleAssignmentRequest
-	12, // 21: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoleAssignments:input_type -> teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest
-	14, // 22: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRoleAssignment:input_type -> teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest
-	16, // 23: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRoleAssignment:input_type -> teleport.scopes.access.v1.DeleteScopedRoleAssignmentRequest
-	1,  // 24: teleport.scopes.access.v1.ScopedAccessService.GetScopedRole:output_type -> teleport.scopes.access.v1.GetScopedRoleResponse
-	3,  // 25: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoles:output_type -> teleport.scopes.access.v1.ListScopedRolesResponse
-	5,  // 26: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRole:output_type -> teleport.scopes.access.v1.CreateScopedRoleResponse
-	7,  // 27: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedRole:output_type -> teleport.scopes.access.v1.UpdateScopedRoleResponse
-	9,  // 28: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRole:output_type -> teleport.scopes.access.v1.DeleteScopedRoleResponse
-	11, // 29: teleport.scopes.access.v1.ScopedAccessService.GetScopedRoleAssignment:output_type -> teleport.scopes.access.v1.GetScopedRoleAssignmentResponse
-	13, // 30: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoleAssignments:output_type -> teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse
-	15, // 31: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRoleAssignment:output_type -> teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse
-	17, // 32: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRoleAssignment:output_type -> teleport.scopes.access.v1.DeleteScopedRoleAssignmentResponse
-	24, // [24:33] is the sub-list for method output_type
-	15, // [15:24] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	24, // 0: teleport.scopes.access.v1.GetScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	25, // 1: teleport.scopes.access.v1.ListScopedRolesRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
+	25, // 2: teleport.scopes.access.v1.ListScopedRolesRequest.assignable_scope:type_name -> teleport.scopes.v1.Filter
+	24, // 3: teleport.scopes.access.v1.ListScopedRolesResponse.roles:type_name -> teleport.scopes.access.v1.ScopedRole
+	24, // 4: teleport.scopes.access.v1.CreateScopedRoleRequest.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	24, // 5: teleport.scopes.access.v1.CreateScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	24, // 6: teleport.scopes.access.v1.UpdateScopedRoleRequest.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	24, // 7: teleport.scopes.access.v1.UpdateScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	24, // 8: teleport.scopes.access.v1.UpsertScopedRoleRequest.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	24, // 9: teleport.scopes.access.v1.UpsertScopedRoleResponse.role:type_name -> teleport.scopes.access.v1.ScopedRole
+	26, // 10: teleport.scopes.access.v1.GetScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	25, // 11: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.resource_scope:type_name -> teleport.scopes.v1.Filter
+	25, // 12: teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest.assigned_scope:type_name -> teleport.scopes.v1.Filter
+	26, // 13: teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse.assignments:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	26, // 14: teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	26, // 15: teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	26, // 16: teleport.scopes.access.v1.UpdateScopedRoleAssignmentRequest.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	26, // 17: teleport.scopes.access.v1.UpdateScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	26, // 18: teleport.scopes.access.v1.UpsertScopedRoleAssignmentRequest.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	26, // 19: teleport.scopes.access.v1.UpsertScopedRoleAssignmentResponse.assignment:type_name -> teleport.scopes.access.v1.ScopedRoleAssignment
+	0,  // 20: teleport.scopes.access.v1.ScopedAccessService.GetScopedRole:input_type -> teleport.scopes.access.v1.GetScopedRoleRequest
+	2,  // 21: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoles:input_type -> teleport.scopes.access.v1.ListScopedRolesRequest
+	4,  // 22: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRole:input_type -> teleport.scopes.access.v1.CreateScopedRoleRequest
+	6,  // 23: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedRole:input_type -> teleport.scopes.access.v1.UpdateScopedRoleRequest
+	8,  // 24: teleport.scopes.access.v1.ScopedAccessService.UpsertScopedRole:input_type -> teleport.scopes.access.v1.UpsertScopedRoleRequest
+	10, // 25: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRole:input_type -> teleport.scopes.access.v1.DeleteScopedRoleRequest
+	12, // 26: teleport.scopes.access.v1.ScopedAccessService.GetScopedRoleAssignment:input_type -> teleport.scopes.access.v1.GetScopedRoleAssignmentRequest
+	14, // 27: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoleAssignments:input_type -> teleport.scopes.access.v1.ListScopedRoleAssignmentsRequest
+	16, // 28: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRoleAssignment:input_type -> teleport.scopes.access.v1.CreateScopedRoleAssignmentRequest
+	18, // 29: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedRoleAssignment:input_type -> teleport.scopes.access.v1.UpdateScopedRoleAssignmentRequest
+	20, // 30: teleport.scopes.access.v1.ScopedAccessService.UpsertScopedRoleAssignment:input_type -> teleport.scopes.access.v1.UpsertScopedRoleAssignmentRequest
+	22, // 31: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRoleAssignment:input_type -> teleport.scopes.access.v1.DeleteScopedRoleAssignmentRequest
+	1,  // 32: teleport.scopes.access.v1.ScopedAccessService.GetScopedRole:output_type -> teleport.scopes.access.v1.GetScopedRoleResponse
+	3,  // 33: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoles:output_type -> teleport.scopes.access.v1.ListScopedRolesResponse
+	5,  // 34: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRole:output_type -> teleport.scopes.access.v1.CreateScopedRoleResponse
+	7,  // 35: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedRole:output_type -> teleport.scopes.access.v1.UpdateScopedRoleResponse
+	9,  // 36: teleport.scopes.access.v1.ScopedAccessService.UpsertScopedRole:output_type -> teleport.scopes.access.v1.UpsertScopedRoleResponse
+	11, // 37: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRole:output_type -> teleport.scopes.access.v1.DeleteScopedRoleResponse
+	13, // 38: teleport.scopes.access.v1.ScopedAccessService.GetScopedRoleAssignment:output_type -> teleport.scopes.access.v1.GetScopedRoleAssignmentResponse
+	15, // 39: teleport.scopes.access.v1.ScopedAccessService.ListScopedRoleAssignments:output_type -> teleport.scopes.access.v1.ListScopedRoleAssignmentsResponse
+	17, // 40: teleport.scopes.access.v1.ScopedAccessService.CreateScopedRoleAssignment:output_type -> teleport.scopes.access.v1.CreateScopedRoleAssignmentResponse
+	19, // 41: teleport.scopes.access.v1.ScopedAccessService.UpdateScopedRoleAssignment:output_type -> teleport.scopes.access.v1.UpdateScopedRoleAssignmentResponse
+	21, // 42: teleport.scopes.access.v1.ScopedAccessService.UpsertScopedRoleAssignment:output_type -> teleport.scopes.access.v1.UpsertScopedRoleAssignmentResponse
+	23, // 43: teleport.scopes.access.v1.ScopedAccessService.DeleteScopedRoleAssignment:output_type -> teleport.scopes.access.v1.DeleteScopedRoleAssignmentResponse
+	32, // [32:44] is the sub-list for method output_type
+	20, // [20:32] is the sub-list for method input_type
+	20, // [20:20] is the sub-list for extension type_name
+	20, // [20:20] is the sub-list for extension extendee
+	0,  // [0:20] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_access_v1_service_proto_init() }
@@ -1142,7 +2102,7 @@ func file_teleport_scopes_access_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_service_proto_rawDesc), len(file_teleport_scopes_access_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   24,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

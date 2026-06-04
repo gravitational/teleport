@@ -7,7 +7,7 @@ You can check the status of the certificate with `kubectl -n {{ .Release.Namespa
 NOTE: For certificates to be provisioned, you must also install cert-manager (https://cert-manager.io/docs/) and configure an appropriate
       Issuer with access to your DNS provider to handle DNS01 challenges (https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers)
 
-For more information, please see the Helm guides in the Teleport docs (https://goteleport.com/docs/kubernetes-access/helm/guides/)
+For more information, please see the Helm guides in the Teleport docs (https://goteleport.com/docs/installation/self-hosted/helm-deployments/)
 {{- end }}
 
 {{- if and .Values.podSecurityPolicy.enabled (semverCompare "<1.23.0-0" .Capabilities.KubeVersion.Version) }}

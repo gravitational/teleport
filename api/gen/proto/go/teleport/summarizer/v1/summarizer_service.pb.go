@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/summarizer/v1/summarizer_service.proto
 
+//go:build !protoopaque
+
 package summarizerv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // CreateInferenceModelRequest is a request for creating an InferenceModel.
 type CreateInferenceModelRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// InferenceModel is the InferenceModel resource to create.
 	Model         *InferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -69,11 +70,6 @@ func (x *CreateInferenceModelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateInferenceModelRequest.ProtoReflect.Descriptor instead.
-func (*CreateInferenceModelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateInferenceModelRequest) GetModel() *InferenceModel {
 	if x != nil {
 		return x.Model
@@ -81,9 +77,39 @@ func (x *CreateInferenceModelRequest) GetModel() *InferenceModel {
 	return nil
 }
 
+func (x *CreateInferenceModelRequest) SetModel(v *InferenceModel) {
+	x.Model = v
+}
+
+func (x *CreateInferenceModelRequest) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *CreateInferenceModelRequest) ClearModel() {
+	x.Model = nil
+}
+
+type CreateInferenceModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// InferenceModel is the InferenceModel resource to create.
+	Model *InferenceModel
+}
+
+func (b0 CreateInferenceModelRequest_builder) Build() *CreateInferenceModelRequest {
+	m0 := &CreateInferenceModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
 // CreateInferenceModelResponse is a response to creating an InferenceModel.
 type CreateInferenceModelResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Model is the InferenceModel resource that was created.
 	Model         *InferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -115,11 +141,6 @@ func (x *CreateInferenceModelResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateInferenceModelResponse.ProtoReflect.Descriptor instead.
-func (*CreateInferenceModelResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CreateInferenceModelResponse) GetModel() *InferenceModel {
 	if x != nil {
 		return x.Model
@@ -127,9 +148,39 @@ func (x *CreateInferenceModelResponse) GetModel() *InferenceModel {
 	return nil
 }
 
+func (x *CreateInferenceModelResponse) SetModel(v *InferenceModel) {
+	x.Model = v
+}
+
+func (x *CreateInferenceModelResponse) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *CreateInferenceModelResponse) ClearModel() {
+	x.Model = nil
+}
+
+type CreateInferenceModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the InferenceModel resource that was created.
+	Model *InferenceModel
+}
+
+func (b0 CreateInferenceModelResponse_builder) Build() *CreateInferenceModelResponse {
+	m0 := &CreateInferenceModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
 // GetInferenceModelRequest is a request for retrieving an InferenceModel.
 type GetInferenceModelRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the resource name of the InferenceModel to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -161,11 +212,6 @@ func (x *GetInferenceModelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetInferenceModelRequest.ProtoReflect.Descriptor instead.
-func (*GetInferenceModelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GetInferenceModelRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -173,9 +219,28 @@ func (x *GetInferenceModelRequest) GetName() string {
 	return ""
 }
 
+func (x *GetInferenceModelRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetInferenceModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the resource name of the InferenceModel to retrieve.
+	Name string
+}
+
+func (b0 GetInferenceModelRequest_builder) Build() *GetInferenceModelRequest {
+	m0 := &GetInferenceModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // GetInferenceModelResponse is a response to retrieving an InferenceModel.
 type GetInferenceModelResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Model is the InferenceModel resource that was retrieved.
 	Model         *InferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -207,11 +272,6 @@ func (x *GetInferenceModelResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetInferenceModelResponse.ProtoReflect.Descriptor instead.
-func (*GetInferenceModelResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *GetInferenceModelResponse) GetModel() *InferenceModel {
 	if x != nil {
 		return x.Model
@@ -219,9 +279,39 @@ func (x *GetInferenceModelResponse) GetModel() *InferenceModel {
 	return nil
 }
 
+func (x *GetInferenceModelResponse) SetModel(v *InferenceModel) {
+	x.Model = v
+}
+
+func (x *GetInferenceModelResponse) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *GetInferenceModelResponse) ClearModel() {
+	x.Model = nil
+}
+
+type GetInferenceModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the InferenceModel resource that was retrieved.
+	Model *InferenceModel
+}
+
+func (b0 GetInferenceModelResponse_builder) Build() *GetInferenceModelResponse {
+	m0 := &GetInferenceModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
 // UpdateInferenceModelRequest is a request for updating an InferenceModel.
 type UpdateInferenceModelRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Model is the InferenceModel resource to update.
 	Model         *InferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -253,11 +343,6 @@ func (x *UpdateInferenceModelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateInferenceModelRequest.ProtoReflect.Descriptor instead.
-func (*UpdateInferenceModelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateInferenceModelRequest) GetModel() *InferenceModel {
 	if x != nil {
 		return x.Model
@@ -265,9 +350,39 @@ func (x *UpdateInferenceModelRequest) GetModel() *InferenceModel {
 	return nil
 }
 
+func (x *UpdateInferenceModelRequest) SetModel(v *InferenceModel) {
+	x.Model = v
+}
+
+func (x *UpdateInferenceModelRequest) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *UpdateInferenceModelRequest) ClearModel() {
+	x.Model = nil
+}
+
+type UpdateInferenceModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the InferenceModel resource to update.
+	Model *InferenceModel
+}
+
+func (b0 UpdateInferenceModelRequest_builder) Build() *UpdateInferenceModelRequest {
+	m0 := &UpdateInferenceModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
 // UpdateInferenceModelResponse is a response to updating an InferenceModel.
 type UpdateInferenceModelResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Model is the InferenceModel resource that was updated.
 	Model         *InferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -299,11 +414,6 @@ func (x *UpdateInferenceModelResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateInferenceModelResponse.ProtoReflect.Descriptor instead.
-func (*UpdateInferenceModelResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpdateInferenceModelResponse) GetModel() *InferenceModel {
 	if x != nil {
 		return x.Model
@@ -311,10 +421,40 @@ func (x *UpdateInferenceModelResponse) GetModel() *InferenceModel {
 	return nil
 }
 
-// UpsertInferenceModelRequest is a request for creating or updating a
+func (x *UpdateInferenceModelResponse) SetModel(v *InferenceModel) {
+	x.Model = v
+}
+
+func (x *UpdateInferenceModelResponse) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *UpdateInferenceModelResponse) ClearModel() {
+	x.Model = nil
+}
+
+type UpdateInferenceModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the InferenceModel resource that was updated.
+	Model *InferenceModel
+}
+
+func (b0 UpdateInferenceModelResponse_builder) Build() *UpdateInferenceModelResponse {
+	m0 := &UpdateInferenceModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
+// UpsertInferenceModelRequest is a request for creating or updating an
 // InferenceModel.
 type UpsertInferenceModelRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Model is the InferenceModel resource to create or update.
 	Model         *InferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -346,11 +486,6 @@ func (x *UpsertInferenceModelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertInferenceModelRequest.ProtoReflect.Descriptor instead.
-func (*UpsertInferenceModelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *UpsertInferenceModelRequest) GetModel() *InferenceModel {
 	if x != nil {
 		return x.Model
@@ -358,10 +493,40 @@ func (x *UpsertInferenceModelRequest) GetModel() *InferenceModel {
 	return nil
 }
 
+func (x *UpsertInferenceModelRequest) SetModel(v *InferenceModel) {
+	x.Model = v
+}
+
+func (x *UpsertInferenceModelRequest) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *UpsertInferenceModelRequest) ClearModel() {
+	x.Model = nil
+}
+
+type UpsertInferenceModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the InferenceModel resource to create or update.
+	Model *InferenceModel
+}
+
+func (b0 UpsertInferenceModelRequest_builder) Build() *UpsertInferenceModelRequest {
+	m0 := &UpsertInferenceModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
 // UpsertInferenceModelResponse is a response to creating or updating an
 // InferenceModel.
 type UpsertInferenceModelResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Model is the InferenceModel resource that was created or updated.
 	Model         *InferenceModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -393,11 +558,6 @@ func (x *UpsertInferenceModelResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertInferenceModelResponse.ProtoReflect.Descriptor instead.
-func (*UpsertInferenceModelResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *UpsertInferenceModelResponse) GetModel() *InferenceModel {
 	if x != nil {
 		return x.Model
@@ -405,9 +565,39 @@ func (x *UpsertInferenceModelResponse) GetModel() *InferenceModel {
 	return nil
 }
 
+func (x *UpsertInferenceModelResponse) SetModel(v *InferenceModel) {
+	x.Model = v
+}
+
+func (x *UpsertInferenceModelResponse) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *UpsertInferenceModelResponse) ClearModel() {
+	x.Model = nil
+}
+
+type UpsertInferenceModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the InferenceModel resource that was created or updated.
+	Model *InferenceModel
+}
+
+func (b0 UpsertInferenceModelResponse_builder) Build() *UpsertInferenceModelResponse {
+	m0 := &UpsertInferenceModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
 // DeleteInferenceModelRequest is a request for deleting an InferenceModel.
 type DeleteInferenceModelRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the resource name of the InferenceModel to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -439,11 +629,6 @@ func (x *DeleteInferenceModelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteInferenceModelRequest.ProtoReflect.Descriptor instead.
-func (*DeleteInferenceModelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *DeleteInferenceModelRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -451,9 +636,28 @@ func (x *DeleteInferenceModelRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteInferenceModelRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteInferenceModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the resource name of the InferenceModel to delete.
+	Name string
+}
+
+func (b0 DeleteInferenceModelRequest_builder) Build() *DeleteInferenceModelRequest {
+	m0 := &DeleteInferenceModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // DeleteInferenceModelResponse is a response to deleting an InferenceModel.
 type DeleteInferenceModelResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -483,14 +687,21 @@ func (x *DeleteInferenceModelResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteInferenceModelResponse.ProtoReflect.Descriptor instead.
-func (*DeleteInferenceModelResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{9}
+type DeleteInferenceModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteInferenceModelResponse_builder) Build() *DeleteInferenceModelResponse {
+	m0 := &DeleteInferenceModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // ListInferenceModelsRequest is a request for listing InferenceModels.
 type ListInferenceModelsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PageSize is the maximum number of items to return. The server may use a
 	// different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -526,11 +737,6 @@ func (x *ListInferenceModelsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListInferenceModelsRequest.ProtoReflect.Descriptor instead.
-func (*ListInferenceModelsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *ListInferenceModelsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -545,9 +751,37 @@ func (x *ListInferenceModelsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListInferenceModelsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListInferenceModelsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListInferenceModelsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PageSize is the maximum number of items to return. The server may use a
+	// different page size at its discretion.
+	PageSize int32
+	// PageToken is the next_page_token value returned from a previous List
+	// request, if any.
+	PageToken string
+}
+
+func (b0 ListInferenceModelsRequest_builder) Build() *ListInferenceModelsRequest {
+	m0 := &ListInferenceModelsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListInferenceModelsResponse is the response for listing InferenceModels.
 type ListInferenceModelsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Models is the page of InferenceModels that matched the request.
 	Models []*InferenceModel `protobuf:"bytes,1,rep,name=models,proto3" json:"models,omitempty"`
 	// NextPageToken is the token to retrieve the next page of results, or empty
@@ -582,11 +816,6 @@ func (x *ListInferenceModelsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListInferenceModelsResponse.ProtoReflect.Descriptor instead.
-func (*ListInferenceModelsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *ListInferenceModelsResponse) GetModels() []*InferenceModel {
 	if x != nil {
 		return x.Models
@@ -601,9 +830,36 @@ func (x *ListInferenceModelsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListInferenceModelsResponse) SetModels(v []*InferenceModel) {
+	x.Models = v
+}
+
+func (x *ListInferenceModelsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListInferenceModelsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Models is the page of InferenceModels that matched the request.
+	Models []*InferenceModel
+	// NextPageToken is the token to retrieve the next page of results, or empty
+	// if there are no more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListInferenceModelsResponse_builder) Build() *ListInferenceModelsResponse {
+	m0 := &ListInferenceModelsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Models = b.Models
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // CreateInferenceSecretRequest is a request for creating an InferenceSecret.
 type CreateInferenceSecretRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// InferenceSecret is the InferenceSecret resource
 	// to create.
 	Secret        *InferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
@@ -636,11 +892,6 @@ func (x *CreateInferenceSecretRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateInferenceSecretRequest.ProtoReflect.Descriptor instead.
-func (*CreateInferenceSecretRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *CreateInferenceSecretRequest) GetSecret() *InferenceSecret {
 	if x != nil {
 		return x.Secret
@@ -648,9 +899,40 @@ func (x *CreateInferenceSecretRequest) GetSecret() *InferenceSecret {
 	return nil
 }
 
+func (x *CreateInferenceSecretRequest) SetSecret(v *InferenceSecret) {
+	x.Secret = v
+}
+
+func (x *CreateInferenceSecretRequest) HasSecret() bool {
+	if x == nil {
+		return false
+	}
+	return x.Secret != nil
+}
+
+func (x *CreateInferenceSecretRequest) ClearSecret() {
+	x.Secret = nil
+}
+
+type CreateInferenceSecretRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// InferenceSecret is the InferenceSecret resource
+	// to create.
+	Secret *InferenceSecret
+}
+
+func (b0 CreateInferenceSecretRequest_builder) Build() *CreateInferenceSecretRequest {
+	m0 := &CreateInferenceSecretRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Secret = b.Secret
+	return m0
+}
+
 // CreateInferenceSecretResponse is a response to creating an InferenceSecret.
 type CreateInferenceSecretResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Secret is the InferenceSecret resource that was created.
 	Secret        *InferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -682,11 +964,6 @@ func (x *CreateInferenceSecretResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateInferenceSecretResponse.ProtoReflect.Descriptor instead.
-func (*CreateInferenceSecretResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *CreateInferenceSecretResponse) GetSecret() *InferenceSecret {
 	if x != nil {
 		return x.Secret
@@ -694,9 +971,39 @@ func (x *CreateInferenceSecretResponse) GetSecret() *InferenceSecret {
 	return nil
 }
 
+func (x *CreateInferenceSecretResponse) SetSecret(v *InferenceSecret) {
+	x.Secret = v
+}
+
+func (x *CreateInferenceSecretResponse) HasSecret() bool {
+	if x == nil {
+		return false
+	}
+	return x.Secret != nil
+}
+
+func (x *CreateInferenceSecretResponse) ClearSecret() {
+	x.Secret = nil
+}
+
+type CreateInferenceSecretResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Secret is the InferenceSecret resource that was created.
+	Secret *InferenceSecret
+}
+
+func (b0 CreateInferenceSecretResponse_builder) Build() *CreateInferenceSecretResponse {
+	m0 := &CreateInferenceSecretResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Secret = b.Secret
+	return m0
+}
+
 // GetInferenceSecretRequest is a request for retrieving an InferenceSecret.
 type GetInferenceSecretRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the resource name of the InferenceSecret to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -728,11 +1035,6 @@ func (x *GetInferenceSecretRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetInferenceSecretRequest.ProtoReflect.Descriptor instead.
-func (*GetInferenceSecretRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *GetInferenceSecretRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -740,9 +1042,28 @@ func (x *GetInferenceSecretRequest) GetName() string {
 	return ""
 }
 
+func (x *GetInferenceSecretRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetInferenceSecretRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the resource name of the InferenceSecret to retrieve.
+	Name string
+}
+
+func (b0 GetInferenceSecretRequest_builder) Build() *GetInferenceSecretRequest {
+	m0 := &GetInferenceSecretRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // GetInferenceSecretResponse is a response to retrieving an InferenceSecret.
 type GetInferenceSecretResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Secret is the InferenceSecret resource that was retrieved.
 	Secret        *InferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -774,11 +1095,6 @@ func (x *GetInferenceSecretResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetInferenceSecretResponse.ProtoReflect.Descriptor instead.
-func (*GetInferenceSecretResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *GetInferenceSecretResponse) GetSecret() *InferenceSecret {
 	if x != nil {
 		return x.Secret
@@ -786,9 +1102,39 @@ func (x *GetInferenceSecretResponse) GetSecret() *InferenceSecret {
 	return nil
 }
 
+func (x *GetInferenceSecretResponse) SetSecret(v *InferenceSecret) {
+	x.Secret = v
+}
+
+func (x *GetInferenceSecretResponse) HasSecret() bool {
+	if x == nil {
+		return false
+	}
+	return x.Secret != nil
+}
+
+func (x *GetInferenceSecretResponse) ClearSecret() {
+	x.Secret = nil
+}
+
+type GetInferenceSecretResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Secret is the InferenceSecret resource that was retrieved.
+	Secret *InferenceSecret
+}
+
+func (b0 GetInferenceSecretResponse_builder) Build() *GetInferenceSecretResponse {
+	m0 := &GetInferenceSecretResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Secret = b.Secret
+	return m0
+}
+
 // UpdateInferenceSecretRequest is a request for updating an InferenceSecret.
 type UpdateInferenceSecretRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Secret is the InferenceSecret resource to update.
 	Secret        *InferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -820,11 +1166,6 @@ func (x *UpdateInferenceSecretRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateInferenceSecretRequest.ProtoReflect.Descriptor instead.
-func (*UpdateInferenceSecretRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *UpdateInferenceSecretRequest) GetSecret() *InferenceSecret {
 	if x != nil {
 		return x.Secret
@@ -832,9 +1173,39 @@ func (x *UpdateInferenceSecretRequest) GetSecret() *InferenceSecret {
 	return nil
 }
 
+func (x *UpdateInferenceSecretRequest) SetSecret(v *InferenceSecret) {
+	x.Secret = v
+}
+
+func (x *UpdateInferenceSecretRequest) HasSecret() bool {
+	if x == nil {
+		return false
+	}
+	return x.Secret != nil
+}
+
+func (x *UpdateInferenceSecretRequest) ClearSecret() {
+	x.Secret = nil
+}
+
+type UpdateInferenceSecretRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Secret is the InferenceSecret resource to update.
+	Secret *InferenceSecret
+}
+
+func (b0 UpdateInferenceSecretRequest_builder) Build() *UpdateInferenceSecretRequest {
+	m0 := &UpdateInferenceSecretRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Secret = b.Secret
+	return m0
+}
+
 // UpdateInferenceSecretResponse is a response to updating an InferenceSecret.
 type UpdateInferenceSecretResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Secret is the InferenceSecret resource that was updated.
 	Secret        *InferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -866,11 +1237,6 @@ func (x *UpdateInferenceSecretResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateInferenceSecretResponse.ProtoReflect.Descriptor instead.
-func (*UpdateInferenceSecretResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *UpdateInferenceSecretResponse) GetSecret() *InferenceSecret {
 	if x != nil {
 		return x.Secret
@@ -878,10 +1244,40 @@ func (x *UpdateInferenceSecretResponse) GetSecret() *InferenceSecret {
 	return nil
 }
 
+func (x *UpdateInferenceSecretResponse) SetSecret(v *InferenceSecret) {
+	x.Secret = v
+}
+
+func (x *UpdateInferenceSecretResponse) HasSecret() bool {
+	if x == nil {
+		return false
+	}
+	return x.Secret != nil
+}
+
+func (x *UpdateInferenceSecretResponse) ClearSecret() {
+	x.Secret = nil
+}
+
+type UpdateInferenceSecretResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Secret is the InferenceSecret resource that was updated.
+	Secret *InferenceSecret
+}
+
+func (b0 UpdateInferenceSecretResponse_builder) Build() *UpdateInferenceSecretResponse {
+	m0 := &UpdateInferenceSecretResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Secret = b.Secret
+	return m0
+}
+
 // UpsertInferenceSecretRequest is a request for creating or updating an
 // InferenceSecret.
 type UpsertInferenceSecretRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Secret is the InferenceSecret resource to create or update.
 	Secret        *InferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -913,11 +1309,6 @@ func (x *UpsertInferenceSecretRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertInferenceSecretRequest.ProtoReflect.Descriptor instead.
-func (*UpsertInferenceSecretRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *UpsertInferenceSecretRequest) GetSecret() *InferenceSecret {
 	if x != nil {
 		return x.Secret
@@ -925,10 +1316,40 @@ func (x *UpsertInferenceSecretRequest) GetSecret() *InferenceSecret {
 	return nil
 }
 
+func (x *UpsertInferenceSecretRequest) SetSecret(v *InferenceSecret) {
+	x.Secret = v
+}
+
+func (x *UpsertInferenceSecretRequest) HasSecret() bool {
+	if x == nil {
+		return false
+	}
+	return x.Secret != nil
+}
+
+func (x *UpsertInferenceSecretRequest) ClearSecret() {
+	x.Secret = nil
+}
+
+type UpsertInferenceSecretRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Secret is the InferenceSecret resource to create or update.
+	Secret *InferenceSecret
+}
+
+func (b0 UpsertInferenceSecretRequest_builder) Build() *UpsertInferenceSecretRequest {
+	m0 := &UpsertInferenceSecretRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Secret = b.Secret
+	return m0
+}
+
 // UpsertInferenceSecretResponse is a response to creating or updating an
 // InferenceSecret.
 type UpsertInferenceSecretResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Secret is the InferenceSecret resource that was created or updated.
 	Secret        *InferenceSecret `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -960,11 +1381,6 @@ func (x *UpsertInferenceSecretResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertInferenceSecretResponse.ProtoReflect.Descriptor instead.
-func (*UpsertInferenceSecretResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *UpsertInferenceSecretResponse) GetSecret() *InferenceSecret {
 	if x != nil {
 		return x.Secret
@@ -972,9 +1388,39 @@ func (x *UpsertInferenceSecretResponse) GetSecret() *InferenceSecret {
 	return nil
 }
 
+func (x *UpsertInferenceSecretResponse) SetSecret(v *InferenceSecret) {
+	x.Secret = v
+}
+
+func (x *UpsertInferenceSecretResponse) HasSecret() bool {
+	if x == nil {
+		return false
+	}
+	return x.Secret != nil
+}
+
+func (x *UpsertInferenceSecretResponse) ClearSecret() {
+	x.Secret = nil
+}
+
+type UpsertInferenceSecretResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Secret is the InferenceSecret resource that was created or updated.
+	Secret *InferenceSecret
+}
+
+func (b0 UpsertInferenceSecretResponse_builder) Build() *UpsertInferenceSecretResponse {
+	m0 := &UpsertInferenceSecretResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Secret = b.Secret
+	return m0
+}
+
 // DeleteInferenceSecretRequest is a request for deleting an InferenceSecret.
 type DeleteInferenceSecretRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the resource name of the InferenceSecret to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1006,11 +1452,6 @@ func (x *DeleteInferenceSecretRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteInferenceSecretRequest.ProtoReflect.Descriptor instead.
-func (*DeleteInferenceSecretRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *DeleteInferenceSecretRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1018,9 +1459,28 @@ func (x *DeleteInferenceSecretRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteInferenceSecretRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteInferenceSecretRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the resource name of the InferenceSecret to delete.
+	Name string
+}
+
+func (b0 DeleteInferenceSecretRequest_builder) Build() *DeleteInferenceSecretRequest {
+	m0 := &DeleteInferenceSecretRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // DeleteInferenceSecretResponse is a response to deleting an InferenceSecret.
 type DeleteInferenceSecretResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1050,14 +1510,21 @@ func (x *DeleteInferenceSecretResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteInferenceSecretResponse.ProtoReflect.Descriptor instead.
-func (*DeleteInferenceSecretResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{21}
+type DeleteInferenceSecretResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteInferenceSecretResponse_builder) Build() *DeleteInferenceSecretResponse {
+	m0 := &DeleteInferenceSecretResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // ListInferenceSecretsRequest is a request for listing InferenceSecrets.
 type ListInferenceSecretsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PageSize is the maximum number of items to return. The server may use a
 	// different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -1093,11 +1560,6 @@ func (x *ListInferenceSecretsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListInferenceSecretsRequest.ProtoReflect.Descriptor instead.
-func (*ListInferenceSecretsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{22}
-}
-
 func (x *ListInferenceSecretsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -1112,9 +1574,37 @@ func (x *ListInferenceSecretsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListInferenceSecretsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListInferenceSecretsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListInferenceSecretsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PageSize is the maximum number of items to return. The server may use a
+	// different page size at its discretion.
+	PageSize int32
+	// PageToken is the next_page_token value returned from a previous List
+	// request, if any.
+	PageToken string
+}
+
+func (b0 ListInferenceSecretsRequest_builder) Build() *ListInferenceSecretsRequest {
+	m0 := &ListInferenceSecretsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListInferenceSecretsResponse is the response for listing InferenceSecrets.
 type ListInferenceSecretsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Secrets is the page of InferenceSecrets that matched the
 	// request.
 	Secrets []*InferenceSecret `protobuf:"bytes,1,rep,name=secrets,proto3" json:"secrets,omitempty"`
@@ -1150,11 +1640,6 @@ func (x *ListInferenceSecretsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListInferenceSecretsResponse.ProtoReflect.Descriptor instead.
-func (*ListInferenceSecretsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{23}
-}
-
 func (x *ListInferenceSecretsResponse) GetSecrets() []*InferenceSecret {
 	if x != nil {
 		return x.Secrets
@@ -1169,9 +1654,37 @@ func (x *ListInferenceSecretsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListInferenceSecretsResponse) SetSecrets(v []*InferenceSecret) {
+	x.Secrets = v
+}
+
+func (x *ListInferenceSecretsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListInferenceSecretsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Secrets is the page of InferenceSecrets that matched the
+	// request.
+	Secrets []*InferenceSecret
+	// NextPageToken is the token to retrieve the next page of results, or empty
+	// if there are no more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListInferenceSecretsResponse_builder) Build() *ListInferenceSecretsResponse {
+	m0 := &ListInferenceSecretsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Secrets = b.Secrets
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // CreateInferencePolicyRequest is a request for creating an InferencePolicy.
 type CreateInferencePolicyRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// InferencePolicy is the InferencePolicy resource to create.
 	Policy        *InferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1203,11 +1716,6 @@ func (x *CreateInferencePolicyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateInferencePolicyRequest.ProtoReflect.Descriptor instead.
-func (*CreateInferencePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{24}
-}
-
 func (x *CreateInferencePolicyRequest) GetPolicy() *InferencePolicy {
 	if x != nil {
 		return x.Policy
@@ -1215,9 +1723,39 @@ func (x *CreateInferencePolicyRequest) GetPolicy() *InferencePolicy {
 	return nil
 }
 
+func (x *CreateInferencePolicyRequest) SetPolicy(v *InferencePolicy) {
+	x.Policy = v
+}
+
+func (x *CreateInferencePolicyRequest) HasPolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.Policy != nil
+}
+
+func (x *CreateInferencePolicyRequest) ClearPolicy() {
+	x.Policy = nil
+}
+
+type CreateInferencePolicyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// InferencePolicy is the InferencePolicy resource to create.
+	Policy *InferencePolicy
+}
+
+func (b0 CreateInferencePolicyRequest_builder) Build() *CreateInferencePolicyRequest {
+	m0 := &CreateInferencePolicyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Policy = b.Policy
+	return m0
+}
+
 // CreateInferencePolicyResponse is a response to creating an InferencePolicy.
 type CreateInferencePolicyResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Policy is the InferencePolicy resource that was created.
 	Policy        *InferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1249,11 +1787,6 @@ func (x *CreateInferencePolicyResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateInferencePolicyResponse.ProtoReflect.Descriptor instead.
-func (*CreateInferencePolicyResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{25}
-}
-
 func (x *CreateInferencePolicyResponse) GetPolicy() *InferencePolicy {
 	if x != nil {
 		return x.Policy
@@ -1261,9 +1794,39 @@ func (x *CreateInferencePolicyResponse) GetPolicy() *InferencePolicy {
 	return nil
 }
 
+func (x *CreateInferencePolicyResponse) SetPolicy(v *InferencePolicy) {
+	x.Policy = v
+}
+
+func (x *CreateInferencePolicyResponse) HasPolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.Policy != nil
+}
+
+func (x *CreateInferencePolicyResponse) ClearPolicy() {
+	x.Policy = nil
+}
+
+type CreateInferencePolicyResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Policy is the InferencePolicy resource that was created.
+	Policy *InferencePolicy
+}
+
+func (b0 CreateInferencePolicyResponse_builder) Build() *CreateInferencePolicyResponse {
+	m0 := &CreateInferencePolicyResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Policy = b.Policy
+	return m0
+}
+
 // GetInferencePolicyRequest is a request for retrieving an InferencePolicy.
 type GetInferencePolicyRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the resource name of the InferencePolicy to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1295,11 +1858,6 @@ func (x *GetInferencePolicyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetInferencePolicyRequest.ProtoReflect.Descriptor instead.
-func (*GetInferencePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{26}
-}
-
 func (x *GetInferencePolicyRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1307,9 +1865,28 @@ func (x *GetInferencePolicyRequest) GetName() string {
 	return ""
 }
 
+func (x *GetInferencePolicyRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetInferencePolicyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the resource name of the InferencePolicy to retrieve.
+	Name string
+}
+
+func (b0 GetInferencePolicyRequest_builder) Build() *GetInferencePolicyRequest {
+	m0 := &GetInferencePolicyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // GetInferencePolicyResponse is a response to retrieving an InferencePolicy.
 type GetInferencePolicyResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Policy is the InferencePolicy resource that was retrieved.
 	Policy        *InferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1341,11 +1918,6 @@ func (x *GetInferencePolicyResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetInferencePolicyResponse.ProtoReflect.Descriptor instead.
-func (*GetInferencePolicyResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{27}
-}
-
 func (x *GetInferencePolicyResponse) GetPolicy() *InferencePolicy {
 	if x != nil {
 		return x.Policy
@@ -1353,9 +1925,39 @@ func (x *GetInferencePolicyResponse) GetPolicy() *InferencePolicy {
 	return nil
 }
 
+func (x *GetInferencePolicyResponse) SetPolicy(v *InferencePolicy) {
+	x.Policy = v
+}
+
+func (x *GetInferencePolicyResponse) HasPolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.Policy != nil
+}
+
+func (x *GetInferencePolicyResponse) ClearPolicy() {
+	x.Policy = nil
+}
+
+type GetInferencePolicyResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Policy is the InferencePolicy resource that was retrieved.
+	Policy *InferencePolicy
+}
+
+func (b0 GetInferencePolicyResponse_builder) Build() *GetInferencePolicyResponse {
+	m0 := &GetInferencePolicyResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Policy = b.Policy
+	return m0
+}
+
 // UpdateInferencePolicyRequest is a request for updating an InferencePolicy.
 type UpdateInferencePolicyRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Policy is the InferencePolicy resource to update.
 	Policy        *InferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1387,11 +1989,6 @@ func (x *UpdateInferencePolicyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateInferencePolicyRequest.ProtoReflect.Descriptor instead.
-func (*UpdateInferencePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{28}
-}
-
 func (x *UpdateInferencePolicyRequest) GetPolicy() *InferencePolicy {
 	if x != nil {
 		return x.Policy
@@ -1399,9 +1996,39 @@ func (x *UpdateInferencePolicyRequest) GetPolicy() *InferencePolicy {
 	return nil
 }
 
+func (x *UpdateInferencePolicyRequest) SetPolicy(v *InferencePolicy) {
+	x.Policy = v
+}
+
+func (x *UpdateInferencePolicyRequest) HasPolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.Policy != nil
+}
+
+func (x *UpdateInferencePolicyRequest) ClearPolicy() {
+	x.Policy = nil
+}
+
+type UpdateInferencePolicyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Policy is the InferencePolicy resource to update.
+	Policy *InferencePolicy
+}
+
+func (b0 UpdateInferencePolicyRequest_builder) Build() *UpdateInferencePolicyRequest {
+	m0 := &UpdateInferencePolicyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Policy = b.Policy
+	return m0
+}
+
 // UpdateInferencePolicyResponse is a response to updating an InferencePolicy.
 type UpdateInferencePolicyResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Policy is the InferencePolicy resource that was updated.
 	Policy        *InferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1433,11 +2060,6 @@ func (x *UpdateInferencePolicyResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateInferencePolicyResponse.ProtoReflect.Descriptor instead.
-func (*UpdateInferencePolicyResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{29}
-}
-
 func (x *UpdateInferencePolicyResponse) GetPolicy() *InferencePolicy {
 	if x != nil {
 		return x.Policy
@@ -1445,10 +2067,40 @@ func (x *UpdateInferencePolicyResponse) GetPolicy() *InferencePolicy {
 	return nil
 }
 
+func (x *UpdateInferencePolicyResponse) SetPolicy(v *InferencePolicy) {
+	x.Policy = v
+}
+
+func (x *UpdateInferencePolicyResponse) HasPolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.Policy != nil
+}
+
+func (x *UpdateInferencePolicyResponse) ClearPolicy() {
+	x.Policy = nil
+}
+
+type UpdateInferencePolicyResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Policy is the InferencePolicy resource that was updated.
+	Policy *InferencePolicy
+}
+
+func (b0 UpdateInferencePolicyResponse_builder) Build() *UpdateInferencePolicyResponse {
+	m0 := &UpdateInferencePolicyResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Policy = b.Policy
+	return m0
+}
+
 // UpsertInferencePolicyRequest is a request for creating or updating an
 // InferencePolicy.
 type UpsertInferencePolicyRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Policy is the InferencePolicy resource to create or update.
 	Policy        *InferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1480,11 +2132,6 @@ func (x *UpsertInferencePolicyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertInferencePolicyRequest.ProtoReflect.Descriptor instead.
-func (*UpsertInferencePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{30}
-}
-
 func (x *UpsertInferencePolicyRequest) GetPolicy() *InferencePolicy {
 	if x != nil {
 		return x.Policy
@@ -1492,10 +2139,40 @@ func (x *UpsertInferencePolicyRequest) GetPolicy() *InferencePolicy {
 	return nil
 }
 
+func (x *UpsertInferencePolicyRequest) SetPolicy(v *InferencePolicy) {
+	x.Policy = v
+}
+
+func (x *UpsertInferencePolicyRequest) HasPolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.Policy != nil
+}
+
+func (x *UpsertInferencePolicyRequest) ClearPolicy() {
+	x.Policy = nil
+}
+
+type UpsertInferencePolicyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Policy is the InferencePolicy resource to create or update.
+	Policy *InferencePolicy
+}
+
+func (b0 UpsertInferencePolicyRequest_builder) Build() *UpsertInferencePolicyRequest {
+	m0 := &UpsertInferencePolicyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Policy = b.Policy
+	return m0
+}
+
 // UpsertInferencePolicyResponse is a response to creating or updating an
 // InferencePolicy.
 type UpsertInferencePolicyResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Policy is the InferencePolicy resource that was created or updated.
 	Policy        *InferencePolicy `protobuf:"bytes,1,opt,name=policy,proto3" json:"policy,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1527,11 +2204,6 @@ func (x *UpsertInferencePolicyResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertInferencePolicyResponse.ProtoReflect.Descriptor instead.
-func (*UpsertInferencePolicyResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{31}
-}
-
 func (x *UpsertInferencePolicyResponse) GetPolicy() *InferencePolicy {
 	if x != nil {
 		return x.Policy
@@ -1539,9 +2211,39 @@ func (x *UpsertInferencePolicyResponse) GetPolicy() *InferencePolicy {
 	return nil
 }
 
+func (x *UpsertInferencePolicyResponse) SetPolicy(v *InferencePolicy) {
+	x.Policy = v
+}
+
+func (x *UpsertInferencePolicyResponse) HasPolicy() bool {
+	if x == nil {
+		return false
+	}
+	return x.Policy != nil
+}
+
+func (x *UpsertInferencePolicyResponse) ClearPolicy() {
+	x.Policy = nil
+}
+
+type UpsertInferencePolicyResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Policy is the InferencePolicy resource that was created or updated.
+	Policy *InferencePolicy
+}
+
+func (b0 UpsertInferencePolicyResponse_builder) Build() *UpsertInferencePolicyResponse {
+	m0 := &UpsertInferencePolicyResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Policy = b.Policy
+	return m0
+}
+
 // DeleteInferencePolicyRequest is a request for deleting an InferencePolicy.
 type DeleteInferencePolicyRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the resource name of the InferencePolicy to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1573,11 +2275,6 @@ func (x *DeleteInferencePolicyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteInferencePolicyRequest.ProtoReflect.Descriptor instead.
-func (*DeleteInferencePolicyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{32}
-}
-
 func (x *DeleteInferencePolicyRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1585,9 +2282,28 @@ func (x *DeleteInferencePolicyRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteInferencePolicyRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteInferencePolicyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the resource name of the InferencePolicy to delete.
+	Name string
+}
+
+func (b0 DeleteInferencePolicyRequest_builder) Build() *DeleteInferencePolicyRequest {
+	m0 := &DeleteInferencePolicyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // DeleteInferencePolicyResponse is a response to deleting an InferencePolicy.
 type DeleteInferencePolicyResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1617,14 +2333,21 @@ func (x *DeleteInferencePolicyResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteInferencePolicyResponse.ProtoReflect.Descriptor instead.
-func (*DeleteInferencePolicyResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{33}
+type DeleteInferencePolicyResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteInferencePolicyResponse_builder) Build() *DeleteInferencePolicyResponse {
+	m0 := &DeleteInferencePolicyResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // ListInferencePoliciesRequest is a request for listing InferencePolicies.
 type ListInferencePoliciesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PageSize is the maximum number of items to return. The server may use a
 	// different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -1660,11 +2383,6 @@ func (x *ListInferencePoliciesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListInferencePoliciesRequest.ProtoReflect.Descriptor instead.
-func (*ListInferencePoliciesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{34}
-}
-
 func (x *ListInferencePoliciesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -1679,9 +2397,37 @@ func (x *ListInferencePoliciesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListInferencePoliciesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListInferencePoliciesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListInferencePoliciesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PageSize is the maximum number of items to return. The server may use a
+	// different page size at its discretion.
+	PageSize int32
+	// PageToken is the next_page_token value returned from a previous List
+	// request, if any.
+	PageToken string
+}
+
+func (b0 ListInferencePoliciesRequest_builder) Build() *ListInferencePoliciesRequest {
+	m0 := &ListInferencePoliciesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListInferencePoliciesResponse is the response for listing InferencePolicies.
 type ListInferencePoliciesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Policies is the page of InferencePolicies that matched the
 	// request.
 	Policies []*InferencePolicy `protobuf:"bytes,1,rep,name=policies,proto3" json:"policies,omitempty"`
@@ -1717,11 +2463,6 @@ func (x *ListInferencePoliciesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListInferencePoliciesResponse.ProtoReflect.Descriptor instead.
-func (*ListInferencePoliciesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{35}
-}
-
 func (x *ListInferencePoliciesResponse) GetPolicies() []*InferencePolicy {
 	if x != nil {
 		return x.Policies
@@ -1736,9 +2477,37 @@ func (x *ListInferencePoliciesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListInferencePoliciesResponse) SetPolicies(v []*InferencePolicy) {
+	x.Policies = v
+}
+
+func (x *ListInferencePoliciesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListInferencePoliciesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Policies is the page of InferencePolicies that matched the
+	// request.
+	Policies []*InferencePolicy
+	// NextPageToken is the token to retrieve the next page of results, or empty
+	// if there are no more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListInferencePoliciesResponse_builder) Build() *ListInferencePoliciesResponse {
+	m0 := &ListInferencePoliciesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Policies = b.Policies
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // GetSummaryRequest is a request for retrieving a session recording summary.
 type GetSummaryRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SessionId is the ID of the session whose summary is being requested.
 	SessionId     string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1770,11 +2539,6 @@ func (x *GetSummaryRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetSummaryRequest.ProtoReflect.Descriptor instead.
-func (*GetSummaryRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{36}
-}
-
 func (x *GetSummaryRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
@@ -1782,9 +2546,28 @@ func (x *GetSummaryRequest) GetSessionId() string {
 	return ""
 }
 
+func (x *GetSummaryRequest) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+type GetSummaryRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SessionId is the ID of the session whose summary is being requested.
+	SessionId string
+}
+
+func (b0 GetSummaryRequest_builder) Build() *GetSummaryRequest {
+	m0 := &GetSummaryRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	return m0
+}
+
 // GetSummaryResponse is a response to retrieving a session recording summary.
 type GetSummaryResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Summary is the session recording summary.
 	Summary       *Summary `protobuf:"bytes,1,opt,name=summary,proto3" json:"summary,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1816,11 +2599,6 @@ func (x *GetSummaryResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetSummaryResponse.ProtoReflect.Descriptor instead.
-func (*GetSummaryResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{37}
-}
-
 func (x *GetSummaryResponse) GetSummary() *Summary {
 	if x != nil {
 		return x.Summary
@@ -1828,9 +2606,39 @@ func (x *GetSummaryResponse) GetSummary() *Summary {
 	return nil
 }
 
+func (x *GetSummaryResponse) SetSummary(v *Summary) {
+	x.Summary = v
+}
+
+func (x *GetSummaryResponse) HasSummary() bool {
+	if x == nil {
+		return false
+	}
+	return x.Summary != nil
+}
+
+func (x *GetSummaryResponse) ClearSummary() {
+	x.Summary = nil
+}
+
+type GetSummaryResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Summary is the session recording summary.
+	Summary *Summary
+}
+
+func (b0 GetSummaryResponse_builder) Build() *GetSummaryResponse {
+	m0 := &GetSummaryResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Summary = b.Summary
+	return m0
+}
+
 // IsEnabledRequest is a request to tell if the summarizer is enabled.
 type IsEnabledRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1860,14 +2668,21 @@ func (x *IsEnabledRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IsEnabledRequest.ProtoReflect.Descriptor instead.
-func (*IsEnabledRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{38}
+type IsEnabledRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 IsEnabledRequest_builder) Build() *IsEnabledRequest {
+	m0 := &IsEnabledRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // IsEnabledResponse is a response that tells if the summarizer is enabled.
 type IsEnabledResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Enabled tells if the summarizer is enabled by the license and configured.
 	// (Note that this doesn't tell anything about actual correctness of the
 	// configuration or presence of recording summaries.)
@@ -1901,11 +2716,6 @@ func (x *IsEnabledResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IsEnabledResponse.ProtoReflect.Descriptor instead.
-func (*IsEnabledResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{39}
-}
-
 func (x *IsEnabledResponse) GetEnabled() bool {
 	if x != nil {
 		return x.Enabled
@@ -1913,9 +2723,30 @@ func (x *IsEnabledResponse) GetEnabled() bool {
 	return false
 }
 
+func (x *IsEnabledResponse) SetEnabled(v bool) {
+	x.Enabled = v
+}
+
+type IsEnabledResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Enabled tells if the summarizer is enabled by the license and configured.
+	// (Note that this doesn't tell anything about actual correctness of the
+	// configuration or presence of recording summaries.)
+	Enabled bool
+}
+
+func (b0 IsEnabledResponse_builder) Build() *IsEnabledResponse {
+	m0 := &IsEnabledResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Enabled = b.Enabled
+	return m0
+}
+
 // TestInferenceModelRequest is a request to test an InferenceModel configuration.
 type TestInferenceModelRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Model is the InferenceModelSpec to test. The model configuration will be used
 	// to make a test request to the configured provider.
 	Model *InferenceModelSpec `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
@@ -1951,11 +2782,6 @@ func (x *TestInferenceModelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestInferenceModelRequest.ProtoReflect.Descriptor instead.
-func (*TestInferenceModelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{40}
-}
-
 func (x *TestInferenceModelRequest) GetModel() *InferenceModelSpec {
 	if x != nil {
 		return x.Model
@@ -1970,9 +2796,59 @@ func (x *TestInferenceModelRequest) GetSecret() *InferenceSecretSpec {
 	return nil
 }
 
+func (x *TestInferenceModelRequest) SetModel(v *InferenceModelSpec) {
+	x.Model = v
+}
+
+func (x *TestInferenceModelRequest) SetSecret(v *InferenceSecretSpec) {
+	x.Secret = v
+}
+
+func (x *TestInferenceModelRequest) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *TestInferenceModelRequest) HasSecret() bool {
+	if x == nil {
+		return false
+	}
+	return x.Secret != nil
+}
+
+func (x *TestInferenceModelRequest) ClearModel() {
+	x.Model = nil
+}
+
+func (x *TestInferenceModelRequest) ClearSecret() {
+	x.Secret = nil
+}
+
+type TestInferenceModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the InferenceModelSpec to test. The model configuration will be used
+	// to make a test request to the configured provider.
+	Model *InferenceModelSpec
+	// Secret is the InferenceSecretSpec containing the API key or credentials.
+	// Required for OpenAI models. Optional for Bedrock models when using IAM.
+	Secret *InferenceSecretSpec
+}
+
+func (b0 TestInferenceModelRequest_builder) Build() *TestInferenceModelRequest {
+	m0 := &TestInferenceModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	x.Secret = b.Secret
+	return m0
+}
+
 // TestInferenceModelResponse is a response from testing an InferenceModel.
 type TestInferenceModelResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Success indicates whether the test request was successful.
 	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
 	// Message provides additional information about the test result.
@@ -2007,11 +2883,6 @@ func (x *TestInferenceModelResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestInferenceModelResponse.ProtoReflect.Descriptor instead.
-func (*TestInferenceModelResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP(), []int{41}
-}
-
 func (x *TestInferenceModelResponse) GetSuccess() bool {
 	if x != nil {
 		return x.Success
@@ -2024,6 +2895,847 @@ func (x *TestInferenceModelResponse) GetMessage() string {
 		return x.Message
 	}
 	return ""
+}
+
+func (x *TestInferenceModelResponse) SetSuccess(v bool) {
+	x.Success = v
+}
+
+func (x *TestInferenceModelResponse) SetMessage(v string) {
+	x.Message = v
+}
+
+type TestInferenceModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Success indicates whether the test request was successful.
+	Success bool
+	// Message provides additional information about the test result.
+	// If success is false, this contains the error message.
+	Message string
+}
+
+func (b0 TestInferenceModelResponse_builder) Build() *TestInferenceModelResponse {
+	m0 := &TestInferenceModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Success = b.Success
+	x.Message = b.Message
+	return m0
+}
+
+// TestRetrievalModelRequest is a request to test a RetrievalModel configuration.
+type TestRetrievalModelRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Model is the RetrievalModelSpec to test. The embeddings provider
+	// configuration will be used to generate a test embedding.
+	Model *RetrievalModelSpec `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	// Secret is the InferenceSecretSpec containing the API key or credentials.
+	// Required for OpenAI models. Optional for Bedrock models when using IAM.
+	Secret        *InferenceSecretSpec `protobuf:"bytes,2,opt,name=secret,proto3" json:"secret,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestRetrievalModelRequest) Reset() {
+	*x = TestRetrievalModelRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[42]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestRetrievalModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestRetrievalModelRequest) ProtoMessage() {}
+
+func (x *TestRetrievalModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[42]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *TestRetrievalModelRequest) GetModel() *RetrievalModelSpec {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+func (x *TestRetrievalModelRequest) GetSecret() *InferenceSecretSpec {
+	if x != nil {
+		return x.Secret
+	}
+	return nil
+}
+
+func (x *TestRetrievalModelRequest) SetModel(v *RetrievalModelSpec) {
+	x.Model = v
+}
+
+func (x *TestRetrievalModelRequest) SetSecret(v *InferenceSecretSpec) {
+	x.Secret = v
+}
+
+func (x *TestRetrievalModelRequest) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *TestRetrievalModelRequest) HasSecret() bool {
+	if x == nil {
+		return false
+	}
+	return x.Secret != nil
+}
+
+func (x *TestRetrievalModelRequest) ClearModel() {
+	x.Model = nil
+}
+
+func (x *TestRetrievalModelRequest) ClearSecret() {
+	x.Secret = nil
+}
+
+type TestRetrievalModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the RetrievalModelSpec to test. The embeddings provider
+	// configuration will be used to generate a test embedding.
+	Model *RetrievalModelSpec
+	// Secret is the InferenceSecretSpec containing the API key or credentials.
+	// Required for OpenAI models. Optional for Bedrock models when using IAM.
+	Secret *InferenceSecretSpec
+}
+
+func (b0 TestRetrievalModelRequest_builder) Build() *TestRetrievalModelRequest {
+	m0 := &TestRetrievalModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	x.Secret = b.Secret
+	return m0
+}
+
+// TestRetrievalModelResponse is a response from testing a RetrievalModel.
+type TestRetrievalModelResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Success indicates whether the test request was successful.
+	Success bool `protobuf:"varint,1,opt,name=success,proto3" json:"success,omitempty"`
+	// Message provides additional information about the test result.
+	// If success is false, this contains the error message.
+	Message       string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *TestRetrievalModelResponse) Reset() {
+	*x = TestRetrievalModelResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[43]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *TestRetrievalModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*TestRetrievalModelResponse) ProtoMessage() {}
+
+func (x *TestRetrievalModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[43]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *TestRetrievalModelResponse) GetSuccess() bool {
+	if x != nil {
+		return x.Success
+	}
+	return false
+}
+
+func (x *TestRetrievalModelResponse) GetMessage() string {
+	if x != nil {
+		return x.Message
+	}
+	return ""
+}
+
+func (x *TestRetrievalModelResponse) SetSuccess(v bool) {
+	x.Success = v
+}
+
+func (x *TestRetrievalModelResponse) SetMessage(v string) {
+	x.Message = v
+}
+
+type TestRetrievalModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Success indicates whether the test request was successful.
+	Success bool
+	// Message provides additional information about the test result.
+	// If success is false, this contains the error message.
+	Message string
+}
+
+func (b0 TestRetrievalModelResponse_builder) Build() *TestRetrievalModelResponse {
+	m0 := &TestRetrievalModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Success = b.Success
+	x.Message = b.Message
+	return m0
+}
+
+// CreateRetrievalModelRequest is a request for creating the RetrievalModel.
+// Only one RetrievalModel can exist per cluster.
+type CreateRetrievalModelRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Model is the RetrievalModel resource to create.
+	Model         *RetrievalModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateRetrievalModelRequest) Reset() {
+	*x = CreateRetrievalModelRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[44]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateRetrievalModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateRetrievalModelRequest) ProtoMessage() {}
+
+func (x *CreateRetrievalModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[44]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CreateRetrievalModelRequest) GetModel() *RetrievalModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+func (x *CreateRetrievalModelRequest) SetModel(v *RetrievalModel) {
+	x.Model = v
+}
+
+func (x *CreateRetrievalModelRequest) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *CreateRetrievalModelRequest) ClearModel() {
+	x.Model = nil
+}
+
+type CreateRetrievalModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the RetrievalModel resource to create.
+	Model *RetrievalModel
+}
+
+func (b0 CreateRetrievalModelRequest_builder) Build() *CreateRetrievalModelRequest {
+	m0 := &CreateRetrievalModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
+// CreateRetrievalModelResponse is a response to creating the RetrievalModel.
+type CreateRetrievalModelResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Model is the RetrievalModel resource that was created.
+	Model         *RetrievalModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *CreateRetrievalModelResponse) Reset() {
+	*x = CreateRetrievalModelResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[45]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *CreateRetrievalModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*CreateRetrievalModelResponse) ProtoMessage() {}
+
+func (x *CreateRetrievalModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[45]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *CreateRetrievalModelResponse) GetModel() *RetrievalModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+func (x *CreateRetrievalModelResponse) SetModel(v *RetrievalModel) {
+	x.Model = v
+}
+
+func (x *CreateRetrievalModelResponse) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *CreateRetrievalModelResponse) ClearModel() {
+	x.Model = nil
+}
+
+type CreateRetrievalModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the RetrievalModel resource that was created.
+	Model *RetrievalModel
+}
+
+func (b0 CreateRetrievalModelResponse_builder) Build() *CreateRetrievalModelResponse {
+	m0 := &CreateRetrievalModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
+// GetRetrievalModelRequest is a request for retrieving the RetrievalModel.
+// Since only one RetrievalModel can exist per cluster, no name is required.
+type GetRetrievalModelRequest struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRetrievalModelRequest) Reset() {
+	*x = GetRetrievalModelRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[46]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRetrievalModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRetrievalModelRequest) ProtoMessage() {}
+
+func (x *GetRetrievalModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[46]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type GetRetrievalModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetRetrievalModelRequest_builder) Build() *GetRetrievalModelRequest {
+	m0 := &GetRetrievalModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
+// GetRetrievalModelResponse is a response to retrieving the RetrievalModel.
+type GetRetrievalModelResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Model is the RetrievalModel resource that was retrieved.
+	Model         *RetrievalModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetRetrievalModelResponse) Reset() {
+	*x = GetRetrievalModelResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[47]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetRetrievalModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetRetrievalModelResponse) ProtoMessage() {}
+
+func (x *GetRetrievalModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[47]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GetRetrievalModelResponse) GetModel() *RetrievalModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+func (x *GetRetrievalModelResponse) SetModel(v *RetrievalModel) {
+	x.Model = v
+}
+
+func (x *GetRetrievalModelResponse) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *GetRetrievalModelResponse) ClearModel() {
+	x.Model = nil
+}
+
+type GetRetrievalModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the RetrievalModel resource that was retrieved.
+	Model *RetrievalModel
+}
+
+func (b0 GetRetrievalModelResponse_builder) Build() *GetRetrievalModelResponse {
+	m0 := &GetRetrievalModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
+// UpdateRetrievalModelRequest is a request for updating the RetrievalModel.
+type UpdateRetrievalModelRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Model is the RetrievalModel resource to update.
+	Model         *RetrievalModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateRetrievalModelRequest) Reset() {
+	*x = UpdateRetrievalModelRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[48]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateRetrievalModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateRetrievalModelRequest) ProtoMessage() {}
+
+func (x *UpdateRetrievalModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[48]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpdateRetrievalModelRequest) GetModel() *RetrievalModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+func (x *UpdateRetrievalModelRequest) SetModel(v *RetrievalModel) {
+	x.Model = v
+}
+
+func (x *UpdateRetrievalModelRequest) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *UpdateRetrievalModelRequest) ClearModel() {
+	x.Model = nil
+}
+
+type UpdateRetrievalModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the RetrievalModel resource to update.
+	Model *RetrievalModel
+}
+
+func (b0 UpdateRetrievalModelRequest_builder) Build() *UpdateRetrievalModelRequest {
+	m0 := &UpdateRetrievalModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
+// UpdateRetrievalModelResponse is a response to updating the RetrievalModel.
+type UpdateRetrievalModelResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Model is the RetrievalModel resource that was updated.
+	Model         *RetrievalModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpdateRetrievalModelResponse) Reset() {
+	*x = UpdateRetrievalModelResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[49]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpdateRetrievalModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpdateRetrievalModelResponse) ProtoMessage() {}
+
+func (x *UpdateRetrievalModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[49]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpdateRetrievalModelResponse) GetModel() *RetrievalModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+func (x *UpdateRetrievalModelResponse) SetModel(v *RetrievalModel) {
+	x.Model = v
+}
+
+func (x *UpdateRetrievalModelResponse) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *UpdateRetrievalModelResponse) ClearModel() {
+	x.Model = nil
+}
+
+type UpdateRetrievalModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the RetrievalModel resource that was updated.
+	Model *RetrievalModel
+}
+
+func (b0 UpdateRetrievalModelResponse_builder) Build() *UpdateRetrievalModelResponse {
+	m0 := &UpdateRetrievalModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
+// UpsertRetrievalModelRequest is a request for creating or updating the
+// RetrievalModel.
+type UpsertRetrievalModelRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Model is the RetrievalModel resource to create or update.
+	Model         *RetrievalModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertRetrievalModelRequest) Reset() {
+	*x = UpsertRetrievalModelRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertRetrievalModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertRetrievalModelRequest) ProtoMessage() {}
+
+func (x *UpsertRetrievalModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[50]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertRetrievalModelRequest) GetModel() *RetrievalModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+func (x *UpsertRetrievalModelRequest) SetModel(v *RetrievalModel) {
+	x.Model = v
+}
+
+func (x *UpsertRetrievalModelRequest) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *UpsertRetrievalModelRequest) ClearModel() {
+	x.Model = nil
+}
+
+type UpsertRetrievalModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the RetrievalModel resource to create or update.
+	Model *RetrievalModel
+}
+
+func (b0 UpsertRetrievalModelRequest_builder) Build() *UpsertRetrievalModelRequest {
+	m0 := &UpsertRetrievalModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
+// UpsertRetrievalModelResponse is a response to creating or updating the
+// RetrievalModel.
+type UpsertRetrievalModelResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Model is the RetrievalModel resource that was created or updated.
+	Model         *RetrievalModel `protobuf:"bytes,1,opt,name=model,proto3" json:"model,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertRetrievalModelResponse) Reset() {
+	*x = UpsertRetrievalModelResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertRetrievalModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertRetrievalModelResponse) ProtoMessage() {}
+
+func (x *UpsertRetrievalModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[51]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertRetrievalModelResponse) GetModel() *RetrievalModel {
+	if x != nil {
+		return x.Model
+	}
+	return nil
+}
+
+func (x *UpsertRetrievalModelResponse) SetModel(v *RetrievalModel) {
+	x.Model = v
+}
+
+func (x *UpsertRetrievalModelResponse) HasModel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Model != nil
+}
+
+func (x *UpsertRetrievalModelResponse) ClearModel() {
+	x.Model = nil
+}
+
+type UpsertRetrievalModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Model is the RetrievalModel resource that was created or updated.
+	Model *RetrievalModel
+}
+
+func (b0 UpsertRetrievalModelResponse_builder) Build() *UpsertRetrievalModelResponse {
+	m0 := &UpsertRetrievalModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Model = b.Model
+	return m0
+}
+
+// DeleteRetrievalModelRequest is a request for deleting the RetrievalModel.
+// Since only one RetrievalModel can exist per cluster, no name is required.
+type DeleteRetrievalModelRequest struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteRetrievalModelRequest) Reset() {
+	*x = DeleteRetrievalModelRequest{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteRetrievalModelRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteRetrievalModelRequest) ProtoMessage() {}
+
+func (x *DeleteRetrievalModelRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[52]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type DeleteRetrievalModelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteRetrievalModelRequest_builder) Build() *DeleteRetrievalModelRequest {
+	m0 := &DeleteRetrievalModelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
+}
+
+// DeleteRetrievalModelResponse is a response to deleting the RetrievalModel.
+type DeleteRetrievalModelResponse struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteRetrievalModelResponse) Reset() {
+	*x = DeleteRetrievalModelResponse{}
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteRetrievalModelResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteRetrievalModelResponse) ProtoMessage() {}
+
+func (x *DeleteRetrievalModelResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_summarizer_v1_summarizer_service_proto_msgTypes[53]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type DeleteRetrievalModelResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteRetrievalModelResponse_builder) Build() *DeleteRetrievalModelResponse {
+	m0 := &DeleteRetrievalModelResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_summarizer_v1_summarizer_service_proto protoreflect.FileDescriptor
@@ -2122,7 +3834,30 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\x06secret\x18\x02 \x01(\v2+.teleport.summarizer.v1.InferenceSecretSpecR\x06secret\"P\n" +
 	"\x1aTestInferenceModelResponse\x12\x18\n" +
 	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
-	"\amessage\x18\x02 \x01(\tR\amessage2\x9e\x15\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"\xa2\x01\n" +
+	"\x19TestRetrievalModelRequest\x12@\n" +
+	"\x05model\x18\x01 \x01(\v2*.teleport.summarizer.v1.RetrievalModelSpecR\x05model\x12C\n" +
+	"\x06secret\x18\x02 \x01(\v2+.teleport.summarizer.v1.InferenceSecretSpecR\x06secret\"P\n" +
+	"\x1aTestRetrievalModelResponse\x12\x18\n" +
+	"\asuccess\x18\x01 \x01(\bR\asuccess\x12\x18\n" +
+	"\amessage\x18\x02 \x01(\tR\amessage\"[\n" +
+	"\x1bCreateRetrievalModelRequest\x12<\n" +
+	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.RetrievalModelR\x05model\"\\\n" +
+	"\x1cCreateRetrievalModelResponse\x12<\n" +
+	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.RetrievalModelR\x05model\"\x1a\n" +
+	"\x18GetRetrievalModelRequest\"Y\n" +
+	"\x19GetRetrievalModelResponse\x12<\n" +
+	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.RetrievalModelR\x05model\"[\n" +
+	"\x1bUpdateRetrievalModelRequest\x12<\n" +
+	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.RetrievalModelR\x05model\"\\\n" +
+	"\x1cUpdateRetrievalModelResponse\x12<\n" +
+	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.RetrievalModelR\x05model\"[\n" +
+	"\x1bUpsertRetrievalModelRequest\x12<\n" +
+	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.RetrievalModelR\x05model\"\\\n" +
+	"\x1cUpsertRetrievalModelResponse\x12<\n" +
+	"\x05model\x18\x01 \x01(\v2&.teleport.summarizer.v1.RetrievalModelR\x05model\"\x1d\n" +
+	"\x1bDeleteRetrievalModelRequest\"\x1e\n" +
+	"\x1cDeleteRetrievalModelResponse2\xa5\x1b\n" +
 	"\x11SummarizerService\x12\x81\x01\n" +
 	"\x14CreateInferenceModel\x123.teleport.summarizer.v1.CreateInferenceModelRequest\x1a4.teleport.summarizer.v1.CreateInferenceModelResponse\x12x\n" +
 	"\x11GetInferenceModel\x120.teleport.summarizer.v1.GetInferenceModelRequest\x1a1.teleport.summarizer.v1.GetInferenceModelResponse\x12\x81\x01\n" +
@@ -2145,21 +3880,15 @@ const file_teleport_summarizer_v1_summarizer_service_proto_rawDesc = "" +
 	"\n" +
 	"GetSummary\x12).teleport.summarizer.v1.GetSummaryRequest\x1a*.teleport.summarizer.v1.GetSummaryResponse\x12`\n" +
 	"\tIsEnabled\x12(.teleport.summarizer.v1.IsEnabledRequest\x1a).teleport.summarizer.v1.IsEnabledResponse\x12{\n" +
-	"\x12TestInferenceModel\x121.teleport.summarizer.v1.TestInferenceModelRequest\x1a2.teleport.summarizer.v1.TestInferenceModelResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
+	"\x12TestInferenceModel\x121.teleport.summarizer.v1.TestInferenceModelRequest\x1a2.teleport.summarizer.v1.TestInferenceModelResponse\x12\x81\x01\n" +
+	"\x14CreateRetrievalModel\x123.teleport.summarizer.v1.CreateRetrievalModelRequest\x1a4.teleport.summarizer.v1.CreateRetrievalModelResponse\x12x\n" +
+	"\x11GetRetrievalModel\x120.teleport.summarizer.v1.GetRetrievalModelRequest\x1a1.teleport.summarizer.v1.GetRetrievalModelResponse\x12\x81\x01\n" +
+	"\x14UpdateRetrievalModel\x123.teleport.summarizer.v1.UpdateRetrievalModelRequest\x1a4.teleport.summarizer.v1.UpdateRetrievalModelResponse\x12\x81\x01\n" +
+	"\x14UpsertRetrievalModel\x123.teleport.summarizer.v1.UpsertRetrievalModelRequest\x1a4.teleport.summarizer.v1.UpsertRetrievalModelResponse\x12\x81\x01\n" +
+	"\x14DeleteRetrievalModel\x123.teleport.summarizer.v1.DeleteRetrievalModelRequest\x1a4.teleport.summarizer.v1.DeleteRetrievalModelResponse\x12{\n" +
+	"\x12TestRetrievalModel\x121.teleport.summarizer.v1.TestRetrievalModelRequest\x1a2.teleport.summarizer.v1.TestRetrievalModelResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
-var (
-	file_teleport_summarizer_v1_summarizer_service_proto_rawDescOnce sync.Once
-	file_teleport_summarizer_v1_summarizer_service_proto_rawDescData []byte
-)
-
-func file_teleport_summarizer_v1_summarizer_service_proto_rawDescGZIP() []byte {
-	file_teleport_summarizer_v1_summarizer_service_proto_rawDescOnce.Do(func() {
-		file_teleport_summarizer_v1_summarizer_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc)))
-	})
-	return file_teleport_summarizer_v1_summarizer_service_proto_rawDescData
-}
-
-var file_teleport_summarizer_v1_summarizer_service_proto_msgTypes = make([]protoimpl.MessageInfo, 42)
+var file_teleport_summarizer_v1_summarizer_service_proto_msgTypes = make([]protoimpl.MessageInfo, 54)
 var file_teleport_summarizer_v1_summarizer_service_proto_goTypes = []any{
 	(*CreateInferenceModelRequest)(nil),   // 0: teleport.summarizer.v1.CreateInferenceModelRequest
 	(*CreateInferenceModelResponse)(nil),  // 1: teleport.summarizer.v1.CreateInferenceModelResponse
@@ -2203,88 +3932,123 @@ var file_teleport_summarizer_v1_summarizer_service_proto_goTypes = []any{
 	(*IsEnabledResponse)(nil),             // 39: teleport.summarizer.v1.IsEnabledResponse
 	(*TestInferenceModelRequest)(nil),     // 40: teleport.summarizer.v1.TestInferenceModelRequest
 	(*TestInferenceModelResponse)(nil),    // 41: teleport.summarizer.v1.TestInferenceModelResponse
-	(*InferenceModel)(nil),                // 42: teleport.summarizer.v1.InferenceModel
-	(*InferenceSecret)(nil),               // 43: teleport.summarizer.v1.InferenceSecret
-	(*InferencePolicy)(nil),               // 44: teleport.summarizer.v1.InferencePolicy
-	(*Summary)(nil),                       // 45: teleport.summarizer.v1.Summary
-	(*InferenceModelSpec)(nil),            // 46: teleport.summarizer.v1.InferenceModelSpec
-	(*InferenceSecretSpec)(nil),           // 47: teleport.summarizer.v1.InferenceSecretSpec
+	(*TestRetrievalModelRequest)(nil),     // 42: teleport.summarizer.v1.TestRetrievalModelRequest
+	(*TestRetrievalModelResponse)(nil),    // 43: teleport.summarizer.v1.TestRetrievalModelResponse
+	(*CreateRetrievalModelRequest)(nil),   // 44: teleport.summarizer.v1.CreateRetrievalModelRequest
+	(*CreateRetrievalModelResponse)(nil),  // 45: teleport.summarizer.v1.CreateRetrievalModelResponse
+	(*GetRetrievalModelRequest)(nil),      // 46: teleport.summarizer.v1.GetRetrievalModelRequest
+	(*GetRetrievalModelResponse)(nil),     // 47: teleport.summarizer.v1.GetRetrievalModelResponse
+	(*UpdateRetrievalModelRequest)(nil),   // 48: teleport.summarizer.v1.UpdateRetrievalModelRequest
+	(*UpdateRetrievalModelResponse)(nil),  // 49: teleport.summarizer.v1.UpdateRetrievalModelResponse
+	(*UpsertRetrievalModelRequest)(nil),   // 50: teleport.summarizer.v1.UpsertRetrievalModelRequest
+	(*UpsertRetrievalModelResponse)(nil),  // 51: teleport.summarizer.v1.UpsertRetrievalModelResponse
+	(*DeleteRetrievalModelRequest)(nil),   // 52: teleport.summarizer.v1.DeleteRetrievalModelRequest
+	(*DeleteRetrievalModelResponse)(nil),  // 53: teleport.summarizer.v1.DeleteRetrievalModelResponse
+	(*InferenceModel)(nil),                // 54: teleport.summarizer.v1.InferenceModel
+	(*InferenceSecret)(nil),               // 55: teleport.summarizer.v1.InferenceSecret
+	(*InferencePolicy)(nil),               // 56: teleport.summarizer.v1.InferencePolicy
+	(*Summary)(nil),                       // 57: teleport.summarizer.v1.Summary
+	(*InferenceModelSpec)(nil),            // 58: teleport.summarizer.v1.InferenceModelSpec
+	(*InferenceSecretSpec)(nil),           // 59: teleport.summarizer.v1.InferenceSecretSpec
+	(*RetrievalModelSpec)(nil),            // 60: teleport.summarizer.v1.RetrievalModelSpec
+	(*RetrievalModel)(nil),                // 61: teleport.summarizer.v1.RetrievalModel
 }
 var file_teleport_summarizer_v1_summarizer_service_proto_depIdxs = []int32{
-	42, // 0: teleport.summarizer.v1.CreateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 1: teleport.summarizer.v1.CreateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 2: teleport.summarizer.v1.GetInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 3: teleport.summarizer.v1.UpdateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 4: teleport.summarizer.v1.UpdateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 5: teleport.summarizer.v1.UpsertInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 6: teleport.summarizer.v1.UpsertInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
-	42, // 7: teleport.summarizer.v1.ListInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.InferenceModel
-	43, // 8: teleport.summarizer.v1.CreateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 9: teleport.summarizer.v1.CreateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 10: teleport.summarizer.v1.GetInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 11: teleport.summarizer.v1.UpdateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 12: teleport.summarizer.v1.UpdateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 13: teleport.summarizer.v1.UpsertInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 14: teleport.summarizer.v1.UpsertInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
-	43, // 15: teleport.summarizer.v1.ListInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.InferenceSecret
-	44, // 16: teleport.summarizer.v1.CreateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 17: teleport.summarizer.v1.CreateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 18: teleport.summarizer.v1.GetInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 19: teleport.summarizer.v1.UpdateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 20: teleport.summarizer.v1.UpdateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 21: teleport.summarizer.v1.UpsertInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 22: teleport.summarizer.v1.UpsertInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
-	44, // 23: teleport.summarizer.v1.ListInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.InferencePolicy
-	45, // 24: teleport.summarizer.v1.GetSummaryResponse.summary:type_name -> teleport.summarizer.v1.Summary
-	46, // 25: teleport.summarizer.v1.TestInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModelSpec
-	47, // 26: teleport.summarizer.v1.TestInferenceModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
-	0,  // 27: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:input_type -> teleport.summarizer.v1.CreateInferenceModelRequest
-	2,  // 28: teleport.summarizer.v1.SummarizerService.GetInferenceModel:input_type -> teleport.summarizer.v1.GetInferenceModelRequest
-	4,  // 29: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:input_type -> teleport.summarizer.v1.UpdateInferenceModelRequest
-	6,  // 30: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:input_type -> teleport.summarizer.v1.UpsertInferenceModelRequest
-	8,  // 31: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:input_type -> teleport.summarizer.v1.DeleteInferenceModelRequest
-	10, // 32: teleport.summarizer.v1.SummarizerService.ListInferenceModels:input_type -> teleport.summarizer.v1.ListInferenceModelsRequest
-	12, // 33: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:input_type -> teleport.summarizer.v1.CreateInferenceSecretRequest
-	14, // 34: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:input_type -> teleport.summarizer.v1.GetInferenceSecretRequest
-	16, // 35: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:input_type -> teleport.summarizer.v1.UpdateInferenceSecretRequest
-	18, // 36: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:input_type -> teleport.summarizer.v1.UpsertInferenceSecretRequest
-	20, // 37: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:input_type -> teleport.summarizer.v1.DeleteInferenceSecretRequest
-	22, // 38: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:input_type -> teleport.summarizer.v1.ListInferenceSecretsRequest
-	24, // 39: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:input_type -> teleport.summarizer.v1.CreateInferencePolicyRequest
-	26, // 40: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:input_type -> teleport.summarizer.v1.GetInferencePolicyRequest
-	28, // 41: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:input_type -> teleport.summarizer.v1.UpdateInferencePolicyRequest
-	30, // 42: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:input_type -> teleport.summarizer.v1.UpsertInferencePolicyRequest
-	32, // 43: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:input_type -> teleport.summarizer.v1.DeleteInferencePolicyRequest
-	34, // 44: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:input_type -> teleport.summarizer.v1.ListInferencePoliciesRequest
-	36, // 45: teleport.summarizer.v1.SummarizerService.GetSummary:input_type -> teleport.summarizer.v1.GetSummaryRequest
-	38, // 46: teleport.summarizer.v1.SummarizerService.IsEnabled:input_type -> teleport.summarizer.v1.IsEnabledRequest
-	40, // 47: teleport.summarizer.v1.SummarizerService.TestInferenceModel:input_type -> teleport.summarizer.v1.TestInferenceModelRequest
-	1,  // 48: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:output_type -> teleport.summarizer.v1.CreateInferenceModelResponse
-	3,  // 49: teleport.summarizer.v1.SummarizerService.GetInferenceModel:output_type -> teleport.summarizer.v1.GetInferenceModelResponse
-	5,  // 50: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:output_type -> teleport.summarizer.v1.UpdateInferenceModelResponse
-	7,  // 51: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:output_type -> teleport.summarizer.v1.UpsertInferenceModelResponse
-	9,  // 52: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:output_type -> teleport.summarizer.v1.DeleteInferenceModelResponse
-	11, // 53: teleport.summarizer.v1.SummarizerService.ListInferenceModels:output_type -> teleport.summarizer.v1.ListInferenceModelsResponse
-	13, // 54: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:output_type -> teleport.summarizer.v1.CreateInferenceSecretResponse
-	15, // 55: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:output_type -> teleport.summarizer.v1.GetInferenceSecretResponse
-	17, // 56: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:output_type -> teleport.summarizer.v1.UpdateInferenceSecretResponse
-	19, // 57: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:output_type -> teleport.summarizer.v1.UpsertInferenceSecretResponse
-	21, // 58: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:output_type -> teleport.summarizer.v1.DeleteInferenceSecretResponse
-	23, // 59: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:output_type -> teleport.summarizer.v1.ListInferenceSecretsResponse
-	25, // 60: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:output_type -> teleport.summarizer.v1.CreateInferencePolicyResponse
-	27, // 61: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:output_type -> teleport.summarizer.v1.GetInferencePolicyResponse
-	29, // 62: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:output_type -> teleport.summarizer.v1.UpdateInferencePolicyResponse
-	31, // 63: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:output_type -> teleport.summarizer.v1.UpsertInferencePolicyResponse
-	33, // 64: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:output_type -> teleport.summarizer.v1.DeleteInferencePolicyResponse
-	35, // 65: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:output_type -> teleport.summarizer.v1.ListInferencePoliciesResponse
-	37, // 66: teleport.summarizer.v1.SummarizerService.GetSummary:output_type -> teleport.summarizer.v1.GetSummaryResponse
-	39, // 67: teleport.summarizer.v1.SummarizerService.IsEnabled:output_type -> teleport.summarizer.v1.IsEnabledResponse
-	41, // 68: teleport.summarizer.v1.SummarizerService.TestInferenceModel:output_type -> teleport.summarizer.v1.TestInferenceModelResponse
-	48, // [48:69] is the sub-list for method output_type
-	27, // [27:48] is the sub-list for method input_type
-	27, // [27:27] is the sub-list for extension type_name
-	27, // [27:27] is the sub-list for extension extendee
-	0,  // [0:27] is the sub-list for field type_name
+	54, // 0: teleport.summarizer.v1.CreateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	54, // 1: teleport.summarizer.v1.CreateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	54, // 2: teleport.summarizer.v1.GetInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	54, // 3: teleport.summarizer.v1.UpdateInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	54, // 4: teleport.summarizer.v1.UpdateInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	54, // 5: teleport.summarizer.v1.UpsertInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModel
+	54, // 6: teleport.summarizer.v1.UpsertInferenceModelResponse.model:type_name -> teleport.summarizer.v1.InferenceModel
+	54, // 7: teleport.summarizer.v1.ListInferenceModelsResponse.models:type_name -> teleport.summarizer.v1.InferenceModel
+	55, // 8: teleport.summarizer.v1.CreateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	55, // 9: teleport.summarizer.v1.CreateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	55, // 10: teleport.summarizer.v1.GetInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	55, // 11: teleport.summarizer.v1.UpdateInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	55, // 12: teleport.summarizer.v1.UpdateInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	55, // 13: teleport.summarizer.v1.UpsertInferenceSecretRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	55, // 14: teleport.summarizer.v1.UpsertInferenceSecretResponse.secret:type_name -> teleport.summarizer.v1.InferenceSecret
+	55, // 15: teleport.summarizer.v1.ListInferenceSecretsResponse.secrets:type_name -> teleport.summarizer.v1.InferenceSecret
+	56, // 16: teleport.summarizer.v1.CreateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	56, // 17: teleport.summarizer.v1.CreateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	56, // 18: teleport.summarizer.v1.GetInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	56, // 19: teleport.summarizer.v1.UpdateInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	56, // 20: teleport.summarizer.v1.UpdateInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	56, // 21: teleport.summarizer.v1.UpsertInferencePolicyRequest.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	56, // 22: teleport.summarizer.v1.UpsertInferencePolicyResponse.policy:type_name -> teleport.summarizer.v1.InferencePolicy
+	56, // 23: teleport.summarizer.v1.ListInferencePoliciesResponse.policies:type_name -> teleport.summarizer.v1.InferencePolicy
+	57, // 24: teleport.summarizer.v1.GetSummaryResponse.summary:type_name -> teleport.summarizer.v1.Summary
+	58, // 25: teleport.summarizer.v1.TestInferenceModelRequest.model:type_name -> teleport.summarizer.v1.InferenceModelSpec
+	59, // 26: teleport.summarizer.v1.TestInferenceModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	60, // 27: teleport.summarizer.v1.TestRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModelSpec
+	59, // 28: teleport.summarizer.v1.TestRetrievalModelRequest.secret:type_name -> teleport.summarizer.v1.InferenceSecretSpec
+	61, // 29: teleport.summarizer.v1.CreateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	61, // 30: teleport.summarizer.v1.CreateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	61, // 31: teleport.summarizer.v1.GetRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	61, // 32: teleport.summarizer.v1.UpdateRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	61, // 33: teleport.summarizer.v1.UpdateRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	61, // 34: teleport.summarizer.v1.UpsertRetrievalModelRequest.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	61, // 35: teleport.summarizer.v1.UpsertRetrievalModelResponse.model:type_name -> teleport.summarizer.v1.RetrievalModel
+	0,  // 36: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:input_type -> teleport.summarizer.v1.CreateInferenceModelRequest
+	2,  // 37: teleport.summarizer.v1.SummarizerService.GetInferenceModel:input_type -> teleport.summarizer.v1.GetInferenceModelRequest
+	4,  // 38: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:input_type -> teleport.summarizer.v1.UpdateInferenceModelRequest
+	6,  // 39: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:input_type -> teleport.summarizer.v1.UpsertInferenceModelRequest
+	8,  // 40: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:input_type -> teleport.summarizer.v1.DeleteInferenceModelRequest
+	10, // 41: teleport.summarizer.v1.SummarizerService.ListInferenceModels:input_type -> teleport.summarizer.v1.ListInferenceModelsRequest
+	12, // 42: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:input_type -> teleport.summarizer.v1.CreateInferenceSecretRequest
+	14, // 43: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:input_type -> teleport.summarizer.v1.GetInferenceSecretRequest
+	16, // 44: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:input_type -> teleport.summarizer.v1.UpdateInferenceSecretRequest
+	18, // 45: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:input_type -> teleport.summarizer.v1.UpsertInferenceSecretRequest
+	20, // 46: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:input_type -> teleport.summarizer.v1.DeleteInferenceSecretRequest
+	22, // 47: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:input_type -> teleport.summarizer.v1.ListInferenceSecretsRequest
+	24, // 48: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:input_type -> teleport.summarizer.v1.CreateInferencePolicyRequest
+	26, // 49: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:input_type -> teleport.summarizer.v1.GetInferencePolicyRequest
+	28, // 50: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:input_type -> teleport.summarizer.v1.UpdateInferencePolicyRequest
+	30, // 51: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:input_type -> teleport.summarizer.v1.UpsertInferencePolicyRequest
+	32, // 52: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:input_type -> teleport.summarizer.v1.DeleteInferencePolicyRequest
+	34, // 53: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:input_type -> teleport.summarizer.v1.ListInferencePoliciesRequest
+	36, // 54: teleport.summarizer.v1.SummarizerService.GetSummary:input_type -> teleport.summarizer.v1.GetSummaryRequest
+	38, // 55: teleport.summarizer.v1.SummarizerService.IsEnabled:input_type -> teleport.summarizer.v1.IsEnabledRequest
+	40, // 56: teleport.summarizer.v1.SummarizerService.TestInferenceModel:input_type -> teleport.summarizer.v1.TestInferenceModelRequest
+	44, // 57: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:input_type -> teleport.summarizer.v1.CreateRetrievalModelRequest
+	46, // 58: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:input_type -> teleport.summarizer.v1.GetRetrievalModelRequest
+	48, // 59: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:input_type -> teleport.summarizer.v1.UpdateRetrievalModelRequest
+	50, // 60: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:input_type -> teleport.summarizer.v1.UpsertRetrievalModelRequest
+	52, // 61: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:input_type -> teleport.summarizer.v1.DeleteRetrievalModelRequest
+	42, // 62: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:input_type -> teleport.summarizer.v1.TestRetrievalModelRequest
+	1,  // 63: teleport.summarizer.v1.SummarizerService.CreateInferenceModel:output_type -> teleport.summarizer.v1.CreateInferenceModelResponse
+	3,  // 64: teleport.summarizer.v1.SummarizerService.GetInferenceModel:output_type -> teleport.summarizer.v1.GetInferenceModelResponse
+	5,  // 65: teleport.summarizer.v1.SummarizerService.UpdateInferenceModel:output_type -> teleport.summarizer.v1.UpdateInferenceModelResponse
+	7,  // 66: teleport.summarizer.v1.SummarizerService.UpsertInferenceModel:output_type -> teleport.summarizer.v1.UpsertInferenceModelResponse
+	9,  // 67: teleport.summarizer.v1.SummarizerService.DeleteInferenceModel:output_type -> teleport.summarizer.v1.DeleteInferenceModelResponse
+	11, // 68: teleport.summarizer.v1.SummarizerService.ListInferenceModels:output_type -> teleport.summarizer.v1.ListInferenceModelsResponse
+	13, // 69: teleport.summarizer.v1.SummarizerService.CreateInferenceSecret:output_type -> teleport.summarizer.v1.CreateInferenceSecretResponse
+	15, // 70: teleport.summarizer.v1.SummarizerService.GetInferenceSecret:output_type -> teleport.summarizer.v1.GetInferenceSecretResponse
+	17, // 71: teleport.summarizer.v1.SummarizerService.UpdateInferenceSecret:output_type -> teleport.summarizer.v1.UpdateInferenceSecretResponse
+	19, // 72: teleport.summarizer.v1.SummarizerService.UpsertInferenceSecret:output_type -> teleport.summarizer.v1.UpsertInferenceSecretResponse
+	21, // 73: teleport.summarizer.v1.SummarizerService.DeleteInferenceSecret:output_type -> teleport.summarizer.v1.DeleteInferenceSecretResponse
+	23, // 74: teleport.summarizer.v1.SummarizerService.ListInferenceSecrets:output_type -> teleport.summarizer.v1.ListInferenceSecretsResponse
+	25, // 75: teleport.summarizer.v1.SummarizerService.CreateInferencePolicy:output_type -> teleport.summarizer.v1.CreateInferencePolicyResponse
+	27, // 76: teleport.summarizer.v1.SummarizerService.GetInferencePolicy:output_type -> teleport.summarizer.v1.GetInferencePolicyResponse
+	29, // 77: teleport.summarizer.v1.SummarizerService.UpdateInferencePolicy:output_type -> teleport.summarizer.v1.UpdateInferencePolicyResponse
+	31, // 78: teleport.summarizer.v1.SummarizerService.UpsertInferencePolicy:output_type -> teleport.summarizer.v1.UpsertInferencePolicyResponse
+	33, // 79: teleport.summarizer.v1.SummarizerService.DeleteInferencePolicy:output_type -> teleport.summarizer.v1.DeleteInferencePolicyResponse
+	35, // 80: teleport.summarizer.v1.SummarizerService.ListInferencePolicies:output_type -> teleport.summarizer.v1.ListInferencePoliciesResponse
+	37, // 81: teleport.summarizer.v1.SummarizerService.GetSummary:output_type -> teleport.summarizer.v1.GetSummaryResponse
+	39, // 82: teleport.summarizer.v1.SummarizerService.IsEnabled:output_type -> teleport.summarizer.v1.IsEnabledResponse
+	41, // 83: teleport.summarizer.v1.SummarizerService.TestInferenceModel:output_type -> teleport.summarizer.v1.TestInferenceModelResponse
+	45, // 84: teleport.summarizer.v1.SummarizerService.CreateRetrievalModel:output_type -> teleport.summarizer.v1.CreateRetrievalModelResponse
+	47, // 85: teleport.summarizer.v1.SummarizerService.GetRetrievalModel:output_type -> teleport.summarizer.v1.GetRetrievalModelResponse
+	49, // 86: teleport.summarizer.v1.SummarizerService.UpdateRetrievalModel:output_type -> teleport.summarizer.v1.UpdateRetrievalModelResponse
+	51, // 87: teleport.summarizer.v1.SummarizerService.UpsertRetrievalModel:output_type -> teleport.summarizer.v1.UpsertRetrievalModelResponse
+	53, // 88: teleport.summarizer.v1.SummarizerService.DeleteRetrievalModel:output_type -> teleport.summarizer.v1.DeleteRetrievalModelResponse
+	43, // 89: teleport.summarizer.v1.SummarizerService.TestRetrievalModel:output_type -> teleport.summarizer.v1.TestRetrievalModelResponse
+	63, // [63:90] is the sub-list for method output_type
+	36, // [36:63] is the sub-list for method input_type
+	36, // [36:36] is the sub-list for extension type_name
+	36, // [36:36] is the sub-list for extension extendee
+	0,  // [0:36] is the sub-list for field type_name
 }
 
 func init() { file_teleport_summarizer_v1_summarizer_service_proto_init() }
@@ -2299,7 +4063,7 @@ func file_teleport_summarizer_v1_summarizer_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc), len(file_teleport_summarizer_v1_summarizer_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   42,
+			NumMessages:   54,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

@@ -26,10 +26,13 @@ import (
 	"errors"
 	"net"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/go-jose/go-jose/v3/jwt"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
@@ -38,13 +41,19 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	libboundkeypair "github.com/gravitational/teleport/lib/auth/join/boundkeypair"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -67,15 +76,20 @@ func parseJoinState(t *testing.T, state []byte) *boundkeypair.JoinState {
 	return &doc
 }
 
-func newTestTLSServer(t *testing.T, clock clockwork.Clock) *authtest.TLSServer {
+func newTestTLSServer(t *testing.T, clock clockwork.Clock, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
+	return newTestTLSServerWithScopesFeatures(t, clock, scopes.Features{}, opts...)
+}
+
+func newTestTLSServerWithScopesFeatures(t *testing.T, clock clockwork.Clock, scopesFeatures scopes.Features, opts ...authtest.TestTLSServerOption) *authtest.TLSServer {
 	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:   t.TempDir(),
-		Clock: clock,
+		Dir:            t.TempDir(),
+		Clock:          clock,
+		ScopesFeatures: scopesFeatures,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, as.Close()) })
 
-	srv, err := as.NewTestTLSServer()
+	srv, err := as.NewTestTLSServer(opts...)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		err := srv.Close()
@@ -85,6 +99,174 @@ func newTestTLSServer(t *testing.T, clock clockwork.Clock) *authtest.TLSServer {
 		require.NoError(t, err)
 	})
 	return srv
+}
+
+type mockBoundKeypairState struct {
+	getSigner                func(pubKey []byte) (crypto.Signer, error)
+	requestNewKeypair        func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error)
+	getClientParams          func(registrationSecret string) *libboundkeypair.ClientParams
+	store                    func(ctx context.Context) error
+	updateFromRegisterResult func(boundPublicKey []byte, joinState []byte) error
+
+	signers map[string]crypto.Signer
+
+	rotationCount  atomic.Uint32
+	challengeCount atomic.Uint32
+
+	// single enables single signing mode, otherwise assumes one signing key per
+	// challenge
+	single       bool
+	signingKeys  []string
+	rotationKeys []string
+	solutionKeys []string
+
+	mu                sync.Mutex
+	boundPublicKey    []byte
+	previousJoinState []byte
+}
+
+func (m *mockBoundKeypairState) GetSigner(pubKey []byte) (crypto.Signer, error) {
+	challengeNum := m.challengeCount.Add(1)
+
+	if m.getSigner != nil {
+		return m.getSigner(pubKey)
+	}
+
+	if m.single && len(m.signingKeys) == 0 {
+		return nil, trace.Errorf("single signing mode but no signers found")
+	} else if m.single {
+		signerPubKey := m.signingKeys[0]
+		m.solutionKeys = append(m.solutionKeys, signerPubKey)
+		return m.signers[signerPubKey], nil
+	}
+
+	// the default impl will return signers in order from s.signingKeys, these
+	// may not match pubKey requested but that will test signatures
+	// using an incorrect key.
+	if int(challengeNum) > len(m.signingKeys) {
+		return nil, trace.Errorf("unable to sign (solver has %d signing keys, %d challenges requested)", len(m.signingKeys), challengeNum)
+	}
+
+	signerPubKey := m.signingKeys[challengeNum-1]
+	signer, ok := m.signers[signerPubKey]
+	if !ok {
+		return nil, trace.NotFound("key not found: %s", signerPubKey)
+	}
+
+	m.solutionKeys = append(m.solutionKeys, signerPubKey)
+	return signer, nil
+}
+
+func (m *mockBoundKeypairState) RequestNewKeypair(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
+	count := m.rotationCount.Add(1)
+
+	if m.requestNewKeypair != nil {
+		return m.requestNewKeypair(ctx, getSuite)
+	}
+
+	// requestNewKeypair will return signers in order from
+	// s.rotationKeys.
+	if int(count) > len(m.rotationKeys) {
+		return nil, trace.BadParameter("can't generate key")
+	}
+
+	nextPubKey := m.rotationKeys[count-1]
+	signer, ok := m.signers[nextPubKey]
+	if !ok {
+		return nil, trace.NotFound("signer for rotatedPubKey not found")
+	}
+
+	return signer, nil
+}
+
+func (m *mockBoundKeypairState) GetClientParams(registrationSecret string) *libboundkeypair.ClientParams {
+	if m.getClientParams != nil {
+		return m.getClientParams(registrationSecret)
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	joinState := append([]byte(nil), m.previousJoinState...)
+	if len(joinState) > 0 {
+		registrationSecret = ""
+	}
+
+	return &libboundkeypair.ClientParams{
+		RegistrationSecret: registrationSecret,
+		PreviousJoinState:  joinState,
+	}
+}
+
+func (m *mockBoundKeypairState) Store(ctx context.Context) error {
+	if m.store != nil {
+		return m.store(ctx)
+	}
+
+	// mock impl; nothing to do
+	return nil
+}
+
+func (m *mockBoundKeypairState) UpdateFromRegisterResult(boundPublicKey []byte, joinState []byte) error {
+	if m.updateFromRegisterResult != nil {
+		return m.updateFromRegisterResult(boundPublicKey, joinState)
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.boundPublicKey = boundPublicKey
+	m.previousJoinState = joinState
+
+	return nil
+}
+
+func withSigningKeys(pubKeys ...string) func(m *mockBoundKeypairState) {
+	return func(m *mockBoundKeypairState) {
+		m.signingKeys = pubKeys
+	}
+}
+
+func withSingleSigningKey(pubKey string) func(m *mockBoundKeypairState) {
+	return func(m *mockBoundKeypairState) {
+		m.single = true
+		m.signingKeys = []string{pubKey}
+	}
+}
+
+func withRotationKeys(pubKeys ...string) func(m *mockBoundKeypairState) {
+	return func(m *mockBoundKeypairState) {
+		m.rotationKeys = pubKeys
+	}
+}
+
+func withPreviousJoinState(data []byte) func(m *mockBoundKeypairState) {
+	return func(m *mockBoundKeypairState) {
+		m.mu.Lock()
+		defer m.mu.Unlock()
+
+		m.previousJoinState = data
+	}
+}
+
+func withNoRotation() func(m *mockBoundKeypairState) {
+	return func(m *mockBoundKeypairState) {
+		m.requestNewKeypair = func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
+			return nil, trace.Errorf("no rotation expected")
+		}
+	}
+}
+
+func makeMockBoundKeypairState(signers map[string]crypto.Signer, mutators ...func(*mockBoundKeypairState)) *mockBoundKeypairState {
+	m := &mockBoundKeypairState{
+		signers: signers,
+	}
+
+	for _, mut := range mutators {
+		mut(m)
+	}
+
+	return m
 }
 
 func TestJoinBoundKeypair(t *testing.T) {
@@ -163,12 +345,23 @@ func TestJoinBoundKeypair(t *testing.T) {
 		return token
 	}
 
-	withRecovery := func(mode string, count, limit uint32, botInstanceID string) func(*types.ProvisionTokenV2) {
+	withRecovery := func(mode string, count, limit uint32) func(*types.ProvisionTokenV2) {
 		return func(v2 *types.ProvisionTokenV2) {
 			v2.Spec.BoundKeypair.Recovery.Mode = mode
 			v2.Spec.BoundKeypair.Recovery.Limit = limit
 			v2.Status.BoundKeypair.RecoveryCount = count
+		}
+	}
+
+	withBoundBotInstance := func(botInstanceID string) func(*types.ProvisionTokenV2) {
+		return func(v2 *types.ProvisionTokenV2) {
 			v2.Status.BoundKeypair.BoundBotInstanceID = botInstanceID
+		}
+	}
+
+	withBoundHostID := func(hostID string) func(*types.ProvisionTokenV2) {
+		return func(v2 *types.ProvisionTokenV2) {
+			v2.Status.BoundKeypair.BoundHostID = hostID
 		}
 	}
 
@@ -184,7 +377,14 @@ func TestJoinBoundKeypair(t *testing.T) {
 		}
 	}
 
-	makeJoinState := func(signer crypto.Signer, mutators ...func(s *boundkeypair.JoinStateParams)) string {
+	withNodeParams := func() func(*types.ProvisionTokenV2) {
+		return func(v2 *types.ProvisionTokenV2) {
+			v2.Spec.Roles = []types.SystemRole{types.RoleNode}
+			v2.Spec.BotName = ""
+		}
+	}
+
+	makeJoinState := func(signer crypto.Signer, mutators ...func(s *boundkeypair.JoinStateParams)) []byte {
 		params := &boundkeypair.JoinStateParams{
 			Clock:       srv.Clock(),
 			ClusterName: srv.ClusterName(),
@@ -197,79 +397,13 @@ func TestJoinBoundKeypair(t *testing.T) {
 		state, err := boundkeypair.IssueJoinState(signer, params)
 		require.NoError(t, err)
 
-		return state
+		return []byte(state)
 	}
 
 	withToken := func(mutators ...func(v2 *types.ProvisionTokenV2)) func(*boundkeypair.JoinStateParams) {
 		return func(jsp *boundkeypair.JoinStateParams) {
 			token := makeToken(mutators...)
 			jsp.Token = &token
-		}
-	}
-
-	type solver struct {
-		signingKeys  []string
-		rotationKeys []string
-
-		rotationCount  int
-		challengeCount int
-		solutionKeys   []string
-
-		getSigner         joinclient.GetSignerFunc
-		requestNewKeypair joinclient.KeygenFunc
-	}
-
-	makeSolver := func(mutators ...func(s *solver)) *solver {
-		s := &solver{}
-		for _, mutator := range mutators {
-			mutator(s)
-		}
-
-		s.getSigner = func(pubKey string) (crypto.Signer, error) {
-			// getSigner will return signers in order from s.signingKeys, these
-			// may not match pubKey requested but that will test signatures
-			// using an incorrect key.
-			s.challengeCount++
-			challengeNum := s.challengeCount
-			if s.challengeCount > len(s.signingKeys) {
-				return nil, trace.Errorf("unabled to sign (solver has %d signing keys, %d challenges requested)", len(s.signingKeys), challengeNum)
-			}
-			signerPubKey := s.signingKeys[challengeNum-1]
-			signer, ok := signers[signerPubKey]
-			if !ok {
-				return nil, trace.NotFound("key not found: %s", signerPubKey)
-			}
-			s.solutionKeys = append(s.solutionKeys, signerPubKey)
-			return signer, nil
-		}
-
-		s.requestNewKeypair = func(_ context.Context, _ cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-			// requestNewKeypair will return signers in order from
-			// s.rotationKeys.
-			s.rotationCount++
-			if s.rotationCount > len(s.rotationKeys) {
-				return nil, trace.BadParameter("can't generate key")
-			}
-			nextPubKey := s.rotationKeys[s.rotationCount-1]
-			signer, ok := signers[nextPubKey]
-			if !ok {
-				return nil, trace.NotFound("signer for rotatedPubKey not found")
-			}
-			return signer, nil
-		}
-
-		return s
-	}
-
-	withSigningKeys := func(pubKeys ...string) func(s *solver) {
-		return func(s *solver) {
-			s.signingKeys = pubKeys
-		}
-	}
-
-	withRotationKeys := func(pubKeys ...string) func(s *solver) {
-		return func(s *solver) {
-			s.rotationKeys = pubKeys
 		}
 	}
 
@@ -286,20 +420,20 @@ func TestJoinBoundKeypair(t *testing.T) {
 
 		token             types.ProvisionTokenV2
 		initialJoinSecret string
-		previousJoinState string
-		solver            *solver
+		state             *mockBoundKeypairState
+		joinAsInstance    bool
 
 		assertError       require.ErrorAssertionFunc
 		assertResponse    func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult)
-		assertSolverState func(t *testing.T, s *solver)
+		assertSolverState func(t *testing.T, s *mockBoundKeypairState)
 	}{
 		{
 			// an initial key but no bound key, and no bound bot instance. aka,
 			// initial join with preregistered key
 			name: "initial-join-success",
 
-			token:  makeToken(withInitialKey(correctPublicKey)),
-			solver: makeSolver(withSigningKeys(correctPublicKey)),
+			token: makeToken(withInitialKey(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey)),
 
 			assertError: require.NoError,
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *joinclient.BoundKeypairResult) {
@@ -314,8 +448,8 @@ func TestJoinBoundKeypair(t *testing.T) {
 			// secret
 			name: "initial-join-with-wrong-key",
 
-			token:  makeToken(withInitialKey(correctPublicKey)),
-			solver: makeSolver(withSigningKeys(incorrectPublicKey)),
+			token: makeToken(withInitialKey(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(incorrectPublicKey)),
 
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err)
@@ -330,7 +464,7 @@ func TestJoinBoundKeypair(t *testing.T) {
 			token: makeToken(withBoundKey(correctPublicKey), func(v2 *types.ProvisionTokenV2) {
 				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
 			}),
-			solver: makeSolver(withSigningKeys(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey)),
 
 			assertError: require.NoError,
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *joinclient.BoundKeypairResult) {
@@ -346,8 +480,8 @@ func TestJoinBoundKeypair(t *testing.T) {
 			// This should fail and prompt the user to recreate the token.
 			name: "bound-key-no-instance",
 
-			token:  makeToken(withBoundKey(correctPublicKey)),
-			solver: makeSolver(withSigningKeys(correctPublicKey)),
+			token: makeToken(withBoundKey(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey)),
 
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err)
@@ -356,8 +490,8 @@ func TestJoinBoundKeypair(t *testing.T) {
 		},
 		{
 			name:        "standard-initial-recovery-success",
-			token:       makeToken(withRecovery("standard", 0, 1, ""), withInitialKey(correctPublicKey)),
-			solver:      makeSolver(withSigningKeys(correctPublicKey)),
+			token:       makeToken(withRecovery("standard", 0, 1), withInitialKey(correctPublicKey)),
+			state:       makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey)),
 			assertError: require.NoError,
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
 				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
@@ -367,11 +501,18 @@ func TestJoinBoundKeypair(t *testing.T) {
 			},
 		},
 		{
-			name:              "standard-success-second-recovery",
-			token:             makeToken(withRecovery("standard", 1, 2, "id"), withInitialKey(correctPublicKey)),
-			previousJoinState: makeJoinState(jwtSigner, withToken(withRecovery("standard", 1, 2, "id"))),
-			solver:            makeSolver(withSigningKeys(correctPublicKey)),
-			assertError:       require.NoError,
+			name: "standard-success-second-recovery",
+			token: makeToken(
+				withRecovery("standard", 1, 2),
+				withBoundBotInstance("id"),
+				withInitialKey(correctPublicKey),
+			),
+			state: makeMockBoundKeypairState(signers,
+				withSigningKeys(correctPublicKey),
+				withPreviousJoinState(makeJoinState(jwtSigner,
+					withToken(withRecovery("standard", 1, 2), withBoundBotInstance("id")))),
+			),
+			assertError: require.NoError,
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
 				require.Equal(t, uint32(2), v2.Status.BoundKeypair.RecoveryCount)
 				require.NotNil(t, res)
@@ -380,76 +521,94 @@ func TestJoinBoundKeypair(t *testing.T) {
 			},
 		},
 		{
-			name:   "standard-failure-missing-join-state",
-			token:  makeToken(withRecovery("standard", 1, 2, "id"), withBoundKey(correctPublicKey)),
-			solver: makeSolver(withSigningKeys(correctPublicKey)),
+			name:  "standard-failure-missing-join-state",
+			token: makeToken(withRecovery("standard", 1, 2), withBoundBotInstance("id"), withBoundKey(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey)),
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
 		{
-			name:              "standard-failure-limit-exhausted",
-			token:             makeToken(withRecovery("standard", 2, 2, "id")),
-			previousJoinState: makeJoinState(jwtSigner, withToken(withRecovery("standard", 2, 2, "id"))),
-			solver:            makeSolver(withSigningKeys(correctPublicKey)),
+			name:  "standard-failure-limit-exhausted",
+			token: makeToken(withRecovery("standard", 2, 2), withBoundBotInstance("id")),
+			state: makeMockBoundKeypairState(signers,
+				withSigningKeys(correctPublicKey),
+				withPreviousJoinState(makeJoinState(jwtSigner, withToken(
+					withRecovery("standard", 2, 2), withBoundBotInstance("id")))),
+			),
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "no recovery attempts remaining")
 			},
 		},
 		{
 			// Attempts to join with an outdated join state document should fail.
-			name:              "standard-failure-recovery-count-mismatch",
-			token:             makeToken(withRecovery("standard", 2, 3, "id"), withBoundKey(correctPublicKey)),
-			previousJoinState: makeJoinState(jwtSigner, withToken(withRecovery("standard", 1, 3, "id"))),
-			solver:            makeSolver(withSigningKeys(correctPublicKey)),
+			name:  "standard-failure-recovery-count-mismatch",
+			token: makeToken(withRecovery("standard", 2, 3), withBoundBotInstance("id"), withBoundKey(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers,
+				withSigningKeys(correctPublicKey),
+				withPreviousJoinState(makeJoinState(jwtSigner, withToken(
+					withRecovery("standard", 1, 3), withBoundBotInstance("id")))),
+			),
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
 		{
-			name:              "standard-failure-invalid-jwt",
-			token:             makeToken(withRecovery("standard", 1, 2, "id"), withBoundKey(correctPublicKey)),
-			previousJoinState: "asdf",
-			solver:            makeSolver(withSigningKeys(correctPublicKey)),
+			name:  "standard-failure-invalid-jwt",
+			token: makeToken(withRecovery("standard", 1, 2), withBoundBotInstance("id"), withBoundKey(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey), withPreviousJoinState([]byte("asdf"))),
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
 		{
-			name:              "standard-failure-invalid-jwt-signature",
-			token:             makeToken(withRecovery("standard", 1, 2, "id"), withBoundKey(correctPublicKey)),
-			previousJoinState: makeJoinState(invalidJWTSigner, withToken(withRecovery("standard", 1, 2, "id"))),
-			solver:            makeSolver(withSigningKeys(correctPublicKey)),
+			name:  "standard-failure-invalid-jwt-signature",
+			token: makeToken(withRecovery("standard", 1, 2), withBoundBotInstance("id"), withBoundKey(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers,
+				withSigningKeys(correctPublicKey),
+				withPreviousJoinState(makeJoinState(invalidJWTSigner, withToken(
+					withRecovery("standard", 1, 2), withBoundBotInstance("id")))),
+			),
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
 		{
-			name:              "standard-failure-invalid-instance-id",
-			token:             makeToken(withRecovery("standard", 1, 2, "foo"), withBoundKey(correctPublicKey)),
-			previousJoinState: makeJoinState(jwtSigner, withToken(withRecovery("standard", 1, 2, "id"))),
-			solver:            makeSolver(withSigningKeys(correctPublicKey)),
+			name:  "standard-failure-invalid-instance-id",
+			token: makeToken(withRecovery("standard", 1, 2), withBoundBotInstance("foo"), withBoundKey(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers,
+				withSigningKeys(correctPublicKey),
+				withPreviousJoinState(makeJoinState(jwtSigner, withToken(
+					withRecovery("standard", 1, 2), withBoundBotInstance("id")))),
+			),
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
 		{
 			name:  "standard-failure-invalid-cluster",
-			token: makeToken(withRecovery("standard", 1, 2, "foo"), withBoundKey(correctPublicKey)),
-			previousJoinState: makeJoinState(jwtSigner, withToken(withRecovery("standard", 1, 2, "id")), func(s *boundkeypair.JoinStateParams) {
-				s.ClusterName = "wrong-cluster"
-			}),
-			solver: makeSolver(withSigningKeys(correctPublicKey)),
+			token: makeToken(withRecovery("standard", 1, 2), withBoundBotInstance("foo"), withBoundKey(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers,
+				withSigningKeys(correctPublicKey),
+				withPreviousJoinState(makeJoinState(jwtSigner,
+					withToken(withRecovery("standard", 1, 2), withBoundBotInstance("id")),
+					func(s *boundkeypair.JoinStateParams) {
+						s.ClusterName = "wrong-cluster"
+					})),
+			),
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
 		{
-			name:              "relaxed-success-count-over-limit",
-			token:             makeToken(withRecovery("relaxed", 1, 0, "id"), withBoundKey(correctPublicKey)),
-			previousJoinState: makeJoinState(jwtSigner, withToken(withRecovery("relaxed", 1, 0, "id"))),
-			solver:            makeSolver(withSigningKeys(correctPublicKey)),
-			assertError:       require.NoError,
+			name:  "relaxed-success-count-over-limit",
+			token: makeToken(withRecovery("relaxed", 1, 0), withBoundBotInstance("id"), withBoundKey(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers,
+				withSigningKeys(correctPublicKey),
+				withPreviousJoinState(makeJoinState(jwtSigner,
+					withToken(withRecovery("relaxed", 1, 0), withBoundBotInstance("id")))),
+			),
+			assertError: require.NoError,
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
 				require.Equal(t, uint32(2), v2.Status.BoundKeypair.RecoveryCount)
 
@@ -471,16 +630,16 @@ func TestJoinBoundKeypair(t *testing.T) {
 				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
 				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
 			}),
-			solver: makeSolver(withSigningKeys(correctPublicKey, rotatedPublicKey), withRotationKeys(rotatedPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey, rotatedPublicKey), withRotationKeys(rotatedPublicKey)),
 
 			assertError: require.NoError,
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
 				require.Equal(t, rotatedPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
 				require.Equal(t, rotatedPublicKey, res.BoundPublicKey)
 			},
-			assertSolverState: func(t *testing.T, s *solver) {
-				require.EqualValues(t, 2, s.challengeCount)
-				require.EqualValues(t, 1, s.rotationCount)
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 2, s.challengeCount.Load())
+				require.EqualValues(t, 1, s.rotationCount.Load())
 				require.Equal(t, []string{correctPublicKey, rotatedPublicKey}, s.solutionKeys)
 			},
 		},
@@ -495,16 +654,16 @@ func TestJoinBoundKeypair(t *testing.T) {
 				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
 				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
 			}),
-			solver: makeSolver(withSigningKeys(correctPublicKey), withRotationKeys(rotatedPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey), withRotationKeys(rotatedPublicKey)),
 
 			assertError: require.NoError,
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
 				require.Equal(t, correctPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
 				require.Equal(t, correctPublicKey, res.BoundPublicKey)
 			},
-			assertSolverState: func(t *testing.T, s *solver) {
-				require.EqualValues(t, 1, s.challengeCount)
-				require.EqualValues(t, 0, s.rotationCount)
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 1, s.challengeCount.Load())
+				require.EqualValues(t, 0, s.rotationCount.Load())
 				require.Equal(t, []string{correctPublicKey}, s.solutionKeys)
 			},
 		},
@@ -521,16 +680,16 @@ func TestJoinBoundKeypair(t *testing.T) {
 				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
 				v2.Status.BoundKeypair.LastRotatedAt = &startTime
 			}),
-			solver: makeSolver(withSigningKeys(correctPublicKey, rotatedPublicKey), withRotationKeys(rotatedPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey, rotatedPublicKey), withRotationKeys(rotatedPublicKey)),
 
 			assertError: require.NoError,
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
 				require.Equal(t, rotatedPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
 				require.Equal(t, rotatedPublicKey, res.BoundPublicKey)
 			},
-			assertSolverState: func(t *testing.T, s *solver) {
-				require.EqualValues(t, 2, s.challengeCount)
-				require.EqualValues(t, 1, s.rotationCount)
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 2, s.challengeCount.Load())
+				require.EqualValues(t, 1, s.rotationCount.Load())
 				require.Equal(t, []string{correctPublicKey, rotatedPublicKey}, s.solutionKeys)
 			},
 		},
@@ -548,16 +707,16 @@ func TestJoinBoundKeypair(t *testing.T) {
 				rotatedAt := startTime.Add(10 * time.Minute)
 				v2.Status.BoundKeypair.LastRotatedAt = &rotatedAt
 			}),
-			solver: makeSolver(withSigningKeys(correctPublicKey), withRotationKeys(rotatedPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey), withRotationKeys(rotatedPublicKey)),
 
 			assertError: require.NoError,
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
 				require.Equal(t, correctPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
 				require.Equal(t, correctPublicKey, res.BoundPublicKey)
 			},
-			assertSolverState: func(t *testing.T, s *solver) {
-				require.EqualValues(t, 1, s.challengeCount)
-				require.EqualValues(t, 0, s.rotationCount)
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 1, s.challengeCount.Load())
+				require.EqualValues(t, 0, s.rotationCount.Load())
 				require.Equal(t, []string{correctPublicKey}, s.solutionKeys)
 			},
 		},
@@ -572,14 +731,14 @@ func TestJoinBoundKeypair(t *testing.T) {
 				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
 				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
 			}),
-			solver: makeSolver(withSigningKeys(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey)),
 
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "requesting new keypair")
 			},
-			assertSolverState: func(t *testing.T, s *solver) {
-				require.EqualValues(t, 1, s.challengeCount)
-				require.EqualValues(t, 1, s.rotationCount)
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 1, s.challengeCount.Load())
+				require.EqualValues(t, 1, s.rotationCount.Load())
 				require.Equal(t, []string{correctPublicKey}, s.solutionKeys)
 			},
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
@@ -596,14 +755,14 @@ func TestJoinBoundKeypair(t *testing.T) {
 				v2.Status.BoundKeypair.BoundPublicKey = correctPublicKey
 				v2.Status.BoundKeypair.BoundBotInstanceID = "asdf"
 			}),
-			solver: makeSolver(withSigningKeys(correctPublicKey, correctPublicKey), withRotationKeys(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey, correctPublicKey), withRotationKeys(correctPublicKey)),
 
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "public key may not be reused after rotation")
 			},
-			assertSolverState: func(t *testing.T, s *solver) {
-				require.EqualValues(t, 2, s.challengeCount)
-				require.EqualValues(t, 1, s.rotationCount)
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 2, s.challengeCount.Load())
+				require.EqualValues(t, 1, s.rotationCount.Load())
 
 				// note: the client does complete the challenge for the
 				// duplicate key, but the attempt will ultimately be rejected
@@ -622,12 +781,12 @@ func TestJoinBoundKeypair(t *testing.T) {
 				v2.Spec.BoundKeypair.Onboarding.RegistrationSecret = "secret"
 			}),
 			initialJoinSecret: "secret",
-			solver:            makeSolver(withSigningKeys(correctPublicKey), withRotationKeys(correctPublicKey)),
+			state:             makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey), withRotationKeys(correctPublicKey)),
 
 			assertError: require.NoError,
-			assertSolverState: func(t *testing.T, s *solver) {
-				require.EqualValues(t, 1, s.challengeCount)
-				require.EqualValues(t, 1, s.rotationCount)
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 1, s.challengeCount.Load())
+				require.EqualValues(t, 1, s.rotationCount.Load())
 
 				// we'll only be asked for one challenge
 				require.Equal(t, []string{correctPublicKey}, s.solutionKeys)
@@ -644,14 +803,14 @@ func TestJoinBoundKeypair(t *testing.T) {
 				v2.Spec.BoundKeypair.Onboarding.RegistrationSecret = "secret"
 			}),
 			initialJoinSecret: "asdf",
-			solver:            makeSolver(),
+			state:             makeMockBoundKeypairState(signers),
 
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "a valid registration secret is required")
 			},
-			assertSolverState: func(t *testing.T, s *solver) {
-				require.EqualValues(t, 0, s.challengeCount)
-				require.EqualValues(t, 0, s.rotationCount)
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 0, s.challengeCount.Load())
+				require.EqualValues(t, 0, s.rotationCount.Load())
 				require.Empty(t, s.solutionKeys)
 			},
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
@@ -670,14 +829,14 @@ func TestJoinBoundKeypair(t *testing.T) {
 				v2.Spec.BoundKeypair.Onboarding.RegistrationSecret = ""
 			}),
 			initialJoinSecret: "asdf",
-			solver:            makeSolver(),
+			state:             makeMockBoundKeypairState(signers),
 
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "a valid registration secret is required")
 			},
-			assertSolverState: func(t *testing.T, s *solver) {
-				require.EqualValues(t, 0, s.challengeCount)
-				require.EqualValues(t, 0, s.rotationCount)
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 0, s.challengeCount.Load())
+				require.EqualValues(t, 0, s.rotationCount.Load())
 				require.Empty(t, s.solutionKeys)
 			},
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
@@ -694,14 +853,14 @@ func TestJoinBoundKeypair(t *testing.T) {
 				v2.Spec.BoundKeypair.Onboarding.InitialPublicKey = correctPublicKey
 			}),
 			initialJoinSecret: "asdf",
-			solver:            makeSolver(withSigningKeys(rotatedPublicKey), withRotationKeys(rotatedPublicKey)),
+			state:             makeMockBoundKeypairState(signers, withSigningKeys(rotatedPublicKey), withRotationKeys(rotatedPublicKey)),
 
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "failed to complete challenge")
 			},
-			assertSolverState: func(t *testing.T, s *solver) {
-				require.EqualValues(t, 1, s.challengeCount)
-				require.EqualValues(t, 0, s.rotationCount)
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 1, s.challengeCount.Load())
+				require.EqualValues(t, 0, s.rotationCount.Load())
 				require.Equal(t, []string{rotatedPublicKey}, s.solutionKeys)
 			},
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
@@ -717,19 +876,130 @@ func TestJoinBoundKeypair(t *testing.T) {
 				v2.Spec.BoundKeypair.Onboarding.MustRegisterBefore = &startTime
 			}),
 			initialJoinSecret: "secret",
-			solver:            makeSolver(),
+			state:             makeMockBoundKeypairState(signers),
 
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.ErrorContains(tt, err, "a valid registration secret is required")
 			},
-			assertSolverState: func(t *testing.T, s *solver) {
-				require.EqualValues(t, 0, s.challengeCount)
-				require.EqualValues(t, 0, s.rotationCount)
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 0, s.challengeCount.Load())
+				require.EqualValues(t, 0, s.rotationCount.Load())
 				require.Empty(t, s.solutionKeys)
 			},
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
 				require.Empty(t, v2.Status.BoundKeypair.BoundPublicKey)
 				require.Nil(t, res)
+			},
+		},
+		{
+			name:           "registration-success-node",
+			joinAsInstance: true,
+			token: makeToken(withNodeParams(), func(v2 *types.ProvisionTokenV2) {
+				v2.Spec.BoundKeypair.Onboarding.InitialPublicKey = ""
+				v2.Spec.BoundKeypair.Onboarding.RegistrationSecret = "secret"
+			}),
+			initialJoinSecret: "secret",
+			state:             makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey), withRotationKeys(correctPublicKey)),
+
+			assertError: require.NoError,
+			assertSolverState: func(t *testing.T, s *mockBoundKeypairState) {
+				require.EqualValues(t, 1, s.challengeCount.Load())
+				require.EqualValues(t, 1, s.rotationCount.Load())
+
+				// we'll only be asked for one challenge
+				require.Equal(t, []string{correctPublicKey}, s.solutionKeys)
+			},
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult) {
+				require.Empty(t, v2.Status.BoundKeypair.BoundBotInstanceID)
+				require.NotEmpty(t, v2.Status.BoundKeypair.BoundHostID)
+				require.Equal(t, correctPublicKey, v2.Status.BoundKeypair.BoundPublicKey)
+				require.Equal(t, correctPublicKey, res.BoundPublicKey)
+			},
+		},
+		{
+			// bound key but no valid incoming bot instance, i.e. the certs
+			// expired and triggered a hard rejoin
+			name:           "recovery-success-node",
+			joinAsInstance: true,
+			token:          makeToken(withNodeParams(), withBoundKey(correctPublicKey), withBoundHostID("asdf")),
+			state:          makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey)),
+
+			assertError: require.NoError,
+			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *joinclient.BoundKeypairResult) {
+				require.Equal(t, uint32(1), v2.Status.BoundKeypair.RecoveryCount)
+
+				// Should generate a new host ID (and no bot instance ID)
+				require.Empty(t, v2.Status.BoundKeypair.BoundBotInstanceID)
+				require.NotEmpty(t, v2.Status.BoundKeypair.BoundHostID)
+				require.NotEqual(t, "asdf", v2.Status.BoundKeypair.BoundHostID)
+			},
+		},
+		{
+			name:           "recovery-failure-node-limit-exhausted",
+			joinAsInstance: true,
+			token: makeToken(
+				withNodeParams(),
+				withRecovery("standard", 2, 2),
+				withBoundHostID("id"),
+				withBoundKey(correctPublicKey),
+			),
+			state: makeMockBoundKeypairState(signers,
+				withSigningKeys(correctPublicKey),
+				withPreviousJoinState(makeJoinState(jwtSigner, withToken(
+					withRecovery("standard", 2, 2), withBoundHostID("id")))),
+			),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "no recovery attempts remaining")
+			},
+		},
+		{
+			name:           "recovery-failure-node-with-bound-bot-id",
+			joinAsInstance: true,
+			token: makeToken(
+				withNodeParams(),
+				withRecovery("standard", 2, 3),
+				withBoundBotInstance("id"),
+				withBoundKey(correctPublicKey),
+			),
+			state: makeMockBoundKeypairState(signers,
+				withSigningKeys(correctPublicKey),
+				withPreviousJoinState(makeJoinState(jwtSigner, withToken(
+					withRecovery("standard", 1, 3), withBoundBotInstance("id")))),
+			),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "cannot join with mismatched unique identifier")
+			},
+		},
+		{
+			name: "recovery-failure-bot-with-bound-node-id",
+			token: makeToken(
+				withBoundKey(correctPublicKey),
+				withRecovery("standard", 2, 3),
+				withBoundHostID("id"),
+			),
+			state: makeMockBoundKeypairState(signers,
+				withSigningKeys(correctPublicKey),
+				withPreviousJoinState(makeJoinState(jwtSigner, withToken(
+					withRecovery("standard", 2, 3), withBoundHostID("id")))),
+			),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "cannot join with mismatched unique identifier")
+			},
+		},
+		{
+			name: "recovery-failure-bot-with-host-id-in-join-state",
+			token: makeToken(
+				withBoundKey(correctPublicKey),
+				withRecovery("standard", 2, 3),
+				withBoundBotInstance("id"),
+			),
+			state: makeMockBoundKeypairState(signers,
+				withSigningKeys(correctPublicKey),
+				withPreviousJoinState(makeJoinState(jwtSigner, withToken(
+					withRecovery("standard", 2, 3), withBoundHostID("id")))),
+			),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorContains(tt, err, "join state verification failed")
 			},
 		},
 	}
@@ -746,18 +1016,19 @@ func TestJoinBoundKeypair(t *testing.T) {
 			// computed fields (i.e. registration secrets) are handled properly.
 			require.NoError(t, authServer.CreateBoundKeypairToken(ctx, token))
 
+			id := state.IdentityID{
+				Role: types.RoleBot,
+			}
+			if tt.joinAsInstance {
+				id.Role = types.RoleInstance
+			}
+
 			joinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-				Token: token.GetName(),
-				ID: state.IdentityID{
-					Role: types.RoleBot,
-				},
-				AuthClient: nopClient,
-				BoundKeypairParams: &joinclient.BoundKeypairParams{
-					RegistrationSecret: tt.initialJoinSecret,
-					PreviousJoinState:  []byte(tt.previousJoinState),
-					GetSigner:          tt.solver.getSigner,
-					RequestNewKeypair:  tt.solver.requestNewKeypair,
-				},
+				Token:                          token.GetName(),
+				ID:                             id,
+				AuthClient:                     nopClient,
+				BoundKeypairRegistrationSecret: tt.initialJoinSecret,
+				BoundKeypairState:              tt.state,
 			})
 			tt.assertError(t, err)
 
@@ -773,7 +1044,7 @@ func TestJoinBoundKeypair(t *testing.T) {
 			}
 
 			if tt.assertSolverState != nil {
-				tt.assertSolverState(t, tt.solver)
+				tt.assertSolverState(t, tt.state)
 			}
 		})
 	}
@@ -781,8 +1052,10 @@ func TestJoinBoundKeypair(t *testing.T) {
 	rejoinTests := []struct {
 		name string
 
-		mutateToken func(*types.ProvisionTokenV2)
-		solver      *solver
+		mutateToken        func(*types.ProvisionTokenV2)
+		mutateInitialToken func(*types.ProvisionTokenV2)
+		state              *mockBoundKeypairState
+		joinAsInstance     bool
 
 		assertError    require.ErrorAssertionFunc
 		assertResponse func(t *testing.T, v2 *types.ProvisionTokenV2, res *joinclient.BoundKeypairResult)
@@ -792,7 +1065,7 @@ func TestJoinBoundKeypair(t *testing.T) {
 			name: "reauth-success",
 
 			mutateToken: func(v2 *types.ProvisionTokenV2) {},
-			solver:      makeSolver(withSigningKeys(correctPublicKey)),
+			state:       makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey)),
 
 			assertError: require.NoError,
 			assertResponse: func(t *testing.T, v2 *types.ProvisionTokenV2, _ *joinclient.BoundKeypairResult) {
@@ -805,7 +1078,7 @@ func TestJoinBoundKeypair(t *testing.T) {
 			// (should be impossible, but should fail anyway)
 			name: "reauth-with-wrong-key",
 
-			solver: makeSolver(withSigningKeys(incorrectPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(incorrectPublicKey)),
 
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err)
@@ -820,31 +1093,61 @@ func TestJoinBoundKeypair(t *testing.T) {
 			mutateToken: func(v2 *types.ProvisionTokenV2) {
 				v2.Status.BoundKeypair.BoundBotInstanceID = "qwerty"
 			},
-			solver: makeSolver(withSigningKeys(correctPublicKey)),
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey)),
 
 			assertError: func(tt require.TestingT, err error, i ...any) {
 				require.Error(tt, err)
 				require.ErrorContains(tt, err, "bot instance mismatch")
 			},
 		},
+		{
+			name: "bot-with-bound-host-id",
+			mutateToken: func(v2 *types.ProvisionTokenV2) {
+				v2.Status.BoundKeypair.BoundHostID = "qwerty"
+			},
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey)),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err)
+				require.ErrorContains(tt, err, "cannot join with mismatched unique identifier")
+			},
+		},
+		{
+			name:               "node-with-bound-bot-instance-id",
+			joinAsInstance:     true,
+			mutateInitialToken: withNodeParams(),
+			mutateToken: func(v2 *types.ProvisionTokenV2) {
+				v2.Status.BoundKeypair.BoundBotInstanceID = "qwerty"
+			},
+			state: makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey)),
+			assertError: func(tt require.TestingT, err error, i ...any) {
+				require.Error(tt, err)
+				require.ErrorContains(tt, err, "cannot join with mismatched unique identifier")
+			},
+		},
 	}
 	for _, tt := range rejoinTests {
 		t.Run(tt.name, func(t *testing.T) {
 			token := makeToken(withInitialKey(correctPublicKey))
+			if tt.mutateInitialToken != nil {
+				tt.mutateInitialToken(&token)
+			}
+
 			token.SetName(tt.name)
-			initialSolver := makeSolver(withSigningKeys(correctPublicKey))
+			initialSolver := makeMockBoundKeypairState(signers, withSigningKeys(correctPublicKey))
 			require.NoError(t, authServer.CreateBoundKeypairToken(ctx, &token))
 
+			id := state.IdentityID{
+				Role: types.RoleBot,
+			}
+			if tt.joinAsInstance {
+				id.Role = types.RoleInstance
+			}
+
 			initialJoinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-				Token: token.GetName(),
-				ID: state.IdentityID{
-					Role: types.RoleBot,
-				},
-				AuthClient: nopClient,
-				BoundKeypairParams: &joinclient.BoundKeypairParams{
-					GetSigner:         initialSolver.getSigner,
-					RequestNewKeypair: initialSolver.requestNewKeypair,
-				},
+				Token:             token.GetName(),
+				ID:                id,
+				AuthClient:        nopClient,
+				BoundKeypairState: initialSolver,
 			})
 			require.NoError(t, err)
 			botClient, err := clientFromJoinResult(srv, initialJoinResult)
@@ -859,15 +1162,10 @@ func TestJoinBoundKeypair(t *testing.T) {
 			}
 
 			rejoinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
-				Token: token.GetName(),
-				ID: state.IdentityID{
-					Role: types.RoleBot,
-				},
-				AuthClient: botClient,
-				BoundKeypairParams: &joinclient.BoundKeypairParams{
-					GetSigner:         tt.solver.getSigner,
-					RequestNewKeypair: tt.solver.requestNewKeypair,
-				},
+				Token:             token.GetName(),
+				ID:                id,
+				AuthClient:        botClient,
+				BoundKeypairState: tt.state,
 			})
 			tt.assertError(t, err)
 
@@ -890,6 +1188,9 @@ func TestJoinBoundKeypair_GenerationCounter(t *testing.T) {
 	ctx := t.Context()
 
 	correctSigner, correctPublicKey := testBoundKeypair(t)
+	signers := map[string]crypto.Signer{
+		correctPublicKey: correctSigner,
+	}
 
 	clock := clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
 
@@ -941,20 +1242,18 @@ func TestJoinBoundKeypair_GenerationCounter(t *testing.T) {
 	nopClient, err := srv.NewClient(authtest.TestNop())
 	require.NoError(t, err)
 
+	clientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withNoRotation(),
+	)
+
 	joinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthClient: nopClient,
-		BoundKeypairParams: &joinclient.BoundKeypairParams{
-			GetSigner: func(pubKey string) (crypto.Signer, error) {
-				return correctSigner, nil
-			},
-			RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-				return nil, trace.Errorf("no rotation expected")
-			},
-		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
 	})
 	require.NoError(t, err)
 
@@ -972,15 +1271,10 @@ func TestJoinBoundKeypair_GenerationCounter(t *testing.T) {
 				Role: types.RoleBot,
 			},
 			AuthClient: botClient,
-			BoundKeypairParams: &joinclient.BoundKeypairParams{
-				PreviousJoinState: joinResult.BoundKeypair.JoinState,
-				GetSigner: func(pubKey string) (crypto.Signer, error) {
-					return correctSigner, nil
-				},
-				RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-					return nil, trace.Errorf("no rotation expected")
-				},
-			},
+
+			// Note: mock clientState handles join state updates internally in
+			// UpdateFromRegisterResult()
+			BoundKeypairState: clientState,
 		})
 		require.NoError(t, err)
 
@@ -997,16 +1291,8 @@ func TestJoinBoundKeypair_GenerationCounter(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthClient: nopClient,
-		BoundKeypairParams: &joinclient.BoundKeypairParams{
-			PreviousJoinState: joinResult.BoundKeypair.JoinState,
-			GetSigner: func(pubKey string) (crypto.Signer, error) {
-				return correctSigner, nil
-			},
-			RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-				return nil, trace.Errorf("no rotation expected")
-			},
-		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
 	})
 	require.NoError(t, err)
 
@@ -1028,16 +1314,8 @@ func TestJoinBoundKeypair_GenerationCounter(t *testing.T) {
 			ID: state.IdentityID{
 				Role: types.RoleBot,
 			},
-			AuthClient: botClient,
-			BoundKeypairParams: &joinclient.BoundKeypairParams{
-				PreviousJoinState: joinResult.BoundKeypair.JoinState,
-				GetSigner: func(pubKey string) (crypto.Signer, error) {
-					return correctSigner, nil
-				},
-				RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-					return nil, trace.Errorf("no rotation expected")
-				},
-			},
+			AuthClient:        botClient,
+			BoundKeypairState: clientState,
 		})
 		require.NoError(t, err)
 
@@ -1058,16 +1336,8 @@ func TestJoinBoundKeypair_GenerationCounter(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthClient: oldClient,
-		BoundKeypairParams: &joinclient.BoundKeypairParams{
-			PreviousJoinState: joinResult.BoundKeypair.JoinState,
-			GetSigner: func(pubKey string) (crypto.Signer, error) {
-				return correctSigner, nil
-			},
-			RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-				return nil, trace.Errorf("no rotation expected")
-			},
-		},
+		AuthClient:        oldClient,
+		BoundKeypairState: clientState,
 	})
 	require.Error(t, err)
 
@@ -1091,16 +1361,8 @@ func TestJoinBoundKeypair_GenerationCounter(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthClient: botClient,
-		BoundKeypairParams: &joinclient.BoundKeypairParams{
-			PreviousJoinState: joinResult.BoundKeypair.JoinState,
-			GetSigner: func(pubKey string) (crypto.Signer, error) {
-				return correctSigner, nil
-			},
-			RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-				return nil, trace.Errorf("no rotation expected")
-			},
-		},
+		AuthClient:        botClient,
+		BoundKeypairState: clientState,
 	})
 	require.ErrorContains(t, err, "have been locked due to a certificate generation mismatch")
 }
@@ -1113,6 +1375,9 @@ func TestJoinBoundKeypair_JoinStateFailure(t *testing.T) {
 	ctx := t.Context()
 
 	correctSigner, correctPublicKey := testBoundKeypair(t)
+	signers := map[string]crypto.Signer{
+		correctPublicKey: correctSigner,
+	}
 
 	clock := clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
 
@@ -1164,20 +1429,18 @@ func TestJoinBoundKeypair_JoinStateFailure(t *testing.T) {
 	nopClient, err := srv.NewClient(authtest.TestNop())
 	require.NoError(t, err)
 
+	clientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withNoRotation(),
+	)
+
 	originalJoinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthClient: nopClient,
-		BoundKeypairParams: &joinclient.BoundKeypairParams{
-			GetSigner: func(pubKey string) (crypto.Signer, error) {
-				return correctSigner, nil
-			},
-			RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-				return nil, trace.Errorf("no rotation expected")
-			},
-		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
 	})
 	require.NoError(t, err)
 
@@ -1188,15 +1451,9 @@ func TestJoinBoundKeypair_JoinStateFailure(t *testing.T) {
 			Role: types.RoleBot,
 		},
 		AuthClient: nopClient,
-		BoundKeypairParams: &joinclient.BoundKeypairParams{
-			PreviousJoinState: originalJoinResult.BoundKeypair.JoinState,
-			GetSigner: func(pubKey string) (crypto.Signer, error) {
-				return correctSigner, nil
-			},
-			RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-				return nil, trace.Errorf("no rotation expected")
-			},
-		},
+		// Note: the client state manages prev join state internally in
+		// UpdateFromRegisterResult().
+		BoundKeypairState: clientState,
 	})
 	require.NoError(t, err)
 
@@ -1208,21 +1465,18 @@ func TestJoinBoundKeypair_JoinStateFailure(t *testing.T) {
 	require.NoError(t, err)
 
 	// Try to recover again, but with the original join state.
+	outdatedClientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
+		withNoRotation(),
+	)
 	_, err = joinclient.Join(ctx, joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthClient: nopClient,
-		BoundKeypairParams: &joinclient.BoundKeypairParams{
-			PreviousJoinState: originalJoinResult.BoundKeypair.JoinState,
-			GetSigner: func(pubKey string) (crypto.Signer, error) {
-				return correctSigner, nil
-			},
-			RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-				return nil, trace.Errorf("no rotation expected")
-			},
-		},
+		AuthClient:        nopClient,
+		BoundKeypairState: outdatedClientState,
 	})
 	require.Error(t, err)
 
@@ -1245,21 +1499,18 @@ func TestJoinBoundKeypair_JoinStateFailure(t *testing.T) {
 	// etc the lock may or may not be in force, but we also need to be
 	// absolutely certain to try to generate at least 2 locking events.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		tempClientState := makeMockBoundKeypairState(signers,
+			withSingleSigningKey(correctPublicKey),
+			withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
+			withNoRotation(),
+		)
 		_, err = joinclient.Join(ctx, joinclient.JoinParams{
 			Token: token.GetName(),
 			ID: state.IdentityID{
 				Role: types.RoleBot,
 			},
-			AuthClient: nopClient,
-			BoundKeypairParams: &joinclient.BoundKeypairParams{
-				PreviousJoinState: originalJoinResult.BoundKeypair.JoinState,
-				GetSigner: func(pubKey string) (crypto.Signer, error) {
-					return correctSigner, nil
-				},
-				RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-					return nil, trace.Errorf("no rotation expected")
-				},
-			},
+			AuthClient:        nopClient,
+			BoundKeypairState: tempClientState,
 		})
 		require.ErrorContains(t, err, "a client failed to verify its join state")
 	}, 5*time.Second, 100*time.Millisecond)
@@ -1273,6 +1524,14 @@ func TestJoinBoundKeypair_JoinStateFailureDuringRenewal(t *testing.T) {
 	ctx := t.Context()
 
 	correctSigner, correctPublicKey := testBoundKeypair(t)
+	signers := map[string]crypto.Signer{
+		correctPublicKey: correctSigner,
+	}
+
+	clientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withNoRotation(),
+	)
 
 	clock := clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
 
@@ -1330,15 +1589,8 @@ func TestJoinBoundKeypair_JoinStateFailureDuringRenewal(t *testing.T) {
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthClient: nopClient,
-		BoundKeypairParams: &joinclient.BoundKeypairParams{
-			GetSigner: func(pubKey string) (crypto.Signer, error) {
-				return correctSigner, nil
-			},
-			RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-				return nil, trace.Errorf("no rotation expected")
-			},
-		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
 	})
 	require.NoError(t, err)
 	originalBotClient, err := clientFromJoinResult(srv, originalJoinResult)
@@ -1346,21 +1598,18 @@ func TestJoinBoundKeypair_JoinStateFailureDuringRenewal(t *testing.T) {
 
 	// Perform a recovery, this time with a join state, simulating an attacker
 	// that has copied the certs.
+	duplicateClientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
+		withNoRotation(),
+	)
 	attackerResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
 		Token: token.GetName(),
 		ID: state.IdentityID{
 			Role: types.RoleBot,
 		},
-		AuthClient: nopClient,
-		BoundKeypairParams: &joinclient.BoundKeypairParams{
-			PreviousJoinState: originalJoinResult.BoundKeypair.JoinState,
-			GetSigner: func(pubKey string) (crypto.Signer, error) {
-				return correctSigner, nil
-			},
-			RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-				return nil, trace.Errorf("no rotation expected")
-			},
-		},
+		AuthClient:        nopClient,
+		BoundKeypairState: duplicateClientState,
 	})
 	require.NoError(t, err)
 
@@ -1380,15 +1629,9 @@ func TestJoinBoundKeypair_JoinStateFailureDuringRenewal(t *testing.T) {
 			Role: types.RoleBot,
 		},
 		AuthClient: originalBotClient,
-		BoundKeypairParams: &joinclient.BoundKeypairParams{
-			PreviousJoinState: originalJoinResult.BoundKeypair.JoinState,
-			GetSigner: func(pubKey string) (crypto.Signer, error) {
-				return correctSigner, nil
-			},
-			RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-				return nil, trace.Errorf("no rotation expected")
-			},
-		},
+		// Note: the mock client state handles join state updates internally in
+		// UpdateFromRegisterResult()
+		BoundKeypairState: clientState,
 	})
 	require.Error(t, err)
 
@@ -1411,25 +1654,409 @@ func TestJoinBoundKeypair_JoinStateFailureDuringRenewal(t *testing.T) {
 	// propagation / etc the lock may or may not be in force, but we also need
 	// to be absolutely certain to try to generate at least 2 locking events.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		tempClientState := makeMockBoundKeypairState(signers,
+			withSingleSigningKey(correctPublicKey),
+			withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
+			withNoRotation(),
+		)
 		_, err = joinclient.Join(ctx, joinclient.JoinParams{
 			Token: token.GetName(),
 			ID: state.IdentityID{
 				Role: types.RoleBot,
 			},
-			AuthClient: originalBotClient,
-			BoundKeypairParams: &joinclient.BoundKeypairParams{
-				PreviousJoinState: originalJoinResult.BoundKeypair.JoinState,
-				GetSigner: func(pubKey string) (crypto.Signer, error) {
-					return correctSigner, nil
-				},
-				RequestNewKeypair: func(ctx context.Context, getSuite cryptosuites.GetSuiteFunc) (crypto.Signer, error) {
-					return nil, trace.Errorf("no rotation expected")
-				},
-			},
+			AuthClient:        originalBotClient,
+			BoundKeypairState: tempClientState,
 		})
 		require.Error(t, err)
 		require.ErrorContains(t, err, "a client failed to verify its join state")
 	}, 5*time.Second, 100*time.Millisecond)
+}
+
+// TestJoinBoundKeypair_JoinStateFailure_Instance tests that join state
+// verification will trigger a lock if the original client and a secondary
+// client both attempt to recover in sequence.
+func TestJoinBoundKeypair_JoinStateFailure_Instance(t *testing.T) {
+	ctx := t.Context()
+	correctSigner, correctPublicKey := testBoundKeypair(t)
+	signers := map[string]crypto.Signer{
+		correctPublicKey: correctSigner,
+	}
+
+	srv := newTestTLSServer(t, clockwork.NewRealClock())
+	defer srv.Close()
+	authServer := srv.Auth()
+
+	_, err := authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpecAndStatus(
+		"bound-keypair-test",
+		time.Now().Add(2*time.Hour),
+		types.ProvisionTokenSpecV2{
+			JoinMethod: types.JoinMethodBoundKeypair,
+			Roles:      []types.SystemRole{types.RoleInstance, types.RoleApp},
+			BoundKeypair: &types.ProvisionTokenSpecV2BoundKeypair{
+				Onboarding: &types.ProvisionTokenSpecV2BoundKeypair_OnboardingSpec{
+					InitialPublicKey: correctPublicKey,
+				},
+				Recovery: &types.ProvisionTokenSpecV2BoundKeypair_RecoverySpec{
+					Limit: 3,
+				},
+			},
+		},
+		&types.ProvisionTokenStatusV2{},
+	)
+	require.NoError(t, err)
+	require.NoError(t, authServer.CreateBoundKeypairToken(ctx, token))
+
+	// Make an unauthenticated auth client that will be used for joining.
+	nopClient, err := srv.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+	defer nopClient.Close()
+
+	clientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withNoRotation(),
+	)
+
+	originalJoinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	// Perform a recovery, this time with a join state.
+	recoverResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient: nopClient,
+		// Note: the client state manages prev join state internally in
+		// UpdateFromRegisterResult().
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	recoveredClient, err := clientFromJoinResult(srv, recoverResult)
+	require.NoError(t, err)
+	defer recoveredClient.Close()
+
+	// Try an API call with these certs.
+	_, err = recoveredClient.Ping(ctx)
+	require.NoError(t, err)
+
+	// Subscribe to events from the LockWatcher
+	lockSub, err := srv.AuthServer.LockWatcher.Subscribe(ctx, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	defer lockSub.Close()
+
+	// Try to recover again, but with the original join state.
+	outdatedClientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
+		withNoRotation(),
+	)
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: outdatedClientState,
+	})
+	require.Error(t, err)
+
+	// The token should now be locked - but only once.
+	locks, err := srv.Auth().GetLocks(ctx, true, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	require.Len(t, locks, 1, "only one lock should be generated")
+	require.Contains(t, locks[0].Message(), "failed to verify its join state")
+
+	// Wait for the LockWatcher to notify us about the new lock. Since this
+	// otherwise happens async, we need to wait explicitly, otherwise the lock
+	// may exist in the backend without being enforced.
+	select {
+	case event := <-lockSub.Events():
+		require.Equal(t, types.OpPut, event.Type)
+	case <-lockSub.Done():
+		t.Fatal("lock subscription closed unexpectedly")
+	case <-ctx.Done():
+		t.Fatal("timed out waiting for lock event")
+	}
+
+	// The previously working client should be locked.
+	_, err = recoveredClient.Ping(ctx)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "access denied")
+
+	// Try joining again with the same parameters to try to generate another
+	// lock - they should not be duplicated.
+	tempClientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withPreviousJoinState(originalJoinResult.BoundKeypair.JoinState),
+		withNoRotation(),
+	)
+	_, err = joinclient.Join(ctx, joinclient.JoinParams{
+		Token: token.GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleInstance,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: tempClientState,
+	})
+	require.ErrorContains(t, err, "a client failed to verify its join state")
+
+	// Check the lock count again - only one lock should be created.
+	locks, err = srv.Auth().GetLocks(ctx, true, types.LockTarget{
+		JoinToken: "bound-keypair-test",
+	})
+	require.NoError(t, err)
+	require.Len(t, locks, 1, "only one lock should be generated")
+	require.Contains(t, locks[0].Message(), "failed to verify its join state")
+}
+
+// createScopedBot creates a scoped bot with necessary role assignments for testing.
+func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authclient.Client) {
+	t.Helper()
+
+	// Create a scoped role for the bot.
+	scopedSvc := adminClient.ScopedAccessServiceClient()
+	_, err := scopedSvc.CreateScopedRole(t.Context(), &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "scoped-example",
+			},
+			Scope: "/test",
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{"/test"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create the scoped bot.
+	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Scope:   "/test",
+			Metadata: &headerv1.Metadata{
+				Name: "test-scoped",
+			},
+			Spec: &machineidv1pb.BotSpec{},
+		},
+	})
+	require.NoError(t, err)
+
+	// Create a scoped role assignment for the bot.
+	resp, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:    scopedaccess.KindScopedRoleAssignment,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: uuid.NewString(),
+			},
+			SubKind: scopedaccess.SubKindDynamic,
+			Scope:   "/test",
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  "test-scoped",
+				BotScope: "/test",
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: "scoped-example", Scope: "/test"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	ctx := t.Context()
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+			Name:    resp.GetAssignment().GetMetadata().GetName(),
+			SubKind: resp.GetAssignment().GetSubKind(),
+		})
+		require.NoError(t, err)
+	}, time.Second*10, 100*time.Millisecond)
+}
+
+func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+
+	correctSigner, correctPublicKey := testBoundKeypair(t)
+	signers := map[string]crypto.Signer{
+		correctPublicKey: correctSigner,
+	}
+
+	clock := clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC())
+
+	srv := newTestTLSServerWithScopesFeatures(t, clock, scopes.Features{Enabled: true})
+	authServer := srv.Auth()
+
+	_, err := authtest.CreateRole(ctx, authServer, "example", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "test",
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{"example"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	createScopedBot(t, srv, adminClient)
+
+	scopedToken := &joiningv1.ScopedToken{
+		Kind:    types.KindScopedToken,
+		Version: types.V1,
+		Scope:   "/test",
+		Metadata: &headerv1.Metadata{
+			Name: "example-token",
+		},
+		Spec: &joiningv1.ScopedTokenSpec{
+			JoinMethod: string(types.JoinMethodBoundKeypair),
+			Roles:      []string{string(types.RoleBot)},
+			UsageMode:  joining.TokenUsageModeBot,
+			BotName:    "test-scoped",
+			BotScope:   "/test",
+			BoundKeypair: &joiningv1.BoundKeypairSpec{
+				Onboarding: &joiningv1.BoundKeypairSpec_OnboardingSpec{
+					InitialPublicKey: correctPublicKey,
+				},
+				Recovery: &joiningv1.BoundKeypairSpec_RecoverySpec{
+					Limit: 2,
+				},
+			},
+		},
+	}
+
+	_, err = adminClient.CreateScopedToken(ctx, scopedToken)
+	require.NoError(t, err)
+
+	// Make an unauthenticated auth client that will be used for joining.
+	nopClient, err := srv.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+
+	clientState := makeMockBoundKeypairState(signers,
+		withSingleSigningKey(correctPublicKey),
+		withNoRotation(),
+	)
+
+	// Perform the first join.
+	joinResult, err := joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: scopedToken.GetMetadata().GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	firstInstance, generation := testExtractBotParamsFromCerts(t, joinResult.Certs)
+	require.Equal(t, uint64(1), generation)
+
+	// The BotInstance should have the scope set.
+	botInstance, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+		BotName:    "test-scoped",
+		InstanceId: firstInstance,
+	})
+	require.NoError(t, err)
+	require.Equal(t, "/test", botInstance.GetScope())
+
+	// Status should be updated.
+	token, err := adminClient.GetScopedToken(ctx, "example-token", false)
+	require.NoError(t, err)
+	require.Equal(t, firstInstance, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundBotInstanceId())
+	require.Equal(t, correctPublicKey, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundPublicKey())
+	require.NotEmpty(t, token.GetStatus().GetUsage().GetBoundKeypair().GetLastRecoveredAt())
+	require.Empty(t, token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret())
+	require.EqualValues(t, 1, token.GetStatus().GetUsage().GetBoundKeypair().GetRecoveryCount())
+
+	// Make a new client with the returned certs and try to rejoin normally.
+	botClient, err := clientFromJoinResult(srv, joinResult)
+	require.NoError(t, err)
+
+	joinResult, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: scopedToken.GetMetadata().GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthClient:        botClient,
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	secondInstance, generation := testExtractBotParamsFromCerts(t, joinResult.Certs)
+	require.Equal(t, firstInstance, secondInstance, "no new bot instance should be created")
+	require.EqualValues(t, 2, generation, "new certs should be issued with an incremented generation counter")
+
+	// Status should be updated (or not)
+	token, err = adminClient.GetScopedToken(ctx, "example-token", false)
+	require.NoError(t, err)
+	require.Equal(t, firstInstance, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundBotInstanceId())
+	require.Equal(t, correctPublicKey, token.GetStatus().GetUsage().GetBoundKeypair().GetBoundPublicKey())
+	require.NotEmpty(t, token.GetStatus().GetUsage().GetBoundKeypair().GetLastRecoveredAt())
+	require.EqualValues(t, 1, token.GetStatus().GetUsage().GetBoundKeypair().GetRecoveryCount())
+
+	// Now, discard those certs and attempt a recovery.
+	joinResult, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: scopedToken.GetMetadata().GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
+	})
+	require.NoError(t, err)
+
+	thirdInstance, generation := testExtractBotParamsFromCerts(t, joinResult.Certs)
+	require.NotEqual(t, secondInstance, thirdInstance, "a new bot instance should be created")
+	require.EqualValues(t, 1, generation, "generation counter should be reset for the new bot instance")
+
+	// Status should indicate a recovery
+	thirdToken, err := adminClient.GetScopedToken(ctx, "example-token", false)
+	require.NoError(t, err)
+	require.Equal(t, thirdInstance, thirdToken.GetStatus().GetUsage().GetBoundKeypair().GetBoundBotInstanceId())
+	require.Equal(t, correctPublicKey, thirdToken.GetStatus().GetUsage().GetBoundKeypair().GetBoundPublicKey())
+	require.Greater(t,
+		thirdToken.GetStatus().GetUsage().GetBoundKeypair().GetLastRecoveredAt().AsTime(),
+		token.GetStatus().GetUsage().GetBoundKeypair().GetLastRecoveredAt().AsTime(),
+		"recovery timestamp must be updated",
+	)
+	require.EqualValues(t, 2, thirdToken.GetStatus().GetUsage().GetBoundKeypair().GetRecoveryCount())
+
+	// Try once more - should hit a limit.
+	_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+		Token: scopedToken.GetMetadata().GetName(),
+		ID: state.IdentityID{
+			Role: types.RoleBot,
+		},
+		AuthClient:        nopClient,
+		BoundKeypairState: clientState,
+	})
+	require.ErrorContains(t, err, "no recovery attempts remaining")
 }
 
 func clientFromJoinResult(srv *authtest.TLSServer, joinResult *joinclient.JoinResult) (*authclient.Client, error) {

@@ -32,7 +32,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"golang.org/x/crypto/ssh"
@@ -47,11 +46,14 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/plugin"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
 )
 
 // Config contains the configuration for all services that Teleport can run.
@@ -61,6 +63,9 @@ type Config struct {
 	Version string
 	// DataDir is the directory where teleport stores its local state, e.g. keys
 	DataDir string
+
+	// ScopesFeatures dictates which scoped components are enabled for this process.
+	ScopesFeatures scopes.Features
 
 	// Hostname is a node host name
 	Hostname string
@@ -160,13 +165,13 @@ type Config struct {
 	Events types.Events
 
 	// Provisioner is a service that keeps track of provisioning tokens
-	Provisioner services.Provisioner
+	Provisioner services.ProvisionerInternal
 
 	// Identity is a service that manages users and credentials
-	Identity services.Identity
+	Identity services.IdentityInternal
 
 	// Access is a service that controls access
-	Access services.Access
+	Access services.AccessInternal
 
 	// ClusterConfiguration is a service that provides cluster configuration
 	ClusterConfiguration services.ClusterConfigurationInternal
@@ -211,8 +216,11 @@ type Config struct {
 	// Clock is used to control time in tests.
 	Clock clockwork.Clock
 
-	// FIPS means FedRAMP/FIPS compliant configuration was requested.
+	// FIPS means FedRAMP/FIPS compliant configuration was requested via the --fips flag.
 	FIPS bool
+
+	// Modules defines build time constraints and licensed features.
+	Modules modules.Modules
 
 	// SkipVersionCheck means the version checking between server and client
 	// will be skipped.
@@ -273,7 +281,8 @@ type Config struct {
 	// DatabaseREPLRegistry is used to retrieve datatabase REPL given the
 	// protocol.
 	DatabaseREPLRegistry dbrepl.REPLRegistry
-
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -299,6 +308,10 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+
+	// UserMonitor config contains configuration for the user monitor service, which is responsible for monitoring
+	// user related changes and updating user_state accordingly.
+	UserMonitor UserMonitorConfig
 }
 
 type ConfigTesting struct {
@@ -334,6 +347,20 @@ type ConfigTesting struct {
 	// especially when the list is also being modified concurrently by the background
 	// eligibility handler.
 	RunWhileLockedRetryInterval time.Duration
+
+	// TriggerOktaSyncC is a channel that can be used in tests to trigger Okta sync immediately instead of waiting for the next scheduled sync.
+	TriggerOktaSyncC chan struct{}
+}
+
+// UserMonitorConfig contains configuration for the user monitor service, which is responsible for monitoring
+// user related changes and updating user_state accordingly.
+type UserMonitorConfig struct {
+	// ReconcileInterval overrides the default user monitor reconcile interval.
+	// Used in tests to speed up reconciliation. Zero value uses the default.
+	ReconcileInterval time.Duration
+	// LockTTL overrides the default user monitor lock TTL.
+	// Used in tests to speed up lock acquisition. Zero value uses the default.
+	LockTTL time.Duration
 }
 
 // AccessGraphConfig represents TAG server config
@@ -439,12 +466,80 @@ func DisableLongRunningServices(cfg *Config) {
 
 // JoinParams is a set of extra parameters for joining the auth server.
 type JoinParams struct {
-	Azure AzureJoinParams
+	Azure        AzureJoinParams
+	BoundKeypair BoundKeypairParams
 }
 
 // AzureJoinParams is the parameters specific to the azure join method.
 type AzureJoinParams struct {
 	ClientID string
+}
+
+// BoundKeypairParams contains parameters specific to bound keypair joining.
+type BoundKeypairParams struct {
+	// RegistrationSecretValue is an explicit registration secret value, used to
+	// authenticate the initial join with a bound keypair token. It becomes
+	// inert once used.
+	RegistrationSecretValue string
+
+	// RegistrationSecretPath is a path to a file on the local disk containing a
+	// registration secret. It is incompatible with RegistrationSecretValue.
+	RegistrationSecretPath string
+
+	// StaticPrivateKeyPath is a path to a file on the local disk containing a
+	// static keypair to be used for bound keypair joining. Static keys are
+	// immutable and are not managed automatically. They must be preregistered,
+	// do not support automatic keypair rotation, and must be used with a token
+	// set to use `insecure` recovery mode.
+	StaticPrivateKeyPath string
+}
+
+// RegistrationSecret returns the currently configured bound keypair
+// registration secret, if any. Registration secrets are optional, and only used
+// at first join when no existing identity can be used to authenticate the join
+// request, no pregenerated key exists, and no static key is configured.
+func (b *BoundKeypairParams) RegistrationSecret() (string, error) {
+	if b.RegistrationSecretValue != "" && b.RegistrationSecretPath != "" {
+		return "", trace.BadParameter("only one of `registration_secret` and `registration_secret_path` may be specified")
+	}
+
+	// Note: no env var support like in tbot, we could consider adding it in the
+	// future.
+
+	switch {
+	case b.RegistrationSecretPath != "":
+		bytes, err := os.ReadFile(b.RegistrationSecretPath)
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
+
+		return strings.TrimSpace(string(bytes)), nil
+	case b.RegistrationSecretValue != "":
+		return b.RegistrationSecretValue, nil
+	default:
+		return "", nil
+	}
+}
+
+// StaticPrivateKeyBytes returns the configured static private key if one has
+// been configured. If not nil, this value should be used to initialize a
+// bound keypair `StaticClientState` instead of the process-stored state. Static
+// keys do not support automatic rotation or join state verification.
+func (b *BoundKeypairParams) StaticPrivateKeyBytes() ([]byte, error) {
+	if b.StaticPrivateKeyPath != "" {
+		bytes, err := os.ReadFile(b.StaticPrivateKeyPath)
+		if err != nil {
+			return nil, trace.Wrap(err, "reading static key from %s", b.StaticPrivateKeyPath)
+		}
+
+		return bytes, nil
+	}
+
+	// Note: no env var support like in tbot, may consider adding it in the
+	// future.
+
+	// No static key configured, nothing to return.
+	return nil, nil
 }
 
 // CachePolicy sets caching policy for proxies and nodes
@@ -599,20 +694,6 @@ func (cfg *Config) ApplyCAPins(caPins []string) error {
 	return nil
 }
 
-// DebugDumpToYAML is useful for debugging: it dumps the Config structure into
-// a string
-func (cfg *Config) DebugDumpToYAML() string {
-	shallow := *cfg
-	// do not copy sensitive data to stdout
-	shallow.Identities = nil
-	shallow.Auth.Authorities = nil
-	out, err := yaml.Marshal(shallow)
-	if err != nil {
-		return err.Error()
-	}
-	return string(out)
-}
-
 // ApplyFIPSDefaults updates default configuration to be FedRAMP/FIPS
 // compliant.
 func ApplyFIPSDefaults(cfg *Config) {
@@ -660,6 +741,10 @@ func ApplyDefaults(cfg *Config) {
 
 	if cfg.LoggerLevel == nil {
 		cfg.LoggerLevel = new(slog.LevelVar)
+	}
+
+	if cfg.Modules == nil {
+		cfg.Modules = modules.GetModules()
 	}
 
 	// Remove insecure and (borderline insecure) cryptographic primitives from
@@ -711,7 +796,7 @@ func ApplyDefaults(cfg *Config) {
 	// SSH service defaults.
 	cfg.SSH.Enabled = true
 	defaults.ConfigureLimiter(&cfg.SSH.Limiter)
-	cfg.SSH.PAM = &PAMConfig{Enabled: false}
+	cfg.SSH.PAM = &pamcfg.PAMConfig{Enabled: false}
 	cfg.SSH.BPF = &BPFConfig{Enabled: false}
 	cfg.SSH.AllowTCPForwarding = true
 	cfg.SSH.AllowFileCopying = true
@@ -722,6 +807,7 @@ func ApplyDefaults(cfg *Config) {
 
 	// Apps service defaults. It's disabled by default.
 	cfg.Apps.Enabled = false
+	defaults.ConfigureLimiter(&cfg.Apps.Limiter)
 
 	// Databases proxy service is disabled by default.
 	cfg.Databases.Enabled = false

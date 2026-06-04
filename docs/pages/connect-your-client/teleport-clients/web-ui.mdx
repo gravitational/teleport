@@ -121,3 +121,51 @@ limitations.
   Future updates may expand functionality or address feedback based on user
   needs and supported databases.
 </Admonition>
+
+## Instance inventory
+
+The Instance Inventory page lists all connected instances and bot instances in your cluster, allowing you to
+see details about them and identify instances running outdated versions of Teleport.
+
+To access the page, navigate to **Zero Trust Access** > **Instance Inventory**. Your user must have the `instance.list` and
+`instance.read` permissions to view instances, and the `bot_instance.list` and `bot_instance.read` permissions to view bot instances.
+
+![Instance Inventory page](../../../img/connect-your-client/instance-inventory.png)
+
+<Admonition type="note">
+  Changes to the inventory, such as newly connected or updated instances, may
+  take up to 20 minutes to appear.
+</Admonition>
+
+### Table columns
+
+The table contains the following columns:
+
+| Column         | Description                                                                                                                                                                                      |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Host/Bot Name  | The hostname for an instance (a Teleport process running one or more services) or the bot name for a bot instance (a running Machine ID bot). The instance ID below can be clicked to be copied. |
+| Version        | The version of Teleport running on the instance.                                                                                                                                                 |
+| Type           | Whether this is an instance or a bot instance.                                                                                                                                                   |
+| Services       | The services running on the instance. For a bot instance, this information will be found in the Bot Instances dashboard.                                                                         |
+| Upgrader       | The external upgrader configured for the instance, if any.                                                                                                                                       |
+| Upgrader Group | The updater group the instance belongs to, if any.                                                                                                                                               |
+
+### Searching and filtering
+
+Filter controls can be used to filter by various criteria like type, services, upgrader, and version. To filter by version,
+you can either select one of the preset options or use your own custom condition.
+
+![Instance Inventory page](../../../img/connect-your-client/instance-inventory-version-filter.png)
+
+The basic search can match for hostname, bot name, and instance ID. For more fine-tuned filtering, you can toggle **Advanced** mode and enter a predicate query.
+
+| Example query                              | Description                                                       |
+| ------------------------------------------ | ----------------------------------------------------------------- |
+| `version == "18.2.0"`                      | Running Teleport version 18.2.0                                   |
+| `older_than(version, "18.0.0")`            | Running a Teleport version older than 18.0.0                      |
+| `newer_than(version, "17.0.0")`            | Running a Teleport version newer than 17.0.0                      |
+| `between(version, "17.0.0", "18.0.0")`     | Running a Teleport version 17.0.0 or newer, and older than 18.0.0 |
+| `spec.updater_group == "prod"`             | In the "prod" updater group                                       |
+| `spec.external_upgrader == "kube-updater"` | Using the Kubernetes upgrader                                     |
+
+You can combine queries with `&&` (and) or `||` (or), for example: `older_than(version, "18.0.0") && spec.updater_group == "prod"`.

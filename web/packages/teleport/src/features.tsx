@@ -44,6 +44,7 @@ import {
 import { IntegrationEnroll } from '@gravitational/teleport/src/Integrations/Enroll';
 import cfg, { Cfg } from 'teleport/config';
 import { IaCIntegrationOverview } from 'teleport/Discover/Overview/IaCIntegrationOverview';
+import { IaCIntegrationSettings } from 'teleport/Discover/Overview/IaCIntegrationSettings';
 import { IntegrationStatus } from 'teleport/Integrations/IntegrationStatus';
 import {
   NavigationCategory,
@@ -618,7 +619,7 @@ export class FeatureIntegrationEnroll implements TeleportFeature {
 
   route = {
     title: 'Integration',
-    path: cfg.routes.integrationEnroll,
+    path: cfg.routes.integrationEnrollNew,
     exact: false,
     component: IntegrationEnroll,
   };
@@ -819,7 +820,7 @@ export class FeatureWorkloadIdentity implements TeleportFeature {
 }
 
 class FeatureDeviceTrust implements TeleportFeature {
-  category = NavigationCategory.IdentityGovernance;
+  category = NavigationCategory.ZeroTrustAccess;
   route = {
     title: 'Trusted Devices',
     path: cfg.routes.deviceTrust,
@@ -866,6 +867,20 @@ export class FeatureIntegrationOverview implements TeleportFeature {
     title: 'Integration Overview',
     path: cfg.routes.integrationOverview,
     component: IaCIntegrationOverview,
+  };
+
+  hasAccess() {
+    return true;
+  }
+}
+
+export class FeatureIntegrationOverviewSettings implements TeleportFeature {
+  parent = FeatureIntegrations;
+
+  route = {
+    title: 'Integration Settings',
+    path: cfg.routes.integrationOverviewSettings,
+    component: IaCIntegrationSettings,
   };
 
   hasAccess() {
@@ -953,6 +968,7 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureAddBotsShortcut(),
     new FeatureJoinTokens(),
     new FeatureRoles(),
+    new FeatureDeviceTrust(),
     new FeatureAuthConnectors(),
     new FeatureIntegrations(),
     new FeatureManagedUpdates(),
@@ -960,12 +976,12 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureTrust(),
     new FeatureIntegrationStatus(),
     new FeatureIntegrationOverview(),
+    new FeatureIntegrationOverviewSettings(),
 
     // - Identity
     new AccessRequests(),
     new FeatureLocks(),
     new FeatureNewLock(),
-    new FeatureDeviceTrust(),
     new FeatureWorkloadIdentity(),
 
     // - Audit

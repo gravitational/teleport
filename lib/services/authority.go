@@ -22,11 +22,9 @@ import (
 	"crypto"
 	"crypto/tls"
 	"crypto/x509"
+	"iter"
 	"slices"
 
-	"github.com/gogo/protobuf/proto"
-	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 
@@ -38,23 +36,6 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-// CertAuthoritiesEquivalent checks if a pair of certificate authority resources are equivalent.
-// This differs from normal equality only in that resource IDs are ignored.
-func CertAuthoritiesEquivalent(lhs, rhs types.CertAuthority) bool {
-	return cmp.Equal(lhs, rhs,
-		ignoreProtoXXXFields(),
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-		// Optimize types.CAKeySet comparison.
-		cmp.Comparer(func(a, b types.CAKeySet) bool {
-			// Note that Clone drops XXX_ fields. And it's benchmarked that cloning
-			// plus using proto.Equal is more efficient than cmp.Equal.
-			aClone := a.Clone()
-			bClone := b.Clone()
-			return proto.Equal(&aClone, &bClone)
-		}),
-	)
-}
 
 // ValidateCertAuthority validates the CertAuthority
 func ValidateCertAuthority(ca types.CertAuthority) (err error) {
@@ -79,6 +60,8 @@ func ValidateCertAuthority(ca types.CertAuthority) (err error) {
 		err = checkAWSRACA(ca)
 	case types.WindowsCA:
 		err = checkWindowsCA(ca)
+	case types.AppClientCA:
+		err = checkAppClientCA(ca)
 	default:
 		return trace.BadParameter("invalid CA type %q", ca.GetType())
 	}
@@ -228,6 +211,15 @@ func checkWindowsCA(cai types.CertAuthority) error {
 	return trace.Wrap(checkTLSKeys(ca))
 }
 
+func checkAppClientCA(cai types.CertAuthority) error {
+	ca, ok := cai.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unknown CA type %T", cai)
+	}
+
+	return trace.Wrap(checkTLSKeys(ca))
+}
+
 func checkTLSKeys(ca *types.CertAuthorityV2) error {
 	if len(ca.Spec.ActiveKeys.TLS) == 0 {
 		return trace.BadParameter("%s certificate authority missing TLS key pairs", ca.GetType())
@@ -271,6 +263,19 @@ func GetTLSCerts(ca types.CertAuthority) [][]byte {
 	return out
 }
 
+// GetX509Certs returns parsed TLS certificates from CA as [x509.Certificate].
+func GetX509Certs(ca types.CertAuthority) iter.Seq2[*x509.Certificate, error] {
+	pairs := ca.GetTrustedTLSKeyPairs()
+	return func(yield func(*x509.Certificate, error) bool) {
+		for _, pair := range pairs {
+			cert, err := tlsca.ParseCertificatePEM(pair.Cert)
+			if !yield(cert, err) {
+				return
+			}
+		}
+	}
+}
+
 // GetSSHCheckingKeys returns SSH public keys from CA
 func GetSSHCheckingKeys(ca types.CertAuthority) [][]byte {
 	pairs := ca.GetTrustedSSHKeyPairs()
@@ -288,12 +293,7 @@ func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, int
 	certPool := x509.NewCertPool()
 	count := 0
 	for _, ca := range cas {
-		keyPairs := ca.GetTrustedTLSKeyPairs()
-		if len(keyPairs) == 0 {
-			continue
-		}
-		for _, keyPair := range keyPairs {
-			cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
+		for cert, err := range GetX509Certs(ca) {
 			if err != nil {
 				return nil, 0, trace.Wrap(err)
 			}
@@ -307,17 +307,12 @@ func CertPoolFromCertAuthorities(cas []types.CertAuthority) (*x509.CertPool, int
 // CertPool returns certificate pools from TLS certificates
 // set up in the certificate authority
 func CertPool(ca types.CertAuthority) (*x509.CertPool, error) {
-	keyPairs := ca.GetTrustedTLSKeyPairs()
-	if len(keyPairs) == 0 {
-		return nil, trace.BadParameter("certificate authority has no TLS certificates")
+	certPool, count, err := CertPoolFromCertAuthorities([]types.CertAuthority{ca})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	certPool := x509.NewCertPool()
-	for _, keyPair := range keyPairs {
-		cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		certPool.AddCert(cert)
+	if count == 0 {
+		return nil, trace.BadParameter("certificate authority has no TLS certificates")
 	}
 	return certPool, nil
 }

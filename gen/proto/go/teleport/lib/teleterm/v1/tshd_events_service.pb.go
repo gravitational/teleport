@@ -21,13 +21,15 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/tshd_events_service.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
+	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +42,7 @@ const (
 
 // Request for Relogin.
 type ReloginRequest struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
+	state          protoimpl.MessageState `protogen:"hybrid.v1"`
 	RootClusterUri string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	// Types that are valid to be assigned to Reason:
 	//
@@ -76,11 +78,6 @@ func (x *ReloginRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReloginRequest.ProtoReflect.Descriptor instead.
-func (*ReloginRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ReloginRequest) GetRootClusterUri() string {
 	if x != nil {
 		return x.RootClusterUri
@@ -113,6 +110,117 @@ func (x *ReloginRequest) GetVnetCertExpired() *VnetCertExpired {
 	return nil
 }
 
+func (x *ReloginRequest) SetRootClusterUri(v string) {
+	x.RootClusterUri = v
+}
+
+func (x *ReloginRequest) SetGatewayCertExpired(v *GatewayCertExpired) {
+	if v == nil {
+		x.Reason = nil
+		return
+	}
+	x.Reason = &ReloginRequest_GatewayCertExpired{v}
+}
+
+func (x *ReloginRequest) SetVnetCertExpired(v *VnetCertExpired) {
+	if v == nil {
+		x.Reason = nil
+		return
+	}
+	x.Reason = &ReloginRequest_VnetCertExpired{v}
+}
+
+func (x *ReloginRequest) HasReason() bool {
+	if x == nil {
+		return false
+	}
+	return x.Reason != nil
+}
+
+func (x *ReloginRequest) HasGatewayCertExpired() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Reason.(*ReloginRequest_GatewayCertExpired)
+	return ok
+}
+
+func (x *ReloginRequest) HasVnetCertExpired() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Reason.(*ReloginRequest_VnetCertExpired)
+	return ok
+}
+
+func (x *ReloginRequest) ClearReason() {
+	x.Reason = nil
+}
+
+func (x *ReloginRequest) ClearGatewayCertExpired() {
+	if _, ok := x.Reason.(*ReloginRequest_GatewayCertExpired); ok {
+		x.Reason = nil
+	}
+}
+
+func (x *ReloginRequest) ClearVnetCertExpired() {
+	if _, ok := x.Reason.(*ReloginRequest_VnetCertExpired); ok {
+		x.Reason = nil
+	}
+}
+
+const ReloginRequest_Reason_not_set_case case_ReloginRequest_Reason = 0
+const ReloginRequest_GatewayCertExpired_case case_ReloginRequest_Reason = 2
+const ReloginRequest_VnetCertExpired_case case_ReloginRequest_Reason = 3
+
+func (x *ReloginRequest) WhichReason() case_ReloginRequest_Reason {
+	if x == nil {
+		return ReloginRequest_Reason_not_set_case
+	}
+	switch x.Reason.(type) {
+	case *ReloginRequest_GatewayCertExpired:
+		return ReloginRequest_GatewayCertExpired_case
+	case *ReloginRequest_VnetCertExpired:
+		return ReloginRequest_VnetCertExpired_case
+	default:
+		return ReloginRequest_Reason_not_set_case
+	}
+}
+
+type ReloginRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	RootClusterUri string
+	// Fields of oneof Reason:
+	GatewayCertExpired *GatewayCertExpired
+	VnetCertExpired    *VnetCertExpired
+	// -- end of Reason
+}
+
+func (b0 ReloginRequest_builder) Build() *ReloginRequest {
+	m0 := &ReloginRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RootClusterUri = b.RootClusterUri
+	if b.GatewayCertExpired != nil {
+		x.Reason = &ReloginRequest_GatewayCertExpired{b.GatewayCertExpired}
+	}
+	if b.VnetCertExpired != nil {
+		x.Reason = &ReloginRequest_VnetCertExpired{b.VnetCertExpired}
+	}
+	return m0
+}
+
+type case_ReloginRequest_Reason protoreflect.FieldNumber
+
+func (x case_ReloginRequest_Reason) String() string {
+	md := file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[0].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isReloginRequest_Reason interface {
 	isReloginRequest_Reason()
 }
@@ -136,7 +244,7 @@ func (*ReloginRequest_VnetCertExpired) isReloginRequest_Reason() {}
 // At that point in order to let the connection through, tshd needs the Electron app to refresh the
 // user cert by asking the user to log in again.
 type GatewayCertExpired struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	GatewayUri    string                 `protobuf:"bytes,1,opt,name=gateway_uri,json=gatewayUri,proto3" json:"gateway_uri,omitempty"`
 	TargetUri     string                 `protobuf:"bytes,2,opt,name=target_uri,json=targetUri,proto3" json:"target_uri,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -168,11 +276,6 @@ func (x *GatewayCertExpired) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GatewayCertExpired.ProtoReflect.Descriptor instead.
-func (*GatewayCertExpired) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GatewayCertExpired) GetGatewayUri() string {
 	if x != nil {
 		return x.GatewayUri
@@ -187,9 +290,33 @@ func (x *GatewayCertExpired) GetTargetUri() string {
 	return ""
 }
 
+func (x *GatewayCertExpired) SetGatewayUri(v string) {
+	x.GatewayUri = v
+}
+
+func (x *GatewayCertExpired) SetTargetUri(v string) {
+	x.TargetUri = v
+}
+
+type GatewayCertExpired_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	GatewayUri string
+	TargetUri  string
+}
+
+func (b0 GatewayCertExpired_builder) Build() *GatewayCertExpired {
+	m0 := &GatewayCertExpired{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.GatewayUri = b.GatewayUri
+	x.TargetUri = b.TargetUri
+	return m0
+}
+
 // VnetCertExpired describes which app the user was trying to reach with an expired cert.
 type VnetCertExpired struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// target_uri for now points solely at apps, but it's not called app_uri to make it future-proof.
 	TargetUri string `protobuf:"bytes,1,opt,name=target_uri,json=targetUri,proto3" json:"target_uri,omitempty"`
 	// route_to_app is the metadata associated with the app that the user was trying to reach.
@@ -223,11 +350,6 @@ func (x *VnetCertExpired) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use VnetCertExpired.ProtoReflect.Descriptor instead.
-func (*VnetCertExpired) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *VnetCertExpired) GetTargetUri() string {
 	if x != nil {
 		return x.TargetUri
@@ -242,9 +364,46 @@ func (x *VnetCertExpired) GetRouteToApp() *RouteToApp {
 	return nil
 }
 
+func (x *VnetCertExpired) SetTargetUri(v string) {
+	x.TargetUri = v
+}
+
+func (x *VnetCertExpired) SetRouteToApp(v *RouteToApp) {
+	x.RouteToApp = v
+}
+
+func (x *VnetCertExpired) HasRouteToApp() bool {
+	if x == nil {
+		return false
+	}
+	return x.RouteToApp != nil
+}
+
+func (x *VnetCertExpired) ClearRouteToApp() {
+	x.RouteToApp = nil
+}
+
+type VnetCertExpired_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// target_uri for now points solely at apps, but it's not called app_uri to make it future-proof.
+	TargetUri string
+	// route_to_app is the metadata associated with the app that the user was trying to reach.
+	RouteToApp *RouteToApp
+}
+
+func (b0 VnetCertExpired_builder) Build() *VnetCertExpired {
+	m0 := &VnetCertExpired{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TargetUri = b.TargetUri
+	x.RouteToApp = b.RouteToApp
+	return m0
+}
+
 // Response for Relogin.
 type ReloginResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -274,9 +433,16 @@ func (x *ReloginResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReloginResponse.ProtoReflect.Descriptor instead.
-func (*ReloginResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{3}
+type ReloginResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 ReloginResponse_builder) Build() *ReloginResponse {
+	m0 := &ReloginResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // SendNotificationRequest includes details behind a notification.
@@ -285,7 +451,7 @@ func (*ReloginResponse) Descriptor() ([]byte, []int) {
 // details. The Electron app can then consume and format them as needed, without having to change
 // what is sent over the wire.
 type SendNotificationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Subject:
 	//
 	//	*SendNotificationRequest_CannotProxyGatewayConnection
@@ -320,11 +486,6 @@ func (x *SendNotificationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SendNotificationRequest.ProtoReflect.Descriptor instead.
-func (*SendNotificationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *SendNotificationRequest) GetSubject() isSendNotificationRequest_Subject {
 	if x != nil {
 		return x.Subject
@@ -350,6 +511,111 @@ func (x *SendNotificationRequest) GetCannotProxyVnetConnection() *CannotProxyVne
 	return nil
 }
 
+func (x *SendNotificationRequest) SetCannotProxyGatewayConnection(v *CannotProxyGatewayConnection) {
+	if v == nil {
+		x.Subject = nil
+		return
+	}
+	x.Subject = &SendNotificationRequest_CannotProxyGatewayConnection{v}
+}
+
+func (x *SendNotificationRequest) SetCannotProxyVnetConnection(v *CannotProxyVnetConnection) {
+	if v == nil {
+		x.Subject = nil
+		return
+	}
+	x.Subject = &SendNotificationRequest_CannotProxyVnetConnection{v}
+}
+
+func (x *SendNotificationRequest) HasSubject() bool {
+	if x == nil {
+		return false
+	}
+	return x.Subject != nil
+}
+
+func (x *SendNotificationRequest) HasCannotProxyGatewayConnection() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Subject.(*SendNotificationRequest_CannotProxyGatewayConnection)
+	return ok
+}
+
+func (x *SendNotificationRequest) HasCannotProxyVnetConnection() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Subject.(*SendNotificationRequest_CannotProxyVnetConnection)
+	return ok
+}
+
+func (x *SendNotificationRequest) ClearSubject() {
+	x.Subject = nil
+}
+
+func (x *SendNotificationRequest) ClearCannotProxyGatewayConnection() {
+	if _, ok := x.Subject.(*SendNotificationRequest_CannotProxyGatewayConnection); ok {
+		x.Subject = nil
+	}
+}
+
+func (x *SendNotificationRequest) ClearCannotProxyVnetConnection() {
+	if _, ok := x.Subject.(*SendNotificationRequest_CannotProxyVnetConnection); ok {
+		x.Subject = nil
+	}
+}
+
+const SendNotificationRequest_Subject_not_set_case case_SendNotificationRequest_Subject = 0
+const SendNotificationRequest_CannotProxyGatewayConnection_case case_SendNotificationRequest_Subject = 1
+const SendNotificationRequest_CannotProxyVnetConnection_case case_SendNotificationRequest_Subject = 2
+
+func (x *SendNotificationRequest) WhichSubject() case_SendNotificationRequest_Subject {
+	if x == nil {
+		return SendNotificationRequest_Subject_not_set_case
+	}
+	switch x.Subject.(type) {
+	case *SendNotificationRequest_CannotProxyGatewayConnection:
+		return SendNotificationRequest_CannotProxyGatewayConnection_case
+	case *SendNotificationRequest_CannotProxyVnetConnection:
+		return SendNotificationRequest_CannotProxyVnetConnection_case
+	default:
+		return SendNotificationRequest_Subject_not_set_case
+	}
+}
+
+type SendNotificationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Subject:
+	CannotProxyGatewayConnection *CannotProxyGatewayConnection
+	CannotProxyVnetConnection    *CannotProxyVnetConnection
+	// -- end of Subject
+}
+
+func (b0 SendNotificationRequest_builder) Build() *SendNotificationRequest {
+	m0 := &SendNotificationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.CannotProxyGatewayConnection != nil {
+		x.Subject = &SendNotificationRequest_CannotProxyGatewayConnection{b.CannotProxyGatewayConnection}
+	}
+	if b.CannotProxyVnetConnection != nil {
+		x.Subject = &SendNotificationRequest_CannotProxyVnetConnection{b.CannotProxyVnetConnection}
+	}
+	return m0
+}
+
+type case_SendNotificationRequest_Subject protoreflect.FieldNumber
+
+func (x case_SendNotificationRequest_Subject) String() string {
+	md := file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[4].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isSendNotificationRequest_Subject interface {
 	isSendNotificationRequest_Subject()
 }
@@ -371,7 +637,7 @@ func (*SendNotificationRequest_CannotProxyVnetConnection) isSendNotificationRequ
 // a separate goroutine so if the error wasn't passed to the Electron app, it would have been
 // visible only in the logs.
 type CannotProxyGatewayConnection struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	GatewayUri    string                 `protobuf:"bytes,1,opt,name=gateway_uri,json=gatewayUri,proto3" json:"gateway_uri,omitempty"`
 	TargetUri     string                 `protobuf:"bytes,2,opt,name=target_uri,json=targetUri,proto3" json:"target_uri,omitempty"`
 	Error         string                 `protobuf:"bytes,3,opt,name=error,proto3" json:"error,omitempty"`
@@ -404,11 +670,6 @@ func (x *CannotProxyGatewayConnection) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CannotProxyGatewayConnection.ProtoReflect.Descriptor instead.
-func (*CannotProxyGatewayConnection) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *CannotProxyGatewayConnection) GetGatewayUri() string {
 	if x != nil {
 		return x.GatewayUri
@@ -430,9 +691,39 @@ func (x *CannotProxyGatewayConnection) GetError() string {
 	return ""
 }
 
+func (x *CannotProxyGatewayConnection) SetGatewayUri(v string) {
+	x.GatewayUri = v
+}
+
+func (x *CannotProxyGatewayConnection) SetTargetUri(v string) {
+	x.TargetUri = v
+}
+
+func (x *CannotProxyGatewayConnection) SetError(v string) {
+	x.Error = v
+}
+
+type CannotProxyGatewayConnection_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	GatewayUri string
+	TargetUri  string
+	Error      string
+}
+
+func (b0 CannotProxyGatewayConnection_builder) Build() *CannotProxyGatewayConnection {
+	m0 := &CannotProxyGatewayConnection{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.GatewayUri = b.GatewayUri
+	x.TargetUri = b.TargetUri
+	x.Error = b.Error
+	return m0
+}
+
 // CannotProxyVnetConnection describes which app couldn't have been proxied through VNet and why.
 type CannotProxyVnetConnection struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
+	state     protoimpl.MessageState `protogen:"hybrid.v1"`
 	TargetUri string                 `protobuf:"bytes,1,opt,name=target_uri,json=targetUri,proto3" json:"target_uri,omitempty"`
 	// route_to_app is the metadata associated with the app that the user was trying to reach.
 	RouteToApp *RouteToApp `protobuf:"bytes,4,opt,name=route_to_app,json=routeToApp,proto3" json:"route_to_app,omitempty"`
@@ -468,11 +759,6 @@ func (x *CannotProxyVnetConnection) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CannotProxyVnetConnection.ProtoReflect.Descriptor instead.
-func (*CannotProxyVnetConnection) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CannotProxyVnetConnection) GetTargetUri() string {
@@ -514,6 +800,135 @@ func (x *CannotProxyVnetConnection) GetInvalidLocalPort() *InvalidLocalPort {
 	return nil
 }
 
+func (x *CannotProxyVnetConnection) SetTargetUri(v string) {
+	x.TargetUri = v
+}
+
+func (x *CannotProxyVnetConnection) SetRouteToApp(v *RouteToApp) {
+	x.RouteToApp = v
+}
+
+func (x *CannotProxyVnetConnection) SetCertReissueError(v *CertReissueError) {
+	if v == nil {
+		x.Reason = nil
+		return
+	}
+	x.Reason = &CannotProxyVnetConnection_CertReissueError{v}
+}
+
+func (x *CannotProxyVnetConnection) SetInvalidLocalPort(v *InvalidLocalPort) {
+	if v == nil {
+		x.Reason = nil
+		return
+	}
+	x.Reason = &CannotProxyVnetConnection_InvalidLocalPort{v}
+}
+
+func (x *CannotProxyVnetConnection) HasRouteToApp() bool {
+	if x == nil {
+		return false
+	}
+	return x.RouteToApp != nil
+}
+
+func (x *CannotProxyVnetConnection) HasReason() bool {
+	if x == nil {
+		return false
+	}
+	return x.Reason != nil
+}
+
+func (x *CannotProxyVnetConnection) HasCertReissueError() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Reason.(*CannotProxyVnetConnection_CertReissueError)
+	return ok
+}
+
+func (x *CannotProxyVnetConnection) HasInvalidLocalPort() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Reason.(*CannotProxyVnetConnection_InvalidLocalPort)
+	return ok
+}
+
+func (x *CannotProxyVnetConnection) ClearRouteToApp() {
+	x.RouteToApp = nil
+}
+
+func (x *CannotProxyVnetConnection) ClearReason() {
+	x.Reason = nil
+}
+
+func (x *CannotProxyVnetConnection) ClearCertReissueError() {
+	if _, ok := x.Reason.(*CannotProxyVnetConnection_CertReissueError); ok {
+		x.Reason = nil
+	}
+}
+
+func (x *CannotProxyVnetConnection) ClearInvalidLocalPort() {
+	if _, ok := x.Reason.(*CannotProxyVnetConnection_InvalidLocalPort); ok {
+		x.Reason = nil
+	}
+}
+
+const CannotProxyVnetConnection_Reason_not_set_case case_CannotProxyVnetConnection_Reason = 0
+const CannotProxyVnetConnection_CertReissueError_case case_CannotProxyVnetConnection_Reason = 5
+const CannotProxyVnetConnection_InvalidLocalPort_case case_CannotProxyVnetConnection_Reason = 6
+
+func (x *CannotProxyVnetConnection) WhichReason() case_CannotProxyVnetConnection_Reason {
+	if x == nil {
+		return CannotProxyVnetConnection_Reason_not_set_case
+	}
+	switch x.Reason.(type) {
+	case *CannotProxyVnetConnection_CertReissueError:
+		return CannotProxyVnetConnection_CertReissueError_case
+	case *CannotProxyVnetConnection_InvalidLocalPort:
+		return CannotProxyVnetConnection_InvalidLocalPort_case
+	default:
+		return CannotProxyVnetConnection_Reason_not_set_case
+	}
+}
+
+type CannotProxyVnetConnection_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	TargetUri string
+	// route_to_app is the metadata associated with the app that the user was trying to reach.
+	RouteToApp *RouteToApp
+	// Fields of oneof Reason:
+	CertReissueError *CertReissueError
+	InvalidLocalPort *InvalidLocalPort
+	// -- end of Reason
+}
+
+func (b0 CannotProxyVnetConnection_builder) Build() *CannotProxyVnetConnection {
+	m0 := &CannotProxyVnetConnection{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TargetUri = b.TargetUri
+	x.RouteToApp = b.RouteToApp
+	if b.CertReissueError != nil {
+		x.Reason = &CannotProxyVnetConnection_CertReissueError{b.CertReissueError}
+	}
+	if b.InvalidLocalPort != nil {
+		x.Reason = &CannotProxyVnetConnection_InvalidLocalPort{b.InvalidLocalPort}
+	}
+	return m0
+}
+
+type case_CannotProxyVnetConnection_Reason protoreflect.FieldNumber
+
+func (x case_CannotProxyVnetConnection_Reason) String() string {
+	md := file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes[6].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isCannotProxyVnetConnection_Reason interface {
 	isCannotProxyVnetConnection_Reason()
 }
@@ -533,7 +948,7 @@ func (*CannotProxyVnetConnection_InvalidLocalPort) isCannotProxyVnetConnection_R
 // CertReissueError is sent as reason in CannotProxyVnetConnection when VNet wasn't able to reissue
 // a cert for a local proxy.
 type CertReissueError struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Error         string                 `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -564,11 +979,6 @@ func (x *CertReissueError) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CertReissueError.ProtoReflect.Descriptor instead.
-func (*CertReissueError) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *CertReissueError) GetError() string {
 	if x != nil {
 		return x.Error
@@ -576,11 +986,29 @@ func (x *CertReissueError) GetError() string {
 	return ""
 }
 
+func (x *CertReissueError) SetError(v string) {
+	x.Error = v
+}
+
+type CertReissueError_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Error string
+}
+
+func (b0 CertReissueError_builder) Build() *CertReissueError {
+	m0 := &CertReissueError{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Error = b.Error
+	return m0
+}
+
 // InvalidLocalPort is sent as reason in CannotProxyVnetConnection when VNet refused a connection
 // because its local port did not match any TCP ports in the spec of the app. The port is included
 // in route_to_app as target_port.
 type InvalidLocalPort struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// tcp_ports represents valid port ranges for the app. Sent only if there's less than 10 port
 	// ranges to keep the UI clean and to limit how much data is sent on each failed attempt.
 	TcpPorts      []*PortRange `protobuf:"bytes,1,rep,name=tcp_ports,json=tcpPorts,proto3" json:"tcp_ports,omitempty"`
@@ -613,11 +1041,6 @@ func (x *InvalidLocalPort) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use InvalidLocalPort.ProtoReflect.Descriptor instead.
-func (*InvalidLocalPort) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *InvalidLocalPort) GetTcpPorts() []*PortRange {
 	if x != nil {
 		return x.TcpPorts
@@ -625,9 +1048,29 @@ func (x *InvalidLocalPort) GetTcpPorts() []*PortRange {
 	return nil
 }
 
+func (x *InvalidLocalPort) SetTcpPorts(v []*PortRange) {
+	x.TcpPorts = v
+}
+
+type InvalidLocalPort_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// tcp_ports represents valid port ranges for the app. Sent only if there's less than 10 port
+	// ranges to keep the UI clean and to limit how much data is sent on each failed attempt.
+	TcpPorts []*PortRange
+}
+
+func (b0 InvalidLocalPort_builder) Build() *InvalidLocalPort {
+	m0 := &InvalidLocalPort{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TcpPorts = b.TcpPorts
+	return m0
+}
+
 // Response for SendNotification.
 type SendNotificationResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -657,14 +1100,21 @@ func (x *SendNotificationResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SendNotificationResponse.ProtoReflect.Descriptor instead.
-func (*SendNotificationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{9}
+type SendNotificationResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SendNotificationResponse_builder) Build() *SendNotificationResponse {
+	m0 := &SendNotificationResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for SendPendingHeadlessAuthentication.
 type SendPendingHeadlessAuthenticationRequest struct {
-	state                          protoimpl.MessageState `protogen:"open.v1"`
+	state                          protoimpl.MessageState `protogen:"hybrid.v1"`
 	RootClusterUri                 string                 `protobuf:"bytes,1,opt,name=root_cluster_uri,json=rootClusterUri,proto3" json:"root_cluster_uri,omitempty"`
 	HeadlessAuthenticationId       string                 `protobuf:"bytes,2,opt,name=headless_authentication_id,json=headlessAuthenticationId,proto3" json:"headless_authentication_id,omitempty"`
 	HeadlessAuthenticationClientIp string                 `protobuf:"bytes,3,opt,name=headless_authentication_client_ip,json=headlessAuthenticationClientIp,proto3" json:"headless_authentication_client_ip,omitempty"`
@@ -697,11 +1147,6 @@ func (x *SendPendingHeadlessAuthenticationRequest) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SendPendingHeadlessAuthenticationRequest.ProtoReflect.Descriptor instead.
-func (*SendPendingHeadlessAuthenticationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *SendPendingHeadlessAuthenticationRequest) GetRootClusterUri() string {
 	if x != nil {
 		return x.RootClusterUri
@@ -723,9 +1168,39 @@ func (x *SendPendingHeadlessAuthenticationRequest) GetHeadlessAuthenticationClie
 	return ""
 }
 
+func (x *SendPendingHeadlessAuthenticationRequest) SetRootClusterUri(v string) {
+	x.RootClusterUri = v
+}
+
+func (x *SendPendingHeadlessAuthenticationRequest) SetHeadlessAuthenticationId(v string) {
+	x.HeadlessAuthenticationId = v
+}
+
+func (x *SendPendingHeadlessAuthenticationRequest) SetHeadlessAuthenticationClientIp(v string) {
+	x.HeadlessAuthenticationClientIp = v
+}
+
+type SendPendingHeadlessAuthenticationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	RootClusterUri                 string
+	HeadlessAuthenticationId       string
+	HeadlessAuthenticationClientIp string
+}
+
+func (b0 SendPendingHeadlessAuthenticationRequest_builder) Build() *SendPendingHeadlessAuthenticationRequest {
+	m0 := &SendPendingHeadlessAuthenticationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RootClusterUri = b.RootClusterUri
+	x.HeadlessAuthenticationId = b.HeadlessAuthenticationId
+	x.HeadlessAuthenticationClientIp = b.HeadlessAuthenticationClientIp
+	return m0
+}
+
 // Response for SendPendingHeadlessAuthentication.
 type SendPendingHeadlessAuthenticationResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -755,14 +1230,21 @@ func (x *SendPendingHeadlessAuthenticationResponse) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SendPendingHeadlessAuthenticationResponse.ProtoReflect.Descriptor instead.
-func (*SendPendingHeadlessAuthenticationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{11}
+type SendPendingHeadlessAuthenticationResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SendPendingHeadlessAuthenticationResponse_builder) Build() *SendPendingHeadlessAuthenticationResponse {
+	m0 := &SendPendingHeadlessAuthenticationResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for PromptMFA.
 type PromptMFARequest struct {
-	state      protoimpl.MessageState `protogen:"open.v1"`
+	state      protoimpl.MessageState `protogen:"hybrid.v1"`
 	Reason     string                 `protobuf:"bytes,2,opt,name=reason,proto3" json:"reason,omitempty"`
 	Totp       bool                   `protobuf:"varint,3,opt,name=totp,proto3" json:"totp,omitempty"`
 	Webauthn   bool                   `protobuf:"varint,4,opt,name=webauthn,proto3" json:"webauthn,omitempty"`
@@ -773,6 +1255,8 @@ type PromptMFARequest struct {
 	// per-session MFA but we may still need to know that the user has TOTP
 	// configured as an option.
 	PerSessionMfa bool `protobuf:"varint,7,opt,name=per_session_mfa,json=perSessionMfa,proto3" json:"per_session_mfa,omitempty"`
+	// BrowserMFAChallenge is sent when browser-based MFA is supported.
+	Browser       *v1.BrowserMFAChallenge `protobuf:"bytes,8,opt,name=browser,proto3" json:"browser,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -800,11 +1284,6 @@ func (x *PromptMFARequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PromptMFARequest.ProtoReflect.Descriptor instead.
-func (*PromptMFARequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *PromptMFARequest) GetReason() string {
@@ -849,9 +1328,97 @@ func (x *PromptMFARequest) GetPerSessionMfa() bool {
 	return false
 }
 
+func (x *PromptMFARequest) GetBrowser() *v1.BrowserMFAChallenge {
+	if x != nil {
+		return x.Browser
+	}
+	return nil
+}
+
+func (x *PromptMFARequest) SetReason(v string) {
+	x.Reason = v
+}
+
+func (x *PromptMFARequest) SetTotp(v bool) {
+	x.Totp = v
+}
+
+func (x *PromptMFARequest) SetWebauthn(v bool) {
+	x.Webauthn = v
+}
+
+func (x *PromptMFARequest) SetClusterUri(v string) {
+	x.ClusterUri = v
+}
+
+func (x *PromptMFARequest) SetSso(v *SSOChallenge) {
+	x.Sso = v
+}
+
+func (x *PromptMFARequest) SetPerSessionMfa(v bool) {
+	x.PerSessionMfa = v
+}
+
+func (x *PromptMFARequest) SetBrowser(v *v1.BrowserMFAChallenge) {
+	x.Browser = v
+}
+
+func (x *PromptMFARequest) HasSso() bool {
+	if x == nil {
+		return false
+	}
+	return x.Sso != nil
+}
+
+func (x *PromptMFARequest) HasBrowser() bool {
+	if x == nil {
+		return false
+	}
+	return x.Browser != nil
+}
+
+func (x *PromptMFARequest) ClearSso() {
+	x.Sso = nil
+}
+
+func (x *PromptMFARequest) ClearBrowser() {
+	x.Browser = nil
+}
+
+type PromptMFARequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Reason     string
+	Totp       bool
+	Webauthn   bool
+	ClusterUri string
+	Sso        *SSOChallenge
+	// We may handle MFA options differently based on whether or not per-session
+	// MFA is required. For example, we invalidate TOTP as an option during
+	// per-session MFA but we may still need to know that the user has TOTP
+	// configured as an option.
+	PerSessionMfa bool
+	// BrowserMFAChallenge is sent when browser-based MFA is supported.
+	Browser *v1.BrowserMFAChallenge
+}
+
+func (b0 PromptMFARequest_builder) Build() *PromptMFARequest {
+	m0 := &PromptMFARequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Reason = b.Reason
+	x.Totp = b.Totp
+	x.Webauthn = b.Webauthn
+	x.ClusterUri = b.ClusterUri
+	x.Sso = b.Sso
+	x.PerSessionMfa = b.PerSessionMfa
+	x.Browser = b.Browser
+	return m0
+}
+
 // SSOChallenge contains SSO challenge details.
 type SSOChallenge struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	ConnectorId   string                 `protobuf:"bytes,1,opt,name=connector_id,json=connectorId,proto3" json:"connector_id,omitempty"`
 	ConnectorType string                 `protobuf:"bytes,2,opt,name=connector_type,json=connectorType,proto3" json:"connector_type,omitempty"`
 	DisplayName   string                 `protobuf:"bytes,3,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
@@ -885,11 +1452,6 @@ func (x *SSOChallenge) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SSOChallenge.ProtoReflect.Descriptor instead.
-func (*SSOChallenge) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *SSOChallenge) GetConnectorId() string {
 	if x != nil {
 		return x.ConnectorId
@@ -918,9 +1480,45 @@ func (x *SSOChallenge) GetRedirectUrl() string {
 	return ""
 }
 
+func (x *SSOChallenge) SetConnectorId(v string) {
+	x.ConnectorId = v
+}
+
+func (x *SSOChallenge) SetConnectorType(v string) {
+	x.ConnectorType = v
+}
+
+func (x *SSOChallenge) SetDisplayName(v string) {
+	x.DisplayName = v
+}
+
+func (x *SSOChallenge) SetRedirectUrl(v string) {
+	x.RedirectUrl = v
+}
+
+type SSOChallenge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	ConnectorId   string
+	ConnectorType string
+	DisplayName   string
+	RedirectUrl   string
+}
+
+func (b0 SSOChallenge_builder) Build() *SSOChallenge {
+	m0 := &SSOChallenge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ConnectorId = b.ConnectorId
+	x.ConnectorType = b.ConnectorType
+	x.DisplayName = b.DisplayName
+	x.RedirectUrl = b.RedirectUrl
+	return m0
+}
+
 // Response for PromptMFA.
 type PromptMFAResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	TotpCode      string                 `protobuf:"bytes,1,opt,name=totp_code,json=totpCode,proto3" json:"totp_code,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -951,11 +1549,6 @@ func (x *PromptMFAResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PromptMFAResponse.ProtoReflect.Descriptor instead.
-func (*PromptMFAResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *PromptMFAResponse) GetTotpCode() string {
 	if x != nil {
 		return x.TotpCode
@@ -963,9 +1556,27 @@ func (x *PromptMFAResponse) GetTotpCode() string {
 	return ""
 }
 
+func (x *PromptMFAResponse) SetTotpCode(v string) {
+	x.TotpCode = v
+}
+
+type PromptMFAResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	TotpCode string
+}
+
+func (b0 PromptMFAResponse_builder) Build() *PromptMFAResponse {
+	m0 := &PromptMFAResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TotpCode = b.TotpCode
+	return m0
+}
+
 // Request for PromptHardwareKeyPIN.
 type PromptHardwareKeyPINRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PinOptional specified if a PIN is optional, allowing the user to set it up if left empty.
 	PinOptional bool `protobuf:"varint,2,opt,name=pin_optional,json=pinOptional,proto3" json:"pin_optional,omitempty"`
 	// ProxyHostname is the proxy hostname of the client key.
@@ -1001,11 +1612,6 @@ func (x *PromptHardwareKeyPINRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PromptHardwareKeyPINRequest.ProtoReflect.Descriptor instead.
-func (*PromptHardwareKeyPINRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *PromptHardwareKeyPINRequest) GetPinOptional() bool {
 	if x != nil {
 		return x.PinOptional
@@ -1027,9 +1633,42 @@ func (x *PromptHardwareKeyPINRequest) GetCommand() string {
 	return ""
 }
 
+func (x *PromptHardwareKeyPINRequest) SetPinOptional(v bool) {
+	x.PinOptional = v
+}
+
+func (x *PromptHardwareKeyPINRequest) SetProxyHostname(v string) {
+	x.ProxyHostname = v
+}
+
+func (x *PromptHardwareKeyPINRequest) SetCommand(v string) {
+	x.Command = v
+}
+
+type PromptHardwareKeyPINRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PinOptional specified if a PIN is optional, allowing the user to set it up if left empty.
+	PinOptional bool
+	// ProxyHostname is the proxy hostname of the client key.
+	ProxyHostname string
+	// Command is an optional command string to provide context for the prompt.
+	Command string
+}
+
+func (b0 PromptHardwareKeyPINRequest_builder) Build() *PromptHardwareKeyPINRequest {
+	m0 := &PromptHardwareKeyPINRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PinOptional = b.PinOptional
+	x.ProxyHostname = b.ProxyHostname
+	x.Command = b.Command
+	return m0
+}
+
 // Response for PromptHardwareKeyPIN.
 type PromptHardwareKeyPINResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// pin as inputted by the user in the Electron app.
 	Pin           string `protobuf:"bytes,1,opt,name=pin,proto3" json:"pin,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1061,11 +1700,6 @@ func (x *PromptHardwareKeyPINResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PromptHardwareKeyPINResponse.ProtoReflect.Descriptor instead.
-func (*PromptHardwareKeyPINResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *PromptHardwareKeyPINResponse) GetPin() string {
 	if x != nil {
 		return x.Pin
@@ -1073,9 +1707,28 @@ func (x *PromptHardwareKeyPINResponse) GetPin() string {
 	return ""
 }
 
+func (x *PromptHardwareKeyPINResponse) SetPin(v string) {
+	x.Pin = v
+}
+
+type PromptHardwareKeyPINResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// pin as inputted by the user in the Electron app.
+	Pin string
+}
+
+func (b0 PromptHardwareKeyPINResponse_builder) Build() *PromptHardwareKeyPINResponse {
+	m0 := &PromptHardwareKeyPINResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Pin = b.Pin
+	return m0
+}
+
 // Request for PromptHardwareKeyTouchRequest.
 type PromptHardwareKeyTouchRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ProxyHostname is the proxy hostname of the client key.
 	ProxyHostname string `protobuf:"bytes,2,opt,name=proxy_hostname,json=proxyHostname,proto3" json:"proxy_hostname,omitempty"`
 	// Command is an optional command string to provide context for the prompt.
@@ -1109,11 +1762,6 @@ func (x *PromptHardwareKeyTouchRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PromptHardwareKeyTouchRequest.ProtoReflect.Descriptor instead.
-func (*PromptHardwareKeyTouchRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *PromptHardwareKeyTouchRequest) GetProxyHostname() string {
 	if x != nil {
 		return x.ProxyHostname
@@ -1128,9 +1776,35 @@ func (x *PromptHardwareKeyTouchRequest) GetCommand() string {
 	return ""
 }
 
+func (x *PromptHardwareKeyTouchRequest) SetProxyHostname(v string) {
+	x.ProxyHostname = v
+}
+
+func (x *PromptHardwareKeyTouchRequest) SetCommand(v string) {
+	x.Command = v
+}
+
+type PromptHardwareKeyTouchRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ProxyHostname is the proxy hostname of the client key.
+	ProxyHostname string
+	// Command is an optional command string to provide context for the prompt.
+	Command string
+}
+
+func (b0 PromptHardwareKeyTouchRequest_builder) Build() *PromptHardwareKeyTouchRequest {
+	m0 := &PromptHardwareKeyTouchRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ProxyHostname = b.ProxyHostname
+	x.Command = b.Command
+	return m0
+}
+
 // Response for PromptHardwareKeyTouch.
 type PromptHardwareKeyTouchResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1160,14 +1834,21 @@ func (x *PromptHardwareKeyTouchResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PromptHardwareKeyTouchResponse.ProtoReflect.Descriptor instead.
-func (*PromptHardwareKeyTouchResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{18}
+type PromptHardwareKeyTouchResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 PromptHardwareKeyTouchResponse_builder) Build() *PromptHardwareKeyTouchResponse {
+	m0 := &PromptHardwareKeyTouchResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for PromptHardwareKeyPINChange.
 type PromptHardwareKeyPINChangeRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ProxyHostname is the proxy hostname of the client key.
 	ProxyHostname string `protobuf:"bytes,2,opt,name=proxy_hostname,json=proxyHostname,proto3" json:"proxy_hostname,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1199,11 +1880,6 @@ func (x *PromptHardwareKeyPINChangeRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PromptHardwareKeyPINChangeRequest.ProtoReflect.Descriptor instead.
-func (*PromptHardwareKeyPINChangeRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *PromptHardwareKeyPINChangeRequest) GetProxyHostname() string {
 	if x != nil {
 		return x.ProxyHostname
@@ -1211,9 +1887,28 @@ func (x *PromptHardwareKeyPINChangeRequest) GetProxyHostname() string {
 	return ""
 }
 
+func (x *PromptHardwareKeyPINChangeRequest) SetProxyHostname(v string) {
+	x.ProxyHostname = v
+}
+
+type PromptHardwareKeyPINChangeRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ProxyHostname is the proxy hostname of the client key.
+	ProxyHostname string
+}
+
+func (b0 PromptHardwareKeyPINChangeRequest_builder) Build() *PromptHardwareKeyPINChangeRequest {
+	m0 := &PromptHardwareKeyPINChangeRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ProxyHostname = b.ProxyHostname
+	return m0
+}
+
 // Response for PromptHardwareKeyPINChange.
 type PromptHardwareKeyPINChangeResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// New pin set by the user.
 	Pin string `protobuf:"bytes,1,opt,name=pin,proto3" json:"pin,omitempty"`
 	// PUK is needed to change the PIN.
@@ -1250,11 +1945,6 @@ func (x *PromptHardwareKeyPINChangeResponse) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PromptHardwareKeyPINChangeResponse.ProtoReflect.Descriptor instead.
-func (*PromptHardwareKeyPINChangeResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *PromptHardwareKeyPINChangeResponse) GetPin() string {
 	if x != nil {
 		return x.Pin
@@ -1276,9 +1966,43 @@ func (x *PromptHardwareKeyPINChangeResponse) GetPukChanged() bool {
 	return false
 }
 
+func (x *PromptHardwareKeyPINChangeResponse) SetPin(v string) {
+	x.Pin = v
+}
+
+func (x *PromptHardwareKeyPINChangeResponse) SetPuk(v string) {
+	x.Puk = v
+}
+
+func (x *PromptHardwareKeyPINChangeResponse) SetPukChanged(v bool) {
+	x.PukChanged = v
+}
+
+type PromptHardwareKeyPINChangeResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// New pin set by the user.
+	Pin string
+	// PUK is needed to change the PIN.
+	// This is a new PUK if it has not been changed from the default PUK.
+	Puk string
+	// puk_changed is true if the user changed the default PUK.
+	PukChanged bool
+}
+
+func (b0 PromptHardwareKeyPINChangeResponse_builder) Build() *PromptHardwareKeyPINChangeResponse {
+	m0 := &PromptHardwareKeyPINChangeResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Pin = b.Pin
+	x.Puk = b.Puk
+	x.PukChanged = b.PukChanged
+	return m0
+}
+
 // Request for ConfirmHardwareKeySlotOverwrite.
 type ConfirmHardwareKeySlotOverwriteRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Message to display in the prompt.
 	Message string `protobuf:"bytes,2,opt,name=message,proto3" json:"message,omitempty"`
 	// ProxyHostname is the proxy hostname of the client key.
@@ -1312,11 +2036,6 @@ func (x *ConfirmHardwareKeySlotOverwriteRequest) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConfirmHardwareKeySlotOverwriteRequest.ProtoReflect.Descriptor instead.
-func (*ConfirmHardwareKeySlotOverwriteRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{21}
-}
-
 func (x *ConfirmHardwareKeySlotOverwriteRequest) GetMessage() string {
 	if x != nil {
 		return x.Message
@@ -1331,9 +2050,35 @@ func (x *ConfirmHardwareKeySlotOverwriteRequest) GetProxyHostname() string {
 	return ""
 }
 
+func (x *ConfirmHardwareKeySlotOverwriteRequest) SetMessage(v string) {
+	x.Message = v
+}
+
+func (x *ConfirmHardwareKeySlotOverwriteRequest) SetProxyHostname(v string) {
+	x.ProxyHostname = v
+}
+
+type ConfirmHardwareKeySlotOverwriteRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Message to display in the prompt.
+	Message string
+	// ProxyHostname is the proxy hostname of the client key.
+	ProxyHostname string
+}
+
+func (b0 ConfirmHardwareKeySlotOverwriteRequest_builder) Build() *ConfirmHardwareKeySlotOverwriteRequest {
+	m0 := &ConfirmHardwareKeySlotOverwriteRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Message = b.Message
+	x.ProxyHostname = b.ProxyHostname
+	return m0
+}
+
 // Response for ConfirmHardwareKeySlotOverwrite.
 type ConfirmHardwareKeySlotOverwriteResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// If true, the slot will be overridden.
 	Confirmed     bool `protobuf:"varint,1,opt,name=confirmed,proto3" json:"confirmed,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1365,11 +2110,6 @@ func (x *ConfirmHardwareKeySlotOverwriteResponse) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConfirmHardwareKeySlotOverwriteResponse.ProtoReflect.Descriptor instead.
-func (*ConfirmHardwareKeySlotOverwriteResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{22}
-}
-
 func (x *ConfirmHardwareKeySlotOverwriteResponse) GetConfirmed() bool {
 	if x != nil {
 		return x.Confirmed
@@ -1377,9 +2117,28 @@ func (x *ConfirmHardwareKeySlotOverwriteResponse) GetConfirmed() bool {
 	return false
 }
 
+func (x *ConfirmHardwareKeySlotOverwriteResponse) SetConfirmed(v bool) {
+	x.Confirmed = v
+}
+
+type ConfirmHardwareKeySlotOverwriteResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// If true, the slot will be overridden.
+	Confirmed bool
+}
+
+func (b0 ConfirmHardwareKeySlotOverwriteResponse_builder) Build() *ConfirmHardwareKeySlotOverwriteResponse {
+	m0 := &ConfirmHardwareKeySlotOverwriteResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Confirmed = b.Confirmed
+	return m0
+}
+
 // Request for GetUsageReportingSettings.
 type GetUsageReportingSettingsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1409,14 +2168,21 @@ func (x *GetUsageReportingSettingsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetUsageReportingSettingsRequest.ProtoReflect.Descriptor instead.
-func (*GetUsageReportingSettingsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{23}
+type GetUsageReportingSettingsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetUsageReportingSettingsRequest_builder) Build() *GetUsageReportingSettingsRequest {
+	m0 := &GetUsageReportingSettingsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for GetUsageReportingSettings.
 type GetUsageReportingSettingsResponse struct {
-	state                  protoimpl.MessageState  `protogen:"open.v1"`
+	state                  protoimpl.MessageState  `protogen:"hybrid.v1"`
 	UsageReportingSettings *UsageReportingSettings `protobuf:"bytes,1,opt,name=usage_reporting_settings,json=usageReportingSettings,proto3" json:"usage_reporting_settings,omitempty"`
 	unknownFields          protoimpl.UnknownFields
 	sizeCache              protoimpl.SizeCache
@@ -1447,11 +2213,6 @@ func (x *GetUsageReportingSettingsResponse) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetUsageReportingSettingsResponse.ProtoReflect.Descriptor instead.
-func (*GetUsageReportingSettingsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{24}
-}
-
 func (x *GetUsageReportingSettingsResponse) GetUsageReportingSettings() *UsageReportingSettings {
 	if x != nil {
 		return x.UsageReportingSettings
@@ -1459,10 +2220,39 @@ func (x *GetUsageReportingSettingsResponse) GetUsageReportingSettings() *UsageRe
 	return nil
 }
 
+func (x *GetUsageReportingSettingsResponse) SetUsageReportingSettings(v *UsageReportingSettings) {
+	x.UsageReportingSettings = v
+}
+
+func (x *GetUsageReportingSettingsResponse) HasUsageReportingSettings() bool {
+	if x == nil {
+		return false
+	}
+	return x.UsageReportingSettings != nil
+}
+
+func (x *GetUsageReportingSettingsResponse) ClearUsageReportingSettings() {
+	x.UsageReportingSettings = nil
+}
+
+type GetUsageReportingSettingsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	UsageReportingSettings *UsageReportingSettings
+}
+
+func (b0 GetUsageReportingSettingsResponse_builder) Build() *GetUsageReportingSettingsResponse {
+	m0 := &GetUsageReportingSettingsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UsageReportingSettings = b.UsageReportingSettings
+	return m0
+}
+
 // UsageReportingSettings contains information about usage reporting as understood by the Electron
 // app.
 type UsageReportingSettings struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Enabled       bool                   `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1493,11 +2283,6 @@ func (x *UsageReportingSettings) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UsageReportingSettings.ProtoReflect.Descriptor instead.
-func (*UsageReportingSettings) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{25}
-}
-
 func (x *UsageReportingSettings) GetEnabled() bool {
 	if x != nil {
 		return x.Enabled
@@ -1505,9 +2290,27 @@ func (x *UsageReportingSettings) GetEnabled() bool {
 	return false
 }
 
+func (x *UsageReportingSettings) SetEnabled(v bool) {
+	x.Enabled = v
+}
+
+type UsageReportingSettings_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Enabled bool
+}
+
+func (b0 UsageReportingSettings_builder) Build() *UsageReportingSettings {
+	m0 := &UsageReportingSettings{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Enabled = b.Enabled
+	return m0
+}
+
 // Request for ReportUnexpectedVnetShutdown.
 type ReportUnexpectedVnetShutdownRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// error is the error message with which VNet was shut down. Technically it can be empty, so
 	// consumers should account for that.
 	Error         string `protobuf:"bytes,1,opt,name=error,proto3" json:"error,omitempty"`
@@ -1540,11 +2343,6 @@ func (x *ReportUnexpectedVnetShutdownRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportUnexpectedVnetShutdownRequest.ProtoReflect.Descriptor instead.
-func (*ReportUnexpectedVnetShutdownRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{26}
-}
-
 func (x *ReportUnexpectedVnetShutdownRequest) GetError() string {
 	if x != nil {
 		return x.Error
@@ -1552,9 +2350,29 @@ func (x *ReportUnexpectedVnetShutdownRequest) GetError() string {
 	return ""
 }
 
+func (x *ReportUnexpectedVnetShutdownRequest) SetError(v string) {
+	x.Error = v
+}
+
+type ReportUnexpectedVnetShutdownRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// error is the error message with which VNet was shut down. Technically it can be empty, so
+	// consumers should account for that.
+	Error string
+}
+
+func (b0 ReportUnexpectedVnetShutdownRequest_builder) Build() *ReportUnexpectedVnetShutdownRequest {
+	m0 := &ReportUnexpectedVnetShutdownRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Error = b.Error
+	return m0
+}
+
 // Response for ReportUnexpectedVnetShutdown.
 type ReportUnexpectedVnetShutdownResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1584,16 +2402,23 @@ func (x *ReportUnexpectedVnetShutdownResponse) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportUnexpectedVnetShutdownResponse.ProtoReflect.Descriptor instead.
-func (*ReportUnexpectedVnetShutdownResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP(), []int{27}
+type ReportUnexpectedVnetShutdownResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 ReportUnexpectedVnetShutdownResponse_builder) Build() *ReportUnexpectedVnetShutdownResponse {
+	m0 := &ReportUnexpectedVnetShutdownResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_lib_teleterm_v1_tshd_events_service_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\n" +
-	"2teleport/lib/teleterm/v1/tshd_events_service.proto\x12\x18teleport.lib.teleterm.v1\x1a\"teleport/lib/teleterm/v1/app.proto\"\xff\x01\n" +
+	"2teleport/lib/teleterm/v1/tshd_events_service.proto\x12\x18teleport.lib.teleterm.v1\x1a\"teleport/lib/teleterm/v1/app.proto\x1a\x1fteleport/mfa/v1/challenge.proto\"\xff\x01\n" +
 	"\x0eReloginRequest\x12(\n" +
 	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12`\n" +
 	"\x14gateway_cert_expired\x18\x02 \x01(\v2,.teleport.lib.teleterm.v1.GatewayCertExpiredH\x00R\x12gatewayCertExpired\x12W\n" +
@@ -1637,7 +2462,7 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\x10root_cluster_uri\x18\x01 \x01(\tR\x0erootClusterUri\x12<\n" +
 	"\x1aheadless_authentication_id\x18\x02 \x01(\tR\x18headlessAuthenticationId\x12I\n" +
 	"!headless_authentication_client_ip\x18\x03 \x01(\tR\x1eheadlessAuthenticationClientIp\"+\n" +
-	")SendPendingHeadlessAuthenticationResponse\"\xf5\x01\n" +
+	")SendPendingHeadlessAuthenticationResponse\"\xb5\x02\n" +
 	"\x10PromptMFARequest\x12\x16\n" +
 	"\x06reason\x18\x02 \x01(\tR\x06reason\x12\x12\n" +
 	"\x04totp\x18\x03 \x01(\bR\x04totp\x12\x1a\n" +
@@ -1645,7 +2470,8 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\vcluster_uri\x18\x05 \x01(\tR\n" +
 	"clusterUri\x128\n" +
 	"\x03sso\x18\x06 \x01(\v2&.teleport.lib.teleterm.v1.SSOChallengeR\x03sso\x12&\n" +
-	"\x0fper_session_mfa\x18\a \x01(\bR\rperSessionMfaJ\x04\b\x01\x10\x02R\x10root_cluster_uri\"\x9e\x01\n" +
+	"\x0fper_session_mfa\x18\a \x01(\bR\rperSessionMfa\x12>\n" +
+	"\abrowser\x18\b \x01(\v2$.teleport.mfa.v1.BrowserMFAChallengeR\abrowserJ\x04\b\x01\x10\x02R\x10root_cluster_uri\"\x9e\x01\n" +
 	"\fSSOChallenge\x12!\n" +
 	"\fconnector_id\x18\x01 \x01(\tR\vconnectorId\x12%\n" +
 	"\x0econnector_type\x18\x02 \x01(\tR\rconnectorType\x12!\n" +
@@ -1695,18 +2521,6 @@ const file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc = "" +
 	"\x19GetUsageReportingSettings\x12:.teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest\x1a;.teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse\x12\x9d\x01\n" +
 	"\x1cReportUnexpectedVnetShutdown\x12=.teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest\x1a>.teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponseBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
-var (
-	file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc), len(file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_tshd_events_service_proto_rawDescData
-}
-
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_goTypes = []any{
 	(*ReloginRequest)(nil),                            // 0: teleport.lib.teleterm.v1.ReloginRequest
@@ -1739,6 +2553,7 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_goTypes = []any{
 	(*ReportUnexpectedVnetShutdownResponse)(nil),      // 27: teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
 	(*RouteToApp)(nil),                                // 28: teleport.lib.teleterm.v1.RouteToApp
 	(*PortRange)(nil),                                 // 29: teleport.lib.teleterm.v1.PortRange
+	(*v1.BrowserMFAChallenge)(nil),                    // 30: teleport.mfa.v1.BrowserMFAChallenge
 }
 var file_teleport_lib_teleterm_v1_tshd_events_service_proto_depIdxs = []int32{
 	1,  // 0: teleport.lib.teleterm.v1.ReloginRequest.gateway_cert_expired:type_name -> teleport.lib.teleterm.v1.GatewayCertExpired
@@ -1751,32 +2566,33 @@ var file_teleport_lib_teleterm_v1_tshd_events_service_proto_depIdxs = []int32{
 	8,  // 7: teleport.lib.teleterm.v1.CannotProxyVnetConnection.invalid_local_port:type_name -> teleport.lib.teleterm.v1.InvalidLocalPort
 	29, // 8: teleport.lib.teleterm.v1.InvalidLocalPort.tcp_ports:type_name -> teleport.lib.teleterm.v1.PortRange
 	13, // 9: teleport.lib.teleterm.v1.PromptMFARequest.sso:type_name -> teleport.lib.teleterm.v1.SSOChallenge
-	25, // 10: teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse.usage_reporting_settings:type_name -> teleport.lib.teleterm.v1.UsageReportingSettings
-	0,  // 11: teleport.lib.teleterm.v1.TshdEventsService.Relogin:input_type -> teleport.lib.teleterm.v1.ReloginRequest
-	4,  // 12: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:input_type -> teleport.lib.teleterm.v1.SendNotificationRequest
-	10, // 13: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:input_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationRequest
-	12, // 14: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:input_type -> teleport.lib.teleterm.v1.PromptMFARequest
-	15, // 15: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
-	17, // 16: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest
-	19, // 17: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest
-	21, // 18: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:input_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
-	23, // 19: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:input_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
-	26, // 20: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:input_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
-	3,  // 21: teleport.lib.teleterm.v1.TshdEventsService.Relogin:output_type -> teleport.lib.teleterm.v1.ReloginResponse
-	9,  // 22: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:output_type -> teleport.lib.teleterm.v1.SendNotificationResponse
-	11, // 23: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:output_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
-	14, // 24: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:output_type -> teleport.lib.teleterm.v1.PromptMFAResponse
-	16, // 25: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
-	18, // 26: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
-	20, // 27: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
-	22, // 28: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:output_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
-	24, // 29: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:output_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
-	27, // 30: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:output_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
-	21, // [21:31] is the sub-list for method output_type
-	11, // [11:21] is the sub-list for method input_type
-	11, // [11:11] is the sub-list for extension type_name
-	11, // [11:11] is the sub-list for extension extendee
-	0,  // [0:11] is the sub-list for field type_name
+	30, // 10: teleport.lib.teleterm.v1.PromptMFARequest.browser:type_name -> teleport.mfa.v1.BrowserMFAChallenge
+	25, // 11: teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse.usage_reporting_settings:type_name -> teleport.lib.teleterm.v1.UsageReportingSettings
+	0,  // 12: teleport.lib.teleterm.v1.TshdEventsService.Relogin:input_type -> teleport.lib.teleterm.v1.ReloginRequest
+	4,  // 13: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:input_type -> teleport.lib.teleterm.v1.SendNotificationRequest
+	10, // 14: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:input_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationRequest
+	12, // 15: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:input_type -> teleport.lib.teleterm.v1.PromptMFARequest
+	15, // 16: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINRequest
+	17, // 17: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchRequest
+	19, // 18: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:input_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeRequest
+	21, // 19: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:input_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteRequest
+	23, // 20: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:input_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsRequest
+	26, // 21: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:input_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownRequest
+	3,  // 22: teleport.lib.teleterm.v1.TshdEventsService.Relogin:output_type -> teleport.lib.teleterm.v1.ReloginResponse
+	9,  // 23: teleport.lib.teleterm.v1.TshdEventsService.SendNotification:output_type -> teleport.lib.teleterm.v1.SendNotificationResponse
+	11, // 24: teleport.lib.teleterm.v1.TshdEventsService.SendPendingHeadlessAuthentication:output_type -> teleport.lib.teleterm.v1.SendPendingHeadlessAuthenticationResponse
+	14, // 25: teleport.lib.teleterm.v1.TshdEventsService.PromptMFA:output_type -> teleport.lib.teleterm.v1.PromptMFAResponse
+	16, // 26: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPIN:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINResponse
+	18, // 27: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyTouch:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyTouchResponse
+	20, // 28: teleport.lib.teleterm.v1.TshdEventsService.PromptHardwareKeyPINChange:output_type -> teleport.lib.teleterm.v1.PromptHardwareKeyPINChangeResponse
+	22, // 29: teleport.lib.teleterm.v1.TshdEventsService.ConfirmHardwareKeySlotOverwrite:output_type -> teleport.lib.teleterm.v1.ConfirmHardwareKeySlotOverwriteResponse
+	24, // 30: teleport.lib.teleterm.v1.TshdEventsService.GetUsageReportingSettings:output_type -> teleport.lib.teleterm.v1.GetUsageReportingSettingsResponse
+	27, // 31: teleport.lib.teleterm.v1.TshdEventsService.ReportUnexpectedVnetShutdown:output_type -> teleport.lib.teleterm.v1.ReportUnexpectedVnetShutdownResponse
+	22, // [22:32] is the sub-list for method output_type
+	12, // [12:22] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_tshd_events_service_proto_init() }

@@ -31,6 +31,7 @@ import (
 	"net/http/httptest"
 	"sort"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -46,6 +47,7 @@ import (
 	otlpcommonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	otlpresourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
 	otlptracev1 "go.opentelemetry.io/proto/otlp/trace/v1"
+	"google.golang.org/grpc/health/grpc_health_v1"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -57,7 +59,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	autoupdatev1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/autoupdate/v1"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	vnetv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/metadata"
@@ -86,6 +91,8 @@ import (
 	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
+	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
@@ -93,6 +100,7 @@ import (
 )
 
 func TestMFADeviceManagement(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock().(*clockwork.FakeClock)
@@ -456,6 +464,7 @@ func TestMFADeviceManagement(t *testing.T) {
 }
 
 func TestMFADeviceManagement_SSO(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	ctx := context.Background()
@@ -561,7 +570,8 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 		checkErr: func(t require.TestingT, err error, _ ...any) {
 			assert.ErrorAs(t, err, new(*trace.BadParameterError))
 			assert.ErrorContains(t, err, "cannot delete ephemeral SSO MFA device")
-		}},
+		},
+	},
 	)
 
 	// Last non-SSO, passwordless device can be deleted now.
@@ -573,6 +583,7 @@ func TestMFADeviceManagement_SSO(t *testing.T) {
 }
 
 func TestDeletingLastPasswordlessDevice(t *testing.T) {
+	t.Parallel()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
 	clock := testServer.Clock().(*clockwork.FakeClock)
@@ -883,6 +894,7 @@ func testDeleteMFADevice(ctx context.Context, t *testing.T, authClient *authclie
 }
 
 func TestCreateAppSession_deviceExtensions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testServer := newTestTLSServer(t)
 	authServer := testServer.Auth()
@@ -967,7 +979,106 @@ func TestCreateAppSession_deviceExtensions(t *testing.T) {
 	}
 }
 
+func TestCreateAppSession_allowedResourceAccessIDs(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise,
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.App: {Enabled: true},
+			},
+		},
+	}))
+	authServer := testServer.Auth()
+
+	user, _, err := authtest.CreateUserAndRole(authServer, "teleport-user", []string{"teleport-user"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	app, err := types.NewAppV3(
+		types.Metadata{
+			Name: "someapp",
+		}, types.AppSpecV3{
+			URI:        "http://localhost:8080",
+			PublicAddr: "someapp.example.com",
+		})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "host", uuid.New().String())
+	require.NoError(t, err)
+	_, err = authServer.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	wantResourceAccessIDs := []types.ResourceAccessID{
+		{
+			Id: types.ResourceID{
+				ClusterName: testServer.ClusterName(),
+				Kind:        types.KindApp,
+				Name:        "someapp",
+			},
+			Constraints: &types.ResourceConstraints{
+				Version: types.V1,
+				Details: &types.ResourceConstraints_AwsConsole{
+					AwsConsole: &types.AWSConsoleResourceConstraints{
+						RoleArns: []string{"arn:aws:iam::123456789012:role/someapprole"},
+					},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name       string
+		modifyUser func(u *authtest.TestIdentity)
+		assertCert func(t *testing.T, cert *x509.Certificate)
+	}{
+		{
+			name: "identity with no AllowedResourceAccessIDs",
+		},
+		{
+			name: "identity with AllowedResourceAccessIDs",
+			modifyUser: func(u *authtest.TestIdentity) {
+				lu := u.I.(authz.LocalUser)
+				lu.Identity.AllowedResourceAccessIDs = wantResourceAccessIDs
+				u.I = lu
+			},
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				gotIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err)
+				require.Empty(t, cmp.Diff(wantResourceAccessIDs, gotIdentity.AllowedResourceAccessIDs, protocmp.Transform()))
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			u := authtest.TestUser(user.GetName())
+			if test.modifyUser != nil {
+				test.modifyUser(&u)
+			}
+
+			userClient, err := testServer.NewClient(u)
+			require.NoError(t, err)
+
+			session, err := userClient.CreateAppSession(ctx, &proto.CreateAppSessionRequest{
+				Username:    user.GetName(),
+				PublicAddr:  app.GetPublicAddr(),
+				ClusterName: testServer.ClusterName(),
+			})
+			require.NoError(t, err)
+
+			block, _ := pem.Decode(session.GetTLSCert())
+			require.NotNil(t, block)
+			gotCert, err := x509.ParseCertificate(block.Bytes)
+			require.NoError(t, err)
+
+			if test.assertCert != nil {
+				test.assertCert(t, gotCert)
+			}
+		})
+	}
+}
+
 func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	testServer := newTestTLSServer(t)
 
@@ -990,6 +1101,7 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 		name       string
 		modifyUser func(u *authtest.TestIdentity)
 		assertCert func(t *testing.T, cert *x509.Certificate)
+		usage      proto.UserCertsRequest_CertUsage
 	}{
 		{
 			name: "no device extensions",
@@ -1043,18 +1155,11 @@ func TestGenerateUserCerts_deviceExtensions(t *testing.T) {
 }
 
 func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.App: {Enabled: true},
-			},
-		},
-	})
+	t.Parallel()
 
-	testServer := newTestTLSServer(t)
+	testServer := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := testServer.Clock()
 	clusterName := testServer.ClusterName()
 	authServer := testServer.Auth()
@@ -1327,13 +1432,11 @@ func TestGenerateUserCerts_deviceAuthz(t *testing.T) {
 
 // Test that device trust is required for a user registering their first MFA device.
 func TestRegisterFirstDevice_deviceAuthz(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
-	})
+	t.Parallel()
 
-	testServer := newTestTLSServer(t)
+	testServer := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
 
-	ctx := context.Background()
+	ctx := t.Context()
 	authServer := testServer.Auth()
 
 	// Create a user for testing.
@@ -1455,13 +1558,9 @@ func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.Databas
 }
 
 func TestGenerateUserCerts_singleUseCerts(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestBuildType: modules.BuildEnterprise, // required for IP pinning.
-		TestFeatures:  modules.GetModules().Features(),
-	})
-
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
 	clock := srv.Clock()
 	userCertTTL := 12 * time.Hour
 	userCertExpires := clock.Now().Add(userCertTTL)
@@ -2554,14 +2653,12 @@ var requireMFATypes = []types.RequireMFAType{
 }
 
 func TestIsMFARequired(t *testing.T) {
-	testModules := modulestest.Modules{
-		TestBuildType:       modules.BuildEnterprise,
-		MockAttestationData: &keys.AttestationData{},
-	}
-	modulestest.SetTestModules(t, testModules)
+	t.Parallel()
 
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	ctx := t.Context()
+
+	testModules := modulestest.EnterpriseModules()
+	srv := newTestTLSServer(t, withModules(testModules))
 
 	// Register an SSH node.
 	node := &types.ServerV2{
@@ -2612,9 +2709,13 @@ func TestIsMFARequired(t *testing.T) {
 					mfaVerifiedByHardwareKey := role.GetPrivateKeyPolicy().MFAVerified() || authPref.GetPrivateKeyPolicy().MFAVerified()
 					if mfaVerifiedByHardwareKey {
 						// Set attestated key policy to the most restrictive hardware key MFA is required.
-						testModules.MockAttestationData.PrivateKeyPolicy = keys.PrivateKeyPolicyHardwareKeyTouchAndPIN
+						testModules.MockAttestationData = &keys.AttestationData{
+							PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKeyTouchAndPIN,
+						}
 					} else {
-						testModules.MockAttestationData.PrivateKeyPolicy = keys.PrivateKeyPolicyHardwareKey
+						testModules.MockAttestationData = &keys.AttestationData{
+							PrivateKeyPolicy: keys.PrivateKeyPolicyHardwareKey,
+						}
 					}
 
 					cl, err := srv.NewClient(authtest.TestUser(user.GetName()))
@@ -2646,6 +2747,7 @@ func TestIsMFARequired(t *testing.T) {
 }
 
 func TestIsMFARequired_unauthorized(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -2734,10 +2836,10 @@ func TestIsMFARequired_unauthorized(t *testing.T) {
 }
 
 func TestIsMFARequired_nodeMatch(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{TestBuildType: modules.BuildEnterprise})
+	t.Parallel()
 
-	ctx := context.Background()
-	srv := newTestTLSServer(t)
+	ctx := t.Context()
+	srv := newTestTLSServer(t, withModules(modulestest.EnterpriseModules()))
 
 	// Register an SSH node.
 	node, err := types.NewServerWithLabels(uuid.NewString(), types.KindNode, types.ServerSpecV2{
@@ -2832,6 +2934,7 @@ func TestIsMFARequired_nodeMatch(t *testing.T) {
 }
 
 func TestIsMFARequired_App(t *testing.T) {
+	t.Parallel()
 	ctx := context.Background()
 	srv := newTestTLSServer(t)
 
@@ -3510,7 +3613,6 @@ func TestLocksCRUD(t *testing.T) {
 
 			require.Empty(t, cmp.Diff([]types.Lock{lock1, lock2}, append(page1, page2...),
 				cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
-
 		})
 		t.Run("RangeLocks", func(t *testing.T) {
 			t.Parallel()
@@ -3865,7 +3967,7 @@ func TestAppsCRUD(t *testing.T) {
 	}
 	require.Empty(t, iterOut)
 
-	err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+	_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
 		Kind: types.KindProxy,
 		Metadata: types.Metadata{
 			Name: "proxy",
@@ -4003,7 +4105,7 @@ func TestAppServersCRUD(t *testing.T) {
 	require.Empty(t, resources.Resources)
 
 	t.Run("App server with an app that has a public address matching a proxy address should fail", func(t *testing.T) {
-		err = srv.Auth().UpsertProxy(ctx, &types.ServerV2{
+		_, err = srv.Auth().UpsertProxyServer(ctx, &types.ServerV2{
 			Kind: types.KindProxy,
 			Metadata: types.Metadata{
 				Name: "proxy",
@@ -4635,61 +4737,56 @@ func TestListResources(t *testing.T) {
 }
 
 func TestCustomRateLimiting(t *testing.T) {
-	t.Parallel()
-
-	ctx := context.Background()
 	tests := []struct {
 		name  string
 		burst int
-		fn    func(*authclient.Client) error
+		fn    func(context.Context, *authclient.Client) error
 	}{
 		{
 			name: "RPC ChangeUserAuthentication",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{})
 				return err
 			},
 		},
 		{
-			name:  "RPC CreateAuthenticateChallenge",
-			burst: defaults.LimiterBurst,
-			fn: func(clt *authclient.Client) error {
-				_, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{})
-				return err
+			name: "RPC ChangePassword",
+			fn: func(ctx context.Context, clt *authclient.Client) error {
+				return clt.ChangePassword(ctx, &proto.ChangePasswordRequest{})
 			},
 		},
 		{
 			name: "RPC GetAccountRecoveryToken",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.GetAccountRecoveryToken(ctx, &proto.GetAccountRecoveryTokenRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC StartAccountRecovery",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.StartAccountRecovery(ctx, &proto.StartAccountRecoveryRequest{})
 				return err
 			},
 		},
 		{
 			name: "RPC VerifyAccountRecovery",
-			fn: func(clt *authclient.Client) error {
+			fn: func(ctx context.Context, clt *authclient.Client) error {
 				_, err := clt.VerifyAccountRecovery(ctx, &proto.VerifyAccountRecoveryRequest{})
 				return err
 			},
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
+		synctestCase := func(t *testing.T) {
 			// Create new instance per test case, to troubleshoot which test case
 			// specifically failed, otherwise multiple cases can fail from running
 			// cases in parallel.
-			srv := newTestTLSServer(t)
+			srv := newTestTLSServer(t, withBufconnListener())
+			defer srv.Close()
 			clt, err := srv.NewClient(authtest.TestNop())
 			require.NoError(t, err)
+			defer clt.Close()
 
 			var attempts int
 			if test.burst == 0 {
@@ -4699,14 +4796,150 @@ func TestCustomRateLimiting(t *testing.T) {
 			}
 
 			for range attempts {
-				err = test.fn(clt)
-				require.False(t, trace.IsLimitExceeded(err), "got err = %v, want non-IsLimitExceeded", err)
+				err = test.fn(t.Context(), clt)
+				require.NotErrorAs(t, err, new(*trace.LimitExceededError))
 			}
 
-			err = test.fn(clt)
-			require.True(t, trace.IsLimitExceeded(err), "got err = %v, want LimitExceeded", err)
+			err = test.fn(t.Context(), clt)
+			require.ErrorAs(t, err, new(*trace.LimitExceededError))
+		}
+		t.Run(test.name, func(t *testing.T) {
+			synctest.Test(t, synctestCase)
 		})
 	}
+
+	t.Run("unauthenticated CreateAuthenticateChallenge", func(t *testing.T) {
+		synctest.Test(t, synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge)
+	})
+
+	t.Run("ResolveSSHTarget", func(t *testing.T) {
+		synctest.Test(t, synctestCustomRateLimitingResolveSSHTarget)
+	})
+}
+
+func synctestCustomRateLimitingUnauthenticatedCreateAuthenticateChallenge(t *testing.T) {
+	ctx := t.Context()
+
+	srv := newTestTLSServer(t, withBufconnListener())
+	defer srv.Close()
+	clt, err := srv.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+	defer clt.Close()
+
+	nonContextUserRequest := &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_UserCredentials{
+			UserCredentials: new(proto.UserCredentials),
+		},
+	}
+	contextUserRequest := &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: new(proto.ContextUser),
+		},
+	}
+
+	for range defaults.LimiterBurst {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	time.Sleep(defaults.LimiterPeriod)
+
+	for range defaults.LimiterBurst - defaults.LimiterAverage {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	require.Greater(t, 1000*defaults.LimiterAverage, defaults.LimiterBurst,
+		"Waiting 1000 periods should bring us to LimiterBurst but no higher")
+	time.Sleep(1000 * defaults.LimiterPeriod)
+
+	for range defaults.LimiterBurst {
+		_, err := clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+	_, err = clt.CreateAuthenticateChallenge(ctx, nonContextUserRequest)
+	require.ErrorAs(t, err, new(*trace.LimitExceededError))
+
+	// no time has passed, but we can do a full burst and more if we pretend to
+	// have a user context (the request will fail, but not due to the rate
+	// limiter)
+
+	for range defaults.LimiterBurst + 1 {
+		_, err := clt.CreateAuthenticateChallenge(ctx, contextUserRequest)
+		require.NotErrorAs(t, err, new(*trace.LimitExceededError))
+	}
+}
+
+func synctestCustomRateLimitingResolveSSHTarget(t *testing.T) {
+	ctx := t.Context()
+
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	defer as.Close()
+
+	unlimitedSrv, err := as.NewTestTLSServer(
+		authtest.WithBufconnListener(),
+	)
+	require.NoError(t, err)
+	defer unlimitedSrv.Close()
+
+	unlimitedClt, err := unlimitedSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer unlimitedClt.Close()
+
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = unlimitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+
+	limitedSrv, err := as.NewTestTLSServer(
+		authtest.WithBufconnListener(),
+		func(c *authtest.TLSServerConfig) {
+			l := 2.0
+			c.APIConfig.ResolveSSHTargetRateLimit = &l
+		},
+	)
+	require.NoError(t, err)
+	defer limitedSrv.Close()
+
+	limitedClt, err := limitedSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+	defer limitedClt.Close()
+
+	_, err = limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	_, err = limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
+	errC := make(chan error, 1)
+	go func() {
+		_, err := limitedClt.ResolveSSHTarget(ctx, new(proto.ResolveSSHTargetRequest))
+		errC <- err
+	}()
+
+	synctest.Wait()
+
+	require.Empty(t, errC)
+
+	time.Sleep(time.Second)
+	synctest.Wait()
+
+	require.ErrorAs(t, <-errC, new(*trace.BadParameterError))
 }
 
 type mockAuthorizer struct {
@@ -5007,13 +5240,7 @@ func TestExport(t *testing.T) {
 // request if the calling user does not have permissions to create or update
 // a SAML connector.
 func TestSAMLValidation(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.SAML: {Enabled: true},
-			},
-		},
-	})
+	t.Parallel()
 
 	// minimal entity_descriptor to pass validation. not actually valid
 	const minimalEntityDescriptor = `
@@ -5060,10 +5287,16 @@ func TestSAMLValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
 			defer cancel()
 
-			server := newTestTLSServer(t)
+			server := newTestTLSServer(t, withModules(&modulestest.Modules{
+				TestFeatures: modules.Features{
+					Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+						entitlements.SAML: {Enabled: true},
+					},
+				},
+			}))
 			// Create an http server to serve the entity descriptor url
 			entityServerCalled := false
 			entityServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -5596,19 +5829,122 @@ func TestUpsertApplicationServerOrigin(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestGetAccessGraphConfig(t *testing.T) {
-	modulestest.SetTestModules(t, modulestest.Modules{
-		TestFeatures: modules.Features{
-			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
-				entitlements.Policy: {Enabled: true},
-			},
-		},
+// TestApplicationServerHeartbeatLowercase asserts the gRPC handler
+// plumbs NormalizeAppServerForHeartbeat through to the backend write
+// for a legacy agent's mixed-case heartbeat.
+func TestApplicationServerHeartbeatLowercase(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	server := newTestTLSServer(t)
+	agent := authtest.TestBuiltin(types.RoleApp)
+	client, err := server.NewClient(agent)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+	app, err := types.NewAppV3(types.Metadata{Name: "MixedCaseApp"}, types.AppSpecV3{
+		URI: "http://localhost:8080",
 	})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "localhost", "host-id")
+	require.NoError(t, err)
+
+	_, err = client.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+
+	stored, err := client.GetApplicationServers(ctx, apidefaults.Namespace)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	require.Equal(t, "mixedcaseapp", stored[0].GetApp().GetName())
+	require.Equal(t, "mixedcaseapp", stored[0].GetName())
+}
+
+// TestServerUpsertApplicationServerValidates asserts
+// (*Server).UpsertApplicationServer validates rather than relying on
+// the gRPC handler. Moving validation up would re-open the
+// inventory-stream bypass.
+func TestServerUpsertApplicationServerValidates(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+
+	bad, err := types.NewAppV3(types.Metadata{Name: "MixedCase"}, types.AppSpecV3{
+		URI: "http://localhost:8080",
+	})
+	require.NoError(t, err)
+	badServer, err := types.NewAppServerV3FromApp(bad, "localhost", "host-id-direct")
+	require.NoError(t, err)
+
+	_, err = srv.Auth().UpsertApplicationServer(ctx, badServer)
+	require.ErrorContains(t, err, "must be a valid DNS name")
+}
+
+// TestApplicationAdminPathsRejectMixedCase asserts CreateApp,
+// UpdateApp, and UpsertApplicationServer all reject mixed-case names
+// for admin callers (the heartbeat-role normalize gate does not
+// apply).
+func TestApplicationAdminPathsRejectMixedCase(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	server := newTestTLSServer(t)
+	admin := authtest.TestAdmin()
+	client, err := server.NewClient(admin)
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+	t.Run("CreateApp", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		err = client.CreateApp(ctx, app)
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
+
+	t.Run("UpdateApp", func(t *testing.T) {
+		seeded, err := types.NewAppV3(types.Metadata{Name: "myapp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		require.NoError(t, client.CreateApp(ctx, seeded))
+
+		bad, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		err = client.UpdateApp(ctx, bad)
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
+
+	t.Run("UpsertApplicationServer", func(t *testing.T) {
+		app, err := types.NewAppV3(types.Metadata{Name: "MyApp"}, types.AppSpecV3{
+			URI: "http://localhost:8080",
+		})
+		require.NoError(t, err)
+		appServer, err := types.NewAppServerV3FromApp(app, "localhost", "host-id-admin")
+		require.NoError(t, err)
+		_, err = client.UpsertApplicationServer(ctx, appServer)
+		require.ErrorContains(t, err, "must be a valid DNS name")
+	})
+}
+
+func TestGetAccessGraphConfig(t *testing.T) {
+	t.Parallel()
+
 	server := newTestTLSServer(t,
 		withAccessGraphConfig(auth.AccessGraphConfig{
 			Enabled: true,
 			CA:      []byte("ca"),
 			Address: "addr",
+		}),
+		withModules(&modulestest.Modules{
+			TestFeatures: modules.Features{
+				Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+					entitlements.Policy: {Enabled: true},
+				},
+			},
 		}),
 	)
 	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
@@ -5667,6 +6003,7 @@ func TestGetAccessGraphConfig(t *testing.T) {
 }
 
 func TestGetVnetConfig(t *testing.T) {
+	t.Parallel()
 	server := newTestTLSServer(t)
 	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
@@ -5674,7 +6011,7 @@ func TestGetVnetConfig(t *testing.T) {
 	// Create newConfig.
 	newConfig, err := vnet.NewVnetConfig(&vnetv1pb.VnetConfigSpec{
 		Ipv4CidrRange:  vnet.DefaultIPv4CIDRRange,
-		CustomDnsZones: []*vnetv1pb.CustomDNSZone{&vnetv1pb.CustomDNSZone{Suffix: "example.com"}},
+		CustomDnsZones: []*vnetv1pb.CustomDNSZone{{Suffix: "example.com"}},
 	})
 	require.NoError(t, err)
 	createdConfig, err := server.Auth().CreateVnetConfig(t.Context(), newConfig)
@@ -5692,17 +6029,35 @@ func TestGetVnetConfig(t *testing.T) {
 }
 
 func TestCreateAuditStreamLimit(t *testing.T) {
-	const N = 5
-	t.Setenv("TELEPORT_UNSTABLE_CREATEAUDITSTREAM_INFLIGHT_LIMIT", fmt.Sprintf("%d", N))
+	synctest.Test(t, synctestCreateAuditStreamLimit)
+}
+func synctestCreateAuditStreamLimit(t *testing.T) {
+	const inflightLimit = 5
 
 	ctx := t.Context()
 
-	server := newTestTLSServer(t)
+	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+	})
+	require.NoError(t, err)
+	defer as.Close()
+
+	server, err := as.NewTestTLSServer(
+		authtest.WithBufconnListener(),
+		func(c *authtest.TLSServerConfig) {
+			n := inflightLimit
+			c.APIConfig.CreateAuditStreamInflightLimit = &n
+		},
+	)
+	require.NoError(t, err)
+	defer server.Close()
+
 	clt, err := server.NewClient(authtest.TestServerID(types.RoleNode, uuid.NewString()))
 	require.NoError(t, err)
+	defer clt.Close()
 
 	// HACK(espadolini): we're piggybacking on the prometheus counter which
-	// can't change while this test is running (we set an envvar, so we can't be
+	// can't change while this test is running (this is a synctest test that's not
 	// running in parallel with other tests) but it's still pretty awful, and
 	// it'd be much better to actually check that the streams were accepted by
 	// the server; unfortunately, the CreateAuditStream stream doesn't actually
@@ -5715,15 +6070,14 @@ func TestCreateAuditStreamLimit(t *testing.T) {
 	}
 	currentAcceptedTotal := getAcceptedTotal()
 
-	for range N {
+	for range inflightLimit {
 		stream, err := clt.CreateAuditStream(ctx, session.NewID())
 		require.NoError(t, err)
-		t.Cleanup(func() { stream.Close(ctx) })
+		defer stream.Close(ctx)
 	}
 
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		require.EqualValues(t, currentAcceptedTotal+N, getAcceptedTotal())
-	}, time.Second, 100*time.Millisecond)
+	synctest.Wait()
+	require.EqualValues(t, currentAcceptedTotal+inflightLimit, getAcceptedTotal())
 
 	ac := proto.NewAuthServiceClient(clt.APIClient.GetConnection())
 	stream, err := ac.CreateAuditStream(ctx)
@@ -6508,6 +6862,291 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 						require.NoError(t, err)
 					}
 				})
+			}
+		})
+	}
+}
+
+func TestGRPCServingStatus(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv := newTestTLSServer(t)
+	defer srv.Close()
+
+	authClient, err := srv.NewClient(authtest.TestServerID(types.RoleNode, uuid.NewString()))
+	require.NoError(t, err)
+	defer authClient.Close()
+
+	srv.TLSServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_SERVING)
+	healthClient := grpc_health_v1.NewHealthClient(authClient.GetConnection())
+	resp, err := healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{
+		Service: "",
+	})
+	require.NoError(t, err)
+	require.Equal(t, grpc_health_v1.HealthCheckResponse_SERVING, resp.Status)
+
+	srv.TLSServer.SetServingStatus("", grpc_health_v1.HealthCheckResponse_NOT_SERVING)
+	resp, err = healthClient.Check(ctx, &grpc_health_v1.HealthCheckRequest{
+		Service: "",
+	})
+	require.NoError(t, err)
+	require.Equal(t, grpc_health_v1.HealthCheckResponse_NOT_SERVING, resp.Status)
+}
+
+func TestGenerateUserCerts_accessGraphUsage(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	testServer := newTestTLSServer(t, withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+			},
+		},
+	}))
+
+	// Create an user without access Graph access
+	userWithoutAccessGraph, _, err := authtest.CreateUserAndRole(testServer.Auth(), "non_ag_user", []string{"non_ag_user"}, nil)
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	// Create an user with access Graph access
+	userWithAccessGraph, _, err := authtest.CreateUserAndRole(testServer.Auth(), "ag_user", []string{"non_ag_user"}, []types.Rule{types.NewRule(types.KindAccessGraph, []string{types.Wildcard})})
+	require.NoError(t, err, "CreateUserAndRole failed")
+
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err, "GenerateKeyWithAlgorithm failed")
+	publicKeyPEM, err := keys.MarshalPublicKey(key.Public())
+	require.NoError(t, err, "MarshalPublicKey failed")
+
+	tests := []struct {
+		name       string
+		username   string
+		nodeName   string
+		assertErr  require.ErrorAssertionFunc
+		assertCert func(t *testing.T, cert *x509.Certificate)
+		usage      proto.UserCertsRequest_CertUsage
+		purpose    proto.UserCertsRequest_CertPurpose
+	}{
+		{
+			name:     "no without access graph access ",
+			username: userWithoutAccessGraph.GetName(),
+			assertErr: func(t require.TestingT, err error, _ ...any) {
+				require.True(t, trace.IsAccessDenied(err), "error is not trace access denied error")
+			},
+		},
+		{
+			name:      "user with access graph access",
+			username:  userWithAccessGraph.GetName(),
+			assertErr: require.NoError,
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				gotIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err, "FromSubject failed")
+
+				require.Contains(t, gotIdentity.Usage, teleport.UsageAccessGraphAPIOnly, "access graph usage not included")
+
+				require.NotEmpty(t, gotIdentity.WebSessionID, "session ID is empty")
+
+				data, err := testServer.Auth().GetWebSession(ctx, types.GetWebSessionRequest{
+					User:      gotIdentity.Username,
+					SessionID: gotIdentity.WebSessionID,
+				})
+				require.NoError(t, err)
+				require.NotNil(t, data, "session data is nil")
+				require.NotEmpty(t, data.GetTLSCert(), "session data TLS cert is empty")
+				require.NotEmpty(t, data.GetTLSPriv(), "session data TLS priv is empty")
+			},
+		},
+		{
+			name:      "user with access single use cert",
+			username:  userWithAccessGraph.GetName(),
+			assertErr: require.NoError,
+			purpose:   proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+			assertCert: func(t *testing.T, cert *x509.Certificate) {
+				gotIdentity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
+				require.NoError(t, err, "FromSubject failed")
+
+				require.Contains(t, gotIdentity.Usage, teleport.UsageAccessGraphAPIOnly, "access graph usage not included")
+
+				require.NotEmpty(t, gotIdentity.WebSessionID, "session ID is empty")
+				data, err := testServer.Auth().GetWebSession(ctx, types.GetWebSessionRequest{
+					User:      gotIdentity.Username,
+					SessionID: gotIdentity.WebSessionID,
+				})
+				require.NoError(t, err)
+				require.NotNil(t, data, "session data is nil")
+				require.NotEmpty(t, data.GetTLSCert(), "session data TLS cert is empty")
+				require.NotEmpty(t, data.GetTLSPriv(), "session data TLS priv is empty")
+			},
+		},
+		{
+			name:      "user with access single use cert with node fails",
+			username:  userWithAccessGraph.GetName(),
+			assertErr: require.Error,
+			nodeName:  "abc",
+			purpose:   proto.UserCertsRequest_CERT_PURPOSE_SINGLE_USE_CERTS,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			u := authtest.TestUser(test.username)
+
+			userClient, err := testServer.NewClient(u)
+			require.NoError(t, err, "NewClient failed")
+
+			resp, err := userClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				TLSPublicKey: publicKeyPEM,
+				Username:     test.username,
+				Expires:      testServer.Clock().Now().Add(1 * time.Hour),
+				Usage:        proto.UserCertsRequest_AccessGraphAPI,
+				Purpose:      test.purpose,
+				NodeName:     test.nodeName,
+			})
+			test.assertErr(t, err)
+			if resp == nil {
+				return
+			}
+
+			block, _ := pem.Decode(resp.TLS)
+			require.NotNil(t, block, "Decode failed")
+			gotCert, err := x509.ParseCertificate(block.Bytes)
+			require.NoError(t, err, "ParserCertificate failed")
+
+			if test.assertCert != nil {
+				test.assertCert(t, gotCert)
+			}
+		})
+	}
+}
+
+func TestGenerateUserCertsScopedBot(t *testing.T) {
+	t.Parallel()
+	testServer := newTestTLSServer(t, withScopesFeatures(scopes.Features{Enabled: true}), withModules(&modulestest.Modules{
+		TestBuildType: modules.BuildEnterprise, // required for Device Trust.
+		TestFeatures: modules.Features{
+			Entitlements: map[entitlements.EntitlementKind]modules.EntitlementInfo{
+				entitlements.Policy: {Enabled: true},
+			},
+		},
+	}))
+	adminClient, err := testServer.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	cases := []struct {
+		name     string
+		botName  string
+		scope    string
+		internal bool
+		expect   func(t *testing.T, err error)
+	}{
+		{
+			name:     "internal scoped",
+			botName:  "scoped_internal",
+			internal: true,
+			scope:    "/test",
+			expect: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+				require.Contains(t, err.Error(), "scoped bots can not generate user certs")
+
+			},
+		},
+		{
+			name:    "scoped bot",
+			botName: "scoped_bot",
+			scope:   "/test",
+			expect: func(t *testing.T, err error) {
+				require.Error(t, err)
+				require.True(t, trace.IsAccessDenied(err))
+				require.Contains(t, err.Error(), "scoped bots can not generate user certs")
+			},
+		},
+		{
+			name:     "internal unscoped",
+			botName:  "internal",
+			internal: true,
+		},
+		{
+			name:    "unscoped",
+			botName: "unscoped",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			ctx := t.Context()
+			bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
+				Bot: &machineidv1.Bot{
+					Kind:    types.KindBot,
+					Version: types.V1,
+					Metadata: &headerv1.Metadata{
+						Name: c.botName,
+					},
+					Scope: c.scope,
+					Spec:  &machineidv1.BotSpec{},
+				},
+			})
+			require.NoError(t, err)
+
+			ident := authtest.TestBot(c.botName, c.internal)
+			if c.scope != "" {
+				scopedSvc := adminClient.ScopedAccessServiceClient()
+				roleResp, err := scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+					Role: &scopedaccessv1.ScopedRole{
+						Kind:    scopedaccess.KindScopedRole,
+						Version: types.V1,
+						Metadata: &headerv1.Metadata{
+							Name: c.botName + "-role",
+						},
+						Scope: c.scope,
+						Spec: &scopedaccessv1.ScopedRoleSpec{
+							AssignableScopes: []string{c.scope},
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				sra, err := testServer.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+					Assignment: &scopedaccessv1.ScopedRoleAssignment{
+						Kind:    scopedaccess.KindScopedRoleAssignment,
+						SubKind: scopedaccess.SubKindDynamic,
+						Version: types.V1,
+						Metadata: &headerv1.Metadata{
+							Name: uuid.NewString(),
+						},
+						Scope: c.scope,
+						Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+							BotName:  bot.GetMetadata().GetName(),
+							BotScope: c.scope,
+							Assignments: []*scopedaccessv1.Assignment{
+								{Role: roleResp.GetRole().GetMetadata().GetName(), Scope: c.scope},
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+
+				waitForSRACache(t, testServer, sra)
+				ident = authtest.TestScopedBot(c.botName, c.scope, c.internal)
+			}
+
+			client, err := testServer.NewClient(ident)
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = client.Close() })
+
+			_, sshPub, _, _ := newSSHAndTLSKeyPairs(t)
+			_, err = client.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				SSHPublicKey:   sshPub,
+				Username:       ident.GetUsername(),
+				Expires:        time.Now().Add(time.Hour),
+				RouteToCluster: testServer.ClusterName(),
+				NodeName:       "mynode",
+				Usage:          proto.UserCertsRequest_SSH,
+				SSHLogin:       "llama",
+			})
+			if c.expect != nil {
+				c.expect(t, err)
+			} else {
+				require.NoError(t, err)
 			}
 		})
 	}

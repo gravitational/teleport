@@ -67,7 +67,8 @@ func (f *RoleFilter) Match(role *RoleV6) bool {
 type Role interface {
 	// Resource provides common resource methods.
 	ResourceWithLabels
-
+	// IsEqual determines if two roles are equivalent to one another.
+	IsEqual(Role) bool
 	// SetMetadata sets role metadata
 	SetMetadata(meta Metadata)
 
@@ -223,6 +224,17 @@ type Role interface {
 	// SetWindowsLogins sets Windows desktop logins for allow or deny condition.
 	SetWindowsLogins(RoleConditionType, []string)
 
+	// GetLinuxDesktopLabels gets the Linux desktop labels this role
+	// is allowed or denied access to.
+	GetLinuxDesktopLabels(RoleConditionType) Labels
+	// SetLinuxDesktopLabels sets the Linux desktop labels this role
+	// is allowed or denied access to.
+	SetLinuxDesktopLabels(RoleConditionType, Labels)
+	// GetLinuxDesktopLogins gets Linux desktop logins for allow or deny condition.
+	GetLinuxDesktopLogins(RoleConditionType) []string
+	// SetLinuxDesktopLogins sets Linux desktop logins for allow or deny condition.
+	SetLinuxDesktopLogins(RoleConditionType, []string)
+
 	// GetSessionRequirePolicies returns the RBAC required policies for a session.
 	GetSessionRequirePolicies() []*SessionRequirePolicy
 	// SetSessionRequirePolicies sets the RBAC required policies for a session.
@@ -255,6 +267,13 @@ type Role interface {
 	// purposes of viewing details such as the hostname and labels of requested
 	// resources.
 	SetPreviewAsRoles(RoleConditionType, []string)
+
+	// GetSubmitForUsers returns the list of users that the reviewer can submit reviews for,
+	// to be used by teleport plugins submitting reviews on behalf of users.
+	GetSubmitForUsers(RoleConditionType) []string
+	// SetSubmitForUsers sets the list of users that the reviewer can submit reviews for,
+	// to be used by teleport plugins submitting reviews on behalf of users.
+	SetSubmitForUsers(RoleConditionType, []string)
 
 	// GetHostGroups gets the list of groups this role is put in when users are provisioned
 	GetHostGroups(RoleConditionType) []string
@@ -347,6 +366,15 @@ const (
 	// Deny is the set of conditions that prevent access.
 	Deny RoleConditionType = false
 )
+
+func (r *RoleV6) IsEqual(other Role) bool {
+	otherv6, ok := other.(*RoleV6)
+	if !ok {
+		return false
+	}
+
+	return deriveTeleportEqualRoleV6(r, otherv6)
+}
 
 // GetVersion returns resource version
 func (r *RoleV6) GetVersion() string {
@@ -1064,6 +1092,42 @@ func (r *RoleV6) SetWindowsLogins(rct RoleConditionType, logins []string) {
 	}
 }
 
+// GetLinuxDesktopLabels gets the desktop labels this role is allowed or denied access to.
+func (r *RoleV6) GetLinuxDesktopLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.LinuxDesktopLabels
+	}
+	return r.Spec.Deny.LinuxDesktopLabels
+}
+
+// SetLinuxDesktopLabels sets the desktop labels this role is allowed or denied access to.
+func (r *RoleV6) SetLinuxDesktopLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.LinuxDesktopLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.LinuxDesktopLabels = labels.Clone()
+	}
+}
+
+// GetLinuxLogins gets Linux desktop logins for the role's allow or deny condition.
+func (r *RoleV6) GetLinuxDesktopLogins(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.LinuxDesktopLogins
+	}
+	return r.Spec.Deny.LinuxDesktopLogins
+}
+
+// SetLinuxLogins sets Linux desktop logins for the role's allow or deny condition.
+func (r *RoleV6) SetLinuxDesktopLogins(rct RoleConditionType, logins []string) {
+	lcopy := slices.Clone(logins)
+
+	if rct == Allow {
+		r.Spec.Allow.LinuxDesktopLogins = lcopy
+	} else {
+		r.Spec.Deny.LinuxDesktopLogins = lcopy
+	}
+}
+
 // GetRules gets all allow or deny rules.
 func (r *RoleV6) GetRules(rct RoleConditionType) []Rule {
 	if rct == Allow {
@@ -1294,6 +1358,9 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if _, ok := CreateHostUserMode_name[int32(r.Spec.Options.CreateHostUserMode)]; !ok {
 		return trace.BadParameter("invalid host user mode %q, expected one of off, drop or keep", r.Spec.Options.CreateHostUserMode)
 	}
+	if _, ok := WebTerminalClipboardMode_name[int32(r.Spec.Options.WebTerminalClipboardMode)]; !ok {
+		return trace.BadParameter("invalid web terminal clipboard mode %v, expected unrestricted or no-copy", r.Spec.Options.WebTerminalClipboardMode)
+	}
 
 	switch r.Version {
 	case V3:
@@ -1458,6 +1525,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.WindowsDesktopLabels,
 		r.Spec.Allow.GroupLabels,
 		r.Spec.Allow.WorkloadIdentityLabels,
+		r.Spec.Allow.BeamLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)
@@ -2027,6 +2095,29 @@ func (r *RoleV6) SetPreviewAsRoles(rct RoleConditionType, roles []string) {
 	roleConditions.ReviewRequests.PreviewAsRoles = roles
 }
 
+// GetSubmitForUsers returns the list of users that the reviewer can submit reviews for,
+// to be used by teleport plugins submitting reviews on behalf of users.
+func (r *RoleV6) GetSubmitForUsers(rct RoleConditionType) []string {
+	roleConditions := r.GetRoleConditions(rct)
+	if roleConditions.ReviewRequests == nil {
+		return nil
+	}
+	return roleConditions.ReviewRequests.SubmitForUsers
+}
+
+// SetSubmitForUsers sets the list of users that the reviewer can submit reviews for,
+// to be used by teleport plugins submitting reviews on behalf of users.
+func (r *RoleV6) SetSubmitForUsers(rct RoleConditionType, users []string) {
+	roleConditions := &r.Spec.Allow
+	if rct == Deny {
+		roleConditions = &r.Spec.Deny
+	}
+	if roleConditions.ReviewRequests == nil {
+		roleConditions.ReviewRequests = &AccessReviewConditions{}
+	}
+	roleConditions.ReviewRequests.SubmitForUsers = users
+}
+
 // validateRoleSpecKubeResources validates the Allow/Deny Kubernetes Resources
 // entries.
 func validateRoleSpecKubeResources(version string, spec RoleSpecV6) error {
@@ -2195,7 +2286,8 @@ func (a AccessReviewConditions) IsEmpty() bool {
 	return len(a.ClaimsToRoles) == 0 &&
 		len(a.PreviewAsRoles) == 0 &&
 		len(a.Roles) == 0 &&
-		len(a.Where) == 0
+		len(a.Where) == 0 &&
+		len(a.SubmitForUsers) == 0
 }
 
 // LabelMatchers holds the role label matchers and label expression that are
@@ -2242,12 +2334,16 @@ func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatc
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
 	case KindWindowsDesktopService:
 		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
+	case KindLinuxDesktop:
+		return LabelMatchers{cond.LinuxDesktopLabels, cond.LinuxDesktopLabelsExpression}, nil
 	case KindUserGroup:
 		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
 	case KindGitServer:
 		return r.makeGitServerLabelMatchers(cond), nil
 	case KindWorkloadIdentity:
 		return LabelMatchers{cond.WorkloadIdentityLabels, cond.WorkloadIdentityLabelsExpression}, nil
+	case KindBeam:
+		return LabelMatchers{cond.BeamLabels, cond.BeamLabelsExpression}, nil
 	}
 	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
 }
@@ -2304,6 +2400,10 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	case KindWorkloadIdentity:
 		cond.WorkloadIdentityLabels = labelMatchers.Labels
 		cond.WorkloadIdentityLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindBeam:
+		cond.BeamLabels = labelMatchers.Labels
+		cond.BeamLabelsExpression = labelMatchers.Expression
 		return nil
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
@@ -2419,6 +2519,7 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktop,
 	KindWindowsDesktopService,
 	KindUserGroup,
+	KindBeam,
 }
 
 const (
@@ -2539,6 +2640,16 @@ func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
 	return trace.Wrap(err)
 }
 
+// UnmarshalText supports parsing CreateHostUserMode from string.
+//
+// The JSON and YAML unmarshaller will not call this method because CreateHostUserMode
+// also implements yaml/json.Unmarshaler, which takes precedence.
+// Callers that have a plain string should call UnmarshalText directly.
+func (h *CreateHostUserMode) UnmarshalText(text []byte) error {
+	err := h.decode(string(text))
+	return trace.Wrap(err)
+}
+
 const (
 	createDatabaseUserModeOffString            = "off"
 	createDatabaseUserModeKeepString           = "keep"
@@ -2655,6 +2766,103 @@ func (h *CreateDatabaseUserMode) UnmarshalJSON(data []byte) error {
 // IsEnabled returns true if database automatic user provisioning is enabled.
 func (m CreateDatabaseUserMode) IsEnabled() bool {
 	return m != CreateDatabaseUserMode_DB_USER_MODE_UNSPECIFIED && m != CreateDatabaseUserMode_DB_USER_MODE_OFF
+}
+
+const (
+	webTerminalClipboardModeUnrestrictedString = "unrestricted"
+	webTerminalClipboardModeNoCopyString       = "no-copy"
+)
+
+func (m WebTerminalClipboardMode) encode() (string, error) {
+	switch m {
+	case WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED:
+		return "", nil
+	case WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED:
+		return webTerminalClipboardModeUnrestrictedString, nil
+	case WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY:
+		return webTerminalClipboardModeNoCopyString, nil
+	default:
+		return "", trace.BadParameter("invalid web terminal clipboard mode %v", m)
+	}
+}
+
+func (m *WebTerminalClipboardMode) decode(val any) error {
+	var str string
+	switch val := val.(type) {
+	case int32:
+		return trace.Wrap(m.setFromEnum(val))
+	case int64:
+		return trace.Wrap(m.setFromEnum(int32(val)))
+	case int:
+		return trace.Wrap(m.setFromEnum(int32(val)))
+	case float64:
+		return trace.Wrap(m.setFromEnum(int32(val)))
+	case float32:
+		return trace.Wrap(m.setFromEnum(int32(val)))
+	case string:
+		str = val
+	default:
+		return trace.BadParameter("bad value type %T, expected string or int", val)
+	}
+
+	switch str {
+	case "":
+		*m = WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED
+	case webTerminalClipboardModeUnrestrictedString:
+		*m = WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED
+	case webTerminalClipboardModeNoCopyString:
+		*m = WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY
+	default:
+		return trace.BadParameter("invalid web terminal clipboard mode %v", val)
+	}
+	return nil
+}
+
+func (m *WebTerminalClipboardMode) setFromEnum(val int32) error {
+	if _, ok := WebTerminalClipboardMode_name[val]; !ok {
+		return trace.BadParameter("invalid web terminal clipboard mode %v", val)
+	}
+	*m = WebTerminalClipboardMode(val)
+	return nil
+}
+
+// MarshalYAML marshals WebTerminalClipboardMode to yaml.
+func (m WebTerminalClipboardMode) MarshalYAML() (interface{}, error) {
+	val, err := m.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// UnmarshalYAML supports parsing WebTerminalClipboardMode from string.
+func (m *WebTerminalClipboardMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(m.decode(val))
+}
+
+// MarshalJSON marshals WebTerminalClipboardMode to json bytes.
+func (m WebTerminalClipboardMode) MarshalJSON() ([]byte, error) {
+	val, err := m.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing WebTerminalClipboardMode from string.
+func (m *WebTerminalClipboardMode) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(m.decode(val))
 }
 
 // GetAccount fetches the Account ID from a Role Condition Account Assignment

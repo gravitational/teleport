@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/scopes/joining/v1/token.proto
 
+//go:build !protoopaque
+
 package joiningv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -42,7 +43,7 @@ const (
 // provisioning tokens, specifically tailored to the usecase of limited admins/users provisioning resources within
 // sub-scopes over which they have been granted elevated privileges.
 type ScopedToken struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubKind is the resource sub-kind.
@@ -84,11 +85,6 @@ func (x *ScopedToken) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ScopedToken.ProtoReflect.Descriptor instead.
-func (*ScopedToken) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ScopedToken) GetKind() string {
@@ -140,17 +136,113 @@ func (x *ScopedToken) GetStatus() *ScopedTokenStatus {
 	return nil
 }
 
+func (x *ScopedToken) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *ScopedToken) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *ScopedToken) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *ScopedToken) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *ScopedToken) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *ScopedToken) SetSpec(v *ScopedTokenSpec) {
+	x.Spec = v
+}
+
+func (x *ScopedToken) SetStatus(v *ScopedTokenStatus) {
+	x.Status = v
+}
+
+func (x *ScopedToken) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *ScopedToken) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *ScopedToken) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *ScopedToken) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *ScopedToken) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *ScopedToken) ClearStatus() {
+	x.Status = nil
+}
+
+type ScopedToken_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the resource kind.
+	Kind string
+	// SubKind is the resource sub-kind.
+	SubKind string
+	// Version is the resource version.
+	Version string
+	// Metadata contains the resource metadata.
+	Metadata *v1.Metadata
+	// Scope is the scope of the token resource.
+	Scope string
+	// Spec is the token specification.
+	Spec *ScopedTokenSpec
+	// The status of a scoped token.
+	Status *ScopedTokenStatus
+}
+
+func (b0 ScopedToken_builder) Build() *ScopedToken {
+	m0 := &ScopedToken{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Scope = b.Scope
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // ScopedTokenSpec is the specification of a scoped token.
 type ScopedTokenSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The scope to which this token is assigned.
+	//
+	// Must be equivalent or descendent to the scope of the token itself.
 	AssignedScope string `protobuf:"bytes,1,opt,name=assigned_scope,json=assignedScope,proto3" json:"assigned_scope,omitempty"`
 	// The list of roles associated with the token. They will be converted
 	// to metadata in the SSH and X509 certificates issued to the user of the
 	// token.
 	Roles []string `protobuf:"bytes,2,rep,name=roles,proto3" json:"roles,omitempty"`
-	// The joining method required in order to use this token.
-	// Supported joining methods for scoped tokens only include 'token'.
+	// The joining method required in order to use this token. Note that not all
+	// join methods support joining with scoped tokens.
 	JoinMethod string `protobuf:"bytes,3,opt,name=join_method,json=joinMethod,proto3" json:"join_method,omitempty"`
 	// The usage mode of the token. Can be "single_use" or "unlimited". Single use
 	// tokens can only be used to provision a single resource. Unlimited tokens
@@ -159,8 +251,27 @@ type ScopedTokenSpec struct {
 	// Immutable labels that should be applied to any resulting resources provisioned
 	// using this token.
 	ImmutableLabels *ImmutableLabels `protobuf:"bytes,5,opt,name=immutable_labels,json=immutableLabels,proto3" json:"immutable_labels,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// The AWS-specific configuration used with the "ec2" and "iam" join methods.
+	Aws *AWS `protobuf:"bytes,6,opt,name=aws,proto3" json:"aws,omitempty"`
+	// The GCP-specific configuration used with the "gcp" join method.
+	Gcp *GCP `protobuf:"bytes,7,opt,name=gcp,proto3" json:"gcp,omitempty"`
+	// The Azure-specific configuration used with the "azure" join method.
+	Azure *Azure `protobuf:"bytes,8,opt,name=azure,proto3" json:"azure,omitempty"`
+	// The Azure Devops-specific configuration used with the "azure_devops" join method.
+	AzureDevops *AzureDevops `protobuf:"bytes,9,opt,name=azure_devops,json=azureDevops,proto3" json:"azure_devops,omitempty"`
+	// The Oracle-specific configuration used with the "oracle" join method.
+	Oracle *Oracle `protobuf:"bytes,10,opt,name=oracle,proto3" json:"oracle,omitempty"`
+	// The Kubernetes-specific configuration used with the "kubernetes" join method.
+	Kubernetes *Kubernetes `protobuf:"bytes,11,opt,name=kubernetes,proto3" json:"kubernetes,omitempty"`
+	// Configuration specific to the "bound_keypair" join method.
+	BoundKeypair *BoundKeypairSpec `protobuf:"bytes,12,opt,name=bound_keypair,json=boundKeypair,proto3" json:"bound_keypair,omitempty"`
+	// Name of the bot associated with this join token, if any.
+	BotName string `protobuf:"bytes,13,opt,name=bot_name,json=botName,proto3" json:"bot_name,omitempty"`
+	// Scope of the bot associated with this join token. Required if bot_name is
+	// set, and mutually exclusive with assigned_scope.
+	BotScope      string `protobuf:"bytes,14,opt,name=bot_scope,json=botScope,proto3" json:"bot_scope,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *ScopedTokenSpec) Reset() {
@@ -186,11 +297,6 @@ func (x *ScopedTokenSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ScopedTokenSpec.ProtoReflect.Descriptor instead.
-func (*ScopedTokenSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *ScopedTokenSpec) GetAssignedScope() string {
@@ -228,10 +334,280 @@ func (x *ScopedTokenSpec) GetImmutableLabels() *ImmutableLabels {
 	return nil
 }
 
+func (x *ScopedTokenSpec) GetAws() *AWS {
+	if x != nil {
+		return x.Aws
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetGcp() *GCP {
+	if x != nil {
+		return x.Gcp
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetAzure() *Azure {
+	if x != nil {
+		return x.Azure
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetAzureDevops() *AzureDevops {
+	if x != nil {
+		return x.AzureDevops
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetOracle() *Oracle {
+	if x != nil {
+		return x.Oracle
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetKubernetes() *Kubernetes {
+	if x != nil {
+		return x.Kubernetes
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetBoundKeypair() *BoundKeypairSpec {
+	if x != nil {
+		return x.BoundKeypair
+	}
+	return nil
+}
+
+func (x *ScopedTokenSpec) GetBotName() string {
+	if x != nil {
+		return x.BotName
+	}
+	return ""
+}
+
+func (x *ScopedTokenSpec) GetBotScope() string {
+	if x != nil {
+		return x.BotScope
+	}
+	return ""
+}
+
+func (x *ScopedTokenSpec) SetAssignedScope(v string) {
+	x.AssignedScope = v
+}
+
+func (x *ScopedTokenSpec) SetRoles(v []string) {
+	x.Roles = v
+}
+
+func (x *ScopedTokenSpec) SetJoinMethod(v string) {
+	x.JoinMethod = v
+}
+
+func (x *ScopedTokenSpec) SetUsageMode(v string) {
+	x.UsageMode = v
+}
+
+func (x *ScopedTokenSpec) SetImmutableLabels(v *ImmutableLabels) {
+	x.ImmutableLabels = v
+}
+
+func (x *ScopedTokenSpec) SetAws(v *AWS) {
+	x.Aws = v
+}
+
+func (x *ScopedTokenSpec) SetGcp(v *GCP) {
+	x.Gcp = v
+}
+
+func (x *ScopedTokenSpec) SetAzure(v *Azure) {
+	x.Azure = v
+}
+
+func (x *ScopedTokenSpec) SetAzureDevops(v *AzureDevops) {
+	x.AzureDevops = v
+}
+
+func (x *ScopedTokenSpec) SetOracle(v *Oracle) {
+	x.Oracle = v
+}
+
+func (x *ScopedTokenSpec) SetKubernetes(v *Kubernetes) {
+	x.Kubernetes = v
+}
+
+func (x *ScopedTokenSpec) SetBoundKeypair(v *BoundKeypairSpec) {
+	x.BoundKeypair = v
+}
+
+func (x *ScopedTokenSpec) SetBotName(v string) {
+	x.BotName = v
+}
+
+func (x *ScopedTokenSpec) SetBotScope(v string) {
+	x.BotScope = v
+}
+
+func (x *ScopedTokenSpec) HasImmutableLabels() bool {
+	if x == nil {
+		return false
+	}
+	return x.ImmutableLabels != nil
+}
+
+func (x *ScopedTokenSpec) HasAws() bool {
+	if x == nil {
+		return false
+	}
+	return x.Aws != nil
+}
+
+func (x *ScopedTokenSpec) HasGcp() bool {
+	if x == nil {
+		return false
+	}
+	return x.Gcp != nil
+}
+
+func (x *ScopedTokenSpec) HasAzure() bool {
+	if x == nil {
+		return false
+	}
+	return x.Azure != nil
+}
+
+func (x *ScopedTokenSpec) HasAzureDevops() bool {
+	if x == nil {
+		return false
+	}
+	return x.AzureDevops != nil
+}
+
+func (x *ScopedTokenSpec) HasOracle() bool {
+	if x == nil {
+		return false
+	}
+	return x.Oracle != nil
+}
+
+func (x *ScopedTokenSpec) HasKubernetes() bool {
+	if x == nil {
+		return false
+	}
+	return x.Kubernetes != nil
+}
+
+func (x *ScopedTokenSpec) HasBoundKeypair() bool {
+	if x == nil {
+		return false
+	}
+	return x.BoundKeypair != nil
+}
+
+func (x *ScopedTokenSpec) ClearImmutableLabels() {
+	x.ImmutableLabels = nil
+}
+
+func (x *ScopedTokenSpec) ClearAws() {
+	x.Aws = nil
+}
+
+func (x *ScopedTokenSpec) ClearGcp() {
+	x.Gcp = nil
+}
+
+func (x *ScopedTokenSpec) ClearAzure() {
+	x.Azure = nil
+}
+
+func (x *ScopedTokenSpec) ClearAzureDevops() {
+	x.AzureDevops = nil
+}
+
+func (x *ScopedTokenSpec) ClearOracle() {
+	x.Oracle = nil
+}
+
+func (x *ScopedTokenSpec) ClearKubernetes() {
+	x.Kubernetes = nil
+}
+
+func (x *ScopedTokenSpec) ClearBoundKeypair() {
+	x.BoundKeypair = nil
+}
+
+type ScopedTokenSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The scope to which this token is assigned.
+	//
+	// Must be equivalent or descendent to the scope of the token itself.
+	AssignedScope string
+	// The list of roles associated with the token. They will be converted
+	// to metadata in the SSH and X509 certificates issued to the user of the
+	// token.
+	Roles []string
+	// The joining method required in order to use this token. Note that not all
+	// join methods support joining with scoped tokens.
+	JoinMethod string
+	// The usage mode of the token. Can be "single_use" or "unlimited". Single use
+	// tokens can only be used to provision a single resource. Unlimited tokens
+	// can be be used to provision any number of resources until it expires.
+	UsageMode string
+	// Immutable labels that should be applied to any resulting resources provisioned
+	// using this token.
+	ImmutableLabels *ImmutableLabels
+	// The AWS-specific configuration used with the "ec2" and "iam" join methods.
+	Aws *AWS
+	// The GCP-specific configuration used with the "gcp" join method.
+	Gcp *GCP
+	// The Azure-specific configuration used with the "azure" join method.
+	Azure *Azure
+	// The Azure Devops-specific configuration used with the "azure_devops" join method.
+	AzureDevops *AzureDevops
+	// The Oracle-specific configuration used with the "oracle" join method.
+	Oracle *Oracle
+	// The Kubernetes-specific configuration used with the "kubernetes" join method.
+	Kubernetes *Kubernetes
+	// Configuration specific to the "bound_keypair" join method.
+	BoundKeypair *BoundKeypairSpec
+	// Name of the bot associated with this join token, if any.
+	BotName string
+	// Scope of the bot associated with this join token. Required if bot_name is
+	// set, and mutually exclusive with assigned_scope.
+	BotScope string
+}
+
+func (b0 ScopedTokenSpec_builder) Build() *ScopedTokenSpec {
+	m0 := &ScopedTokenSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AssignedScope = b.AssignedScope
+	x.Roles = b.Roles
+	x.JoinMethod = b.JoinMethod
+	x.UsageMode = b.UsageMode
+	x.ImmutableLabels = b.ImmutableLabels
+	x.Aws = b.Aws
+	x.Gcp = b.Gcp
+	x.Azure = b.Azure
+	x.AzureDevops = b.AzureDevops
+	x.Oracle = b.Oracle
+	x.Kubernetes = b.Kubernetes
+	x.BoundKeypair = b.BoundKeypair
+	x.BotName = b.BotName
+	x.BotScope = b.BotScope
+	return m0
+}
+
 // The host certificate parameters that should be cached and leveraged for
 // token reuse
 type HostCertParams struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The host ID generated for the host.
 	HostId string `protobuf:"bytes,1,opt,name=host_id,json=hostId,proto3" json:"host_id,omitempty"`
 	// The host's name.
@@ -271,11 +647,6 @@ func (x *HostCertParams) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use HostCertParams.ProtoReflect.Descriptor instead.
-func (*HostCertParams) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *HostCertParams) GetHostId() string {
 	if x != nil {
 		return x.HostId
@@ -311,9 +682,56 @@ func (x *HostCertParams) GetAssignedScope() string {
 	return ""
 }
 
+func (x *HostCertParams) SetHostId(v string) {
+	x.HostId = v
+}
+
+func (x *HostCertParams) SetNodeName(v string) {
+	x.NodeName = v
+}
+
+func (x *HostCertParams) SetRole(v string) {
+	x.Role = v
+}
+
+func (x *HostCertParams) SetAdditionalPrincipals(v []string) {
+	x.AdditionalPrincipals = v
+}
+
+func (x *HostCertParams) SetAssignedScope(v string) {
+	x.AssignedScope = v
+}
+
+type HostCertParams_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The host ID generated for the host.
+	HostId string
+	// The host's name.
+	NodeName string
+	// The system role of the host
+	Role string
+	// The additional principals to include
+	AdditionalPrincipals []string
+	// The scope to assign the host to.
+	AssignedScope string
+}
+
+func (b0 HostCertParams_builder) Build() *HostCertParams {
+	m0 := &HostCertParams{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.HostId = b.HostId
+	x.NodeName = b.NodeName
+	x.Role = b.Role
+	x.AdditionalPrincipals = b.AdditionalPrincipals
+	x.AssignedScope = b.AssignedScope
+	return m0
+}
+
 // The usage status of a single use scoped token.
 type SingleUseStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The timestamp representing when a single use token was successfully used for
 	// provisioning.
 	UsedAt *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=used_at,json=usedAt,proto3" json:"used_at,omitempty"`
@@ -353,11 +771,6 @@ func (x *SingleUseStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SingleUseStatus.ProtoReflect.Descriptor instead.
-func (*SingleUseStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *SingleUseStatus) GetUsedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.UsedAt
@@ -386,14 +799,93 @@ func (x *SingleUseStatus) GetHostCertParams() *HostCertParams {
 	return nil
 }
 
+func (x *SingleUseStatus) SetUsedAt(v *timestamppb.Timestamp) {
+	x.UsedAt = v
+}
+
+func (x *SingleUseStatus) SetReusableUntil(v *timestamppb.Timestamp) {
+	x.ReusableUntil = v
+}
+
+func (x *SingleUseStatus) SetUsedByFingerprint(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.UsedByFingerprint = v
+}
+
+func (x *SingleUseStatus) SetHostCertParams(v *HostCertParams) {
+	x.HostCertParams = v
+}
+
+func (x *SingleUseStatus) HasUsedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.UsedAt != nil
+}
+
+func (x *SingleUseStatus) HasReusableUntil() bool {
+	if x == nil {
+		return false
+	}
+	return x.ReusableUntil != nil
+}
+
+func (x *SingleUseStatus) HasHostCertParams() bool {
+	if x == nil {
+		return false
+	}
+	return x.HostCertParams != nil
+}
+
+func (x *SingleUseStatus) ClearUsedAt() {
+	x.UsedAt = nil
+}
+
+func (x *SingleUseStatus) ClearReusableUntil() {
+	x.ReusableUntil = nil
+}
+
+func (x *SingleUseStatus) ClearHostCertParams() {
+	x.HostCertParams = nil
+}
+
+type SingleUseStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The timestamp representing when a single use token was successfully used for
+	// provisioning.
+	UsedAt *timestamppb.Timestamp
+	// The timestamp representing when a single use token should no longer be avaialable
+	// for idempotent retries.
+	ReusableUntil *timestamppb.Timestamp
+	// The fingerprint of the public key provided by the host that used the token.
+	UsedByFingerprint []byte
+	// The relevant host parameters provided while initially using a single use token.
+	HostCertParams *HostCertParams
+}
+
+func (b0 SingleUseStatus_builder) Build() *SingleUseStatus {
+	m0 := &SingleUseStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UsedAt = b.UsedAt
+	x.ReusableUntil = b.ReusableUntil
+	x.UsedByFingerprint = b.UsedByFingerprint
+	x.HostCertParams = b.HostCertParams
+	return m0
+}
+
 // The usage status of a scoped token.
 type UsageStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The usage status of a scoped token.
 	//
 	// Types that are valid to be assigned to Status:
 	//
 	//	*UsageStatus_SingleUse
+	//	*UsageStatus_BoundKeypair
 	Status        isUsageStatus_Status `protobuf_oneof:"status"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -424,11 +916,6 @@ func (x *UsageStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UsageStatus.ProtoReflect.Descriptor instead.
-func (*UsageStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UsageStatus) GetStatus() isUsageStatus_Status {
 	if x != nil {
 		return x.Status
@@ -445,6 +932,124 @@ func (x *UsageStatus) GetSingleUse() *SingleUseStatus {
 	return nil
 }
 
+func (x *UsageStatus) GetBoundKeypair() *BoundKeypairStatus {
+	if x != nil {
+		if x, ok := x.Status.(*UsageStatus_BoundKeypair); ok {
+			return x.BoundKeypair
+		}
+	}
+	return nil
+}
+
+func (x *UsageStatus) SetSingleUse(v *SingleUseStatus) {
+	if v == nil {
+		x.Status = nil
+		return
+	}
+	x.Status = &UsageStatus_SingleUse{v}
+}
+
+func (x *UsageStatus) SetBoundKeypair(v *BoundKeypairStatus) {
+	if v == nil {
+		x.Status = nil
+		return
+	}
+	x.Status = &UsageStatus_BoundKeypair{v}
+}
+
+func (x *UsageStatus) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *UsageStatus) HasSingleUse() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Status.(*UsageStatus_SingleUse)
+	return ok
+}
+
+func (x *UsageStatus) HasBoundKeypair() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Status.(*UsageStatus_BoundKeypair)
+	return ok
+}
+
+func (x *UsageStatus) ClearStatus() {
+	x.Status = nil
+}
+
+func (x *UsageStatus) ClearSingleUse() {
+	if _, ok := x.Status.(*UsageStatus_SingleUse); ok {
+		x.Status = nil
+	}
+}
+
+func (x *UsageStatus) ClearBoundKeypair() {
+	if _, ok := x.Status.(*UsageStatus_BoundKeypair); ok {
+		x.Status = nil
+	}
+}
+
+const UsageStatus_Status_not_set_case case_UsageStatus_Status = 0
+const UsageStatus_SingleUse_case case_UsageStatus_Status = 1
+const UsageStatus_BoundKeypair_case case_UsageStatus_Status = 2
+
+func (x *UsageStatus) WhichStatus() case_UsageStatus_Status {
+	if x == nil {
+		return UsageStatus_Status_not_set_case
+	}
+	switch x.Status.(type) {
+	case *UsageStatus_SingleUse:
+		return UsageStatus_SingleUse_case
+	case *UsageStatus_BoundKeypair:
+		return UsageStatus_BoundKeypair_case
+	default:
+		return UsageStatus_Status_not_set_case
+	}
+}
+
+type UsageStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The usage status of a scoped token.
+
+	// Fields of oneof Status:
+	// The usage status of a single use scoped token.
+	SingleUse *SingleUseStatus
+	// The usage status for a bound keypair token.
+	BoundKeypair *BoundKeypairStatus
+	// -- end of Status
+}
+
+func (b0 UsageStatus_builder) Build() *UsageStatus {
+	m0 := &UsageStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.SingleUse != nil {
+		x.Status = &UsageStatus_SingleUse{b.SingleUse}
+	}
+	if b.BoundKeypair != nil {
+		x.Status = &UsageStatus_BoundKeypair{b.BoundKeypair}
+	}
+	return m0
+}
+
+type case_UsageStatus_Status protoreflect.FieldNumber
+
+func (x case_UsageStatus_Status) String() string {
+	md := file_teleport_scopes_joining_v1_token_proto_msgTypes[4].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isUsageStatus_Status interface {
 	isUsageStatus_Status()
 }
@@ -454,11 +1059,18 @@ type UsageStatus_SingleUse struct {
 	SingleUse *SingleUseStatus `protobuf:"bytes,1,opt,name=single_use,json=singleUse,proto3,oneof"`
 }
 
+type UsageStatus_BoundKeypair struct {
+	// The usage status for a bound keypair token.
+	BoundKeypair *BoundKeypairStatus `protobuf:"bytes,2,opt,name=bound_keypair,json=boundKeypair,proto3,oneof"`
+}
+
 func (*UsageStatus_SingleUse) isUsageStatus_Status() {}
+
+func (*UsageStatus_BoundKeypair) isUsageStatus_Status() {}
 
 // The status of a scoped token.
 type ScopedTokenStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The secret that must be provided as part of the challenge when joining using
 	// the token join method.
 	Secret string `protobuf:"bytes,1,opt,name=secret,proto3" json:"secret,omitempty"`
@@ -493,11 +1105,6 @@ func (x *ScopedTokenStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ScopedTokenStatus.ProtoReflect.Descriptor instead.
-func (*ScopedTokenStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ScopedTokenStatus) GetSecret() string {
 	if x != nil {
 		return x.Secret
@@ -512,9 +1119,47 @@ func (x *ScopedTokenStatus) GetUsage() *UsageStatus {
 	return nil
 }
 
+func (x *ScopedTokenStatus) SetSecret(v string) {
+	x.Secret = v
+}
+
+func (x *ScopedTokenStatus) SetUsage(v *UsageStatus) {
+	x.Usage = v
+}
+
+func (x *ScopedTokenStatus) HasUsage() bool {
+	if x == nil {
+		return false
+	}
+	return x.Usage != nil
+}
+
+func (x *ScopedTokenStatus) ClearUsage() {
+	x.Usage = nil
+}
+
+type ScopedTokenStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The secret that must be provided as part of the challenge when joining using
+	// the token join method.
+	Secret string
+	// The usage status of the scoped token.
+	Usage *UsageStatus
+}
+
+func (b0 ScopedTokenStatus_builder) Build() *ScopedTokenStatus {
+	m0 := &ScopedTokenStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Secret = b.Secret
+	x.Usage = b.Usage
+	return m0
+}
+
 // A set of configurations for immutable labels.
 type ImmutableLabels struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Labels that should be applied to SSH nodes.
 	Ssh           map[string]string `protobuf:"bytes,1,rep,name=ssh,proto3" json:"ssh,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
@@ -546,11 +1191,6 @@ func (x *ImmutableLabels) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ImmutableLabels.ProtoReflect.Descriptor instead.
-func (*ImmutableLabels) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *ImmutableLabels) GetSsh() map[string]string {
 	if x != nil {
 		return x.Ssh
@@ -558,11 +1198,30 @@ func (x *ImmutableLabels) GetSsh() map[string]string {
 	return nil
 }
 
+func (x *ImmutableLabels) SetSsh(v map[string]string) {
+	x.Ssh = v
+}
+
+type ImmutableLabels_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Labels that should be applied to SSH nodes.
+	Ssh map[string]string
+}
+
+func (b0 ImmutableLabels_builder) Build() *ImmutableLabels {
+	m0 := &ImmutableLabels{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Ssh = b.Ssh
+	return m0
+}
+
 // The resource representing static scoped tokens defined in the auth service file configuration. These are
 // represented as a separate resource so that they can be managed separately from dynamic scoped tokens as
 // a singleton.
 type StaticScopedTokens struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// The resource sub-kind.
@@ -602,11 +1261,6 @@ func (x *StaticScopedTokens) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use StaticScopedTokens.ProtoReflect.Descriptor instead.
-func (*StaticScopedTokens) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *StaticScopedTokens) GetKind() string {
@@ -651,10 +1305,86 @@ func (x *StaticScopedTokens) GetSpec() *StaticScopedTokensSpec {
 	return nil
 }
 
+func (x *StaticScopedTokens) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *StaticScopedTokens) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *StaticScopedTokens) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *StaticScopedTokens) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *StaticScopedTokens) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *StaticScopedTokens) SetSpec(v *StaticScopedTokensSpec) {
+	x.Spec = v
+}
+
+func (x *StaticScopedTokens) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *StaticScopedTokens) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *StaticScopedTokens) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *StaticScopedTokens) ClearSpec() {
+	x.Spec = nil
+}
+
+type StaticScopedTokens_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The resource kind.
+	Kind string
+	// The resource sub-kind.
+	SubKind string
+	// The resource version.
+	Version string
+	// The resource metadata.
+	Metadata *v1.Metadata
+	// The scope of the resource.
+	Scope string
+	// The resource specification.
+	Spec *StaticScopedTokensSpec
+}
+
+func (b0 StaticScopedTokens_builder) Build() *StaticScopedTokens {
+	m0 := &StaticScopedTokens{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Scope = b.Scope
+	x.Spec = b.Spec
+	return m0
+}
+
 // The specification representing the static scoped tokens
 // resource.
 type StaticScopedTokensSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The statically parsed scoped tokens.
 	Tokens        []*ScopedToken `protobuf:"bytes,1,rep,name=tokens,proto3" json:"tokens,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -686,16 +1416,2033 @@ func (x *StaticScopedTokensSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StaticScopedTokensSpec.ProtoReflect.Descriptor instead.
-func (*StaticScopedTokensSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_token_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *StaticScopedTokensSpec) GetTokens() []*ScopedToken {
 	if x != nil {
 		return x.Tokens
 	}
 	return nil
+}
+
+func (x *StaticScopedTokensSpec) SetTokens(v []*ScopedToken) {
+	x.Tokens = v
+}
+
+type StaticScopedTokensSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The statically parsed scoped tokens.
+	Tokens []*ScopedToken
+}
+
+func (b0 StaticScopedTokensSpec_builder) Build() *StaticScopedTokensSpec {
+	m0 := &StaticScopedTokensSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Tokens = b.Tokens
+	return m0
+}
+
+// The AWS-specific configuration used with the "ec2" and "iam" join methods.
+type AWS struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*AWS_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	// The TTL to use for AWS EC2 Instance Identity Documents used
+	// to join the cluster with this token. This should be a duration
+	// string such as "8h" or "6mo".
+	IidTtl string `protobuf:"bytes,2,opt,name=iid_ttl,json=iidTtl,proto3" json:"iid_ttl,omitempty"`
+	// Integration name which provides credentials for validating join attempts.
+	// Currently only in use for validating the AWS Organization ID in the IAM Join method.
+	Integration   string `protobuf:"bytes,3,opt,name=integration,proto3" json:"integration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AWS) Reset() {
+	*x = AWS{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AWS) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AWS) ProtoMessage() {}
+
+func (x *AWS) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AWS) GetAllow() []*AWS_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *AWS) GetIidTtl() string {
+	if x != nil {
+		return x.IidTtl
+	}
+	return ""
+}
+
+func (x *AWS) GetIntegration() string {
+	if x != nil {
+		return x.Integration
+	}
+	return ""
+}
+
+func (x *AWS) SetAllow(v []*AWS_Rule) {
+	x.Allow = v
+}
+
+func (x *AWS) SetIidTtl(v string) {
+	x.IidTtl = v
+}
+
+func (x *AWS) SetIntegration(v string) {
+	x.Integration = v
+}
+
+type AWS_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*AWS_Rule
+	// The TTL to use for AWS EC2 Instance Identity Documents used
+	// to join the cluster with this token. This should be a duration
+	// string such as "8h" or "6mo".
+	IidTtl string
+	// Integration name which provides credentials for validating join attempts.
+	// Currently only in use for validating the AWS Organization ID in the IAM Join method.
+	Integration string
+}
+
+func (b0 AWS_builder) Build() *AWS {
+	m0 := &AWS{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Allow = b.Allow
+	x.IidTtl = b.IidTtl
+	x.Integration = b.Integration
+	return m0
+}
+
+// The GCP-specific configuration used with the "gcp" join method.
+type GCP struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow         []*GCP_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GCP) Reset() {
+	*x = GCP{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[10]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GCP) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GCP) ProtoMessage() {}
+
+func (x *GCP) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[10]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GCP) GetAllow() []*GCP_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *GCP) SetAllow(v []*GCP_Rule) {
+	x.Allow = v
+}
+
+type GCP_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*GCP_Rule
+}
+
+func (b0 GCP_builder) Build() *GCP {
+	m0 := &GCP{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Allow = b.Allow
+	return m0
+}
+
+// The Azure-specific configuration used with the "azure" join method.
+type Azure struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow         []*Azure_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Azure) Reset() {
+	*x = Azure{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Azure) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Azure) ProtoMessage() {}
+
+func (x *Azure) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Azure) GetAllow() []*Azure_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *Azure) SetAllow(v []*Azure_Rule) {
+	x.Allow = v
+}
+
+type Azure_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*Azure_Rule
+}
+
+func (b0 Azure_builder) Build() *Azure {
+	m0 := &Azure{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Allow = b.Allow
+	return m0
+}
+
+// The Azure Devops-specific configuration used with the "azure_devops" join method.
+type AzureDevops struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*AzureDevops_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	// The UUID of the Azure DevOps organization that this join token will grant access to.
+	// This is used to identify the correct issuer verification of the ID token.
+	// This is a required field.
+	OrganizationId string `protobuf:"bytes,2,opt,name=organization_id,json=organizationId,proto3" json:"organization_id,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *AzureDevops) Reset() {
+	*x = AzureDevops{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[12]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AzureDevops) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AzureDevops) ProtoMessage() {}
+
+func (x *AzureDevops) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[12]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AzureDevops) GetAllow() []*AzureDevops_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *AzureDevops) GetOrganizationId() string {
+	if x != nil {
+		return x.OrganizationId
+	}
+	return ""
+}
+
+func (x *AzureDevops) SetAllow(v []*AzureDevops_Rule) {
+	x.Allow = v
+}
+
+func (x *AzureDevops) SetOrganizationId(v string) {
+	x.OrganizationId = v
+}
+
+type AzureDevops_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*AzureDevops_Rule
+	// The UUID of the Azure DevOps organization that this join token will grant access to.
+	// This is used to identify the correct issuer verification of the ID token.
+	// This is a required field.
+	OrganizationId string
+}
+
+func (b0 AzureDevops_builder) Build() *AzureDevops {
+	m0 := &AzureDevops{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Allow = b.Allow
+	x.OrganizationId = b.OrganizationId
+	return m0
+}
+
+// The Oracle-specific configuration used with the "oracle" join method.
+type Oracle struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow         []*Oracle_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Oracle) Reset() {
+	*x = Oracle{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[13]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Oracle) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Oracle) ProtoMessage() {}
+
+func (x *Oracle) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[13]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Oracle) GetAllow() []*Oracle_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *Oracle) SetAllow(v []*Oracle_Rule) {
+	x.Allow = v
+}
+
+type Oracle_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*Oracle_Rule
+}
+
+func (b0 Oracle_builder) Build() *Oracle {
+	m0 := &Oracle{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Allow = b.Allow
+	return m0
+}
+
+// The Kubernetes-specific configuration used with the "kubernetes" join method.
+type Kubernetes struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*Kubernetes_Rule `protobuf:"bytes,1,rep,name=allow,proto3" json:"allow,omitempty"`
+	// Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values:
+	// - `in_cluster`
+	// - `static_jwks`
+	// - `oidc`
+	Type string `protobuf:"bytes,2,opt,name=type,proto3" json:"type,omitempty"`
+	// The configuration specific to the `static_jwks` type.
+	StaticJwks *Kubernetes_StaticJWKSConfig `protobuf:"bytes,3,opt,name=static_jwks,json=staticJwks,proto3" json:"static_jwks,omitempty"`
+	// The configuration specific to the `oidc` type.
+	Oidc          *Kubernetes_OIDCConfig `protobuf:"bytes,4,opt,name=oidc,proto3" json:"oidc,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Kubernetes) Reset() {
+	*x = Kubernetes{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[14]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Kubernetes) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Kubernetes) ProtoMessage() {}
+
+func (x *Kubernetes) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[14]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Kubernetes) GetAllow() []*Kubernetes_Rule {
+	if x != nil {
+		return x.Allow
+	}
+	return nil
+}
+
+func (x *Kubernetes) GetType() string {
+	if x != nil {
+		return x.Type
+	}
+	return ""
+}
+
+func (x *Kubernetes) GetStaticJwks() *Kubernetes_StaticJWKSConfig {
+	if x != nil {
+		return x.StaticJwks
+	}
+	return nil
+}
+
+func (x *Kubernetes) GetOidc() *Kubernetes_OIDCConfig {
+	if x != nil {
+		return x.Oidc
+	}
+	return nil
+}
+
+func (x *Kubernetes) SetAllow(v []*Kubernetes_Rule) {
+	x.Allow = v
+}
+
+func (x *Kubernetes) SetType(v string) {
+	x.Type = v
+}
+
+func (x *Kubernetes) SetStaticJwks(v *Kubernetes_StaticJWKSConfig) {
+	x.StaticJwks = v
+}
+
+func (x *Kubernetes) SetOidc(v *Kubernetes_OIDCConfig) {
+	x.Oidc = v
+}
+
+func (x *Kubernetes) HasStaticJwks() bool {
+	if x == nil {
+		return false
+	}
+	return x.StaticJwks != nil
+}
+
+func (x *Kubernetes) HasOidc() bool {
+	if x == nil {
+		return false
+	}
+	return x.Oidc != nil
+}
+
+func (x *Kubernetes) ClearStaticJwks() {
+	x.StaticJwks = nil
+}
+
+func (x *Kubernetes) ClearOidc() {
+	x.Oidc = nil
+}
+
+type Kubernetes_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of Rules for allowing use of this token. A node must match at least one
+	// allow rule in order to use this token.
+	Allow []*Kubernetes_Rule
+	// Controls which behavior should be used for validating the Kubernetes Service Account token. Supported values:
+	// - `in_cluster`
+	// - `static_jwks`
+	// - `oidc`
+	Type string
+	// The configuration specific to the `static_jwks` type.
+	StaticJwks *Kubernetes_StaticJWKSConfig
+	// The configuration specific to the `oidc` type.
+	Oidc *Kubernetes_OIDCConfig
+}
+
+func (b0 Kubernetes_builder) Build() *Kubernetes {
+	m0 := &Kubernetes{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Allow = b.Allow
+	x.Type = b.Type
+	x.StaticJwks = b.StaticJwks
+	x.Oidc = b.Oidc
+	return m0
+}
+
+// Configuration for bound_keypair type join tokens.
+type BoundKeypairSpec struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Parameters related to initial onboarding and keypair registration.
+	Onboarding *BoundKeypairSpec_OnboardingSpec `protobuf:"bytes,1,opt,name=onboarding,proto3" json:"onboarding,omitempty"`
+	// Parameters related to recovery after identity expiration, including the
+	// initial join.
+	Recovery *BoundKeypairSpec_RecoverySpec `protobuf:"bytes,2,opt,name=recovery,proto3" json:"recovery,omitempty"`
+	// An optional timestamp that forces clients to perform a keypair rotation on
+	// the next join or recovery attempt after the given date. If `LastRotatedAt`
+	// is unset or before this timestamp, a rotation will be requested. It is
+	// recommended to set this value to the current timestamp if a rotation should
+	// be triggered on the next join attempt.
+	RotateAfter   *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=rotate_after,json=rotateAfter,proto3" json:"rotate_after,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundKeypairSpec) Reset() {
+	*x = BoundKeypairSpec{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[15]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairSpec) ProtoMessage() {}
+
+func (x *BoundKeypairSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[15]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *BoundKeypairSpec) GetOnboarding() *BoundKeypairSpec_OnboardingSpec {
+	if x != nil {
+		return x.Onboarding
+	}
+	return nil
+}
+
+func (x *BoundKeypairSpec) GetRecovery() *BoundKeypairSpec_RecoverySpec {
+	if x != nil {
+		return x.Recovery
+	}
+	return nil
+}
+
+func (x *BoundKeypairSpec) GetRotateAfter() *timestamppb.Timestamp {
+	if x != nil {
+		return x.RotateAfter
+	}
+	return nil
+}
+
+func (x *BoundKeypairSpec) SetOnboarding(v *BoundKeypairSpec_OnboardingSpec) {
+	x.Onboarding = v
+}
+
+func (x *BoundKeypairSpec) SetRecovery(v *BoundKeypairSpec_RecoverySpec) {
+	x.Recovery = v
+}
+
+func (x *BoundKeypairSpec) SetRotateAfter(v *timestamppb.Timestamp) {
+	x.RotateAfter = v
+}
+
+func (x *BoundKeypairSpec) HasOnboarding() bool {
+	if x == nil {
+		return false
+	}
+	return x.Onboarding != nil
+}
+
+func (x *BoundKeypairSpec) HasRecovery() bool {
+	if x == nil {
+		return false
+	}
+	return x.Recovery != nil
+}
+
+func (x *BoundKeypairSpec) HasRotateAfter() bool {
+	if x == nil {
+		return false
+	}
+	return x.RotateAfter != nil
+}
+
+func (x *BoundKeypairSpec) ClearOnboarding() {
+	x.Onboarding = nil
+}
+
+func (x *BoundKeypairSpec) ClearRecovery() {
+	x.Recovery = nil
+}
+
+func (x *BoundKeypairSpec) ClearRotateAfter() {
+	x.RotateAfter = nil
+}
+
+type BoundKeypairSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Parameters related to initial onboarding and keypair registration.
+	Onboarding *BoundKeypairSpec_OnboardingSpec
+	// Parameters related to recovery after identity expiration, including the
+	// initial join.
+	Recovery *BoundKeypairSpec_RecoverySpec
+	// An optional timestamp that forces clients to perform a keypair rotation on
+	// the next join or recovery attempt after the given date. If `LastRotatedAt`
+	// is unset or before this timestamp, a rotation will be requested. It is
+	// recommended to set this value to the current timestamp if a rotation should
+	// be triggered on the next join attempt.
+	RotateAfter *timestamppb.Timestamp
+}
+
+func (b0 BoundKeypairSpec_builder) Build() *BoundKeypairSpec {
+	m0 := &BoundKeypairSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Onboarding = b.Onboarding
+	x.Recovery = b.Recovery
+	x.RotateAfter = b.RotateAfter
+	return m0
+}
+
+// Status information specific to bound_keypair type tokens.
+type BoundKeypairStatus struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// A secret value that may be used for public key registration during the
+	// initial join process if no public key is preregistered. If
+	// `.spec.bound_keypair.onboarding.initial_public_key` is set, this field will
+	// remain empty. Otherwise, if
+	// `.spec.bound_keypair.onboarding.registration_secret` is set, that value
+	// will be copied here. If that field is unset, a value will be randomly
+	// generated.
+	RegistrationSecret string `protobuf:"bytes,1,opt,name=registration_secret,json=registrationSecret,proto3" json:"registration_secret,omitempty"`
+	// The currently bound public key. If
+	// `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will
+	// be copied here on creation, otherwise it will be populated as part of
+	// public key registration process. This value will be updated over time if
+	// keypair rotation takes place, and will always reflect the currently trusted
+	// public key. This value is written in SSH authorized_keys format.
+	BoundPublicKey string `protobuf:"bytes,2,opt,name=bound_public_key,json=boundPublicKey,proto3" json:"bound_public_key,omitempty"`
+	// The ID of the currently associated bot instance. A new bot instance is
+	// issued on each join; the new bot instance will have a
+	// `previous_bot_instance` set to this value, if any.
+	BoundBotInstanceId string `protobuf:"bytes,3,opt,name=bound_bot_instance_id,json=boundBotInstanceId,proto3" json:"bound_bot_instance_id,omitempty"`
+	// The count of the total number of recoveries performed using this token. It
+	// is incremented for every successful join or rejoin. Recovery is only
+	// allowed if this value is less than `.spec.bound_keypair.recovery.limit`, or
+	// if the recovery mode is `relaxed` or `insecure`.
+	RecoveryCount uint32 `protobuf:"varint,4,opt,name=recovery_count,json=recoveryCount,proto3" json:"recovery_count,omitempty"`
+	// A timestamp of the last successful recovery attempt. Note that normal
+	// renewals with valid client certificates do not count as a recovery attempt,
+	// however the initial join during onboarding does. This corresponds with the
+	// last time `bound_bot_instance_id` was updated.
+	LastRecoveredAt *timestamppb.Timestamp `protobuf:"bytes,5,opt,name=last_recovered_at,json=lastRecoveredAt,proto3" json:"last_recovered_at,omitempty"`
+	// A timestamp of the last time the keypair was rotated, if any. This is not
+	// set at initial join.
+	LastRotatedAt *timestamppb.Timestamp `protobuf:"bytes,6,opt,name=last_rotated_at,json=lastRotatedAt,proto3" json:"last_rotated_at,omitempty"`
+	// The agent UUID bound to this keypair. This field is left empty if bound to
+	// a bot, or if no agent has joined yet. It is mutually exclusive with
+	// bound_bot_instance_id but otherwise behaves identically.
+	BoundHostId   string `protobuf:"bytes,7,opt,name=bound_host_id,json=boundHostId,proto3" json:"bound_host_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundKeypairStatus) Reset() {
+	*x = BoundKeypairStatus{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairStatus) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairStatus) ProtoMessage() {}
+
+func (x *BoundKeypairStatus) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[16]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *BoundKeypairStatus) GetRegistrationSecret() string {
+	if x != nil {
+		return x.RegistrationSecret
+	}
+	return ""
+}
+
+func (x *BoundKeypairStatus) GetBoundPublicKey() string {
+	if x != nil {
+		return x.BoundPublicKey
+	}
+	return ""
+}
+
+func (x *BoundKeypairStatus) GetBoundBotInstanceId() string {
+	if x != nil {
+		return x.BoundBotInstanceId
+	}
+	return ""
+}
+
+func (x *BoundKeypairStatus) GetRecoveryCount() uint32 {
+	if x != nil {
+		return x.RecoveryCount
+	}
+	return 0
+}
+
+func (x *BoundKeypairStatus) GetLastRecoveredAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastRecoveredAt
+	}
+	return nil
+}
+
+func (x *BoundKeypairStatus) GetLastRotatedAt() *timestamppb.Timestamp {
+	if x != nil {
+		return x.LastRotatedAt
+	}
+	return nil
+}
+
+func (x *BoundKeypairStatus) GetBoundHostId() string {
+	if x != nil {
+		return x.BoundHostId
+	}
+	return ""
+}
+
+func (x *BoundKeypairStatus) SetRegistrationSecret(v string) {
+	x.RegistrationSecret = v
+}
+
+func (x *BoundKeypairStatus) SetBoundPublicKey(v string) {
+	x.BoundPublicKey = v
+}
+
+func (x *BoundKeypairStatus) SetBoundBotInstanceId(v string) {
+	x.BoundBotInstanceId = v
+}
+
+func (x *BoundKeypairStatus) SetRecoveryCount(v uint32) {
+	x.RecoveryCount = v
+}
+
+func (x *BoundKeypairStatus) SetLastRecoveredAt(v *timestamppb.Timestamp) {
+	x.LastRecoveredAt = v
+}
+
+func (x *BoundKeypairStatus) SetLastRotatedAt(v *timestamppb.Timestamp) {
+	x.LastRotatedAt = v
+}
+
+func (x *BoundKeypairStatus) SetBoundHostId(v string) {
+	x.BoundHostId = v
+}
+
+func (x *BoundKeypairStatus) HasLastRecoveredAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastRecoveredAt != nil
+}
+
+func (x *BoundKeypairStatus) HasLastRotatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastRotatedAt != nil
+}
+
+func (x *BoundKeypairStatus) ClearLastRecoveredAt() {
+	x.LastRecoveredAt = nil
+}
+
+func (x *BoundKeypairStatus) ClearLastRotatedAt() {
+	x.LastRotatedAt = nil
+}
+
+type BoundKeypairStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A secret value that may be used for public key registration during the
+	// initial join process if no public key is preregistered. If
+	// `.spec.bound_keypair.onboarding.initial_public_key` is set, this field will
+	// remain empty. Otherwise, if
+	// `.spec.bound_keypair.onboarding.registration_secret` is set, that value
+	// will be copied here. If that field is unset, a value will be randomly
+	// generated.
+	RegistrationSecret string
+	// The currently bound public key. If
+	// `.spec.bound_keypair.onboarding.initial_public_key` is set, that value will
+	// be copied here on creation, otherwise it will be populated as part of
+	// public key registration process. This value will be updated over time if
+	// keypair rotation takes place, and will always reflect the currently trusted
+	// public key. This value is written in SSH authorized_keys format.
+	BoundPublicKey string
+	// The ID of the currently associated bot instance. A new bot instance is
+	// issued on each join; the new bot instance will have a
+	// `previous_bot_instance` set to this value, if any.
+	BoundBotInstanceId string
+	// The count of the total number of recoveries performed using this token. It
+	// is incremented for every successful join or rejoin. Recovery is only
+	// allowed if this value is less than `.spec.bound_keypair.recovery.limit`, or
+	// if the recovery mode is `relaxed` or `insecure`.
+	RecoveryCount uint32
+	// A timestamp of the last successful recovery attempt. Note that normal
+	// renewals with valid client certificates do not count as a recovery attempt,
+	// however the initial join during onboarding does. This corresponds with the
+	// last time `bound_bot_instance_id` was updated.
+	LastRecoveredAt *timestamppb.Timestamp
+	// A timestamp of the last time the keypair was rotated, if any. This is not
+	// set at initial join.
+	LastRotatedAt *timestamppb.Timestamp
+	// The agent UUID bound to this keypair. This field is left empty if bound to
+	// a bot, or if no agent has joined yet. It is mutually exclusive with
+	// bound_bot_instance_id but otherwise behaves identically.
+	BoundHostId string
+}
+
+func (b0 BoundKeypairStatus_builder) Build() *BoundKeypairStatus {
+	m0 := &BoundKeypairStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RegistrationSecret = b.RegistrationSecret
+	x.BoundPublicKey = b.BoundPublicKey
+	x.BoundBotInstanceId = b.BoundBotInstanceId
+	x.RecoveryCount = b.RecoveryCount
+	x.LastRecoveredAt = b.LastRecoveredAt
+	x.LastRotatedAt = b.LastRotatedAt
+	x.BoundHostId = b.BoundHostId
+	return m0
+}
+
+// A rule that a joining node must match in order to use the associated token
+// with AWS join methods.
+type AWS_Rule struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The AWS account ID.
+	AwsAccount string `protobuf:"bytes,1,opt,name=aws_account,json=awsAccount,proto3" json:"aws_account,omitempty"`
+	// List of AWS regions a node is allowed to join from when using the
+	// EC2 join method.
+	AwsRegions []string `protobuf:"bytes,2,rep,name=aws_regions,json=awsRegions,proto3" json:"aws_regions,omitempty"`
+	// The ARN of the role the Auth Service will assume in order to call the
+	// EC2 API when using the EC2 join method.
+	AwsRole string `protobuf:"bytes,3,opt,name=aws_role,json=awsRole,proto3" json:"aws_role,omitempty"`
+	// The ARN of the joining identity for use with the IAM join method.
+	// Supports wildcards "*" and "?".
+	AwsArn string `protobuf:"bytes,4,opt,name=aws_arn,json=awsArn,proto3" json:"aws_arn,omitempty"`
+	// The organization ID that the joining AWS identity must belong to
+	// when using the IAM join method.
+	AwsOrganizationId string `protobuf:"bytes,5,opt,name=aws_organization_id,json=awsOrganizationId,proto3" json:"aws_organization_id,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *AWS_Rule) Reset() {
+	*x = AWS_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AWS_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AWS_Rule) ProtoMessage() {}
+
+func (x *AWS_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[18]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AWS_Rule) GetAwsAccount() string {
+	if x != nil {
+		return x.AwsAccount
+	}
+	return ""
+}
+
+func (x *AWS_Rule) GetAwsRegions() []string {
+	if x != nil {
+		return x.AwsRegions
+	}
+	return nil
+}
+
+func (x *AWS_Rule) GetAwsRole() string {
+	if x != nil {
+		return x.AwsRole
+	}
+	return ""
+}
+
+func (x *AWS_Rule) GetAwsArn() string {
+	if x != nil {
+		return x.AwsArn
+	}
+	return ""
+}
+
+func (x *AWS_Rule) GetAwsOrganizationId() string {
+	if x != nil {
+		return x.AwsOrganizationId
+	}
+	return ""
+}
+
+func (x *AWS_Rule) SetAwsAccount(v string) {
+	x.AwsAccount = v
+}
+
+func (x *AWS_Rule) SetAwsRegions(v []string) {
+	x.AwsRegions = v
+}
+
+func (x *AWS_Rule) SetAwsRole(v string) {
+	x.AwsRole = v
+}
+
+func (x *AWS_Rule) SetAwsArn(v string) {
+	x.AwsArn = v
+}
+
+func (x *AWS_Rule) SetAwsOrganizationId(v string) {
+	x.AwsOrganizationId = v
+}
+
+type AWS_Rule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The AWS account ID.
+	AwsAccount string
+	// List of AWS regions a node is allowed to join from when using the
+	// EC2 join method.
+	AwsRegions []string
+	// The ARN of the role the Auth Service will assume in order to call the
+	// EC2 API when using the EC2 join method.
+	AwsRole string
+	// The ARN of the joining identity for use with the IAM join method.
+	// Supports wildcards "*" and "?".
+	AwsArn string
+	// The organization ID that the joining AWS identity must belong to
+	// when using the IAM join method.
+	AwsOrganizationId string
+}
+
+func (b0 AWS_Rule_builder) Build() *AWS_Rule {
+	m0 := &AWS_Rule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AwsAccount = b.AwsAccount
+	x.AwsRegions = b.AwsRegions
+	x.AwsRole = b.AwsRole
+	x.AwsArn = b.AwsArn
+	x.AwsOrganizationId = b.AwsOrganizationId
+	return m0
+}
+
+// A rule that a joining node must match in order to use the associated token
+// with the "gcp" join method.
+type GCP_Rule struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// A list of project IDs (e.g. `<example-id-123456>`).
+	ProjectIds []string `protobuf:"bytes,1,rep,name=project_ids,json=projectIds,proto3" json:"project_ids,omitempty"`
+	// A list of regions (e.g. "us-west1") and/or zones (e.g. "us-west1-b").
+	Locations []string `protobuf:"bytes,2,rep,name=locations,proto3" json:"locations,omitempty"`
+	// A list of service account emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).
+	ServiceAccounts []string `protobuf:"bytes,3,rep,name=service_accounts,json=serviceAccounts,proto3" json:"service_accounts,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
+}
+
+func (x *GCP_Rule) Reset() {
+	*x = GCP_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GCP_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GCP_Rule) ProtoMessage() {}
+
+func (x *GCP_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *GCP_Rule) GetProjectIds() []string {
+	if x != nil {
+		return x.ProjectIds
+	}
+	return nil
+}
+
+func (x *GCP_Rule) GetLocations() []string {
+	if x != nil {
+		return x.Locations
+	}
+	return nil
+}
+
+func (x *GCP_Rule) GetServiceAccounts() []string {
+	if x != nil {
+		return x.ServiceAccounts
+	}
+	return nil
+}
+
+func (x *GCP_Rule) SetProjectIds(v []string) {
+	x.ProjectIds = v
+}
+
+func (x *GCP_Rule) SetLocations(v []string) {
+	x.Locations = v
+}
+
+func (x *GCP_Rule) SetServiceAccounts(v []string) {
+	x.ServiceAccounts = v
+}
+
+type GCP_Rule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of project IDs (e.g. `<example-id-123456>`).
+	ProjectIds []string
+	// A list of regions (e.g. "us-west1") and/or zones (e.g. "us-west1-b").
+	Locations []string
+	// A list of service account emails (e.g. `<project-number>-compute@developer.gserviceaccount.com`).
+	ServiceAccounts []string
+}
+
+func (b0 GCP_Rule_builder) Build() *GCP_Rule {
+	m0 := &GCP_Rule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ProjectIds = b.ProjectIds
+	x.Locations = b.Locations
+	x.ServiceAccounts = b.ServiceAccounts
+	return m0
+}
+
+// A rule that a joining node must match in order to use the associated token
+// with the "azure" join method.
+type Azure_Rule struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The Azure subscription.
+	Subscription string `protobuf:"bytes,1,opt,name=subscription,proto3" json:"subscription,omitempty"`
+	// A list of Azure resource groups the node is allowed to join from.
+	ResourceGroups []string `protobuf:"bytes,2,rep,name=resource_groups,json=resourceGroups,proto3" json:"resource_groups,omitempty"`
+	// Tenant is the Azure Tenant ID.
+	Tenant        string `protobuf:"bytes,3,opt,name=tenant,proto3" json:"tenant,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Azure_Rule) Reset() {
+	*x = Azure_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Azure_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Azure_Rule) ProtoMessage() {}
+
+func (x *Azure_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Azure_Rule) GetSubscription() string {
+	if x != nil {
+		return x.Subscription
+	}
+	return ""
+}
+
+func (x *Azure_Rule) GetResourceGroups() []string {
+	if x != nil {
+		return x.ResourceGroups
+	}
+	return nil
+}
+
+func (x *Azure_Rule) GetTenant() string {
+	if x != nil {
+		return x.Tenant
+	}
+	return ""
+}
+
+func (x *Azure_Rule) SetSubscription(v string) {
+	x.Subscription = v
+}
+
+func (x *Azure_Rule) SetResourceGroups(v []string) {
+	x.ResourceGroups = v
+}
+
+func (x *Azure_Rule) SetTenant(v string) {
+	x.Tenant = v
+}
+
+type Azure_Rule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The Azure subscription.
+	Subscription string
+	// A list of Azure resource groups the node is allowed to join from.
+	ResourceGroups []string
+	// Tenant is the Azure Tenant ID.
+	Tenant string
+}
+
+func (b0 Azure_Rule_builder) Build() *Azure_Rule {
+	m0 := &Azure_Rule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Subscription = b.Subscription
+	x.ResourceGroups = b.ResourceGroups
+	x.Tenant = b.Tenant
+	return m0
+}
+
+// A rule that a joining node must match in order to use the associated token
+// with the "azure_devops" join method.
+type AzureDevops_Rule struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The subject string that roughly uniquely identifies the workload. Example:
+	// `p://my-organization/my-project/my-pipeline`
+	// Mapped from the `sub` claim.
+	Sub string `protobuf:"bytes,1,opt,name=sub,proto3" json:"sub,omitempty"`
+	// The name of the AZDO project. Example:
+	// `my-project`.
+	// Mapped out of the `sub` claim.
+	ProjectName string `protobuf:"bytes,2,opt,name=project_name,json=projectName,proto3" json:"project_name,omitempty"`
+	// The name of the AZDO pipeline. Example:
+	// `my-pipeline`.
+	// Mapped out of the `sub` claim.
+	PipelineName string `protobuf:"bytes,3,opt,name=pipeline_name,json=pipelineName,proto3" json:"pipeline_name,omitempty"`
+	// The ID of the AZDO pipeline. Example:
+	// `271ef6f7-0000-0000-0000-4b54d9129990`
+	// Mapped from the `prj_id` claim.
+	ProjectId string `protobuf:"bytes,4,opt,name=project_id,json=projectId,proto3" json:"project_id,omitempty"`
+	// The ID of the AZDO pipeline definition. Example:
+	// `1`
+	// Mapped from the `def_id` claim.
+	DefinitionId string `protobuf:"bytes,5,opt,name=definition_id,json=definitionId,proto3" json:"definition_id,omitempty"`
+	// The URI of the repository the pipeline is using. Example:
+	// `https://github.com/gravitational/teleport.git`.
+	// Mapped from the `rpo_uri` claim.
+	RepositoryUri string `protobuf:"bytes,6,opt,name=repository_uri,json=repositoryUri,proto3" json:"repository_uri,omitempty"`
+	// The individual commit of the repository the pipeline is using. Example:
+	// `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`.
+	// Mapped from the `rpo_ver` claim.
+	RepositoryVersion string `protobuf:"bytes,7,opt,name=repository_version,json=repositoryVersion,proto3" json:"repository_version,omitempty"`
+	// The reference of the repository the pipeline is using. Example:
+	// `refs/heads/main`.
+	// Mapped from the `rpo_ref` claim.
+	RepositoryRef string `protobuf:"bytes,8,opt,name=repository_ref,json=repositoryRef,proto3" json:"repository_ref,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *AzureDevops_Rule) Reset() {
+	*x = AzureDevops_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *AzureDevops_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*AzureDevops_Rule) ProtoMessage() {}
+
+func (x *AzureDevops_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *AzureDevops_Rule) GetSub() string {
+	if x != nil {
+		return x.Sub
+	}
+	return ""
+}
+
+func (x *AzureDevops_Rule) GetProjectName() string {
+	if x != nil {
+		return x.ProjectName
+	}
+	return ""
+}
+
+func (x *AzureDevops_Rule) GetPipelineName() string {
+	if x != nil {
+		return x.PipelineName
+	}
+	return ""
+}
+
+func (x *AzureDevops_Rule) GetProjectId() string {
+	if x != nil {
+		return x.ProjectId
+	}
+	return ""
+}
+
+func (x *AzureDevops_Rule) GetDefinitionId() string {
+	if x != nil {
+		return x.DefinitionId
+	}
+	return ""
+}
+
+func (x *AzureDevops_Rule) GetRepositoryUri() string {
+	if x != nil {
+		return x.RepositoryUri
+	}
+	return ""
+}
+
+func (x *AzureDevops_Rule) GetRepositoryVersion() string {
+	if x != nil {
+		return x.RepositoryVersion
+	}
+	return ""
+}
+
+func (x *AzureDevops_Rule) GetRepositoryRef() string {
+	if x != nil {
+		return x.RepositoryRef
+	}
+	return ""
+}
+
+func (x *AzureDevops_Rule) SetSub(v string) {
+	x.Sub = v
+}
+
+func (x *AzureDevops_Rule) SetProjectName(v string) {
+	x.ProjectName = v
+}
+
+func (x *AzureDevops_Rule) SetPipelineName(v string) {
+	x.PipelineName = v
+}
+
+func (x *AzureDevops_Rule) SetProjectId(v string) {
+	x.ProjectId = v
+}
+
+func (x *AzureDevops_Rule) SetDefinitionId(v string) {
+	x.DefinitionId = v
+}
+
+func (x *AzureDevops_Rule) SetRepositoryUri(v string) {
+	x.RepositoryUri = v
+}
+
+func (x *AzureDevops_Rule) SetRepositoryVersion(v string) {
+	x.RepositoryVersion = v
+}
+
+func (x *AzureDevops_Rule) SetRepositoryRef(v string) {
+	x.RepositoryRef = v
+}
+
+type AzureDevops_Rule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The subject string that roughly uniquely identifies the workload. Example:
+	// `p://my-organization/my-project/my-pipeline`
+	// Mapped from the `sub` claim.
+	Sub string
+	// The name of the AZDO project. Example:
+	// `my-project`.
+	// Mapped out of the `sub` claim.
+	ProjectName string
+	// The name of the AZDO pipeline. Example:
+	// `my-pipeline`.
+	// Mapped out of the `sub` claim.
+	PipelineName string
+	// The ID of the AZDO pipeline. Example:
+	// `271ef6f7-0000-0000-0000-4b54d9129990`
+	// Mapped from the `prj_id` claim.
+	ProjectId string
+	// The ID of the AZDO pipeline definition. Example:
+	// `1`
+	// Mapped from the `def_id` claim.
+	DefinitionId string
+	// The URI of the repository the pipeline is using. Example:
+	// `https://github.com/gravitational/teleport.git`.
+	// Mapped from the `rpo_uri` claim.
+	RepositoryUri string
+	// The individual commit of the repository the pipeline is using. Example:
+	// `e6b9eb29a288b27a3a82cc19c48b9d94b80aff36`.
+	// Mapped from the `rpo_ver` claim.
+	RepositoryVersion string
+	// The reference of the repository the pipeline is using. Example:
+	// `refs/heads/main`.
+	// Mapped from the `rpo_ref` claim.
+	RepositoryRef string
+}
+
+func (b0 AzureDevops_Rule_builder) Build() *AzureDevops_Rule {
+	m0 := &AzureDevops_Rule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Sub = b.Sub
+	x.ProjectName = b.ProjectName
+	x.PipelineName = b.PipelineName
+	x.ProjectId = b.ProjectId
+	x.DefinitionId = b.DefinitionId
+	x.RepositoryUri = b.RepositoryUri
+	x.RepositoryVersion = b.RepositoryVersion
+	x.RepositoryRef = b.RepositoryRef
+	return m0
+}
+
+// A rule that a joining node must match in order to use the associated token
+// with the "oracle" join method.
+type Oracle_Rule struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The OCID of the instance's tenancy. Required.
+	Tenancy string `protobuf:"bytes,1,opt,name=tenancy,proto3" json:"tenancy,omitempty"`
+	// A list of the OCIDs of compartments an instance is allowed to join from. Only direct
+	// parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.
+	ParentCompartments []string `protobuf:"bytes,2,rep,name=parent_compartments,json=parentCompartments,proto3" json:"parent_compartments,omitempty"`
+	// A list of regions an instance is allowed to join from. Both full region names ("us-phoenix-1")
+	// and abbreviations ("phx") are allowed. If empty, any region is allowed.
+	Regions []string `protobuf:"bytes,3,rep,name=regions,proto3" json:"regions,omitempty"`
+	// A list of the OCIDs of specific instances that are allowed to join. If empty, any instance
+	// matching the other fields in the rule is allowed. Limited to 100 instance OCIDs per rule.
+	Instances     []string `protobuf:"bytes,4,rep,name=instances,proto3" json:"instances,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Oracle_Rule) Reset() {
+	*x = Oracle_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Oracle_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Oracle_Rule) ProtoMessage() {}
+
+func (x *Oracle_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Oracle_Rule) GetTenancy() string {
+	if x != nil {
+		return x.Tenancy
+	}
+	return ""
+}
+
+func (x *Oracle_Rule) GetParentCompartments() []string {
+	if x != nil {
+		return x.ParentCompartments
+	}
+	return nil
+}
+
+func (x *Oracle_Rule) GetRegions() []string {
+	if x != nil {
+		return x.Regions
+	}
+	return nil
+}
+
+func (x *Oracle_Rule) GetInstances() []string {
+	if x != nil {
+		return x.Instances
+	}
+	return nil
+}
+
+func (x *Oracle_Rule) SetTenancy(v string) {
+	x.Tenancy = v
+}
+
+func (x *Oracle_Rule) SetParentCompartments(v []string) {
+	x.ParentCompartments = v
+}
+
+func (x *Oracle_Rule) SetRegions(v []string) {
+	x.Regions = v
+}
+
+func (x *Oracle_Rule) SetInstances(v []string) {
+	x.Instances = v
+}
+
+type Oracle_Rule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The OCID of the instance's tenancy. Required.
+	Tenancy string
+	// A list of the OCIDs of compartments an instance is allowed to join from. Only direct
+	// parents are allowed, i.e. no nested compartments. If empty, any compartment is allowed.
+	ParentCompartments []string
+	// A list of regions an instance is allowed to join from. Both full region names ("us-phoenix-1")
+	// and abbreviations ("phx") are allowed. If empty, any region is allowed.
+	Regions []string
+	// A list of the OCIDs of specific instances that are allowed to join. If empty, any instance
+	// matching the other fields in the rule is allowed. Limited to 100 instance OCIDs per rule.
+	Instances []string
+}
+
+func (b0 Oracle_Rule_builder) Build() *Oracle_Rule {
+	m0 := &Oracle_Rule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Tenancy = b.Tenancy
+	x.ParentCompartments = b.ParentCompartments
+	x.Regions = b.Regions
+	x.Instances = b.Instances
+	return m0
+}
+
+// The configuration specific to the `static_jwks` type.
+type Kubernetes_StaticJWKSConfig struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The JSON Web Key Set formatted public keys that the Kubernetes Cluster uses to sign service
+	// account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
+	Jwks          string `protobuf:"bytes,1,opt,name=jwks,proto3" json:"jwks,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *Kubernetes_StaticJWKSConfig) Reset() {
+	*x = Kubernetes_StaticJWKSConfig{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Kubernetes_StaticJWKSConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Kubernetes_StaticJWKSConfig) ProtoMessage() {}
+
+func (x *Kubernetes_StaticJWKSConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[23]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Kubernetes_StaticJWKSConfig) GetJwks() string {
+	if x != nil {
+		return x.Jwks
+	}
+	return ""
+}
+
+func (x *Kubernetes_StaticJWKSConfig) SetJwks(v string) {
+	x.Jwks = v
+}
+
+type Kubernetes_StaticJWKSConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The JSON Web Key Set formatted public keys that the Kubernetes Cluster uses to sign service
+	// account tokens. This can be fetched from /openid/v1/jwks on the Kubernetes API Server.
+	Jwks string
+}
+
+func (b0 Kubernetes_StaticJWKSConfig_builder) Build() *Kubernetes_StaticJWKSConfig {
+	m0 := &Kubernetes_StaticJWKSConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Jwks = b.Jwks
+	return m0
+}
+
+// The configuration specific to the `oidc` type.
+type Kubernetes_OIDCConfig struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/openid-configuration`
+	// endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT.
+	// For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...
+	Issuer string `protobuf:"bytes,1,opt,name=issuer,proto3" json:"issuer,omitempty"`
+	// If set, disables the requirement that the issuer must use HTTPS.
+	InsecureAllowHttpIssuer bool `protobuf:"varint,2,opt,name=insecure_allow_http_issuer,json=insecureAllowHttpIssuer,proto3" json:"insecure_allow_http_issuer,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *Kubernetes_OIDCConfig) Reset() {
+	*x = Kubernetes_OIDCConfig{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[24]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Kubernetes_OIDCConfig) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Kubernetes_OIDCConfig) ProtoMessage() {}
+
+func (x *Kubernetes_OIDCConfig) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[24]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Kubernetes_OIDCConfig) GetIssuer() string {
+	if x != nil {
+		return x.Issuer
+	}
+	return ""
+}
+
+func (x *Kubernetes_OIDCConfig) GetInsecureAllowHttpIssuer() bool {
+	if x != nil {
+		return x.InsecureAllowHttpIssuer
+	}
+	return false
+}
+
+func (x *Kubernetes_OIDCConfig) SetIssuer(v string) {
+	x.Issuer = v
+}
+
+func (x *Kubernetes_OIDCConfig) SetInsecureAllowHttpIssuer(v bool) {
+	x.InsecureAllowHttpIssuer = v
+}
+
+type Kubernetes_OIDCConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The URI of the OIDC issuer. It must have an accessible and OIDC-compliant `/.well-known/openid-configuration`
+	// endpoint. This should be a valid URL and must exactly match the `issuer` field in a service account JWT.
+	// For example: https://oidc.eks.us-west-2.amazonaws.com/id/12345...
+	Issuer string
+	// If set, disables the requirement that the issuer must use HTTPS.
+	InsecureAllowHttpIssuer bool
+}
+
+func (b0 Kubernetes_OIDCConfig_builder) Build() *Kubernetes_OIDCConfig {
+	m0 := &Kubernetes_OIDCConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Issuer = b.Issuer
+	x.InsecureAllowHttpIssuer = b.InsecureAllowHttpIssuer
+	return m0
+}
+
+// A rule that a joining node must match in order to use the associated token
+// with the "kubernetes" join method.
+//
+// Either `service_account` or both `service_account_name` and
+// `service_account_namespace` must be specified.
+type Kubernetes_Rule struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The namespaced name of the Kubernetes service account. Its format is "namespace:service-account".
+	ServiceAccount string `protobuf:"bytes,1,opt,name=service_account,json=serviceAccount,proto3" json:"service_account,omitempty"`
+	// The name of the Kubernetes service account.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
+	ServiceAccountName string `protobuf:"bytes,2,opt,name=service_account_name,json=serviceAccountName,proto3" json:"service_account_name,omitempty"`
+	// The namespace of the Kubernetes service account.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
+	ServiceAccountNamespace string `protobuf:"bytes,3,opt,name=service_account_namespace,json=serviceAccountNamespace,proto3" json:"service_account_namespace,omitempty"`
+	unknownFields           protoimpl.UnknownFields
+	sizeCache               protoimpl.SizeCache
+}
+
+func (x *Kubernetes_Rule) Reset() {
+	*x = Kubernetes_Rule{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[25]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *Kubernetes_Rule) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Kubernetes_Rule) ProtoMessage() {}
+
+func (x *Kubernetes_Rule) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[25]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *Kubernetes_Rule) GetServiceAccount() string {
+	if x != nil {
+		return x.ServiceAccount
+	}
+	return ""
+}
+
+func (x *Kubernetes_Rule) GetServiceAccountName() string {
+	if x != nil {
+		return x.ServiceAccountName
+	}
+	return ""
+}
+
+func (x *Kubernetes_Rule) GetServiceAccountNamespace() string {
+	if x != nil {
+		return x.ServiceAccountNamespace
+	}
+	return ""
+}
+
+func (x *Kubernetes_Rule) SetServiceAccount(v string) {
+	x.ServiceAccount = v
+}
+
+func (x *Kubernetes_Rule) SetServiceAccountName(v string) {
+	x.ServiceAccountName = v
+}
+
+func (x *Kubernetes_Rule) SetServiceAccountNamespace(v string) {
+	x.ServiceAccountNamespace = v
+}
+
+type Kubernetes_Rule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The namespaced name of the Kubernetes service account. Its format is "namespace:service-account".
+	ServiceAccount string
+	// The name of the Kubernetes service account.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
+	ServiceAccountName string
+	// The namespace of the Kubernetes service account.
+	//
+	// This field supports "glob-style" matching:
+	// - Use '*' to match zero or more characters.
+	// - Use '?' to match any single character.
+	ServiceAccountNamespace string
+}
+
+func (b0 Kubernetes_Rule_builder) Build() *Kubernetes_Rule {
+	m0 := &Kubernetes_Rule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ServiceAccount = b.ServiceAccount
+	x.ServiceAccountName = b.ServiceAccountName
+	x.ServiceAccountNamespace = b.ServiceAccountNamespace
+	return m0
+}
+
+// Parameters for initial joining and keypair registration.
+type BoundKeypairSpec_OnboardingSpec struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The initial public key is used to preregister a public key generated by
+	// `tbot keypair create`. When set, no initial join secret is generated or
+	// made available for use, and clients must have the associated private key
+	// available to join. If set, `initial_join_secret` and
+	// `must_register_before` are ignored. This value is written in SSH
+	// authorized_keys format.
+	InitialPublicKey string `protobuf:"bytes,1,opt,name=initial_public_key,json=initialPublicKey,proto3" json:"initial_public_key,omitempty"`
+	// A secret that joining clients may use to register their public key on
+	// first join, which may be used instead of preregistering a public key with
+	// `initial_public_key`. If `initial_public_key` is set, this value is
+	// ignored. Otherwise, if set, this value will be used to populate
+	// `.status.bound_keypair.registration_secret`. If unset and no
+	// `initial_public_key` is provided, a random secure value will be generated
+	// server-side to populate the status field.
+	RegistrationSecret string `protobuf:"bytes,2,opt,name=registration_secret,json=registrationSecret,proto3" json:"registration_secret,omitempty"`
+	// An optional time before which registration via registration join secret
+	// must be performed. Attempts to register using a registration secret after
+	// this timestamp will not be allowed. This may be modified after creation
+	// if necessary to allow the initial registration to take place. This value
+	// is ignored if `initial_public_key` is set.
+	MustRegisterBefore *timestamppb.Timestamp `protobuf:"bytes,3,opt,name=must_register_before,json=mustRegisterBefore,proto3" json:"must_register_before,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) Reset() {
+	*x = BoundKeypairSpec_OnboardingSpec{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[26]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairSpec_OnboardingSpec) ProtoMessage() {}
+
+func (x *BoundKeypairSpec_OnboardingSpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[26]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) GetInitialPublicKey() string {
+	if x != nil {
+		return x.InitialPublicKey
+	}
+	return ""
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) GetRegistrationSecret() string {
+	if x != nil {
+		return x.RegistrationSecret
+	}
+	return ""
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) GetMustRegisterBefore() *timestamppb.Timestamp {
+	if x != nil {
+		return x.MustRegisterBefore
+	}
+	return nil
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) SetInitialPublicKey(v string) {
+	x.InitialPublicKey = v
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) SetRegistrationSecret(v string) {
+	x.RegistrationSecret = v
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) SetMustRegisterBefore(v *timestamppb.Timestamp) {
+	x.MustRegisterBefore = v
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) HasMustRegisterBefore() bool {
+	if x == nil {
+		return false
+	}
+	return x.MustRegisterBefore != nil
+}
+
+func (x *BoundKeypairSpec_OnboardingSpec) ClearMustRegisterBefore() {
+	x.MustRegisterBefore = nil
+}
+
+type BoundKeypairSpec_OnboardingSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The initial public key is used to preregister a public key generated by
+	// `tbot keypair create`. When set, no initial join secret is generated or
+	// made available for use, and clients must have the associated private key
+	// available to join. If set, `initial_join_secret` and
+	// `must_register_before` are ignored. This value is written in SSH
+	// authorized_keys format.
+	InitialPublicKey string
+	// A secret that joining clients may use to register their public key on
+	// first join, which may be used instead of preregistering a public key with
+	// `initial_public_key`. If `initial_public_key` is set, this value is
+	// ignored. Otherwise, if set, this value will be used to populate
+	// `.status.bound_keypair.registration_secret`. If unset and no
+	// `initial_public_key` is provided, a random secure value will be generated
+	// server-side to populate the status field.
+	RegistrationSecret string
+	// An optional time before which registration via registration join secret
+	// must be performed. Attempts to register using a registration secret after
+	// this timestamp will not be allowed. This may be modified after creation
+	// if necessary to allow the initial registration to take place. This value
+	// is ignored if `initial_public_key` is set.
+	MustRegisterBefore *timestamppb.Timestamp
+}
+
+func (b0 BoundKeypairSpec_OnboardingSpec_builder) Build() *BoundKeypairSpec_OnboardingSpec {
+	m0 := &BoundKeypairSpec_OnboardingSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.InitialPublicKey = b.InitialPublicKey
+	x.RegistrationSecret = b.RegistrationSecret
+	x.MustRegisterBefore = b.MustRegisterBefore
+	return m0
+}
+
+// RecoverySpec contains parameters for recovery after identity expiration.
+type BoundKeypairSpec_RecoverySpec struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// The maximum number of allowed recovery attempts. This value may be raised
+	// or lowered after creation to allow additional recovery attempts should
+	// the initial limit be exhausted. If `mode` is set to `standard`, recovery
+	// attempts will only be allowed if `.status.bound_keypair.recovery_count`
+	// is less than this limit. This limit is not enforced if `mode` is set to
+	// `relaxed` or `insecure`. This value must be at least 1 to allow for the
+	// initial join during onboarding, which counts as a recovery.
+	Limit uint32 `protobuf:"varint,1,opt,name=limit,proto3" json:"limit,omitempty"`
+	// Mode sets the recovery rule enforcement mode. It may be one of these
+	// values:
+	//   - standard (or unset): all configured rules enforced. The recovery limit
+	//     and client join state are required and verified. This is the most
+	//     secure recovery mode.
+	//   - relaxed: recovery limit is not enforced, but client join state is still
+	//     required. This effectively allows unlimited recovery attempts, but
+	//     client join state still helps mitigate stolen credentials.
+	//   - insecure: neither the recovery limit nor client join state are
+	//     enforced. This allows any client with the private key to join freely.
+	//     This is less secure, but can be useful in certain situations, like in
+	//     otherwise unsupported CI/CD providers. This mode should be used with
+	//     care, and RBAC rules should be configured to heavily restrict which
+	//     resources this identity can access.
+	Mode          string `protobuf:"bytes,2,opt,name=mode,proto3" json:"mode,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *BoundKeypairSpec_RecoverySpec) Reset() {
+	*x = BoundKeypairSpec_RecoverySpec{}
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[27]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *BoundKeypairSpec_RecoverySpec) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*BoundKeypairSpec_RecoverySpec) ProtoMessage() {}
+
+func (x *BoundKeypairSpec_RecoverySpec) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_scopes_joining_v1_token_proto_msgTypes[27]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *BoundKeypairSpec_RecoverySpec) GetLimit() uint32 {
+	if x != nil {
+		return x.Limit
+	}
+	return 0
+}
+
+func (x *BoundKeypairSpec_RecoverySpec) GetMode() string {
+	if x != nil {
+		return x.Mode
+	}
+	return ""
+}
+
+func (x *BoundKeypairSpec_RecoverySpec) SetLimit(v uint32) {
+	x.Limit = v
+}
+
+func (x *BoundKeypairSpec_RecoverySpec) SetMode(v string) {
+	x.Mode = v
+}
+
+type BoundKeypairSpec_RecoverySpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of allowed recovery attempts. This value may be raised
+	// or lowered after creation to allow additional recovery attempts should
+	// the initial limit be exhausted. If `mode` is set to `standard`, recovery
+	// attempts will only be allowed if `.status.bound_keypair.recovery_count`
+	// is less than this limit. This limit is not enforced if `mode` is set to
+	// `relaxed` or `insecure`. This value must be at least 1 to allow for the
+	// initial join during onboarding, which counts as a recovery.
+	Limit uint32
+	// Mode sets the recovery rule enforcement mode. It may be one of these
+	// values:
+	//   - standard (or unset): all configured rules enforced. The recovery limit
+	//     and client join state are required and verified. This is the most
+	//     secure recovery mode.
+	//   - relaxed: recovery limit is not enforced, but client join state is still
+	//     required. This effectively allows unlimited recovery attempts, but
+	//     client join state still helps mitigate stolen credentials.
+	//   - insecure: neither the recovery limit nor client join state are
+	//     enforced. This allows any client with the private key to join freely.
+	//     This is less secure, but can be useful in certain situations, like in
+	//     otherwise unsupported CI/CD providers. This mode should be used with
+	//     care, and RBAC rules should be configured to heavily restrict which
+	//     resources this identity can access.
+	Mode string
+}
+
+func (b0 BoundKeypairSpec_RecoverySpec_builder) Build() *BoundKeypairSpec_RecoverySpec {
+	m0 := &BoundKeypairSpec_RecoverySpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Limit = b.Limit
+	x.Mode = b.Mode
+	return m0
 }
 
 var File_teleport_scopes_joining_v1_token_proto protoreflect.FileDescriptor
@@ -710,7 +3457,7 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\bmetadata\x18\x04 \x01(\v2\x1c.teleport.header.v1.MetadataR\bmetadata\x12\x14\n" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12?\n" +
 	"\x04spec\x18\x06 \x01(\v2+.teleport.scopes.joining.v1.ScopedTokenSpecR\x04spec\x12E\n" +
-	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xe6\x01\n" +
+	"\x06status\x18\a \x01(\v2-.teleport.scopes.joining.v1.ScopedTokenStatusR\x06status\"\xe0\x05\n" +
 	"\x0fScopedTokenSpec\x12%\n" +
 	"\x0eassigned_scope\x18\x01 \x01(\tR\rassignedScope\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12\x1f\n" +
@@ -718,7 +3465,19 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"joinMethod\x12\x1d\n" +
 	"\n" +
 	"usage_mode\x18\x04 \x01(\tR\tusageMode\x12V\n" +
-	"\x10immutable_labels\x18\x05 \x01(\v2+.teleport.scopes.joining.v1.ImmutableLabelsR\x0fimmutableLabels\"\xb6\x01\n" +
+	"\x10immutable_labels\x18\x05 \x01(\v2+.teleport.scopes.joining.v1.ImmutableLabelsR\x0fimmutableLabels\x121\n" +
+	"\x03aws\x18\x06 \x01(\v2\x1f.teleport.scopes.joining.v1.AWSR\x03aws\x121\n" +
+	"\x03gcp\x18\a \x01(\v2\x1f.teleport.scopes.joining.v1.GCPR\x03gcp\x127\n" +
+	"\x05azure\x18\b \x01(\v2!.teleport.scopes.joining.v1.AzureR\x05azure\x12J\n" +
+	"\fazure_devops\x18\t \x01(\v2'.teleport.scopes.joining.v1.AzureDevopsR\vazureDevops\x12:\n" +
+	"\x06oracle\x18\n" +
+	" \x01(\v2\".teleport.scopes.joining.v1.OracleR\x06oracle\x12F\n" +
+	"\n" +
+	"kubernetes\x18\v \x01(\v2&.teleport.scopes.joining.v1.KubernetesR\n" +
+	"kubernetes\x12Q\n" +
+	"\rbound_keypair\x18\f \x01(\v2,.teleport.scopes.joining.v1.BoundKeypairSpecR\fboundKeypair\x12\x19\n" +
+	"\bbot_name\x18\r \x01(\tR\abotName\x12\x1b\n" +
+	"\tbot_scope\x18\x0e \x01(\tR\bbotScope\"\xb6\x01\n" +
 	"\x0eHostCertParams\x12\x17\n" +
 	"\ahost_id\x18\x01 \x01(\tR\x06hostId\x12\x1b\n" +
 	"\tnode_name\x18\x02 \x01(\tR\bnodeName\x12\x12\n" +
@@ -729,10 +3488,11 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\aused_at\x18\x01 \x01(\v2\x1a.google.protobuf.TimestampR\x06usedAt\x12A\n" +
 	"\x0ereusable_until\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\rreusableUntil\x12.\n" +
 	"\x13used_by_fingerprint\x18\x03 \x01(\fR\x11usedByFingerprint\x12T\n" +
-	"\x10host_cert_params\x18\x04 \x01(\v2*.teleport.scopes.joining.v1.HostCertParamsR\x0ehostCertParams\"e\n" +
+	"\x10host_cert_params\x18\x04 \x01(\v2*.teleport.scopes.joining.v1.HostCertParamsR\x0ehostCertParams\"\xbc\x01\n" +
 	"\vUsageStatus\x12L\n" +
 	"\n" +
-	"single_use\x18\x01 \x01(\v2+.teleport.scopes.joining.v1.SingleUseStatusH\x00R\tsingleUseB\b\n" +
+	"single_use\x18\x01 \x01(\v2+.teleport.scopes.joining.v1.SingleUseStatusH\x00R\tsingleUse\x12U\n" +
+	"\rbound_keypair\x18\x02 \x01(\v2..teleport.scopes.joining.v1.BoundKeypairStatusH\x00R\fboundKeypairB\b\n" +
 	"\x06status\"j\n" +
 	"\x11ScopedTokenStatus\x12\x16\n" +
 	"\x06secret\x18\x01 \x01(\tR\x06secret\x12=\n" +
@@ -750,54 +3510,165 @@ const file_teleport_scopes_joining_v1_token_proto_rawDesc = "" +
 	"\x05scope\x18\x05 \x01(\tR\x05scope\x12F\n" +
 	"\x04spec\x18\x06 \x01(\v22.teleport.scopes.joining.v1.StaticScopedTokensSpecR\x04spec\"Y\n" +
 	"\x16StaticScopedTokensSpec\x12?\n" +
-	"\x06tokens\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x06tokensBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
+	"\x06tokens\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.ScopedTokenR\x06tokens\"\xab\x02\n" +
+	"\x03AWS\x12:\n" +
+	"\x05allow\x18\x01 \x03(\v2$.teleport.scopes.joining.v1.AWS.RuleR\x05allow\x12\x17\n" +
+	"\aiid_ttl\x18\x02 \x01(\tR\x06iidTtl\x12 \n" +
+	"\vintegration\x18\x03 \x01(\tR\vintegration\x1a\xac\x01\n" +
+	"\x04Rule\x12\x1f\n" +
+	"\vaws_account\x18\x01 \x01(\tR\n" +
+	"awsAccount\x12\x1f\n" +
+	"\vaws_regions\x18\x02 \x03(\tR\n" +
+	"awsRegions\x12\x19\n" +
+	"\baws_role\x18\x03 \x01(\tR\aawsRole\x12\x17\n" +
+	"\aaws_arn\x18\x04 \x01(\tR\x06awsArn\x12.\n" +
+	"\x13aws_organization_id\x18\x05 \x01(\tR\x11awsOrganizationId\"\xb3\x01\n" +
+	"\x03GCP\x12:\n" +
+	"\x05allow\x18\x01 \x03(\v2$.teleport.scopes.joining.v1.GCP.RuleR\x05allow\x1ap\n" +
+	"\x04Rule\x12\x1f\n" +
+	"\vproject_ids\x18\x01 \x03(\tR\n" +
+	"projectIds\x12\x1c\n" +
+	"\tlocations\x18\x02 \x03(\tR\tlocations\x12)\n" +
+	"\x10service_accounts\x18\x03 \x03(\tR\x0fserviceAccounts\"\xb2\x01\n" +
+	"\x05Azure\x12<\n" +
+	"\x05allow\x18\x01 \x03(\v2&.teleport.scopes.joining.v1.Azure.RuleR\x05allow\x1ak\n" +
+	"\x04Rule\x12\"\n" +
+	"\fsubscription\x18\x01 \x01(\tR\fsubscription\x12'\n" +
+	"\x0fresource_groups\x18\x02 \x03(\tR\x0eresourceGroups\x12\x16\n" +
+	"\x06tenant\x18\x03 \x01(\tR\x06tenant\"\x9e\x03\n" +
+	"\vAzureDevops\x12B\n" +
+	"\x05allow\x18\x01 \x03(\v2,.teleport.scopes.joining.v1.AzureDevops.RuleR\x05allow\x12'\n" +
+	"\x0forganization_id\x18\x02 \x01(\tR\x0eorganizationId\x1a\xa1\x02\n" +
+	"\x04Rule\x12\x10\n" +
+	"\x03sub\x18\x01 \x01(\tR\x03sub\x12!\n" +
+	"\fproject_name\x18\x02 \x01(\tR\vprojectName\x12#\n" +
+	"\rpipeline_name\x18\x03 \x01(\tR\fpipelineName\x12\x1d\n" +
+	"\n" +
+	"project_id\x18\x04 \x01(\tR\tprojectId\x12#\n" +
+	"\rdefinition_id\x18\x05 \x01(\tR\fdefinitionId\x12%\n" +
+	"\x0erepository_uri\x18\x06 \x01(\tR\rrepositoryUri\x12-\n" +
+	"\x12repository_version\x18\a \x01(\tR\x11repositoryVersion\x12%\n" +
+	"\x0erepository_ref\x18\b \x01(\tR\rrepositoryRef\"\xd3\x01\n" +
+	"\x06Oracle\x12=\n" +
+	"\x05allow\x18\x01 \x03(\v2'.teleport.scopes.joining.v1.Oracle.RuleR\x05allow\x1a\x89\x01\n" +
+	"\x04Rule\x12\x18\n" +
+	"\atenancy\x18\x01 \x01(\tR\atenancy\x12/\n" +
+	"\x13parent_compartments\x18\x02 \x03(\tR\x12parentCompartments\x12\x18\n" +
+	"\aregions\x18\x03 \x03(\tR\aregions\x12\x1c\n" +
+	"\tinstances\x18\x04 \x03(\tR\tinstances\"\xaf\x04\n" +
+	"\n" +
+	"Kubernetes\x12A\n" +
+	"\x05allow\x18\x01 \x03(\v2+.teleport.scopes.joining.v1.Kubernetes.RuleR\x05allow\x12\x12\n" +
+	"\x04type\x18\x02 \x01(\tR\x04type\x12X\n" +
+	"\vstatic_jwks\x18\x03 \x01(\v27.teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfigR\n" +
+	"staticJwks\x12E\n" +
+	"\x04oidc\x18\x04 \x01(\v21.teleport.scopes.joining.v1.Kubernetes.OIDCConfigR\x04oidc\x1a&\n" +
+	"\x10StaticJWKSConfig\x12\x12\n" +
+	"\x04jwks\x18\x01 \x01(\tR\x04jwks\x1aa\n" +
+	"\n" +
+	"OIDCConfig\x12\x16\n" +
+	"\x06issuer\x18\x01 \x01(\tR\x06issuer\x12;\n" +
+	"\x1ainsecure_allow_http_issuer\x18\x02 \x01(\bR\x17insecureAllowHttpIssuer\x1a\x9d\x01\n" +
+	"\x04Rule\x12'\n" +
+	"\x0fservice_account\x18\x01 \x01(\tR\x0eserviceAccount\x120\n" +
+	"\x14service_account_name\x18\x02 \x01(\tR\x12serviceAccountName\x12:\n" +
+	"\x19service_account_namespace\x18\x03 \x01(\tR\x17serviceAccountNamespace\"\xff\x03\n" +
+	"\x10BoundKeypairSpec\x12[\n" +
+	"\n" +
+	"onboarding\x18\x01 \x01(\v2;.teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpecR\n" +
+	"onboarding\x12U\n" +
+	"\brecovery\x18\x02 \x01(\v29.teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpecR\brecovery\x12=\n" +
+	"\frotate_after\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\vrotateAfter\x1a\xbd\x01\n" +
+	"\x0eOnboardingSpec\x12,\n" +
+	"\x12initial_public_key\x18\x01 \x01(\tR\x10initialPublicKey\x12/\n" +
+	"\x13registration_secret\x18\x02 \x01(\tR\x12registrationSecret\x12L\n" +
+	"\x14must_register_before\x18\x03 \x01(\v2\x1a.google.protobuf.TimestampR\x12mustRegisterBefore\x1a8\n" +
+	"\fRecoverySpec\x12\x14\n" +
+	"\x05limit\x18\x01 \x01(\rR\x05limit\x12\x12\n" +
+	"\x04mode\x18\x02 \x01(\tR\x04mode\"\xf9\x02\n" +
+	"\x12BoundKeypairStatus\x12/\n" +
+	"\x13registration_secret\x18\x01 \x01(\tR\x12registrationSecret\x12(\n" +
+	"\x10bound_public_key\x18\x02 \x01(\tR\x0eboundPublicKey\x121\n" +
+	"\x15bound_bot_instance_id\x18\x03 \x01(\tR\x12boundBotInstanceId\x12%\n" +
+	"\x0erecovery_count\x18\x04 \x01(\rR\rrecoveryCount\x12F\n" +
+	"\x11last_recovered_at\x18\x05 \x01(\v2\x1a.google.protobuf.TimestampR\x0flastRecoveredAt\x12B\n" +
+	"\x0flast_rotated_at\x18\x06 \x01(\v2\x1a.google.protobuf.TimestampR\rlastRotatedAt\x12\"\n" +
+	"\rbound_host_id\x18\a \x01(\tR\vboundHostIdBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
 
-var (
-	file_teleport_scopes_joining_v1_token_proto_rawDescOnce sync.Once
-	file_teleport_scopes_joining_v1_token_proto_rawDescData []byte
-)
-
-func file_teleport_scopes_joining_v1_token_proto_rawDescGZIP() []byte {
-	file_teleport_scopes_joining_v1_token_proto_rawDescOnce.Do(func() {
-		file_teleport_scopes_joining_v1_token_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)))
-	})
-	return file_teleport_scopes_joining_v1_token_proto_rawDescData
-}
-
-var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_scopes_joining_v1_token_proto_msgTypes = make([]protoimpl.MessageInfo, 28)
 var file_teleport_scopes_joining_v1_token_proto_goTypes = []any{
-	(*ScopedToken)(nil),            // 0: teleport.scopes.joining.v1.ScopedToken
-	(*ScopedTokenSpec)(nil),        // 1: teleport.scopes.joining.v1.ScopedTokenSpec
-	(*HostCertParams)(nil),         // 2: teleport.scopes.joining.v1.HostCertParams
-	(*SingleUseStatus)(nil),        // 3: teleport.scopes.joining.v1.SingleUseStatus
-	(*UsageStatus)(nil),            // 4: teleport.scopes.joining.v1.UsageStatus
-	(*ScopedTokenStatus)(nil),      // 5: teleport.scopes.joining.v1.ScopedTokenStatus
-	(*ImmutableLabels)(nil),        // 6: teleport.scopes.joining.v1.ImmutableLabels
-	(*StaticScopedTokens)(nil),     // 7: teleport.scopes.joining.v1.StaticScopedTokens
-	(*StaticScopedTokensSpec)(nil), // 8: teleport.scopes.joining.v1.StaticScopedTokensSpec
-	nil,                            // 9: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	(*v1.Metadata)(nil),            // 10: teleport.header.v1.Metadata
-	(*timestamppb.Timestamp)(nil),  // 11: google.protobuf.Timestamp
+	(*ScopedToken)(nil),                     // 0: teleport.scopes.joining.v1.ScopedToken
+	(*ScopedTokenSpec)(nil),                 // 1: teleport.scopes.joining.v1.ScopedTokenSpec
+	(*HostCertParams)(nil),                  // 2: teleport.scopes.joining.v1.HostCertParams
+	(*SingleUseStatus)(nil),                 // 3: teleport.scopes.joining.v1.SingleUseStatus
+	(*UsageStatus)(nil),                     // 4: teleport.scopes.joining.v1.UsageStatus
+	(*ScopedTokenStatus)(nil),               // 5: teleport.scopes.joining.v1.ScopedTokenStatus
+	(*ImmutableLabels)(nil),                 // 6: teleport.scopes.joining.v1.ImmutableLabels
+	(*StaticScopedTokens)(nil),              // 7: teleport.scopes.joining.v1.StaticScopedTokens
+	(*StaticScopedTokensSpec)(nil),          // 8: teleport.scopes.joining.v1.StaticScopedTokensSpec
+	(*AWS)(nil),                             // 9: teleport.scopes.joining.v1.AWS
+	(*GCP)(nil),                             // 10: teleport.scopes.joining.v1.GCP
+	(*Azure)(nil),                           // 11: teleport.scopes.joining.v1.Azure
+	(*AzureDevops)(nil),                     // 12: teleport.scopes.joining.v1.AzureDevops
+	(*Oracle)(nil),                          // 13: teleport.scopes.joining.v1.Oracle
+	(*Kubernetes)(nil),                      // 14: teleport.scopes.joining.v1.Kubernetes
+	(*BoundKeypairSpec)(nil),                // 15: teleport.scopes.joining.v1.BoundKeypairSpec
+	(*BoundKeypairStatus)(nil),              // 16: teleport.scopes.joining.v1.BoundKeypairStatus
+	nil,                                     // 17: teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	(*AWS_Rule)(nil),                        // 18: teleport.scopes.joining.v1.AWS.Rule
+	(*GCP_Rule)(nil),                        // 19: teleport.scopes.joining.v1.GCP.Rule
+	(*Azure_Rule)(nil),                      // 20: teleport.scopes.joining.v1.Azure.Rule
+	(*AzureDevops_Rule)(nil),                // 21: teleport.scopes.joining.v1.AzureDevops.Rule
+	(*Oracle_Rule)(nil),                     // 22: teleport.scopes.joining.v1.Oracle.Rule
+	(*Kubernetes_StaticJWKSConfig)(nil),     // 23: teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
+	(*Kubernetes_OIDCConfig)(nil),           // 24: teleport.scopes.joining.v1.Kubernetes.OIDCConfig
+	(*Kubernetes_Rule)(nil),                 // 25: teleport.scopes.joining.v1.Kubernetes.Rule
+	(*BoundKeypairSpec_OnboardingSpec)(nil), // 26: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
+	(*BoundKeypairSpec_RecoverySpec)(nil),   // 27: teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
+	(*v1.Metadata)(nil),                     // 28: teleport.header.v1.Metadata
+	(*timestamppb.Timestamp)(nil),           // 29: google.protobuf.Timestamp
 }
 var file_teleport_scopes_joining_v1_token_proto_depIdxs = []int32{
-	10, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
+	28, // 0: teleport.scopes.joining.v1.ScopedToken.metadata:type_name -> teleport.header.v1.Metadata
 	1,  // 1: teleport.scopes.joining.v1.ScopedToken.spec:type_name -> teleport.scopes.joining.v1.ScopedTokenSpec
 	5,  // 2: teleport.scopes.joining.v1.ScopedToken.status:type_name -> teleport.scopes.joining.v1.ScopedTokenStatus
 	6,  // 3: teleport.scopes.joining.v1.ScopedTokenSpec.immutable_labels:type_name -> teleport.scopes.joining.v1.ImmutableLabels
-	11, // 4: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
-	11, // 5: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
-	2,  // 6: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
-	3,  // 7: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
-	4,  // 8: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
-	9,  // 9: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
-	10, // 10: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
-	8,  // 11: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
-	0,  // 12: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	9,  // 4: teleport.scopes.joining.v1.ScopedTokenSpec.aws:type_name -> teleport.scopes.joining.v1.AWS
+	10, // 5: teleport.scopes.joining.v1.ScopedTokenSpec.gcp:type_name -> teleport.scopes.joining.v1.GCP
+	11, // 6: teleport.scopes.joining.v1.ScopedTokenSpec.azure:type_name -> teleport.scopes.joining.v1.Azure
+	12, // 7: teleport.scopes.joining.v1.ScopedTokenSpec.azure_devops:type_name -> teleport.scopes.joining.v1.AzureDevops
+	13, // 8: teleport.scopes.joining.v1.ScopedTokenSpec.oracle:type_name -> teleport.scopes.joining.v1.Oracle
+	14, // 9: teleport.scopes.joining.v1.ScopedTokenSpec.kubernetes:type_name -> teleport.scopes.joining.v1.Kubernetes
+	15, // 10: teleport.scopes.joining.v1.ScopedTokenSpec.bound_keypair:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec
+	29, // 11: teleport.scopes.joining.v1.SingleUseStatus.used_at:type_name -> google.protobuf.Timestamp
+	29, // 12: teleport.scopes.joining.v1.SingleUseStatus.reusable_until:type_name -> google.protobuf.Timestamp
+	2,  // 13: teleport.scopes.joining.v1.SingleUseStatus.host_cert_params:type_name -> teleport.scopes.joining.v1.HostCertParams
+	3,  // 14: teleport.scopes.joining.v1.UsageStatus.single_use:type_name -> teleport.scopes.joining.v1.SingleUseStatus
+	16, // 15: teleport.scopes.joining.v1.UsageStatus.bound_keypair:type_name -> teleport.scopes.joining.v1.BoundKeypairStatus
+	4,  // 16: teleport.scopes.joining.v1.ScopedTokenStatus.usage:type_name -> teleport.scopes.joining.v1.UsageStatus
+	17, // 17: teleport.scopes.joining.v1.ImmutableLabels.ssh:type_name -> teleport.scopes.joining.v1.ImmutableLabels.SshEntry
+	28, // 18: teleport.scopes.joining.v1.StaticScopedTokens.metadata:type_name -> teleport.header.v1.Metadata
+	8,  // 19: teleport.scopes.joining.v1.StaticScopedTokens.spec:type_name -> teleport.scopes.joining.v1.StaticScopedTokensSpec
+	0,  // 20: teleport.scopes.joining.v1.StaticScopedTokensSpec.tokens:type_name -> teleport.scopes.joining.v1.ScopedToken
+	18, // 21: teleport.scopes.joining.v1.AWS.allow:type_name -> teleport.scopes.joining.v1.AWS.Rule
+	19, // 22: teleport.scopes.joining.v1.GCP.allow:type_name -> teleport.scopes.joining.v1.GCP.Rule
+	20, // 23: teleport.scopes.joining.v1.Azure.allow:type_name -> teleport.scopes.joining.v1.Azure.Rule
+	21, // 24: teleport.scopes.joining.v1.AzureDevops.allow:type_name -> teleport.scopes.joining.v1.AzureDevops.Rule
+	22, // 25: teleport.scopes.joining.v1.Oracle.allow:type_name -> teleport.scopes.joining.v1.Oracle.Rule
+	25, // 26: teleport.scopes.joining.v1.Kubernetes.allow:type_name -> teleport.scopes.joining.v1.Kubernetes.Rule
+	23, // 27: teleport.scopes.joining.v1.Kubernetes.static_jwks:type_name -> teleport.scopes.joining.v1.Kubernetes.StaticJWKSConfig
+	24, // 28: teleport.scopes.joining.v1.Kubernetes.oidc:type_name -> teleport.scopes.joining.v1.Kubernetes.OIDCConfig
+	26, // 29: teleport.scopes.joining.v1.BoundKeypairSpec.onboarding:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec
+	27, // 30: teleport.scopes.joining.v1.BoundKeypairSpec.recovery:type_name -> teleport.scopes.joining.v1.BoundKeypairSpec.RecoverySpec
+	29, // 31: teleport.scopes.joining.v1.BoundKeypairSpec.rotate_after:type_name -> google.protobuf.Timestamp
+	29, // 32: teleport.scopes.joining.v1.BoundKeypairStatus.last_recovered_at:type_name -> google.protobuf.Timestamp
+	29, // 33: teleport.scopes.joining.v1.BoundKeypairStatus.last_rotated_at:type_name -> google.protobuf.Timestamp
+	29, // 34: teleport.scopes.joining.v1.BoundKeypairSpec.OnboardingSpec.must_register_before:type_name -> google.protobuf.Timestamp
+	35, // [35:35] is the sub-list for method output_type
+	35, // [35:35] is the sub-list for method input_type
+	35, // [35:35] is the sub-list for extension type_name
+	35, // [35:35] is the sub-list for extension extendee
+	0,  // [0:35] is the sub-list for field type_name
 }
 
 func init() { file_teleport_scopes_joining_v1_token_proto_init() }
@@ -807,6 +3678,7 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 	}
 	file_teleport_scopes_joining_v1_token_proto_msgTypes[4].OneofWrappers = []any{
 		(*UsageStatus_SingleUse)(nil),
+		(*UsageStatus_BoundKeypair)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -814,7 +3686,7 @@ func file_teleport_scopes_joining_v1_token_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_token_proto_rawDesc), len(file_teleport_scopes_joining_v1_token_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   28,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -32,7 +32,9 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -46,7 +48,7 @@ func TestMiddlewareGetUser(t *testing.T) {
 		remoteClusterName = "remote"
 	)
 
-	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 
 	var (
 		localUserIdentity = tlsca.Identity{
@@ -98,11 +100,10 @@ func TestMiddlewareGetUser(t *testing.T) {
 	}{
 		{
 			desc: "no client cert",
-			wantID: authz.BuiltinRole{
+			wantID: authz.UnauthenticatedRole{
 				Role:        types.RoleNop,
 				Username:    string(types.RoleNop),
 				ClusterName: localClusterName,
-				Identity:    tlsca.Identity{},
 			},
 			assertErr: require.NoError,
 		},
@@ -226,7 +227,7 @@ func (t *testConn) RemoteAddr() net.Addr                   { return t.remoteAddr
 func TestWrapContextWithUser(t *testing.T) {
 	const localClusterName = "local"
 
-	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	localUserIdentity := tlsca.Identity{
 		Username:          "foo",
 		Groups:            []string{"devs"},
@@ -313,7 +314,7 @@ func TestMiddlewareServeHTTP(t *testing.T) {
 	const localClusterName = "local"
 	const remoteClusterName = "remote"
 
-	now := time.Date(2020, time.November, 5, 0, 0, 0, 0, time.UTC)
+	now := time.Now().UTC()
 	localUserIdentity := tlsca.Identity{
 		Username:          "foo",
 		Groups:            []string{"devs"},
@@ -637,4 +638,49 @@ func (h *fakeHTTPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// after the middleware has run.
 	require.Empty(h.t, r.Header.Get("Teleport-Impersonate-User"))
 	require.Empty(h.t, r.Header.Get("Teleport-Impersonate-IP"))
+}
+
+// TestMiddlewareGetUserAgentScopePin verifies that GetUser returns a
+// ScopedBuiltinRole when the TLS certificate carries an AgentScopePin.
+func TestMiddlewareGetUserAgentScopePin(t *testing.T) {
+	t.Parallel()
+	const (
+		localClusterName = "local"
+		serverFQDN       = "node-uuid.local"
+	)
+
+	now := time.Now().UTC()
+
+	agentPin := &scopesv1.Pin{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: "/",
+		SystemRoles: &scopesv1.SystemRoles{
+			Primary: string(types.RoleNode),
+		},
+	}
+
+	identity := tlsca.Identity{
+		Username:          serverFQDN,
+		TeleportCluster:   localClusterName,
+		OriginClusterName: localClusterName,
+		ScopePin:          agentPin,
+		Expires:           now,
+	}
+
+	m := &authz.Middleware{ClusterName: localClusterName}
+	id, err := m.GetUser(t.Context(), tls.ConnectionState{
+		PeerCertificates: []*x509.Certificate{{
+			Subject:  subject(t, identity),
+			NotAfter: now,
+			Issuer:   pkix.Name{Organization: []string{localClusterName}},
+		}},
+	})
+	require.NoError(t, err)
+
+	got, ok := id.(authz.ScopedBuiltinRole)
+	require.True(t, ok, "expected ScopedBuiltinRole, got %T", id)
+	require.Empty(t, cmp.Diff(agentPin, got.ScopePin, protocmp.Transform()))
+	require.Equal(t, serverFQDN, got.ServerFQDN)
+	require.Equal(t, localClusterName, got.ClusterName)
+	require.Empty(t, cmp.Diff(identity, got.Identity, cmpopts.EquateEmpty(), protocmp.Transform()))
 }

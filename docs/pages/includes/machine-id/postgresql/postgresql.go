@@ -16,7 +16,7 @@ func main() {
 	db, err := sql.Open("pgx", fmt.Sprint(
 		"host=localhost ",
 		"port=1234 ",
-		"dbname=example ",
+		"dbname=example-db ",
 		"user=alice ",
 		// The next four options should be omitted if the local proxy has been
 		// placed in "authenticated tunnel" mode.

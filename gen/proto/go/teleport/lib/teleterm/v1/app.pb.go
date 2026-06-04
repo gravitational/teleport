@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/app.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // App describes an app resource.
 type App struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// uri uniquely identifies an app within Teleport Connect.
 	Uri string `protobuf:"bytes,1,opt,name=uri,proto3" json:"uri,omitempty"`
 	// name is the name of the app.
@@ -106,8 +107,12 @@ type App struct {
 	// Defines a permission set that is available on an IdentityCenter account app.
 	// Such apps can be recognized by sub_kind == 'aws_ic_account'.
 	PermissionSets []*IdentityCenterPermissionSet `protobuf:"bytes,14,rep,name=permission_sets,json=permissionSets,proto3" json:"permission_sets,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// supported_feature_ids contains component feature IDs supported by this app and all
+	// other involved components (Auth, Proxy). Used to determine if features like resource
+	// constraints are available.
+	SupportedFeatureIds []int32 `protobuf:"varint,15,rep,packed,name=supported_feature_ids,json=supportedFeatureIds,proto3" json:"supported_feature_ids,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *App) Reset() {
@@ -133,11 +138,6 @@ func (x *App) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use App.ProtoReflect.Descriptor instead.
-func (*App) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_app_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *App) GetUri() string {
@@ -238,9 +238,172 @@ func (x *App) GetPermissionSets() []*IdentityCenterPermissionSet {
 	return nil
 }
 
+func (x *App) GetSupportedFeatureIds() []int32 {
+	if x != nil {
+		return x.SupportedFeatureIds
+	}
+	return nil
+}
+
+func (x *App) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *App) SetName(v string) {
+	x.Name = v
+}
+
+func (x *App) SetEndpointUri(v string) {
+	x.EndpointUri = v
+}
+
+func (x *App) SetDesc(v string) {
+	x.Desc = v
+}
+
+func (x *App) SetAwsConsole(v bool) {
+	x.AwsConsole = v
+}
+
+func (x *App) SetPublicAddr(v string) {
+	x.PublicAddr = v
+}
+
+func (x *App) SetFriendlyName(v string) {
+	x.FriendlyName = v
+}
+
+func (x *App) SetSamlApp(v bool) {
+	x.SamlApp = v
+}
+
+func (x *App) SetLabels(v []*Label) {
+	x.Labels = v
+}
+
+func (x *App) SetFqdn(v string) {
+	x.Fqdn = v
+}
+
+func (x *App) SetAwsRoles(v []*AWSRole) {
+	x.AwsRoles = v
+}
+
+func (x *App) SetTcpPorts(v []*PortRange) {
+	x.TcpPorts = v
+}
+
+func (x *App) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *App) SetPermissionSets(v []*IdentityCenterPermissionSet) {
+	x.PermissionSets = v
+}
+
+func (x *App) SetSupportedFeatureIds(v []int32) {
+	x.SupportedFeatureIds = v
+}
+
+type App_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// uri uniquely identifies an app within Teleport Connect.
+	Uri string
+	// name is the name of the app.
+	Name string
+	// endpoint_uri is the URI to which the app service is going to proxy requests. It corresponds to
+	// app_service.apps[].uri in the Teleport configuration.
+	EndpointUri string
+	// desc is the app description.
+	Desc string
+	// aws_console is true if this app is AWS management console.
+	AwsConsole bool
+	// public_addr is the public address the application is accessible at.
+	//
+	// If the app resource has its public_addr field set, this field returns the value of public_addr
+	// from the app resource.
+	//
+	// If the app resource does not have public_addr field set, this field returns the name of the app
+	// under the proxy hostname of the cluster to which the app belongs, e.g.,
+	// dumper.root-cluster.com, example-app.leaf-cluster.org.
+	//
+	// In both cases public_addr does not include a port number. This is all cool and fine if the
+	// actual public address and the proxy service share the default port 443. In a scenario where the
+	// proxy uses a non-standard port like 3080 and the public address uses 443, it might cause
+	// problems. public_addr of an app resource cannot include a port number. The backend will reject
+	// such app resource with an error saying "public_addr "example.com:1337" can not contain a port,
+	// applications will be available on the same port as the web proxy". This is not always the case
+	// for custom public addresses. Ultimately, it means that public_addr alone might not be enough to
+	// access the app if either the cluster or the custom address use a port number other than 443.
+	//
+	// public_addr is always empty for SAML applications.
+	PublicAddr string
+	// friendly_name is a user readable name of the app.
+	// Right now, it is set only for Okta applications.
+	// It is constructed from a label value.
+	// See more in api/types/resource.go.
+	FriendlyName string
+	// saml_app is true if the application is a SAML Application (Service Provider).
+	SamlApp bool
+	// labels is a list of labels for the app.
+	Labels []*Label
+	// fqdn is the hostname under which the app is accessible within the root cluster. It is used by
+	// the Web UI to route the requests from the /web/launch URL to the correct app. fqdn by itself
+	// does not include the port number, so fqdn alone cannot be used to launch an app, hence why it's
+	// incorporated into the /web/launch URL.
+	//
+	// If the app belongs to a root cluster, fqdn is equal to public_addr or [name].[root cluster
+	// proxy hostname] if public_addr is not present.
+	// If the app belongs to a leaf cluster, fqdn is equal to [name].[root cluster proxy hostname].
+	//
+	// fqdn is not present for SAML applications. Available only when the app was fetched through the
+	// ListUnifiedResources RPC.
+	Fqdn string
+	// aws_roles is a list of AWS IAM roles for the application representing AWS console. Available
+	// only when the app wast fetched through the ListUnifiedResources RPC.
+	AwsRoles []*AWSRole
+	// TCPPorts is a list of ports and port ranges that an app agent can forward connections to.
+	// Only applicable to TCP App Access.
+	// If this field is not empty, URI is expected to contain no port number and start with the tcp
+	// protocol.
+	TcpPorts []*PortRange
+	// Subkind of the app resource. Used to differentiate different flavors of app.
+	SubKind string
+	// Defines a permission set that is available on an IdentityCenter account app.
+	// Such apps can be recognized by sub_kind == 'aws_ic_account'.
+	PermissionSets []*IdentityCenterPermissionSet
+	// supported_feature_ids contains component feature IDs supported by this app and all
+	// other involved components (Auth, Proxy). Used to determine if features like resource
+	// constraints are available.
+	SupportedFeatureIds []int32
+}
+
+func (b0 App_builder) Build() *App {
+	m0 := &App{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Uri = b.Uri
+	x.Name = b.Name
+	x.EndpointUri = b.EndpointUri
+	x.Desc = b.Desc
+	x.AwsConsole = b.AwsConsole
+	x.PublicAddr = b.PublicAddr
+	x.FriendlyName = b.FriendlyName
+	x.SamlApp = b.SamlApp
+	x.Labels = b.Labels
+	x.Fqdn = b.Fqdn
+	x.AwsRoles = b.AwsRoles
+	x.TcpPorts = b.TcpPorts
+	x.SubKind = b.SubKind
+	x.PermissionSets = b.PermissionSets
+	x.SupportedFeatureIds = b.SupportedFeatureIds
+	return m0
+}
+
 // AwsRole describes AWS IAM role.
 type AWSRole struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the full role name with the entire path.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Display is the role display name.
@@ -248,9 +411,11 @@ type AWSRole struct {
 	// ARN is the full role ARN.
 	Arn string `protobuf:"bytes,3,opt,name=arn,proto3" json:"arn,omitempty"`
 	// AccountID is the AWS Account ID this role refers to.
-	AccountId     string `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	AccountId string `protobuf:"bytes,4,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
+	// RequiresRequest indicates whether this role requires an access request to be used.
+	RequiresRequest bool `protobuf:"varint,5,opt,name=requires_request,json=requiresRequest,proto3" json:"requires_request,omitempty"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *AWSRole) Reset() {
@@ -276,11 +441,6 @@ func (x *AWSRole) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSRole.ProtoReflect.Descriptor instead.
-func (*AWSRole) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_app_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AWSRole) GetName() string {
@@ -311,11 +471,65 @@ func (x *AWSRole) GetAccountId() string {
 	return ""
 }
 
+func (x *AWSRole) GetRequiresRequest() bool {
+	if x != nil {
+		return x.RequiresRequest
+	}
+	return false
+}
+
+func (x *AWSRole) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AWSRole) SetDisplay(v string) {
+	x.Display = v
+}
+
+func (x *AWSRole) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSRole) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSRole) SetRequiresRequest(v bool) {
+	x.RequiresRequest = v
+}
+
+type AWSRole_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the full role name with the entire path.
+	Name string
+	// Display is the role display name.
+	Display string
+	// ARN is the full role ARN.
+	Arn string
+	// AccountID is the AWS Account ID this role refers to.
+	AccountId string
+	// RequiresRequest indicates whether this role requires an access request to be used.
+	RequiresRequest bool
+}
+
+func (b0 AWSRole_builder) Build() *AWSRole {
+	m0 := &AWSRole{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Display = b.Display
+	x.Arn = b.Arn
+	x.AccountId = b.AccountId
+	x.RequiresRequest = b.RequiresRequest
+	return m0
+}
+
 // PortRange describes a port range for TCP apps. The range starts with Port and ends with EndPort.
 // PortRange can be used to describe a single port in which case the Port field is the port and the
 // EndPort field is 0.
 type PortRange struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Port describes the start of the range. It must be between 1 and 65535.
 	Port uint32 `protobuf:"varint,1,opt,name=port,proto3" json:"port,omitempty"`
 	// EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
@@ -351,11 +565,6 @@ func (x *PortRange) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PortRange.ProtoReflect.Descriptor instead.
-func (*PortRange) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_app_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *PortRange) GetPort() uint32 {
 	if x != nil {
 		return x.Port
@@ -370,11 +579,39 @@ func (x *PortRange) GetEndPort() uint32 {
 	return 0
 }
 
+func (x *PortRange) SetPort(v uint32) {
+	x.Port = v
+}
+
+func (x *PortRange) SetEndPort(v uint32) {
+	x.EndPort = v
+}
+
+type PortRange_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Port describes the start of the range. It must be between 1 and 65535.
+	Port uint32
+	// EndPort describes the end of the range, inclusive. If set, it must be between 2 and 65535 and
+	// be greater than Port when describing a port range. When omitted or set to zero, it signifies
+	// that the port range defines a single port.
+	EndPort uint32
+}
+
+func (b0 PortRange_builder) Build() *PortRange {
+	m0 := &PortRange{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Port = b.Port
+	x.EndPort = b.EndPort
+	return m0
+}
+
 // RouteToApp is used by the auth service and the app service during cert generation and routing.
 // It's purpose is to point to a specific app within a root cluster. Kind of like an app URI in
 // Connect, but with extra data attached.
 type RouteToApp struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the app within a cluster.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// public_addr is the address under which the app can be reached. It's just the hostname, it does
@@ -418,11 +655,6 @@ func (x *RouteToApp) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RouteToApp.ProtoReflect.Descriptor instead.
-func (*RouteToApp) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_app_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *RouteToApp) GetName() string {
 	if x != nil {
 		return x.Name
@@ -458,9 +690,60 @@ func (x *RouteToApp) GetTargetPort() uint32 {
 	return 0
 }
 
+func (x *RouteToApp) SetName(v string) {
+	x.Name = v
+}
+
+func (x *RouteToApp) SetPublicAddr(v string) {
+	x.PublicAddr = v
+}
+
+func (x *RouteToApp) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *RouteToApp) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *RouteToApp) SetTargetPort(v uint32) {
+	x.TargetPort = v
+}
+
+type RouteToApp_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the app within a cluster.
+	Name string
+	// public_addr is the address under which the app can be reached. It's just the hostname, it does
+	// not include the schema or the port number. See the docs for public_addr of
+	// the App message for a more thorough description.
+	PublicAddr string
+	// cluster_name is the name of the cluster that the app belongs to. In the case of the root
+	// cluster, it's not guaranteed to be equal to the proxy hostname – the root cluster might have a
+	// distinct name set.
+	ClusterName string
+	// uri is the URI which the app service is going to proxy requests to.
+	Uri string
+	// target_port is the port of a multi-port TCP app that the connection is going to be proxied to.
+	TargetPort uint32
+}
+
+func (b0 RouteToApp_builder) Build() *RouteToApp {
+	m0 := &RouteToApp{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.PublicAddr = b.PublicAddr
+	x.ClusterName = b.ClusterName
+	x.Uri = b.Uri
+	x.TargetPort = b.TargetPort
+	return m0
+}
+
 // Defines a permission set that is available on an IdentityCenter account app.
 type IdentityCenterPermissionSet struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AWS-assigned ARN of the permission set.
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// Human-readable name of the permission set.
@@ -497,11 +780,6 @@ func (x *IdentityCenterPermissionSet) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IdentityCenterPermissionSet.ProtoReflect.Descriptor instead.
-func (*IdentityCenterPermissionSet) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_app_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *IdentityCenterPermissionSet) GetArn() string {
 	if x != nil {
 		return x.Arn
@@ -523,11 +801,45 @@ func (x *IdentityCenterPermissionSet) GetAssignmentId() string {
 	return ""
 }
 
+func (x *IdentityCenterPermissionSet) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *IdentityCenterPermissionSet) SetName(v string) {
+	x.Name = v
+}
+
+func (x *IdentityCenterPermissionSet) SetAssignmentId(v string) {
+	x.AssignmentId = v
+}
+
+type IdentityCenterPermissionSet_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AWS-assigned ARN of the permission set.
+	Arn string
+	// Human-readable name of the permission set.
+	Name string
+	// ID of the Teleport Account Assignment resource that represents this permission being assigned
+	// on the enclosing Account.
+	AssignmentId string
+}
+
+func (b0 IdentityCenterPermissionSet_builder) Build() *IdentityCenterPermissionSet {
+	m0 := &IdentityCenterPermissionSet{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.Name = b.Name
+	x.AssignmentId = b.AssignmentId
+	return m0
+}
+
 var File_teleport_lib_teleterm_v1_app_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_app_proto_rawDesc = "" +
 	"\n" +
-	"\"teleport/lib/teleterm/v1/app.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"\xae\x04\n" +
+	"\"teleport/lib/teleterm/v1/app.proto\x12\x18teleport.lib.teleterm.v1\x1a$teleport/lib/teleterm/v1/label.proto\"\xe2\x04\n" +
 	"\x03App\x12\x10\n" +
 	"\x03uri\x18\x01 \x01(\tR\x03uri\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12!\n" +
@@ -545,13 +857,15 @@ const file_teleport_lib_teleterm_v1_app_proto_rawDesc = "" +
 	"\taws_roles\x18\v \x03(\v2!.teleport.lib.teleterm.v1.AWSRoleR\bawsRoles\x12@\n" +
 	"\ttcp_ports\x18\f \x03(\v2#.teleport.lib.teleterm.v1.PortRangeR\btcpPorts\x12\x19\n" +
 	"\bsub_kind\x18\r \x01(\tR\asubKind\x12^\n" +
-	"\x0fpermission_sets\x18\x0e \x03(\v25.teleport.lib.teleterm.v1.IdentityCenterPermissionSetR\x0epermissionSets\"h\n" +
+	"\x0fpermission_sets\x18\x0e \x03(\v25.teleport.lib.teleterm.v1.IdentityCenterPermissionSetR\x0epermissionSets\x122\n" +
+	"\x15supported_feature_ids\x18\x0f \x03(\x05R\x13supportedFeatureIds\"\x93\x01\n" +
 	"\aAWSRole\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x18\n" +
 	"\adisplay\x18\x02 \x01(\tR\adisplay\x12\x10\n" +
 	"\x03arn\x18\x03 \x01(\tR\x03arn\x12\x1d\n" +
 	"\n" +
-	"account_id\x18\x04 \x01(\tR\taccountId\":\n" +
+	"account_id\x18\x04 \x01(\tR\taccountId\x12)\n" +
+	"\x10requires_request\x18\x05 \x01(\bR\x0frequiresRequest\":\n" +
 	"\tPortRange\x12\x12\n" +
 	"\x04port\x18\x01 \x01(\rR\x04port\x12\x19\n" +
 	"\bend_port\x18\x02 \x01(\rR\aendPort\"\x97\x01\n" +
@@ -568,18 +882,6 @@ const file_teleport_lib_teleterm_v1_app_proto_rawDesc = "" +
 	"\x03arn\x18\x01 \x01(\tR\x03arn\x12\x12\n" +
 	"\x04name\x18\x02 \x01(\tR\x04name\x12#\n" +
 	"\rassignment_id\x18\x03 \x01(\tR\fassignmentIdBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_v1_app_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_app_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_app_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_app_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_app_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_app_proto_rawDesc), len(file_teleport_lib_teleterm_v1_app_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_app_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_v1_app_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_lib_teleterm_v1_app_proto_goTypes = []any{

@@ -20,6 +20,7 @@ package discovery
 
 import (
 	"context"
+	"errors"
 	"maps"
 	"net/url"
 	"path"
@@ -49,7 +50,7 @@ import (
 // EKS watchers can do that and they behave differently from non-integration ones - we install agent on the
 // discovered clusters, instead of just proxying them.
 func (s *Server) startKubeIntegrationWatchers() error {
-	if len(s.getKubeIntegrationFetchers()) == 0 && s.dynamicMatcherWatcher == nil {
+	if len(s.getKubeIntegrationFetchers()) == 0 && s.DiscoveryGroup == "" {
 		return nil
 	}
 
@@ -66,8 +67,8 @@ func (s *Server) startKubeIntegrationWatchers() error {
 	}
 	proxyPublicAddr := pingResponse.GetProxyPublicAddr()
 
-	var versionGetter version.Getter
-	if proxyPublicAddr == "" {
+	versionGetter := s.kubeAgentVersionGetter
+	if versionGetter == nil && proxyPublicAddr == "" {
 		// If there are no proxy services running, we might fail to get the proxy URL and build a client.
 		// In this case we "gracefully" fallback to our own version.
 		// This is not supposed to happen outside of tests as the discovery service must join via a proxy.
@@ -78,7 +79,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		if err != nil {
 			return trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
 		}
-	} else {
+	} else if versionGetter == nil {
 		versionGetter, err = versionGetterForProxy(s.ctx, proxyPublicAddr)
 		if err != nil {
 			s.Log.WarnContext(s.ctx,
@@ -115,6 +116,9 @@ func (s *Server) startKubeIntegrationWatchers() error {
 		for {
 			resourcesFoundByGroup := make(map[awsResourceGroup]int)
 			resourcesEnrolledByGroup := make(map[awsResourceGroup]int)
+			iterationDiscoveryConfigs := make(map[string]struct{})
+
+			inflightInstallations := sync.WaitGroup{}
 
 			select {
 			case resources := <-watcher.ResourcesC():
@@ -134,7 +138,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					continue
 				}
 
-				agentVersion, err := s.getKubeAgentVersion(versionGetter)
+				agentVersion, err := kubeutils.GetKubeAgentVersion(s.ctx, versionGetter)
 				if err != nil {
 					s.Log.WarnContext(s.ctx, "Could not get agent version to enroll EKS clusters", "error", err)
 					continue
@@ -151,11 +155,15 @@ func (s *Server) startKubeIntegrationWatchers() error {
 					resourceGroup := awsResourceGroupFromLabels(newCluster.GetStaticLabels())
 					resourcesFoundByGroup[resourceGroup] += 1
 
-					if enrollingClusters[newCluster.GetAWSConfig().Name] ||
-						slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
-						slices.ContainsFunc(existingClusters, func(c types.KubeCluster) bool { return c.GetName() == newCluster.GetName() }) {
+					currentlyEnrolling := enrollingClusters[newCluster.GetAWSConfig().Name]
+					alreadyEnrolled := slices.ContainsFunc(existingServers, func(c types.KubeServer) bool { return c.GetName() == newCluster.GetName() }) ||
+						slices.ContainsFunc(existingClusters, func(c types.KubeCluster) bool { return c.GetName() == newCluster.GetName() })
 
+					if alreadyEnrolled {
 						resourcesEnrolledByGroup[resourceGroup] += 1
+					}
+
+					if currentlyEnrolling || alreadyEnrolled {
 						continue
 					}
 
@@ -164,6 +172,7 @@ func (s *Server) startKubeIntegrationWatchers() error {
 				mu.Unlock()
 
 				for group, count := range resourcesFoundByGroup {
+					iterationDiscoveryConfigs[group.discoveryConfigName] = struct{}{}
 					s.awsEKSResourcesStatus.incrementFound(group, count)
 				}
 
@@ -190,7 +199,9 @@ func (s *Server) startKubeIntegrationWatchers() error {
 
 				for key, val := range clustersByRegionAndIntegration {
 					key, val := key, val
-					go s.enrollEKSClusters(key.region, key.integration, key.discoveryConfigName, val, agentVersion, &mu, enrollingClusters)
+					inflightInstallations.Go(func() {
+						s.enrollEKSClusters(key.region, key.integration, key.discoveryConfigName, val, agentVersion, &mu, enrollingClusters)
+					})
 				}
 
 			case <-s.ctx.Done():
@@ -200,18 +211,24 @@ func (s *Server) startKubeIntegrationWatchers() error {
 			for group, count := range resourcesEnrolledByGroup {
 				s.awsEKSResourcesStatus.incrementEnrolled(group, count)
 			}
+
+			inflightInstallations.Wait()
+
+			s.updateDiscoveryConfigStatus(slices.Collect(maps.Keys(iterationDiscoveryConfigs))...)
 		}
 	}()
 	return nil
 }
 
 func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
-	allFetchers := s.getKubeIntegrationFetchers()
-	if len(allFetchers) == 0 {
-		return
-	}
+	// TODO(marco): EKS discovery is highly async during enrollment part.
+	// now() does not represent the time when the cluster was discovered, but rather when starting a new iteration.
+	// This should be fixed, to ensure that we correctly track when discovered clusters are enrolled.
+	s.awsEKSResourcesStatus.iterationEnded(s.clock.Now())
+	discoveryConfigs := s.awsEKSResourcesStatus.iterationDiscoveryConfigs()
+	s.updateDiscoveryConfigStatus(discoveryConfigs...)
 
-	s.submitFetchersEvent(allFetchers)
+	allFetchers := s.getKubeIntegrationFetchers()
 
 	awsResultGroups := libslices.FilterMapUnique(
 		allFetchers,
@@ -225,14 +242,7 @@ func (s *Server) kubernetesIntegrationWatcherIterationStarted() {
 		},
 	)
 
-	discoveryConfigs := libslices.FilterMapUnique(awsResultGroups, func(g awsResourceGroup) (s string, include bool) {
-		return g.discoveryConfigName, true
-	})
-	s.updateDiscoveryConfigStatus(discoveryConfigs...)
-	s.awsEKSResourcesStatus.reset()
-	for _, g := range awsResultGroups {
-		s.awsEKSResourcesStatus.iterationStarted(g)
-	}
+	s.awsEKSResourcesStatus.iterationStarted(awsResultGroups, s.clock.Now())
 
 	s.awsEKSTasks.reset()
 }
@@ -331,10 +341,6 @@ func (s *Server) enrollEKSClusters(region, integration, discoveryConfigName stri
 	}
 }
 
-func (s *Server) getKubeAgentVersion(versionGetter version.Getter) (*semver.Version, error) {
-	return kubeutils.GetKubeAgentVersion(s.ctx, s.AccessPoint, s.ClusterFeatures(), versionGetter)
-}
-
 type IntegrationFetcher interface {
 	// GetIntegration returns the integration name that is used for getting credentials of the fetcher.
 	GetIntegration() string
@@ -408,10 +414,48 @@ func versionGetterForProxy(ctx context.Context, proxyPublicAddr string) (version
 		RawPath: path.Join("/webapi/automaticupgrades/channel", automaticupgrades.DefaultChannelName),
 	}
 
-	return version.FailoverGetter{
-		// We try getting the version via the new webapi
-		version.NewProxyVersionGetter(proxyClt),
-		// If this is not implemented, we fallback to the release channels
-		version.NewBasicHTTPVersionGetter(baseURL),
+	selfVersion, err := version.EnsureSemver(teleport.Version)
+	if err != nil {
+		return nil, trace.BadParameter("Cannot parse Teleport's self version %q, this is a bug", teleport.Version)
+	}
+
+	return proxyAgentVersionGetter{
+		primary: version.FailoverGetter{
+			// First try the new webapi (RFD-184).
+			version.NewProxyVersionGetter(proxyClt),
+			// If that's not implemented, fall back to release channels (RFD-109).
+			version.NewBasicHTTPVersionGetter(baseURL),
+		},
+		proxyClient: proxyClt,
+		selfVersion: selfVersion,
 	}, nil
+}
+
+// proxyAgentVersionGetter walks three tiers of fallback.
+// On primary success it returns the proxy's advertised autoupdate target.
+// On NoNewVersionError it returns the proxy's own ServerVersion from /find.
+// If the proxy can't be reached at all, it returns the Discovery service's own Teleport version
+// so enrollment can still proceed instead of stalling.
+type proxyAgentVersionGetter struct {
+	primary     version.Getter
+	proxyClient *webclient.ReusableClient
+	selfVersion *semver.Version
+}
+
+func (g proxyAgentVersionGetter) GetVersion(ctx context.Context) (*semver.Version, error) {
+	v, err := g.primary.GetVersion(ctx)
+	if err == nil {
+		return v, nil
+	}
+
+	var noNewVersionErr *version.NoNewVersionError
+	if errors.As(trace.Unwrap(err), &noNewVersionErr) {
+		if resp, findErr := g.proxyClient.Find(); findErr == nil {
+			if pv, perr := version.EnsureSemver(resp.ServerVersion); perr == nil {
+				return pv, nil
+			}
+		}
+	}
+
+	return g.selfVersion, nil
 }

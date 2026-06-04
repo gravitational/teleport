@@ -1,0 +1,4 @@
+certManager:
+  enabled: true
+  namespace: test-namespace
+  dnsNames: ["test.example.com", "test2.example.com"]

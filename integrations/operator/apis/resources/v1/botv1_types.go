@@ -41,6 +41,7 @@ type TeleportBotV1 struct {
 	metav1.TypeMeta   `json:",inline"`
 	metav1.ObjectMeta `json:"metadata"`
 
+	Scope  string             `json:"scope,omitempty"`
 	Spec   *TeleportBotV1Spec `json:"spec,omitempty"`
 	Status teleportcr.Status  `json:"status"`
 }
@@ -69,7 +70,8 @@ func (l *TeleportBotV1) ToTeleport() *machineidv1.Bot {
 			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
 		},
-		Spec: (*machineidv1.BotSpec)(l.Spec),
+		Spec:  (*machineidv1.BotSpec)(l.Spec),
+		Scope: l.Scope,
 	}
 	return resource
 }

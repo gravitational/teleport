@@ -105,24 +105,22 @@ func MatchingAccounts(ctx context.Context, log *slog.Logger, orgsClient Organiza
 		return nil, trace.Wrap(err)
 	}
 
-	includeRootAndChildrenAccounts := filter.IncludeOUs[0] == allOrganizationalUnits
-
-	includedActiveAccounts, includedNotActiveAccounts := collectIncludedAccounts(orgTree, filter.IncludeOUs, includeRootAndChildrenAccounts)
+	includedActiveAccounts, includedNotActiveAccounts := collectIncludedAccounts(orgTree, filter, nil)
 	logNotActiveAccountsAreIgnored(ctx, log, filter.OrganizationID, includedNotActiveAccounts)
 
 	return includedActiveAccounts, nil
 }
 
-func collectIncludedAccounts(orgItem *awsOrgItem, included []string, isParentIncluded bool) (activeAccounts []string, notActiveAccounts []string) {
-	includeCurrentOU := isParentIncluded || slices.Contains(included, orgItem.id)
+func collectIncludedAccounts(orgItem *awsOrgItem, filter MatchingAccountsFilter, accountOUAncestors []string) (activeAccounts []string, notActiveAccounts []string) {
+	accountOrganizationalUnits := append(slices.Clone(accountOUAncestors), orgItem.id)
 
-	if includeCurrentOU {
+	if OrganizationalUnitsMatch(filter, accountOrganizationalUnits) {
 		activeAccounts = append(activeAccounts, orgItem.accounts...)
 		notActiveAccounts = append(notActiveAccounts, orgItem.notActiveAccounts...)
 	}
 
 	for _, orgUnit := range orgItem.organizationalUnits {
-		childAccountIDs, childnotActiveAccounts := collectIncludedAccounts(orgUnit, included, includeCurrentOU)
+		childAccountIDs, childnotActiveAccounts := collectIncludedAccounts(orgUnit, filter, accountOrganizationalUnits)
 
 		activeAccounts = append(activeAccounts, childAccountIDs...)
 		notActiveAccounts = append(notActiveAccounts, childnotActiveAccounts...)

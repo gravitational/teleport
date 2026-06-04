@@ -25,7 +25,7 @@ import (
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // Validator is a validator for Azure Devops OIDC tokens.
@@ -122,7 +122,7 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsAzureDevops {
 // CheckIDTokenParams are parameters used to validate Azure Devops OIDC tokens.
 type CheckIDTokenParams struct {
 	// ProvisionToken is the Teleport provision token used for the join request.
-	ProvisionToken *types.ProvisionTokenV2
+	ProvisionToken provision.Token
 	// IDToken is the Azure Devops OIDC token presented by the joining client.
 	IDToken string
 	// Validator is a validator for Azure Devops OIDC tokens.
@@ -138,7 +138,9 @@ func (p *CheckIDTokenParams) check() error {
 	case p.Validator == nil:
 		return trace.BadParameter("Validator is required")
 	}
-	p.ProvisionToken.CheckAndSetDefaults()
+	if p.ProvisionToken.GetAzureDevops() == nil {
+		return trace.BadParameter("azure_devops join configuration not found for token")
+	}
 	return nil
 }
 
@@ -152,7 +154,7 @@ func CheckIDToken(ctx context.Context, params *CheckIDTokenParams) (*IDTokenClai
 
 	claims, err := params.Validator.Validate(
 		ctx,
-		params.ProvisionToken.Spec.AzureDevops.OrganizationID,
+		params.ProvisionToken.GetAzureDevops().OrganizationID,
 		params.IDToken,
 	)
 	if err != nil {
@@ -162,9 +164,9 @@ func CheckIDToken(ctx context.Context, params *CheckIDTokenParams) (*IDTokenClai
 	return claims, trace.Wrap(checkAzureDevopsAllowRules(params.ProvisionToken, claims))
 }
 
-func checkAzureDevopsAllowRules(token *types.ProvisionTokenV2, claims *IDTokenClaims) error {
+func checkAzureDevopsAllowRules(token provision.Token, claims *IDTokenClaims) error {
 	// If a single rule passes, accept the IDToken
-	for _, rule := range token.Spec.AzureDevops.Allow {
+	for _, rule := range token.GetAzureDevops().Allow {
 		if rule.Sub != "" && rule.Sub != claims.Sub {
 			continue
 		}

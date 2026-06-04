@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -194,7 +195,7 @@ func TestServerKeyAuth(t *testing.T) {
 						Username:   con.User(),
 						Principals: []string{con.User()},
 						Roles:      []string{"dev", "admin"},
-						ScopePin:   &scopesv1.Pin{Scope: "test"},
+						ScopePin:   &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "test"},
 					},
 				})
 				require.NoError(t, err)
@@ -326,6 +327,39 @@ func TestServerKeyAuth(t *testing.T) {
 			}(),
 			// principal mismatch should result in cert validation failure
 			wantErr: require.Error,
+		},
+		{
+			desc: "agent scope pin host cert",
+			key: func() ssh.PublicKey {
+				rawCert, err := ta.GenerateHostCert(sshca.HostCertificateRequest{
+					CASigner:      hostCASigner,
+					PublicHostKey: newPubKey(t),
+					HostID:        "root-host-id",
+					NodeName:      con.User(),
+					Identity: sshca.Identity{
+						ClusterName: "root",
+						ScopePin: &scopesv1.Pin{
+							Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+							Scope: "test-scope",
+							SystemRoles: &scopesv1.SystemRoles{
+								Primary: string(types.RoleNode),
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+				key, _, _, _, err := ssh.ParseAuthorizedKey(rawCert)
+				require.NoError(t, err)
+				return key
+			}(),
+			wantExtensions: map[string]string{
+				extHost:              con.User(),
+				utils.ExtIntCertType: utils.ExtIntCertTypeHost,
+				extCertRole:          string(types.RoleNode),
+				extAuthority:         "root",
+				extScope:             "test-scope",
+			},
+			wantErr: require.NoError,
 		},
 		{
 			desc: "not a cert",
@@ -482,8 +516,13 @@ func sshPipe(t *testing.T) (sshConn, sshConn) {
 		}
 	}()
 	go func() {
-		c, nc, r, err := ssh.NewClientConn(c2, "", &ssh.ClientConfig{
-			User:            "a",
+		c, nc, r, err := apissh.NewClientConn(t.Context(), c2, "", apissh.ClientConfig{
+			User: "a",
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{signer}, nil
+				},
+			},
 			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 		})
 		assert.NoError(t, err)

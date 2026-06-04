@@ -17,14 +17,13 @@
  */
 
 import React, { type JSX } from 'react';
-import { matchPath, useHistory } from 'react-router';
-import { Link } from 'react-router-dom';
+import { Link, matchPath, useLocation } from 'react-router';
 import styled, { useTheme } from 'styled-components';
 
 import { breakpointsPx, Flex, Image, TopNav } from 'design';
 import { HoverTooltip } from 'design/Tooltip';
 
-import { logos } from 'teleport/components/LogoHero/LogoHero';
+import { logoSrc } from 'teleport/components/LogoHero/LogoHero';
 import { UserMenuNav } from 'teleport/components/UserMenuNav';
 import cfg from 'teleport/config';
 import { useFeatures } from 'teleport/FeaturesContext';
@@ -39,7 +38,7 @@ export function TopBar({
   CustomLogo?: () => React.ReactElement;
 }) {
   const ctx = useTeleport();
-  const history = useHistory();
+  const location = useLocation();
   const features = useFeatures();
   const { currentWidth } = useLayout();
 
@@ -47,10 +46,10 @@ export function TopBar({
   const feature = features.find(
     f =>
       f.route &&
-      matchPath(history.location.pathname, {
-        path: f.route.path,
-        exact: f.route.exact ?? false,
-      })
+      matchPath(
+        { path: f.route.path, end: f.route.exact ?? false },
+        location.pathname
+      )
   );
 
   const iconSize =
@@ -95,7 +94,7 @@ const TeleportLogo = ({
   CustomLogo?: () => React.ReactElement;
 }) => {
   const theme = useTheme();
-  const src = logos[cfg.edition][theme.type];
+  const src = logoSrc(theme.type);
 
   return (
     <HoverTooltip placement="bottom" tipContent="Teleport Resources Home">
@@ -126,7 +125,7 @@ const TeleportLogo = ({
           <Image
             data-testid="teleport-logo"
             src={src}
-            alt="teleport logo"
+            alt="Teleport logo"
             css={`
               padding-left: ${props => props.theme.space[3]}px;
               padding-right: ${props => props.theme.space[3]}px;

@@ -18,10 +18,12 @@
 
 import {
   arrayOf,
+  requiredAzureSubscriptionId,
   requiredConfirmedPassword,
   requiredEmailLike,
   requiredField,
   requiredIamRoleName,
+  requiredIntegrationName,
   requiredMaxLength,
   requiredPassword,
   requiredPort,
@@ -103,6 +105,23 @@ describe('requiredIamRoleName', () => {
   `('IAM role name valid ($valid): $roleArn', ({ roleArn, valid }) => {
     const result = requiredIamRoleName(roleArn)();
     expect(result.valid).toEqual(valid);
+  });
+});
+
+describe('requiredIntegrationName', () => {
+  test.each`
+    name                     | expected
+    ${''}                    | ${{ valid: false, message: 'Integration name is required' }}
+    ${'zero_cool'}           | ${{ valid: false, message: "Name must only contain lowercase alphanumeric characters or '-'" }}
+    ${'ZeroKewl'}            | ${{ valid: false, message: "Name must only contain lowercase alphanumeric characters or '-'" }}
+    ${'0cool'}               | ${{ valid: false, message: 'Name must start with an alphabetic character' }}
+    ${'zero-cool-'}          | ${{ valid: false, message: 'Name must end with an alphanumeric character' }}
+    ${'my-cool-integration'} | ${{ valid: true }}
+    ${'my-integration-1'}    | ${{ valid: true }}
+  `('name: $name', ({ name, expected }) => {
+    expect(requiredIntegrationName(name)()).toEqual(
+      expect.objectContaining(expected)
+    );
   });
 });
 
@@ -231,4 +250,17 @@ test.each([
   },
 ])('arrayOf: $name', ({ items, expected }) => {
   expect(arrayOf(requiredField('required'))(items)()).toEqual(expected);
+});
+
+describe('requiredAzureSubscriptionId', () => {
+  test.each`
+    id                                        | valid
+    ${'550e8400-e29b-41d4-a716-446655440000'} | ${true}
+    ${'6ba7b810-9dad-11d1-80b4-00c04fd430c8'} | ${true}
+    ${'not-a-uuid'}                           | ${false}
+    ${'550e8400-e29b-41d4-a716'}              | ${false}
+    ${''}                                     | ${false}
+  `('id: "$id" → valid: $valid', ({ id, valid }) => {
+    expect(requiredAzureSubscriptionId(id)().valid).toBe(valid);
+  });
 });

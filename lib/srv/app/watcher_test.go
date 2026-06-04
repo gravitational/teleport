@@ -33,6 +33,64 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
+func TestCloudHostedAppServiceRejectsDynamicLabels(t *testing.T) {
+	t.Parallel()
+
+	reconcileCh := make(chan types.Apps)
+
+	s := SetUpSuiteWithConfig(t, suiteConfig{
+		ResourceMatchers: []services.ResourceMatcher{
+			{Labels: types.Labels{"group": []string{"a"}}},
+		},
+		OnReconcile: func(a types.Apps) {
+			reconcileCh <- a
+		},
+	})
+
+	s.appServer.c.IgnoreAppsWithCommandLabels = true
+
+	// Drain the initial event that fires when the watcher starts up
+	// (before we create any dynamic apps).
+	select {
+	case <-reconcileCh:
+	case <-time.After(time.Second):
+		t.Fatal("Didn't receive initial reconcile event after 1s.")
+	}
+
+	// Create app with label group=a and dynamic labels.
+	app, err := makeDynamicApp("app-with-dynamic-labels", map[string]string{"group": "a"})
+	require.NoError(t, err)
+	app.SetDynamicLabels(map[string]types.CommandLabel{
+		"foo": &types.CommandLabelV2{
+			Period:  types.Duration(5 * time.Second),
+			Command: []string{"echo", "bar"},
+		},
+	})
+	err = s.authServer.AuthServer.CreateApp(t.Context(), app)
+	require.NoError(t, err)
+
+	// It should not have been registered.
+	select {
+	case apps := <-reconcileCh:
+		require.Nil(t, apps.Find(app.GetName()), "app with dynamic labels should not have been registered")
+	case <-time.After(time.Second):
+		t.Fatal("Didn't receive reconcile event after 1s.")
+	}
+
+	// Remove the dynamic labels
+	app.SetDynamicLabels(make(map[string]types.CommandLabel))
+	err = s.authServer.AuthServer.UpdateApp(t.Context(), app)
+	require.NoError(t, err)
+
+	// It should now be registered.
+	select {
+	case apps := <-reconcileCh:
+		require.NotNil(t, apps.Find(app.GetName()))
+	case <-time.After(time.Second):
+		t.Fatal("Didn't receive reconcile event after 1s.")
+	}
+}
+
 // TestWatcher verifies that app agent properly detects and applies
 // changes to application resources.
 func TestWatcher(t *testing.T) {
@@ -63,7 +121,7 @@ func TestWatcher(t *testing.T) {
 	// Create a single Proxy with a PublicAddr to exercise that
 	// apps without a PublicAddr automatically get one specified
 	// by the watcher.
-	require.NoError(t, s.authServer.AuthServer.UpsertProxy(t.Context(), &types.ServerV2{
+	_, err = s.authServer.AuthServer.UpsertProxyServer(t.Context(), &types.ServerV2{
 		Kind:    types.KindProxy,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -72,7 +130,8 @@ func TestWatcher(t *testing.T) {
 		Spec: types.ServerSpecV2{
 			PublicAddrs: []string{"test.example.com"},
 		},
-	}))
+	})
+	require.NoError(t, err)
 
 	// Only app0 should be registered initially.
 	select {

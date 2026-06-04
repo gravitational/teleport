@@ -1,0 +1,13 @@
+apiVersion: resources.teleport.dev/v1
+kind: TeleportAppV3
+metadata:
+  name: test-app
+  namespace: default
+spec:
+  uri: "http://test-app:8080"
+  dynamic_labels:
+    hostname:
+      command:
+        - "test"
+      period: "1m"
+      result: ""

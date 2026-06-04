@@ -19,6 +19,7 @@
 import { EventEmitter } from 'events';
 
 import { screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { act } from 'react';
 
 import { render } from 'design/utils/testing';
@@ -29,14 +30,9 @@ import {
   SharedDirectoryAccess,
   TdpClient,
 } from 'shared/libs/tdp';
-
-import { DesktopSession } from './DesktopSession';
-
-import 'jest-canvas-mock';
-
-import userEvent from '@testing-library/user-event';
-
 import { TdpTransport } from 'shared/libs/tdp/client';
+
+import { DesktopSessionWithSharing } from './DesktopSessionWithSharing';
 
 // Disable WASM in tests.
 jest.mock('shared/libs/ironrdp/pkg/ironrdp');
@@ -112,7 +108,7 @@ test('reconnect button reinitializes the connection', async () => {
   jest.spyOn(tpdClient, 'connect');
   jest.spyOn(tpdClient, 'shutdown');
   const { unmount } = render(
-    <DesktopSession
+    <DesktopSessionWithSharing
       client={tpdClient}
       username="admin"
       desktop="win-lab"
@@ -156,7 +152,7 @@ test('ensure sharing remains enabled if the initial desktop connection attempt f
     selectDirectoryInBrowser
   );
   render(
-    <DesktopSession
+    <DesktopSessionWithSharing
       client={tpdClient}
       username="admin"
       desktop="win-lab"
@@ -191,7 +187,7 @@ test('re-sharing directory is possible after a reconnect', async () => {
   const mockFsSpy = jest.fn(async () => mockDirectoryAccess());
   const tpdClient = new TdpClient(transport.getTransport, mockFsSpy);
   render(
-    <DesktopSession
+    <DesktopSessionWithSharing
       client={tpdClient}
       username="admin"
       desktop="win-lab"
@@ -230,7 +226,6 @@ async function testSharingDirectory() {
   expect(await screen.findByTitle('More actions')).toBeVisible();
   await userEvent.click(screen.getByTitle('More actions'));
   await userEvent.click(await screen.findByText('Share Directory'));
-  expect(await screen.findByTitle('Alerts')).toHaveTextContent('0');
 }
 
 function mockDirectoryAccess(): SharedDirectoryAccess {

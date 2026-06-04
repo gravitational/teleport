@@ -202,6 +202,10 @@ func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
 	t.Run("PutBatch", func(t *testing.T) {
 		runPutBatch(t, newBackend)
 	})
+
+	t.Run("DeleteBatch", func(t *testing.T) {
+		runDeleteBatch(t, newBackend)
+	})
 }
 
 // RequireItems asserts that the supplied `actual` items collection matches
@@ -756,6 +760,10 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	require.Equal(t, bigValue[:], event.Item.Value)
 	require.WithinDuration(t, expiresAt, event.Item.Expires, 2*time.Second)
 
+	storedItem, err := uut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, storedItem.Revision, event.Item.Revision)
+
 	// move the current slightly forward, but still *before* the item's
 	// expiry time
 	clock.Advance(2 * time.Second)
@@ -772,14 +780,18 @@ func testKeepAlive(t *testing.T, newBackend Constructor) {
 	require.Equal(t, bigValue[:], event.Item.Value)
 	require.WithinDuration(t, updatedAt, event.Item.Expires, 2*time.Second)
 
-	err = uut.Delete(context.TODO(), item.Key)
+	storedItem, err = uut.Get(ctx, item.Key)
+	require.NoError(t, err)
+	require.Equal(t, storedItem.Revision, event.Item.Revision)
+
+	err = uut.Delete(t.Context(), item.Key)
 	require.NoError(t, err)
 
-	_, err = uut.Get(context.TODO(), item.Key)
+	_, err = uut.Get(t.Context(), item.Key)
 	require.True(t, trace.IsNotFound(err))
 
 	// keep alive on deleted or expired object should fail
-	err = uut.KeepAlive(context.TODO(), lease, updatedAt.Add(1*time.Second))
+	err = uut.KeepAlive(t.Context(), lease, updatedAt.Add(1*time.Second))
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -1022,7 +1034,7 @@ func testLocking(t *testing.T, newBackend Constructor) {
 	// has probably gone bad (e.g. db server has ceased to exist), so it's
 	// probably best to bail out with a sensible error (& call stack) rather
 	// than wait for the test to time out
-	ctx, cancel := context.WithTimeout(context.TODO(), 1*time.Minute)
+	ctx, cancel := context.WithTimeout(t.Context(), 1*time.Minute)
 	defer cancel()
 
 	// Manually drive the clock at ~10x speed to make sure anyone waiting on it
@@ -1157,7 +1169,7 @@ func testConcurrentOperations(t *testing.T, newBackend Constructor) {
 	defer func() { require.NoError(t, uutB.Close()) }()
 
 	prefix := MakePrefix()
-	ctx := context.TODO()
+	ctx := t.Context()
 	value1 := "this first value should not be corrupted by concurrent ops"
 	value2 := "this second value should not be corrupted too"
 	const attempts = 50

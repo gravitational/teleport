@@ -42,6 +42,8 @@ describe('VnetSliderStepHeader', () => {
       </MockAppContextProvider>
     );
 
+    await screen.findByText('Start VNet');
+
     const listItem = screen.getByTitle('Go back to Connections');
     const openDocumentationButton = screen.getByTitle(
       'Open VNet documentation'
@@ -83,6 +85,8 @@ describe('VnetSliderStepHeader', () => {
         </ConnectionsContextProvider>
       </MockAppContextProvider>
     );
+
+    await screen.findByText('Start VNet');
 
     expect(document.body).toHaveFocus();
 

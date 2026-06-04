@@ -39,17 +39,31 @@ productivity.
 
 - A Mattermost account with admin privileges. This plugin has been tested with
   Mattermost v7.0.1.
+
 - Either a Linux host or Kubernetes cluster where you will run the Teleport Mattermost plugin.
+
+- A Mattermost bot for the plugin to use. This requires manual preparation in
+  the Mattermost Web UI. Follow the [Mattermost documentation](
+  https://developers.mattermost.com/integrate/reference/bot-accounts/) to create
+  a bot.
+
+  You can <a href={BotLogo} download>download</a> our avatar to set as your Bot
+  Icon.
+
+  Set "post:all" to "Enabled".
+
+  Save the resulting OAuth 2.0 token for use later in this guide.
+
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/8. Define RBAC resources
+## Step 1/7. Define RBAC resources
 
 Before you set up the Mattermost plugin, you will need to enable Role Access Requests
 in your Teleport cluster.
 
 (!/docs/pages/includes/plugins/editor-request-rbac.mdx!)
 
-## Step 2/8. Define a Teleport Mattermost plugin user
+## Step 2/7. Define a Teleport Mattermost plugin user
 
 The required permissions for the plugin are configured in the preset `access-plugin`
 role. To generate credentials for the plugin, define either a Machine ID bot user
@@ -64,7 +78,7 @@ or a regular Teleport user.
 </TabItem>
 </Tabs>
 
-## Step 3/8. Export the access plugin identity
+## Step 3/7. Export the access plugin identity
 
 Give the plugin access to a Teleport identity file. We recommend using Machine
 ID for this in order to produce short-lived identity files that are less
@@ -80,7 +94,7 @@ longer-lived identity files with `tctl`:
 </TabItem>
 </Tabs>
 
-## Step 4/8. Install the Teleport Mattermost plugin
+## Step 4/7. Install the Teleport Mattermost plugin
 
 <Tabs>
 <TabItem scope={["enterprise", "oss"]} label="Self-Hosted">
@@ -102,40 +116,7 @@ Teleport Proxy Service and your Mattermost deployment.
 
 (!docs/pages/includes/plugins/install-access-request.mdx name="mattermost"!)
 
-## Step 5/8. Register a Mattermost bot
-
-Now that you have generated the credentials your plugin needs to connect to your
-Teleport cluster, register your plugin with Mattermost so it can send Access
-Request messages to your workspace.
-
-In Mattermost, click the menu button in the upper left of the UI, then click
-System Console → Integrations → Bot Accounts.
-
-Set "Enable Bot Account Creation" to "true".
-
-![Enable Mattermost bots](../../../../img/enterprise/plugins/mattermost/mattermost_admin_console_integrations_bot_accounts.png)
-
-This will allow you to create a new bot account for the Mattermost plugin.
-
-Go back to your team. In the menu on the upper left of the UI, click
-Integrations → Bot Accounts → Add Bot Account.
-
-Set the "Username", "Display Name", and "Description" fields according to how
-you would like the Mattermost plugin bot to appear in your workspace. Set "Role"
-to "Member".
-
-{/* lint ignore absolute-docs-links */}
-You can <a href={BotLogo} download>download</a> our avatar to set as your Bot
-Icon.
-
-Set "post:all" to "Enabled".
-
-![Enable Mattermost Bots](../../../../img/enterprise/plugins/mattermost/mattermost_bot.png)
-
-Click "Create Bot Account". We will use the resulting OAuth 2.0 token when we
-configure the Mattermost plugin.
-
-## Step 6/8. Configure the Mattermost plugin
+## Step 5/7. Configure the Mattermost plugin
 
 At this point, you have generated credentials that the Mattermost plugin will use
 to connect to Teleport and Mattermost. You will now configure the Mattermost
@@ -276,7 +257,7 @@ severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN"
 </TabItem>
 </Tabs>
 
-## Step 7/8. Test your Mattermost bot
+## Step 6/7. Test your Mattermost bot
 
 <Tabs>
 <TabItem label="Executable">
@@ -355,7 +336,7 @@ Request Reviewed` in the Teleport Web UI.
 
 </Admonition>
 
-## Step 8/8. Set up systemd
+## Step 7/7. Set up systemd
 
 This section is only relevant if you are running the Teleport Mattermost plugin
 on a Linux host.
@@ -379,4 +360,9 @@ Enable and start the plugin:
 $ sudo systemctl enable teleport-mattermost
 $ sudo systemctl start teleport-mattermost
 ```
+
+## Troubleshooting
+
+(!docs/pages/includes/plugins/access-plugin-troubleshooting.mdx!)
+
 

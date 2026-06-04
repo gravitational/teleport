@@ -131,17 +131,22 @@ func (g *oidcTestingPrimitives) CompareTeleportAndKubernetesResource(tResource t
 
 func TestOIDCConnectorCreation(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceCreationSynchronousTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceCreationSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
+}
+
+func TestOIDCConnectorDeletion(t *testing.T) {
+	test := &oidcTestingPrimitives{}
+	testlib.ResourceDeletionSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorDeletionDrift(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceDeletionDriftSynchronousTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceDeletionDriftSynchronousTest(t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorUpdate(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testlib.ResourceUpdateTestSynchronous[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, resources.NewOIDCConnectorReconciler, test)
+	testlib.ResourceUpdateTestSynchronous(t, resources.NewOIDCConnectorReconciler, test)
 }
 
 func TestOIDCConnectorSecretLookup(t *testing.T) {
@@ -153,7 +158,9 @@ func TestOIDCConnectorSecretLookup(t *testing.T) {
 	crName := validRandomResourceName("oidc")
 	secretName := validRandomResourceName("oidc-secret")
 	secretKey := "client-secret"
+	googleSecretKey := "google-service-account"
 	secretValue := validRandomResourceName("secret-value")
+	googleSecretValue := `{"name": "projects/PROJECT-ID/service-accounts/SERVICEACCOUNT"}`
 
 	secret := &v1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
@@ -166,7 +173,8 @@ func TestOIDCConnectorSecretLookup(t *testing.T) {
 		// Real kube servers convert stringData into data.
 		// The fake client does not, so we must use Data instead.
 		Data: map[string][]byte{
-			secretKey: []byte(secretValue),
+			secretKey:       []byte(secretValue),
+			googleSecretKey: []byte(googleSecretValue),
 		},
 		Type: v1.SecretTypeOpaque,
 	}
@@ -182,6 +190,8 @@ func TestOIDCConnectorSecretLookup(t *testing.T) {
 	}
 
 	oidc.Spec.ClientSecret = "secret://" + secretName + "/" + secretKey
+	oidc.Spec.GoogleServiceAccount = "secret://" + secretName + "/" + googleSecretKey
+	oidc.Spec.GoogleAdminEmail = "this-is-required-for-gcp-sa@example.com"
 	require.NoError(t, kubeClient.Create(ctx, oidc))
 
 	reconciler, err := resources.NewOIDCConnectorReconciler(kubeClient, setup.TeleportClient)
@@ -207,6 +217,6 @@ func TestOIDCConnectorSecretLookup(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		return oidc.GetClientSecret() == secretValue
+		return oidc.GetClientSecret() == secretValue && oidc.GetGoogleServiceAccount() == googleSecretValue
 	})
 }

@@ -107,6 +107,17 @@ type ServiceDependencies struct {
 
 	// StatusRegistry can be used to read the health of the bot's services.
 	StatusRegistry readyz.ReadOnlyRegistry
+
+	// Scoped indicates whether the bot is running in scoped mode.
+	Scoped bool
+}
+
+// WithStatusReporter returns a copy of the dependencies with the status reporter
+// overridden. This is useful when constructing "sidecar" services which should
+// not be allowed to clobber the primary service's status.
+func (deps ServiceDependencies) WithStatusReporter(reporter readyz.Reporter) ServiceDependencies {
+	deps.GetStatusReporter = func() readyz.Reporter { return reporter }
+	return deps
 }
 
 // ServiceBuilder will be used by the bot to create a service.

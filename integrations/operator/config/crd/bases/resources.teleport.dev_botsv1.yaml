@@ -14,7 +14,16 @@ spec:
     singular: teleportbotv1
   scope: Namespaced
   versions:
-  - name: v1
+  - additionalPrinterColumns:
+    - description: Resource's scope.
+      jsonPath: .scope
+      name: scope
+      type: string
+    - description: The age of this resource
+      jsonPath: .metadata.creationTimestamp
+      name: Age
+      type: date
+    name: v1
     schema:
       openAPIV3Schema:
         description: BotV1 is the Schema for the botsv1 API
@@ -31,6 +40,16 @@ spec:
             type: string
           metadata:
             type: object
+          scope:
+            description: The scope of the Bot. If unset, the Bot is unscoped (classic
+              behavior) and if set, the Bot is scoped. When the Bot is scoped, the
+              `spec.roles`, `spec.traits` and `spec.max_session_ttl` fields must not
+              be set.
+            type: string
+            x-kubernetes-validations:
+            - message: Scope is immutable. To create the resource in a different scope
+                you must delete it first.
+              rule: self == oldSelf
           spec:
             description: Bot resource definition v1 from Teleport
             properties:
@@ -38,11 +57,12 @@ spec:
                 description: The max session TTL value for the bot's internal role.
                   Unless specified, bots may not request a value beyond the default
                   maximum TTL of 12 hours. This value may not be larger than 7 days
-                  (168 hours).
+                  (168 hours).  Cannot be set for a scoped Bot.
                 format: duration
                 type: string
               roles:
-                description: The roles that the bot should be able to impersonate.
+                description: The roles that the bot should be able to impersonate.  Cannot
+                  be set for a scoped Bot.
                 items:
                   type: string
                 nullable: true
@@ -50,7 +70,8 @@ spec:
               traits:
                 description: The traits that will be associated with the bot for the
                   purposes of role templating.  Where multiple specified with the
-                  same name, these will be merged by the server.
+                  same name, these will be merged by the server.  Cannot be set for
+                  a scoped Bot.
                 items:
                   properties:
                     name:
@@ -133,6 +154,10 @@ spec:
                 type: integer
             type: object
         type: object
+        x-kubernetes-validations:
+        - message: Scope is immutable. To create the resource in a different scope
+            you must delete it first.
+          rule: has(self.scope) == has(oldSelf.scope)
     served: true
     storage: true
     subresources:

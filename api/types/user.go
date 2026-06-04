@@ -20,6 +20,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/charlievieth/strcase"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -38,8 +39,14 @@ const (
 
 // Match checks if the given user matches this filter.
 func (f *UserFilter) Match(user *UserV2) bool {
-	if len(f.SearchKeywords) != 0 {
+	if len(f.SearchKeywords) > 0 {
 		if !user.MatchSearch(f.SearchKeywords) {
+			return false
+		}
+	}
+
+	if len(f.Traits) > 0 {
+		if !user.MatchTraits(f.Traits) {
 			return false
 		}
 	}
@@ -57,6 +64,7 @@ type User interface {
 	ResourceWithSecrets
 	ResourceWithOrigin
 	ResourceWithLabels
+	IsEqual(other User) bool
 	// SetMetadata sets object metadata
 	SetMetadata(meta Metadata)
 	// GetOIDCIdentities returns a list of connected OIDC identities
@@ -139,6 +147,8 @@ type User interface {
 	SetCreatedBy(CreatedBy)
 	// GetUserType indicates if the User was created by an SSO Provider or locally.
 	GetUserType() UserType
+	// GetDisplay returns display values derived from the user.
+	GetDisplay() UserDisplay
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
 	// SetTraits sets the trait map for this user used to populate role variables.
@@ -187,6 +197,33 @@ func NewUser(name string) (User, error) {
 // same ID/type as this one
 func (r *ConnectorRef) IsSameProvider(other *ConnectorRef) bool {
 	return other != nil && other.Type == r.Type && other.ID == r.ID
+}
+
+func (u *UserV2) IsEqual(other User) bool {
+	otherV2, ok := other.(*UserV2)
+	if !ok {
+		return false
+	}
+	if !deriveTeleportEqualUser(u, otherV2) {
+		return false
+	}
+
+	if u == nil && otherV2 == nil {
+		return true
+	}
+
+	// The derived equality function skips MFA because the Device
+	// interface is not handled by goderive. If every other aspect
+	// of the users is equivalent, then evualate whether the devices
+	// are as well manually.
+	var thisMFA, thatMFA []*MFADevice
+	if u != nil && u.Spec.LocalAuth != nil {
+		thisMFA = u.Spec.LocalAuth.MFA
+	}
+	if otherV2 != nil && otherV2.Spec.LocalAuth != nil {
+		thatMFA = otherV2.Spec.LocalAuth.MFA
+	}
+	return mfaDevicesEqual(thisMFA, thatMFA)
 }
 
 // GetVersion returns resource version
@@ -259,9 +296,56 @@ func (u *UserV2) SetStaticLabels(sl map[string]string) {
 // MatchSearch goes through select field values and tries to
 // match against the list of search values.
 func (u *UserV2) MatchSearch(values []string) bool {
-	fieldVals := append(utils.MapToStrings(u.Metadata.Labels), u.GetName())
-	fieldVals = append(fieldVals, u.GetRoles()...)
-	return MatchSearch(fieldVals, values, nil)
+Outer:
+	for _, searchV := range values {
+		for key, value := range u.GetAllLabels() {
+			if strcase.Contains(key, searchV) || strcase.Contains(value, searchV) {
+				continue Outer
+			}
+		}
+
+		if strcase.Contains(u.GetName(), searchV) {
+			continue
+		}
+
+		for _, role := range u.GetRoles() {
+			if strcase.Contains(role, searchV) {
+				continue Outer
+			}
+		}
+
+		for trait, values := range u.GetTraits() {
+			if strcase.Contains(trait, searchV) {
+				continue Outer
+			}
+			for _, value := range values {
+				if strcase.Contains(value, searchV) {
+					continue Outer
+				}
+			}
+		}
+
+		// When no fields matched a value, prematurely end if we can.
+		return false
+	}
+
+	return true
+}
+
+// MatchTraits takes a map of traits and returns `true` if the user's
+// traits contains all of them.
+func (u *UserV2) MatchTraits(traits map[string][]string) bool {
+	if u.Spec.Traits == nil {
+		return false
+	}
+
+	for key, values := range traits {
+		traitValues, ok := u.Spec.Traits[key]
+		if !ok || !utils.ContainsAll(traitValues, values) {
+			return false
+		}
+	}
+	return true
 }
 
 // SetMetadata sets object metadata
@@ -647,4 +731,9 @@ func (i *ExternalIdentity) Check() error {
 		return trace.BadParameter("Username: missing username")
 	}
 	return nil
+}
+
+// IsEqual determines if two user group resources are equivalent to one another.
+func (i *ExternalIdentity) IsEqual(other *ExternalIdentity) bool {
+	return deriveTeleportEqualExternalIdentity(i, other)
 }

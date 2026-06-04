@@ -36,11 +36,14 @@ import (
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
 	wantypes "github.com/gravitational/teleport/lib/auth/webauthntypes"
-	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/client/mfatypes"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/web/mfajson"
 )
+
+// ProtocolName is the identifier for the TDP protocol.
+const ProtocolName = "teleport-tdp"
 
 // MessageType identifies the type of the message.
 type MessageType byte
@@ -87,30 +90,6 @@ const (
 	TypeClientKeyboardLayout            = MessageType(37)
 	TypeUpgrade                         = MessageType(38)
 )
-
-// IsNonFatalErr returns whether or not an error arising from
-// the tdp package should be interpreted as fatal or non-fatal
-// for an ongoing TDP connection.
-func IsNonFatalErr(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return errors.Is(err, clipDataMaxLenErr) ||
-		errors.Is(err, stringMaxLenErr) ||
-		errors.Is(err, fileReadWriteMaxLenErr) ||
-		errors.Is(err, mfaDataMaxLenErr)
-}
-
-// IsFatalErr returns the inverse of IsNonFatalErr
-// (except for if err == nil, for which both functions return false)
-func IsFatalErr(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return !IsNonFatalErr(err)
-}
 
 // These correspond to TdpErrCode enum in the rust RDP client.
 const (
@@ -165,7 +144,7 @@ func decodeMessage(firstByte byte, in tdp.ByteReader) (tdp.Message, error) {
 	case TypeClientUsername:
 		return decodeClientUsername(in)
 	case TypeClipboardData:
-		return decodeClipboardData(in, maxClipboardDataLength)
+		return decodeClipboardData(in, tdp.MaxClipboardDataLength)
 	case TypeError:
 		return decodeError(in)
 	case TypeAlert:
@@ -193,11 +172,11 @@ func decodeMessage(firstByte byte, in tdp.ByteReader) (tdp.Message, error) {
 	case TypeSharedDirectoryListResponse:
 		return decodeSharedDirectoryListResponse(in)
 	case TypeSharedDirectoryReadRequest:
-		return decodeSharedDirectoryReadRequest(in)
+		return decodeSharedDirectoryReadRequest(in, tdp.MaxFileReadWriteLength)
 	case TypeSharedDirectoryReadResponse:
-		return decodeSharedDirectoryReadResponse(in, tdpMaxFileReadWriteLength)
+		return decodeSharedDirectoryReadResponse(in, tdp.MaxFileReadWriteLength)
 	case TypeSharedDirectoryWriteRequest:
-		return decodeSharedDirectoryWriteRequest(in, tdpMaxFileReadWriteLength)
+		return decodeSharedDirectoryWriteRequest(in, tdp.MaxFileReadWriteLength)
 	case TypeSharedDirectoryWriteResponse:
 		return decodeSharedDirectoryWriteResponse(in)
 	case TypeSharedDirectoryMoveRequest:
@@ -219,6 +198,13 @@ func decodeMessage(firstByte byte, in tdp.ByteReader) (tdp.Message, error) {
 		fallthrough
 	default:
 		return nil, trace.BadParameter("unsupported desktop protocol message type %d", firstByte)
+	}
+}
+
+func WarningConstructor(msg string) tdp.Message {
+	return &Alert{
+		Severity: SeverityWarning,
+		Message:  msg,
 	}
 }
 
@@ -576,7 +562,7 @@ func (r ClientUsername) Encode() ([]byte, error) {
 func decodeClientUsername(in io.Reader) (ClientUsername, error) {
 	username, err := decodeString(in, windowsMaxUsernameLength)
 	if err != nil {
-		if errors.Is(err, stringMaxLenErr) {
+		if errors.Is(err, tdp.StringMaxLenErr) {
 			// Change the error message here so it's considered a fatal error
 			return ClientUsername{}, trace.LimitExceeded("ClientUsername exceeded maximum length")
 		}
@@ -606,7 +592,7 @@ func (m Error) Encode() ([]byte, error) {
 }
 
 func decodeError(in io.Reader) (Error, error) {
-	message, err := decodeString(in, tdpMaxAlertMessageLength)
+	message, err := decodeString(in, tdp.MaxAlertMessageLength)
 	if err != nil {
 		return Error{}, trace.Wrap(err)
 	}
@@ -642,7 +628,7 @@ func (m Alert) Encode() ([]byte, error) {
 }
 
 func decodeAlert(in tdp.ByteReader) (Alert, error) {
-	message, err := decodeString(in, tdpMaxAlertMessageLength)
+	message, err := decodeString(in, tdp.MaxAlertMessageLength)
 	if err != nil {
 		return Alert{}, trace.Wrap(err)
 	}
@@ -705,7 +691,7 @@ func decodeClipboardData(in io.Reader, maxLen uint32) (ClipboardData, error) {
 		// If clipboard data exceeds maxLen,
 		// discard the rest of the message
 		_, _ = io.CopyN(io.Discard, in, int64(length))
-		return nil, clipDataMaxLenErr
+		return nil, tdp.ClipDataMaxLenErr
 	}
 
 	b := make([]byte, int(length))
@@ -725,7 +711,7 @@ type MFA struct {
 	Type byte
 	// MFAAuthenticateChallenge is the challenge we send to the client.
 	// Used for messages from Teleport to the user's browser.
-	*client.MFAAuthenticateChallenge
+	*mfatypes.MFAAuthenticateChallenge
 	// MFAAuthenticateResponse is the response to the MFA challenge,
 	// sent from the browser to Teleport.
 	*authproto.MFAAuthenticateResponse
@@ -785,7 +771,7 @@ func DecodeMFA(in tdp.ByteReader) (*MFA, error) {
 
 	if length > maxMFADataLength {
 		_, _ = io.CopyN(io.Discard, in, int64(length))
-		return nil, mfaDataMaxLenErr
+		return nil, tdp.MFADataMaxLenErr
 	} else if length == 0 {
 		return nil, trace.BadParameter("mfa data missing")
 	}
@@ -837,7 +823,7 @@ func DecodeMFAChallenge(in tdp.ByteReader) (*MFA, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	var req client.MFAAuthenticateChallenge
+	var req mfatypes.MFAAuthenticateChallenge
 	if err := json.Unmarshal(b, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -942,7 +928,7 @@ func decodeSharedDirectoryInfoRequest(in io.Reader) (SharedDirectoryInfoRequest,
 	if err != nil {
 		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdpMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryInfoRequest{}, trace.Wrap(err)
 	}
@@ -1039,7 +1025,7 @@ func decodeFileSystemObject(in tdp.ByteReader) (FileSystemObject, error) {
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdpMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return FileSystemObject{}, trace.Wrap(err)
 	}
@@ -1089,7 +1075,7 @@ func decodeSharedDirectoryCreateRequest(in io.Reader) (SharedDirectoryCreateRequ
 	if err != nil {
 		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdpMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryCreateRequest{}, trace.Wrap(err)
 	}
@@ -1176,7 +1162,7 @@ func decodeSharedDirectoryDeleteRequest(in io.Reader) (SharedDirectoryDeleteRequ
 	if err != nil {
 		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdpMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryDeleteRequest{}, trace.Wrap(err)
 	}
@@ -1239,7 +1225,7 @@ func decodeSharedDirectoryListRequest(in io.Reader) (SharedDirectoryListRequest,
 	if err != nil {
 		return SharedDirectoryListRequest{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdpMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryListRequest{}, trace.Wrap(err)
 	}
@@ -1332,7 +1318,7 @@ func (s SharedDirectoryReadRequest) Encode() ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-func decodeSharedDirectoryReadRequest(in io.Reader) (SharedDirectoryReadRequest, error) {
+func decodeSharedDirectoryReadRequest(in io.Reader, maxLen uint32) (SharedDirectoryReadRequest, error) {
 	var completionID, directoryID, length uint32
 	var offset uint64
 
@@ -1346,7 +1332,7 @@ func decodeSharedDirectoryReadRequest(in io.Reader) (SharedDirectoryReadRequest,
 		return SharedDirectoryReadRequest{}, trace.Wrap(err)
 	}
 
-	path, err := decodeString(in, tdpMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryReadRequest{}, trace.Wrap(err)
 	}
@@ -1359,6 +1345,10 @@ func decodeSharedDirectoryReadRequest(in io.Reader) (SharedDirectoryReadRequest,
 	err = binary.Read(in, binary.BigEndian, &length)
 	if err != nil {
 		return SharedDirectoryReadRequest{}, trace.Wrap(err)
+	}
+
+	if length > maxLen {
+		return SharedDirectoryReadRequest{}, tdp.FileReadWriteMaxLenErr
 	}
 
 	return SharedDirectoryReadRequest{
@@ -1410,7 +1400,7 @@ func decodeSharedDirectoryReadResponse(in io.Reader, maxLen uint32) (SharedDirec
 
 	if readDataLength > maxLen {
 		_, _ = io.CopyN(io.Discard, in, int64(readDataLength))
-		return SharedDirectoryReadResponse{}, fileReadWriteMaxLenErr
+		return SharedDirectoryReadResponse{}, tdp.FileReadWriteMaxLenErr
 	}
 
 	readData := make([]byte, int(readDataLength))
@@ -1472,7 +1462,7 @@ func decodeSharedDirectoryWriteRequest(in tdp.ByteReader, maxLen uint32) (Shared
 		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
 	}
 
-	path, err := decodeString(in, tdpMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryWriteRequest{}, trace.Wrap(err)
 	}
@@ -1484,7 +1474,7 @@ func decodeSharedDirectoryWriteRequest(in tdp.ByteReader, maxLen uint32) (Shared
 
 	if writeDataLength > maxLen {
 		_, _ = io.CopyN(io.Discard, in, int64(writeDataLength))
-		return SharedDirectoryWriteRequest{}, fileReadWriteMaxLenErr
+		return SharedDirectoryWriteRequest{}, tdp.FileReadWriteMaxLenErr
 	}
 
 	writeData := make([]byte, int(writeDataLength))
@@ -1560,11 +1550,11 @@ func decodeSharedDirectoryMoveRequest(in io.Reader) (SharedDirectoryMoveRequest,
 	if err != nil {
 		return SharedDirectoryMoveRequest{}, trace.Wrap(err)
 	}
-	originalPath, err := decodeString(in, tdpMaxPathLength)
+	originalPath, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryMoveRequest{}, trace.Wrap(err)
 	}
-	newPath, err := decodeString(in, tdpMaxPathLength)
+	newPath, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryMoveRequest{}, trace.Wrap(err)
 	}
@@ -1628,7 +1618,7 @@ func decodeSharedDirectoryTruncateRequest(in io.Reader) (SharedDirectoryTruncate
 	if err != nil {
 		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
 	}
-	path, err := decodeString(in, tdpMaxPathLength)
+	path, err := decodeString(in, tdp.MaxPathLength)
 	if err != nil {
 		return SharedDirectoryTruncateRequest{}, trace.Wrap(err)
 	}
@@ -1777,7 +1767,7 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 
 	if length > maxLen {
 		_, _ = io.CopyN(io.Discard, r, int64(length))
-		return "", stringMaxLenErr
+		return "", tdp.StringMaxLenErr
 	}
 
 	s := make([]byte, int(length))
@@ -1813,26 +1803,5 @@ func writeUint64(b *bytes.Buffer, v uint64) {
 	b.WriteByte(byte(v))
 }
 
-const (
-	// tdpMaxAlertMessageLength is somewhat arbitrary, as it is only sent *to*
-	// the browser (Teleport never receives this message, so won't be decoding it)
-	tdpMaxAlertMessageLength = 10240
-
-	// tdpMaxPathLength is somewhat arbitrary because we weren't able to determine
-	// a precise value to set it to: https://github.com/gravitational/teleport/issues/14950#issuecomment-1341632465
-	// The limit is kept as an additional defense-in-depth measure.
-	tdpMaxPathLength = 10240
-
-	maxClipboardDataLength    = 1024 * 1024 // 1MB
-	tdpMaxFileReadWriteLength = 1024 * 1024 // 1MB
-)
-
 // maxPNGFrameDataLength is maximum data length for PNG2Frame
 const maxPNGFrameDataLength = 10 * 1024 * 1024 // 10MB
-
-var (
-	clipDataMaxLenErr      = trace.LimitExceeded("clipboard sync failed: clipboard data exceeded maximum length")
-	stringMaxLenErr        = trace.LimitExceeded("TDP string length exceeds allowable limit")
-	fileReadWriteMaxLenErr = trace.LimitExceeded("TDP file read or write message exceeds maximum size limit")
-	mfaDataMaxLenErr       = trace.LimitExceeded("MFA challenge data exceeds maximum length")
-)

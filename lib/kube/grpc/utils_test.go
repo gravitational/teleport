@@ -67,6 +67,7 @@ import (
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -80,6 +81,7 @@ type TestContext struct {
 	AuthServer           *auth.Server
 	AuthClient           *authclient.Client
 	Authz                authz.Authorizer
+	ScopedAuthz          authz.ScopedAuthorizer
 	KubeServer           *proxy.TLSServer
 	KubeProxy            *proxy.TLSServer
 	Emitter              *eventstest.ChannelEmitter
@@ -109,6 +111,7 @@ type TestConfig struct {
 	OnEvent              func(apievents.AuditEvent)
 	ClusterFeatures      func() proto.Features
 	CreateAuditStreamErr error
+	ScopesFeatures       scopes.Features
 }
 
 // SetupTestContext creates a kube service with clusters configured.
@@ -185,11 +188,17 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	t.Cleanup(func() {
 		testCtx.lockWatcher.Close()
 	})
-	testCtx.Authz, err = authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: testCtx.ClusterName,
-		AccessPoint: proxyAuthClient,
-		LockWatcher: testCtx.lockWatcher,
-	})
+	authOpts := authz.AuthorizerOpts{
+		ClusterName:      testCtx.ClusterName,
+		AccessPoint:      proxyAuthClient,
+		ScopedRoleReader: proxyAuthClient.ScopedRoleReader(),
+		LockWatcher:      testCtx.lockWatcher,
+		ScopesFeatures:   cfg.ScopesFeatures,
+	}
+
+	testCtx.Authz, err = authz.NewAuthorizer(authOpts)
+	require.NoError(t, err)
+	testCtx.ScopedAuthz, err = authz.NewScopedAuthorizer(authOpts)
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
@@ -264,7 +273,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			Authz:       testCtx.Authz,
+			ScopedAuthz: testCtx.ScopedAuthz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -348,7 +357,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			Namespace:   apidefaults.Namespace,
 			Keygen:      keyGen,
 			ClusterName: testCtx.ClusterName,
-			Authz:       testCtx.Authz,
+			ScopedAuthz: testCtx.ScopedAuthz,
 			// fileStreamer continues to write events after the server is shutdown and
 			// races against os.RemoveAll leading the test to fail.
 			// Using "node-sync" mode to write the events and session recordings
@@ -555,7 +564,7 @@ func WithMFAVerified() GenTestKubeClientTLSCertOptions {
 // GenTestKubeClientTLSCert generates a kube client to access kube service
 func (c *TestContext) GenTestKubeClientTLSCert(t *testing.T, userName, kubeCluster string, opts ...GenTestKubeClientTLSCertOptions) (*kubernetes.Clientset, *rest.Config) {
 	authServer := c.AuthServer
-	clusterName, err := authServer.GetClusterName(context.TODO())
+	clusterName, err := authServer.GetClusterName(t.Context())
 	require.NoError(t, err)
 
 	// Fetch user info to get roles and max session TTL.

@@ -64,7 +64,7 @@ type App struct {
 }
 
 // NewApp will create a new access request application.
-func NewApp(bot MessagingBot) common.App {
+func NewApp() common.App {
 	app := &App{}
 	app.job = lib.NewServiceJob(app.run)
 	return app
@@ -261,6 +261,7 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	reqData := pd.AccessRequestData{
 		User:              req.GetUser(),
 		Roles:             req.GetRoles(),
+		RequestKind:       req.GetRequestKind().String(),
 		RequestReason:     req.GetRequestReason(),
 		SystemAnnotations: req.GetSystemAnnotations(),
 		Resources:         resourceNames,

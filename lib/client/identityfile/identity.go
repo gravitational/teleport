@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/keys/hardwarekey"
 	"github.com/gravitational/teleport/api/utils/prompt"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
@@ -310,6 +311,11 @@ func Write(ctx context.Context, cfg WriteConfig) (filesWritten []string, err err
 		}
 
 	case FormatCockroach:
+		// Ensure that the directory we're writing files into exists
+		if err := os.MkdirAll(cfg.OutputPath, 0o700); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		// CockroachDB expects files to be named node.crt, node.key, ca.crt,
 		// ca-client.crt
 		certPath := filepath.Join(cfg.OutputPath, "node.crt")
@@ -738,7 +744,7 @@ func checkOverwrite(ctx context.Context, writer ConfigWriter, force bool, paths 
 }
 
 // KeyRingFromIdentityFile loads client key ring from an identity file.
-func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*client.KeyRing, error) {
+func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string, opts ...LoadOpt) (*client.KeyRing, error) {
 	if proxyHost == "" {
 		return nil, trace.BadParameter("proxyHost must be provided to parse identity file")
 	}
@@ -747,7 +753,16 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*clie
 		return nil, trace.Wrap(err, "failed to parse identity file")
 	}
 
-	priv, err := keys.ParsePrivateKey(ident.PrivateKey)
+	var o loadOpts
+	for _, fn := range opts {
+		fn(&o)
+	}
+
+	var parseKeyOpts []keys.ParsePrivateKeyOpt
+	if o.hwks != nil {
+		parseKeyOpts = append(parseKeyOpts, keys.WithHardwareKeyService(o.hwks))
+	}
+	priv, err := keys.ParsePrivateKey(ident.PrivateKey, parseKeyOpts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -838,7 +853,7 @@ func KeyRingFromIdentityFile(identityPath, proxyHost, clusterName string) (*clie
 // This is necessary because identity files do not store the proxy address.
 // Additionally, the [clusterName] argument can ve used to target a leaf cluster
 // rather than the default root cluster.
-func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAddr, clusterName string) error {
+func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAddr, clusterName string, opts ...LoadOpt) error {
 	if proxyAddr == "" {
 		return trace.BadParameter("missing a Proxy address when loading an Identity File.")
 	}
@@ -847,7 +862,7 @@ func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAdd
 		return trace.Wrap(err)
 	}
 
-	keyRing, err := KeyRingFromIdentityFile(identityFile, proxyHost, clusterName)
+	keyRing, err := KeyRingFromIdentityFile(identityFile, proxyHost, clusterName, opts...)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -880,4 +895,16 @@ func LoadIdentityFileIntoClientStore(store *client.Store, identityFile, proxyAdd
 	}
 
 	return nil
+}
+
+// LoadOpt provides optional dependencies when loading an identity file.
+type LoadOpt func(*loadOpts)
+
+type loadOpts struct {
+	hwks hardwarekey.Service
+}
+
+// WithHardwareKeyService sets the hardware key service.
+func WithHardwareKeyService(hwks hardwarekey.Service) LoadOpt {
+	return func(o *loadOpts) { o.hwks = hwks }
 }

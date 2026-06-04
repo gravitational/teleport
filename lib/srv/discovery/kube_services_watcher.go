@@ -55,6 +55,9 @@ func (s *Server) startKubeAppsWatchers() error {
 
 				return utils.FromSlice(filterResources(apps, types.OriginDiscoveryKubernetes, s.DiscoveryGroup), types.Application.GetName)
 			},
+			CompareResources: func(a1, a2 types.Application) int {
+				return services.EqualFromBool(a1.IsEqual(a2))
+			},
 			GetNewResources: func() map[string]types.Application {
 				mu.Lock()
 				defer mu.Unlock()
@@ -131,12 +134,11 @@ func (s *Server) onAppCreate(ctx context.Context, app types.Application) error {
 		}
 		return trace.Wrap(s.onAppUpdate(ctx, app, nil))
 	}
-	err = s.emitUsageEvents(map[string]*usageeventsv1.ResourceCreateEvent{
-		appEventPrefix + app.GetName(): {
-			ResourceType:   types.DiscoveredResourceApp,
-			ResourceOrigin: types.OriginKubernetes,
-			// CloudProvider is not set for apps created from Kubernetes services
-		},
+	err = s.emitUsageEvent(appEventPrefix+app.GetName(), &usageeventsv1.ResourceCreateEvent{
+		ResourceType:        types.DiscoveredResourceApp,
+		ResourceOrigin:      types.OriginKubernetes,
+		DiscoveryConfigName: app.GetStaticLabels()[types.TeleportInternalDiscoveryConfigName],
+		// CloudProvider is not set for apps created from Kubernetes services
 	})
 	if err != nil {
 		s.Log.DebugContext(ctx, "Error emitting usage event", "error", err)

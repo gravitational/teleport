@@ -95,7 +95,7 @@ If you aren't sure which to use, we recommend starting with the
 To configure the `application-tunnel` service, first determine where you want
 the listener to bind to. As any client that can connect to the service listener
 will be able to access the application, it is recommended to bind to the
-loopback interface (e.g `127.0.0.1`) as this will prevent access from other
+loopback interface (e.g. `127.0.0.1`) as this will prevent access from other
 hosts.
 
 Modify your `tbot` configuration to add an `application-tunnel` service:
@@ -142,8 +142,8 @@ services:
 Ensure you replace `dumper` with the name of the application you registered in
 Teleport.
 
-If operating `tbot` as a background service, restart it. If running `tbot` in
-one-shot mode, it must be executed before you attempt to use the credentials.
+(!docs/pages/includes/machine-id/reload-tbot.mdx resource="your credentials"!)
+
 </TabItem>
 </Tabs>
 

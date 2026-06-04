@@ -31,10 +31,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apicommon "github.com/gravitational/teleport/api/types/common"
 	icfilters "github.com/gravitational/teleport/lib/aws/identitycenter/filters"
-	"github.com/gravitational/teleport/lib/client"
 	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 	icutils "github.com/gravitational/teleport/lib/utils/aws/identitycenterutils"
 	awsregion "github.com/gravitational/teleport/lib/utils/aws/region"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 const (
@@ -190,7 +190,7 @@ func (a *awsICInstallArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, err
 	if len(a.userLabels) > 0 {
 		result = slices.Grow(result, len(a.userLabels))
 		for _, labelSpec := range a.userLabels {
-			labels, err := client.ParseLabelSpec(labelSpec)
+			labels, err := parse.LabelSelectorSpec(labelSpec)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -204,7 +204,7 @@ func (a *awsICInstallArgs) parseUserFilters() ([]*types.AWSICUserSyncFilter, err
 func (p *PluginsCommand) initInstallAWSIC(parent *kingpin.CmdClause) {
 	p.install.awsIC.cmd = parent.Command("awsic", "Install an AWS IAM Identity Center integration.")
 	cmd := p.install.awsIC.cmd
-	cmd.Flag("access-list-default-owner", "Teleport user to set as default owner for the imported access lists. Multiple flags allowed.").
+	cmd.Flag("access-list-default-owner", "Teleport user to set as default owner for the imported Access Lists. Multiple flags allowed.").
 		Required().
 		StringsVar(&p.install.awsIC.defaultOwners)
 	cmd.Flag("scim-url", "AWS Identity Center SCIM provisioning endpoint").

@@ -22,7 +22,7 @@ to run within a CircleCI workflow. The bot will be configured to use the
 - (!docs/pages/includes/tctl.mdx!)
 - A CircleCI project connected to a Git repository you can push to.
 
-## Step 1/5. Configure CircleCI
+## Step 1/4. Configure CircleCI
 
 In order to configure the rules for which CircleCI workflows will be allowed to
 connect to your Teleport cluster, you must determine the ID of your CircleCI
@@ -71,11 +71,11 @@ Note this value down and substitute <Var name="context-id" /> in configuration e
 with it.
 
 
-## Step 2/5. Create a Bot
+## Step 2/4. Create a Bot
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 3/5. Create the join token for CircleCI
+## Step 3/4. Create the join token for CircleCI
 
 In order to allow your CircleCI workflow to authenticate with your Teleport
 cluster, you'll first need to create a join token. These tokens set out criteria
@@ -105,8 +105,6 @@ Let's go over the token resource's fields in more detail:
 
 - `metadata.name` defines the name of the token. Note that this value will need
 to be used in other parts of the configuration later.
-- `metadata.expires` defines the date that the join token will expire. This
-example is set to the year `2100`.
 - `spec.bot_name` is the name of the Machine ID bot that this token will grant
 access to. Note that this value will need to be used in other parts of the
 configuration later.
@@ -114,7 +112,7 @@ configuration later.
 value of `[Bot]` states that this token grants access to a Machine & Workload
 Identity bot.
 - `spec.join_method` defines the join method the token is applicable for. Since
-this guide only focuses on CircleCI, you will set this to to `circleci`.
+this guide only focuses on CircleCI, you will set this to `circleci`.
 - `spec.circleci.allow` is used to set rules for what CircleCI runs will be able
 to authenticate by using the token.
 
@@ -124,7 +122,7 @@ Apply this to your Teleport cluster using `tctl`:
 $ tctl create -f bot-token.yaml
 ```
 
-## Step 4/5. Configure a CircleCI workflow
+## Step 4/4. Configure a CircleCI workflow
 
 With the bot and join token created, you can now configure a CircleCI
 workflow that can connect to your Teleport cluster.
@@ -152,7 +150,7 @@ Replace:
 
 - <Var name="example.teleport.sh"/> with the address of your Teleport Proxy or
   Auth Service. Prefer using the address of a Teleport Proxy.
-- `example-bot` with the name of the token you created in the second step
+- `example-bot` with the name of the token you created in the third step.
 
 Now, the CircleCI pipeline can be defined. Before the pipeline can use `tbot`,
 it must be available within the environment. For this example, we'll show
@@ -210,11 +208,11 @@ to these credentials.
 Ensure that the role you assign to your CircleCI bot has access to only the
 resources in your Teleport cluster that your CI/CD needs to interact with.
 
-## Step 5/5. Configure services
-
-(!docs/pages/includes/machine-id/configure-services.mdx!)
-
 ## Further steps
+
+You have now prepared the base configuration for `tbot`. At this point, it
+identifies itself to the Teleport cluster and renews its own credentials but
+does not output any credentials for other applications to use.
 
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.

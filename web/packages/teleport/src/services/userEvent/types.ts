@@ -28,6 +28,9 @@ export enum CaptureEvent {
   CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
   UiCallToActionClickEvent = 'tp.ui.callToAction.click',
   FeatureRecommendationEvent = 'tp.ui.feature.recommendation',
+  UiPageViewEvent = 'tp.ui.page_view',
+  UiUsageReportingAlertCtaClickEvent = 'tp.ui.usage_reporting.alert_cta_click',
+  UiInteractionEvent = 'tp.ui.interaction',
 
   // PreUserEvent types
   //   these events are unauthenticated,
@@ -86,6 +89,9 @@ export enum IntegrationEnrollKind {
   DatadogIncidentManagement = 'INTEGRATION_ENROLL_KIND_DATADOG_INCIDENT_MANAGEMENT',
   AwsIdentityCenter = 'INTEGRATION_ENROLL_KIND_AWS_IDENTITY_CENTER',
   GitHubRepoAccess = 'INTEGRATION_ENROLL_KIND_GITHUB_REPO_ACCESS',
+  AwsCloud = 'INTEGRATION_ENROLL_KIND_AWS_CLOUD',
+  AzureCloud = 'INTEGRATION_ENROLL_KIND_AZURE_CLOUD',
+  GoogleCloud = 'INTEGRATION_ENROLL_KIND_GOOGLE_CLOUD',
 }
 
 /**
@@ -116,6 +122,8 @@ export enum IntegrationEnrollStep {
   MWIGHAK8SConnectGitHub = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONNECT_GITHUB',
   MWIGHAK8SConfigureAccess = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_CONFIGURE_ACCESS',
   MWIGHAK8SSetupWorkflow = 'INTEGRATION_ENROLL_STEP_MWIGHAK8S_SETUP_WORKFLOW',
+
+  VerifyIntegration = 'INTEGRATION_ENROLL_STEP_VERIFY_INTEGRATION',
 }
 
 /**
@@ -308,9 +316,11 @@ export enum DiscoverEventStatus {
 export type UserEvent<E = CaptureEvent> = {
   event: E;
   alert?: string;
+  utmSource?: string;
+  utmCampaign?: string;
 };
 
-type UserEventWithData<E, D> = UserEvent<E> & {
+export type UserEventWithData<E, D> = UserEvent<E> & {
   eventData: D;
 };
 
@@ -424,6 +434,13 @@ export type FeatureRecommendationEventRequest = UserEventWithData<
   FeatureRecommendationEvent
 >;
 
+export type PageViewEventRequest = {
+  event: CaptureEvent.UiPageViewEvent;
+  path: string;
+  utmSource?: string;
+  utmCampaign?: string;
+};
+
 export enum RoleEditorMode {
   Standard = 'standard',
   Yaml = 'yaml',
@@ -439,4 +456,13 @@ export type CreateNewRoleSaveClickEventData = {
 export type CreateNewRoleSaveClickEvent = UserEventWithData<
   CaptureEvent.CreateNewRoleSaveClickEvent,
   CreateNewRoleSaveClickEventData
+>;
+
+export type UiInteractionEventRequest = UserEventWithData<
+  CaptureEvent.UiInteractionEvent,
+  {
+    path: string;
+    page_id: string;
+    params: Record<string, string>;
+  }
 >;

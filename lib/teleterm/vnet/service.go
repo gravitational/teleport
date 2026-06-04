@@ -474,6 +474,18 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 	return cert, nil
 }
 
+// ReissueDBCert is part of the [vnet.ClientApplication] interface but is not
+// supported in Teleport Connect.
+func (p *clientApplication) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error) {
+	return tls.Certificate{}, trace.NotImplemented("VNet database access is not supported in Teleport Connect")
+}
+
+// OnNewDBConnection is part of the [vnet.ClientApplication] interface. See
+// the note on ReissueDBCert above; this is a no-op in Connect.
+func (p *clientApplication) OnNewDBConnection(ctx context.Context, dbKey *vnetv1.DatabaseKey) error {
+	return nil
+}
+
 // UserTLSCert returns the user TLS certificate for the given profile.
 func (p *clientApplication) UserTLSCert(ctx context.Context, profileName string) (tls.Certificate, error) {
 	// We don't have easy access to the user TLS cert from here, the only way

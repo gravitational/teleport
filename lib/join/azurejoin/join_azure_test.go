@@ -45,6 +45,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
+	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
@@ -52,6 +53,9 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/jointest"
+	"github.com/gravitational/teleport/lib/scopes"
+	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -122,7 +126,7 @@ func mockVerifyToken(err error) azurejoin.AzureVerifyTokenFunc {
 	}
 }
 
-func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time.Time) (string, error) {
+func makeToken(issuer, tenantID, managedIdentityResourceID, azureResourceID string, issueTime time.Time) (string, error) {
 	sig, err := jose.NewSigner(jose.SigningKey{
 		Algorithm: jose.HS256,
 		Key:       []byte("test-key"),
@@ -132,7 +136,7 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 	}
 	claims := azurejoin.AccessTokenClaims{
 		TokenClaims: oidc.TokenClaims{
-			Issuer:     "https://sts.windows.net/test-tenant-id/",
+			Issuer:     fmt.Sprintf("https://sts.windows.net/%s/", issuer),
 			Audience:   []string{azurejoin.AzureAccessTokenAudience},
 			Subject:    "test",
 			IssuedAt:   oidc.FromTime(issueTime),
@@ -142,7 +146,7 @@ func makeToken(managedIdentityResourceID, azureResourceID string, issueTime time
 		},
 		ManangedIdentityResourceID: managedIdentityResourceID,
 		AzureResourceID:            azureResourceID,
-		TenantID:                   "test-tenant-id",
+		TenantID:                   tenantID,
 		Version:                    "1.0",
 	}
 	raw, err := jwt.Signed(sig).Claims(claims).CompactSerialize()
@@ -166,15 +170,18 @@ func TestJoinAzure(t *testing.T) {
 
 	nopClient, err := server.NewClient(authtest.TestNop())
 	require.NoError(t, err)
-
+	const intermediateIssuerURL = "http://www.microsoft.com/pkiops/certs/testcert.crt"
 	caChain := newFakeAzureCAChain(t)
-	httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediateCertDER)
+	httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+		rootIssuerURL:         caChain.rootCert.Raw,
+		intermediateIssuerURL: caChain.intermediates[0].cert.Raw,
+	})
 	instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	instanceCert := caChain.issueLeafCert(t,
 		instanceKey.Public(),
 		"instance.metadata.azure.com",
-		"http://www.microsoft.com/pkiops/certs/testcert.crt")
+		intermediateIssuerURL)
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
@@ -217,6 +224,47 @@ func TestJoinAzure(t *testing.T) {
 						{
 							Subscription:   defaultSubscription,
 							ResourceGroups: []string{defaultResourceGroup},
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: require.NoError,
+		},
+		{
+			name:              "tenant-only allow rule matches",
+			requestTokenName:  "test-token",
+			tokenSubscription: defaultSubscription,
+			tokenVMID:         defaultVMID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant: "test-tenant-id",
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: require.NoError,
+		},
+		{
+			name:              "tenant and subscription allow rule matches",
+			requestTokenName:  "test-token",
+			tokenSubscription: defaultSubscription,
+			tokenVMID:         defaultVMID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant:       "test-tenant-id",
+							Subscription: defaultSubscription,
 						},
 					},
 				},
@@ -298,6 +346,27 @@ func TestJoinAzure(t *testing.T) {
 				Azure: &types.ProvisionTokenSpecV2Azure{
 					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
 						{
+							Subscription: "alternate-subscription-id",
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: isAccessDenied,
+		},
+		{
+			name:              "tenant matches but subscription does not",
+			requestTokenName:  "test-token",
+			tokenSubscription: defaultSubscription,
+			tokenVMID:         defaultVMID,
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant:       "test-tenant-id",
 							Subscription: "alternate-subscription-id",
 						},
 					},
@@ -490,12 +559,39 @@ func TestJoinAzure(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
+				Scope: "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = a.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := a.DeleteScopedToken(ctx, &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
+
 			mirID := tc.tokenManagedIdentityResourceID
 			if mirID == "" {
 				mirID = vmResourceID(defaultSubscription, defaultResourceGroup, defaultVMName)
 			}
 
-			accessToken, err := makeToken(mirID, "", a.GetClock().Now())
+			const (
+				tenantID = "test-tenant-id"
+				issuer   = tenantID
+			)
+			accessToken, err := makeToken(issuer, tenantID, mirID, "", a.GetClock().Now())
 			require.NoError(t, err)
 
 			imdsClient := &fakeIMDSClient{
@@ -539,6 +635,21 @@ func TestJoinAzure(t *testing.T) {
 				})
 				tc.assertError(t, err)
 			})
+			t.Run("scoped", func(t *testing.T) {
+				_, err = joinclient.Join(ctx, joinclient.JoinParams{
+					Token: "scoped_" + tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						ClientID:         tc.tokenVMID,
+						IMDSClient:       imdsClient,
+						IssuerHTTPClient: httpClient,
+					},
+				})
+				tc.assertError(t, err)
+			})
 		})
 	}
 }
@@ -561,17 +672,22 @@ func TestJoinAzureClaims(t *testing.T) {
 	require.NoError(t, err)
 
 	caChain := newFakeAzureCAChain(t)
-	httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediateCertDER)
+	const intermediateIssuerURL = "http://www.microsoft.com/pkiops/certs/testcert.crt"
+	httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+		rootIssuerURL:         caChain.rootCert.Raw,
+		intermediateIssuerURL: caChain.intermediates[0].cert.Raw,
+	})
 	instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	instanceCert := caChain.issueLeafCert(t,
 		instanceKey.Public(),
 		"instance.metadata.azure.com",
-		"http://www.microsoft.com/pkiops/certs/testcert.crt")
+		intermediateIssuerURL)
 
 	isAccessDenied := func(t require.TestingT, err error, _ ...any) {
 		require.True(t, trace.IsAccessDenied(err), "expected Access Denied error, actual error: %v", err)
 	}
+	defaultTenant := uuid.NewString()
 	defaultSubscription := uuid.NewString()
 	defaultResourceGroup := "my-resource-group"
 	defaultVMName := "test-vm"
@@ -586,11 +702,13 @@ func TestJoinAzureClaims(t *testing.T) {
 			Name: botName,
 		},
 		Spec: &machineidv1pb.BotSpec{},
-	}, a.GetClock().Now(), "")
+	}, a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	tests := []struct {
 		name                           string
+		tokenIssuer                    string
+		tokenTenantID                  string
 		tokenManagedIdentityResourceID string
 		tokenAzureResourceID           string
 		tokenSubscription              string
@@ -605,6 +723,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "system-managed identity ok",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "system-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
@@ -625,8 +745,79 @@ func TestJoinAzureClaims(t *testing.T) {
 			assertError: require.NoError,
 		},
 		{
+			name:                           "system-managed identity ok with allowed tenant",
+			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
+			tokenSubscription:              "system-managed-test",
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant: defaultTenant,
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: require.NoError,
+		},
+		{
+			name:                           "system-managed identity with wrong tenant",
+			requestTokenName:               "test-token",
+			tokenIssuer:                    "another-tenant",
+			tokenTenantID:                  "another-tenant",
+			tokenSubscription:              "system-managed-test",
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant: defaultTenant,
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: isAccessDenied,
+		},
+		{
+			name:                           "token issuer does not match tenant",
+			requestTokenName:               "test-token",
+			tokenIssuer:                    "another-tenant",
+			tokenTenantID:                  defaultTenant,
+			tokenSubscription:              "system-managed-test",
+			tokenVMID:                      defaultVMID,
+			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Roles: []types.SystemRole{types.RoleNode},
+				Azure: &types.ProvisionTokenSpecV2Azure{
+					Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+						{
+							Tenant: defaultTenant,
+						},
+					},
+				},
+				JoinMethod: types.JoinMethodAzure,
+			},
+			verify:      mockVerifyToken(nil),
+			certs:       []*x509.Certificate{caChain.rootCert},
+			assertError: isAccessDenied,
+		},
+		{
 			name:                           "system-managed identity with wrong subscription",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "system-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
@@ -649,6 +840,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "system-managed identity with wrong resource group",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "system-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: vmResourceID("system-managed-test", "system-managed-test", defaultVMName),
@@ -671,6 +864,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "user-managed identity ok",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "user-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: identityResourceID("user-managed-test", "user-managed-test", defaultIdentityName),
@@ -694,6 +889,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "user-managed identity with wrong subscription",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "user-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: identityResourceID("user-managed-test", "user-managed-test", defaultIdentityName),
@@ -717,6 +914,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "user-managed identity with wrong resource group",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "user-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: identityResourceID("user-managed-test", "user-managed-test", defaultIdentityName),
@@ -740,6 +939,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "user-managed identity from different subscription",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "user-managed-test",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: identityResourceID("invalid-user-managed-test", "invalid-user-managed-test", defaultIdentityName),
@@ -763,6 +964,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "subscription mismatch between attestation and token",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "attested-subscription",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: vmResourceID("token-subscription", defaultResourceGroup, defaultVMName),
@@ -785,6 +988,8 @@ func TestJoinAzureClaims(t *testing.T) {
 		{
 			name:                           "vmss resource type",
 			requestTokenName:               "test-token",
+			tokenIssuer:                    defaultTenant,
+			tokenTenantID:                  defaultTenant,
 			tokenSubscription:              "token-subscription",
 			tokenVMID:                      defaultVMID,
 			tokenManagedIdentityResourceID: vmssResourceID("token-subscription", defaultResourceGroup, defaultVMName),
@@ -818,9 +1023,34 @@ func TestJoinAzureClaims(t *testing.T) {
 				require.NoError(t, a.DeleteToken(ctx, token.GetName()))
 			})
 
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(tc.tokenSpec, &joiningv1.ScopedToken{
+				Scope: "/test",
+				Metadata: &headerv1.Metadata{
+					Name: "scoped_" + token.GetName(),
+				},
+				Spec: &joiningv1.ScopedTokenSpec{
+					AssignedScope: "/test/one",
+					UsageMode:     string(joining.TokenUsageModeUnlimited),
+				},
+			})
+			require.NoError(t, err)
+
+			_, err = a.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				Token: scopedToken,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() {
+				_, err := a.DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+					Name: scopedToken.GetMetadata().GetName(),
+				})
+				require.NoError(t, err)
+			})
+
+			issuer := tc.tokenIssuer
+			tenantID := tc.tokenTenantID
 			mirID := tc.tokenManagedIdentityResourceID
 			azrID := tc.tokenAzureResourceID
-			accessToken, err := makeToken(mirID, azrID, a.GetClock().Now())
+			accessToken, err := makeToken(issuer, tenantID, mirID, azrID, a.GetClock().Now())
 			require.NoError(t, err)
 
 			vmClient := &mockAzureVMClient{
@@ -867,6 +1097,22 @@ func TestJoinAzureClaims(t *testing.T) {
 				// Try to join via the new join service.
 				_, err = joinclient.Join(ctx, joinclient.JoinParams{
 					Token: tc.requestTokenName,
+					ID: state.IdentityID{
+						Role: types.RoleInstance,
+					},
+					AuthClient: nopClient,
+					AzureParams: joinclient.AzureParams{
+						ClientID:         tc.tokenVMID,
+						IMDSClient:       imdsClient,
+						IssuerHTTPClient: httpClient,
+					},
+				})
+				tc.assertError(t, err)
+			})
+			t.Run("scoped", func(t *testing.T) {
+				// Try to join via the new join service.
+				_, err = joinclient.Join(ctx, joinclient.JoinParams{
+					Token: "scoped_" + tc.requestTokenName,
 					ID: state.IdentityID{
 						Role: types.RoleInstance,
 					},
@@ -957,7 +1203,11 @@ func TestAzureIssuerCert(t *testing.T) {
 
 	instanceID := vmResourceID("testsubscription", "testgroup", "testid")
 
-	accessToken, err := makeToken(instanceID, instanceID, a.GetClock().Now())
+	const (
+		tenantID = "test-tenant-id"
+		issuer   = tenantID
+	)
+	accessToken, err := makeToken(issuer, tenantID, instanceID, instanceID, a.GetClock().Now())
 	require.NoError(t, err)
 
 	defaultSubscription := uuid.NewString()
@@ -1049,7 +1299,7 @@ func TestAzureIssuerCert(t *testing.T) {
 			}
 
 			// Fake the HTTP client used to fetch the issuer CA.
-			httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediateCertDER)
+			httpClient := newFakeAzureIssuerHTTPClient(caChain.intermediates[0].cert.Raw)
 			a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
 				CertificateAuthorities: []*x509.Certificate{caChain.rootCert},
 				Verify:                 mockVerifyToken(nil),
@@ -1080,6 +1330,117 @@ func TestAzureIssuerCert(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAzureJoinFetchesCompleteIntermediateChain(t *testing.T) {
+	server, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+		}})
+	require.NoError(t, err)
+	a := server.Auth()
+
+	nopClient, err := server.NewClient(authtest.TestNop())
+	require.NoError(t, err)
+
+	token, err := types.NewProvisionTokenFromSpec("testtoken", time.Now().Add(time.Minute), types.ProvisionTokenSpecV2{
+		JoinMethod: types.JoinMethodAzure,
+		Roles:      types.SystemRoles{types.RoleNode},
+		Azure: &types.ProvisionTokenSpecV2Azure{
+			Allow: []*types.ProvisionTokenSpecV2Azure_Rule{
+				{
+					Subscription: "testsubscription",
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, a.UpsertToken(t.Context(), token))
+
+	const (
+		leafIssuerURL         = "http://www.microsoft.com/pkiops/certs/test-intermediate-1.crt"
+		intermediateIssuerURL = "http://www.microsoft.com/pkiops/certs/test-intermediate-2.crt"
+		instanceID            = "/subscriptions/testsubscription/resourceGroups/testgroup/providers/Microsoft.Compute/virtualMachines/testid"
+		tenantID              = "test-tenant-id"
+		issuer                = tenantID
+	)
+	caChain := newFakeAzureCAChain(t, intermediateIssuerURL)
+	instanceKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	instanceCert := caChain.issueLeafCert(
+		t,
+		instanceKey.Public(),
+		"instance.metadata.azure.com",
+		leafIssuerURL,
+	)
+
+	accessToken, err := makeToken(issuer, tenantID, instanceID, instanceID, a.GetClock().Now())
+	require.NoError(t, err)
+	imdsClient := &fakeIMDSClient{
+		accessToken:  accessToken,
+		signingCert:  instanceCert,
+		signingKey:   instanceKey,
+		subscription: "testsubscription",
+		vmID:         instanceID,
+	}
+
+	t.Run("full chain", func(t *testing.T) {
+		httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+			leafIssuerURL:         caChain.intermediates[0].cert.Raw,
+			intermediateIssuerURL: caChain.intermediates[1].cert.Raw,
+			rootIssuerURL:         caChain.rootCert.Raw,
+		})
+		a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
+			CertificateAuthorities: []*x509.Certificate{caChain.rootCert},
+			Verify:                 mockVerifyToken(nil),
+			IssuerHTTPClient:       httpClient,
+		})
+
+		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+			Token: "testtoken",
+			ID: state.IdentityID{
+				Role: types.RoleInstance,
+			},
+			AuthClient: nopClient,
+			AzureParams: joinclient.AzureParams{
+				ClientID:         instanceID,
+				IMDSClient:       imdsClient,
+				IssuerHTTPClient: httpClient,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{leafIssuerURL, intermediateIssuerURL, rootIssuerURL}, httpClient.requestedURLs)
+	})
+
+	t.Run("failure to fetch root does not automatically fail join attempt", func(t *testing.T) {
+		// we omit the root cert URL from the fake httpClient so that it returns an error,
+		// but since the root cert would be dropped anyway (because it's already trusted by
+		// the azure join config) we expect the join attempt to succeed
+		httpClient := newFakeAzureIssuerHTTPClientForURLs(map[string][]byte{
+			leafIssuerURL:         caChain.intermediates[0].cert.Raw,
+			intermediateIssuerURL: caChain.intermediates[1].cert.Raw,
+		})
+		a.SetAzureJoinConfig(&azurejoin.AzureJoinConfig{
+			CertificateAuthorities: []*x509.Certificate{caChain.rootCert},
+			Verify:                 mockVerifyToken(nil),
+			IssuerHTTPClient:       httpClient,
+		})
+
+		_, err = joinclient.Join(t.Context(), joinclient.JoinParams{
+			Token: "testtoken",
+			ID: state.IdentityID{
+				Role: types.RoleInstance,
+			},
+			AuthClient: nopClient,
+			AzureParams: joinclient.AzureParams{
+				ClientID:         instanceID,
+				IMDSClient:       imdsClient,
+				IssuerHTTPClient: httpClient,
+			},
+		})
+		require.NoError(t, err)
+		require.Equal(t, []string{leafIssuerURL, intermediateIssuerURL, rootIssuerURL}, httpClient.requestedURLs)
+	})
 }
 
 type fakeIMDSClient struct {
@@ -1137,14 +1498,19 @@ func (c *fakeIMDSClient) GetAccessToken(_ context.Context, clientID string) (str
 	return c.accessToken, trace.Wrap(c.accessTokenErr)
 }
 
-type fakeAzureCAChain struct {
-	intermediateKey     crypto.Signer
-	intermediateCert    *x509.Certificate
-	intermediateCertDER []byte
-	rootCert            *x509.Certificate
+type keypair struct {
+	key  crypto.Signer
+	cert *x509.Certificate
 }
 
-func newFakeAzureCAChain(t *testing.T) *fakeAzureCAChain {
+type fakeAzureCAChain struct {
+	intermediates []keypair
+	rootCert      *x509.Certificate
+}
+
+const rootIssuerURL = "http://www.microsoft.com/pkiops/certs/root.crt"
+
+func newFakeAzureCAChain(t *testing.T, issuerURLs ...string) *fakeAzureCAChain {
 	rootKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
 	rootCertTemplate := &x509.Certificate{
@@ -1162,28 +1528,38 @@ func newFakeAzureCAChain(t *testing.T) *fakeAzureCAChain {
 	rootCert, err := x509.ParseCertificate(rootCertDER)
 	require.NoError(t, err)
 
-	intermediateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	require.NoError(t, err)
-	intermediateCertTemplate := &x509.Certificate{
-		Subject: pkix.Name{
-			CommonName: "test intermediate CA",
-		},
-		NotBefore:             time.Now(),
-		NotAfter:              time.Now().Add(time.Hour),
-		KeyUsage:              x509.KeyUsageCertSign,
-		IsCA:                  true,
-		BasicConstraintsValid: true,
+	numIntermediates := len(issuerURLs) + 1
+	intermediates := make([]keypair, numIntermediates)
+	parentCert := rootCert
+	parentKey := crypto.Signer(rootKey)
+	// append the root issuer URL so that the chain is always fully constructed
+	issuerURLs = append(issuerURLs, rootIssuerURL)
+	for i := numIntermediates - 1; i >= 0; i-- {
+		intermediateKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		require.NoError(t, err)
+		intermediateCertTemplate := &x509.Certificate{
+			Subject: pkix.Name{
+				CommonName: fmt.Sprintf("test intermediate CA %d", i),
+			},
+			NotBefore:             time.Now(),
+			NotAfter:              time.Now().Add(time.Hour),
+			KeyUsage:              x509.KeyUsageCertSign,
+			IsCA:                  true,
+			BasicConstraintsValid: true,
+		}
+		intermediateCertTemplate.IssuingCertificateURL = []string{issuerURLs[i]}
+		intermediateCertDER, err := x509.CreateCertificate(rand.Reader, intermediateCertTemplate, parentCert, intermediateKey.Public(), parentKey)
+		require.NoError(t, err)
+		intermediateCert, err := x509.ParseCertificate(intermediateCertDER)
+		require.NoError(t, err)
+		intermediates[i] = keypair{key: intermediateKey, cert: intermediateCert}
+		parentCert = intermediateCert
+		parentKey = intermediateKey
 	}
-	intermediateCertDER, err := x509.CreateCertificate(rand.Reader, intermediateCertTemplate, rootCert, intermediateKey.Public(), rootKey)
-	require.NoError(t, err)
-	intermediateCert, err := x509.ParseCertificate(intermediateCertDER)
-	require.NoError(t, err)
 
 	return &fakeAzureCAChain{
-		intermediateKey:     intermediateKey,
-		intermediateCert:    intermediateCert,
-		intermediateCertDER: intermediateCertDER,
-		rootCert:            rootCert,
+		intermediates: intermediates,
+		rootCert:      rootCert,
 	}
 }
 
@@ -1198,7 +1574,7 @@ func (c *fakeAzureCAChain) issueLeafCert(t *testing.T, pub crypto.PublicKey, com
 		KeyUsage:              x509.KeyUsageDigitalSignature,
 		BasicConstraintsValid: true,
 	}
-	leafCertDER, err := x509.CreateCertificate(rand.Reader, leafCertTemplate, c.intermediateCert, pub, c.intermediateKey)
+	leafCertDER, err := x509.CreateCertificate(rand.Reader, leafCertTemplate, c.intermediates[0].cert, pub, c.intermediates[0].key)
 	require.NoError(t, err)
 	leafCert, err := x509.ParseCertificate(leafCertDER)
 	require.NoError(t, err)
@@ -1206,8 +1582,10 @@ func (c *fakeAzureCAChain) issueLeafCert(t *testing.T, pub crypto.PublicKey, com
 }
 
 type fakeAzureIssuerHTTPClient struct {
-	issuerCertDER []byte
-	called        int
+	issuerCertDER       []byte
+	issuerCertsDERByURL map[string][]byte
+	called              int
+	requestedURLs       []string
 }
 
 func newFakeAzureIssuerHTTPClient(issuerCertDER []byte) *fakeAzureIssuerHTTPClient {
@@ -1215,10 +1593,29 @@ func newFakeAzureIssuerHTTPClient(issuerCertDER []byte) *fakeAzureIssuerHTTPClie
 		issuerCertDER: issuerCertDER,
 	}
 }
+
+func newFakeAzureIssuerHTTPClientForURLs(issuerCertsDERByURL map[string][]byte) *fakeAzureIssuerHTTPClient {
+	return &fakeAzureIssuerHTTPClient{
+		issuerCertsDERByURL: issuerCertsDERByURL,
+	}
+}
+
 func (c *fakeAzureIssuerHTTPClient) Do(req *http.Request) (*http.Response, error) {
 	c.called++
+	c.requestedURLs = append(c.requestedURLs, req.URL.String())
+	issuerCertDER := c.issuerCertDER
+	if c.issuerCertsDERByURL != nil {
+		var ok bool
+		issuerCertDER, ok = c.issuerCertsDERByURL[req.URL.String()]
+		if !ok {
+			return &http.Response{
+				StatusCode: http.StatusNotFound,
+				Body:       io.NopCloser(bytes.NewReader(nil)),
+			}, nil
+		}
+	}
 	return &http.Response{
 		StatusCode: http.StatusOK,
-		Body:       io.NopCloser(bytes.NewReader(c.issuerCertDER)),
+		Body:       io.NopCloser(bytes.NewReader(issuerCertDER)),
 	}, nil
 }

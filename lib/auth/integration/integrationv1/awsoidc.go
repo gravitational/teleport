@@ -88,6 +88,7 @@ type AWSOIDCServiceConfig struct {
 	Clock                 clockwork.Clock
 	ProxyPublicAddrGetter func(context.Context) string
 	Logger                *slog.Logger
+	Modules               modules.Modules
 }
 
 // deleteAWSOIDCAssociatedResources deletes associated discovery_configs and
@@ -210,6 +211,10 @@ func (s *AWSOIDCServiceConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("proxyPublicAddrGetter is required")
 	}
 
+	if s.Modules == nil {
+		return trace.BadParameter("modules is required")
+	}
+
 	if s.Logger == nil {
 		s.Logger = slog.With(teleport.ComponentKey, "integrations.awsoidc.service")
 	}
@@ -228,6 +233,7 @@ type AWSOIDCService struct {
 	proxyPublicAddrGetter func(context.Context) string
 	cache                 CacheAWSOIDC
 	tokenCreator          TokenCreator
+	modules               modules.Modules
 }
 
 // CacheAWSOIDC is the subset of the cached resources that the Service queries.
@@ -259,6 +265,7 @@ func NewAWSOIDCService(cfg *AWSOIDCServiceConfig) (*AWSOIDCService, error) {
 		clock:                 cfg.Clock,
 		cache:                 cfg.Cache,
 		tokenCreator:          cfg.TokenCreator,
+		modules:               cfg.Modules,
 	}, nil
 }
 
@@ -595,6 +602,7 @@ func (s *AWSOIDCService) DeployDatabaseService(ctx context.Context, req *integra
 		Deployments:             deployments,
 		TeleportClusterName:     clusterName.GetClusterName(),
 		IntegrationName:         req.Integration,
+		TeleportBuildType:       s.modules.BuildType(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -684,13 +692,12 @@ func (s *AWSOIDCService) EnrollEKSClusters(ctx context.Context, req *integration
 		return nil, trace.Wrap(err)
 	}
 
-	features := modules.GetModules().Features()
-
 	clusterName, err := s.cache.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	features := s.modules.Features()
 	enrollmentResponse, err := awsoidc.EnrollEKSClusters(ctx, s.logger, s.clock, publicProxyAddr, enrollEKSClient, awsoidc.EnrollEKSClustersRequest{
 		Region:              req.Region,
 		ClusterNames:        req.GetEksClusterNames(),
@@ -758,6 +765,7 @@ func (s *AWSOIDCService) DeployService(ctx context.Context, req *integrationpb.D
 		TaskRoleARN:             req.TaskRoleArn,
 		TeleportClusterName:     clusterName.GetClusterName(),
 		TeleportVersionTag:      req.TeleportVersion,
+		TeleportBuildType:       s.modules.BuildType(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

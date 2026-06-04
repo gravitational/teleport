@@ -282,6 +282,14 @@ func (field Field) IsUint32() bool {
 	return field.desc.GetType() == gogodesc.FieldDescriptorProto_TYPE_UINT32
 }
 
+func (field Field) IsFloat() bool {
+	return field.desc.GetType() == gogodesc.FieldDescriptorProto_TYPE_FLOAT
+}
+
+func (field Field) IsDouble() bool {
+	return field.desc.GetType() == gogodesc.FieldDescriptorProto_TYPE_DOUBLE
+}
+
 func (field Field) IsRepeated() bool {
 	return field.desc.IsRepeated()
 }

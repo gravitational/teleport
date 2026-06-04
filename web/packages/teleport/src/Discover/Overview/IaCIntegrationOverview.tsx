@@ -17,45 +17,33 @@
  */
 
 import { useQuery } from '@tanstack/react-query';
-import { formatDistanceToNowStrict } from 'date-fns';
-import { useState, type ReactNode } from 'react';
-import { useParams } from 'react-router';
-import { Link as RouterLink } from 'react-router-dom';
+import { formatDistanceStrict, formatDistanceToNowStrict } from 'date-fns';
+import { useState, useEffect } from 'react';
+import { Link as RouterLink, useParams } from 'react-router';
+import styled, { keyframes } from 'styled-components';
 
-import { Box, Card, Flex, H2, Indicator, Text } from 'design';
+import { Card, Flex, H2, Indicator, Text } from 'design';
 import { Danger } from 'design/Alert';
-import { ButtonPrimaryBorder, ButtonText } from 'design/Button';
+import { ButtonPrimary } from 'design/Button';
 import ButtonIcon from 'design/ButtonIcon';
 import { displayDateTime } from 'design/datetime';
-import {
-  ArrowLeft,
-  ArrowRight,
-  ChevronRight,
-  CircleCross,
-  Warning,
-} from 'design/Icon';
-import { TabBorder, useSlidingBottomBorderTabs } from 'design/Tabs';
+import { ArrowLeft, CircleCheck, Clock, SyncAlt } from 'design/Icon';
+import { ResourceIcon, ResourceIconName } from 'design/ResourceIcon';
+import { Status as StatusBadge } from 'design/Status';
 import { HoverTooltip } from 'design/Tooltip';
-import { useInfoGuide } from 'shared/components/SlidingSidePanel/InfoGuide';
 import { pluralize } from 'shared/utils/text';
 
 import { FeatureBox } from 'teleport/components/Layout';
 import cfg from 'teleport/config';
-import {
-  InfoGuideSwitch,
-  type InfoGuideTab,
-} from 'teleport/Integrations/Enroll/Cloud/Aws/EnrollAws';
-import { SummaryStatusLabel } from 'teleport/Integrations/shared/StatusLabel';
 import { useNoMinWidth } from 'teleport/Main';
 import {
   IntegrationKind,
   integrationService,
   IntegrationWithSummary,
+  ResourceTypeSummary,
 } from 'teleport/services/integrations';
 
 import { ActivityTab } from './ActivityTab';
-import { SettingsTab } from './SettingsTab';
-import { SmallTab, SmallTabsContainer } from './SmallTabs';
 
 export function formatRelativeDate(value?: string | Date): string {
   if (!value) {
@@ -73,33 +61,23 @@ export function formatRelativeDate(value?: string | Date): string {
     return displayDateTime(date);
   }
 }
-type TabId = 'overview' | 'activity' | 'settings';
-
-const TABS = [
-  { id: 'overview', label: 'Overview' },
-  { id: 'activity', label: 'Issues' },
-  { id: 'settings', label: 'Settings' },
-] as const;
+const OVERDUE_REFETCH_INTERVAL_MS = 10 * 1000;
 
 export function IaCIntegrationOverview() {
-  const { name } = useParams<{ name: string }>();
+  const { name, type } = useParams<{ name: string; type: string }>();
 
   const {
     data: stats,
     error,
     isLoading,
     isError,
-  } = useQuery({
+  } = useQuery<IntegrationWithSummary>({
     queryKey: ['integrationStats', name],
     queryFn: () => integrationService.fetchIntegrationStats(name),
     enabled: !!name,
+    refetchInterval: query => getStatsRefetchIntervalMs(query.state.data),
   });
 
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
-  const [activeInfoGuideTab, setActiveInfoGuideTab] =
-    useState<InfoGuideTab>('terraform');
-  const { infoGuideConfig } = useInfoGuide();
-  const { borderRef, parentRef } = useSlidingBottomBorderTabs({ activeTab });
   useNoMinWidth();
 
   if (isLoading) {
@@ -120,325 +98,426 @@ export function IaCIntegrationOverview() {
     );
   }
 
+  const settingsPath = cfg.getIaCIntegrationSettingsRoute(
+    type as IntegrationKind,
+    name
+  );
+
+  const roleArn = stats.awsoidc?.roleArn;
+
   return (
     <FeatureBox maxWidth="1400px" pt={3}>
-      <Flex alignItems="center" justifyContent="space-between" mb={3}>
+      <Flex alignItems="center" justifyContent="space-between" mb={4}>
         <Flex alignItems="center">
           <HoverTooltip placement="bottom" tipContent="Back to Integrations">
             <ButtonIcon as={RouterLink} to={cfg.routes.integrations} mr={2}>
               <ArrowLeft size="medium" />
             </ButtonIcon>
           </HoverTooltip>
-          <Text bold fontSize={6} mr={2}>
-            {stats.name}
-          </Text>
+          <Flex flexDirection="column">
+            <Text bold fontSize={6}>
+              {stats.name}
+            </Text>
+            {roleArn && (
+              <Text typography="body3" color="text.slightlyMuted">
+                {roleArn}
+              </Text>
+            )}
+          </Flex>
         </Flex>
-        {activeTab === 'settings' && (
-          <InfoGuideSwitch
-            currentConfig={infoGuideConfig}
-            activeTab={activeInfoGuideTab}
-            onSwitch={setActiveInfoGuideTab}
-          />
-        )}
+        <ButtonPrimary as={RouterLink} to={settingsPath} size="small">
+          Edit configuration
+        </ButtonPrimary>
       </Flex>
-      <SmallTabsContainer ref={parentRef} mb={4}>
-        {TABS.map(t => (
-          <SmallTab
-            key={t.id}
-            data-tab-id={t.id}
-            selected={activeTab === t.id}
-            onClick={() => setActiveTab(t.id)}
-          >
-            {t.label}
-          </SmallTab>
-        ))}
-        <TabBorder ref={borderRef} />
-      </SmallTabsContainer>
 
-      {activeTab === 'overview' && (
-        <OverviewTab
-          stats={stats}
-          onViewIssues={() => setActiveTab('activity')}
-        />
-      )}
-      {activeTab === 'activity' && <ActivityTab stats={stats} />}
-      {activeTab === 'settings' && (
-        <SettingsTab
-          stats={stats}
-          activeInfoGuideTab={activeInfoGuideTab}
-          onInfoGuideTabChange={setActiveInfoGuideTab}
-        />
-      )}
+      <OverviewContent stats={stats} />
     </FeatureBox>
   );
 }
 
-function OverviewTab({
-  stats,
-  onViewIssues,
-}: {
-  stats: IntegrationWithSummary;
-  onViewIssues: () => void;
-}) {
+function OverviewContent({ stats }: { stats: IntegrationWithSummary }) {
+  const [nowMs, setNowMs] = useState(Date.now);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => {
+      setNowMs(Date.now());
+    }, 30_000);
+
+    return () => {
+      window.clearInterval(interval);
+    };
+  }, []);
+
+  const hasIssues = stats.unresolvedUserTasks > 0;
+  const isAzure = stats.subKind === IntegrationKind.AzureOidc;
+
   return (
     <Flex flexDirection="column" gap={4}>
-      <IntegrationHealthCard stats={stats} onViewIssues={onViewIssues} />
-      <IssuesCard stats={stats} onViewIssues={onViewIssues} />
+      <CardsContainer>
+        {isAzure ? (
+          <ResourceTypeCard
+            resourceType="azurevm"
+            summary={stats.azurevm}
+            nowMs={nowMs}
+          />
+        ) : (
+          <>
+            <ResourceTypeCard
+              resourceType="ec2"
+              summary={stats.awsec2}
+              nowMs={nowMs}
+            />
+            <ResourceTypeCard
+              resourceType="rds"
+              summary={stats.awsrds}
+              nowMs={nowMs}
+            />
+            <ResourceTypeCard
+              resourceType="eks"
+              summary={stats.awseks}
+              nowMs={nowMs}
+            />
+          </>
+        )}
+      </CardsContainer>
+      <IntegrationHealthCard stats={stats} hasIssues={hasIssues} />
     </Flex>
   );
 }
 
 function IntegrationHealthCard({
   stats,
-  onViewIssues,
+  hasIssues,
 }: {
   stats: IntegrationWithSummary;
-  onViewIssues: () => void;
+  hasIssues: boolean;
 }) {
-  const [isConfigOpen, setIsConfigOpen] = useState(false);
-
-  const hasIssues = stats.unresolvedUserTasks > 0;
-  const lastScanDate = getIntegrationLastScan(stats);
-  const lastScanText = formatRelativeDate(lastScanDate);
-  const configDetails = getIntegrationConfigDetails(stats);
-
   return (
     <Card p={4}>
       <Flex alignItems="center" justifyContent="space-between" mb={3}>
         <H2>Integration Health</H2>
       </Flex>
 
-      <Flex flexDirection="column" gap={2}>
-        <StatusRow label="Status:">
-          <Flex alignItems="center" gap={2} flexWrap="wrap">
-            <SummaryStatusLabel summary={stats} />
-            {hasIssues && (
-              <>
-                <Text typography="body3">
-                  ({stats.unresolvedUserTasks}{' '}
-                  {pluralize(stats.unresolvedUserTasks, 'Issue')} detected)
-                </Text>
-                <ButtonText
-                  intent="primary"
-                  size="small"
-                  onClick={onViewIssues}
-                >
-                  <Flex alignItems="center" gap={1}>
-                    View Issues <ArrowRight color="text.brand" size={16} />
-                  </Flex>
-                </ButtonText>
-              </>
-            )}
+      <Flex alignItems="center" gap={2} mb={hasIssues ? 4 : 0}>
+        <Text typography="body2">Status:</Text>
+        {hasIssues ? (
+          <Flex alignItems="center" gap={2}>
+            <StatusBadge kind="warning" variant="filled-tonal">
+              Needs review
+            </StatusBadge>
+            <StatusBadge kind="danger" variant="filled-tonal">
+              {stats.unresolvedUserTasks}{' '}
+              {pluralize(stats.unresolvedUserTasks, 'issue')} detected
+            </StatusBadge>
           </Flex>
-        </StatusRow>
-
-        <StatusRow label="Last verified:">
-          <Text typography="body3">{lastScanText}</Text>
-        </StatusRow>
-
-        <StatusRow label="Resources:">
-          <Text typography="body3">{formatResourceCounts(stats)}</Text>
-        </StatusRow>
+        ) : (
+          <Flex alignItems="center" gap={2}>
+            <StatusBadge kind="success" variant="filled-tonal">
+              Healthy
+            </StatusBadge>
+            <Text typography="body3" color="text.slightlyMuted">
+              No issues detected
+            </Text>
+          </Flex>
+        )}
       </Flex>
 
-      <Box mt={3} ml={-2}>
-        <Flex
-          alignItems="center"
-          onClick={() => setIsConfigOpen(v => !v)}
-          role="button"
-          tabIndex={0}
-          style={{ cursor: 'pointer' }}
-        >
-          <ButtonIcon
-            aria-label={
-              isConfigOpen
-                ? 'Collapse configuration details'
-                : 'Expand configuration details'
-            }
-            onClick={e => {
-              e.stopPropagation();
-              setIsConfigOpen(v => !v);
-            }}
-          >
-            <ChevronRight
-              size={16}
-              style={{
-                // point right for closed, down for open
-                transform: isConfigOpen ? 'rotate(90deg)' : undefined,
-                transition: 'transform 150ms ease',
-              }}
-            />
-          </ButtonIcon>
-          <Text typography="body3">Configuration details</Text>
-        </Flex>
-
-        {isConfigOpen && (
-          <Box mt={1} ml={5}>
-            {configDetails.map(detail => (
-              <KeyValue
-                key={`${detail.label}-${detail.value}`}
-                label={detail.label}
-                value={detail.value}
-              />
-            ))}
-            <KeyValue label="Last scan:" value={lastScanText} />
-          </Box>
-        )}
-      </Box>
+      {hasIssues && <ActivityTab stats={stats} />}
     </Card>
   );
 }
 
-function IssuesCard({
-  stats,
-  onViewIssues,
+type ResourceType = 'ec2' | 'rds' | 'eks' | 'azurevm';
+
+const RESOURCE_TYPE_CONFIG: Record<
+  ResourceType,
+  { icon: ResourceIconName; label: string; instanceLabel: string }
+> = {
+  ec2: {
+    icon: 'awsec2',
+    label: 'EC2 Discovered Instances',
+    instanceLabel: 'instances',
+  },
+  rds: {
+    icon: 'awsrds',
+    label: 'RDS Discovered Instances',
+    instanceLabel: 'instances',
+  },
+  azurevm: {
+    icon: 'azure',
+    label: 'Azure Discovered VMs',
+    instanceLabel: 'VMs',
+  },
+  eks: {
+    icon: 'eks',
+    label: 'EKS Discovered Clusters',
+    instanceLabel: 'clusters',
+  },
+};
+
+function getResourceScanState(
+  summary: ResourceTypeSummary | undefined
+): ScanState {
+  if (!summary) {
+    return { state: 'waiting' };
+  }
+
+  // Check for valid dates - protobuf zero timestamps convert to Unix epoch (1970)
+  const parsedStart = summary.syncStart ? new Date(summary.syncStart) : null;
+  const parsedEnd = summary.syncEnd ? new Date(summary.syncEnd) : null;
+  const syncStart = parsedStart?.getTime() > 0 ? parsedStart : null;
+  const syncEnd = parsedEnd?.getTime() > 0 ? parsedEnd : null;
+
+  if (!syncStart) {
+    return { state: 'waiting' };
+  }
+
+  if (!syncEnd) {
+    return { state: 'scanning', startedAt: syncStart };
+  }
+
+  const pollIntervalMs = (summary.pollIntervalSeconds || 0) * 1000;
+  const nextScanAt = new Date(syncEnd.getTime() + pollIntervalMs);
+  return { state: 'completed', lastScan: syncEnd, nextScanAt };
+}
+
+function ResourceTypeCard({
+  resourceType,
+  summary,
+  nowMs,
 }: {
-  stats: IntegrationWithSummary;
-  onViewIssues: () => void;
+  resourceType: ResourceType;
+  summary: ResourceTypeSummary | undefined;
+  nowMs: number;
 }) {
-  const issueCount = stats.unresolvedUserTasks;
-  const issues = stats.userTasks ?? [];
+  const config = RESOURCE_TYPE_CONFIG[resourceType];
+  const isConfigured = summary && summary.rulesCount > 0;
+  const scanState = getResourceScanState(summary);
+
+  if (!isConfigured) {
+    return (
+      <ResourceCard style={{ opacity: 0.6 }}>
+        <Flex alignItems="center" gap={2} mb={3}>
+          <ResourceIcon name={config.icon} size={24} />
+          <Text bold typography="body1">
+            {config.label}
+          </Text>
+        </Flex>
+        <Flex
+          flex="1"
+          alignItems="center"
+          justifyContent="center"
+          color="text.muted"
+        >
+          <Text typography="body3">
+            {resourceType.toUpperCase()} not configured.
+          </Text>
+        </Flex>
+      </ResourceCard>
+    );
+  }
+
+  const discovered = summary.resourcesFound || 0;
+  const enrolled = summary.resourcesEnrollmentSuccess || 0;
+  const enrollmentPercent = discovered > 0 ? (enrolled / discovered) * 100 : 0;
+  const isFullyEnrolled = discovered > 0 && enrolled === discovered;
+
+  const renderScanBadge = () => {
+    switch (scanState.state) {
+      case 'waiting':
+        return null;
+      case 'scanning':
+        return (
+          <StatusBadge
+            kind="info"
+            variant="filled-tonal"
+            icon={SpinningSyncIcon}
+          >
+            Rescanning now...
+          </StatusBadge>
+        );
+      case 'completed': {
+        const remainingMs = scanState.nextScanAt.getTime() - nowMs;
+        if (remainingMs > 0) {
+          return (
+            <Flex alignItems="center" gap={1} color="text.slightlyMuted">
+              <Clock size="small" />
+              <Text typography="body3">
+                Next scan in{' '}
+                {formatDistanceStrict(0, remainingMs, {
+                  unit: 'minute',
+                  roundingMethod: 'ceil',
+                })}
+              </Text>
+            </Flex>
+          );
+        }
+        // Countdown expired, show rescanning state while waiting for backend to confirm
+        return (
+          <StatusBadge
+            kind="info"
+            variant="filled-tonal"
+            icon={SpinningSyncIcon}
+          >
+            Rescanning now...
+          </StatusBadge>
+        );
+      }
+    }
+  };
 
   return (
-    <Card p={4}>
+    <ResourceCard>
       <Flex alignItems="center" justifyContent="space-between" mb={3}>
         <Flex alignItems="center" gap={2}>
-          <Warning size={18} color="text.slightlyMuted" />
-          <H2>Issues ({issueCount})</H2>
+          <ResourceIcon name={config.icon} size={24} />
+          <Text bold typography="body1">
+            {config.label}
+          </Text>
         </Flex>
-        {issueCount > 0 && (
-          <ButtonPrimaryBorder size="small" onClick={onViewIssues}>
-            View Issues
-          </ButtonPrimaryBorder>
+        {renderScanBadge()}
+      </Flex>
+
+      <CardDivider />
+
+      <Text fontSize={6} bold mb={1} mt={3}>
+        {discovered}
+      </Text>
+      <Text typography="body3" color="text.slightlyMuted" mb={3}>
+        Discovered {config.instanceLabel}
+      </Text>
+
+      <Flex alignItems="center" gap={2} mb={2}>
+        {isFullyEnrolled && <CircleCheck size="small" color="success.main" />}
+        <Text typography="body3">
+          {Math.round(enrollmentPercent)}% enrolled ({enrolled} of {discovered})
+        </Text>
+      </Flex>
+
+      <ProgressBar>
+        <ProgressFill
+          $percent={enrollmentPercent}
+          $isComplete={isFullyEnrolled}
+        />
+      </ProgressBar>
+
+      {scanState.state === 'completed' &&
+        scanState.nextScanAt.getTime() - nowMs > 0 && (
+          <Text typography="body3" color="text.slightlyMuted" mt={2}>
+            Last scan {formatRelativeDate(scanState.lastScan)}
+          </Text>
         )}
-      </Flex>
-
-      <Flex flexDirection="column" gap={2}>
-        {issues.map(issue => (
-          <IssueItem key={issue.name} text={issue.title} />
-        ))}
-      </Flex>
-    </Card>
+    </ResourceCard>
   );
 }
 
-function StatusRow(props: { label: string; children: ReactNode }) {
-  return (
-    <Flex gap={2} flexWrap="wrap" alignItems="center">
-      <Text typography="body2">{props.label}</Text>
-      {props.children}
-    </Flex>
-  );
+const CardsContainer = styled.div`
+  display: flex;
+  gap: ${props => props.theme.space[3]}px;
+
+  @media (max-width: 744px) {
+    flex-direction: column;
+  }
+`;
+
+const ResourceCard = styled(Card)`
+  flex: 1;
+  padding: ${props => props.theme.space[3]}px;
+  display: flex;
+  flex-direction: column;
+`;
+
+const CardDivider = styled.hr`
+  width: 100%;
+  height: 1px;
+  border: none;
+  background-color: ${props => props.theme.colors.interactive.tonal.neutral[0]};
+  margin: 0;
+`;
+
+const ProgressBar = styled.div`
+  width: 100%;
+  height: 8px;
+  background-color: ${props => props.theme.colors.levels.sunken};
+  border-radius: 4px;
+  overflow: hidden;
+`;
+
+const ProgressFill = styled.div<{ $percent: number; $isComplete: boolean }>`
+  height: 100%;
+  width: ${props => props.$percent}%;
+  background-color: ${props =>
+    props.$isComplete
+      ? props.theme.colors.success.main
+      : props.theme.colors.info};
+  border-radius: 4px;
+  transition: width 0.3s ease;
+`;
+
+const spin = keyframes`
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+`;
+
+const SpinningSyncIcon = styled(SyncAlt)`
+  animation: ${spin} 1s linear infinite;
+`;
+
+type ScanState =
+  | { state: 'waiting' }
+  | { state: 'scanning'; startedAt: Date }
+  | { state: 'completed'; lastScan: Date; nextScanAt: Date };
+
+function getScanState(stats: IntegrationWithSummary): ScanState {
+  const summaries: ResourceTypeSummary[] = [
+    stats.awsec2,
+    stats.awsrds,
+    stats.awseks,
+    stats.azurevm,
+  ].filter(Boolean);
+
+  let latestCompleted: (ScanState & { state: 'completed' }) | null = null;
+  let latestScanning: (ScanState & { state: 'scanning' }) | null = null;
+
+  for (const summary of summaries) {
+    const state = getResourceScanState(summary);
+    if (state.state === 'completed') {
+      if (!latestCompleted || state.lastScan > latestCompleted.lastScan) {
+        latestCompleted = state;
+      }
+    } else if (state.state === 'scanning') {
+      if (!latestScanning || state.startedAt > latestScanning.startedAt) {
+        latestScanning = state;
+      }
+    }
+  }
+
+  if (latestScanning) {
+    return latestScanning;
+  }
+
+  if (latestCompleted) {
+    return latestCompleted;
+  }
+
+  return { state: 'waiting' };
 }
 
-function KeyValue(props: { label: string; value: string }) {
-  return (
-    <Flex gap={2} flexWrap="wrap" mb={1}>
-      <Text typography="body3">{props.label}</Text>
-      <Text typography="body3">{props.value}</Text>
-    </Flex>
-  );
-}
-
-function IssueItem(props: { text: string }) {
-  return (
-    <Flex gap={2} alignItems="flex-start">
-      <Box mt="2px">
-        <CircleCross size={18} color="error.main" />
-      </Box>
-      <Text typography="body3">{props.text}</Text>
-    </Flex>
-  );
-}
-
-function getIntegrationLastScan(
-  stats: IntegrationWithSummary
-): Date | undefined {
-  const lastScan = Math.max(
-    getTimestamp(stats.awsec2?.discoverLastSync),
-    getTimestamp(stats.awsrds?.discoverLastSync),
-    getTimestamp(stats.awseks?.discoverLastSync),
-    getTimestamp(stats.rolesAnywhereProfileSync?.syncEndTime)
-  );
-
-  return lastScan ? new Date(lastScan) : undefined;
-}
-
-function getIntegrationConfigDetails(
-  stats: IntegrationWithSummary
-): Array<{ label: string; value: string }> {
-  if (stats.subKind === IntegrationKind.AwsOidc) {
-    const details = [
-      { label: 'Role ARN:', value: stats.awsoidc?.roleArn || '-' },
-      { label: 'Issuer S3 bucket:', value: stats.awsoidc?.issuerS3Bucket },
-      { label: 'Issuer S3 prefix:', value: stats.awsoidc?.issuerS3Prefix },
-      { label: 'Audience:', value: stats.awsoidc?.audience },
-    ];
-
-    return details.filter(detail => detail.value);
+function getStatsRefetchIntervalMs(stats: IntegrationWithSummary | undefined) {
+  if (!stats) {
+    return OVERDUE_REFETCH_INTERVAL_MS;
   }
 
-  if (stats.subKind === IntegrationKind.AwsRa) {
-    const profileSync = stats.awsra?.profileSyncConfig;
-    const details = [
-      { label: 'Trust anchor ARN:', value: stats.awsra?.trustAnchorARN || '-' },
-      {
-        label: 'Profile sync enabled:',
-        value: profileSync ? (profileSync.enabled ? 'Yes' : 'No') : '-',
-      },
-      { label: 'Profile ARN:', value: profileSync?.profileArn },
-      { label: 'Role ARN:', value: profileSync?.roleArn },
-      {
-        label: 'Profile name filters:',
-        value: profileSync?.filters?.length
-          ? profileSync.filters.join(', ')
-          : undefined,
-      },
-    ];
+  const scanState = getScanState(stats);
 
-    return details.filter(detail => detail.value);
+  if (scanState.state !== 'completed') {
+    return OVERDUE_REFETCH_INTERVAL_MS;
   }
 
-  return [];
-}
-
-function formatResourceCounts(stats: IntegrationWithSummary): string {
-  const ec2Count = stats.awsec2?.resourcesFound || 0;
-  const rdsCount = stats.awsrds?.resourcesFound || 0;
-  const eksCount = stats.awseks?.resourcesFound || 0;
-  const total = ec2Count + rdsCount + eksCount;
-
-  if (total === 0) {
-    return 'No resources discovered';
-  }
-
-  const parts: string[] = [];
-  if (ec2Count > 0) {
-    parts.push(`EC2: ${ec2Count}`);
-  }
-  if (rdsCount > 0) {
-    parts.push(`RDS: ${rdsCount}`);
-  }
-  if (eksCount > 0) {
-    parts.push(`EKS: ${eksCount}`);
-  }
-
-  return `${total} Discovered (${parts.join(', ')})`;
-}
-
-function getTimestamp(value: unknown): number {
-  if (!value) {
-    return 0;
-  }
-  if (value instanceof Date) {
-    return value.getTime();
-  }
-  if (typeof value === 'number') {
-    return value;
-  }
-  if (typeof value === 'string') {
-    const parsed = Date.parse(value);
-    return Number.isNaN(parsed) ? 0 : parsed;
-  }
-  return 0;
+  const remainingMs = scanState.nextScanAt.getTime() - Date.now();
+  return remainingMs <= 0 ? OVERDUE_REFETCH_INTERVAL_MS : remainingMs;
 }

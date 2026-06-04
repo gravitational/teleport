@@ -20,8 +20,7 @@ resource "azurerm_role_assignment" "dns_identity" {
 resource "azurerm_federated_identity_credential" "dns_identity" {
   name = "${azurerm_user_assigned_identity.dns_identity.name}-${azurerm_kubernetes_cluster.kube_cluster.name}"
 
-  parent_id           = azurerm_user_assigned_identity.dns_identity.id
-  resource_group_name = azurerm_user_assigned_identity.dns_identity.resource_group_name
+  parent_id = azurerm_user_assigned_identity.dns_identity.id
 
   audience = ["api://AzureADTokenExchange"]
 
@@ -31,6 +30,9 @@ resource "azurerm_federated_identity_credential" "dns_identity" {
 
 resource "helm_release" "certmanager" {
   name = local.certmanager_release
+
+  reset_values = true
+  max_history  = 10
 
   chart      = "cert-manager"
   repository = "https://charts.jetstack.io"

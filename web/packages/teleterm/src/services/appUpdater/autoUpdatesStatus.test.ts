@@ -30,19 +30,23 @@ beforeAll(() => {
   Logger.init(new NullService());
 });
 
+const cdnBaseUrl = 'https://cdn.teleport.dev';
+
 test.each<{
   title: string;
   input: {
-    versionEnvVar: string;
+    configToolsVersion: string;
+    cdnBaseUrl: string;
     managingClusterUri: string;
     getClusterVersions: () => Promise<GetClusterVersionsResponse>;
   };
   expected: AutoUpdatesStatus;
 }>([
   {
-    title: 'disabled when env var is "off"',
+    title: 'disabled when tools version is "off"',
     input: {
-      versionEnvVar: 'off',
+      configToolsVersion: 'off',
+      cdnBaseUrl: '',
       managingClusterUri: '',
       getClusterVersions: async () => ({
         reachableClusters: [],
@@ -51,7 +55,7 @@ test.each<{
     },
     expected: {
       enabled: false,
-      reason: 'disabled-by-env-var',
+      reason: 'disabled-by-env-config',
       options: {
         managingClusterUri: '',
         highestCompatibleVersion: '',
@@ -61,9 +65,32 @@ test.each<{
     },
   },
   {
-    title: 'resolving with env var when set to version',
+    title: 'disabled when there is no download base URL defined',
     input: {
-      versionEnvVar: '14.0.0',
+      cdnBaseUrl: '',
+      configToolsVersion: '',
+      managingClusterUri: '',
+      getClusterVersions: async () => ({
+        reachableClusters: [],
+        unreachableClusters: [],
+      }),
+    },
+    expected: {
+      enabled: false,
+      reason: 'no-base-url',
+      options: {
+        managingClusterUri: '',
+        highestCompatibleVersion: '',
+        unreachableClusters: [],
+        clusters: [],
+      },
+    },
+  },
+  {
+    title: 'resolving with tools version when set to version',
+    input: {
+      cdnBaseUrl,
+      configToolsVersion: '14.0.0',
       managingClusterUri: '',
       getClusterVersions: async () => ({
         reachableClusters: [],
@@ -73,7 +100,7 @@ test.each<{
     expected: {
       enabled: true,
       version: '14.0.0',
-      source: 'env-var',
+      source: 'env-config',
       options: {
         managingClusterUri: '',
         highestCompatibleVersion: '',
@@ -85,7 +112,8 @@ test.each<{
   {
     title: 'disabled when no versions with auto-update enabled',
     input: {
-      versionEnvVar: '',
+      cdnBaseUrl,
+      configToolsVersion: '',
       managingClusterUri: undefined,
       getClusterVersions: async () => ({
         reachableClusters: [
@@ -121,7 +149,8 @@ test.each<{
   {
     title: 'resolving with managing cluster if specified',
     input: {
-      versionEnvVar: '',
+      cdnBaseUrl,
+      configToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -159,7 +188,8 @@ test.each<{
     title:
       'resolving using most compatible version when clusters are on the same version',
     input: {
-      versionEnvVar: '',
+      cdnBaseUrl,
+      configToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -210,7 +240,8 @@ test.each<{
     title:
       'resolving using most compatible version when clusters are on the same major version',
     input: {
-      versionEnvVar: '',
+      cdnBaseUrl,
+      configToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -261,7 +292,8 @@ test.each<{
     title:
       'resolving to stable version when both stable and pre-release are available',
     input: {
-      versionEnvVar: '',
+      cdnBaseUrl,
+      configToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -312,7 +344,8 @@ test.each<{
     title:
       'resolving using most compatible version when clusters are on different major version',
     input: {
-      versionEnvVar: '',
+      cdnBaseUrl,
+      configToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -363,7 +396,8 @@ test.each<{
     title:
       'disabled when cluster managing updates no longer has `toolsAutoUpdate` set to true',
     input: {
-      versionEnvVar: '',
+      cdnBaseUrl,
+      configToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -412,7 +446,8 @@ test.each<{
   {
     title: 'disabled when cluster managing updates is unreachable',
     input: {
-      versionEnvVar: '',
+      cdnBaseUrl,
+      configToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -459,7 +494,8 @@ test.each<{
     title:
       'resolving with no compatible version when clusters are on incompatibles versions',
     input: {
-      versionEnvVar: '',
+      cdnBaseUrl,
+      configToolsVersion: '',
       getClusterVersions: async () => ({
         reachableClusters: [
           {
@@ -521,6 +557,36 @@ test.each<{
 ])('$title', async ({ input, expected }) => {
   const result = await resolveAutoUpdatesStatus(input);
   expect(result).toEqual(expected);
+});
+
+// Pre-v17 clusters may return empty toolsVersion.
+test('throws when a reachable cluster does not advertise a tools version', async () => {
+  await expect(
+    resolveAutoUpdatesStatus({
+      cdnBaseUrl,
+      configToolsVersion: '',
+      managingClusterUri: '',
+      getClusterVersions: async () => ({
+        reachableClusters: [
+          {
+            clusterUri: '/clusters/cluster-a',
+            toolsAutoUpdate: true,
+            toolsVersion: '16.0.0',
+            minToolsVersion: '15.0.0-aa',
+          },
+          {
+            clusterUri: '/clusters/old-cluster',
+            toolsAutoUpdate: false,
+            toolsVersion: '',
+            minToolsVersion: '15.0.0-aa',
+          },
+        ],
+        unreachableClusters: [],
+      }),
+    })
+  ).rejects.toThrow(
+    `Cluster old-cluster is not supported by this version of Teleport Connect.`
+  );
 });
 
 test('should not auto download when there is unreachable cluster in highest-compatible resolution', () => {

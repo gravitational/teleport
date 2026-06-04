@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"slices"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"testing/synctest"
@@ -154,7 +155,8 @@ func TestProxyWatcher(t *testing.T) {
 	require.NoError(t, w.WaitInitialization())
 	// Add a proxy server.
 	proxy := newProxyServer(t, "proxy1", "127.0.0.1:2023")
-	require.NoError(t, presence.UpsertProxy(ctx, proxy))
+	_, err = presence.UpsertProxyServer(ctx, proxy)
+	require.NoError(t, err)
 
 	// The first event is always the current list of proxies.
 	select {
@@ -169,7 +171,8 @@ func TestProxyWatcher(t *testing.T) {
 
 	// Add a second proxy.
 	proxy2 := newProxyServer(t, "proxy2", "127.0.0.1:2023")
-	require.NoError(t, presence.UpsertProxy(ctx, proxy2))
+	_, err = presence.UpsertProxyServer(ctx, proxy2)
+	require.NoError(t, err)
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -182,7 +185,7 @@ func TestProxyWatcher(t *testing.T) {
 	}
 
 	// Delete the first proxy.
-	require.NoError(t, presence.DeleteProxy(ctx, proxy.GetName()))
+	require.NoError(t, presence.DeleteProxyServer(ctx, proxy.GetName()))
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -196,7 +199,7 @@ func TestProxyWatcher(t *testing.T) {
 	}
 
 	// Delete the second proxy.
-	require.NoError(t, presence.DeleteProxy(ctx, proxy2.GetName()))
+	require.NoError(t, presence.DeleteProxyServer(ctx, proxy2.GetName()))
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -562,7 +565,7 @@ func resourceDiff(res1, res2 types.Resource) string {
 func TestDatabaseWatcher(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 	clock := clockwork.NewFakeClock()
 
 	bk, err := memory.New(memory.Config{
@@ -754,6 +757,109 @@ func newApp(t *testing.T, name string) *types.AppV3 {
 	})
 	require.NoError(t, err)
 	return app
+}
+
+// TestDatabaseServerWatcher tests that database server resource watcher properly
+// receives and dispatches updates.
+func TestDatabaseServerWatcher(t *testing.T) {
+	synctest.Test(t, syncTestDatabaseServerWatcher)
+}
+
+func syncTestDatabaseServerWatcher(t *testing.T) {
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+
+	type client struct {
+		services.DatabaseServersGetter
+		types.Events
+	}
+
+	presenceService := local.NewPresenceService(bk)
+	w, err := services.NewDatabaseServerWatcher(ctx, services.DatabaseServerWatcherConfig{
+		DatabaseServersGetter: presenceService,
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:      "test",
+			MaxRetryPeriod: 200 * time.Millisecond,
+			Client: &client{
+				DatabaseServersGetter: presenceService,
+				Events:                local.NewEventsService(bk),
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	// Wait for initial load.
+	require.NoError(t, w.WaitInitialization())
+
+	// Initially there are no database servers.
+	servers, err := w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Empty(t, servers)
+
+	// Add a database server and wait for the watcher to process the event.
+	server1 := newDatabaseServer(t, "db1", "host1")
+	_, err = presenceService.UpsertDatabaseServer(ctx, server1)
+	require.NoError(t, err)
+	synctest.Wait()
+
+	servers, err = w.CurrentResourcesWithFilter(ctx, func(ds readonly.DatabaseServer) bool {
+		return ds.GetDatabaseName() == "db1"
+	})
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.Equal(t, server1.GetName(), servers[0].GetName())
+
+	// Add a second database server and wait for the watcher to process the event.
+	server2 := newDatabaseServer(t, "db2", "host2")
+	_, err = presenceService.UpsertDatabaseServer(ctx, server2)
+	require.NoError(t, err)
+	synctest.Wait()
+
+	servers, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, servers, 2)
+
+	servers, err = w.CurrentResourcesWithFilter(ctx, func(ds readonly.DatabaseServer) bool {
+		return ds.GetDatabaseName() == "db2"
+	})
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.Equal(t, server2.GetName(), servers[0].GetName())
+
+	// Delete the first database server and wait for the watcher to process the event.
+	err = presenceService.DeleteDatabaseServer(ctx, apidefaults.Namespace, server1.GetHostID(), server1.GetName())
+	require.NoError(t, err)
+	synctest.Wait()
+
+	// Verify the remaining server is server2.
+	servers, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, servers, 1)
+	require.Equal(t, server2.GetName(), servers[0].GetName())
+}
+
+func newDatabaseServer(t *testing.T, dbName, hostID string) types.DatabaseServer {
+	t.Helper()
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: dbName,
+	}, types.DatabaseServerSpecV3{
+		Database: &types.DatabaseV3{
+			Metadata: types.Metadata{
+				Name: dbName,
+			},
+			Spec: types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+			},
+		},
+		HostID:   hostID,
+		Hostname: dbName,
+	})
+	require.NoError(t, err)
+	return server
 }
 
 func TestCertAuthorityWatcher(t *testing.T) {
@@ -1327,6 +1433,58 @@ func TestAccessRequestWatcher(t *testing.T) {
 	}
 }
 
+// TestAccessRequestWatcherRace ensures there are no races when editing AccessRequest resources
+// collected from the watcher.
+func TestAccessRequestWatcherRace(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	dynamicAccessService := local.NewDynamicAccessService(bk)
+
+	for range 10 {
+		accessRequest := newAccessRequest(t, uuid.NewString())
+		_, err = dynamicAccessService.CreateAccessRequestV2(ctx, accessRequest)
+		require.NoError(t, err)
+	}
+
+	type client struct {
+		services.DynamicAccessCore
+		types.Events
+	}
+
+	w, err := services.NewAccessRequestWatcher(ctx, services.AccessRequestWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				DynamicAccessCore: dynamicAccessService,
+				Events:            local.NewEventsService(bk),
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	select {
+	case changeset := <-w.AccessRequestsC:
+		for _, ar := range changeset {
+			ar.SetMaxDuration(ar.GetMaxDuration().Add(1))
+			_ = dynamicAccessService.UpsertAccessRequest(ctx, ar)
+		}
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(30 * time.Second):
+		t.Fatal("Timeout processing the event.")
+	}
+}
+
 func newAccessRequest(t *testing.T, name string) types.AccessRequest {
 	accessRequest, err := types.NewAccessRequest(name, "test-user", "role1")
 	accessRequest.SetState(types.RequestState_PENDING)
@@ -1473,6 +1631,59 @@ func TestOktaAssignmentWatcher(t *testing.T) {
 		t.Fatal("Watcher has unexpectedly exited.")
 	case <-time.After(2 * time.Second):
 		t.Fatal("Timeout waiting for the delete event.")
+	}
+}
+
+// TestOktaAssignmentWatcherRace ensures there are no races when editing OktaAssignment resources
+// collected from the watcher.
+func TestOktaAssignmentWatcherRace(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	bk, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	oktaService, err := local.NewOktaService(bk, clock)
+	require.NoError(t, err)
+
+	for range 10 {
+		a1 := newOktaAssignment(t, uuid.NewString())
+		_, err = oktaService.CreateOktaAssignment(ctx, a1)
+		require.NoError(t, err)
+	}
+
+	type client struct {
+		services.OktaAssignments
+		types.Events
+	}
+
+	w, err := services.NewOktaAssignmentWatcher(ctx, services.OktaAssignmentWatcherConfig{
+		RWCfg: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				OktaAssignments: oktaService,
+				Events:          local.NewEventsService(bk),
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	select {
+	case changeset := <-w.CollectorChan():
+		for _, a := range changeset {
+			a.SetLastTransition(a.GetLastTransition().Add(1))
+			_, _ = oktaService.UpdateOktaAssignment(ctx, a)
+		}
+	case <-w.Done():
+		t.Fatal("Watcher has unexpectedly exited.")
+	case <-time.After(30 * time.Second):
+		t.Fatal("Timeout processing the event.")
 	}
 }
 
@@ -1642,4 +1853,123 @@ func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.Health
 	)
 	require.NoError(t, err)
 	return c
+}
+
+func TestAppServerWatcher(t *testing.T) {
+	synctest.Test(t, syncTestAppServerWatcher)
+}
+
+func syncTestAppServerWatcher(t *testing.T) {
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{Context: ctx})
+	require.NoError(t, err)
+	defer bk.Close()
+	type client struct {
+		services.Presence
+		types.Events
+	}
+
+	presence := local.NewPresenceService(bk)
+	w, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client: &client{
+				Presence: presence,
+				Events:   local.NewEventsService(bk),
+			},
+		},
+	})
+
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+
+	require.NoError(t, w.WaitInitialization())
+
+	newAppServer := func(t *testing.T, name, hostId, appName string) *types.AppServerV3 {
+		s, err := types.NewAppServerV3(types.Metadata{
+			Name:      name,
+			Namespace: apidefaults.Namespace,
+		}, types.AppServerSpecV3{
+			HostID: hostId,
+
+			App: newApp(t, appName),
+		})
+		require.NoError(t, err)
+		return s
+	}
+
+	diffAppServers := func(a, b []types.AppServer) string {
+		return cmp.Diff(a, b,
+			cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+			cmpopts.EquateEmpty(),
+			cmpopts.SortSlices(func(a, b types.AppServer) bool {
+				if c := strings.Compare(a.GetHostID(), b.GetHostID()); c != 0 {
+					return c < 0
+				}
+				return a.GetName() < b.GetName()
+			}),
+		)
+	}
+
+	appServers := make([]types.AppServer, 0, 10)
+	for i := range 10 {
+		appServer := newAppServer(t,
+			fmt.Sprintf("app-%d", i%5),
+			fmt.Sprintf("host-%d", i), // Multiple hosts per app
+			fmt.Sprintf("app-%d", i%5))
+		_, err = presence.UpsertApplicationServer(ctx, appServer)
+		require.NoError(t, err)
+		appServers = append(appServers, appServer)
+	}
+
+	// Check all registered app servers are returned by the watcher.
+	synctest.Wait()
+	current, err := w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// Delete the first app server, ensure watcher correctly removes the entry
+	err = presence.DeleteApplicationServer(ctx, "default", appServers[0].GetHostID(), appServers[0].GetName())
+	require.NoError(t, err)
+
+	synctest.Wait()
+
+	appServers = appServers[1:]
+	current, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// Overwrite existing
+	_, err = presence.UpsertApplicationServer(ctx, newAppServer(t, "app-1", "host-1", "app-1"))
+	require.NoError(t, err)
+
+	synctest.Wait()
+
+	current, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// New server with the same app name but different host is added to the list
+	appServer := newAppServer(t, "app-1", "host-20", "app-1")
+	_, err = presence.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+	appServers = append(appServers, appServer)
+
+	synctest.Wait()
+
+	current, err = w.CurrentResources(ctx)
+	require.NoError(t, err)
+	require.Len(t, current, len(appServers))
+	require.Empty(t, diffAppServers(appServers, current))
+
+	// Ensure filtering works
+	filtered, err := w.CurrentResourcesWithFilter(context.Background(), func(s readonly.AppServer) bool {
+		return s.GetName() == appServers[0].GetName()
+	})
+	require.NoError(t, err)
+	require.Len(t, filtered, 3)
 }

@@ -114,6 +114,15 @@ func (p *expectedLeafClusters) GitServerWatcher() (*services.GenericWatcher[type
 	return cluster.GitServerWatcher()
 }
 
+// DatabaseServerWatcher returns a watcher for database servers in the leaf cluster.
+func (p *expectedLeafClusters) DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
+	cluster, err := p.pickCluster()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cluster.DatabaseServerWatcher()
+}
+
 func (p *expectedLeafClusters) GetClient() (authclient.ClientI, error) {
 	cluster, err := p.pickCluster()
 	if err != nil {
@@ -225,6 +234,10 @@ func (s *expectedLeafCluster) AppServerWatcher() (*services.GenericWatcher[types
 
 func (s *expectedLeafCluster) GitServerWatcher() (*services.GenericWatcher[types.Server, readonly.Server], error) {
 	return nil, s.discoveryError("unable to fetch git server watcher for leaf cluster")
+}
+
+func (s *expectedLeafCluster) DatabaseServerWatcher() (*services.GenericWatcher[types.DatabaseServer, readonly.DatabaseServer], error) {
+	return nil, s.discoveryError("unable to fetch database server watcher for leaf cluster")
 }
 
 func (s *expectedLeafCluster) GetClient() (authclient.ClientI, error) {

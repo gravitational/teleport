@@ -25,6 +25,8 @@ import init, {
   FastPathProcessor,
   init_wasm_log,
 } from 'shared/libs/ironrdp/pkg/ironrdp';
+// Inlines the wasm module as a static asset bundled with our app.
+import wasmUrl from 'shared/libs/ironrdp/pkg/ironrdp_bg.wasm?inline';
 import { ensureError, isAbortError } from 'shared/utils/error';
 
 import {
@@ -163,6 +165,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   private keyboardLayout: number | undefined;
   private screenSpec: ClientScreenSpec | undefined;
   private codec: Codec | undefined;
+  hidpiSupported = false;
 
   private logger = new Logger('TDPClient');
 
@@ -339,13 +342,26 @@ export class TdpClient extends EventEmitter<EventMap> {
   };
 
   private async initWasm() {
+    if (typeof WebAssembly === 'undefined') {
+      throw new Error(
+        'WebAssembly is not supported in this browser. Desktop sessions and desktop session recordings require WebAssembly.'
+      );
+    }
+
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
     if (import.meta.env.MODE === 'development') {
       wasmLogLevel = LogType.TRACE;
     }
 
-    await init();
+    // Convert the inlined (base64) WASM to a raw buffer. The init function will
+    // load this directly which plays nicely with our current Content Security Policy.
+    const wasmBytes = Uint8Array.from(
+      atob(wasmUrl.slice(wasmUrl.indexOf(',') + 1)),
+      c => c.charCodeAt(0)
+    );
+
+    await init({ module_or_path: wasmBytes });
     init_wasm_log(wasmLogLevel);
   }
 
@@ -368,8 +384,17 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   // processMessage should be await-ed when called,
   // so that its internal await-or-not logic is obeyed.
-  async processMessage(buffer: ArrayBufferLike): Promise<void> {
-    const result = this.codec.decodeMessage(buffer);
+  async processMessage(
+    buffer: ArrayBufferLike,
+    codecOverride?: Codec
+  ): Promise<void> {
+    let codec = this.codec;
+    if (codecOverride) {
+      // Allow the caller to override the codec.
+      codec = codecOverride;
+    }
+
+    const result = codec.decodeMessage(buffer);
     if (!result) {
       // Codec implementations *should* return an 'unknown' result kind
       // instead of undefined, but double check anyway for safety.
@@ -485,9 +510,7 @@ export class TdpClient extends EventEmitter<EventMap> {
   }
 
   handleServerHello(hello: ServerHello) {
-    // In the future, we may add new server capability advertisements
-    // that will affect client configuration.
-    // For now we'll just activate the the connection.
+    this.hidpiSupported = hello.hidpiSupported;
     this.handleRdpConnectionActivated(hello.activationEvent);
   }
 
@@ -529,7 +552,12 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   handleRdpConnectionActivated(activated: RdpConnectionActivated) {
     const { ioChannelId, userChannelId, screenWidth, screenHeight } = activated;
-    const spec = { width: screenWidth, height: screenHeight };
+    // Scale is not relevant for the server's response; use 100 (1x) as default.
+    const spec: ClientScreenSpec = {
+      width: screenWidth,
+      height: screenHeight,
+      scale: 100,
+    };
     this.logger.info(
       `screen spec received from server ${spec.width} x ${spec.height}`
     );
@@ -537,6 +565,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     this.initFastPathProcessor(ioChannelId, userChannelId, {
       width: screenWidth,
       height: screenHeight,
+      scale: 100,
     });
 
     // Emit the spec to any listeners. Listeners can then resize
@@ -736,9 +765,21 @@ export class TdpClient extends EventEmitter<EventMap> {
   async handleSharedDirectoryTruncateRequest(
     req: SharedDirectoryTruncateRequest
   ) {
+    if (req.endOfFile > BigInt(Number.MAX_SAFE_INTEGER)) {
+      this.handleWarning(
+        'File truncate operation exceeds maximum allowed size.',
+        TdpClientEvent.TDP_WARNING
+      );
+      this.sendSharedDirectoryTruncateResponse({
+        completionId: req.completionId,
+        errCode: SharedDirectoryErrCode.Failed,
+      });
+      return;
+    }
+
     const sharedDirectory = this.getSharedDirectoryOrThrow();
 
-    await sharedDirectory.truncate(req.path, req.endOfFile);
+    await sharedDirectory.truncate(req.path, Number(req.endOfFile));
     this.sendSharedDirectoryTruncateResponse({
       completionId: req.completionId,
       errCode: SharedDirectoryErrCode.Nil,

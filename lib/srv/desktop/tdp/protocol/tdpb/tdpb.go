@@ -33,6 +33,9 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 )
 
+// ProtocolName is the identifier for the TDPB protocol.
+const ProtocolName = "teleport-tdpb-1.0"
+
 // ErrUnknownMessage is returned when an unknown message is decoded.
 var ErrUnknownMessage = errors.New("decoded unknown TDPB message")
 
@@ -66,6 +69,8 @@ func (c *ClientHello) Encode() ([]byte, error) {
 	})
 }
 
+func (*ClientHello) validate() error { return nil }
+
 // ServerHello is the first message sent by the server *after* receiving
 // the ClientHello. It selects and advertises server capabilities and
 // connection properties.
@@ -79,6 +84,8 @@ func (s *ServerHello) Encode() ([]byte, error) {
 		},
 	})
 }
+
+func (*ServerHello) validate() error { return nil }
 
 // PNGFrame carries screen data in PNG format. It is required
 // for interop with older session recordings that came before
@@ -94,6 +101,8 @@ func (p *PNGFrame) Encode() ([]byte, error) {
 	})
 }
 
+func (*PNGFrame) validate() error { return nil }
+
 // FastPathPDU is a raw RDP Fast-Path Protocol Data Unit (PDU).
 type FastPathPDU tdpbv1.FastPathPDU
 
@@ -106,6 +115,8 @@ func (f *FastPathPDU) Encode() ([]byte, error) {
 	})
 }
 
+func (*FastPathPDU) validate() error { return nil }
+
 // RDPResponsePDU is a raw RDP response PDU.
 type RDPResponsePDU tdpbv1.RDPResponsePDU
 
@@ -117,6 +128,8 @@ func (f *RDPResponsePDU) Encode() ([]byte, error) {
 		},
 	})
 }
+
+func (*RDPResponsePDU) validate() error { return nil }
 
 // SyncKeys message is sent from the client to the server to
 // synchronize the state of keyboard's modifier keys.
@@ -131,6 +144,8 @@ func (s *SyncKeys) Encode() ([]byte, error) {
 	})
 }
 
+func (*SyncKeys) validate() error { return nil }
+
 // MouseMove contains mouse coordinates.
 type MouseMove tdpbv1.MouseMove
 
@@ -142,6 +157,8 @@ func (m *MouseMove) Encode() ([]byte, error) {
 		},
 	})
 }
+
+func (*MouseMove) validate() error { return nil }
 
 // MouseButton contains mouse button state.
 type MouseButton tdpbv1.MouseButton
@@ -155,6 +172,8 @@ func (m *MouseButton) Encode() ([]byte, error) {
 	})
 }
 
+func (*MouseButton) validate() error { return nil }
+
 // KeyboardButton encodes a keyboard button update.
 type KeyboardButton tdpbv1.KeyboardButton
 
@@ -166,6 +185,8 @@ func (k *KeyboardButton) Encode() ([]byte, error) {
 		},
 	})
 }
+
+func (*KeyboardButton) validate() error { return nil }
 
 // ClientScreenSpec contains the dimensions of the client view.
 // It is included in the ClientHello at the start of the session, and
@@ -181,6 +202,8 @@ func (c *ClientScreenSpec) Encode() ([]byte, error) {
 	})
 }
 
+func (*ClientScreenSpec) validate() error { return nil }
+
 // Alert encodes an error/warning/informational message and severity code.
 // Sent by the server to the client for display.
 type Alert tdpbv1.Alert
@@ -194,6 +217,8 @@ func (a *Alert) Encode() ([]byte, error) {
 	})
 }
 
+func (*Alert) validate() error { return nil }
+
 // MouseWheel contains a mousewheel update.
 type MouseWheel tdpbv1.MouseWheel
 
@@ -206,6 +231,8 @@ func (m *MouseWheel) Encode() ([]byte, error) {
 	})
 }
 
+func (*MouseWheel) validate() error { return nil }
+
 // ClipboardData carries clipboard data to support copy/paste
 // operations between the client and target desktop.
 type ClipboardData tdpbv1.ClipboardData
@@ -217,6 +244,13 @@ func (c *ClipboardData) Encode() ([]byte, error) {
 			ClipboardData: (*tdpbv1.ClipboardData)(c),
 		},
 	})
+}
+
+func (c *ClipboardData) validate() error {
+	if len(c.Data) > tdp.MaxClipboardDataLength {
+		return tdp.ClipDataMaxLenErr
+	}
+	return nil
 }
 
 // MFA encodes the MFA challenge and response when per-session
@@ -232,6 +266,8 @@ func (m *MFA) Encode() ([]byte, error) {
 	})
 }
 
+func (*MFA) validate() error { return nil }
+
 // SharedDirectoryAnnounce is sent by the client to begin sharing a directory.
 type SharedDirectoryAnnounce tdpbv1.SharedDirectoryAnnounce
 
@@ -243,6 +279,22 @@ func (s *SharedDirectoryAnnounce) Encode() ([]byte, error) {
 		},
 	})
 }
+
+func (*SharedDirectoryAnnounce) validate() error { return nil }
+
+// SharedDirectoryRemove is sent by the client to stop sharing a directory.
+type SharedDirectoryRemove tdpbv1.SharedDirectoryRemove
+
+// Encode encodes a SharedDirectoryAnnounce message.
+func (s *SharedDirectoryRemove) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_SharedDirectoryRemove{
+			SharedDirectoryRemove: (*tdpbv1.SharedDirectoryRemove)(s),
+		},
+	})
+}
+
+func (*SharedDirectoryRemove) validate() error { return nil }
 
 // SharedDirectoryAcknowledge is sent by the server to acknowledge a
 // new shared directory.
@@ -257,6 +309,8 @@ func (s *SharedDirectoryAcknowledge) Encode() ([]byte, error) {
 	})
 }
 
+func (*SharedDirectoryAcknowledge) validate() error { return nil }
+
 // SharedDirectoryRequest encodes various directory operation requests
 // such as Info, Create, Delete, List, Read, Write, Move, or Truncate.
 type SharedDirectoryRequest tdpbv1.SharedDirectoryRequest
@@ -270,6 +324,51 @@ func (s *SharedDirectoryRequest) Encode() ([]byte, error) {
 	})
 }
 
+func (s *SharedDirectoryRequest) validate() error {
+	switch op := s.Operation.(type) {
+	case *tdpbv1.SharedDirectoryRequest_Create_:
+		if len(op.Create.GetPath()) > tdp.MaxPathLength {
+			return tdp.StringMaxLenErr
+		}
+	case *tdpbv1.SharedDirectoryRequest_Delete_:
+		if len(op.Delete.GetPath()) > tdp.MaxPathLength {
+			return tdp.StringMaxLenErr
+		}
+	case *tdpbv1.SharedDirectoryRequest_Truncate_:
+		if len(op.Truncate.GetPath()) > tdp.MaxPathLength {
+			return tdp.StringMaxLenErr
+		}
+	case *tdpbv1.SharedDirectoryRequest_Read_:
+		if len(op.Read.GetPath()) > tdp.MaxPathLength {
+			return tdp.StringMaxLenErr
+		}
+		if op.Read.GetLength() > tdp.MaxFileReadWriteLength {
+			return tdp.FileReadWriteMaxLenErr
+		}
+	case *tdpbv1.SharedDirectoryRequest_Write_:
+		if len(op.Write.GetPath()) > tdp.MaxPathLength {
+			return tdp.StringMaxLenErr
+		}
+		if len(op.Write.GetData()) > tdp.MaxFileReadWriteLength {
+			return tdp.FileReadWriteMaxLenErr
+		}
+	case *tdpbv1.SharedDirectoryRequest_Info_:
+		if len(op.Info.GetPath()) > tdp.MaxPathLength {
+			return tdp.StringMaxLenErr
+		}
+	case *tdpbv1.SharedDirectoryRequest_List_:
+		if len(op.List.GetPath()) > tdp.MaxPathLength {
+			return tdp.StringMaxLenErr
+		}
+	case *tdpbv1.SharedDirectoryRequest_Move_:
+		if len(op.Move.GetNewPath()) > tdp.MaxPathLength ||
+			len(op.Move.GetOriginalPath()) > tdp.MaxPathLength {
+			return tdp.StringMaxLenErr
+		}
+	}
+	return nil
+}
+
 // SharedDirectoryResponse encodes a response to a previous SharedDirectoryRequest.
 type SharedDirectoryResponse tdpbv1.SharedDirectoryResponse
 
@@ -280,6 +379,34 @@ func (s *SharedDirectoryResponse) Encode() ([]byte, error) {
 			SharedDirectoryResponse: (*tdpbv1.SharedDirectoryResponse)(s),
 		},
 	})
+}
+
+func (s *SharedDirectoryResponse) validate() error {
+	switch op := s.Operation.(type) {
+	case *tdpbv1.SharedDirectoryResponse_Create_:
+		if len(op.Create.GetFso().GetPath()) > tdp.MaxPathLength {
+			return tdp.StringMaxLenErr
+		}
+	case *tdpbv1.SharedDirectoryResponse_Read_:
+		if len(op.Read.GetData()) > tdp.MaxFileReadWriteLength {
+			return tdp.FileReadWriteMaxLenErr
+		}
+	case *tdpbv1.SharedDirectoryResponse_Write_:
+		if op.Write.GetBytesWritten() > tdp.MaxFileReadWriteLength {
+			return tdp.FileReadWriteMaxLenErr
+		}
+	case *tdpbv1.SharedDirectoryResponse_Info_:
+		if len(op.Info.GetFso().GetPath()) > tdp.MaxPathLength {
+			return tdp.StringMaxLenErr
+		}
+	case *tdpbv1.SharedDirectoryResponse_List_:
+		for _, fso := range op.List.GetFsoList() {
+			if len(fso.GetPath()) > tdp.MaxPathLength {
+				return tdp.StringMaxLenErr
+			}
+		}
+	}
+	return nil
 }
 
 // LatencyStats are sent to the client to display connection
@@ -296,6 +423,8 @@ func (l *LatencyStats) Encode() ([]byte, error) {
 	})
 }
 
+func (*LatencyStats) validate() error { return nil }
+
 // Ping is used to measure latency between the Proxy and
 // target desktop.
 type Ping tdpbv1.Ping
@@ -308,6 +437,8 @@ func (p *Ping) Encode() ([]byte, error) {
 		},
 	})
 }
+
+func (*Ping) validate() error { return nil }
 
 func marshalWithHeader(msg proto.Message) ([]byte, error) {
 	data, err := proto.Marshal(msg)
@@ -325,6 +456,13 @@ func marshalWithHeader(msg proto.Message) ([]byte, error) {
 	copy(header[tdpbHeaderLength:], data)
 
 	return header, nil
+}
+
+func WarningConstructor(msg string) tdp.Message {
+	return &Alert{
+		Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING,
+		Message:  msg,
+	}
 }
 
 // DecodePermissive quietly tolerates unknown message types to allow interop
@@ -389,7 +527,7 @@ func DecodeStrict(rdr io.Reader) (tdp.Message, error) {
 	}
 
 	if msg := messageFromEnvelope(env); msg != nil {
-		return msg, nil
+		return msg, msg.validate()
 	}
 
 	// Allow the caller to distinguish unmarshal errors (likely considered fatal)
@@ -398,7 +536,14 @@ func DecodeStrict(rdr io.Reader) (tdp.Message, error) {
 	return nil, trace.Wrap(ErrUnknownMessage)
 }
 
-func messageFromEnvelope(e *tdpbv1.Envelope) tdp.Message {
+type validatableMessage interface {
+	tdp.Message
+	validate() error
+}
+
+// All top-level messages inside the envelope must implement
+// a 'validate' method.
+func messageFromEnvelope(e *tdpbv1.Envelope) validatableMessage {
 	switch m := e.Payload.(type) {
 	case *tdpbv1.Envelope_ClientHello:
 		return (*ClientHello)(m.ClientHello)
@@ -440,6 +585,8 @@ func messageFromEnvelope(e *tdpbv1.Envelope) tdp.Message {
 		return (*LatencyStats)(m.LatencyStats)
 	case *tdpbv1.Envelope_Ping:
 		return (*Ping)(m.Ping)
+	case *tdpbv1.Envelope_SharedDirectoryRemove:
+		return (*SharedDirectoryRemove)(m.SharedDirectoryRemove)
 	default:
 		return nil
 	}

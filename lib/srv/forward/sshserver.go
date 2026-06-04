@@ -43,21 +43,26 @@ import (
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/moderation"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/x11"
+	"github.com/gravitational/teleport/lib/sshutils/x11forward"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/session/networking/x11"
+	"github.com/gravitational/teleport/session/pam/pamcfg"
+	"github.com/gravitational/teleport/session/reexec"
 )
 
 // Server is a forwarding server. Server is used to create a single in-memory
@@ -115,6 +120,10 @@ type Server struct {
 	// agentlessSigner is used for client authentication when no SSH
 	// user agent is provided, ie when connecting to agentless nodes.
 	agentlessSigner ssh.Signer
+
+	// agentlessSignerCreator is called lazily after the SSH handshake to
+	// create the agentlessSigner.
+	agentlessSignerCreator agentless.SignerCreator
 
 	// hostCertificate is the SSH host certificate this in-memory server presents
 	// to the client.
@@ -198,9 +207,9 @@ type ServerConfig struct {
 	DstAddr                  net.Addr
 	HostCertificate          ssh.Signer
 
-	// AgentlessSigner is used for client authentication when no SSH
-	// user agent is provided, ie when connecting to agentless nodes.
-	AgentlessSigner ssh.Signer
+	// AgentlessSignerCreator is called lazily after the SSH handshake to
+	// create an ssh.Signer for authenticating to agentless nodes.
+	AgentlessSignerCreator agentless.SignerCreator
 
 	// UseTunnel indicates of this server is connected over a reverse tunnel.
 	UseTunnel bool
@@ -276,8 +285,8 @@ func (s *ServerConfig) CheckDefaults() error {
 			return trace.BadParameter("user agent required for teleport nodes (agentless)")
 		}
 	case types.SubKindOpenSSHNode:
-		if s.AgentlessSigner == nil {
-			return trace.BadParameter("agentless signer is required for OpenSSH Nodes")
+		if s.AgentlessSignerCreator == nil {
+			return trace.BadParameter("agentless signer creator is required for OpenSSH Nodes")
 		}
 	case types.SubKindOpenSSHEICENode:
 		// agentless signer is set once the forwarding server is started.
@@ -338,25 +347,25 @@ func New(c ServerConfig) (*Server, error) {
 			"src_addr", c.SrcAddr.String(),
 			"dst_addr", c.DstAddr.String(),
 		),
-		targetConn:      c.TargetConn,
-		serverConn:      utils.NewTrackingConn(serverConn),
-		clientConn:      clientConn,
-		userAgent:       c.UserAgent,
-		agentlessSigner: c.AgentlessSigner,
-		hostCertificate: c.HostCertificate,
-		useTunnel:       c.UseTunnel,
-		address:         c.Address,
-		authClient:      c.LocalAuthClient,
-		authService:     c.LocalAuthClient,
-		dataDir:         c.DataDir,
-		clock:           c.Clock,
-		proxyUUID:       c.ProxyUUID,
-		StreamEmitter:   c.Emitter,
-		parentContext:   c.ParentContext,
-		lockWatcher:     c.LockWatcher,
-		tracerProvider:  c.TracerProvider,
-		targetServer:    c.TargetServer,
-		eiceSigner:      c.EICESigner,
+		targetConn:             c.TargetConn,
+		serverConn:             utils.NewTrackingConn(serverConn),
+		clientConn:             clientConn,
+		userAgent:              c.UserAgent,
+		agentlessSignerCreator: c.AgentlessSignerCreator,
+		hostCertificate:        c.HostCertificate,
+		useTunnel:              c.UseTunnel,
+		address:                c.Address,
+		authClient:             c.LocalAuthClient,
+		authService:            c.LocalAuthClient,
+		dataDir:                c.DataDir,
+		clock:                  c.Clock,
+		proxyUUID:              c.ProxyUUID,
+		StreamEmitter:          c.Emitter,
+		parentContext:          c.ParentContext,
+		lockWatcher:            c.LockWatcher,
+		tracerProvider:         c.TracerProvider,
+		targetServer:           c.TargetServer,
+		eiceSigner:             c.EICESigner,
 	}
 
 	// Set the ciphers, KEX, and MACs that the in-memory server will send to the
@@ -382,7 +391,7 @@ func New(c ServerConfig) (*Server, error) {
 		TargetServer:                  c.TargetServer,
 		FIPS:                          c.FIPS,
 		Clock:                         c.Clock,
-		ValidatedMFAChallengeVerifier: s.authClient.MFAServiceClient(),
+		ValidatedMFAChallengeVerifier: s.authClient.MFAServiceClientV2(),
 	}
 
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
@@ -468,8 +477,8 @@ func (s *Server) GetAccessPoint() srv.AccessPoint {
 
 // GetPAM returns the PAM configuration for a server. Because the forwarding
 // server runs in-memory, it does not support PAM.
-func (s *Server) GetPAM() *servicecfg.PAMConfig {
-	return &servicecfg.PAMConfig{Enabled: false}
+func (s *Server) GetPAM() *pamcfg.PAMConfig {
+	return &pamcfg.PAMConfig{Enabled: false}
 }
 
 // UseTunnel used to determine if this node has connected to this cluster
@@ -566,11 +575,15 @@ func (s *Server) GetLockWatcher() *services.LockWatcher {
 // does not spawn child processes.
 func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 	return srv.ChildLogConfig{
-		ExecLogConfig: srv.ExecLogConfig{
-			Level: &slog.LevelVar{},
-		},
-		Writer: io.Discard,
+		ExecLogConfig: reexec.ExecLogConfig{},
+		Writer:        io.Discard,
 	}
+}
+
+// GetPresenceMaxDuration returns the max duration that a moderated session
+// can continue between presence verifications.
+func (s *Server) GetPresenceMaxDuration() time.Duration {
+	return client.DefaultPresenceMaxDuration
 }
 
 func (s *Server) Serve() {
@@ -579,8 +592,9 @@ func (s *Server) Serve() {
 		config    = &ssh.ServerConfig{}
 	)
 
-	// Configure callback for user certificate authentication.
-	config.PublicKeyCallback = s.authHandlers.UserKeyAuth
+	// Configure callbacks for user certificate authentication.
+	config.PublicKeyCallback = s.authHandlers.PublicKeyCallback
+	config.VerifiedPublicKeyCallback = s.authHandlers.VerifiedPublicKeyCallback
 
 	// Set host certificate the in-memory server will present to clients.
 	config.AddHostKey(s.hostCertificate)
@@ -654,6 +668,28 @@ func (s *Server) Serve() {
 			return
 		}
 
+		if s.agentlessSignerCreator != nil {
+			if s.identityContext.AccessPermit == nil {
+				s.rejectChannel(chans, "cannot allocate openssh certificate without valid permit (this is a bug)")
+				s.logger.ErrorContext(s.Context(), "cannot allocate openssh certificate without valid permit (this is a bug)")
+				sconn.Close()
+				return
+			}
+
+			// All required authorization for the user already happens in [ssh.NewServerConn] above, including
+			// scoped access and verifying principals allowed on the node. Creating a signer will
+			// create openSSH certs with all allowed logins across the user's roles for unscoped,
+			// or just the requested host login for a scoped user.
+			sshSigner, err := s.agentlessSignerCreator(ctx, s.GetAccessPoint(), sconn.User())
+			if err != nil {
+				s.rejectChannel(chans, err.Error())
+				sconn.Close()
+				s.logger.ErrorContext(s.Context(), "Unable to create agentless signer for OpenSSH node", "error", err)
+				return
+			}
+			s.agentlessSigner = sshSigner
+		}
+
 		if s.targetServer.GetSubKind() == types.SubKindOpenSSHEICENode {
 			awsInfo := s.targetServer.GetAWSInfo()
 			if awsInfo == nil {
@@ -698,7 +734,7 @@ func (s *Server) Serve() {
 
 	// Once the client and server connections are established, ensure we forward
 	// x11 channel requests from the server to the client.
-	if err := x11.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest); err != nil {
+	if err := x11forward.ServeChannelRequests(ctx, s.remoteClient.Client, s.handleX11ChannelRequest); err != nil {
 		s.logger.ErrorContext(s.Context(), "Unable to forward x11 channel requests", "error", err)
 		return
 	}
@@ -773,12 +809,11 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 			return nil, trace.Wrap(err)
 		}
 	}
-	authMethod := ssh.PublicKeysCallback(signersWithSHA1Fallback(signers))
 
-	clientConfig := &ssh.ClientConfig{
+	clientConfig := apissh.ClientConfig{
 		User: systemLogin,
-		Auth: []ssh.AuthMethod{
-			authMethod,
+		PublicKeyAuth: apissh.PublicKeyAuthConfig{
+			Signers: signersWithSHA1Fallback(signers),
 		},
 		HostKeyCallback: s.authHandlers.HostKeyAuth,
 		Timeout:         netConfig.GetSSHDialTimeout(),
@@ -786,15 +821,15 @@ func (s *Server) newRemoteClient(ctx context.Context, systemLogin string, netCon
 
 	// Ciphers, KEX, and MACs preferences are honored by both the in-memory
 	// server as well as the client in the connection to the target node.
-	clientConfig.Ciphers = s.ciphers
-	clientConfig.KeyExchanges = s.kexAlgorithms
-	clientConfig.MACs = s.macAlgorithms
+	clientConfig.SSHConfig.Ciphers = s.ciphers
+	clientConfig.SSHConfig.KeyExchanges = s.kexAlgorithms
+	clientConfig.SSHConfig.MACs = s.macAlgorithms
 
 	// Destination address is used to validate a connection was established to
 	// the correct host. It must occur in the list of principals presented by
 	// the remote server.
 	dstAddr := net.JoinHostPort(s.address, "0")
-	client, err := tracessh.NewClientWithTimeout(ctx, s.targetConn, dstAddr, clientConfig)
+	client, err := apissh.NewClient(ctx, s.targetConn, dstAddr, clientConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

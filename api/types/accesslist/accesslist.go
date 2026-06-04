@@ -309,6 +309,10 @@ type Grants struct {
 
 	// Traits are the traits that are granted to users who are members of the access list.
 	Traits trait.Traits `json:"traits" yaml:"traits"`
+
+	// ScopedRoles are the scoped roels that are granted to users who are
+	// members of the access list.
+	ScopedRoles []ScopedRoleGrant `json:"scoped_roles" yaml:"scoped_roles"`
 }
 
 // Clone returns a copy of the Grants.
@@ -317,9 +321,19 @@ func (grants *Grants) Clone() Grants {
 		return Grants{}
 	}
 	return Grants{
-		Roles:  slices.Clone(grants.Roles),
-		Traits: grants.Traits.Clone(),
+		Roles:       slices.Clone(grants.Roles),
+		Traits:      grants.Traits.Clone(),
+		ScopedRoles: slices.Clone(grants.ScopedRoles),
 	}
+}
+
+// ScopedRoleGrant describes a scoped role granted at a specific scope.
+type ScopedRoleGrant struct {
+	// Role is the name of the scoped role to be granted.
+	Role string `json:"role" yaml:"role"`
+	// Scope is the scope the role will be assigned at. It must be an assignable
+	// scope of the role.
+	Scope string `json:"scope" yaml:"scope"`
 }
 
 // Status contains dynamic fields calculated during retrieval.
@@ -460,6 +474,16 @@ func (a *AccessList) GetOwners() []Owner {
 // SetOwners sets the owners of the access list.
 func (a *AccessList) SetOwners(owners []Owner) {
 	a.Spec.Owners = owners
+}
+
+// SetOwnerGrants sets the owner grants of the access list.
+func (a *AccessList) SetOwnerGrants(grants Grants) {
+	a.Spec.OwnerGrants = grants
+}
+
+// SetMemberGrants sets the member grants of the access list.
+func (a *AccessList) SetMemberGrants(grants Grants) {
+	a.Spec.Grants = grants
 }
 
 // GetMembershipRequires returns the membership requires configuration from the access list.
@@ -682,12 +706,45 @@ func WithIgnoreEphemeralFields() EqualAccessListsOption {
 	}
 }
 
+// WithIgnoreOktaUserManagedFields configures EqualAccessLists to ignore the
+// Spec fields that users are permitted to override on an Okta-originated
+// Access List, in addition to all ephemeral fields (see WithIgnoreEphemeralFields).
+//
+// On Access Lists with Origin=Okta, the Okta plugin is the source of truth for
+// most of the Spec, but the following fields remain user-editable and are
+// therefore ignored here:
+//   - Spec.Owners: owners are assigned in Teleport, not mirrored from Okta.
+//   - Spec.MembershipRequires: membership role/trait requirements are a
+//     Teleport-side policy.
+//   - Spec.OwnershipRequires: ownership role/trait requirements are a
+//     Teleport-side policy.
+//   - Spec.Audit: review cadence and notifications are configured in Teleport.
+//
+// Use this option to check whether a proposed update to an Okta-originated
+// Access List only touches user-editable fields; if EqualAccessLists returns
+// true under this option, the modification is within the allowed set.
+//
+// Note: This option causes the input access lists to be cloned (unless WithSkipClone
+// is also used) to avoid modifying the originals.
+func WithIgnoreOktaUserManagedFields() EqualAccessListsOption {
+	return func(c *equalAccessListsConfig) {
+		c.resetFieldsFn = func(a *AccessList) {
+			if a == nil {
+				return
+			}
+			resetEphemeralFieldsAccessList(a)
+			a.Spec.Owners = nil
+			a.Spec.MembershipRequires = Requires{}
+			a.Spec.OwnershipRequires = Requires{}
+			a.Spec.Audit = Audit{}
+		}
+	}
+}
+
 // EqualAccessLists compares two access lists for semantic equality.
 //
 // By default, this function performs a standard equality check. Use WithIgnoreEphemeralFields()
-// to ignore ephemeral fields that are managed by reconcilers or the backend. This function
-// mimics the behavior of services.CompareResources for AccessList types when used with
-// WithIgnoreEphemeralFields().
+// to ignore ephemeral fields that are managed by reconcilers or the backend.
 //
 // By default, this function clones the input access lists before comparison to avoid
 // modifying the originals. Use WithSkipClone() to skip cloning if the inputs can be

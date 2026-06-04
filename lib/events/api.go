@@ -325,9 +325,6 @@ const (
 	// PPID is the PID of the parent process.
 	PPID = "ppid"
 
-	// CgroupID is the internal cgroupv2 ID of the event.
-	CgroupID = "cgroup_id"
-
 	// Program is name of the executable.
 	Program = "program"
 
@@ -425,6 +422,13 @@ const (
 	// AppSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
 	// a request via app access session.
 	AppSessionDynamoDBRequestEvent = "app.session.dynamodb.request"
+
+	// AppSessionLLMRequestSuccessEvent is emitted when an LLM inference request
+	// is sent and succeeds.
+	AppSessionLLMRequestSuccessEvent = "app.session.llm.request.success"
+	// AppSessionLLMRequestFailureEvent is emitted when an LLM inference request
+	// is sent and fails.
+	AppSessionLLMRequestFailureEvent = "app.session.llm.request.failure"
 
 	// DatabaseCreateEvent is emitted when a database resource is created.
 	DatabaseCreateEvent = "db.create"
@@ -623,6 +627,9 @@ const (
 	// UpgradeWindowStartUpdateEvent is emitted when the upgrade window start time
 	// is updated. Used only for teleport cloud.
 	UpgradeWindowStartUpdateEvent = "upgradewindowstart.update"
+	// EnvironmentProfileUpdateEvent is emitted when the environment profile
+	// is updated. Used only for teleport cloud.
+	EnvironmentProfileUpdateEvent = "environmentprofile.update"
 
 	// SessionRecordingAccessEvent is emitted when a session recording is accessed
 	SessionRecordingAccessEvent = "session.recording.access"
@@ -630,6 +637,10 @@ const (
 	// SSMRunEvent is emitted when a run of an install script
 	// completes on a discovered EC2 node
 	SSMRunEvent = "ssm.run"
+
+	// AzureRunEvent is emitted when a run of an install script
+	// completes on a discovered Azure VM
+	AzureRunEvent = "azure.run"
 
 	// DeviceEvent is the catch-all event for Device Trust events.
 	// Deprecated: Use one of the more specific event codes below.
@@ -998,6 +1009,50 @@ const (
 	WorkloadClusterUpdateEvent = "workload_cluster.update"
 	// WorkloadClusterDeleteEvent is emitted when a WorkloadCluster resource is deleted.
 	WorkloadClusterDeleteEvent = "workload_cluster.delete"
+
+	// InferenceModelCreateEvent is emitted when an inference model resource is created.
+	InferenceModelCreateEvent = "inference_model.create"
+	// InferenceModelUpdateEvent is emitted when an inference model resource is updated.
+	InferenceModelUpdateEvent = "inference_model.update"
+	// InferenceModelDeleteEvent is emitted when an inference model resource is deleted.
+	InferenceModelDeleteEvent = "inference_model.delete"
+
+	// InferenceSecretCreateEvent is emitted when an inference secret resource is created.
+	InferenceSecretCreateEvent = "inference_secret.create"
+	// InferenceSecretUpdateEvent is emitted when an inference secret resource is updated.
+	InferenceSecretUpdateEvent = "inference_secret.update"
+	// InferenceSecretDeleteEvent is emitted when an inference secret resource is deleted.
+	InferenceSecretDeleteEvent = "inference_secret.delete"
+
+	// InferencePolicyCreateEvent is emitted when an inference policy resource is created.
+	InferencePolicyCreateEvent = "inference_policy.create"
+	// InferencePolicyUpdateEvent is emitted when an inference policy resource is updated.
+	InferencePolicyUpdateEvent = "inference_policy.update"
+	// InferencePolicyDeleteEvent is emitted when an inference policy resource is deleted.
+	InferencePolicyDeleteEvent = "inference_policy.delete"
+
+	// RetrievalModelCreateEvent is emitted when a retrieval model resource is created.
+	RetrievalModelCreateEvent = "retrieval_model.create"
+	// RetrievalModelUpdateEvent is emitted when a retrieval model resource is updated.
+	RetrievalModelUpdateEvent = "retrieval_model.update"
+	// RetrievalModelDeleteEvent is emitted when a retrieval model resource is deleted.
+	RetrievalModelDeleteEvent = "retrieval_model.delete"
+
+	// SessionSummarizedEvent is emitted when a session summary is created.
+	SessionSummarizedEvent = "session.summarized"
+
+	// CertAuthOverrideCreateEvent is the create event for cert_auth_override
+	// resources.
+	CertAuthOverrideCreateEvent = "cert_auth_override.create"
+	// CertAuthOverrideUpdateEvent is the update event for cert_auth_override
+	// resources.
+	CertAuthOverrideUpdateEvent = "cert_auth_override.update"
+	// CertAuthOverrideUpsertEvent is the upsert event for cert_auth_override
+	// resources.
+	CertAuthOverrideUpsertEvent = "cert_auth_override.upsert"
+	// CertAuthOverrideDeleteEvent is the delete event for cert_auth_override
+	// resources.
+	CertAuthOverrideDeleteEvent = "cert_auth_override.delete"
 )
 
 // Add an entry to eventsMap in lib/events/events_test.go when you add
@@ -1081,6 +1136,18 @@ type Streamer interface {
 	// ResumeAuditStream resumes the stream for session upload that
 	// has not been completed yet.
 	ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error)
+}
+
+// StreamerWithCallback extends [Streamer] to allow setting a callback that is
+// invoked when a session recording upload completes without a session end event.
+type StreamerWithCallback interface {
+	Streamer
+	// SetOnUploadComplete registers a callback invoked after a session
+	// recording upload completes without a session end event. The callback
+	// may return a session end event or nil if unavailable.
+	//
+	// MUST be called before any streams are created.
+	SetOnUploadComplete(func(ctx context.Context, sessionID session.ID) (apievents.AuditEvent, error))
 }
 
 // StreamPart represents uploaded stream part

@@ -29,6 +29,7 @@ import (
 	traitpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/decision"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -46,12 +47,11 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 	fullIdentity := &decisionpb.TLSIdentity{
 		Username: "user",
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
-			Assignments: map[string]*scopesv1.PinnedAssignments{
-				"/": {
-					Roles: []string{"role1", "role2"},
-				},
-			},
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				"/": {"/": {"role1", "role2"}},
+			}),
 		},
 		Impersonator:      "impersonator",
 		Groups:            []string{"role1", "role2"},
@@ -136,7 +136,8 @@ func TestTLSIdentity_roundtrip(t *testing.T) {
 			AssetTag:     "asset-tag",
 			CredentialId: "credential-id",
 		},
-		UserType: "user-type",
+		UserType:            "user-type",
+		DelegationSessionId: "delegation-session",
 	}
 
 	tests := []struct {

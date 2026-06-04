@@ -70,28 +70,28 @@ const integrations: IntegrationTileSpec[] = [
     type: 'integration',
     kind: IntegrationKind.AwsCloud,
     icon: 'aws',
-    name: 'Amazon Web Services (AWS)',
+    name: 'AWS Discovery with Terraform',
     description:
-      'Connect your AWS account to automatically discover resources.',
-    tags: ['cloud', 'resourceaccess'],
+      'Use Terraform to connect your AWS account to Teleport and automatically discover resources.',
+    tags: ['terraform', 'resourceaccess'],
   },
   {
     type: 'integration',
     kind: IntegrationKind.AzureCloud,
     icon: 'azure',
-    name: 'Azure',
+    name: 'Azure Discovery with Terraform',
     description:
-      'Connect your Azure account to automatically discover resources.',
-    tags: ['cloud', 'resourceaccess'],
+      'Use Terraform to connect your Azure account to Teleport and automatically discover resources.',
+    tags: ['terraform', 'resourceaccess'],
   },
   {
     type: 'integration',
     kind: IntegrationKind.GoogleCloud,
     icon: 'google',
-    name: 'Google Cloud',
+    name: 'Google Cloud Discovery with Terraform',
     description:
-      'Connect your Google Cloud account to automatically discover resources.',
-    tags: ['cloud', 'resourceaccess'],
+      'Use Terraform to connect your Google Cloud account to Teleport and automatically discover resources.',
+    tags: ['terraform', 'resourceaccess'],
   },
 ];
 

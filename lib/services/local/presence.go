@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/itertools/stream"
+	scopecache "github.com/gravitational/teleport/lib/scopes/cache"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
@@ -201,19 +202,23 @@ func (s *PresenceService) getServers(ctx context.Context, kind, prefix string) (
 	return servers, nil
 }
 
-func (s *PresenceService) upsertServer(ctx context.Context, prefix string, server types.Server) error {
+func (s *PresenceService) upsertServer(ctx context.Context, prefix string, server types.Server) (types.Server, error) {
 	rev := server.GetRevision()
 	value, err := services.MarshalServer(server)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	_, err = s.Put(ctx, backend.Item{
+	lease, err := s.Put(ctx, backend.Item{
 		Key:      backend.NewKey(prefix, server.GetName()),
 		Value:    value,
 		Expires:  server.Expiry(),
 		Revision: rev,
 	})
-	return trace.Wrap(err)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	server.SetRevision(lease.Revision)
+	return server, nil
 }
 
 // DeleteAllNodes deletes all nodes in a namespace
@@ -226,6 +231,21 @@ func (s *PresenceService) DeleteAllNodes(ctx context.Context, namespace string) 
 func (s *PresenceService) DeleteNode(ctx context.Context, namespace string, name string) error {
 	key := backend.NewKey(nodesPrefix, namespace, name)
 	return s.Delete(ctx, key)
+}
+
+// AppendDeleteNodeActions adds conditional actions to an atomic write to
+// delete a node resource.
+func (s *PresenceService) AppendDeleteNodeActions(
+	actions []backend.ConditionalAction,
+	namespace string,
+	name string,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	return append(actions, backend.ConditionalAction{
+		Key:       backend.NewKey(nodesPrefix, namespace, name),
+		Condition: condition,
+		Action:    backend.Delete(),
+	}), nil
 }
 
 // GetNode returns a node by name and namespace.
@@ -306,6 +326,32 @@ func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (
 		Type: types.KeepAlive_NODE,
 		Name: server.GetName(),
 	}, nil
+}
+
+// AppendPutNodeActions adds conditional actions to an atomic write to create
+// or update a node resource.
+func (s *PresenceService) AppendPutNodeActions(
+	actions []backend.ConditionalAction,
+	server types.Server,
+	condition backend.Condition,
+) ([]backend.ConditionalAction, error) {
+	if server.GetNamespace() == "" {
+		server.SetNamespace(apidefaults.Namespace)
+	}
+	if err := types.ValidateNamespaceDefault(server.GetNamespace()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	item, err := itemFromNode(server)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return append(actions, backend.ConditionalAction{
+		Key:       item.Key,
+		Condition: condition,
+		Action:    backend.Put(*item),
+	}), nil
 }
 
 func itemFromNode(server types.Server) (*backend.Item, error) {
@@ -404,7 +450,8 @@ func (s *PresenceService) ListAuthServers(ctx context.Context, pageSize int, pag
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
 func (s *PresenceService) UpsertAuthServer(ctx context.Context, server types.Server) error {
-	return s.upsertServer(ctx, authServersPrefix, server)
+	_, err := s.upsertServer(ctx, authServersPrefix, server)
+	return trace.Wrap(err)
 }
 
 // DeleteAllAuthServers deletes all auth servers
@@ -419,9 +466,9 @@ func (s *PresenceService) DeleteAuthServer(name string) error {
 	return s.Delete(context.TODO(), key)
 }
 
-// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
-// for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertProxy(ctx context.Context, server types.Server) error {
+// UpsertProxyServer registers proxy server presence, permanently if ttl is 0
+// or for the specified duration with second resolution if it's >= 1 second.
+func (s *PresenceService) UpsertProxyServer(ctx context.Context, server types.Server) (types.Server, error) {
 	return s.upsertServer(ctx, proxiesPrefix, server)
 }
 
@@ -439,14 +486,8 @@ func (s *PresenceService) ListProxyServers(ctx context.Context, pageSize int, pa
 	return generic.CollectPageAndCursor(s.rangeProxyServers(ctx, pageToken, ""), pageSize, serverToPaginationKey)
 }
 
-// DeleteAllProxies deletes all proxies
-func (s *PresenceService) DeleteAllProxies() error {
-	startKey := backend.ExactKey(proxiesPrefix)
-	return s.DeleteRange(context.TODO(), startKey, backend.RangeEnd(startKey))
-}
-
-// DeleteProxy deletes proxy
-func (s *PresenceService) DeleteProxy(ctx context.Context, name string) error {
+// DeleteProxyServer deletes proxy
+func (s *PresenceService) DeleteProxyServer(ctx context.Context, name string) error {
 	key := backend.NewKey(proxiesPrefix, name)
 	return s.Delete(ctx, key)
 }
@@ -974,6 +1015,36 @@ func (s *PresenceService) GetKubernetesServers(ctx context.Context) ([]types.Kub
 	return servers, trace.Wrap(err)
 }
 
+// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
+func (s *PresenceService) RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error] {
+	if clusterName == "" {
+		return stream.Fail[types.KubeServer](trace.BadParameter("missing kubernetes cluster name"))
+	}
+
+	// TODO(wethreetrees): if Metadata.Name == Spec.Cluster.GetName() becomes a
+	// CheckAndSetDefaults invariant, this filter could check against the backend
+	// key's trailing component before unmarshalling. Currently no such invariant
+	// exists, so we unmarshal every item to read the embedded cluster name.
+	mapFn := func(item backend.Item) (types.KubeServer, bool) {
+		server, err := services.UnmarshalKubeServer(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal kubernetes server", "key", item.Key, "error", err)
+			return nil, false
+		}
+		cluster := server.GetCluster()
+		return server, cluster != nil && cluster.GetName() == clusterName
+	}
+
+	startKey := backend.ExactKey(kubeServersPrefix)
+	endKey := backend.RangeEnd(startKey)
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
+}
+
 func (s *PresenceService) getKubernetesServers(ctx context.Context) ([]types.KubeServer, error) {
 	startKey := backend.ExactKey(kubeServersPrefix)
 	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
@@ -1017,6 +1088,35 @@ func (s *PresenceService) GetDatabaseServers(ctx context.Context, namespace stri
 		servers[i] = server
 	}
 	return servers, nil
+}
+
+// RangeDatabaseServersWithName returns an iterator over database proxy servers for a given database name.
+func (s *PresenceService) RangeDatabaseServersWithName(ctx context.Context, databaseName string) iter.Seq2[types.DatabaseServer, error] {
+	if databaseName == "" {
+		return stream.Fail[types.DatabaseServer](trace.BadParameter("missing database name"))
+	}
+
+	// TODO(wethreetrees): if Metadata.Name == Spec.Database.GetName() becomes a
+	// CheckAndSetDefaults invariant, this filter could check against the backend
+	// key's trailing component before unmarshalling. Currently no such invariant
+	// exists, so we unmarshal every item to read the embedded database name.
+	mapFn := func(item backend.Item) (types.DatabaseServer, bool) {
+		server, err := services.UnmarshalDatabaseServer(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal database server", "key", item.Key, "error", err)
+			return nil, false
+		}
+		return server, server.GetDatabase().GetName() == databaseName
+	}
+
+	startKey := backend.ExactKey(dbServersPrefix, apidefaults.Namespace)
+	endKey := backend.RangeEnd(startKey)
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
 }
 
 // UpsertDatabaseServer registers new database proxy server.
@@ -1519,6 +1619,27 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	return &resp, nil
 }
 
+func getFakePaginationKey(ki backend.KeyedItem) string {
+	// TODO(eriktate/scopes): this will need to be reassessed when we implement scoped namespacing
+	if kubeCluster, ok := ki.(types.KubeCluster); ok {
+		if scope := kubeCluster.GetScope(); scope != "" {
+			// It should not be possible for EncodeStringToCursor to fail given that we've already
+			// confirmed the scope is non-empty and "@" is not a valid character for kube cluster
+			// names. However, in the case that it does fail for some reason, we fall back to
+			// backend.GetPaginationKey() since it will still work perfectly fine in lieu of
+			// duplicates cluster names across scope boundaries.
+			if key, err := scopecache.EncodeStringCursor(scopecache.Cursor[string]{
+				Key:   kubeCluster.GetName(),
+				Scope: scope,
+			}); err == nil {
+				return key
+			}
+		}
+	}
+
+	return backend.GetPaginationKey(ki)
+}
+
 // listResourcesWithSort supports sorting by falling back to retrieving all resources
 // with GetXXXs, filter, and then fake pagination.
 func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
@@ -1740,7 +1861,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req FakePaginateParams) 
 	// Trim resources that precede start key.
 	if req.StartKey != "" {
 		for i, resource := range filtered {
-			if backend.GetPaginationKey(resource) == req.StartKey {
+			if getFakePaginationKey(resource) == req.StartKey {
 				pageStart = i
 				break
 			}
@@ -1752,7 +1873,7 @@ func FakePaginate(resources []types.ResourceWithLabels, req FakePaginateParams) 
 	if pageEnd >= len(filtered) {
 		pageEnd = len(filtered)
 	} else {
-		nextKey = backend.GetPaginationKey(filtered[pageEnd])
+		nextKey = getFakePaginationKey(filtered[pageEnd])
 	}
 
 	return &types.ListResourcesResponse{

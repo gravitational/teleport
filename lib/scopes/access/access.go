@@ -19,10 +19,11 @@ package access
 import (
 	"iter"
 	"strings"
+	"time"
 
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/constants"
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/scopes"
@@ -44,21 +45,67 @@ const (
 	// KindScopedToken is the kind of a scoped token resource.
 	KindScopedToken = "scoped_token"
 
+	// SubKindDynamic is the sub kind of a scoped role assignment created via the API.
+	SubKindDynamic = "dynamic"
+
+	// SubKindMaterialized is the sub kind of a scoped role assignment that has been materialized.
+	SubKindMaterialized = "materialized"
+
+	// CreatorKindAccessList indicates that the creator is an access list, for
+	// scoped role assignments materialized from access list membership.
+	CreatorKindAccessList = "access_list"
+
 	// maxAssignableScopes is the maximum number of assignable scopes that a given scoped role resource may contain. Note that
 	// unlike MaxRolesPerAssignment, this is a fairly arbitrary limit and there isn't a strong reason to keep it low other than
 	// to avoid excess resource size and to keep our options open for the future.
 	maxAssignableScopes = 16
 )
 
-// RoleIsAssignableAtScope checks if the given role is assignable at the given scope.
-func RoleIsAssignableAtScope(role *scopedaccessv1.ScopedRole, scope string) bool {
+// RoleIsAssignableToScopeOfEffect checks if the given role is assignable to the given scope of effect. For example,
+// a given assignment can attempt to assign a role at any given scope, but the role's resource scope and assignable
+// scope globs must permit such an assignment for privileges to be effective.
+func RoleIsAssignableToScopeOfEffect(role *scopedaccessv1.ScopedRole, scopeOfEffect string) bool {
+	if scopes.WeakValidate(role.GetScope()) != nil {
+		return false
+	}
+
+	// The scope of effect must be assignable from the role's origin scope (cannot reach up)
+	if !scopes.ScopeOfOrigin(role.GetScope()).IsAssignableToScopeOfEffect(scopeOfEffect) {
+		return false
+	}
+
+	// The scope of effect must match one of the role's assignable scope globs
 	for assignableScope := range WeakValidatedAssignableScopes(role) {
-		if scopes.Glob(assignableScope).Matches(scope) {
+		if scopes.ScopeOfEffectGlob(assignableScope).MatchesScopeOfEffectLiteral(scopeOfEffect) {
 			return true
 		}
 	}
 
 	return false
+}
+
+// RoleIsAssignableFromScopeOfOrigin checks if the given role is assignable from the given scope of origin. For example,
+// assignment resources at a given scope can only assign roles that are assignable *from* that scope. In such a scenario,
+// the resource scope of the assignment resource is the origin scope of the actual assignment.
+func RoleIsAssignableFromScopeOfOrigin(role *scopedaccessv1.ScopedRole, scopeOfOrigin string) bool {
+	if scopes.WeakValidate(role.GetScope()) != nil {
+		return false
+	}
+
+	// conceptually, we think of the role and assignment scopes as both being policy resource scopes. when dealing
+	// with interdependence between policy resources, we need to ensure that the dependence does not open a hole by
+	// which edits can cause changes to policies outside of the editing admin's scope of authority.
+	return scopes.PolicyResourceScope(scopeOfOrigin).CanDependOnStateFromPolicyResourceAtScope(role.GetScope())
+}
+
+// RoleIsEnforceableAt reports whether the given role is validly assigned at the specified
+// enforcement point. This is the authoritative combined check for whether a cross-resource role
+// assignment is allowable via scoping rules. This check *must* be performed prior to the policies
+// and privileges of a role being considered for enforcement in any context. Assignments that do not
+// pass this check must have no effect.
+func RoleIsEnforceableAt(role *scopedaccessv1.ScopedRole, point scopes.EnforcementPoint) bool {
+	return RoleIsAssignableFromScopeOfOrigin(role, point.ScopeOfOrigin) &&
+		RoleIsAssignableToScopeOfEffect(role, point.ScopeOfEffect)
 }
 
 // WeakValidatedAssignableScopes is a helper for iterating all well formed assignable scopes for a given role.
@@ -70,7 +117,7 @@ func WeakValidatedAssignableScopes(role *scopedaccessv1.ScopedRole) iter.Seq[str
 				continue
 			}
 
-			if !scopes.Glob(assignableScope).IsSubjectToPolicyResourceScope(role.GetScope()) {
+			if !scopes.ScopeOfEffectGlob(assignableScope).IsAlwaysAssignableFromScopeOfOrigin(role.GetScope()) {
 				// ignore assignable scopes that do not conform to assignment subjugation rules
 				continue
 			}
@@ -131,13 +178,17 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 			return trace.BadParameter("scoped role %q has invalid assignable scope %q: %v", role.GetMetadata().GetName(), scopeGlob, err)
 		}
 
-		if !scopes.Glob(scopeGlob).IsSubjectToPolicyResourceScope(role.GetScope()) {
+		if scopes.Compare(scopeGlob, scopes.Root) == scopes.Equivalent {
+			return trace.BadParameter("scoped role %q has root scope as an assignable scope, which is not permitted (use '/**' to allow assignment to all non-root scopes)", role.GetMetadata().GetName())
+		}
+
+		if !scopes.ScopeOfEffectGlob(scopeGlob).IsAlwaysAssignableFromScopeOfOrigin(role.GetScope()) {
 			return trace.BadParameter("scoped role %q has assignable scope %q that is not a sub-scope of the role's scope %q", role.GetMetadata().GetName(), scopeGlob, role.GetScope())
 		}
 	}
 
 	// verify that all rules are allowed for scoped roles
-	for _, rule := range role.GetSpec().GetAllow().GetRules() {
+	for _, rule := range role.GetSpec().GetRules() {
 		for _, resource := range rule.GetResources() {
 			for _, verb := range rule.GetVerbs() {
 				if !isAllowedScopedRule(resource, verb) {
@@ -150,30 +201,128 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		}
 	}
 
-	// verify that logins are well-formed
-	for _, login := range role.GetSpec().GetAllow().GetLogins() {
+	const invalidChars = "{}^$*"
+	const invalidLabelChars = "{}^$"
+	// verify that ssh logins are well-formed
+	if login := validateDoesNotContain(role.GetSpec().GetSsh().GetLogins(), invalidChars); login != "" {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// logins. we likely will support substitution in the future, but its best to disallow
 		// it until that has landed.
-		if strings.ContainsAny(login, "{}^$*") {
-			return trace.BadParameter("scoped role %q has invalid login %q", role.GetMetadata().GetName(), login)
-		}
+		return trace.BadParameter("scoped role %q has invalid login %q", role.GetMetadata().GetName(), login)
 	}
 
-	// verify that node labels are well-formed
-	for _, label := range role.GetSpec().GetAllow().GetNodeLabels() {
+	// verify that ssh node labels are well-formed
+	for _, label := range role.GetSpec().GetSsh().GetLabels() {
 		// we currently don't support any form of wildcard/regex/substitution in scoped role
 		// node labels. we likely will support such things in the future, but its best to disallow
 		// them until that has landed.
 
-		if strings.ContainsAny(label.GetName(), "{}^$") {
+		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
 			return trace.BadParameter("scoped role %q has invalid node label name %q", role.GetMetadata().GetName(), label.GetName())
 		}
-		for _, value := range label.GetValues() {
-			if strings.ContainsAny(value, "{}^$") {
-				return trace.BadParameter("scoped role %q has invalid node label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
-			}
+		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+			return trace.BadParameter("scoped role %q has invalid node label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
 		}
+	}
+
+	// verify that client_idle_timeout fields are valid Go duration strings
+	if s := role.GetSpec().GetSsh().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
+		}
+	}
+	if s := role.GetSpec().GetKube().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid kube.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
+		}
+	}
+	if s := role.GetSpec().GetDefaults().GetClientIdleTimeout(); s != "" {
+		if _, err := time.ParseDuration(s); err != nil {
+			return trace.BadParameter("scoped role %q has invalid defaults.client_idle_timeout %q: %v", role.GetMetadata().GetName(), s, err)
+		}
+	}
+
+	// verify that create_host_user_mode is a recognized value
+	if mode := role.GetSpec().GetSsh().GetHostUserCreation().GetMode(); mode != "" {
+		var hostUserMode types.CreateHostUserMode
+		if err := hostUserMode.UnmarshalText([]byte(mode)); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.host_user_creation.create_host_user_mode %q", role.GetMetadata().GetName(), mode)
+		}
+	}
+
+	// verify that max_sessions is non-negative
+	if ms := role.GetSpec().GetSsh().GetMaxSessions(); ms < 0 {
+		return trace.BadParameter("scoped role %q has invalid ssh.max_sessions %d: must be non-negative", role.GetMetadata().GetName(), ms)
+	}
+
+	// verify that session_recording_mode fields are recognized values
+	if mode := role.GetSpec().GetSsh().GetSessionRecording().GetMode(); mode != "" {
+		switch constants.SessionRecordingMode(mode) {
+		case constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort:
+		default:
+			return trace.BadParameter("scoped role %q has invalid ssh.session_recording_mode. %q: must be %q or %q",
+				role.GetMetadata().GetName(), mode, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort)
+		}
+	}
+
+	if mode := role.GetSpec().GetDefaults().GetSessionRecording().GetMode(); mode != "" {
+		switch constants.SessionRecordingMode(mode) {
+		case constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort:
+		default:
+			return trace.BadParameter("scoped role %q has invalid defaults.session_recording_mode %q: must be %q or %q",
+				role.GetMetadata().GetName(), mode, constants.SessionRecordingModeStrict, constants.SessionRecordingModeBestEffort)
+		}
+	}
+
+	// verify that the lock.Mode is a recognized value for Defaults
+	if lock := role.GetSpec().GetDefaults().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid defaults.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
+	// verify that lock.Mode is a recognized value for SSH
+	if lock := role.GetSpec().GetSsh().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid ssh.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
+	// verify that lock.Mode is a recognized value for Kube
+	if lock := role.GetSpec().GetKube().GetLock(); lock != nil {
+		if err := validateLock(lock); err != nil {
+			return trace.BadParameter("scoped role %q has invalid kube.lock.mode %q", role.GetMetadata().GetName(), lock.GetMode())
+		}
+	}
+
+	// verify that kube labels are well-formed
+	for _, label := range role.GetSpec().GetKube().GetLabels() {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// node labels. we likely will support such things in the future, but its best to disallow
+		// them until that has landed.
+
+		if strings.ContainsAny(label.GetName(), invalidLabelChars) {
+			return trace.BadParameter("scoped role %q has invalid kube label name %q", role.GetMetadata().GetName(), label.GetName())
+		}
+		if value := validateDoesNotContain(label.GetValues(), invalidLabelChars); value != "" {
+			return trace.BadParameter("scoped role %q has invalid kube label value %q for label %q", role.GetMetadata().GetName(), value, label.GetName())
+		}
+	}
+
+	// verify that kube groups are well-formed
+	if group := validateDoesNotContain(role.GetSpec().GetKube().GetGroups(), invalidChars); group != "" {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// kube gruops. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		return trace.BadParameter("scoped role %q has invalid kube group %q", role.GetMetadata().GetName(), group)
+	}
+
+	// verify that kube users are well-formed
+	if user := validateDoesNotContain(role.GetSpec().GetKube().GetUsers(), invalidChars); user != "" {
+		// we currently don't support any form of wildcard/regex/substitution in scoped role
+		// kube users. we likely will support substitution in the future, but its best to disallow
+		// it until that has landed.
+		return trace.BadParameter("scoped role %q has invalid kube user %q", role.GetMetadata().GetName(), user)
 	}
 
 	// verify that scoped role converts to a valid unscoped role
@@ -181,6 +330,31 @@ func StrongValidateRole(role *scopedaccessv1.ScopedRole) error {
 		return trace.BadParameter("scoped role %q is malformed: %v", role.GetMetadata().GetName(), err)
 	}
 
+	return nil
+}
+
+// validateDoestNotContain checks that a given slice of string values do not contain any of the characters in the given
+// invalid set. The first invalid value is returned to be included in any error messages.
+func validateDoesNotContain(values []string, invalidSet string) string {
+	for _, val := range values {
+		if strings.ContainsAny(val, invalidSet) {
+			return val
+		}
+	}
+
+	return ""
+}
+
+func validateLock(lock *scopedaccessv1.Lock) error {
+	mode := lock.GetMode()
+	switch constants.LockingMode(mode) {
+	// Allow for empty string - we will fall back to the cluster defaults - or best_effort if not set.
+	// This matches current behavior for unscoped lock mode checks.
+	case "":
+	case constants.LockingModeBestEffort, constants.LockingModeStrict:
+	default:
+		return trace.Errorf("invalid lock mode")
+	}
 	return nil
 }
 
@@ -243,7 +417,7 @@ func WeakValidatedSubAssignments(assignment *scopedaccessv1.ScopedRoleAssignment
 				continue
 			}
 
-			if !scopes.PolicyAssignmentScope(subAssignment.GetScope()).IsSubjectToPolicyResourceScope(assignment.GetScope()) {
+			if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(subAssignment.GetScope()) {
 				// ignore sub-assignments with scopes that do not conform to assignment subjugation rules
 				continue
 			}
@@ -282,8 +456,16 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.Wrap(err)
 	}
 
-	if _, err := uuid.Parse(assignment.GetMetadata().GetName()); err != nil {
-		return trace.BadParameter("scoped role assignment %q has invalid name (must be uuid): %v", assignment.GetMetadata().GetName(), err)
+	switch assignment.GetSubKind() {
+	case SubKindDynamic, SubKindMaterialized:
+	case "":
+		return trace.BadParameter("scoped role assignment %q has empty sub_kind", assignment.GetMetadata().GetName())
+	default:
+		return trace.BadParameter("scoped role assignment %q has invalid sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
+	}
+
+	if err := scopes.StrongValidateSegment(assignment.GetMetadata().GetName()); err != nil {
+		return trace.BadParameter("scoped role assignment name %q does not conform to segment naming rules: %v", assignment.GetMetadata().GetName(), err)
 	}
 
 	if err := scopes.StrongValidate(assignment.GetScope()); err != nil {
@@ -296,6 +478,25 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 
 	if len(assignment.GetSpec().GetAssignments()) > MaxRolesPerAssignment {
 		return trace.BadParameter("scoped role assignment %q contains too many sub-assignments (max %d)", assignment.GetMetadata().GetName(), MaxRolesPerAssignment)
+	}
+
+	// Assigning to Bot is mutually exclusive with assigning to User. When
+	// assigning to Bot, we also want to ensure Bot's scope is specified.
+	botSet := assignment.GetSpec().GetBotName() != ""
+	botScope := assignment.GetSpec().GetBotScope()
+	if botSet && assignment.GetSpec().GetUser() != "" {
+		return trace.BadParameter("scoped role assignment %q cannot have both spec.bot_name and spec.user set", assignment.GetMetadata().GetName())
+	}
+	if botSet && botScope == "" {
+		return trace.BadParameter("scoped role assignment %q with spec.bot_name set must also have spec.bot_scope set", assignment.GetMetadata().GetName())
+	}
+	if !botSet && botScope != "" {
+		return trace.BadParameter("scoped role assignment %q with spec.bot_scope set must also have spec.bot_name set", assignment.GetMetadata().GetName())
+	}
+	if botSet {
+		if err := scopes.StrongValidate(botScope); err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid spec.bot_scope: %v", assignment.GetMetadata().GetName(), err)
+		}
 	}
 
 	for i, subAssignment := range assignment.GetSpec().GetAssignments() {
@@ -311,8 +512,28 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 			return trace.BadParameter("scoped role assignment %q has invalid scope in sub-assignment %d: %v", assignment.GetMetadata().GetName(), i, err)
 		}
 
-		if !scopes.PolicyAssignmentScope(subAssignment.GetScope()).IsSubjectToPolicyResourceScope(assignment.GetScope()) {
+		if scopes.Compare(subAssignment.GetScope(), scopes.Root) == scopes.Equivalent {
+			return trace.BadParameter("scoped role assignment %q has sub-assignment %d with root scope, which is not permitted (root scope cannot be used as a scope of effect)", assignment.GetMetadata().GetName(), i)
+		}
+
+		if !scopes.ScopeOfOrigin(assignment.GetScope()).IsAssignableToScopeOfEffect(subAssignment.GetScope()) {
 			return trace.BadParameter("scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the assignment's scope %q", assignment.GetMetadata().GetName(), i, subAssignment.GetScope(), assignment.GetScope())
+		}
+
+		// As per the MWI Scopes RFD, we enforce a special requirement for Bot
+		// assignments. Bot's can only be assigned privileges in scopes
+		// equivalent or descendent to their scope.
+		if botSet {
+			assignmentScope := subAssignment.GetScope()
+			if !scopes.ScopeOfOrigin(botScope).IsAssignableToScopeOfEffect(assignmentScope) {
+				return trace.BadParameter(
+					"scoped role assignment %q has sub-assignment %d with scope %q that is not a sub-scope of the bot's declared scope %q",
+					assignment.GetMetadata().GetName(),
+					i,
+					subAssignment.GetScope(),
+					assignment.GetSpec().GetBotScope(),
+				)
+			}
 		}
 	}
 
@@ -332,10 +553,6 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q has invalid kind %q, expected %q", assignment.GetMetadata().GetName(), assignment.GetKind(), KindScopedRoleAssignment)
 	}
 
-	if assignment.GetSubKind() != "" {
-		return trace.BadParameter("scoped role assignment %q has unknown sub_kind %q", assignment.GetMetadata().GetName(), assignment.GetSubKind())
-	}
-
 	if assignment.GetVersion() == "" {
 		return trace.BadParameter("scoped role assignment %q is missing version", assignment.GetMetadata().GetName())
 	}
@@ -348,8 +565,8 @@ func commonValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		return trace.BadParameter("scoped role assignment %q is missing scope", assignment.GetMetadata().GetName())
 	}
 
-	if assignment.GetSpec().GetUser() == "" {
-		return trace.BadParameter("scoped role assignment %q is missing spec.user", assignment.GetMetadata().GetName())
+	if assignment.GetSpec().GetUser() == "" && assignment.GetSpec().GetBotName() == "" {
+		return trace.BadParameter("scoped role assignment %q is missing spec.user or spec.bot_name", assignment.GetMetadata().GetName())
 	}
 
 	return nil

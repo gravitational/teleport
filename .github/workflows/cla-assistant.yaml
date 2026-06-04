@@ -26,7 +26,7 @@ jobs:
     steps:
       - name: Fetch installation token
         id: fetch-token
-        uses: actions/create-github-app-token@v2
+        uses: actions/create-github-app-token@v3
         with:
           app-id: ${{ secrets.CLA_ASSISTANT_APP_ID }}
           private-key: ${{ secrets.CLA_ASSISTANT_APP_PRIVATE_KEY }}
@@ -68,5 +68,5 @@ jobs:
           path-to-document: 'https://github.com/gravitational/teleport/blob/master/CLA.md'
           # branch should not be protected
           branch: 'main'
-          allowlist: 'dependabot[bot],teleport-post-release-automation[bot]'
+          allowlist: 'dependabot[bot],teleport-post-release-automation[bot],teleport-renovate[bot]'
           lock-pullrequest-aftermerge: false

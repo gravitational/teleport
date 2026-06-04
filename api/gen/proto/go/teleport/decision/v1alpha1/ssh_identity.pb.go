@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/ssh_identity.proto
 
+//go:build !protoopaque
+
 package decisionpb
 
 import (
@@ -28,7 +30,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -85,11 +86,6 @@ func (x CertExtensionMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use CertExtensionMode.Descriptor instead.
-func (CertExtensionMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescGZIP(), []int{0}
-}
-
 // CertExtensionType represents the certificate type the extension is for.
 // Currently only ssh is supported. This type must be kept up to date with
 // types.CertExtensionType.
@@ -136,14 +132,9 @@ func (x CertExtensionType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use CertExtensionType.Descriptor instead.
-func (CertExtensionType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescGZIP(), []int{1}
-}
-
 // SSHAuthority identifies the authority that issued an SSHIdentity.
 type SSHAuthority struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClusterName is the name of the issuing cluster.
 	ClusterName string `protobuf:"bytes,1,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
 	// AuthorityType is the type of authority that issued the identity.
@@ -177,11 +168,6 @@ func (x *SSHAuthority) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SSHAuthority.ProtoReflect.Descriptor instead.
-func (*SSHAuthority) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *SSHAuthority) GetClusterName() string {
 	if x != nil {
 		return x.ClusterName
@@ -196,9 +182,35 @@ func (x *SSHAuthority) GetAuthorityType() string {
 	return ""
 }
 
+func (x *SSHAuthority) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *SSHAuthority) SetAuthorityType(v string) {
+	x.AuthorityType = v
+}
+
+type SSHAuthority_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClusterName is the name of the issuing cluster.
+	ClusterName string
+	// AuthorityType is the type of authority that issued the identity.
+	AuthorityType string
+}
+
+func (b0 SSHAuthority_builder) Build() *SSHAuthority {
+	m0 := &SSHAuthority{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClusterName = b.ClusterName
+	x.AuthorityType = b.AuthorityType
+	return m0
+}
+
 // SSHIdentity is the identity used for SSH connections.
 type SSHIdentity struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ValidAfter is the unix timestamp that marks the start time for when the certificate should
 	// be considered valid.
 	ValidAfter uint64 `protobuf:"varint,1,opt,name=valid_after,json=validAfter,proto3" json:"valid_after,omitempty"`
@@ -302,8 +314,13 @@ type SSHIdentity struct {
 	AllowedResourceAccessIds []*types.ResourceAccessID `protobuf:"bytes,37,rep,name=allowed_resource_access_ids,json=allowedResourceAccessIds,proto3" json:"allowed_resource_access_ids,omitempty"`
 	// The hash of the immutable labels assigned to the identity.
 	ImmutableLabelHash string `protobuf:"bytes,38,opt,name=immutable_label_hash,json=immutableLabelHash,proto3" json:"immutable_label_hash,omitempty"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	// Delegation session this SSH identity is associated with.
+	DelegationSessionId string `protobuf:"bytes,39,opt,name=delegation_session_id,json=delegationSessionId,proto3" json:"delegation_session_id,omitempty"`
+	// HeadlessAuthenticationID is the ID of the headless authentication
+	// resource this certificate was created for.
+	HeadlessAuthenticationId string `protobuf:"bytes,40,opt,name=headless_authentication_id,json=headlessAuthenticationId,proto3" json:"headless_authentication_id,omitempty"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *SSHIdentity) Reset() {
@@ -329,11 +346,6 @@ func (x *SSHIdentity) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use SSHIdentity.ProtoReflect.Descriptor instead.
-func (*SSHIdentity) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *SSHIdentity) GetValidAfter() uint64 {
@@ -602,10 +614,366 @@ func (x *SSHIdentity) GetImmutableLabelHash() string {
 	return ""
 }
 
+func (x *SSHIdentity) GetDelegationSessionId() string {
+	if x != nil {
+		return x.DelegationSessionId
+	}
+	return ""
+}
+
+func (x *SSHIdentity) GetHeadlessAuthenticationId() string {
+	if x != nil {
+		return x.HeadlessAuthenticationId
+	}
+	return ""
+}
+
+func (x *SSHIdentity) SetValidAfter(v uint64) {
+	x.ValidAfter = v
+}
+
+func (x *SSHIdentity) SetValidBefore(v uint64) {
+	x.ValidBefore = v
+}
+
+func (x *SSHIdentity) SetCertType(v uint32) {
+	x.CertType = v
+}
+
+func (x *SSHIdentity) SetPrincipals(v []string) {
+	x.Principals = v
+}
+
+func (x *SSHIdentity) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *SSHIdentity) SetSystemRole(v string) {
+	x.SystemRole = v
+}
+
+func (x *SSHIdentity) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *SSHIdentity) SetImpersonator(v string) {
+	x.Impersonator = v
+}
+
+func (x *SSHIdentity) SetPermitX11Forwarding(v bool) {
+	x.PermitX11Forwarding = v
+}
+
+func (x *SSHIdentity) SetPermitAgentForwarding(v bool) {
+	x.PermitAgentForwarding = v
+}
+
+func (x *SSHIdentity) SetPermitPortForwarding(v bool) {
+	x.PermitPortForwarding = v
+}
+
+func (x *SSHIdentity) SetRoles(v []string) {
+	x.Roles = v
+}
+
+func (x *SSHIdentity) SetRouteToCluster(v string) {
+	x.RouteToCluster = v
+}
+
+func (x *SSHIdentity) SetTraits(v []*v1.Trait) {
+	x.Traits = v
+}
+
+func (x *SSHIdentity) SetActiveRequests(v []string) {
+	x.ActiveRequests = v
+}
+
+func (x *SSHIdentity) SetMfaVerified(v string) {
+	x.MfaVerified = v
+}
+
+func (x *SSHIdentity) SetPreviousIdentityExpires(v *timestamppb.Timestamp) {
+	x.PreviousIdentityExpires = v
+}
+
+func (x *SSHIdentity) SetLoginIp(v string) {
+	x.LoginIp = v
+}
+
+func (x *SSHIdentity) SetPinnedIp(v string) {
+	x.PinnedIp = v
+}
+
+func (x *SSHIdentity) SetDisallowReissue(v bool) {
+	x.DisallowReissue = v
+}
+
+func (x *SSHIdentity) SetCertificateExtensions(v []*CertExtension) {
+	x.CertificateExtensions = v
+}
+
+func (x *SSHIdentity) SetRenewable(v bool) {
+	x.Renewable = v
+}
+
+func (x *SSHIdentity) SetGeneration(v uint64) {
+	x.Generation = v
+}
+
+func (x *SSHIdentity) SetBotName(v string) {
+	x.BotName = v
+}
+
+func (x *SSHIdentity) SetBotInstanceId(v string) {
+	x.BotInstanceId = v
+}
+
+func (x *SSHIdentity) SetAllowedResourceIds(v []*ResourceId) {
+	x.AllowedResourceIds = v
+}
+
+func (x *SSHIdentity) SetConnectionDiagnosticId(v string) {
+	x.ConnectionDiagnosticId = v
+}
+
+func (x *SSHIdentity) SetPrivateKeyPolicy(v string) {
+	x.PrivateKeyPolicy = v
+}
+
+func (x *SSHIdentity) SetDeviceId(v string) {
+	x.DeviceId = v
+}
+
+func (x *SSHIdentity) SetDeviceAssetTag(v string) {
+	x.DeviceAssetTag = v
+}
+
+func (x *SSHIdentity) SetDeviceCredentialId(v string) {
+	x.DeviceCredentialId = v
+}
+
+func (x *SSHIdentity) SetGithubUserId(v string) {
+	x.GithubUserId = v
+}
+
+func (x *SSHIdentity) SetGithubUsername(v string) {
+	x.GithubUsername = v
+}
+
+func (x *SSHIdentity) SetJoinToken(v string) {
+	x.JoinToken = v
+}
+
+func (x *SSHIdentity) SetScopePin(v *v11.Pin) {
+	x.ScopePin = v
+}
+
+func (x *SSHIdentity) SetAgentScope(v string) {
+	x.AgentScope = v
+}
+
+func (x *SSHIdentity) SetAllowedResourceAccessIds(v []*types.ResourceAccessID) {
+	x.AllowedResourceAccessIds = v
+}
+
+func (x *SSHIdentity) SetImmutableLabelHash(v string) {
+	x.ImmutableLabelHash = v
+}
+
+func (x *SSHIdentity) SetDelegationSessionId(v string) {
+	x.DelegationSessionId = v
+}
+
+func (x *SSHIdentity) SetHeadlessAuthenticationId(v string) {
+	x.HeadlessAuthenticationId = v
+}
+
+func (x *SSHIdentity) HasPreviousIdentityExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.PreviousIdentityExpires != nil
+}
+
+func (x *SSHIdentity) HasScopePin() bool {
+	if x == nil {
+		return false
+	}
+	return x.ScopePin != nil
+}
+
+func (x *SSHIdentity) ClearPreviousIdentityExpires() {
+	x.PreviousIdentityExpires = nil
+}
+
+func (x *SSHIdentity) ClearScopePin() {
+	x.ScopePin = nil
+}
+
+type SSHIdentity_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ValidAfter is the unix timestamp that marks the start time for when the certificate should
+	// be considered valid.
+	ValidAfter uint64
+	// ValidBefore is the unix timestamp that marks the end time for when the certificate should
+	// be considered valid.
+	ValidBefore uint64
+	// CertType indicates what type of cert this is (user or host).
+	CertType uint32
+	// Principals is the list of SSH principals associated with the certificate (this means the
+	// list of allowed unix logins in the case of user certs).
+	Principals []string
+	// ClusterName is the name of the cluster within which a node lives
+	ClusterName string
+	// SystemRole identifies the system role of a Teleport instance
+	SystemRole string
+	// Username is teleport username
+	Username string
+	// Impersonator is set when a user requests certificate for another user
+	Impersonator string
+	// PermitX11Forwarding permits X11 forwarding for this cert
+	PermitX11Forwarding bool
+	// PermitAgentForwarding permits agent forwarding for this cert
+	PermitAgentForwarding bool
+	// PermitPortForwarding permits port forwarding.
+	PermitPortForwarding bool
+	// Roles is a list of roles assigned to this user
+	Roles []string
+	// RouteToCluster specifies the target cluster
+	// if present in the certificate, will be used
+	// to route the requests to
+	RouteToCluster string
+	// Traits hold claim data used to populate a role at runtime.
+	Traits []*v1.Trait
+	// ActiveRequests tracks privilege escalation requests applied during
+	// certificate construction.
+	ActiveRequests []string
+	// MFAVerified is the UUID of an MFA device when this Identity was
+	// confirmed immediately after an MFA check.
+	MfaVerified string
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and disconnect_expired_cert
+	// are enabled. See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires *timestamppb.Timestamp
+	// LoginIP is an observed IP of the client on the moment of certificate creation.
+	LoginIp string
+	// PinnedIP is an IP from which client must communicate with Teleport.
+	PinnedIp string
+	// DisallowReissue flags that any attempt to request new certificates while
+	// authenticated with this cert should be denied.
+	DisallowReissue bool
+	// CertificateExtensions are user configured ssh key extensions (note: this field also
+	// ends up aggregating all *unknown* extensions during cert parsing, meaning that this
+	// can sometimes contain fields that were inserted by a newer version of teleport).
+	CertificateExtensions []*CertExtension
+	// Renewable indicates this certificate is renewable.
+	Renewable bool
+	// Generation counts the number of times a certificate has been renewed, with a generation of 1
+	// meaning the cert has never been renewed. A generation of zero means the cert's generation is
+	// not being tracked.
+	Generation uint64
+	// BotName is set to the name of the bot, if the user is a Machine ID bot user.
+	// Empty for human users.
+	BotName string
+	// BotInstanceID is the unique identifier for the bot instance, if this is a
+	// Machine ID bot. It is empty for human users.
+	BotInstanceId string
+	// AllowedResourceIDs lists the resources the user should be able to access.
+	AllowedResourceIds []*ResourceId
+	// ConnectionDiagnosticID references the ConnectionDiagnostic that we should use to append traces when testing a Connection.
+	ConnectionDiagnosticId string
+	// PrivateKeyPolicy is the private key policy supported by this certificate.
+	PrivateKeyPolicy string
+	// DeviceID is the trusted device identifier.
+	DeviceId string
+	// DeviceAssetTag is the device inventory identifier.
+	DeviceAssetTag string
+	// DeviceCredentialID is the identifier for the credential used by the device
+	// to authenticate itself.
+	DeviceCredentialId string
+	// GitHubUserID indicates the GitHub user ID identified by the GitHub
+	// connector.
+	GithubUserId string
+	// GitHubUsername indicates the GitHub username identified by the GitHub
+	// connector.
+	GithubUsername string
+	// JoinToken is the name of the join token used for bot joining. It is unset
+	// for other identity types, or for bots using the `token` join method.
+	JoinToken string
+	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
+	// set, the Roles field must not be set.
+	ScopePin *v11.Pin
+	// The scope associated with a host identity.
+	AgentScope string
+	// AllowedResourceAccessIDs lists the resources the user should be able to access,
+	// paired with additional information such as ResourceConstraints.
+	// Differs from AllowedResourceIDs, which only identifies resources and cannot be used
+	// to express additional information per-resource such as ResourceConstraints.
+	// When present, AllowedResourceAccessIDs should be treated as authoritative
+	// (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+	AllowedResourceAccessIds []*types.ResourceAccessID
+	// The hash of the immutable labels assigned to the identity.
+	ImmutableLabelHash string
+	// Delegation session this SSH identity is associated with.
+	DelegationSessionId string
+	// HeadlessAuthenticationID is the ID of the headless authentication
+	// resource this certificate was created for.
+	HeadlessAuthenticationId string
+}
+
+func (b0 SSHIdentity_builder) Build() *SSHIdentity {
+	m0 := &SSHIdentity{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ValidAfter = b.ValidAfter
+	x.ValidBefore = b.ValidBefore
+	x.CertType = b.CertType
+	x.Principals = b.Principals
+	x.ClusterName = b.ClusterName
+	x.SystemRole = b.SystemRole
+	x.Username = b.Username
+	x.Impersonator = b.Impersonator
+	x.PermitX11Forwarding = b.PermitX11Forwarding
+	x.PermitAgentForwarding = b.PermitAgentForwarding
+	x.PermitPortForwarding = b.PermitPortForwarding
+	x.Roles = b.Roles
+	x.RouteToCluster = b.RouteToCluster
+	x.Traits = b.Traits
+	x.ActiveRequests = b.ActiveRequests
+	x.MfaVerified = b.MfaVerified
+	x.PreviousIdentityExpires = b.PreviousIdentityExpires
+	x.LoginIp = b.LoginIp
+	x.PinnedIp = b.PinnedIp
+	x.DisallowReissue = b.DisallowReissue
+	x.CertificateExtensions = b.CertificateExtensions
+	x.Renewable = b.Renewable
+	x.Generation = b.Generation
+	x.BotName = b.BotName
+	x.BotInstanceId = b.BotInstanceId
+	x.AllowedResourceIds = b.AllowedResourceIds
+	x.ConnectionDiagnosticId = b.ConnectionDiagnosticId
+	x.PrivateKeyPolicy = b.PrivateKeyPolicy
+	x.DeviceId = b.DeviceId
+	x.DeviceAssetTag = b.DeviceAssetTag
+	x.DeviceCredentialId = b.DeviceCredentialId
+	x.GithubUserId = b.GithubUserId
+	x.GithubUsername = b.GithubUsername
+	x.JoinToken = b.JoinToken
+	x.ScopePin = b.ScopePin
+	x.AgentScope = b.AgentScope
+	x.AllowedResourceAccessIds = b.AllowedResourceAccessIds
+	x.ImmutableLabelHash = b.ImmutableLabelHash
+	x.DelegationSessionId = b.DelegationSessionId
+	x.HeadlessAuthenticationId = b.HeadlessAuthenticationId
+	return m0
+}
+
 // CertExtension represents a key/value for a certificate extension. This type must
 // be kept up to date with types.CertExtension.
 type CertExtension struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Type represents the certificate type being extended, only ssh
 	// is supported at this time.
 	// 0 is "ssh".
@@ -647,11 +1015,6 @@ func (x *CertExtension) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CertExtension.ProtoReflect.Descriptor instead.
-func (*CertExtension) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *CertExtension) GetType() CertExtensionType {
 	if x != nil {
 		return x.Type
@@ -680,6 +1043,50 @@ func (x *CertExtension) GetValue() string {
 	return ""
 }
 
+func (x *CertExtension) SetType(v CertExtensionType) {
+	x.Type = v
+}
+
+func (x *CertExtension) SetMode(v CertExtensionMode) {
+	x.Mode = v
+}
+
+func (x *CertExtension) SetName(v string) {
+	x.Name = v
+}
+
+func (x *CertExtension) SetValue(v string) {
+	x.Value = v
+}
+
+type CertExtension_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Type represents the certificate type being extended, only ssh
+	// is supported at this time.
+	// 0 is "ssh".
+	Type CertExtensionType
+	// Mode is the type of extension to be used -- currently
+	// critical-option is not supported.
+	// 0 is "extension".
+	Mode CertExtensionMode
+	// Name specifies the key to be used in the cert extension.
+	Name string
+	// Value specifies the value to be used in the cert extension.
+	Value string
+}
+
+func (b0 CertExtension_builder) Build() *CertExtension {
+	m0 := &CertExtension{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.Mode = b.Mode
+	x.Name = b.Name
+	x.Value = b.Value
+	return m0
+}
+
 var File_teleport_decision_v1alpha1_ssh_identity_proto protoreflect.FileDescriptor
 
 const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
@@ -687,7 +1094,7 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"-teleport/decision/v1alpha1/ssh_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a-teleport/decision/v1alpha1/tls_identity.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"X\n" +
 	"\fSSHAuthority\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12%\n" +
-	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\x9a\r\n" +
+	"\x0eauthority_type\x18\x02 \x01(\tR\rauthorityType\"\x8c\x0e\n" +
 	"\vSSHIdentity\x12\x1f\n" +
 	"\vvalid_after\x18\x01 \x01(\x04R\n" +
 	"validAfter\x12!\n" +
@@ -735,7 +1142,9 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"\vagent_scope\x18$ \x01(\tR\n" +
 	"agentScope\x12V\n" +
 	"\x1ballowed_resource_access_ids\x18% \x03(\v2\x17.types.ResourceAccessIDR\x18allowedResourceAccessIds\x120\n" +
-	"\x14immutable_label_hash\x18& \x01(\tR\x12immutableLabelHash\"\xbf\x01\n" +
+	"\x14immutable_label_hash\x18& \x01(\tR\x12immutableLabelHash\x122\n" +
+	"\x15delegation_session_id\x18' \x01(\tR\x13delegationSessionId\x12<\n" +
+	"\x1aheadless_authentication_id\x18( \x01(\tR\x18headlessAuthenticationId\"\xbf\x01\n" +
 	"\rCertExtension\x12A\n" +
 	"\x04type\x18\x01 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionTypeR\x04type\x12A\n" +
 	"\x04mode\x18\x02 \x01(\x0e2-.teleport.decision.v1alpha1.CertExtensionModeR\x04mode\x12\x12\n" +
@@ -747,18 +1156,6 @@ const file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc = "" +
 	"\x11CertExtensionType\x12#\n" +
 	"\x1fCERT_EXTENSION_TYPE_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17CERT_EXTENSION_TYPE_SSH\x10\x01BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
-
-var (
-	file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescOnce sync.Once
-	file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescData []byte
-)
-
-func file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescGZIP() []byte {
-	file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescOnce.Do(func() {
-		file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc), len(file_teleport_decision_v1alpha1_ssh_identity_proto_rawDesc)))
-	})
-	return file_teleport_decision_v1alpha1_ssh_identity_proto_rawDescData
-}
 
 var file_teleport_decision_v1alpha1_ssh_identity_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_decision_v1alpha1_ssh_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 3)

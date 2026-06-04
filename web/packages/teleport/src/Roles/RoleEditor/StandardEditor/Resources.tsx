@@ -292,7 +292,7 @@ export function ServerAccessSection({
         <FieldSelectCreatable
           isMulti
           label="Logins"
-          placeholder="Type a login and press Enter"
+          placeholder={readOnly ? '' : 'Type a login and press Enter'}
           isDisabled={isProcessing}
           formatCreateLabel={label => `Login: ${label}`}
           components={{
@@ -300,7 +300,7 @@ export function ServerAccessSection({
           }}
           openMenuOnClick={false}
           value={value.logins}
-          onChange={logins => onChange?.({ ...value, logins })}
+          onChange={logins => onChange?.({ ...value, logins: [...logins] })}
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.logins)}
           mt={3}
@@ -351,7 +351,7 @@ export function KubernetesAccessSection({
         <FieldSelectCreatable
           isMulti
           label="Groups"
-          placeholder="Type a group name and press Enter"
+          placeholder={readOnly ? '' : 'Type a group name and press Enter'}
           isDisabled={isProcessing}
           formatCreateLabel={label => `Group: ${label}`}
           components={{
@@ -359,7 +359,7 @@ export function KubernetesAccessSection({
           }}
           openMenuOnClick={false}
           value={value.groups}
-          onChange={groups => onChange?.({ ...value, groups })}
+          onChange={groups => onChange?.({ ...value, groups: [...groups] })}
           menuPosition="fixed"
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.groups)}
@@ -370,7 +370,7 @@ export function KubernetesAccessSection({
         <FieldSelectCreatable
           isMulti
           label="Users"
-          placeholder="Type a user name and press Enter"
+          placeholder={readOnly ? '' : 'Type a user name and press Enter'}
           isDisabled={isProcessing}
           formatCreateLabel={label => `User: ${label}`}
           components={{
@@ -378,7 +378,7 @@ export function KubernetesAccessSection({
           }}
           openMenuOnClick={false}
           value={value.users}
-          onChange={users => onChange?.({ ...value, users })}
+          onChange={users => onChange?.({ ...value, users: [...users] })}
           menuPosition="fixed"
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.users)}
@@ -619,7 +619,7 @@ function KubernetesResourceView({
         value={verbs}
         readOnly={readOnly}
         rule={readOnly ? undefined : precomputed(validation.verbs)}
-        onChange={v => onChange?.({ ...value, verbs: v })}
+        onChange={v => onChange?.({ ...value, verbs: [...v] })}
         mb={0}
         menuPosition="fixed"
       />
@@ -778,7 +778,6 @@ export function DatabaseAccessSection({
           <LabelsInput
             atLeastOneRow
             legend="Labels"
-            tooltipContent="Access to databases with these labels will be affected by this role."
             disableBtns={isProcessing}
             labels={value.labels}
             setLabels={labels => onChange?.({ ...value, labels })}
@@ -791,7 +790,7 @@ export function DatabaseAccessSection({
         <FieldSelectCreatable
           isMulti
           label="Database Names"
-          placeholder="Type a database name and press Enter"
+          placeholder={readOnly ? '' : 'Type a database name and press Enter'}
           toolTipContent={
             <>
               Database names allowed to connect to. Special value{' '}
@@ -805,7 +804,7 @@ export function DatabaseAccessSection({
           }}
           openMenuOnClick={false}
           value={value.names}
-          onChange={names => onChange?.({ ...value, names })}
+          onChange={names => onChange?.({ ...value, names: [...names] })}
           menuPosition="fixed"
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.names)}
@@ -815,7 +814,7 @@ export function DatabaseAccessSection({
         <FieldSelectCreatable
           isMulti
           label="Database Users"
-          placeholder="Type a user name and press Enter"
+          placeholder={readOnly ? '' : 'Type a user name and press Enter'}
           toolTipContent={
             <>
               Database account names allowed to connect as. Special value{' '}
@@ -829,7 +828,7 @@ export function DatabaseAccessSection({
           }}
           openMenuOnClick={false}
           value={value.users}
-          onChange={users => onChange?.({ ...value, users })}
+          onChange={users => onChange?.({ ...value, users: [...users] })}
           menuPosition="fixed"
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.users)}
@@ -839,7 +838,7 @@ export function DatabaseAccessSection({
         <FieldSelectCreatable
           isMulti
           label="Database Roles"
-          placeholder="Type a role name and press Enter"
+          placeholder={readOnly ? '' : 'Type a role name and press Enter'}
           toolTipContent="If automatic user provisioning is available, this is the list of database roles that will be assigned to the database user after it's created."
           isDisabled={isProcessing}
           formatCreateLabel={label => `Database Role: ${label}`}
@@ -848,7 +847,7 @@ export function DatabaseAccessSection({
           }}
           openMenuOnClick={false}
           value={value.roles}
-          onChange={roles => onChange?.({ ...value, roles })}
+          onChange={roles => onChange?.({ ...value, roles: [...roles] })}
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.roles)}
           menuPosition="fixed"
@@ -913,7 +912,7 @@ export function WindowsDesktopAccessSection({
         <FieldSelectCreatable
           isMulti
           label="Logins"
-          placeholder="Type a login and press Enter"
+          placeholder={readOnly ? '' : 'Type a login and press Enter'}
           toolTipContent="List of Windows logins allowed to use for desktop sessions."
           isDisabled={isProcessing}
           formatCreateLabel={label => `Login: ${label}`}
@@ -922,7 +921,7 @@ export function WindowsDesktopAccessSection({
           }}
           openMenuOnClick={false}
           value={value.logins}
-          onChange={logins => onChange?.({ ...value, logins })}
+          onChange={logins => onChange?.({ ...value, logins: [...logins] })}
           menuPosition="fixed"
           readOnly={readOnly}
           rule={readOnly ? undefined : precomputed(validation.fields.logins)}
@@ -956,7 +955,9 @@ export function GitHubOrganizationAccessSection({
           isMulti
           label="Organization Names"
           toolTipContent="A list of GitHub organization names allowed access to."
-          placeholder="Type an organization name and press Enter"
+          placeholder={
+            readOnly ? '' : 'Type an organization name and press Enter'
+          }
           isDisabled={isProcessing}
           formatCreateLabel={label => `Organization: ${label}`}
           components={{
@@ -964,7 +965,9 @@ export function GitHubOrganizationAccessSection({
           }}
           openMenuOnClick={false}
           value={value.organizations}
-          onChange={organizations => onChange?.({ ...value, organizations })}
+          onChange={organizations =>
+            onChange?.({ ...value, organizations: [...organizations] })
+          }
           menuPosition="fixed"
           readOnly={readOnly}
           rule={

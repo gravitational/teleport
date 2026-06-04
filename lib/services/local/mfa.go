@@ -17,33 +17,38 @@
 package local
 
 import (
-	"bytes"
 	"context"
 	"log/slog"
 	"time"
 
-	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed because mfav1.ValidatedMFAChallenge uses gogoproto
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/encoding/protojson"
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
+// ValidatedMFAChallengeExpiry is the TTL for ValidatedMFAChallenge resources. This value is chosen to be long enough to
+// allow for replication to leaf clusters and retries of replication in the event of transient errors, but short enough
+// to ensure that stale challenges don't persist indefinitely if they fail to replicate.
+const ValidatedMFAChallengeExpiry = 5 * time.Minute
+
 // MFAService implements the storage layer for MFA resources.
 type MFAService struct {
 	logger  *slog.Logger
-	service *generic.ServiceWrapper[*validatedMFAChallenge]
+	service *generic.ServiceWrapper[*mfav2.ValidatedMFAChallenge]
 }
 
 // NewMFAService returns a new MFA storage service.
 func NewMFAService(b backend.Backend) (*MFAService, error) {
 	svc, err := generic.NewServiceWrapper(
-		generic.ServiceConfig[*validatedMFAChallenge]{
+		generic.ServiceConfig[*mfav2.ValidatedMFAChallenge]{
 			Backend:       b,
 			ResourceKind:  types.KindValidatedMFAChallenge,
 			BackendPrefix: backend.NewKey(types.KindValidatedMFAChallenge),
@@ -64,126 +69,210 @@ func NewMFAService(b backend.Backend) (*MFAService, error) {
 // CreateValidatedMFAChallenge persists the ValidatedMFAChallenge resource.
 func (s *MFAService) CreateValidatedMFAChallenge(
 	ctx context.Context,
-	username string,
-	chal *mfav1.ValidatedMFAChallenge,
-) (*mfav1.ValidatedMFAChallenge, error) {
+	targetCluster string,
+	chal *mfav2.ValidatedMFAChallenge,
+) (*mfav2.ValidatedMFAChallenge, error) {
 	switch {
-	case username == "":
-		return nil, trace.BadParameter("param username must not be empty")
+	case targetCluster == "":
+		return nil, trace.BadParameter("param targetCluster must not be empty")
 	case chal == nil:
 		return nil, trace.BadParameter("param chal must not be nil")
 	}
 
-	challenge := (*validatedMFAChallenge)(chal)
-
-	if err := checkValidatedMFAChallenge(challenge); err != nil {
+	if err := checkValidatedMFAChallenge(chal); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	// Scope the service to the given username, so that the resource is created under that user's prefix.
-	svc := s.service.WithPrefix(username)
+	if chal.GetSpec().GetTargetCluster() != targetCluster {
+		return nil, trace.BadParameter("param targetCluster does not match challenge target cluster")
+	}
+
+	// Scope resources by target cluster so the backend key is target-cluster/challenge-name.
+	svc := s.service.WithPrefix(targetCluster)
 
 	// All validated MFA challenges must expire after 5 minutes.
-	chal.Metadata.SetExpiry(time.Now().Add(5 * time.Minute))
+	chal.GetMetadata().Expires = timestamppb.New(time.Now().Add(ValidatedMFAChallengeExpiry))
 
-	res, err := svc.CreateResource(ctx, challenge)
+	res, err := svc.CreateResource(ctx, chal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return (*mfav1.ValidatedMFAChallenge)(res), nil
+	return res, nil
 }
 
 // GetValidatedMFAChallenge retrieves a ValidatedMFAChallenge resource.
 func (s *MFAService) GetValidatedMFAChallenge(
 	ctx context.Context,
-	username string,
+	targetCluster string,
 	chalName string,
-) (*mfav1.ValidatedMFAChallenge, error) {
+) (*mfav2.ValidatedMFAChallenge, error) {
 	switch {
-	case username == "":
-		return nil, trace.BadParameter("param username must not be empty")
+	case targetCluster == "":
+		return nil, trace.BadParameter("param targetCluster must not be empty")
 	case chalName == "":
 		return nil, trace.BadParameter("param chalName must not be empty")
 	}
 
-	// Scope the service to the given username, so that the resource is created under that user's prefix.
-	svc := s.service.WithPrefix(username)
+	// Scope resources by target cluster so the backend key is target-cluster/challenge-name.
+	svc := s.service.WithPrefix(targetCluster)
 
 	res, err := svc.GetResource(ctx, chalName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return (*mfav1.ValidatedMFAChallenge)(res), nil
+	return res, nil
 }
 
-// validatedMFAChallenge wraps mfav1.ValidatedMFAChallenge in order to implement the generic.ResourceMetadata interface.
-// It should not be exported outside of this package to avoid confusion.
-type validatedMFAChallenge mfav1.ValidatedMFAChallenge
+// ListValidatedMFAChallenges lists all ValidatedMFAChallenge resources.
+func (s *MFAService) ListValidatedMFAChallenges(
+	ctx context.Context,
+	pageSize int32,
+	pageToken string,
+	targetCluster string,
+) ([]*mfav2.ValidatedMFAChallenge, string, error) {
+	svc := s.service
 
-func (r *validatedMFAChallenge) GetMetadata() *headerv1.Metadata {
-	return types.LegacyTo153Metadata(*r.Metadata)
-}
-
-// MarshalValidatedMFAChallenge marshals a ValidatedMFAChallenge resource into JSON. Marshal options are currently
-// unsupported.
-func MarshalValidatedMFAChallenge(chal *validatedMFAChallenge, _ ...services.MarshalOption) ([]byte, error) {
-	marshaler := &jsonpb.Marshaler{
-		EnumsAsInts: true,
+	if targetCluster != "" {
+		// Scope listing by target cluster when provided to avoid scanning unrelated keys.
+		svc = svc.WithPrefix(targetCluster)
 	}
 
-	buf := &bytes.Buffer{}
+	internalChallenges, nextPageToken, err := svc.ListResources(ctx, int(pageSize), pageToken)
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
 
-	challenge := (*mfav1.ValidatedMFAChallenge)(chal)
+	return internalChallenges, nextPageToken, nil
+}
 
-	if err := marshaler.Marshal(buf, challenge); err != nil {
+// MarshalValidatedMFAChallenge marshals a ValidatedMFAChallenge resource into JSON.
+func MarshalValidatedMFAChallenge(chal *mfav2.ValidatedMFAChallenge, _ ...services.MarshalOption) ([]byte, error) {
+	marshaler := &protojson.MarshalOptions{
+		EmitUnpopulated: false,
+		UseProtoNames:   true,
+	}
+
+	return marshaler.Marshal(chal)
+}
+
+// UnmarshalValidatedMFAChallenge unmarshals a ValidatedMFAChallenge resource from JSON.
+func UnmarshalValidatedMFAChallenge(b []byte, opts ...services.MarshalOption) (*mfav2.ValidatedMFAChallenge, error) {
+	unmarshaler := &protojson.UnmarshalOptions{
+		AllowPartial:   false,
+		DiscardUnknown: true,
+	}
+
+	challenge := &mfav2.ValidatedMFAChallenge{}
+
+	if err := unmarshaler.Unmarshal(b, challenge); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return buf.Bytes(), nil
-}
-
-// UnmarshalValidatedMFAChallenge unmarshals a ValidatedMFAChallenge resource from JSON. Unmarshal options are currently
-// unsupported.
-func UnmarshalValidatedMFAChallenge(b []byte, _ ...services.MarshalOption) (*validatedMFAChallenge, error) {
-	unmarshaler := &jsonpb.Unmarshaler{
-		AllowUnknownFields: true,
-	}
-
-	challenge := &mfav1.ValidatedMFAChallenge{}
-
-	if err := unmarshaler.Unmarshal(bytes.NewReader(b), challenge); err != nil {
+	cfg, err := services.CollectOptions(opts)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return (*validatedMFAChallenge)(challenge), nil
+	if cfg.Revision != "" || !cfg.Expires.IsZero() {
+		metadata := challenge.GetMetadata()
+		if metadata == nil {
+			metadata = &headerv1.Metadata{}
+			challenge.SetMetadata(metadata)
+		}
+
+		if cfg.Revision != "" {
+			metadata.Revision = cfg.Revision
+		}
+
+		if !cfg.Expires.IsZero() {
+			metadata.Expires = timestamppb.New(cfg.Expires)
+		}
+	}
+
+	return challenge, nil
 }
 
 // checkValidatedMFAChallenge checks that a ValidatedMFAChallenge resource is valid.
-func checkValidatedMFAChallenge(chal *validatedMFAChallenge) error {
+func checkValidatedMFAChallenge(chal *mfav2.ValidatedMFAChallenge) error {
 	switch {
 	case chal == nil:
 		return trace.BadParameter("chal must not be nil")
-	case chal.Kind != "validated_mfa_challenge":
-		return trace.BadParameter("invalid kind: %q", chal.Kind)
-	case chal.Version != "v1":
-		return trace.BadParameter("invalid version: %q", chal.Version)
-	case chal.Metadata == nil:
+	case chal.GetKind() != "validated_mfa_challenge":
+		return trace.BadParameter("invalid kind: %q", chal.GetKind())
+	case chal.GetVersion() != types.V1:
+		return trace.BadParameter("invalid version: %q", chal.GetVersion())
+	case chal.GetMetadata() == nil:
 		return trace.BadParameter("metadata must be set")
-	case chal.Metadata.Name == "":
+	case chal.GetMetadata().GetName() == "":
 		return trace.BadParameter("name must be set")
-	case chal.Spec == nil:
+	case chal.GetSpec() == nil:
 		return trace.BadParameter("spec must be set")
-	case chal.Spec.Payload == nil:
+	case chal.GetSpec().GetPayload() == nil:
 		return trace.BadParameter("payload must be set")
-	case len(chal.Spec.Payload.GetSshSessionId()) == 0:
+	case len(chal.GetSpec().GetPayload().GetSshSessionId()) == 0:
 		return trace.BadParameter("ssh_session_id must be set")
-	case chal.Spec.SourceCluster == "":
+	case chal.GetSpec().GetSourceCluster() == "":
 		return trace.BadParameter("source_cluster must be set")
-	case chal.Spec.TargetCluster == "":
+	case chal.GetSpec().GetTargetCluster() == "":
 		return trace.BadParameter("target_cluster must be set")
+	case chal.GetSpec().GetUsername() == "":
+		return trace.BadParameter("username must be set")
 	default:
 		return nil
 	}
+}
+
+type validatedMFAChallengeParser struct {
+	baseParser
+}
+
+func newValidatedMFAChallengeParser() *validatedMFAChallengeParser {
+	return &validatedMFAChallengeParser{
+		baseParser: newBaseParser(backend.ExactKey(types.KindValidatedMFAChallenge)),
+	}
+}
+
+func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource, error) {
+	var chal *mfav2.ValidatedMFAChallenge
+
+	switch event.Type {
+	case types.OpDelete:
+		// Inflate key components into a challenge so consumers can access the backend key structure directly from the
+		// concrete resource type.
+		key := event.Item.Key.TrimPrefix(backend.NewKey(types.KindValidatedMFAChallenge))
+
+		keyComponents := key.Components()
+		if len(keyComponents) < 2 {
+			return nil, trace.NotFound("failed parsing %v", event.Item.Key.String())
+		}
+
+		chal = mfav2.ValidatedMFAChallenge_builder{
+			Kind:    types.KindValidatedMFAChallenge,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
+			},
+			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+				TargetCluster: keyComponents[0], // The target cluster is the first component of the key.
+			}.Build(),
+		}.Build()
+
+	case types.OpPut:
+		var err error
+		chal, err = UnmarshalValidatedMFAChallenge(
+			event.Item.Value,
+			services.WithExpires(event.Item.Expires),
+			services.WithRevision(event.Item.Revision),
+		)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	default:
+		return nil, trace.BadParameter("event %v is not supported", event.Type)
+	}
+
+	return types.ProtoResource153ToLegacy(chal), nil
 }

@@ -57,7 +57,6 @@ import (
 
 const (
 	tdpbQueryParameter = "tdpb"
-	protocolTDPB       = "teleport-tdpb-1.0"
 	protocolTDP        = "teleport-tdp"
 )
 
@@ -152,7 +151,7 @@ type tdpHandshaker struct {
 func (t *tdpHandshaker) sendError(ctx context.Context, log *slog.Logger, err error) error {
 	if err == nil {
 		log.WarnContext(ctx, "SendError called with empty message")
-		err = errors.New("an an unknown error has occurred")
+		err = errors.New("an unknown error has occurred")
 	}
 
 	return trace.Wrap(t.connection.WriteMessage((&legacy.Alert{
@@ -185,7 +184,6 @@ func (t *tdpHandshaker) performInitialHandshake(ctx context.Context, log *slog.L
 		)
 	}
 
-	*log = *log.With("width", width, "height", height)
 	msg, err = t.connection.ReadMessage()
 	if err != nil {
 		return trace.Wrap(err)
@@ -194,7 +192,7 @@ func (t *tdpHandshaker) performInitialHandshake(ctx context.Context, log *slog.L
 	keyboardLayout, gotKeyboardLayout := msg.(legacy.ClientKeyboardLayout)
 	if !gotKeyboardLayout {
 		t.withheld = append(t.withheld, msg)
-		log.InfoContext(ctx, "client did not send keyboard layout", "message_type", logutils.TypeAttr(msg))
+		log.InfoContext(ctx, "client did not send keyboard layout", "message_type", logutils.TypeAttr(msg), "width", width, "height", height)
 	} else {
 		t.keyboardLayout = &keyboardLayout
 	}
@@ -227,7 +225,26 @@ func (t *tdpHandshaker) forwardTDPB(w io.Writer, username string, _ bool) error 
 		hello.KeyboardLayout = t.keyboardLayout.KeyboardLayout
 	}
 
-	return trace.Wrap(sendAll(w, append([]tdp.Message{hello}, t.withheld...)))
+	withheld, err := translateAll(t.withheld, tdpb.TranslateToModern)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(sendAll(w, append([]tdp.Message{hello}, withheld...)))
+}
+
+func translateAll(messages []tdp.Message, translate func(tdp.Message) ([]tdp.Message, error)) ([]tdp.Message, error) {
+	translated := make([]tdp.Message, 0, len(messages))
+	for _, msg := range messages {
+		out, err := translate(msg)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(out) > 0 {
+			translated = append(translated, out...)
+		}
+	}
+	return translated, nil
 }
 
 // implements handshaker for TDPB clients
@@ -293,7 +310,11 @@ func (t *tdpbHandshaker) forwardTDP(w io.Writer, username string, forwardKeyboar
 		messages = append(messages, legacy.ClientKeyboardLayout{KeyboardLayout: t.hello.KeyboardLayout})
 	}
 
-	return sendAll(w, append(messages, t.withheld...))
+	withheld, err := translateAll(t.withheld, tdpb.TranslateToLegacy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return sendAll(w, append(messages, withheld...))
 }
 
 func (t *tdpbHandshaker) forwardTDPB(w io.Writer, username string, _ bool) error {
@@ -320,14 +341,14 @@ type handshaker interface {
 
 // creates a handshaker instance that interops with either TDP or TDPB clients
 func newHandshaker(protocol string, ws *websocket.Conn) handshaker {
-	if protocol == protocolTDPB {
+	if protocol == tdpb.ProtocolName {
 		return &tdpbHandshaker{
 			connection: &desktopWebsocketAdapter{conn: ws},
 		}
 	}
 	// Default to TDP
 	return &tdpHandshaker{
-		connection: tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode),
+		connection: tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode, legacy.WarningConstructor),
 	}
 }
 
@@ -436,7 +457,7 @@ func (h *Handler) createDesktopConnection(
 		serverProtocol = protocolTDP
 		sendKeyboardLayout, _ := utils.MinVerWithoutPreRelease(version, "18.0.0")
 		err = handshaker.forwardTDP(serviceConnTLS, username, sendKeyboardLayout)
-	case protocolTDPB:
+	case tdpb.ProtocolName:
 		err = handshaker.forwardTDPB(serviceConnTLS, username, true /* unused */)
 	default:
 		err = trace.BadParameter("Unknown desktop agent protocol %v", serverProtocol)
@@ -577,7 +598,7 @@ func (h *Handler) createDesktopTLSConfig(
 	}
 
 	tlsConfig.Certificates = []tls.Certificate{certConf}
-	tlsConfig.NextProtos = []string{protocolTDPB}
+	tlsConfig.NextProtos = []string{tdpb.ProtocolName}
 	// Pass target desktop name via SNI.
 	tlsConfig.ServerName = desktopName + SNISuffix
 	return tlsConfig, nil
@@ -603,7 +624,7 @@ func (h *Handler) performSessionMFACeremony(
 
 	mfaCeremony := &mfa.Ceremony{
 		CreateAuthenticateChallenge: sctx.cfg.RootClient.CreateAuthenticateChallenge,
-		SSOMFACeremonyConstructor: func(_ context.Context) (mfa.SSOMFACeremony, error) {
+		MFACeremonyConstructor: func(_ context.Context) (mfa.CallbackCeremony, error) {
 			u, err := url.Parse(sso.WebMFARedirect)
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -651,8 +672,8 @@ func readClientProtocol(r *http.Request) (string, error) {
 	switch tdpbVersion {
 	case "":
 		return protocolTDP, nil
-	case protocolTDPB:
-		return protocolTDPB, nil
+	case tdpb.ProtocolName:
+		return tdpb.ProtocolName, nil
 	default:
 		return "", trace.BadParameter("unknown TDPB version %q", tdpbVersion)
 	}
@@ -734,10 +755,10 @@ func (d desktopPinger) pingTDPB(ctx context.Context) error {
 }
 
 func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
-	if protocol == protocolTDPB {
-		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.DecodePermissive))
+	if protocol == tdpb.ProtocolName {
+		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 	}
-	return tdp.NewConn(rwc, legacy.Decode)
+	return tdp.NewConn(rwc, legacy.Decode, legacy.WarningConstructor)
 }
 
 type desktopWebsocketProxy struct {
@@ -791,16 +812,16 @@ func (p desktopWebsocketProxy) run(ctx context.Context) error {
 	needTranslation := p.clientProtocol != p.serverProtocol
 	if needTranslation {
 		// Translation is needed
-		if p.serverProtocol == protocolTDPB {
-			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDPB, "client_dialect", protocolTDP)
-			// Server speaks TDPB
+		if p.serverProtocol == tdpb.ProtocolName {
+			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", tdpb.ProtocolName, "client_dialect", protocolTDP)
+			// Agent speaks TDPB
 			// Translate to TDPB when writing to the server. Intercept pings when reading from the server.
 			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToModern)
 			// Client speaks TDP
 			// Translate to TDP (legacy) when writing to this connection
 			clientConn = tdp.NewReadWriteInterceptor(clientConn, nil, tdpb.TranslateToLegacy)
 		} else {
-			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDP, "client_dialect", protocolTDPB)
+			p.log.InfoContext(ctx, "Proxying desktop connection with translation", "server_dialect", protocolTDP, "client_dialect", tdpb.ProtocolName)
 			// Agent speaks TDP
 			// Translate to TDPB when reading from this connection.
 			serverConn = tdp.NewReadWriteInterceptor(serverConn, nil, tdpb.TranslateToLegacy)

@@ -21,14 +21,16 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/access_request.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
+	types "github.com/gravitational/teleport/api/types"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +42,7 @@ const (
 )
 
 type AccessRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	Id    string                 `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// the request state of Access Request. option of PENDING, APPROVED, DENIED, PROMOTED, NONE
 	State         string `protobuf:"bytes,2,opt,name=state,proto3" json:"state,omitempty"`
@@ -103,11 +105,6 @@ func (x *AccessRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AccessRequest.ProtoReflect.Descriptor instead.
-func (*AccessRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AccessRequest) GetId() string {
@@ -243,8 +240,216 @@ func (x *AccessRequest) GetReasonPrompts() []string {
 	return nil
 }
 
+func (x *AccessRequest) SetId(v string) {
+	x.Id = v
+}
+
+func (x *AccessRequest) SetState(v string) {
+	x.State = v
+}
+
+func (x *AccessRequest) SetResolveReason(v string) {
+	x.ResolveReason = v
+}
+
+func (x *AccessRequest) SetRequestReason(v string) {
+	x.RequestReason = v
+}
+
+func (x *AccessRequest) SetUser(v string) {
+	x.User = v
+}
+
+func (x *AccessRequest) SetRoles(v []string) {
+	x.Roles = v
+}
+
+func (x *AccessRequest) SetCreated(v *timestamppb.Timestamp) {
+	x.Created = v
+}
+
+func (x *AccessRequest) SetExpires(v *timestamppb.Timestamp) {
+	x.Expires = v
+}
+
+func (x *AccessRequest) SetReviews(v []*AccessRequestReview) {
+	x.Reviews = v
+}
+
+func (x *AccessRequest) SetSuggestedReviewers(v []string) {
+	x.SuggestedReviewers = v
+}
+
+func (x *AccessRequest) SetThresholdNames(v []string) {
+	x.ThresholdNames = v
+}
+
+func (x *AccessRequest) SetResources(v []*Resource) {
+	x.Resources = v
+}
+
+func (x *AccessRequest) SetPromotedAccessListTitle(v string) {
+	x.PromotedAccessListTitle = v
+}
+
+func (x *AccessRequest) SetAssumeStartTime(v *timestamppb.Timestamp) {
+	x.AssumeStartTime = v
+}
+
+func (x *AccessRequest) SetMaxDuration(v *timestamppb.Timestamp) {
+	x.MaxDuration = v
+}
+
+func (x *AccessRequest) SetRequestTtl(v *timestamppb.Timestamp) {
+	x.RequestTtl = v
+}
+
+func (x *AccessRequest) SetSessionTtl(v *timestamppb.Timestamp) {
+	x.SessionTtl = v
+}
+
+func (x *AccessRequest) SetReasonMode(v string) {
+	x.ReasonMode = v
+}
+
+func (x *AccessRequest) SetReasonPrompts(v []string) {
+	x.ReasonPrompts = v
+}
+
+func (x *AccessRequest) HasCreated() bool {
+	if x == nil {
+		return false
+	}
+	return x.Created != nil
+}
+
+func (x *AccessRequest) HasExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.Expires != nil
+}
+
+func (x *AccessRequest) HasAssumeStartTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.AssumeStartTime != nil
+}
+
+func (x *AccessRequest) HasMaxDuration() bool {
+	if x == nil {
+		return false
+	}
+	return x.MaxDuration != nil
+}
+
+func (x *AccessRequest) HasRequestTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.RequestTtl != nil
+}
+
+func (x *AccessRequest) HasSessionTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.SessionTtl != nil
+}
+
+func (x *AccessRequest) ClearCreated() {
+	x.Created = nil
+}
+
+func (x *AccessRequest) ClearExpires() {
+	x.Expires = nil
+}
+
+func (x *AccessRequest) ClearAssumeStartTime() {
+	x.AssumeStartTime = nil
+}
+
+func (x *AccessRequest) ClearMaxDuration() {
+	x.MaxDuration = nil
+}
+
+func (x *AccessRequest) ClearRequestTtl() {
+	x.RequestTtl = nil
+}
+
+func (x *AccessRequest) ClearSessionTtl() {
+	x.SessionTtl = nil
+}
+
+type AccessRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Id string
+	// the request state of Access Request. option of PENDING, APPROVED, DENIED, PROMOTED, NONE
+	State         string
+	ResolveReason string
+	RequestReason string
+	// user is the user who submitted the Access Request
+	User string
+	// a list of roles requested
+	Roles              []string
+	Created            *timestamppb.Timestamp
+	Expires            *timestamppb.Timestamp
+	Reviews            []*AccessRequestReview
+	SuggestedReviewers []string
+	// thresholds specifies minimum amount of approvers or deniers. Defaults to 'default'
+	ThresholdNames []string
+	// List of requested resources.
+	Resources []*Resource
+	// promoted_access_list_title is the title of the access
+	// list that this access request was promoted to.
+	PromotedAccessListTitle string
+	// assume_start_time is the time after which the requested access can be assumed.
+	AssumeStartTime *timestamppb.Timestamp
+	// max_duration is the maximum duration for which the request is valid.
+	MaxDuration *timestamppb.Timestamp
+	// request_ttl is the expiration time of the request (how long it will await
+	// approval).
+	RequestTtl *timestamppb.Timestamp
+	// session_ttl indicates how long a certificate for a session should be valid for.
+	SessionTtl *timestamppb.Timestamp
+	// reason_mode specifies the reason mode for this Access Request. It can be either "optional" or
+	// "required". It's only added in response to a dry run request.
+	ReasonMode string
+	// reason_prompts is a sorted and deduplicated list of reason prompts for this Access Request.
+	// It's only added in response to a dry run request.
+	ReasonPrompts []string
+}
+
+func (b0 AccessRequest_builder) Build() *AccessRequest {
+	m0 := &AccessRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.State = b.State
+	x.ResolveReason = b.ResolveReason
+	x.RequestReason = b.RequestReason
+	x.User = b.User
+	x.Roles = b.Roles
+	x.Created = b.Created
+	x.Expires = b.Expires
+	x.Reviews = b.Reviews
+	x.SuggestedReviewers = b.SuggestedReviewers
+	x.ThresholdNames = b.ThresholdNames
+	x.Resources = b.Resources
+	x.PromotedAccessListTitle = b.PromotedAccessListTitle
+	x.AssumeStartTime = b.AssumeStartTime
+	x.MaxDuration = b.MaxDuration
+	x.RequestTtl = b.RequestTtl
+	x.SessionTtl = b.SessionTtl
+	x.ReasonMode = b.ReasonMode
+	x.ReasonPrompts = b.ReasonPrompts
+	return m0
+}
+
 type AccessRequestReview struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// author is the creator of the AccessRequestReview.
 	Author string `protobuf:"bytes,1,opt,name=author,proto3" json:"author,omitempty"`
 	// list of roles approved
@@ -287,11 +492,6 @@ func (x *AccessRequestReview) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AccessRequestReview.ProtoReflect.Descriptor instead.
-func (*AccessRequestReview) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AccessRequestReview) GetAuthor() string {
@@ -343,8 +543,92 @@ func (x *AccessRequestReview) GetAssumeStartTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *AccessRequestReview) SetAuthor(v string) {
+	x.Author = v
+}
+
+func (x *AccessRequestReview) SetRoles(v []string) {
+	x.Roles = v
+}
+
+func (x *AccessRequestReview) SetState(v string) {
+	x.State = v
+}
+
+func (x *AccessRequestReview) SetReason(v string) {
+	x.Reason = v
+}
+
+func (x *AccessRequestReview) SetCreated(v *timestamppb.Timestamp) {
+	x.Created = v
+}
+
+func (x *AccessRequestReview) SetPromotedAccessListTitle(v string) {
+	x.PromotedAccessListTitle = v
+}
+
+func (x *AccessRequestReview) SetAssumeStartTime(v *timestamppb.Timestamp) {
+	x.AssumeStartTime = v
+}
+
+func (x *AccessRequestReview) HasCreated() bool {
+	if x == nil {
+		return false
+	}
+	return x.Created != nil
+}
+
+func (x *AccessRequestReview) HasAssumeStartTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.AssumeStartTime != nil
+}
+
+func (x *AccessRequestReview) ClearCreated() {
+	x.Created = nil
+}
+
+func (x *AccessRequestReview) ClearAssumeStartTime() {
+	x.AssumeStartTime = nil
+}
+
+type AccessRequestReview_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// author is the creator of the AccessRequestReview.
+	Author string
+	// list of roles approved
+	Roles []string
+	// the state of the review, either APPROVED or DENIED
+	State string
+	// reason is why the request was approved or denied
+	Reason  string
+	Created *timestamppb.Timestamp
+	// promoted_access_list_title is the title of the access
+	// list that the access request was promoted to.
+	PromotedAccessListTitle string
+	// if not a nil value, this reviewer overwrote
+	// the requested start time.
+	AssumeStartTime *timestamppb.Timestamp
+}
+
+func (b0 AccessRequestReview_builder) Build() *AccessRequestReview {
+	m0 := &AccessRequestReview{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Author = b.Author
+	x.Roles = b.Roles
+	x.State = b.State
+	x.Reason = b.Reason
+	x.Created = b.Created
+	x.PromotedAccessListTitle = b.PromotedAccessListTitle
+	x.AssumeStartTime = b.AssumeStartTime
+	return m0
+}
+
 type ResourceID struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
+	state           protoimpl.MessageState `protogen:"hybrid.v1"`
 	Kind            string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	Name            string                 `protobuf:"bytes,2,opt,name=name,proto3" json:"name,omitempty"`
 	ClusterName     string                 `protobuf:"bytes,3,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
@@ -378,11 +662,6 @@ func (x *ResourceID) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResourceID.ProtoReflect.Descriptor instead.
-func (*ResourceID) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ResourceID) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -411,8 +690,44 @@ func (x *ResourceID) GetSubResourceName() string {
 	return ""
 }
 
+func (x *ResourceID) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *ResourceID) SetName(v string) {
+	x.Name = v
+}
+
+func (x *ResourceID) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *ResourceID) SetSubResourceName(v string) {
+	x.SubResourceName = v
+}
+
+type ResourceID_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind            string
+	Name            string
+	ClusterName     string
+	SubResourceName string
+}
+
+func (b0 ResourceID_builder) Build() *ResourceID {
+	m0 := &ResourceID{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.Name = b.Name
+	x.ClusterName = b.ClusterName
+	x.SubResourceName = b.SubResourceName
+	return m0
+}
+
 type ResourceDetails struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Hostname      string                 `protobuf:"bytes,1,opt,name=hostname,proto3" json:"hostname,omitempty"`
 	FriendlyName  string                 `protobuf:"bytes,2,opt,name=friendly_name,json=friendlyName,proto3" json:"friendly_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -444,11 +759,6 @@ func (x *ResourceDetails) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResourceDetails.ProtoReflect.Descriptor instead.
-func (*ResourceDetails) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ResourceDetails) GetHostname() string {
 	if x != nil {
 		return x.Hostname
@@ -463,10 +773,36 @@ func (x *ResourceDetails) GetFriendlyName() string {
 	return ""
 }
 
+func (x *ResourceDetails) SetHostname(v string) {
+	x.Hostname = v
+}
+
+func (x *ResourceDetails) SetFriendlyName(v string) {
+	x.FriendlyName = v
+}
+
+type ResourceDetails_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Hostname     string
+	FriendlyName string
+}
+
+func (b0 ResourceDetails_builder) Build() *ResourceDetails {
+	m0 := &ResourceDetails{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Hostname = b.Hostname
+	x.FriendlyName = b.FriendlyName
+	return m0
+}
+
 type Resource struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Id            *ResourceID            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
-	Details       *ResourceDetails       `protobuf:"bytes,2,opt,name=details,proto3" json:"details,omitempty"`
+	state   protoimpl.MessageState `protogen:"hybrid.v1"`
+	Id      *ResourceID            `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	Details *ResourceDetails       `protobuf:"bytes,2,opt,name=details,proto3" json:"details,omitempty"`
+	// constraints holds optional resource-specific constraints (e.g., AWS role ARNs).
+	Constraints   *types.ResourceConstraints `protobuf:"bytes,3,opt,name=constraints,proto3" json:"constraints,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -496,11 +832,6 @@ func (x *Resource) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Resource.ProtoReflect.Descriptor instead.
-func (*Resource) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *Resource) GetId() *ResourceID {
 	if x != nil {
 		return x.Id
@@ -515,11 +846,82 @@ func (x *Resource) GetDetails() *ResourceDetails {
 	return nil
 }
 
+func (x *Resource) GetConstraints() *types.ResourceConstraints {
+	if x != nil {
+		return x.Constraints
+	}
+	return nil
+}
+
+func (x *Resource) SetId(v *ResourceID) {
+	x.Id = v
+}
+
+func (x *Resource) SetDetails(v *ResourceDetails) {
+	x.Details = v
+}
+
+func (x *Resource) SetConstraints(v *types.ResourceConstraints) {
+	x.Constraints = v
+}
+
+func (x *Resource) HasId() bool {
+	if x == nil {
+		return false
+	}
+	return x.Id != nil
+}
+
+func (x *Resource) HasDetails() bool {
+	if x == nil {
+		return false
+	}
+	return x.Details != nil
+}
+
+func (x *Resource) HasConstraints() bool {
+	if x == nil {
+		return false
+	}
+	return x.Constraints != nil
+}
+
+func (x *Resource) ClearId() {
+	x.Id = nil
+}
+
+func (x *Resource) ClearDetails() {
+	x.Details = nil
+}
+
+func (x *Resource) ClearConstraints() {
+	x.Constraints = nil
+}
+
+type Resource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Id      *ResourceID
+	Details *ResourceDetails
+	// constraints holds optional resource-specific constraints (e.g., AWS role ARNs).
+	Constraints *types.ResourceConstraints
+}
+
+func (b0 Resource_builder) Build() *Resource {
+	m0 := &Resource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Details = b.Details
+	x.Constraints = b.Constraints
+	return m0
+}
+
 var File_teleport_lib_teleterm_v1_access_request_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"\x98\a\n" +
+	"-teleport/lib/teleterm/v1/access_request.proto\x12\x18teleport.lib.teleterm.v1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\"\x98\a\n" +
 	"\rAccessRequest\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05state\x18\x02 \x01(\tR\x05state\x12%\n" +
@@ -560,31 +962,21 @@ const file_teleport_lib_teleterm_v1_access_request_proto_rawDesc = "" +
 	"\x11sub_resource_name\x18\x04 \x01(\tR\x0fsubResourceName\"R\n" +
 	"\x0fResourceDetails\x12\x1a\n" +
 	"\bhostname\x18\x01 \x01(\tR\bhostname\x12#\n" +
-	"\rfriendly_name\x18\x02 \x01(\tR\ffriendlyName\"\x85\x01\n" +
+	"\rfriendly_name\x18\x02 \x01(\tR\ffriendlyName\"\xc3\x01\n" +
 	"\bResource\x124\n" +
 	"\x02id\x18\x01 \x01(\v2$.teleport.lib.teleterm.v1.ResourceIDR\x02id\x12C\n" +
-	"\adetails\x18\x02 \x01(\v2).teleport.lib.teleterm.v1.ResourceDetailsR\adetailsBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_v1_access_request_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_access_request_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_access_request_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_access_request_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_access_request_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_access_request_proto_rawDesc), len(file_teleport_lib_teleterm_v1_access_request_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_access_request_proto_rawDescData
-}
+	"\adetails\x18\x02 \x01(\v2).teleport.lib.teleterm.v1.ResourceDetailsR\adetails\x12<\n" +
+	"\vconstraints\x18\x03 \x01(\v2\x1a.types.ResourceConstraintsR\vconstraintsBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
 
 var file_teleport_lib_teleterm_v1_access_request_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_lib_teleterm_v1_access_request_proto_goTypes = []any{
-	(*AccessRequest)(nil),         // 0: teleport.lib.teleterm.v1.AccessRequest
-	(*AccessRequestReview)(nil),   // 1: teleport.lib.teleterm.v1.AccessRequestReview
-	(*ResourceID)(nil),            // 2: teleport.lib.teleterm.v1.ResourceID
-	(*ResourceDetails)(nil),       // 3: teleport.lib.teleterm.v1.ResourceDetails
-	(*Resource)(nil),              // 4: teleport.lib.teleterm.v1.Resource
-	(*timestamppb.Timestamp)(nil), // 5: google.protobuf.Timestamp
+	(*AccessRequest)(nil),             // 0: teleport.lib.teleterm.v1.AccessRequest
+	(*AccessRequestReview)(nil),       // 1: teleport.lib.teleterm.v1.AccessRequestReview
+	(*ResourceID)(nil),                // 2: teleport.lib.teleterm.v1.ResourceID
+	(*ResourceDetails)(nil),           // 3: teleport.lib.teleterm.v1.ResourceDetails
+	(*Resource)(nil),                  // 4: teleport.lib.teleterm.v1.Resource
+	(*timestamppb.Timestamp)(nil),     // 5: google.protobuf.Timestamp
+	(*types.ResourceConstraints)(nil), // 6: types.ResourceConstraints
 }
 var file_teleport_lib_teleterm_v1_access_request_proto_depIdxs = []int32{
 	5,  // 0: teleport.lib.teleterm.v1.AccessRequest.created:type_name -> google.protobuf.Timestamp
@@ -599,11 +991,12 @@ var file_teleport_lib_teleterm_v1_access_request_proto_depIdxs = []int32{
 	5,  // 9: teleport.lib.teleterm.v1.AccessRequestReview.assume_start_time:type_name -> google.protobuf.Timestamp
 	2,  // 10: teleport.lib.teleterm.v1.Resource.id:type_name -> teleport.lib.teleterm.v1.ResourceID
 	3,  // 11: teleport.lib.teleterm.v1.Resource.details:type_name -> teleport.lib.teleterm.v1.ResourceDetails
-	12, // [12:12] is the sub-list for method output_type
-	12, // [12:12] is the sub-list for method input_type
-	12, // [12:12] is the sub-list for extension type_name
-	12, // [12:12] is the sub-list for extension extendee
-	0,  // [0:12] is the sub-list for field type_name
+	6,  // 12: teleport.lib.teleterm.v1.Resource.constraints:type_name -> types.ResourceConstraints
+	13, // [13:13] is the sub-list for method output_type
+	13, // [13:13] is the sub-list for method input_type
+	13, // [13:13] is the sub-list for extension type_name
+	13, // [13:13] is the sub-list for extension extendee
+	0,  // [0:13] is the sub-list for field type_name
 }
 
 func init() { file_teleport_lib_teleterm_v1_access_request_proto_init() }

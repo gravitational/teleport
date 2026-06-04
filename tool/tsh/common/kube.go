@@ -66,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
@@ -111,7 +110,7 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 		CmdClause: parent.Command("join", "Join an active Kubernetes session."),
 	}
 
-	c.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&c.mode, "observer", "moderator", "peer")
+	c.Flag("mode", "Mode of joining the session.").Short('m').Default("observer").EnumVar(&c.mode, "observer", "moderator", "peer")
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("session", "The ID of the target session.").Required().StringVar(&c.session)
 	return c
@@ -371,6 +370,21 @@ type ExecOptions struct {
 	reason string
 }
 
+// termSizeQueueAdapter adapts term.TerminalSizeQueue to
+// remotecommand.TerminalSizeQueue.
+type termSizeQueueAdapter struct {
+	q term.TerminalSizeQueue
+}
+
+func (a *termSizeQueueAdapter) Next() *remotecommand.TerminalSize {
+	s := a.q.Next()
+	if s == nil {
+		return nil
+	}
+
+	return &remotecommand.TerminalSize{Width: s.Width, Height: s.Height}
+}
+
 // Run executes a validated remote execution against a pod.
 func (p *ExecOptions) Run(ctx context.Context) error {
 	var err error
@@ -420,7 +434,9 @@ func (p *ExecOptions) Run(ctx context.Context) error {
 	var sizeQueue remotecommand.TerminalSizeQueue
 	if t.Raw {
 		// this call spawns a goroutine to monitor/update the terminal size
-		sizeQueue = t.MonitorSize(t.GetSize())
+		if q := t.MonitorSize(t.GetSize()); q != nil {
+			sizeQueue = &termSizeQueueAdapter{q: q}
+		}
 
 		// unset p.Err if it was previously set because both stdout and stderr go over p.Out when tty is
 		// true
@@ -801,25 +817,6 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		}
 		return trace.Wrap(err)
 	}
-	// Make sure the cert is allowed to access the cluster.
-	// At this point we already know that the user has access to the cluster
-	// via the RBAC rules, but we also need to make sure that the user has
-	// access to the cluster with at least one kubernetes_user or kubernetes_group
-	// defined.
-	// This is a safety check in order to print a better message to the user even
-	// before hitting Teleport Kubernetes Proxy.
-	// We only enforce this check for root clusters, since we don't have knowledge
-	// of the RBAC role mappings for remote clusters.
-	rootClusterName, err := tc.RootClusterName(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(k,
-		rootClusterName,
-		c.teleportCluster,
-		c.kubeCluster); err != nil {
-		return trace.Wrap(err)
-	}
 	// Cache the new cert on disk for reuse.
 	if err := tc.LocalAgent().AddKubeKeyRing(k); err != nil {
 		return trace.Wrap(err)
@@ -996,34 +993,34 @@ func (c *kubeLSCommand) showKubeClusters(w io.Writer, kubeClusters types.KubeClu
 	return nil
 }
 
-func getKubeClusterTextRow(kc types.KubeCluster, selectedCluster string, verbose bool) []string {
+func getKubeClusterTextRow(kc types.KubeCluster, selected, verbose bool) []string {
 	var selectedMark string
 	var row []string
-	if selectedCluster != "" && kc.GetName() == selectedCluster {
+	if selected {
 		selectedMark = "*"
 	}
 	displayName := common.FormatResourceName(kc, verbose)
 	labels := common.FormatLabels(kc.GetAllLabels(), verbose)
-	row = append(row, displayName, labels, selectedMark)
+	row = append(row, displayName, labels, kc.GetScope(), selectedMark)
 	return row
 }
 
 func formatKubeClustersAsText(kubeClusters types.KubeClusters, selectedCluster string, quiet, verbose bool) string {
 	var (
-		columns = []string{"Kube Cluster Name", "Labels", "Selected"}
+		columns = []string{"Kube Cluster Name", "Labels", "Scope", "Selected"}
 		t       asciitable.Table
 		rows    [][]string
 	)
 
 	for _, cluster := range kubeClusters {
-		r := getKubeClusterTextRow(cluster, selectedCluster, verbose)
+		r := getKubeClusterTextRow(cluster, isClusterSelected(kubeClusters, cluster, selectedCluster), verbose)
 		rows = append(rows, r)
 	}
 
 	switch {
 	case quiet:
-		// no column headers and only include the cluster name and labels.
-		t = asciitable.MakeHeadlessTable(2)
+		// no column headers and only include the cluster name, scope, and labels.
+		t = asciitable.MakeHeadlessTable(3)
 		for _, row := range rows {
 			t.AddRow(row)
 		}
@@ -1038,11 +1035,32 @@ func formatKubeClustersAsText(kubeClusters types.KubeClusters, selectedCluster s
 	return t.AsBuffer().String()
 }
 
+func isClusterSelected(kubeClusters []types.KubeCluster, cluster types.KubeCluster, selectedCluster string) bool {
+	if cluster.GetName() != selectedCluster {
+		return false
+	}
+
+	// if there are duplicate cluster names present in the list, we can't disambiguate so none of them should be
+	// selected
+	var found bool
+	for _, cl := range kubeClusters {
+		if cl.GetName() == cluster.GetName() {
+			if found {
+				return false
+			}
+			found = true
+		}
+	}
+
+	return true
+}
+
 func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, format string) (string, error) {
 	type cluster struct {
 		KubeClusterName string            `json:"kube_cluster_name"`
 		Labels          map[string]string `json:"labels"`
 		Selected        bool              `json:"selected"`
+		Scope           string            `json:"scope"`
 	}
 	clusterInfo := make([]cluster, 0, len(kubeClusters))
 	for _, cl := range kubeClusters {
@@ -1053,7 +1071,8 @@ func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, fo
 		clusterInfo = append(clusterInfo, cluster{
 			KubeClusterName: cl.GetName(),
 			Labels:          labels,
-			Selected:        cl.GetName() == selectedCluster,
+			Selected:        isClusterSelected(kubeClusters, cl, selectedCluster),
+			Scope:           cl.GetScope(),
 		})
 	}
 	var out []byte
@@ -1153,7 +1172,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 
 func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string {
 	var (
-		columns = []string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"}
+		columns = []string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"}
 		t       asciitable.Table
 		rows    [][]string
 	)
@@ -1161,14 +1180,14 @@ func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string
 		r := append([]string{
 			listing.Proxy,
 			listing.Cluster,
-		}, getKubeClusterTextRow(listing.KubeCluster, "", verbose)...)
+		}, getKubeClusterTextRow(listing.KubeCluster, false, verbose)...)
 		rows = append(rows, r)
 	}
 
 	switch {
 	case quiet:
 		// quiet, so no column headers.
-		t = asciitable.MakeHeadlessTable(4)
+		t = asciitable.MakeHeadlessTable(5)
 		for _, row := range rows {
 			t.AddRow(row)
 		}
@@ -1391,15 +1410,18 @@ func matchClustersByNameOrDiscoveredName(name string, clusters types.KubeCluster
 		return clusters
 	}
 
-	// look for an exact full name match.
+	// look for exact full name matches.
+	var out types.KubeClusters
 	for _, kc := range clusters {
 		if kc.GetName() == name {
-			return types.KubeClusters{kc}
+			out = append(out, kc)
 		}
+	}
+	if len(out) > 0 {
+		return out
 	}
 
 	// or look for exact "discovered name" matches.
-	var out types.KubeClusters
 	for _, kc := range clusters {
 		discoveredName, ok := kc.GetLabel(types.DiscoveredNameLabel)
 		if ok && discoveredName == name {

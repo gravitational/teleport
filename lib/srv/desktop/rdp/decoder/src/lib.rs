@@ -18,11 +18,17 @@
 //! a series of RDP fast path PDUs. It exposes a small C API so that
 //! Go (via cgo) can create a decoder and call its methods.
 
+mod cursor;
+mod regions;
+
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::ptr;
 
+use crate::cursor::CursorState;
+use crate::regions::UpdatedRegions;
 use ironrdp_core::WriteBuf;
 use ironrdp_graphics::image_processing::PixelFormat;
+use ironrdp_session::fast_path::UpdateKind;
 use ironrdp_session::{
     fast_path::{Processor, ProcessorBuilder},
     image::DecodedImage,
@@ -31,29 +37,42 @@ use ironrdp_session::{
 pub struct RdpDecoder {
     image: DecodedImage,
     fast_path_processor: Processor,
+    cursor_state: CursorState,
+    updated_regions: UpdatedRegions,
 }
 
 impl RdpDecoder {
     const PIXEL_FORMAT: PixelFormat = PixelFormat::RgbA32;
 
-    pub fn new(width: u16, height: u16) -> Self {
+    pub fn new(width: u16, height: u16, io_channel_id: u16, user_channel_id: u16) -> Self {
         Self {
             image: DecodedImage::new(RdpDecoder::PIXEL_FORMAT, width, height),
             fast_path_processor: ProcessorBuilder {
+                // Enable pointer updates so we can get the state of the cursor for when we create
+                // cropped & zoomed in thumbnails in the session recording metadata generation.
+                enable_server_pointer: true,
+                io_channel_id,
+                user_channel_id,
                 // These options only matter in a real RDP session when we have
                 // to send responses back to the server. We can safely leave them
                 // at defaults when decoding session recordings.
-                io_channel_id: 0,
-                user_channel_id: 0,
-                enable_server_pointer: false,
                 pointer_software_rendering: false,
+                bulk_decompressor: None,
+                // share_id is important for live RDP sessions
+                // (see https://github.com/Devolutions/IronRDP/pull/1147)
+                // but doesn't need to be set for our decoder.
+                share_id: 0,
             }
             .build(),
+            cursor_state: Default::default(),
+            updated_regions: Default::default(),
         }
     }
 
     pub fn resize(&mut self, width: u16, height: u16) {
         self.image = DecodedImage::new(RdpDecoder::PIXEL_FORMAT, width, height);
+        self.cursor_state = Default::default();
+        self.updated_regions.reset();
     }
 
     pub fn image_data(&self) -> &[u8] {
@@ -72,12 +91,34 @@ impl RdpDecoder {
         let mut output = WriteBuf::new();
 
         // In a live RDP connection, this would return data that we need
-        // to use to create reponses to send to the server.
+        // to use to create responses to send to the server.
         // We're only interested in updating the internal frame buffer,
         // so we can ignore the result.
-        let _ = self
-            .fast_path_processor
-            .process(&mut self.image, tdp_fast_path_frame, &mut output);
+        if let Ok(updates) =
+            self.fast_path_processor
+                .process(&mut self.image, tdp_fast_path_frame, &mut output)
+        {
+            for update in updates {
+                match update {
+                    UpdateKind::Region(rect) => {
+                        self.updated_regions.push(rect);
+                    }
+                    UpdateKind::PointerBitmap(pointer) => {
+                        self.cursor_state.set_visible(true);
+                        self.cursor_state.set_bitmap(&pointer);
+                    }
+                    UpdateKind::PointerDefault => {
+                        self.cursor_state.set_visible(true);
+                        self.cursor_state.clear_bitmap();
+                    }
+                    UpdateKind::PointerHidden => self.cursor_state.set_visible(false),
+                    UpdateKind::PointerPosition { x, y } => {
+                        self.cursor_state.move_cursor(x, y);
+                    }
+                    _ => {}
+                }
+            }
+        }
     }
 }
 
@@ -85,13 +126,21 @@ impl RdpDecoder {
 /// The caller is responsible for calling rdp_decoder_free
 /// when the decoder is no longer needed.
 #[no_mangle]
-pub extern "C" fn rdp_decoder_new(width: u16, height: u16) -> *mut RdpDecoder {
-    match catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || {
-        Box::into_raw(Box::new(RdpDecoder::new(width, height)))
-    })) {
-        Ok(ptr) => ptr,
-        Err(_) => ptr::null_mut(),
-    }
+pub extern "C" fn rdp_decoder_new(
+    width: u16,
+    height: u16,
+    io_channel_id: u16,
+    user_channel_id: u16,
+) -> *mut RdpDecoder {
+    catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || {
+        Box::into_raw(Box::new(RdpDecoder::new(
+            width,
+            height,
+            io_channel_id,
+            user_channel_id,
+        )))
+    }))
+    .unwrap_or(ptr::null_mut())
 }
 
 /// Frees the memory associated with a decoder.
@@ -171,17 +220,145 @@ pub unsafe extern "C" fn rdp_decoder_image_data(
         return ptr::null();
     }
 
-    match catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
+    catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
         let decoder = &*ptr;
         let data = decoder.image_data();
 
         *out_width = decoder.image.width();
         *out_height = decoder.image.height();
         data.as_ptr()
-    })) {
-        Ok(p) => p,
-        Err(_) => ptr::null(),
+    }))
+    .unwrap_or(ptr::null())
+}
+
+/// Returns the current cursor position and visibility state.
+///
+/// # Safety
+///
+/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
+/// - All out-params must be valid, non-null pointers.
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_cursor_state(
+    ptr: *mut RdpDecoder,
+    out_visible: *mut u8,
+    out_x: *mut u16,
+    out_y: *mut u16,
+) {
+    if ptr.is_null() || out_visible.is_null() || out_x.is_null() || out_y.is_null() {
+        return;
     }
+
+    let _ = catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
+        let decoder = &*ptr;
+        let (x, y) = decoder.cursor_state.position();
+
+        *out_visible = decoder.cursor_state.is_visible() as u8;
+        *out_x = x;
+        *out_y = y;
+    }));
+}
+
+/// Returns a pointer to the cursor bitmap data and its dimensions via out-params.
+/// Returns null if no cursor bitmap is available. The returned pointer is valid
+/// as long as the decoder is alive and no new PointerBitmap update is processed.
+///
+/// # Safety
+///
+/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
+/// - All out-params must be valid, non-null pointers.
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_cursor_bitmap(
+    ptr: *mut RdpDecoder,
+    out_width: *mut u16,
+    out_height: *mut u16,
+    out_hotspot_x: *mut u16,
+    out_hotspot_y: *mut u16,
+) -> *const u8 {
+    if ptr.is_null()
+        || out_width.is_null()
+        || out_height.is_null()
+        || out_hotspot_x.is_null()
+        || out_hotspot_y.is_null()
+    {
+        return ptr::null();
+    }
+
+    catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
+        let decoder = &*ptr;
+        let Some(bmp) = decoder.cursor_state.bitmap() else {
+            return ptr::null();
+        };
+        bmp.write_metadata(out_width, out_height, out_hotspot_x, out_hotspot_y);
+        bmp.data_ptr()
+    }))
+    .unwrap_or(ptr::null())
+}
+
+/// Copies update regions into the caller-provided buffer as (left, top, right, bottom)
+/// u16 tuples. Returns the number of regions written. Coordinates use inclusive
+/// right/bottom matching the RDP InclusiveRectangle convention.
+///
+/// # Safety
+///
+/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
+/// - `out_buf` must point to at least `max_count * 4` writable u16 values.
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_updated_regions(
+    ptr: *mut RdpDecoder,
+    out_buf: *mut u16,
+    max_count: u32,
+) -> u32 {
+    if ptr.is_null() || out_buf.is_null() || max_count == 0 {
+        return 0;
+    }
+
+    catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
+        let decoder = &*ptr;
+        let out = std::slice::from_raw_parts_mut(out_buf as *mut [u16; 4], max_count as usize);
+
+        let n = decoder.updated_regions.len().min(max_count as usize) as u32;
+        for (slot, coords) in out.iter_mut().zip(decoder.updated_regions.iter()) {
+            *slot = coords;
+        }
+
+        n
+    }))
+    .unwrap_or(0)
+}
+
+/// Clears the accumulated update regions.
+///
+/// # Safety
+///
+/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_reset_updated_regions(ptr: *mut RdpDecoder) {
+    if ptr.is_null() {
+        return;
+    }
+
+    let _ = catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
+        let decoder = &mut *ptr;
+        decoder.updated_regions.reset();
+    }));
+}
+
+/// Returns the number of update regions accumulated since the last reset.
+///
+/// # Safety
+///
+/// - `ptr` must be a valid pointer previously returned by `rdp_decoder_new`.
+#[no_mangle]
+pub unsafe extern "C" fn rdp_decoder_updated_regions_count(ptr: *mut RdpDecoder) -> u32 {
+    if ptr.is_null() {
+        return 0;
+    }
+
+    catch_unwind_and_drop_panic_payload(AssertUnwindSafe(move || unsafe {
+        let decoder = &*ptr;
+        decoder.updated_regions.len() as u32
+    }))
+    .unwrap_or(0)
 }
 
 fn catch_unwind_and_drop_panic_payload<F: FnOnce() -> R, R>(f: F) -> Result<R, ()> {

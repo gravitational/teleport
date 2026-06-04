@@ -1,6 +1,6 @@
 /**
  * Teleport
- * Copyright (C) 2025 Gravitational, Inc.
+ * Copyright (C) 2026 Gravitational, Inc.
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -18,63 +18,20 @@
 
 import styled from 'styled-components';
 
-import { Box, Button, Flex, Text } from 'design';
-import { Check, Copy } from 'design/Icon';
+import { Box, Flex, Link as ExternalLink, Text } from 'design';
+import { NewTab } from 'design/Icon';
 import {
   InfoParagraph,
   InfoTitle,
+  InfoUl,
   ReferenceLinks,
   type ReferenceLink,
 } from 'shared/components/SlidingSidePanel/InfoGuide';
 
-import LiveTextEditor from '../LiveTextEditor';
-
-export const PANEL_WIDTH = 500;
-
-export type TerraformInfoGuideProps = {
-  terraformConfig: string;
-  copyConfigButtonRef: React.RefObject<HTMLButtonElement>;
-  configCopied: boolean;
-};
-
-export function TerraformInfoGuide({
-  terraformConfig,
-  copyConfigButtonRef,
-  configCopied,
-}: TerraformInfoGuideProps) {
-  return (
-    <Flex
-      ml={-3}
-      width={`${PANEL_WIDTH - 2}px`}
-      flexDirection="column"
-      height="600px"
-      position="sticky"
-    >
-      <LiveTextEditor
-        data={[{ content: terraformConfig, type: 'terraform' }]}
-      />
-      <Box p={3}>
-        <Button
-          disabled={copyConfigButtonRef.current?.disabled}
-          onClick={() => {
-            copyConfigButtonRef.current?.click();
-          }}
-          gap={2}
-          fill="border"
-          intent="primary"
-        >
-          {configCopied ? <Check size="small" /> : <Copy size="small" />}
-          Copy Terraform Module
-        </Button>
-      </Box>
-    </Flex>
-  );
-}
-
 const referenceLinks: ReferenceLink[] = [
   {
     title: 'Teleport AWS Discovery Documentation',
-    href: 'https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-guided/',
+    href: 'https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/',
   },
   {
     title: 'AWS IAM Roles',
@@ -89,12 +46,6 @@ const referenceLinks: ReferenceLink[] = [
 export function InfoGuideContent() {
   return (
     <Box>
-      <InfoTitle>Overview</InfoTitle>
-      <InfoParagraph>
-        Connect your AWS account to Teleport to automatically discover and
-        enroll resources in your cluster.
-      </InfoParagraph>
-
       <InfoTitle>How It Works</InfoTitle>
       <Box pl={2}>
         <ol
@@ -103,67 +54,67 @@ export function InfoGuideContent() {
           `}
         >
           <li>
-            <strong>Deploy IAM role with discovery permissions.</strong>
-            <br /> Using Terraform, create an IAM role that grants Teleport
-            read-only access to your AWS resources.
+            <strong>Configure what to discover.</strong>
+            <br />
+            <Text as="span" color="text.slightlyMuted">
+              Specify resource types, regions, and tag filters to control which
+              resources are discovered.
+            </Text>
           </li>
           <li>
-            <strong>Configure what to discover.</strong> <br />
-            Specify regions, resource types (EC2, RDS, EKS), and tag filters to
-            control which resources are discovered.
+            <strong>Use the generated Terraform module.</strong>
+            <br />
+            <Text as="span" color="text.slightlyMuted">
+              The Terraform module will set up an OIDC connection in AWS and
+              configure Teleport discovery to scan for your resources.
+            </Text>
           </li>
           <li>
-            <strong>Automatic discovery begins.</strong> <br />
-            Teleport scans your AWS environment every 30 minutes to find
-            resources matching your configuration.
-          </li>
-          <li>
-            <strong>Resources appear in your cluster.</strong>
-            <br /> Discovered resources are automatically enrolled in Teleport
-            and ready for secure access.
+            <strong>
+              Your cloud resources automatically appear in your Teleport
+              cluster.
+            </strong>
+            <br />
+            <Text as="span" color="text.slightlyMuted">
+              Teleport scans every 30 minutes to find matching resources.
+              Resources are enrolled in Teleport and ready for secure access.
+            </Text>
           </li>
         </ol>
       </Box>
+
+      <InfoTitle>Prerequisites</InfoTitle>
+      <InfoParagraph>Before you begin, ensure you have:</InfoParagraph>
+      <InfoUl>
+        <InfoLinkLi>
+          <ExternalLink
+            href="https://goteleport.com/docs/enroll-resources/auto-discovery/servers/ec2-discovery/ec2-discovery-terraform#step-15-configure-aws-terraform-provider"
+            target="_blank"
+          >
+            <Flex>
+              AWS IAM permissions for discovery
+              <NewTab size="small" ml={1} />
+            </Flex>
+          </ExternalLink>
+        </InfoLinkLi>
+        <InfoLinkLi>
+          <ExternalLink
+            href="https://docs.aws.amazon.com/systems-manager/latest/userguide/ssm-agent.html"
+            target="_blank"
+          >
+            <Flex>
+              SSM agent running on EC2 instances
+              <NewTab size="small" ml={1} />
+            </Flex>
+          </ExternalLink>
+        </InfoLinkLi>
+      </InfoUl>
+
       <ReferenceLinks links={referenceLinks} />
     </Box>
   );
 }
 
-export type InfoGuideTitleProps = {
-  activeSection: 'info' | 'terraform';
-  onSectionChange: (section: 'info' | 'terraform') => void;
-};
-
-export function InfoGuideTitle({
-  activeSection,
-  onSectionChange,
-}: InfoGuideTitleProps) {
-  return (
-    <Flex alignItems="center" gap={3}>
-      <InfoGuideTab
-        active={activeSection === 'info'}
-        onClick={() => onSectionChange('info')}
-      >
-        Info Guide
-      </InfoGuideTab>
-      <InfoGuideTab
-        active={activeSection === 'terraform'}
-        onClick={() => onSectionChange('terraform')}
-      >
-        Terraform
-      </InfoGuideTab>
-    </Flex>
-  );
-}
-
-export const InfoGuideTab = styled(Text)<{ active: boolean }>`
-  cursor: pointer;
-  padding: 4px 8px;
-  border-bottom: 2px solid
-    ${p =>
-      p.active
-        ? p.theme.colors.interactive.solid.primary.default
-        : 'transparent'};
-  color: ${p =>
-    p.active ? p.theme.colors.interactive.solid.primary.default : 'inherit'};
+const InfoLinkLi = styled.li`
+  color: ${({ theme }) => theme.colors.interactive.solid.accent.default};
 `;

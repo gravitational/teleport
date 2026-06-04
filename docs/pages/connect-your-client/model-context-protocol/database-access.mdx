@@ -49,7 +49,7 @@ provisioning](../../enroll-resources/database-access/auto-user-provisioning/post
 or [Database Access Controls](../../enroll-resources/database-access/rbac.mdx).
 </Admonition>
 
-## Step 1/2. Configure MCP clients
+## Step 1/2. List available MCP servers
 
 First, sign in into your Teleport cluster using `tsh login`:
 
@@ -67,6 +67,8 @@ $ tsh db ls
 # postgres-dev    Development database [* postgres]       env=dev
 # postgres-prod   Production database  [mcp_read_only]    env=prod
 ```
+
+## Step 2/2. Configure MCP clients
 
 Each database you want accessible through MCP must be configured with your MCP
 client individually. This is done using the `tsh mcp db config` command. Like
@@ -118,7 +120,7 @@ You may need to restart your client to reload these new configurations.
 You can also update a Cursor project MCP servers by providing the path to the
 file:
 ```code
-$ tsh mcp db config --db-user=postgres --db-name=employees --config-client=/path/to/project/.cursor/mcp.json postgres-dev
+$ tsh mcp db config --db-user=postgres --db-name=employees --client-config=/path/to/project/.cursor/mcp.json postgres-dev
 ```
 </TabItem>
 
@@ -150,8 +152,6 @@ teleport://clusters/<Var name="teleport.example.com:443" />/databases/postgres-d
 ```
 </TabItem>
 </Tabs>
-
-## Step 2/2. Access Teleport-protected resources over MCP
 
 After configuring your MCP client, the following tools will be available:
 

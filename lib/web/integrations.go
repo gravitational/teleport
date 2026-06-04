@@ -363,34 +363,64 @@ func collectIntegrationStats(ctx context.Context, req collectIntegrationStatsReq
 			ret.AWSEKS.UnresolvedUserTasks++
 		case usertasks.TaskTypeDiscoverRDS:
 			ret.AWSRDS.UnresolvedUserTasks++
+		case usertasks.TaskTypeDiscoverAzureVM:
+			ret.AzureVM.UnresolvedUserTasks++
 		}
 	}
 	ret.UnresolvedUserTasks = len(ret.UserTasks)
+
+	// Track whether any resource type is currently being scanned.
+	// If any are scanning, we set SyncEnd to nil after all iterations.
+	// TODO (avatus) might need to make this a bit more scalable in the
+	// future if we have a bunch of types but this is ok for now
+	var ec2Scanning, rdsScanning, eksScanning, azureVMScanning bool
 
 	for cfg, err := range allDiscoveryConfigs(ctx, req.discoveryConfigLister) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		discoveredResources, ok := cfg.Status.IntegrationDiscoveredResources[req.integration.GetName()]
-		if !ok {
+		summary := integrationSummaryForConfig(cfg, req.integration.GetName())
+		if summary == nil {
 			continue
 		}
 
-		if matchers := rulesWithIntegration(cfg, types.AWSMatcherEC2, req.integration.GetName()); matchers != 0 {
-			ret.AWSEC2.RulesCount += matchers
-			mergeResourceTypeSummary(&ret.AWSEC2, cfg.Status.LastSyncTime, discoveredResources.AwsEc2)
-		}
+		ec2Matchers := rulesWithIntegration(cfg, types.AWSMatcherEC2, req.integration.GetName())
+		rdsMatchers := rulesWithIntegration(cfg, types.AWSMatcherRDS, req.integration.GetName())
+		eksMatchers := rulesWithIntegration(cfg, types.AWSMatcherEKS, req.integration.GetName())
+		azureVMMatchers := rulesWithIntegration(cfg, types.AzureMatcherVM, req.integration.GetName())
 
-		if matchers := rulesWithIntegration(cfg, types.AWSMatcherRDS, req.integration.GetName()); matchers != 0 {
-			ret.AWSRDS.RulesCount += matchers
-			mergeResourceTypeSummary(&ret.AWSRDS, cfg.Status.LastSyncTime, discoveredResources.AwsRds)
-		}
+		ret.AWSEC2.RulesCount += ec2Matchers
+		ret.AWSRDS.RulesCount += rdsMatchers
+		ret.AWSEKS.RulesCount += eksMatchers
+		ret.AzureVM.RulesCount += azureVMMatchers
 
-		if matchers := rulesWithIntegration(cfg, types.AWSMatcherEKS, req.integration.GetName()); matchers != 0 {
-			ret.AWSEKS.RulesCount += matchers
-			mergeResourceTypeSummary(&ret.AWSEKS, cfg.Status.LastSyncTime, discoveredResources.AwsEks)
+		if ec2Matchers != 0 {
+			ec2Scanning = mergeResourceTypeSummary(&ret.AWSEC2, summary.summary.GetAwsEc2(), summary.pollInterval) || ec2Scanning
 		}
+		if rdsMatchers != 0 {
+			rdsScanning = mergeResourceTypeSummary(&ret.AWSRDS, summary.summary.GetAwsRds(), summary.pollInterval) || rdsScanning
+		}
+		if eksMatchers != 0 {
+			eksScanning = mergeResourceTypeSummary(&ret.AWSEKS, summary.summary.GetAwsEks(), summary.pollInterval) || eksScanning
+		}
+		if azureVMMatchers != 0 {
+			azureVMScanning = mergeResourceTypeSummary(&ret.AzureVM, summary.summary.GetAzureVms(), summary.pollInterval) || azureVMScanning
+		}
+	}
+
+	// If any resource type is currently scanning, set SyncEnd to nil.
+	if ec2Scanning {
+		ret.AWSEC2.SyncEnd = nil
+	}
+	if rdsScanning {
+		ret.AWSRDS.SyncEnd = nil
+	}
+	if eksScanning {
+		ret.AWSEKS.SyncEnd = nil
+	}
+	if azureVMScanning {
+		ret.AzureVM.SyncEnd = nil
 	}
 
 	switch req.integration.GetSubKind() {
@@ -526,14 +556,87 @@ func countAWSOIDCDeployedDatabaseServices(ctx context.Context, req collectIntegr
 	return len(services), nil
 }
 
-func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, lastSyncTime time.Time, new *discoveryconfigv1.ResourcesDiscoveredSummary) {
-	in.DiscoverLastSync = lastSync(in.DiscoverLastSync, lastSyncTime)
-	in.ResourcesFound += int(new.Found)
-	in.ResourcesEnrollmentSuccess += int(new.Enrolled)
-	in.ResourcesEnrollmentFailed += int(new.Failed)
+type integrationSummaryWithPollInterval struct {
+	summary      *discoveryconfigv1.DiscoverSummary
+	pollInterval time.Duration
 }
 
-func lastSync(current *time.Time, new time.Time) *time.Time {
+// integrationSummaryForConfig returns the most recently updated server's summary
+// for the given integration. In HA deployments, multiple Discovery Services may
+// report summaries for the same resources, so we use only the most recent one
+// to avoid double-counting.
+func integrationSummaryForConfig(cfg *discoveryconfig.DiscoveryConfig, integrationName string) *integrationSummaryWithPollInterval {
+	var mostRecent *integrationSummaryWithPollInterval
+	var mostRecentTime time.Time
+
+	for _, serverStatus := range cfg.Status.ServerStatus {
+		if serverStatus == nil || serverStatus.DiscoveryStatusServer == nil {
+			continue
+		}
+		discoverSummary, ok := serverStatus.GetIntegrationSummaries()[integrationName]
+		if !ok {
+			continue
+		}
+
+		lastUpdate := serverStatus.GetLastUpdate().AsTime()
+		if mostRecent == nil || lastUpdate.After(mostRecentTime) {
+			mostRecent = &integrationSummaryWithPollInterval{
+				summary:      discoverSummary,
+				pollInterval: serverStatus.GetPollInterval().AsDuration(),
+			}
+			mostRecentTime = lastUpdate
+		}
+	}
+	return mostRecent
+}
+
+// mergeResourceTypeSummary merges resource summary data into the aggregated summary.
+// It returns true if the resource is currently being scanned (has no SyncEnd time yet).
+func mergeResourceTypeSummary(in *ui.ResourceTypeSummary, resourceSummary *discoveryconfigv1.ResourceSummary, pollInterval time.Duration) bool {
+	if resourceSummary == nil {
+		return false
+	}
+
+	previous := resourceSummary.GetPrevious()
+	if previous != nil {
+		in.ResourcesFound += int(previous.GetFound())
+		in.ResourcesEnrollmentSuccess += int(previous.GetEnrolled())
+		in.ResourcesEnrollmentFailed += int(previous.GetFailed())
+
+		in.DiscoverLastSync = latestTime(in.DiscoverLastSync, previous.GetSyncEnd().AsTime())
+	}
+
+	isScanning := false
+	syncEndUpdated := false
+	current := resourceSummary.GetCurrent()
+	if current != nil {
+		in.SyncStart = latestTime(in.SyncStart, current.GetSyncStart().AsTime())
+		if current.GetSyncEnd().AsTime().IsZero() {
+			isScanning = true
+		} else {
+			prevSyncEnd := in.SyncEnd
+			in.SyncEnd = latestTime(in.SyncEnd, current.GetSyncEnd().AsTime())
+			syncEndUpdated = in.SyncEnd != prevSyncEnd
+		}
+	} else if previous != nil {
+		in.SyncStart = latestTime(in.SyncStart, previous.GetSyncStart().AsTime())
+		prevSyncEnd := in.SyncEnd
+		in.SyncEnd = latestTime(in.SyncEnd, previous.GetSyncEnd().AsTime())
+		syncEndUpdated = in.SyncEnd != prevSyncEnd
+	}
+
+	if pollInterval > 0 && (in.PollIntervalSeconds == 0 || syncEndUpdated) {
+		in.PollIntervalSeconds = int(pollInterval.Seconds())
+	}
+
+	return isScanning
+}
+
+func latestTime(current *time.Time, new time.Time) *time.Time {
+	if new.IsZero() {
+		return current
+	}
+
 	if current == nil {
 		return &new
 	}
@@ -552,6 +655,16 @@ func rulesWithIntegration(dc *discoveryconfig.DiscoveryConfig, matcherType strin
 	ret := 0
 
 	for _, matcher := range dc.Spec.AWS {
+		if matcher.Integration != integration {
+			continue
+		}
+		if !slices.Contains(matcher.Types, matcherType) {
+			continue
+		}
+		ret += len(matcher.Regions)
+	}
+
+	for _, matcher := range dc.Spec.Azure {
 		if matcher.Integration != integration {
 			continue
 		}
@@ -645,13 +758,18 @@ func collectAutoDiscoveryRules(
 }
 
 func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter string, regionsFilter []string) []ui.IntegrationDiscoveryRule {
-	var ret []ui.IntegrationDiscoveryRule
-
 	lastSync := &dc.Status.LastSyncTime
 	if lastSync.IsZero() {
 		lastSync = nil
 	}
 
+	awsRules := collectAWSAutoDiscoveryRulesFromDiscoveryConfig(dc, integrationName, resourceTypeFilter, regionsFilter, lastSync)
+	azureRules := collectAzureAutoDiscoveryRulesFromDiscoveryConfig(dc, integrationName, resourceTypeFilter, regionsFilter, lastSync)
+
+	return append(awsRules, azureRules...)
+}
+
+func collectAWSAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter string, regionsFilter []string, lastSync *time.Time) (ret []ui.IntegrationDiscoveryRule) {
 	for _, matcher := range dc.Spec.AWS {
 		if matcher.Integration != integrationName {
 			continue
@@ -667,19 +785,66 @@ func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryC
 					continue
 				}
 
-				uiLables := make([]libui.Label, 0, len(matcher.Tags))
+				uiLabels := make([]libui.Label, 0, len(matcher.Tags))
 				for labelKey, labelValues := range matcher.Tags {
 					for _, labelValue := range labelValues {
-						uiLables = append(uiLables, libui.Label{
+						uiLabels = append(uiLabels, libui.Label{
 							Name:  labelKey,
 							Value: labelValue,
 						})
 					}
 				}
+				rule := ui.IntegrationDiscoveryRule{
+					ResourceType:    resourceType,
+					Region:          region,
+					LabelMatcher:    uiLabels,
+					DiscoveryConfig: dc.GetName(),
+					LastSync:        lastSync,
+				}
+				if resourceType == "eks" {
+					kubeAppDiscovery := matcher.KubeAppDiscovery
+					rule.KubeAppDiscovery = &kubeAppDiscovery
+				}
+				ret = append(ret, rule)
+			}
+		}
+	}
+
+	return
+}
+
+func collectAzureAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryConfig, integrationName, resourceTypeFilter string, regionsFilter []string, lastSync *time.Time) (ret []ui.IntegrationDiscoveryRule) {
+	for _, matcher := range dc.Spec.Azure {
+		if matcher.Integration != integrationName {
+			continue
+		}
+
+		for _, resourceType := range matcher.Types {
+			if resourceTypeFilter != "" && resourceType != resourceTypeFilter {
+				continue
+			}
+
+			for _, region := range matcher.Regions {
+				if len(regionsFilter) > 0 && !slices.Contains(regionsFilter, region) {
+					continue
+				}
+
+				uiLabels := make([]libui.Label, 0, len(matcher.ResourceTags))
+				for labelKey, labelValues := range matcher.ResourceTags {
+					for _, labelValue := range labelValues {
+						uiLabels = append(uiLabels, libui.Label{
+							Name:  labelKey,
+							Value: labelValue,
+						})
+					}
+				}
+
 				ret = append(ret, ui.IntegrationDiscoveryRule{
 					ResourceType:    resourceType,
 					Region:          region,
-					LabelMatcher:    uiLables,
+					LabelMatcher:    uiLabels,
+					Subscriptions:   matcher.Subscriptions,
+					ResourceGroups:  matcher.ResourceGroups,
 					DiscoveryConfig: dc.GetName(),
 					LastSync:        lastSync,
 				})
@@ -687,7 +852,7 @@ func collectAutoDiscoveryRulesFromDiscoveryConfig(dc *discoveryconfig.DiscoveryC
 		}
 	}
 
-	return ret
+	return
 }
 
 // integrationsList returns a page of Integrations

@@ -21,13 +21,14 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/graph.proto
 
+//go:build !protoopaque
+
 package accessgraphv1alpha
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // Node is a node in the access graph.
 type Node struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ID is the unique ID of the node.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Kind is the kind of the node, ex: "user", "user_group", "resource", etc.
@@ -82,11 +83,6 @@ func (x *Node) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Node.ProtoReflect.Descriptor instead.
-func (*Node) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_graph_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Node) GetId() string {
@@ -138,9 +134,70 @@ func (x *Node) GetProperties() map[string]string {
 	return nil
 }
 
+func (x *Node) SetId(v string) {
+	x.Id = v
+}
+
+func (x *Node) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *Node) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *Node) SetName(v string) {
+	x.Name = v
+}
+
+func (x *Node) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+func (x *Node) SetHostname(v string) {
+	x.Hostname = v
+}
+
+func (x *Node) SetProperties(v map[string]string) {
+	x.Properties = v
+}
+
+type Node_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ID is the unique ID of the node.
+	Id string
+	// Kind is the kind of the node, ex: "user", "user_group", "resource", etc.
+	Kind string
+	// SubKind is the subkind of the node, ex: "ssh", "db", "k8s", etc.
+	SubKind string
+	// Name is the name of the node.
+	Name string
+	// Labels is a set of labels for the resource.
+	Labels map[string]string
+	// Hostname is the hostname of the node.
+	Hostname string
+	// Properties is a set of properties for the resource.
+	Properties map[string]string
+}
+
+func (b0 Node_builder) Build() *Node {
+	m0 := &Node{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Name = b.Name
+	x.Labels = b.Labels
+	x.Hostname = b.Hostname
+	x.Properties = b.Properties
+	return m0
+}
+
 // Edge is an edge in the access graph.
 type Edge struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// from is the ID of the node the edge is from.
 	From string `protobuf:"bytes,1,opt,name=from,proto3" json:"from,omitempty"`
 	// to is the ID of the node the edge is to.
@@ -178,11 +235,6 @@ func (x *Edge) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Edge.ProtoReflect.Descriptor instead.
-func (*Edge) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_graph_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *Edge) GetFrom() string {
 	if x != nil {
 		return x.From
@@ -209,6 +261,46 @@ func (x *Edge) GetProperties() map[string]string {
 		return x.Properties
 	}
 	return nil
+}
+
+func (x *Edge) SetFrom(v string) {
+	x.From = v
+}
+
+func (x *Edge) SetTo(v string) {
+	x.To = v
+}
+
+func (x *Edge) SetEdgeType(v string) {
+	x.EdgeType = v
+}
+
+func (x *Edge) SetProperties(v map[string]string) {
+	x.Properties = v
+}
+
+type Edge_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// from is the ID of the node the edge is from.
+	From string
+	// to is the ID of the node the edge is to.
+	To string
+	// edge_type is the type of the edge, e.g. "member_of", "belongs_to", etc.
+	EdgeType string
+	// Properties is a set of properties for the edges.
+	Properties map[string]string
+}
+
+func (b0 Edge_builder) Build() *Edge {
+	m0 := &Edge{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.From = b.From
+	x.To = b.To
+	x.EdgeType = b.EdgeType
+	x.Properties = b.Properties
+	return m0
 }
 
 var File_accessgraph_v1alpha_graph_proto protoreflect.FileDescriptor
@@ -242,18 +334,6 @@ const file_accessgraph_v1alpha_graph_proto_rawDesc = "" +
 	"\x0fPropertiesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01BWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
-
-var (
-	file_accessgraph_v1alpha_graph_proto_rawDescOnce sync.Once
-	file_accessgraph_v1alpha_graph_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1alpha_graph_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1alpha_graph_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1alpha_graph_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_graph_proto_rawDesc), len(file_accessgraph_v1alpha_graph_proto_rawDesc)))
-	})
-	return file_accessgraph_v1alpha_graph_proto_rawDescData
-}
 
 var file_accessgraph_v1alpha_graph_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_accessgraph_v1alpha_graph_proto_goTypes = []any{

@@ -34,8 +34,9 @@ import (
 
 	"github.com/gravitational/teleport/api/client/gitserver"
 	"github.com/gravitational/teleport/api/constants"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
+	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -248,13 +249,16 @@ func TestForwardServer(t *testing.T) {
 			clientDialConn, err := s.Dial()
 			require.NoError(t, err)
 
-			conn, chCh, reqCh, err := ssh.NewClientConn(
+			conn, chCh, reqCh, err := apissh.NewClientConn(
+				t.Context(),
 				clientDialConn,
 				"127.0.0.1:222",
-				&ssh.ClientConfig{
+				apissh.ClientConfig{
 					User: test.clientLogin,
-					Auth: []ssh.AuthMethod{
-						ssh.PublicKeys(userCert),
+					PublicKeyAuth: apissh.PublicKeyAuthConfig{
+						Signers: func() ([]ssh.Signer, error) {
+							return []ssh.Signer{userCert}, nil
+						},
 					},
 					HostKeyCallback: ssh.InsecureIgnoreHostKey(),
 					Timeout:         5 * time.Second,
@@ -411,10 +415,10 @@ func (m mockAuthClient) NewWatcher(ctx context.Context, watch types.Watch) (type
 }
 
 type mockMFAServiceClient struct {
-	mfav1.MFAServiceClient
+	mfav2.MFAServiceClient
 }
 
-func (m mockAuthClient) MFAServiceClient() mfav1.MFAServiceClient {
+func (m mockAuthClient) MFAServiceClientV2() mfav2.MFAServiceClient {
 	return &mockMFAServiceClient{}
 }
 

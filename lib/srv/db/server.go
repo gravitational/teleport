@@ -73,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
 	"github.com/gravitational/teleport/lib/srv/db/spanner"
 	"github.com/gravitational/teleport/lib/srv/db/sqlserver"
+	dbvnet "github.com/gravitational/teleport/lib/srv/db/vnet"
 	discoverycommon "github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/utils"
@@ -880,6 +881,7 @@ func (s *Server) getServerInfo(ctx context.Context, database types.Database) (*t
 	if s.cfg.CloudIAM != nil {
 		s.cfg.CloudIAM.UpdateIAMStatus(ctx, copy)
 	}
+	copy.SetStatusVNetDNSName(dbvnet.DNSName(copy.GetName()))
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 
 	server, err := types.NewDatabaseServerV3(types.Metadata{

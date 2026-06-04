@@ -19,7 +19,7 @@
 package web
 
 import (
-	"context"
+	"cmp"
 	"encoding/json"
 	"net/http"
 	"net/url"
@@ -41,16 +41,10 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func TestPing(t *testing.T) {
-	ctx := context.Background()
-	env := newWebPack(t, 1)
-	authServer := env.server.Auth()
-
-	clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
-	require.NoError(t, err)
-
 	tests := []struct {
 		name       string
 		buildType  string // defaults to modules.BuildOSS
@@ -213,13 +207,15 @@ func TestPing(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			buildType := test.buildType
-			if buildType == "" {
-				buildType = modules.BuildOSS
+			ctx := t.Context()
+			testModules := &modulestest.Modules{
+				TestBuildType: cmp.Or(test.buildType, modules.BuildOSS),
 			}
-			modulestest.SetTestModules(t, modulestest.Modules{
-				TestBuildType: buildType,
-			})
+			env := newWebPack(t, 1, withModules(testModules))
+			authServer := env.server.Auth()
+
+			clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
+			require.NoError(t, err)
 
 			cap, err := types.NewAuthPreference(*test.spec)
 			require.NoError(t, err)
@@ -232,6 +228,47 @@ func TestPing(t *testing.T) {
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &pingResp))
 
 			test.assertResp(cap, &pingResp)
+		})
+	}
+}
+
+func TestPing_scopesEnabled(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name                        string
+		scopesFeatures              scopes.Features
+		expectProxyEnabled          bool
+		expectAuthServerScopesField string
+	}{
+		{
+			name:                        "scopes disabled by default",
+			expectProxyEnabled:          false,
+			expectAuthServerScopesField: "disabled",
+		},
+		{
+			name:                        "scopes enabled",
+			scopesFeatures:              scopes.Features{Enabled: true},
+			expectProxyEnabled:          true,
+			expectAuthServerScopesField: "enabled",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			env := newWebPack(t, 1, withScopesFeatures(test.scopesFeatures))
+
+			clt, err := client.NewWebClient(env.proxies[0].webURL.String(), roundtrip.HTTPClient(client.NewInsecureWebClient()))
+			require.NoError(t, err)
+
+			// /ping endpoint
+			resp, err := clt.Get(t.Context(), clt.Endpoint("webapi", "ping"), url.Values{})
+			require.NoError(t, err)
+			var pingResp webclient.PingResponse
+			require.NoError(t, json.Unmarshal(resp.Bytes(), &pingResp))
+
+			assert.Equal(t, test.expectProxyEnabled, pingResp.Proxy.ScopesEnabled)
+			assert.Equal(t, test.expectAuthServerScopesField, pingResp.Auth.Scopes)
 		})
 	}
 }

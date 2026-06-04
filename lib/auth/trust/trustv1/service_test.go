@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/modules/modulestest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -472,6 +473,7 @@ func TestRBAC(t *testing.T) {
 				Authorizer:       &test.authorizer,
 				ScopedAuthorizer: &test.authorizer,
 				AuthServer:       &fakeAuthServer{},
+				Modules:          modulestest.OSSModules(),
 			}
 
 			service, err := NewService(cfg)
@@ -507,6 +509,7 @@ func TestGetCertAuthority(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       &fakeAuthServer{},
+		Modules:          modulestest.OSSModules(),
 	}
 
 	service, err := NewService(cfg)
@@ -654,6 +657,7 @@ func TestGetCertAuthority_outdatedTctl(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       &fakeAuthServer{}, // unused, only needs to be non-nil
+		Modules:          modulestest.OSSModules(),
 	}
 	service, err := NewService(cfg)
 	require.NoError(t, err)
@@ -772,6 +776,7 @@ func TestGetCertAuthorities(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       &fakeAuthServer{},
+		Modules:          modulestest.OSSModules(),
 	}
 
 	service, err := NewService(cfg)
@@ -878,6 +883,7 @@ func TestDeleteCertAuthority(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       &fakeAuthServer{},
+		Modules:          modulestest.OSSModules(),
 	}
 
 	service, err := NewService(cfg)
@@ -953,6 +959,7 @@ func TestUpsertCertAuthority(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       &fakeAuthServer{},
+		Modules:          modulestest.OSSModules(),
 	}
 
 	service, err := NewService(cfg)
@@ -1039,6 +1046,7 @@ func TestRotateCertAuthority(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       authServer,
+		Modules:          modulestest.OSSModules(),
 	}
 
 	tests := []struct {
@@ -1189,6 +1197,7 @@ func TestRotateExternalCertAuthority(t *testing.T) {
 			cfg := &ServiceConfig{
 				Cache:   trust,
 				Backend: trust,
+				Modules: modulestest.OSSModules(),
 				Authorizer: &fakeAuthorizer{
 					authzCtx: test.authzCtx,
 				},
@@ -1250,6 +1259,7 @@ func TestGenerateHostCert(t *testing.T) {
 		Authorizer:       authorizer,
 		ScopedAuthorizer: authorizer,
 		AuthServer:       hostCertSigner,
+		Modules:          modulestest.OSSModules(),
 	}
 
 	tests := []struct {

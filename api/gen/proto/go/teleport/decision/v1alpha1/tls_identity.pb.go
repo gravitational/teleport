@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/tls_identity.proto
 
+//go:build !protoopaque
+
 package decisionpb
 
 import (
@@ -28,7 +30,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -42,7 +43,7 @@ const (
 // TLSIdentity is the identity used for TLS connections.
 // Must be kept in sync with tlsca.Identity.
 type TLSIdentity struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Username is the name of the user (for end-users/bots) or the Host ID (for
 	// Teleport processes).
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
@@ -148,8 +149,10 @@ type TLSIdentity struct {
 	// When present, AllowedResourceAccessIDs should be treated as authoritative
 	// (ResourceIDs can be derived by mapping to ResourceAccessID.id).
 	AllowedResourceAccessIds []*types.ResourceAccessID `protobuf:"bytes,38,rep,name=allowed_resource_access_ids,json=allowedResourceAccessIds,proto3" json:"allowed_resource_access_ids,omitempty"`
-	unknownFields            protoimpl.UnknownFields
-	sizeCache                protoimpl.SizeCache
+	// Delegation session this TLS identity is associated with.
+	DelegationSessionId string `protobuf:"bytes,39,opt,name=delegation_session_id,json=delegationSessionId,proto3" json:"delegation_session_id,omitempty"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *TLSIdentity) Reset() {
@@ -175,11 +178,6 @@ func (x *TLSIdentity) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use TLSIdentity.ProtoReflect.Descriptor instead.
-func (*TLSIdentity) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_tls_identity_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *TLSIdentity) GetUsername() string {
@@ -448,9 +446,396 @@ func (x *TLSIdentity) GetAllowedResourceAccessIds() []*types.ResourceAccessID {
 	return nil
 }
 
+func (x *TLSIdentity) GetDelegationSessionId() string {
+	if x != nil {
+		return x.DelegationSessionId
+	}
+	return ""
+}
+
+func (x *TLSIdentity) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *TLSIdentity) SetImpersonator(v string) {
+	x.Impersonator = v
+}
+
+func (x *TLSIdentity) SetGroups(v []string) {
+	x.Groups = v
+}
+
+func (x *TLSIdentity) SetSystemRoles(v []string) {
+	x.SystemRoles = v
+}
+
+func (x *TLSIdentity) SetUsage(v []string) {
+	x.Usage = v
+}
+
+func (x *TLSIdentity) SetPrincipals(v []string) {
+	x.Principals = v
+}
+
+func (x *TLSIdentity) SetKubernetesGroups(v []string) {
+	x.KubernetesGroups = v
+}
+
+func (x *TLSIdentity) SetKubernetesUsers(v []string) {
+	x.KubernetesUsers = v
+}
+
+func (x *TLSIdentity) SetExpires(v *timestamppb.Timestamp) {
+	x.Expires = v
+}
+
+func (x *TLSIdentity) SetRouteToCluster(v string) {
+	x.RouteToCluster = v
+}
+
+func (x *TLSIdentity) SetKubernetesCluster(v string) {
+	x.KubernetesCluster = v
+}
+
+func (x *TLSIdentity) SetTraits(v []*v1.Trait) {
+	x.Traits = v
+}
+
+func (x *TLSIdentity) SetRouteToApp(v *RouteToApp) {
+	x.RouteToApp = v
+}
+
+func (x *TLSIdentity) SetTeleportCluster(v string) {
+	x.TeleportCluster = v
+}
+
+func (x *TLSIdentity) SetRouteToDatabase(v *RouteToDatabase) {
+	x.RouteToDatabase = v
+}
+
+func (x *TLSIdentity) SetDatabaseNames(v []string) {
+	x.DatabaseNames = v
+}
+
+func (x *TLSIdentity) SetDatabaseUsers(v []string) {
+	x.DatabaseUsers = v
+}
+
+func (x *TLSIdentity) SetMfaVerified(v string) {
+	x.MfaVerified = v
+}
+
+func (x *TLSIdentity) SetPreviousIdentityExpires(v *timestamppb.Timestamp) {
+	x.PreviousIdentityExpires = v
+}
+
+func (x *TLSIdentity) SetLoginIp(v string) {
+	x.LoginIp = v
+}
+
+func (x *TLSIdentity) SetPinnedIp(v string) {
+	x.PinnedIp = v
+}
+
+func (x *TLSIdentity) SetAwsRoleArns(v []string) {
+	x.AwsRoleArns = v
+}
+
+func (x *TLSIdentity) SetAzureIdentities(v []string) {
+	x.AzureIdentities = v
+}
+
+func (x *TLSIdentity) SetGcpServiceAccounts(v []string) {
+	x.GcpServiceAccounts = v
+}
+
+func (x *TLSIdentity) SetActiveRequests(v []string) {
+	x.ActiveRequests = v
+}
+
+func (x *TLSIdentity) SetDisallowReissue(v bool) {
+	x.DisallowReissue = v
+}
+
+func (x *TLSIdentity) SetRenewable(v bool) {
+	x.Renewable = v
+}
+
+func (x *TLSIdentity) SetGeneration(v uint64) {
+	x.Generation = v
+}
+
+func (x *TLSIdentity) SetBotName(v string) {
+	x.BotName = v
+}
+
+func (x *TLSIdentity) SetBotInstanceId(v string) {
+	x.BotInstanceId = v
+}
+
+func (x *TLSIdentity) SetAllowedResourceIds(v []*ResourceId) {
+	x.AllowedResourceIds = v
+}
+
+func (x *TLSIdentity) SetPrivateKeyPolicy(v string) {
+	x.PrivateKeyPolicy = v
+}
+
+func (x *TLSIdentity) SetConnectionDiagnosticId(v string) {
+	x.ConnectionDiagnosticId = v
+}
+
+func (x *TLSIdentity) SetDeviceExtensions(v *DeviceExtensions) {
+	x.DeviceExtensions = v
+}
+
+func (x *TLSIdentity) SetUserType(v string) {
+	x.UserType = v
+}
+
+func (x *TLSIdentity) SetJoinToken(v string) {
+	x.JoinToken = v
+}
+
+func (x *TLSIdentity) SetScopePin(v *v11.Pin) {
+	x.ScopePin = v
+}
+
+func (x *TLSIdentity) SetAllowedResourceAccessIds(v []*types.ResourceAccessID) {
+	x.AllowedResourceAccessIds = v
+}
+
+func (x *TLSIdentity) SetDelegationSessionId(v string) {
+	x.DelegationSessionId = v
+}
+
+func (x *TLSIdentity) HasExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.Expires != nil
+}
+
+func (x *TLSIdentity) HasRouteToApp() bool {
+	if x == nil {
+		return false
+	}
+	return x.RouteToApp != nil
+}
+
+func (x *TLSIdentity) HasRouteToDatabase() bool {
+	if x == nil {
+		return false
+	}
+	return x.RouteToDatabase != nil
+}
+
+func (x *TLSIdentity) HasPreviousIdentityExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.PreviousIdentityExpires != nil
+}
+
+func (x *TLSIdentity) HasDeviceExtensions() bool {
+	if x == nil {
+		return false
+	}
+	return x.DeviceExtensions != nil
+}
+
+func (x *TLSIdentity) HasScopePin() bool {
+	if x == nil {
+		return false
+	}
+	return x.ScopePin != nil
+}
+
+func (x *TLSIdentity) ClearExpires() {
+	x.Expires = nil
+}
+
+func (x *TLSIdentity) ClearRouteToApp() {
+	x.RouteToApp = nil
+}
+
+func (x *TLSIdentity) ClearRouteToDatabase() {
+	x.RouteToDatabase = nil
+}
+
+func (x *TLSIdentity) ClearPreviousIdentityExpires() {
+	x.PreviousIdentityExpires = nil
+}
+
+func (x *TLSIdentity) ClearDeviceExtensions() {
+	x.DeviceExtensions = nil
+}
+
+func (x *TLSIdentity) ClearScopePin() {
+	x.ScopePin = nil
+}
+
+type TLSIdentity_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Username is the name of the user (for end-users/bots) or the Host ID (for
+	// Teleport processes).
+	Username string
+	// Impersonator is a username of a user impersonating this user.
+	Impersonator string
+	// Groups is a list of groups (Teleport roles) encoded in the identity.
+	Groups []string
+	// SystemRoles is a list of system roles (e.g. auth, proxy, node, etc) used in
+	// "multi-role" certificates. Single-role certificates encode the system role
+	// in `Groups` for back-compat reasons.
+	SystemRoles []string
+	// Usage is a list of usage restrictions encoded in the identity.
+	Usage []string
+	// Principals is a list of Unix logins allowed.
+	Principals []string
+	// KubernetesGroups is a list of Kubernetes groups allowed.
+	KubernetesGroups []string
+	// KubernetesUsers is a list of Kubernetes users allowed.
+	KubernetesUsers []string
+	// Expires specifies whenever the session will expire.
+	Expires *timestamppb.Timestamp
+	// RouteToCluster specifies the target cluster.
+	RouteToCluster string
+	// KubernetesCluster specifies the target kubernetes cluster for TLS
+	// identities. This can be empty on older Teleport clients.
+	KubernetesCluster string
+	// Traits hold claim data used to populate a role at runtime.
+	Traits []*v1.Trait
+	// RouteToApp holds routing information for applications. Routing metadata
+	// allows Teleport web proxy to route HTTP requests to the appropriate cluster
+	// and Teleport application proxy within the cluster.
+	RouteToApp *RouteToApp
+	// TeleportCluster is the name of the teleport cluster that this identity
+	// originated from. For TLS certs this may not be the same as cert issuer, in
+	// case of multi-hop requests that originate from a remote cluster.
+	TeleportCluster string
+	// RouteToDatabase contains routing information for databases.
+	RouteToDatabase *RouteToDatabase
+	// DatabaseNames is a list of allowed database names.
+	DatabaseNames []string
+	// DatabaseUsers is a list of allowed database users.
+	DatabaseUsers []string
+	// MfaVerified is the UUID of an MFA device when this Identity was
+	// confirmed immediately after an MFA check.
+	MfaVerified string
+	// PreviousIdentityExpires is the expiry time of the identity/cert that this
+	// identity/cert was derived from. It is used to determine a session's hard
+	// deadline in cases where both require_session_mfa and
+	// disconnect_expired_cert are enabled.
+	// See https://github.com/gravitational/teleport/issues/18544.
+	PreviousIdentityExpires *timestamppb.Timestamp
+	// LoginIp is an observed IP of the client that this Identity represents.
+	LoginIp string
+	// PinnedIp is an IP the certificate is pinned to.
+	PinnedIp string
+	// AwsRoleArns is a list of allowed AWS role ARNs user can assume.
+	AwsRoleArns []string
+	// AzureIdentities is a list of allowed Azure identities user can assume.
+	AzureIdentities []string
+	// GcpServiceAccounts is a list of allowed GCP service accounts that the user
+	// can assume.
+	GcpServiceAccounts []string
+	// ActiveRequests is a list of UUIDs of active requests for this Identity.
+	ActiveRequests []string
+	// DisallowReissue is a flag that, if set, instructs the auth server to deny
+	// any attempts to reissue new certificates while authenticated with this
+	// certificate.
+	DisallowReissue bool
+	// Renewable indicates that this identity is allowed to renew it's own
+	// credentials. This is only enabled for certificate renewal bots.
+	Renewable bool
+	// Generation counts the number of times this certificate has been renewed.
+	Generation uint64
+	// BotName indicates the name of the Machine ID bot this identity was issued
+	// to, if any.
+	BotName string
+	// BotInstanceId is a unique identifier for Machine ID bots that is persisted
+	// through renewals.
+	BotInstanceId string
+	// AllowedResourceIds lists the resources the identity should be allowed to
+	// access.
+	AllowedResourceIds []*ResourceId
+	// PrivateKeyPolicy is the private key policy supported by this identity.
+	PrivateKeyPolicy string
+	// ConnectionDiagnosticId is used to add connection diagnostic messages when
+	// Testing a Connection.
+	ConnectionDiagnosticId string
+	// DeviceExtensions holds device-aware extensions for the identity.
+	DeviceExtensions *DeviceExtensions
+	// UserType indicates if the User was created by an SSO Provider or locally.
+	UserType string
+	// JoinToken is the name of the join token used when a bot joins; it does not
+	// apply to other identity types, or to bots using the traditional `token`
+	// join method.
+	JoinToken string
+	// ScopePin is an optional pin that ties the certificate to a specific scope and set of scoped roles. When
+	// set, the Roles field must not be set.
+	ScopePin *v11.Pin
+	// AllowedResourceAccessIDs lists the resources the user should be able to access,
+	// paired with additional information such as ResourceConstraints.
+	// Differs from AllowedResourceIDs, which only identifies resources and cannot be used
+	// to express additional information per-resource such as ResourceConstraints.
+	// When present, AllowedResourceAccessIDs should be treated as authoritative
+	// (ResourceIDs can be derived by mapping to ResourceAccessID.id).
+	AllowedResourceAccessIds []*types.ResourceAccessID
+	// Delegation session this TLS identity is associated with.
+	DelegationSessionId string
+}
+
+func (b0 TLSIdentity_builder) Build() *TLSIdentity {
+	m0 := &TLSIdentity{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.Impersonator = b.Impersonator
+	x.Groups = b.Groups
+	x.SystemRoles = b.SystemRoles
+	x.Usage = b.Usage
+	x.Principals = b.Principals
+	x.KubernetesGroups = b.KubernetesGroups
+	x.KubernetesUsers = b.KubernetesUsers
+	x.Expires = b.Expires
+	x.RouteToCluster = b.RouteToCluster
+	x.KubernetesCluster = b.KubernetesCluster
+	x.Traits = b.Traits
+	x.RouteToApp = b.RouteToApp
+	x.TeleportCluster = b.TeleportCluster
+	x.RouteToDatabase = b.RouteToDatabase
+	x.DatabaseNames = b.DatabaseNames
+	x.DatabaseUsers = b.DatabaseUsers
+	x.MfaVerified = b.MfaVerified
+	x.PreviousIdentityExpires = b.PreviousIdentityExpires
+	x.LoginIp = b.LoginIp
+	x.PinnedIp = b.PinnedIp
+	x.AwsRoleArns = b.AwsRoleArns
+	x.AzureIdentities = b.AzureIdentities
+	x.GcpServiceAccounts = b.GcpServiceAccounts
+	x.ActiveRequests = b.ActiveRequests
+	x.DisallowReissue = b.DisallowReissue
+	x.Renewable = b.Renewable
+	x.Generation = b.Generation
+	x.BotName = b.BotName
+	x.BotInstanceId = b.BotInstanceId
+	x.AllowedResourceIds = b.AllowedResourceIds
+	x.PrivateKeyPolicy = b.PrivateKeyPolicy
+	x.ConnectionDiagnosticId = b.ConnectionDiagnosticId
+	x.DeviceExtensions = b.DeviceExtensions
+	x.UserType = b.UserType
+	x.JoinToken = b.JoinToken
+	x.ScopePin = b.ScopePin
+	x.AllowedResourceAccessIds = b.AllowedResourceAccessIds
+	x.DelegationSessionId = b.DelegationSessionId
+	return m0
+}
+
 // RouteToApp holds routing information for applications.
 type RouteToApp struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SessionId is an ID used to identify application sessions created by this
 	// certificate.
 	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
@@ -508,11 +893,6 @@ func (x *RouteToApp) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RouteToApp.ProtoReflect.Descriptor instead.
-func (*RouteToApp) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_tls_identity_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *RouteToApp) GetSessionId() string {
@@ -585,9 +965,101 @@ func (x *RouteToApp) GetAwsCredentialprocessCredentials() string {
 	return ""
 }
 
+func (x *RouteToApp) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+func (x *RouteToApp) SetPublicAddr(v string) {
+	x.PublicAddr = v
+}
+
+func (x *RouteToApp) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *RouteToApp) SetName(v string) {
+	x.Name = v
+}
+
+func (x *RouteToApp) SetAwsRoleArn(v string) {
+	x.AwsRoleArn = v
+}
+
+func (x *RouteToApp) SetAzureIdentity(v string) {
+	x.AzureIdentity = v
+}
+
+func (x *RouteToApp) SetGcpServiceAccount(v string) {
+	x.GcpServiceAccount = v
+}
+
+func (x *RouteToApp) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *RouteToApp) SetTargetPort(v int32) {
+	x.TargetPort = v
+}
+
+func (x *RouteToApp) SetAwsCredentialprocessCredentials(v string) {
+	x.AwsCredentialprocessCredentials = v
+}
+
+type RouteToApp_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SessionId is an ID used to identify application sessions created by this
+	// certificate.
+	SessionId string
+	// PublicAddr (and ClusterName) are used to route requests issued with this
+	// certificate to the appropriate application proxy/cluster.
+	PublicAddr string
+	// ClusterName (and PublicAddr) are used to route requests issued with this
+	// certificate to the appropriate application proxy/cluster.
+	ClusterName string
+	// Name is the app name.
+	Name string
+	// AwsRoleArn is the AWS role to assume when accessing AWS console.
+	AwsRoleArn string
+	// AzureIdentity is the Azure identity to assume when accessing Azure API.
+	AzureIdentity string
+	// GcpServiceAccount is the GCP service account to assume when accessing GCP
+	// API.
+	GcpServiceAccount string
+	// Uri is the URI of the app. This is the internal endpoint where the
+	// application is running and isn't user-facing.
+	Uri string
+	// TargetPort is the port to which connections should be routed to. Used only
+	// for multi-port TCP apps. It is appended to the hostname from the URI in the
+	// app spec, since the URI from RouteToApp is not used as the source of truth
+	// for routing.
+	TargetPort int32
+	// AWSCredentialProcessCredentials contains the credentials to access AWS APIs.
+	// This is a JSON string that conforms with
+	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
+	AwsCredentialprocessCredentials string
+}
+
+func (b0 RouteToApp_builder) Build() *RouteToApp {
+	m0 := &RouteToApp{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	x.PublicAddr = b.PublicAddr
+	x.ClusterName = b.ClusterName
+	x.Name = b.Name
+	x.AwsRoleArn = b.AwsRoleArn
+	x.AzureIdentity = b.AzureIdentity
+	x.GcpServiceAccount = b.GcpServiceAccount
+	x.Uri = b.Uri
+	x.TargetPort = b.TargetPort
+	x.AwsCredentialprocessCredentials = b.AwsCredentialprocessCredentials
+	return m0
+}
+
 // RouteToDatabase contains routing information for databases.
 type RouteToDatabase struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ServiceName is the name of the Teleport database proxy service to route
 	// requests to.
 	ServiceName string `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
@@ -635,11 +1107,6 @@ func (x *RouteToDatabase) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RouteToDatabase.ProtoReflect.Descriptor instead.
-func (*RouteToDatabase) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_tls_identity_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *RouteToDatabase) GetServiceName() string {
 	if x != nil {
 		return x.ServiceName
@@ -675,10 +1142,65 @@ func (x *RouteToDatabase) GetRoles() []string {
 	return nil
 }
 
+func (x *RouteToDatabase) SetServiceName(v string) {
+	x.ServiceName = v
+}
+
+func (x *RouteToDatabase) SetProtocol(v string) {
+	x.Protocol = v
+}
+
+func (x *RouteToDatabase) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *RouteToDatabase) SetDatabase(v string) {
+	x.Database = v
+}
+
+func (x *RouteToDatabase) SetRoles(v []string) {
+	x.Roles = v
+}
+
+type RouteToDatabase_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ServiceName is the name of the Teleport database proxy service to route
+	// requests to.
+	ServiceName string
+	// Protocol is the database protocol.
+	//
+	// It is embedded in identity so clients can understand what type of database
+	// this is without contacting server.
+	Protocol string
+	// Username is an optional database username to serve as a default username to
+	// connect as.
+	Username string
+	// Database is an optional database name to serve as a default database to
+	// connect to.
+	Database string
+	// Roles is an optional list of database roles to use for a database session.
+	// This list should be a subset of allowed database roles. If not specified,
+	// Database Service will use all allowed database roles for this database.
+	Roles []string
+}
+
+func (b0 RouteToDatabase_builder) Build() *RouteToDatabase {
+	m0 := &RouteToDatabase{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ServiceName = b.ServiceName
+	x.Protocol = b.Protocol
+	x.Username = b.Username
+	x.Database = b.Database
+	x.Roles = b.Roles
+	return m0
+}
+
 // ResourceId is a unique identifier for a teleport resource.
 // Must be kept in sync with types.ResourceID.
 type ResourceId struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClusterName is the name of the cluster the resource is in.
 	ClusterName string `protobuf:"bytes,1,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
 	// Kind is the resource kind.
@@ -720,11 +1242,6 @@ func (x *ResourceId) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ResourceId.ProtoReflect.Descriptor instead.
-func (*ResourceId) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_tls_identity_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ResourceId) GetClusterName() string {
 	if x != nil {
 		return x.ClusterName
@@ -753,9 +1270,53 @@ func (x *ResourceId) GetSubResourceName() string {
 	return ""
 }
 
+func (x *ResourceId) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *ResourceId) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *ResourceId) SetName(v string) {
+	x.Name = v
+}
+
+func (x *ResourceId) SetSubResourceName(v string) {
+	x.SubResourceName = v
+}
+
+type ResourceId_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClusterName is the name of the cluster the resource is in.
+	ClusterName string
+	// Kind is the resource kind.
+	Kind string
+	// Name is the name of the specific resource.
+	Name string
+	// SubResourceName is the resource belonging to resource identified by "Name"
+	// that the user is allowed to access to. When granting access to a
+	// subresource, access to other resources is limited. Currently it just
+	// supports resources of Kind=pod and the format is the following
+	// "<kube_namespace>/<kube_pod>".
+	SubResourceName string
+}
+
+func (b0 ResourceId_builder) Build() *ResourceId {
+	m0 := &ResourceId{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClusterName = b.ClusterName
+	x.Kind = b.Kind
+	x.Name = b.Name
+	x.SubResourceName = b.SubResourceName
+	return m0
+}
+
 // DeviceExtensions holds device-aware extensions for the identity.
 type DeviceExtensions struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DeviceId is the trusted device identifier.
 	DeviceId string `protobuf:"bytes,1,opt,name=device_id,json=deviceId,proto3" json:"device_id,omitempty"`
 	// AssetTag is the device inventory identifier.
@@ -792,11 +1353,6 @@ func (x *DeviceExtensions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeviceExtensions.ProtoReflect.Descriptor instead.
-func (*DeviceExtensions) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_tls_identity_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DeviceExtensions) GetDeviceId() string {
 	if x != nil {
 		return x.DeviceId
@@ -818,11 +1374,45 @@ func (x *DeviceExtensions) GetCredentialId() string {
 	return ""
 }
 
+func (x *DeviceExtensions) SetDeviceId(v string) {
+	x.DeviceId = v
+}
+
+func (x *DeviceExtensions) SetAssetTag(v string) {
+	x.AssetTag = v
+}
+
+func (x *DeviceExtensions) SetCredentialId(v string) {
+	x.CredentialId = v
+}
+
+type DeviceExtensions_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DeviceId is the trusted device identifier.
+	DeviceId string
+	// AssetTag is the device inventory identifier.
+	AssetTag string
+	// CredentialId is the identifier for the credential used by the device to
+	// authenticate itself.
+	CredentialId string
+}
+
+func (b0 DeviceExtensions_builder) Build() *DeviceExtensions {
+	m0 := &DeviceExtensions{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DeviceId = b.DeviceId
+	x.AssetTag = b.AssetTag
+	x.CredentialId = b.CredentialId
+	return m0
+}
+
 var File_teleport_decision_v1alpha1_tls_identity_proto protoreflect.FileDescriptor
 
 const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\n" +
-	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\xe3\r\n" +
+	"-teleport/decision/v1alpha1/tls_identity.proto\x12\x1ateleport.decision.v1alpha1\x1a\x1fgoogle/protobuf/timestamp.proto\x1a%teleport/legacy/types/resources.proto\x1a\x1fteleport/scopes/v1/scopes.proto\x1a\x1dteleport/trait/v1/trait.proto\"\x97\x0e\n" +
 	"\vTLSIdentity\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\"\n" +
 	"\fimpersonator\x18\x02 \x01(\tR\fimpersonator\x12\x16\n" +
@@ -868,7 +1458,8 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\n" +
 	"join_token\x18$ \x01(\tR\tjoinToken\x124\n" +
 	"\tscope_pin\x18% \x01(\v2\x17.teleport.scopes.v1.PinR\bscopePin\x12V\n" +
-	"\x1ballowed_resource_access_ids\x18& \x03(\v2\x17.types.ResourceAccessIDR\x18allowedResourceAccessIds\"\xfb\x02\n" +
+	"\x1ballowed_resource_access_ids\x18& \x03(\v2\x17.types.ResourceAccessIDR\x18allowedResourceAccessIds\x122\n" +
+	"\x15delegation_session_id\x18' \x01(\tR\x13delegationSessionId\"\xfb\x02\n" +
 	"\n" +
 	"RouteToApp\x12\x1d\n" +
 	"\n" +
@@ -902,18 +1493,6 @@ const file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc = "" +
 	"\tdevice_id\x18\x01 \x01(\tR\bdeviceId\x12\x1b\n" +
 	"\tasset_tag\x18\x02 \x01(\tR\bassetTag\x12#\n" +
 	"\rcredential_id\x18\x03 \x01(\tR\fcredentialIdBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
-
-var (
-	file_teleport_decision_v1alpha1_tls_identity_proto_rawDescOnce sync.Once
-	file_teleport_decision_v1alpha1_tls_identity_proto_rawDescData []byte
-)
-
-func file_teleport_decision_v1alpha1_tls_identity_proto_rawDescGZIP() []byte {
-	file_teleport_decision_v1alpha1_tls_identity_proto_rawDescOnce.Do(func() {
-		file_teleport_decision_v1alpha1_tls_identity_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc), len(file_teleport_decision_v1alpha1_tls_identity_proto_rawDesc)))
-	})
-	return file_teleport_decision_v1alpha1_tls_identity_proto_rawDescData
-}
 
 var file_teleport_decision_v1alpha1_tls_identity_proto_msgTypes = make([]protoimpl.MessageInfo, 5)
 var file_teleport_decision_v1alpha1_tls_identity_proto_goTypes = []any{

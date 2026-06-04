@@ -23,25 +23,32 @@ import { IntegrationKind } from 'teleport/services/integrations';
 
 import { AwsOidc } from './AwsOidc';
 import { EnrollAws } from './Cloud/Aws';
+import { EnrollAzure } from './Cloud/Azure';
 
 export function getRoutesToEnrollIntegrations() {
   return [
     <Route
       key={IntegrationKind.AwsRa}
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsRa)}
-      component={AwsRolesAnywhereSetup}
+      element={<AwsRolesAnywhereSetup />}
     />,
     <Route
       key={IntegrationKind.AwsOidc}
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)}
-      component={AwsOidc}
+      element={<AwsOidc />}
     />,
     <Route
       key={IntegrationKind.AwsCloud}
       exact
       path={cfg.getIntegrationEnrollRoute(IntegrationKind.AwsCloud)}
-      component={EnrollAws}
+      element={<EnrollAws />}
+    />,
+    <Route
+      key={IntegrationKind.AzureCloud}
+      exact
+      path={cfg.getIntegrationEnrollRoute(IntegrationKind.AzureCloud)}
+      element={<EnrollAzure />}
     />,
   ];
 }

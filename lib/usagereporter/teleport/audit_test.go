@@ -30,7 +30,7 @@ import (
 )
 
 func TestConvertAuditEvent(t *testing.T) {
-	anonymizer, err := utils.NewHMACAnonymizer("anon-key-or-cluster-id")
+	anonymizer, err := utils.NewHMACAnonymizer(utils.AnonymizationKeyString("anon-key-or-cluster-id"))
 	require.NoError(t, err)
 
 	cases := []struct {
@@ -319,7 +319,7 @@ func TestConvertAuditEvent(t *testing.T) {
 			actual := ConvertAuditEvent(tt.event)
 			assert.Equal(t, tt.expected, actual)
 			actualAnonymized := actual.Anonymize(anonymizer)
-			assert.Equal(t, tt.expectedAnonymized, &actualAnonymized)
+			assert.Equal(t, tt.expectedAnonymized, actualAnonymized)
 		})
 	}
 }

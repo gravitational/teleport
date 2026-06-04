@@ -85,6 +85,18 @@ Setting this value is required when joining via the
 
 `token` is the name of the token used by the operator to join the Teleport cluster.
 
+## `scoped`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`scoped` makes the operator run in scoped mode.
+In scoped mode, the operator can only reconcile scoped resource such as
+`TeleportScopedTokenV1`, `TeleportScopedRoleV1`, or `TeleportScopedRoleAssignmentV1`.
+Scoped mode requires the operator to join using a scoped token and the experimental scope
+feature to be enabled on both Teleport Auth Service instances and Proxy Service instances.
+
 ## `teleportVersionOverride`
 
 | Type | Default |
@@ -343,6 +355,12 @@ command such as:
 ```code
 $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.pem
 ```
+<Admonition type="danger">
+The Teleport operator container trusts by default CAs from the `ca-certificates` package (Mozilla PKI).
+When `existingCASecretName` is set, Teleport only trusts the CA bundle from the secret.
+If you need the operator to interact with other systems (e.g. AWS joining), the secret must contain their CA.
+Else, Teleport will fail to establish TLS connections with external services.
+</Admonition>
 
 ### `tls.existingCASecretKeyName`
 

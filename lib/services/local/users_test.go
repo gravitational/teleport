@@ -1582,22 +1582,22 @@ func TestCompareAndSwapUser(t *testing.T) {
 	require.NoError(err)
 	bob2.SetLogins([]string{"bob", "alice"})
 
-	require.False(services.UsersEquals(bob1, bob2))
+	require.False(bob1.IsEqual(bob2))
 
 	currentBob, err := identity.UpsertUser(ctx, bob1)
 	require.NoError(err)
-	require.True(services.UsersEquals(currentBob, bob1))
+	require.True(currentBob.IsEqual(bob1))
 
 	currentBob, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(err)
-	require.True(services.UsersEquals(currentBob, bob1))
+	require.True(currentBob.IsEqual(bob1))
 
 	err = identity.CompareAndSwapUser(ctx, bob2, bob1)
 	require.NoError(err)
 
 	bob2, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(err)
-	require.True(services.UsersEquals(currentBob, bob1))
+	require.True(currentBob.IsEqual(bob1))
 
 	item, err := identity.Backend.Get(ctx, backend.NewKey(local.WebPrefix, local.UsersPrefix, "bob", local.ParamsPrefix))
 	require.NoError(err)
@@ -1611,14 +1611,14 @@ func TestCompareAndSwapUser(t *testing.T) {
 
 	currentBob, err = identity.GetUser(ctx, "bob", true)
 	require.NoError(err)
-	require.True(services.UsersEquals(currentBob, bob2))
+	require.True(currentBob.IsEqual(bob2))
 	bob2.SetWeakestDevice(currentBob.GetWeakestDevice())
 	err = identity.CompareAndSwapUser(ctx, bob1, bob2)
 	require.NoError(err)
 
 	currentBob, err = identity.GetUser(ctx, "bob", false)
 	require.NoError(err)
-	require.True(services.UsersEquals(currentBob, bob1))
+	require.True(currentBob.IsEqual(bob1))
 }
 
 func TestWeakestMFADeviceKind(t *testing.T) {
@@ -1753,35 +1753,35 @@ func TestIdentityService_SSOMFASessionDataCRUD(t *testing.T) {
 	identity := newIdentityService(t, clockwork.NewFakeClock())
 
 	// Verify create.
-	sd := &services.SSOMFASessionData{
+	sd := &services.MFASessionData{
 		RequestID:     "request",
 		Username:      "alice",
 		ConnectorID:   "saml",
 		ConnectorType: "saml",
 	}
-	err := identity.UpsertSSOMFASessionData(ctx, sd)
+	err := identity.UpsertMFASessionData(ctx, sd)
 	require.NoError(t, err)
 
 	// Verify read.
-	got, err := identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	got, err := identity.GetMFASessionData(ctx, sd.RequestID)
 	require.NoError(t, err)
 	if diff := cmp.Diff(sd, got); diff != "" {
-		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+		t.Fatalf("GetMFASessionData() mismatch (-want +got):\n%s", diff)
 	}
 
 	// Verify update.
 	sd.Token = "token"
-	err = identity.UpsertSSOMFASessionData(ctx, sd)
+	err = identity.UpsertMFASessionData(ctx, sd)
 	require.NoError(t, err)
-	got, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	got, err = identity.GetMFASessionData(ctx, sd.RequestID)
 	require.NoError(t, err)
 	if diff := cmp.Diff(sd, got); diff != "" {
-		t.Fatalf("GetSSOMFASessionData() mismatch (-want +got):\n%s", diff)
+		t.Fatalf("GetMFASessionData() mismatch (-want +got):\n%s", diff)
 	}
 
 	// Verify delete.
-	err = identity.DeleteSSOMFASessionData(ctx, sd.RequestID)
+	err = identity.DeleteMFASessionData(ctx, sd.RequestID)
 	require.NoError(t, err)
-	_, err = identity.GetSSOMFASessionData(ctx, sd.RequestID)
+	_, err = identity.GetMFASessionData(ctx, sd.RequestID)
 	require.True(t, trace.IsNotFound(err))
 }

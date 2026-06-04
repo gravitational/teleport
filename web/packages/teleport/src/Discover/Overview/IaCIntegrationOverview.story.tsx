@@ -17,17 +17,13 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { MemoryRouter } from 'react-router';
-import { Route } from 'react-router-dom';
+import { Routes, Route } from 'react-router';
 
-import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
-import {
-  ToastNotificationProvider,
-  ToastNotifications,
-} from 'shared/components/ToastNotification';
+import { ToastNotifications } from 'shared/components/ToastNotification';
 
 import cfg from 'teleport/config';
 import { ContentMinWidth } from 'teleport/Main/Main';
+import { TeleportProviderBasic } from 'teleport/mocks/providers';
 import { IntegrationKind } from 'teleport/services/integrations';
 
 import { IaCIntegrationOverview } from './IaCIntegrationOverview';
@@ -37,147 +33,200 @@ export default {
 };
 
 const integrationName = 'my-terraform-integration';
-const initialEntries = [
-  cfg.getIaCIntegrationRoute(IntegrationKind.AwsOidc, integrationName),
-];
 const path = cfg.routes.integrationOverview;
 
-function Component() {
+function Component({
+  kind = IntegrationKind.AwsOidc,
+}: { kind?: IntegrationKind } = {}) {
+  const initialEntries = [cfg.getIaCIntegrationRoute(kind, integrationName)];
   return (
-    <MemoryRouter initialEntries={initialEntries}>
-      <ToastNotificationProvider>
-        <ToastNotifications />
-        <InfoGuidePanelProvider>
-          <ContentMinWidth>
-            <Route path={path}>
-              <IaCIntegrationOverview />
-            </Route>
-          </ContentMinWidth>
-        </InfoGuidePanelProvider>
-      </ToastNotificationProvider>
-    </MemoryRouter>
+    <TeleportProviderBasic initialEntries={initialEntries}>
+      <ToastNotifications />
+      <ContentMinWidth>
+        <Routes>
+          <Route path={path} element={<IaCIntegrationOverview />} />
+        </Routes>
+      </ContentMinWidth>
+    </TeleportProviderBasic>
   );
 }
+
+const statsHandler = (overrides = {}) =>
+  http.get(cfg.getIntegrationStatsUrl(integrationName), () => {
+    const syncEnd = new Date(Date.now() - 2 * 60 * 1000).toISOString();
+    const syncStart = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+
+    return HttpResponse.json({
+      name: integrationName,
+      subKind: IntegrationKind.AwsOidc,
+      unresolvedUserTasks: 2,
+      userTasks: [
+        {
+          name: 'task-1',
+          taskType: 'discover-ec2',
+          state: 'OPEN',
+          issueType: 'ec2-ssm-invocation-failure',
+          title: 'EC2 SSM Invocation Failure',
+          integration: integrationName,
+          lastStateChange: new Date().toISOString(),
+        },
+        {
+          name: 'task-2',
+          taskType: 'discover-rds',
+          state: 'OPEN',
+          issueType: 'rds-agent-not-connecting',
+          title: 'RDS Agent Not Connecting',
+          integration: integrationName,
+          lastStateChange: new Date(
+            Date.now() - 24 * 60 * 60 * 1000
+          ).toISOString(),
+        },
+      ],
+      awsoidc: {
+        roleArn: 'arn:aws:iam::123456789012:role/TeleportRole',
+      },
+      awsec2: {
+        rulesCount: 1,
+        resourcesFound: 10,
+        resourcesEnrollmentSuccess: 10,
+        resourcesEnrollmentFailed: 0,
+        syncStart,
+        syncEnd,
+        pollIntervalSeconds: 300,
+      },
+      awsrds: {
+        rulesCount: 1,
+        resourcesFound: 5,
+        resourcesEnrollmentSuccess: 1,
+        resourcesEnrollmentFailed: 0,
+        syncStart,
+        syncEnd,
+        pollIntervalSeconds: 300,
+      },
+      awseks: {
+        rulesCount: 0,
+        resourcesFound: 0,
+        resourcesEnrollmentSuccess: 0,
+        resourcesEnrollmentFailed: 0,
+      },
+      isManagedByTerraform: true,
+      ...overrides,
+    });
+  });
+
+const rulesHandler = http.get(
+  `*/integrations/${integrationName}/discoveryrules`,
+  ({ request }) => {
+    const resourceType = new URL(request.url).searchParams.get('resourceType');
+    if (resourceType === 'eks') {
+      return HttpResponse.json({
+        rules: [
+          {
+            resourceType: 'eks',
+            region: 'us-west-2',
+            labelMatcher: [{ name: 'team', value: 'platform' }],
+            kubeAppDiscovery: false,
+          },
+        ],
+      });
+    }
+    return HttpResponse.json({
+      rules: [
+        {
+          resourceType: 'ec2',
+          region: 'us-east-1',
+          labelMatcher: [{ name: 'env', value: 'prod' }],
+        },
+      ],
+    });
+  }
+);
+
+const userTaskHandlers = [
+  http.get(cfg.api.userTaskPath, ({ params }) => {
+    const taskName = params.name as string;
+    if (taskName === 'task-1') {
+      return HttpResponse.json({
+        name: 'task-1',
+        taskType: 'discover-ec2',
+        state: 'OPEN',
+        issueType: 'ec2-ssm-invocation-failure',
+        title: 'EC2 SSM Invocation Failure',
+        integration: integrationName,
+        lastStateChange: new Date().toISOString(),
+        description:
+          'The SSM agent failed to run the installation script on the following EC2 instances. Please ensure the SSM agent is installed and running on the instances.',
+        discoverEc2: {
+          region: 'us-east-1',
+          account_id: '123456789012',
+          instances: {
+            'i-1234567890abcdef0': {
+              instance_id: 'i-1234567890abcdef0',
+              name: 'web-server-1',
+              resourceUrl:
+                'https://console.aws.amazon.com/ec2/home?region=us-east-1#InstanceDetails:instanceId=i-1234567890abcdef0',
+              invocation_url:
+                'https://console.aws.amazon.com/systems-manager/run-command/abc123',
+            },
+            'i-0987654321fedcba0': {
+              instance_id: 'i-0987654321fedcba0',
+              name: 'web-server-2',
+              resourceUrl:
+                'https://console.aws.amazon.com/ec2/home?region=us-east-1#InstanceDetails:instanceId=i-0987654321fedcba0',
+            },
+          },
+        },
+      });
+    }
+    if (taskName === 'task-2') {
+      return HttpResponse.json({
+        name: 'task-2',
+        taskType: 'discover-rds',
+        state: 'OPEN',
+        issueType: 'rds-agent-not-connecting',
+        title: 'RDS Agent Not Connecting',
+        integration: integrationName,
+        lastStateChange: new Date(
+          Date.now() - 24 * 60 * 60 * 1000
+        ).toISOString(),
+        description:
+          'The Teleport Database Agent is not connecting to the following RDS databases. Please check network connectivity and security group settings.',
+        discoverRds: {
+          region: 'us-west-2',
+          account_id: '123456789012',
+          databases: {
+            'my-database-1': {
+              name: 'my-database-1',
+              resourceUrl:
+                'https://console.aws.amazon.com/rds/home?region=us-west-2#database:id=my-database-1',
+            },
+          },
+        },
+      });
+    }
+    return HttpResponse.json(
+      { error: { message: 'Task not found' } },
+      { status: 404 }
+    );
+  }),
+  http.put(cfg.api.resolveUserTaskPath, ({ params }) => {
+    const taskName = params.name as string;
+    if (taskName === 'task-1') {
+      return HttpResponse.json({ success: true });
+    }
+    return HttpResponse.json(
+      { error: { message: 'Failed to resolve task: permission denied' } },
+      { status: 403 }
+    );
+  }),
+];
 
 export function Default() {
   return <Component />;
 }
 Default.parameters = {
   msw: {
-    handlers: [
-      http.get(cfg.getIntegrationStatsUrl(integrationName), () => {
-        return HttpResponse.json({
-          name: integrationName,
-          subKind: IntegrationKind.AwsOidc,
-          unresolvedUserTasks: 2,
-          userTasks: [
-            {
-              name: 'task-1',
-              taskType: 'discover-ec2',
-              state: 'OPEN',
-              issueType: 'ec2-ssm-invocation-failure',
-              title: 'EC2 SSM Invocation Failure',
-              integration: integrationName,
-              lastStateChange: new Date().toISOString(),
-            },
-            {
-              name: 'task-2',
-              taskType: 'discover-rds',
-              state: 'OPEN',
-              issueType: 'rds-agent-not-connecting',
-              title: 'RDS Agent Not Connecting',
-              integration: integrationName,
-              lastStateChange: new Date(
-                Date.now() - 24 * 60 * 60 * 1000
-              ).toISOString(),
-            },
-          ],
-          awsoidc: {
-            roleArn: 'arn:aws:iam::123456789012:role/TeleportRole',
-          },
-          awsec2: { enrolled: 5, failed: 1 },
-          awsrds: { enrolled: 3, failed: 0 },
-          awseks: { enrolled: 2, failed: 0 },
-          isManagedByTerraform: true,
-        });
-      }),
-      http.get(cfg.api.userTaskPath, ({ params }) => {
-        const taskName = params.name as string;
-        if (taskName === 'task-1') {
-          return HttpResponse.json({
-            name: 'task-1',
-            taskType: 'discover-ec2',
-            state: 'OPEN',
-            issueType: 'ec2-ssm-invocation-failure',
-            title: 'EC2 SSM Invocation Failure',
-            integration: integrationName,
-            lastStateChange: new Date().toISOString(),
-            description:
-              'The SSM agent failed to run the installation script on the following EC2 instances. Please ensure the SSM agent is installed and running on the instances.',
-            discoverEc2: {
-              region: 'us-east-1',
-              account_id: '123456789012',
-              instances: {
-                'i-1234567890abcdef0': {
-                  instance_id: 'i-1234567890abcdef0',
-                  name: 'web-server-1',
-                  resourceUrl:
-                    'https://console.aws.amazon.com/ec2/home?region=us-east-1#InstanceDetails:instanceId=i-1234567890abcdef0',
-                  invocation_url:
-                    'https://console.aws.amazon.com/systems-manager/run-command/abc123',
-                },
-                'i-0987654321fedcba0': {
-                  instance_id: 'i-0987654321fedcba0',
-                  name: 'web-server-2',
-                  resourceUrl:
-                    'https://console.aws.amazon.com/ec2/home?region=us-east-1#InstanceDetails:instanceId=i-0987654321fedcba0',
-                },
-              },
-            },
-          });
-        }
-        if (taskName === 'task-2') {
-          return HttpResponse.json({
-            name: 'task-2',
-            taskType: 'discover-rds',
-            state: 'OPEN',
-            issueType: 'rds-agent-not-connecting',
-            title: 'RDS Agent Not Connecting',
-            integration: integrationName,
-            lastStateChange: new Date(
-              Date.now() - 24 * 60 * 60 * 1000
-            ).toISOString(),
-            description:
-              'The Teleport Database Agent is not connecting to the following RDS databases. Please check network connectivity and security group settings.',
-            discoverRds: {
-              region: 'us-west-2',
-              account_id: '123456789012',
-              databases: {
-                'my-database-1': {
-                  name: 'my-database-1',
-                  resourceUrl:
-                    'https://console.aws.amazon.com/rds/home?region=us-west-2#database:id=my-database-1',
-                },
-              },
-            },
-          });
-        }
-        return HttpResponse.json(
-          { error: { message: 'Task not found' } },
-          { status: 404 }
-        );
-      }),
-      http.put(cfg.api.resolveUserTaskPath, ({ params }) => {
-        const taskName = params.name as string;
-        if (taskName === 'task-1') {
-          return HttpResponse.json({ success: true });
-        }
-        return HttpResponse.json(
-          { error: { message: 'Failed to resolve task: permission denied' } },
-          { status: 403 }
-        );
-      }),
-    ],
+    handlers: [statsHandler(), rulesHandler, ...userTaskHandlers],
   },
 };
 
@@ -187,21 +236,73 @@ export function Healthy() {
 Healthy.parameters = {
   msw: {
     handlers: [
-      http.get(cfg.getIntegrationStatsUrl(integrationName), () => {
-        return HttpResponse.json({
-          name: integrationName,
-          subKind: IntegrationKind.AwsOidc,
-          unresolvedUserTasks: 0,
-          userTasks: [],
-          awsoidc: {
-            roleArn: 'arn:aws:iam::123456789012:role/TeleportRole',
-          },
-          awsec2: { enrolled: 10, failed: 0 },
-          awsrds: { enrolled: 5, failed: 0 },
-          awseks: { enrolled: 3, failed: 0 },
-          isManagedByTerraform: true,
-        });
+      statsHandler({
+        unresolvedUserTasks: 0,
+        userTasks: [],
+        awsec2: {
+          rulesCount: 1,
+          resourcesFound: 10,
+          resourcesEnrollmentSuccess: 10,
+          resourcesEnrollmentFailed: 0,
+          syncStart: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+          syncEnd: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+          pollIntervalSeconds: 300,
+        },
+        awsrds: {
+          rulesCount: 1,
+          resourcesFound: 5,
+          resourcesEnrollmentSuccess: 5,
+          resourcesEnrollmentFailed: 0,
+          syncStart: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+          syncEnd: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+          pollIntervalSeconds: 300,
+        },
+        awseks: {
+          rulesCount: 1,
+          resourcesFound: 3,
+          resourcesEnrollmentSuccess: 3,
+          resourcesEnrollmentFailed: 0,
+          syncStart: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+          syncEnd: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+          pollIntervalSeconds: 300,
+        },
       }),
+      rulesHandler,
+    ],
+  },
+};
+
+export function CurrentlyScanning() {
+  return <Component />;
+}
+CurrentlyScanning.parameters = {
+  msw: {
+    handlers: [
+      statsHandler({
+        unresolvedUserTasks: 0,
+        userTasks: [],
+        awsec2: {
+          rulesCount: 1,
+          resourcesFound: 10,
+          resourcesEnrollmentSuccess: 10,
+          resourcesEnrollmentFailed: 0,
+          syncStart: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+          syncEnd: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+          pollIntervalSeconds: 300,
+        },
+        awsrds: {
+          rulesCount: 1,
+          resourcesFound: 5,
+          resourcesEnrollmentSuccess: 1,
+          resourcesEnrollmentFailed: 0,
+          syncStart: new Date(Date.now() - 30 * 1000).toISOString(),
+          pollIntervalSeconds: 300,
+        },
+        awseks: {
+          rulesCount: 0,
+        },
+      }),
+      rulesHandler,
     ],
   },
 };
@@ -231,6 +332,83 @@ Error.parameters = {
           { status: 500 }
         );
       }),
+    ],
+  },
+};
+
+export function AzureWithWildcardSubscription() {
+  return <Component kind={IntegrationKind.AzureOidc} />;
+}
+AzureWithWildcardSubscription.parameters = {
+  msw: {
+    handlers: [
+      http.get(cfg.getIntegrationStatsUrl(integrationName), () =>
+        HttpResponse.json({
+          name: integrationName,
+          subKind: IntegrationKind.AzureOidc,
+          unresolvedUserTasks: 0,
+          userTasks: [],
+          azurevm: {
+            rulesCount: 1,
+            resourcesFound: 8,
+            resourcesEnrollmentSuccess: 6,
+            resourcesEnrollmentFailed: 0,
+            syncStart: new Date(Date.now() - 3 * 60 * 1000).toISOString(),
+            syncEnd: new Date(Date.now() - 2 * 60 * 1000).toISOString(),
+            pollIntervalSeconds: 300,
+          },
+          isManagedByTerraform: true,
+        })
+      ),
+      http.get(`*/integrations/${integrationName}`, () =>
+        HttpResponse.json({
+          name: integrationName,
+          subKind: IntegrationKind.AzureOidc,
+          azureoidc: {
+            tenantId: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+            clientId: 'ffffffff-0000-1111-2222-333333333333',
+            managedIdentity: {
+              resourceGroup: 'my-resource-group',
+              region: 'eastus',
+            },
+          },
+        })
+      ),
+      http.get(`*/integrations/${integrationName}/discoveryrules`, () =>
+        HttpResponse.json({
+          rules: [
+            {
+              resourceType: 'vm',
+              region: 'eastus',
+              subscriptions: ['*'],
+              resourceGroups: [],
+              labelMatcher: [],
+            },
+          ],
+        })
+      ),
+    ],
+  },
+};
+
+export function SettingsError() {
+  return <Component />;
+}
+SettingsError.parameters = {
+  msw: {
+    handlers: [
+      statsHandler(),
+      http.get(`*/integrations/${integrationName}/discoveryrules`, () => {
+        return HttpResponse.json(
+          {
+            error: {
+              message: 'Failed to load integration rules',
+            },
+          },
+          { status: 500 }
+        );
+      }),
+      ...userTaskHandlers,
     ],
   },
 };

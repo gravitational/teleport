@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/database_access.proto
 
+//go:build !protoopaque
+
 package decisionpb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 // EvaluateDatabaseAccessRequest describes a request to evaluate whether or not
 // a given database access attempt should be permitted.
 type EvaluateDatabaseAccessRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Metadata      *RequestMetadata       `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	TlsIdentity   *TLSIdentity           `protobuf:"bytes,2,opt,name=tls_identity,json=tlsIdentity,proto3" json:"tls_identity,omitempty"`
 	Database      *Resource              `protobuf:"bytes,3,opt,name=database,proto3" json:"database,omitempty"`
@@ -71,11 +72,6 @@ func (x *EvaluateDatabaseAccessRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EvaluateDatabaseAccessRequest.ProtoReflect.Descriptor instead.
-func (*EvaluateDatabaseAccessRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_database_access_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *EvaluateDatabaseAccessRequest) GetMetadata() *RequestMetadata {
 	if x != nil {
 		return x.Metadata
@@ -97,10 +93,73 @@ func (x *EvaluateDatabaseAccessRequest) GetDatabase() *Resource {
 	return nil
 }
 
+func (x *EvaluateDatabaseAccessRequest) SetMetadata(v *RequestMetadata) {
+	x.Metadata = v
+}
+
+func (x *EvaluateDatabaseAccessRequest) SetTlsIdentity(v *TLSIdentity) {
+	x.TlsIdentity = v
+}
+
+func (x *EvaluateDatabaseAccessRequest) SetDatabase(v *Resource) {
+	x.Database = v
+}
+
+func (x *EvaluateDatabaseAccessRequest) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *EvaluateDatabaseAccessRequest) HasTlsIdentity() bool {
+	if x == nil {
+		return false
+	}
+	return x.TlsIdentity != nil
+}
+
+func (x *EvaluateDatabaseAccessRequest) HasDatabase() bool {
+	if x == nil {
+		return false
+	}
+	return x.Database != nil
+}
+
+func (x *EvaluateDatabaseAccessRequest) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *EvaluateDatabaseAccessRequest) ClearTlsIdentity() {
+	x.TlsIdentity = nil
+}
+
+func (x *EvaluateDatabaseAccessRequest) ClearDatabase() {
+	x.Database = nil
+}
+
+type EvaluateDatabaseAccessRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Metadata    *RequestMetadata
+	TlsIdentity *TLSIdentity
+	Database    *Resource
+}
+
+func (b0 EvaluateDatabaseAccessRequest_builder) Build() *EvaluateDatabaseAccessRequest {
+	m0 := &EvaluateDatabaseAccessRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	x.TlsIdentity = b.TlsIdentity
+	x.Database = b.Database
+	return m0
+}
+
 // EvaluateDatabaseAccessResponse describes the result of a database access
 // evaluation.
 type EvaluateDatabaseAccessResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Result:
 	//
 	//	*EvaluateDatabaseAccessResponse_Permit
@@ -135,11 +194,6 @@ func (x *EvaluateDatabaseAccessResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EvaluateDatabaseAccessResponse.ProtoReflect.Descriptor instead.
-func (*EvaluateDatabaseAccessResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_database_access_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *EvaluateDatabaseAccessResponse) GetResult() isEvaluateDatabaseAccessResponse_Result {
 	if x != nil {
 		return x.Result
@@ -165,6 +219,111 @@ func (x *EvaluateDatabaseAccessResponse) GetDenial() *DatabaseAccessDenial {
 	return nil
 }
 
+func (x *EvaluateDatabaseAccessResponse) SetPermit(v *DatabaseAccessPermit) {
+	if v == nil {
+		x.Result = nil
+		return
+	}
+	x.Result = &EvaluateDatabaseAccessResponse_Permit{v}
+}
+
+func (x *EvaluateDatabaseAccessResponse) SetDenial(v *DatabaseAccessDenial) {
+	if v == nil {
+		x.Result = nil
+		return
+	}
+	x.Result = &EvaluateDatabaseAccessResponse_Denial{v}
+}
+
+func (x *EvaluateDatabaseAccessResponse) HasResult() bool {
+	if x == nil {
+		return false
+	}
+	return x.Result != nil
+}
+
+func (x *EvaluateDatabaseAccessResponse) HasPermit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Result.(*EvaluateDatabaseAccessResponse_Permit)
+	return ok
+}
+
+func (x *EvaluateDatabaseAccessResponse) HasDenial() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Result.(*EvaluateDatabaseAccessResponse_Denial)
+	return ok
+}
+
+func (x *EvaluateDatabaseAccessResponse) ClearResult() {
+	x.Result = nil
+}
+
+func (x *EvaluateDatabaseAccessResponse) ClearPermit() {
+	if _, ok := x.Result.(*EvaluateDatabaseAccessResponse_Permit); ok {
+		x.Result = nil
+	}
+}
+
+func (x *EvaluateDatabaseAccessResponse) ClearDenial() {
+	if _, ok := x.Result.(*EvaluateDatabaseAccessResponse_Denial); ok {
+		x.Result = nil
+	}
+}
+
+const EvaluateDatabaseAccessResponse_Result_not_set_case case_EvaluateDatabaseAccessResponse_Result = 0
+const EvaluateDatabaseAccessResponse_Permit_case case_EvaluateDatabaseAccessResponse_Result = 1
+const EvaluateDatabaseAccessResponse_Denial_case case_EvaluateDatabaseAccessResponse_Result = 2
+
+func (x *EvaluateDatabaseAccessResponse) WhichResult() case_EvaluateDatabaseAccessResponse_Result {
+	if x == nil {
+		return EvaluateDatabaseAccessResponse_Result_not_set_case
+	}
+	switch x.Result.(type) {
+	case *EvaluateDatabaseAccessResponse_Permit:
+		return EvaluateDatabaseAccessResponse_Permit_case
+	case *EvaluateDatabaseAccessResponse_Denial:
+		return EvaluateDatabaseAccessResponse_Denial_case
+	default:
+		return EvaluateDatabaseAccessResponse_Result_not_set_case
+	}
+}
+
+type EvaluateDatabaseAccessResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Result:
+	Permit *DatabaseAccessPermit
+	Denial *DatabaseAccessDenial
+	// -- end of Result
+}
+
+func (b0 EvaluateDatabaseAccessResponse_builder) Build() *EvaluateDatabaseAccessResponse {
+	m0 := &EvaluateDatabaseAccessResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Permit != nil {
+		x.Result = &EvaluateDatabaseAccessResponse_Permit{b.Permit}
+	}
+	if b.Denial != nil {
+		x.Result = &EvaluateDatabaseAccessResponse_Denial{b.Denial}
+	}
+	return m0
+}
+
+type case_EvaluateDatabaseAccessResponse_Result protoreflect.FieldNumber
+
+func (x case_EvaluateDatabaseAccessResponse_Result) String() string {
+	md := file_teleport_decision_v1alpha1_database_access_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEvaluateDatabaseAccessResponse_Result interface {
 	isEvaluateDatabaseAccessResponse_Result()
 }
@@ -184,7 +343,7 @@ func (*EvaluateDatabaseAccessResponse_Denial) isEvaluateDatabaseAccessResponse_R
 // DatabaseAccessPermit describes the parameters/constraints of a permissible
 // database access attempt.
 type DatabaseAccessPermit struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Metadata      *PermitMetadata        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -215,11 +374,6 @@ func (x *DatabaseAccessPermit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseAccessPermit.ProtoReflect.Descriptor instead.
-func (*DatabaseAccessPermit) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_database_access_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *DatabaseAccessPermit) GetMetadata() *PermitMetadata {
 	if x != nil {
 		return x.Metadata
@@ -227,9 +381,38 @@ func (x *DatabaseAccessPermit) GetMetadata() *PermitMetadata {
 	return nil
 }
 
+func (x *DatabaseAccessPermit) SetMetadata(v *PermitMetadata) {
+	x.Metadata = v
+}
+
+func (x *DatabaseAccessPermit) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *DatabaseAccessPermit) ClearMetadata() {
+	x.Metadata = nil
+}
+
+type DatabaseAccessPermit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Metadata *PermitMetadata
+}
+
+func (b0 DatabaseAccessPermit_builder) Build() *DatabaseAccessPermit {
+	m0 := &DatabaseAccessPermit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	return m0
+}
+
 // DatabaseAccessDenial describes a database access denial.
 type DatabaseAccessDenial struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Metadata      *DenialMetadata        `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -260,16 +443,40 @@ func (x *DatabaseAccessDenial) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DatabaseAccessDenial.ProtoReflect.Descriptor instead.
-func (*DatabaseAccessDenial) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_database_access_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *DatabaseAccessDenial) GetMetadata() *DenialMetadata {
 	if x != nil {
 		return x.Metadata
 	}
 	return nil
+}
+
+func (x *DatabaseAccessDenial) SetMetadata(v *DenialMetadata) {
+	x.Metadata = v
+}
+
+func (x *DatabaseAccessDenial) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *DatabaseAccessDenial) ClearMetadata() {
+	x.Metadata = nil
+}
+
+type DatabaseAccessDenial_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Metadata *DenialMetadata
+}
+
+func (b0 DatabaseAccessDenial_builder) Build() *DatabaseAccessDenial {
+	m0 := &DatabaseAccessDenial{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	return m0
 }
 
 var File_teleport_decision_v1alpha1_database_access_proto protoreflect.FileDescriptor
@@ -289,18 +496,6 @@ const file_teleport_decision_v1alpha1_database_access_proto_rawDesc = "" +
 	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.PermitMetadataR\bmetadata\"^\n" +
 	"\x14DatabaseAccessDenial\x12F\n" +
 	"\bmetadata\x18\x01 \x01(\v2*.teleport.decision.v1alpha1.DenialMetadataR\bmetadataBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
-
-var (
-	file_teleport_decision_v1alpha1_database_access_proto_rawDescOnce sync.Once
-	file_teleport_decision_v1alpha1_database_access_proto_rawDescData []byte
-)
-
-func file_teleport_decision_v1alpha1_database_access_proto_rawDescGZIP() []byte {
-	file_teleport_decision_v1alpha1_database_access_proto_rawDescOnce.Do(func() {
-		file_teleport_decision_v1alpha1_database_access_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_database_access_proto_rawDesc), len(file_teleport_decision_v1alpha1_database_access_proto_rawDesc)))
-	})
-	return file_teleport_decision_v1alpha1_database_access_proto_rawDescData
-}
 
 var file_teleport_decision_v1alpha1_database_access_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_decision_v1alpha1_database_access_proto_goTypes = []any{

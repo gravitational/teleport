@@ -41,7 +41,7 @@ guidance on deploying `tbot` as a workload on Kubernetes.
 - An AWS EC2 virtual machine that you wish to install `tbot` onto configured
   with the IAM role attached.
 
-## Step 1/5. Install `tbot`
+## Step 1/4. Install `tbot`
 
 **This step is completed on the AWS EC2 instance.**
 
@@ -52,13 +52,13 @@ Download and install the appropriate Teleport package for your platform:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-## Step 2/5. Create a Bot
+## Step 2/4. Create a Bot
 
 **This step is completed on your local machine.**
 
 (!docs/pages/includes/machine-id/create-a-bot.mdx!)
 
-## Step 3/5. Create a join token
+## Step 3/4. Create a join token
 
 **This step is completed on your local machine.**
 
@@ -99,7 +99,7 @@ Use `tctl` to apply this file:
 $ tctl create -f bot-token.yaml
 ```
 
-## Step 4/5. Configure `tbot`
+## Step 4/4. Configure `tbot`
 
 **This step is completed on the AWS EC2 instance.**
 
@@ -121,15 +121,15 @@ Replace:
 
 - `example.teleport.sh:443` with the address of your Teleport Proxy Service or
   Auth Service. Prefer using the address of a Teleport Proxy Service instance.
-- `example-bot` with the name of the token you created in the second step.
+- `example-bot` with the name of the token you created in the third step.
 
 (!docs/pages/includes/machine-id/daemon-or-oneshot.mdx!)
 
-## Step 5/5. Configure services
-
-(!docs/pages/includes/machine-id/configure-services.mdx!)
-
 ## Next steps
+
+You have now prepared the base configuration for `tbot`. At this point, it
+identifies itself to the Teleport cluster and renews its own credentials but
+does not output any credentials for other applications to use.
 
 - Follow the [access guides](../access-guides/access-guides.mdx) to finish configuring `tbot` for
   your environment.

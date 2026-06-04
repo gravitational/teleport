@@ -54,24 +54,16 @@ export const ReAuthenticate: FC<{
   onCancel: () => void;
   onOtpSubmit: (otp: string) => void;
   onSsoContinue: (redirectUrl: string) => void;
+  onBrowserMfaContinue: (redirectUrl: string) => void;
   hidden?: boolean;
 }> = props => {
-  const { promptMfaRequest: req, onSsoContinue } = props;
+  const { promptMfaRequest: req, onSsoContinue, onBrowserMfaContinue } = props;
 
   const availableMfaTypes = makeAvailableMfaTypes(req);
 
   const [selectedMfaType, setSelectedMfaType] = useState<AvailableMfaType>(
     availableMfaTypes[0]
   );
-
-  useEffect(() => {
-    // If SSO is the selected value, open the redirect window instead of waiting for the user to
-    // select SSO. This handles both a situation where the user selects the SSO option and a
-    // situation where SSO is already selected when the component renders.
-    if (selectedMfaType.value === 'sso') {
-      onSsoContinue(req.sso.redirectUrl);
-    }
-  }, [selectedMfaType.value, req.sso?.redirectUrl, onSsoContinue]);
 
   const [otpToken, setOtpToken] = useState('');
 
@@ -87,8 +79,39 @@ export const ReAuthenticate: FC<{
     // In practice though we should not end up in a situation where this modal is shown but the
     // cluster does not exist in the app.
     rootCluster?.proxyHost || rootClusterName;
-  const clusterName = routing.parseClusterName(clusterUri);
-  const isLeafCluster = routing.isLeafCluster(clusterUri);
+
+  // maybeOpenBrowser opens the browser if the given mfaType is SSO of Browser MFA
+  function maybeOpenBrowser(mfaType: AvailableMfaType) {
+    switch (mfaType.value) {
+      case 'sso':
+        onSsoContinue(req.sso?.redirectUrl);
+        break;
+      case 'browsermfa':
+        onBrowserMfaContinue(
+          `https://${rootClusterProxyHost}/web/mfa/browser/${req.browser.requestId}`
+        );
+        break;
+    }
+  }
+
+  // selectMfaType is a wrapper for setSelectedMfaType that will also open the
+  // browser if the user has selected SSO or Browser MFA
+  function selectMfaType(mfaType: AvailableMfaType) {
+    setSelectedMfaType(mfaType);
+
+    // Open the browser if the user selected SSO or Browser MFA
+    maybeOpenBrowser(mfaType);
+  }
+
+  // If there is only one available MFA type, the user may not get a dropdown
+  // to select the MFA type. If the only available type is SSO or Browser MFA,
+  // open the browser now.
+  useEffect(() => {
+    if (availableMfaTypes.length === 1) {
+      selectMfaType(availableMfaTypes[0]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   let $totpPrompt = (
     <FieldInput
@@ -165,10 +188,7 @@ export const ReAuthenticate: FC<{
 
             <DialogContent mb={4}>
               <Flex flexDirection="column" gap={4} alignItems="flex-start">
-                <Text>
-                  {req.reason}
-                  {isLeafCluster && ` from trusted cluster "${clusterName}"`}
-                </Text>
+                {req.reason && <Text>{req.reason}</Text>}
 
                 <Flex width="100%" gap={3} flexWrap="wrap">
                   {availableMfaTypes.length > 1 && (
@@ -178,7 +198,7 @@ export const ReAuthenticate: FC<{
                       value={selectedMfaType}
                       options={availableMfaTypes}
                       onChange={mfaType => {
-                        setSelectedMfaType(mfaType);
+                        selectMfaType(mfaType);
                       }}
                     />
                   )}
@@ -198,7 +218,7 @@ export const ReAuthenticate: FC<{
                       textAlign="center"
                       style={{ position: 'relative' }}
                     >
-                      <Text bold>Insert your security key and tap it</Text>
+                      <Text bold>Insert your security key and tap it.</Text>
                       <LinearProgress />
                     </Box>
                   </>
@@ -206,6 +226,19 @@ export const ReAuthenticate: FC<{
 
                 {selectedMfaType.value === 'sso' && (
                   <PromptSsoStatus ssoPrompt="follow-browser-steps" />
+                )}
+
+                {selectedMfaType.value === 'browsermfa' && (
+                  <Box
+                    width="100%"
+                    textAlign="center"
+                    style={{ position: 'relative' }}
+                  >
+                    <Text bold>
+                      Please follow the steps in the browser to authenticate.
+                    </Text>
+                    <LinearProgress />
+                  </Box>
                 )}
               </Flex>
             </DialogContent>
@@ -233,11 +266,12 @@ export const ReAuthenticate: FC<{
   );
 };
 
-type MfaType = 'webauthn' | 'totp' | 'sso';
+type MfaType = 'webauthn' | 'totp' | 'sso' | 'browsermfa';
 type AvailableMfaType = Option<MfaType, string>;
 
 const totp = { value: 'totp' as MfaType, label: 'Authenticator App' };
 const webauthn = { value: 'webauthn' as MfaType, label: 'Hardware Key' };
+const browsermfa = { value: 'browsermfa' as MfaType, label: 'Browser MFA' };
 
 function makeAvailableMfaTypes(req: PromptMFARequest): AvailableMfaType[] {
   let availableMfaTypes: AvailableMfaType[] = [];
@@ -255,6 +289,10 @@ function makeAvailableMfaTypes(req: PromptMFARequest): AvailableMfaType[] {
       value: 'sso',
       label: req.sso.displayName || req.sso.connectorId,
     });
+  }
+
+  if (req.browser) {
+    availableMfaTypes.push(browsermfa);
   }
 
   // This shouldn't happen but is technically allowed by the req data structure.

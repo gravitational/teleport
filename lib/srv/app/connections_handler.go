@@ -31,6 +31,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -48,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/awsconfig"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	appaws "github.com/gravitational/teleport/lib/srv/app/aws"
@@ -115,8 +117,14 @@ type ConnectionsHandlerConfig struct {
 	// Logger is the slog.Logger.
 	Logger *slog.Logger
 
+	// LimiterConfig is the configuration for connection and rate limits.
+	LimiterConfig limiter.Config
+
 	// MCPDemoServer enables the "Teleport Demo" MCP server.
 	MCPDemoServer bool
+
+	// InsecureMode defines whether insecure connections are allowed.
+	InsecureMode bool
 }
 
 // CheckAndSetDefaults validates the config values and sets defaults.
@@ -180,6 +188,7 @@ type ConnectionsHandler struct {
 	tlsConfig  *tls.Config
 	tcpServer  *tcpServer
 	mcpServer  *mcp.Server
+	limiter    *limiter.Limiter
 
 	// cache holds sessionChunk objects for in-flight app sessions.
 	cache *utils.FnCache
@@ -199,7 +208,8 @@ type ConnectionsHandler struct {
 	// authMiddleware allows wrapping connections with identity information.
 	authMiddleware *authz.Middleware
 
-	proxyPort string
+	proxyPort   string
+	clusterName string
 
 	// getAppByPublicAddress returns a types.Application using the public address as matcher.
 	getAppByPublicAddress func(context.Context, string) (types.Application, error)
@@ -236,6 +246,11 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		return nil, trace.Wrap(err)
 	}
 
+	clusterName, err := cfg.AccessPoint.GetClusterName(closeContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c := &ConnectionsHandler{
 		cfg:          cfg,
 		closeContext: closeContext,
@@ -244,6 +259,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		gcpHandler:   gcpHandler,
 		connAuth:     make(map[net.Conn]error),
 		log:          slog.With(teleport.ComponentKey, cfg.ServiceComponent),
+		clusterName:  clusterName.GetClusterName(),
 		getAppByPublicAddress: func(ctx context.Context, s string) (types.Application, error) {
 			return nil, trace.NotFound("no applications are being proxied")
 		},
@@ -261,15 +277,16 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	go c.expireSessions()
 
-	clustername, err := c.cfg.AccessPoint.GetClusterName(closeContext)
+	// Create limiter for connection and rate limiting. Applied to all
+	// app protocols (HTTP, TCP, MCP) in handleConnection.
+	c.limiter, err = limiter.NewLimiter(cfg.LimiterConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Create and configure HTTP server with authorizing middleware.
-	c.httpServer = c.newHTTPServer(clustername.GetClusterName())
+	c.httpServer = c.newHTTPServer(clusterName.GetClusterName())
 
 	// TCP server will handle TCP applications.
 	tcpServer, err := c.newTCPServer()
@@ -287,6 +304,7 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 		EnableDemoServer: c.cfg.MCPDemoServer,
 		CipherSuites:     c.cfg.CipherSuites,
 		AuthClient:       c.cfg.AuthClient,
+		InsecureMode:     c.cfg.InsecureMode,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -298,6 +316,8 @@ func NewConnectionsHandler(closeContext context.Context, cfg *ConnectionsHandler
 
 	// Figure out the port the proxy is running on.
 	c.proxyPort = c.getProxyPort(c.closeContext)
+
+	go c.expireSessions()
 
 	return c, nil
 }
@@ -325,14 +345,18 @@ func (c *ConnectionsHandler) expireSessions() {
 // HandleConnection takes a connection and wraps it in a listener, so it can
 // be passed to http.Serve to process as a HTTP request.
 func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
-	ctx := context.Background()
+	ctx, cancel := context.WithCancelCause(c.closeContext)
+	// HandleConnection owns the context. handleConnection passes cancel
+	// to TrackingReadConn, which may call it first with io.EOF when the
+	// connection closes. The second cancel call is a no-op.
+	defer cancel(nil)
 
 	// Wrap conn to detect when it is closed.
 	// Returning early will close conn before it has been serviced.
 	// httpServer will initiate the close call.
 	waitConn := utils.NewWaitConn(conn)
 
-	cleanup, err := c.handleConnection(waitConn)
+	cleanup, err := c.handleConnection(ctx, cancel, waitConn)
 	// Make sure that the cleanup function is run
 	if cleanup != nil {
 		defer cleanup()
@@ -348,7 +372,10 @@ func (c *ConnectionsHandler) HandleConnection(conn net.Conn) {
 		return
 	}
 
-	// Wait for connection to close.
+	// Wait for the connection to close. TCP and MCP handlers block until
+	// done, so waitConn is already closed by the time we get here. The HTTP
+	// handler returns immediately after handing the conn to http.Server, so
+	// this is where we block until the HTTP server closes it.
 	waitConn.Wait()
 }
 
@@ -397,9 +424,13 @@ func (c *ConnectionsHandler) sessionStartTime(ctx context.Context) time.Time {
 // newTCPServer creates a server that proxies TCP applications.
 func (c *ConnectionsHandler) newTCPServer() (*tcpServer, error) {
 	return &tcpServer{
-		emitter: c.cfg.Emitter,
-		hostID:  c.cfg.HostID,
-		log:     c.log,
+		emitter:      c.cfg.Emitter,
+		hostID:       c.cfg.HostID,
+		log:          c.log,
+		caGetter:     c.cfg.AccessPoint,
+		clusterName:  c.clusterName,
+		cipherSuites: c.cfg.CipherSuites,
+		insecureMode: c.cfg.InsecureMode,
 	}, nil
 }
 
@@ -452,6 +483,10 @@ func (c *ConnectionsHandler) serveHTTP(w http.ResponseWriter, r *http.Request) e
 
 	case app.IsGCP():
 		return c.serveSession(w, r, &identity, app, c.withGCPHandler)
+
+	// TODO(gabrielcorado): implement inference endpoint handler.
+	case app.IsLLM():
+		return trace.NotImplemented("LLM access is not implemented")
 
 	default:
 		return c.serveSession(w, r, &identity, app, c.withJWTTokenForwarder)
@@ -583,8 +618,7 @@ func (c *ConnectionsHandler) authorizeContext(ctx context.Context) (*authz.Conte
 	return authContext, app, nil
 }
 
-func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
-	ctx, cancel := context.WithCancelCause(c.closeContext)
+func (c *ConnectionsHandler) handleConnection(ctx context.Context, cancel context.CancelCauseFunc, conn net.Conn) (func(), error) {
 	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
 		Conn:    conn,
 		Clock:   c.cfg.Clock,
@@ -594,6 +628,23 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Apply connection and rate limiting to all app protocols
+	// (HTTP, TCP, MCP) before any protocol-specific handling.
+	// Skip limiting when the client IP cannot be extracted (e.g.
+	// net.Pipe connections used by integration app proxying).
+	var release func()
+	if clientIP, err := utils.ClientIPFromConn(conn); err == nil {
+		release, err = c.limiter.RegisterRequestAndConnection(clientIP)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	defer func() {
+		if release != nil {
+			release()
+		}
+	}()
 
 	// Proxy sends a X.509 client certificate to pass identity information,
 	// extract it and run authorization checks on it.
@@ -614,6 +665,9 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	// 3. If the application is an HTTP application, store the error and let the HTTP handler
 	//    serve the error directly so that it's properly converted to an HTTP status code.
 	//    This will ensure users will get a 403 when authorization fails.
+	//
+	// Note: LLM doesn't require a special handling. It must work like other
+	// HTTP applications.
 	if err != nil {
 		switch {
 		case app.IsTCP():
@@ -635,16 +689,17 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 	// initialization to ensure value is present on the context.
 	ctx = authz.ContextWithUserCertificate(ctx, leafCertFromConn(tlsConn))
 
-	// Application access supports plain TCP connections which are handled
-	// differently than HTTP requests from web apps.
+	// TCP and MCP handlers block until the session is done, so they return
+	// (nil, err) and the caller has nothing to clean up. The HTTP handler is
+	// asynchronous: handleHTTPApp hands the conn to http.Server.Serve and
+	// returns immediately, so it returns a cleanup function and the caller
+	// blocks on waitConn.Wait() until the HTTP server closes the conn.
 	switch {
 	case app.IsTCP():
 		identity := authCtx.Identity.GetIdentity()
-		defer cancel(nil)
 		return nil, trace.Wrap(c.handleTCPApp(ctx, tlsConn, &identity, app))
 
 	case app.IsMCP():
-		defer cancel(nil)
 		sessionCtx := mcp.SessionCtx{
 			ClientConn: tlsConn,
 			AuthCtx:    authCtx,
@@ -653,8 +708,14 @@ func (c *ConnectionsHandler) handleConnection(conn net.Conn) (func(), error) {
 		return nil, trace.Wrap(c.mcpServer.HandleSession(ctx, &sessionCtx))
 
 	default:
+		// Transfer release ownership to the cleanup function so
+		// the deferred release above becomes a no-op.
+		releaseConn := release
+		release = nil
 		cleanup := func() {
-			cancel(nil)
+			if releaseConn != nil {
+				releaseConn()
+			}
 			c.deleteConnAuth(tlsConn)
 		}
 		return cleanup, trace.Wrap(c.handleHTTPApp(ctx, tlsConn))
@@ -730,24 +791,62 @@ func (c *ConnectionsHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		// Convert trace error type to HTTP and write response, make sure we close the
 		// connection afterwards so that the monitor is recreated if needed.
 		code := trace.ErrorToCode(err)
+		w.Header().Set("Connection", "close")
 
-		var text string
 		switch {
 		case errors.Is(err, services.ErrTrustedDeviceRequired):
-			text = `A trusted device is required to access this resource but this device has not been registered as a trusted device; use 'tsh device enroll' to register as a trusted device.
-
-See https://goteleport.com/docs/admin-guides/access-controls/device-trust/device-management/#troubleshooting for help.
-`
+			writeTrustedDeviceRequired(w, r, code)
 		case errors.Is(err, services.ErrSessionMFARequired):
-			text = authclient.ErrNoMFADevices.Error()
-
+			http.Error(w, authclient.ErrNoMFADevices.Error(), code)
 		default:
-			text = http.StatusText(code)
+			http.Error(w, http.StatusText(code), code)
 		}
-
-		w.Header().Set("Connection", "close")
-		http.Error(w, text, code)
 	}
+}
+
+const (
+	trustedDeviceRequiredDocsURL          = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#troubleshooting"
+	trustedDeviceRequiredWebUIDocsURL     = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#web-ui-fails-to-authenticate-trusted-device"
+	trustedDeviceRequiredAppAccessDocsURL = "https://goteleport.com/docs/zero-trust-access/device-trust/device-management/#app-access-and-access-to-this-app-requires-a-trusted-device"
+)
+
+// writeTrustedDeviceRequired writes the response body for a request that failed
+// with [services.ErrTrustedDeviceRequired]. Browsers receive a small HTML page
+// with clickable links to the docs; every other client gets plain text.
+func writeTrustedDeviceRequired(w http.ResponseWriter, r *http.Request, code int) {
+	if isBrowserUserAgent(r.UserAgent()) {
+		const body = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Trusted device required</title></head>
+<body>
+<p>A trusted device is required to access this resource, but this session has not been authorized with Device Trust. Follow <a href="` + trustedDeviceRequiredWebUIDocsURL + `" target="_blank">the Web UI troubleshooting guide</a> to authorize the session with Device Trust.</p>
+<p>If accessing the resource through VNet or a local proxy, make sure the device running Teleport Connect or tsh is registered and enrolled. See <a href="` + trustedDeviceRequiredAppAccessDocsURL + `" target="_blank">the app access troubleshooting guide</a> for help.</p>
+</body>
+</html>
+`
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("X-Content-Type-Options", "nosniff")
+		w.WriteHeader(code)
+		_, _ = w.Write([]byte(body))
+		return
+	}
+
+	http.Error(w, `A trusted device is required to access this resource but this device has not been registered as a trusted device; use 'tsh device enroll' to register as a trusted device.
+
+See `+trustedDeviceRequiredDocsURL+` for help.
+`, code)
+}
+
+// isBrowserUserAgent reports whether ua plausibly comes from a web browser, as
+// opposed to a CLI (tsh, curl) or some SDK client. It relies on the historical
+// quirk that essentially every browser UA begins with "Mozilla/" and contains
+// a known engine token. Modern browsers (Chrome, Safari, Edge, Opera, mobile
+// browsers) are all WebKit- or Blink-based and carry "AppleWebKit"; the Firefox
+// family carries "Gecko/".
+func isBrowserUserAgent(ua string) bool {
+	lower := strings.ToLower(ua)
+	return strings.HasPrefix(lower, "mozilla/") &&
+		(strings.Contains(lower, "applewebkit") || strings.Contains(lower, "gecko/"))
 }
 
 // getConnectionInfo extracts identity information from the provided
@@ -812,6 +911,13 @@ func CopyAndConfigureTLS(log *slog.Logger, client authclient.AccessCache, config
 	tlsConfig.GetConfigForClient = newGetConfigForClientFn(log, client, tlsConfig)
 
 	return tlsConfig
+}
+
+// CopyAndConfigureTLSForCluster is like [CopyAndConfigureTLS] but accepts the local cluster name.
+// Prefer this variant in new code.
+func CopyAndConfigureTLSForCluster(log *slog.Logger, client authclient.AccessCache, clusterName string, config *tls.Config) *tls.Config {
+	_ = clusterName
+	return CopyAndConfigureTLS(log, client, config)
 }
 
 func newGetConfigForClientFn(log *slog.Logger, client authclient.AccessCache, tlsConfig *tls.Config) func(*tls.ClientHelloInfo) (*tls.Config, error) {
