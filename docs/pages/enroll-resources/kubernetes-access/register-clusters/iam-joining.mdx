@@ -226,7 +226,7 @@ metadata:
   name: <Var name="kube-iam-token"/>
 spec:
   # use the minimal set of roles required
-  roles: [Kube]
+  roles: [Kube,App,Discovery]
   # set the join method allowed for this token
   join_method: iam
   allow:
