@@ -112,14 +112,16 @@ answer instead of a raw error:
             accessGraphConfigSet: .identitySecurity.accessGraphConfigSet}'
    ```
 
-   Interpret:
-   - `edition` is `oss`/`community` **or** `identitySecurityLicensed` is false →
+   Interpret (treat `null`/absent the same as `false` — on some clusters,
+   including Enterprise **Cloud** tenants, the whole `identitySecurity` block is
+   missing from `config.js` even when Identity Security is entitled):
+   - `edition` is `oss`/`community` **or** `identitySecurityLicensed` is not true →
      this cluster cannot do summaries/search. Tell the user it requires
      Enterprise + Identity Security, and use `recordings ls` instead.
    - `sessionSummarization` (i.e. `identitySecurity.sessionSummarizationEnabled`,
-     the gate the user asked about) is false, or `accessGraphConfigSet` is false →
-     licensed but not turned on; tell them to enable session summarization /
-     finish Access Graph setup, then fall back to `recordings ls`.
+     the gate the user asked about) is not true, or `accessGraphConfigSet` is not
+     true → licensed but not turned on; tell them to enable session summarization
+     / finish Access Graph setup, then fall back to `recordings ls`.
    - all true → proceed.
 
 If you cannot reach `config.js` (e.g. offline, or running against a mock), skip
@@ -213,6 +215,10 @@ with a `NotImplemented` error when the backing infrastructure is missing, e.g.:
 - "session search requires Access Graph to be enabled with session recording support"
 - "session search requires the pg_trgm PostgreSQL extension to be installed"
 - "session search requires the pgvector PostgreSQL extension to be installed"
+- `unknown service teleport.sessionsearch.v1.SessionSearchService` — the search
+  gRPC service isn't registered on this cluster at all (observed on an Enterprise
+  **Cloud** tenant without session search configured). Treat it the same as
+  "not available."
 
 And on a Community/older cluster the subcommand may not exist at all (e.g.
 "unknown command 'search'").
@@ -260,10 +266,15 @@ anything that writes to disk:
   $TCTL recordings download <session-id> -o <output-dir>
   ```
 
-  Writes `<session-id>.tar` to the output directory (default: current directory).
-  **This file is not a real tar archive** — despite the `.tar` extension it is a
-  gzipped, optionally-encrypted protobuf stream and cannot be opened with `tar`.
-  Play it with `tsh play <path-to-file>`; don't tell the user to `tar -x` it.
+  Writes `<session-id>.tar` to the output directory (default: current directory),
+  and also creates empty `multi/` and `pending/` scratch subdirs there — download
+  to a dedicated dir. **This file is not a real tar archive** — despite the `.tar`
+  extension it is a gzipped, optionally-encrypted protobuf stream and cannot be
+  opened with `tar`. Play it with `tsh play <path-to-file>`; don't `tar -x` it.
+
+  Works the same on **Enterprise Cloud** (verified): the command streams the
+  recording over the API and decrypts on the fly — no special handling needed.
+  The Web UI Session Recordings page also offers a download.
 
 - **Play back a recording**:
 
