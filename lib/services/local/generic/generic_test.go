@@ -804,9 +804,9 @@ func TestGenericKeyOverride(t *testing.T) {
 	})
 }
 
-// TestResourcesSkipsUnmarshalErrorsHittingPageBounrary guards against a regression where hitting a page boundary with a malformed backend item would
+// TestResourcesSkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
 // return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
-func TestResourcesSkipsUnmarshalErrorsHittingPageBounrary(t *testing.T) {
+func TestResourcesSkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
 	ctx := t.Context()
 
 	memBackend, err := memory.New(memory.Config{

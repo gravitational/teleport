@@ -149,7 +149,7 @@ func TestIdentityService_ListUserTokens(t *testing.T) {
 	})
 }
 
-func TestListUserTokens_SkipsUnmarshalErrorsHittingPageBounrary(t *testing.T) {
+func TestListUserTokens_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
 	ctx := t.Context()
 
 	const pageLimit = 64

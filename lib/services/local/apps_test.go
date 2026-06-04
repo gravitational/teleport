@@ -256,7 +256,7 @@ func TestAppsCRUD(t *testing.T) {
 	))
 }
 
-func TestListApps_SkipsUnmarshalErrorsHittingPageBounrary(t *testing.T) {
+func TestListApps_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
 	ctx := t.Context()
 
 	const pageLimit = 64
