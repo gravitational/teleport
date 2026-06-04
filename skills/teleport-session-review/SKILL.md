@@ -41,9 +41,11 @@ tsh status
 ```
 
 If there is no active profile, ask the user to run `tsh login --proxy=<proxy>`
-first. Reading recordings requires an auditor-style role (RBAC over session
-recordings); if commands return a permission error, tell the user they need the
-appropriate role.
+first. Reading recordings requires an allow rule for the `session` resource with
+the `list` and `read` verbs (the preset `auditor` role grants this; access can be
+scoped further with a `where` clause). If a command returns
+`access denied to perform action "read" on "session"`, the user's role lacks this
+rule — tell them to add `session` / `[list, read]` (or use an auditor-style role).
 
 ## Step 1: Choose the Right Command
 
@@ -129,6 +131,12 @@ this probe and rely on the runtime error below as the backstop.
 $TCTL recordings search "<natural-language query>" --format=json --limit=50
 ```
 
+- **Search only covers *summarized* sessions.** A recording appears in results
+  only after Teleport has generated a successful session summary, and which
+  sessions get summarized is governed by `inference_policy` resources. Sessions
+  that were never summarized are invisible to search — for full coverage of *all*
+  recordings (e.g. on clusters/sessions without summaries), use `recordings ls`
+  (Step 2). This is also the first thing to check on an unexpectedly empty result.
 - **Always pass `--format=json`.** The default `text` format opens an interactive
   TUI that will hang a non-interactive agent — never run search without
   `--format=json`.
@@ -253,22 +261,34 @@ anything that writes to disk:
   ```
 
   Writes `<session-id>.tar` to the output directory (default: current directory).
+  **This file is not a real tar archive** — despite the `.tar` extension it is a
+  gzipped, optionally-encrypted protobuf stream and cannot be opened with `tar`.
+  Play it with `tsh play <path-to-file>`; don't tell the user to `tar -x` it.
 
-- **Play back / open in the web UI**: provide
+- **Play back a recording**:
 
   ```bash
-  tsh play <session-id>
+  tsh play <session-id>            # interactive playback in the terminal
+  tsh play --format=json <session-id>   # print session events as JSON
   ```
 
-  and the web player URL:
+  Notes: SSH, Kubernetes, and database (PostgreSQL interactive; all db protocols
+  via `--format=json`) sessions play with `tsh play`; **desktop recordings play
+  only in the Web UI**. `tsh play` needs an active `tsh` login for the same user.
+
+- **Open in the Web UI**: deep-link straight to the session player:
 
   ```
-  https://<proxy>/web/cluster/<cluster>/session/<session-id>
+  https://<proxy>/web/cluster/<cluster>/session/<session-id>?recordingType=<kind>&durationMs=<ms>
   ```
 
-  Derive `<proxy>` and `<cluster>` from `tsh status` (Profile URL / Cluster). If
-  you cannot determine them, use `<your-teleport-proxy>` / `<cluster>` as
-  placeholders and tell the user to substitute them.
+  Derive `<proxy>` / `<cluster>` from `tsh status` (Profile URL / Cluster).
+  `<kind>` is the session kind (`ssh`, `k8s`, `db`, `desktop`); `<ms>` is the
+  duration in milliseconds (`session_stop − session_start`). The base
+  `…/session/<session-id>` works on its own — `recordingType` and `durationMs`
+  are player hints (renderer + scrubber length). If you can't determine proxy /
+  cluster, tell the user to open **Audit → Session Recordings** in the Web UI and
+  pick the session.
 
 Never download or take any action without explicit human confirmation in this
 conversation.

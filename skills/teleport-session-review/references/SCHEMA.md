@@ -132,8 +132,18 @@ it. Known messages and meaning:
 | `pgvector PostgreSQL extension` | Vector similarity extension missing. |
 
 All require Teleport Enterprise + Identity Security + Access Graph (v1.30+
-self-hosted) with PostgreSQL `pg_trgm` and `pgvector`, plus generated session
-summaries. On any of these, fall back to `recordings ls`.
+self-hosted) with PostgreSQL **v14+** providing `pg_trgm` (keyword search) and
+`pgvector` — whose PostgreSQL extension name is **`vector`** (Access Graph enables
+both automatically). Plus generated session summaries. On any of these, fall back
+to `recordings ls`.
+
+**Search only returns summarized sessions.** Per the docs, a recording appears in
+search results *only after* a successful session summary is generated, and which
+sessions are summarized is governed by `inference_policy` resources (with
+`inference_model` for the summarizer and `retrieval_model` for embeddings). So an
+empty/short result can mean "not summarized," not "didn't happen" — `recordings
+ls` is the source of truth for raw recording coverage.
+Source: https://goteleport.com/docs/identity-security/session-summaries/session-search/
 
 ### Pre-flight capability check via `config.js`
 

@@ -101,8 +101,14 @@ trusting per-session summaries in isolation.
 
 ## Limitations to communicate
 
-These come from red-team testing — state them when a result looks "clean":
+These come from red-team testing and the Teleport docs — state them when a result
+looks "clean" or sparse:
 
+- **Search only sees summarized sessions.** Per the docs, a recording is
+  searchable only after a successful summary, and summarization is gated by
+  `inference_policy`. Unsummarized sessions never appear — so "no results" can
+  mean "not summarized," not "didn't happen." Use `recordings ls` for raw,
+  complete coverage.
 - **A low or absent severity is not proof of safety.** Summaries can miss evasive
   input: STDIN-hidden entry (`read -s`), control-character obfuscation, and
   typed-then-deleted commands. For high-stakes review, watch the recording.
