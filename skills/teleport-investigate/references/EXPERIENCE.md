@@ -51,7 +51,8 @@ $TCTL investigate --user alice --limit 10 --format json \
 ```
 
 When the filter is right, raise `--limit` (or pass `0` for unlimited) for the
-full pull.
+full pull. To view it several ways, save the pull to a file and `jq` the file
+per projection — re-running the query for each view pays for the call again.
 
 ### 4. Let the facets map the concept to event types
 
@@ -65,6 +66,11 @@ $TCTL investigate --status failure --from 7d --facets-only --format json \
   | jq '[.facets[] | select(.name=="event-type").values[]]'
 # failed "logins" surface as BOTH user.login and auth — so filter on both.
 ```
+
+The sweep cuts both ways: a bare `--status failure` also catches failures that
+aren't logins at all (e.g. `session.summarized` carries `status:failure` for
+inference errors). Once the facets show which event types carry the concept,
+scope to those types — don't report every `failure` as an auth failure.
 
 ## Reasoning through examples
 
@@ -139,12 +145,20 @@ $TCTL investigate --resource production-database --event-type db.session.end \
 }
 ```
 
+Exclude Teleport automation from the `who` facet — `system` (session.summarized),
+`Instance` (instance.join), and `UNKNOWN` (access-graph) are not human accessors.
+
 ### "Show me what activity was performed during the following access request `<uuid>`"
 
 An access-request id is **not** a queryable column, and the events that make up
 the elevated session carry it in _different_ `event_data` paths. So you can't
 filter by the id server-side. To stay efficient, reason about how to surface it:
 start with low-cost searches and refine until the result set is narrow.
+
+**Fast path:** for "what did they do with the grant", facet-sweep the user over
+the grant window (step 3) — if the event-type facet has no `*.session.*` events,
+they never used it, so answer and stop. Do steps 1–2 and the id-correlation in
+step 4 only when sessions exist. The request id is never a queryable column.
 
 1. **Confirm the id and see who's involved.** A request surfaces as a target
    resource of kind `access_request`, so it _is_ reachable via `--resource`:
@@ -253,6 +267,12 @@ window, then adjust the filter.
   patterns. See [QUERY.md](QUERY.md).
 - **Unsupported Lucene constructs are rejected** — don't suggest them. See the
   _Not supported_ list in [QUERY.md](QUERY.md).
+- **An invalid `--query` fails opaquely** — a bare term, unknown field, or
+  unsupported operator returns a generic backend `FAILED`/400 that mimics the
+  transient creds error but won't recover on retry. Fix the query; check with
+  `--print-query`. See [QUERY.md](QUERY.md).
+- **"Search anywhere" has no single field** — OR a `*X*` wildcard across text
+  fields or facet-sweep; `event_data` isn't queryable. See [QUERY.md](QUERY.md).
 
 ## Interaction patterns
 

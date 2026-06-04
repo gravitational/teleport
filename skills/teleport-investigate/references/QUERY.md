@@ -26,6 +26,8 @@ see [SCHEMA.md](SCHEMA.md).
 | `field:{a TO b}`                                 | Exclusive range                                                          | `identity_id:{a TO h}`                                |
 | `field:[* TO v]` / `field:[v TO *]`              | Unbounded range                                                          | `identity_id:[* TO h]`                                |
 
+- Wildcards may appear anywhere in the value, including both ends for a
+  substring match: `resource:*iac*` matches any resource containing `iac`.
 - Boolean keywords are case-insensitive: `and`, `AND`, `AnD`, `Or`, `not` all parse.
 - An empty `--query ''` is a valid match-all (equivalent to omitting `--query`).
 - A `--query` value that **begins with `-`** (e.g. a leading `-status:success`
@@ -35,6 +37,9 @@ see [SCHEMA.md](SCHEMA.md).
 - Backslash-escape Lucene specials in values: `:`, `\`, `(`, `)`, `[`, `]`, `{`, `}`, `!`, `^`, `~`, `*`, `?`, `/`, `"`. `+` and `-` are operators only at the **start** of a term; a hyphen *inside* a value (e.g. `ghassan-iac-storage`) is literal — don't escape it. Escaping hyphens around a wildcard (`ghassan\-iac\-*\-storage`) makes the match return nothing.
 - IN-lists with unquoted dotted values may not match — quote them: `event_type:("session.start" OR "user.login")`.
 - Regex uses Java regular-expression syntax (Athena `regexp_like`), not POSIX. Anchors (`^`, `$`), `.`, `.*`, character classes, alternation, and quantifiers all work. Match is anywhere-in-string by default.
+- **No full-text column.** Every term needs a field, so to find a value anywhere,
+  OR a `*foo*` wildcard across the text fields, or `--facets-only`-sweep to see
+  which facet reports it. `event_data` isn't queryable — grep it client-side.
 
 ## Not supported
 
@@ -49,3 +54,9 @@ The parser or backend rejects these — don't suggest them:
 | Bare term (no `field:`)     | Rejected by the backend; every term must be qualified with a `field:`. |
 | `NOT NOT a`                 | Parse error.                                                           |
 | `event_data.*` / inner JSON | `event_data` JSON columns are not queryable as fields.                 |
+
+**Invalid queries fail opaquely.** An unqualified term, unknown field, or
+unsupported operator returns a generic `got unexpected state: FAILED` / HTTP 400,
+not a syntax error — it resembles the transient credentials error but is
+deterministic, so retrying won't help. Fix the query and check it with
+`--print-query` (free) before spending a real call.
