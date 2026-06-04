@@ -1369,7 +1369,7 @@ func TestRecovery(t *testing.T) {
 	require.Empty(t, cmp.Diff(ca2, out, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 }
 
-func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
+func mustCreateDatabase(t testing.TB, name, protocol, uri string) *types.DatabaseV3 {
 	database, err := types.NewDatabaseV3(
 		types.Metadata{
 			Name: name,
@@ -2735,12 +2735,6 @@ func withKeepalive[T any](fn func(context.Context, T) (*types.KeepAlive, error))
 	return func(ctx context.Context, resource T) error {
 		_, err := fn(ctx, resource)
 		return err
-	}
-}
-
-func modifyNoContext[T any](fn func(T) error) func(context.Context, T) error {
-	return func(_ context.Context, resource T) error {
-		return fn(resource)
 	}
 }
 

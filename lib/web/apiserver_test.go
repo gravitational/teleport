@@ -96,7 +96,6 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
-	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -141,6 +140,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -1380,7 +1380,7 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 	{
 		for srv := range clientutils.Resources(ctx, env.server.Auth().ListProxyServers) {
 			srv.SetComponentFeatures(componentfeatures.New(feature1))
-			err := env.server.Auth().UpsertProxy(ctx, srv)
+			_, err := env.server.Auth().UpsertProxyServer(ctx, srv)
 			require.NoError(t, err)
 		}
 	}
@@ -1466,38 +1466,6 @@ func TestUnifiedResourcesGet_AppComponentFeatures(t *testing.T) {
 	require.ElementsMatch(t, []componentfeaturesv1.ComponentFeatureID{
 		componentfeaturesv1.ComponentFeatureID(feature1),
 	}, app.SupportedFeatureIDs)
-}
-
-func Test_appServerEffectiveFeatures(t *testing.T) {
-	t.Parallel()
-	rcv1 := componentfeatures.FeatureResourceConstraintsV1
-	otherFeature := componentfeatures.FeatureID(9999)
-	clusterFeatures := componentfeatures.New(rcv1, otherFeature)
-	makeAppServer := func(t *testing.T, version string, features *componentfeaturesv1.ComponentFeatures) types.AppServer {
-		app, err := types.NewAppV3(types.Metadata{Name: "aws-app"}, types.AppSpecV3{URI: "https://console.aws.amazon.com", Cloud: "AWS"})
-		require.NoError(t, err)
-		srv, err := types.NewAppServerV3FromApp(app, "localhost", "host-1")
-		require.NoError(t, err)
-		srv.Spec.Version = version
-		srv.SetComponentFeatures(features)
-		return srv
-	}
-
-	t.Run("old app server has ResourceConstraintsV1 stripped", func(t *testing.T) {
-		srv := makeAppServer(t, "18.7.0", componentfeatures.New(rcv1, otherFeature))
-		result := appServerEffectiveFeatures(srv, clusterFeatures)
-		require.ElementsMatch(t, componentfeatures.New(otherFeature).GetFeatures(), result.GetFeatures())
-	})
-	t.Run("new app server keeps ResourceConstraintsV1", func(t *testing.T) {
-		srv := makeAppServer(t, "18.7.3", componentfeatures.New(rcv1, otherFeature))
-		result := appServerEffectiveFeatures(srv, clusterFeatures)
-		require.ElementsMatch(t, componentfeatures.New(rcv1, otherFeature).GetFeatures(), result.GetFeatures())
-	})
-	t.Run("nil features on old app server returns empty", func(t *testing.T) {
-		srv := makeAppServer(t, "18.6.4", nil)
-		result := appServerEffectiveFeatures(srv, clusterFeatures)
-		require.Empty(t, result.GetFeatures())
-	})
 }
 
 func TestUnifiedResourcesGet(t *testing.T) {
@@ -1768,6 +1736,83 @@ func TestUnifiedResourcesGet(t *testing.T) {
 
 		require.ElementsMatch(t, appRes.Items, expected)
 	})
+}
+
+// TestUnifiedResourcesGet_DesktopLoginFiltering verifies that the logins
+// returned for Windows/Linux Desktop resources in the unified resources endpoint
+// only include logins from the user's currently-granted roles, not logins
+// from roles reachable via search_as_roles when includedResourceMode=all.
+func TestUnifiedResourcesGet_DesktopLoginFiltering(t *testing.T) {
+	t.Parallel()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+
+	const username = "desktop-login-test@example.com"
+
+	// requestableRole has desktop logins the user can only get via access request.
+	requestableRole, err := types.NewRole("emg-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			WindowsDesktopLabels: types.Labels{types.Wildcard: {types.Wildcard}},
+			WindowsDesktopLogins: []string{"requestable-login"},
+		},
+	})
+	require.NoError(t, err)
+
+	// assignedRole is the user's default role with search_as_roles pointing
+	// at requestableRole so the user can discover resources for access requests.
+	assignedRole, err := types.NewRole("assigned-role", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			// Give wildcard node/desktop access so the resource is visible.
+			NodeLabels:           types.Labels{types.Wildcard: {types.Wildcard}},
+			WindowsDesktopLabels: types.Labels{types.Wildcard: {types.Wildcard}},
+			WindowsDesktopLogins: []string{"granted-login"},
+			Logins:               []string{"granted-login"},
+			Request: &types.AccessRequestConditions{
+				Roles:         []string{requestableRole.GetName()},
+				SearchAsRoles: []string{requestableRole.GetName()},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertRole(context.Background(), requestableRole)
+	require.NoError(t, err)
+
+	pack := proxy.authPack(t, username, []types.Role{assignedRole})
+
+	// Create a Windows Desktop resource.
+	desktop, err := types.NewWindowsDesktopV3("test-desktop", nil, types.WindowsDesktopSpecV3{
+		Addr:   "1.2.3.4:3389",
+		HostID: "host-1",
+	})
+	require.NoError(t, err)
+	require.NoError(t, env.server.Auth().UpsertWindowsDesktop(context.Background(), desktop))
+
+	clusterName := env.server.ClusterName()
+	endpoint := pack.clt.Endpoint("webapi", "sites", clusterName, "resources")
+
+	type desktopResponse struct {
+		Items []webui.Desktop `json:"items"`
+	}
+
+	// Fetch with includedResourceMode=all, which enables IncludeRequestable on
+	// the backend and causes the auth layer to use search_as_roles when
+	// computing logins.
+	query := url.Values{
+		"kinds":                []string{types.KindWindowsDesktop},
+		"includedResourceMode": []string{"all"},
+	}
+	re, err := pack.clt.Get(context.Background(), endpoint, query)
+	require.NoError(t, err)
+
+	var resp desktopResponse
+	require.NoError(t, json.Unmarshal(re.Bytes(), &resp))
+	require.Len(t, resp.Items, 1, "expected exactly one desktop")
+
+	// The logins present should only be ones the user currently can access,
+	// not ones from requestable roles.
+	require.ElementsMatch(t, []string{"granted-login"}, resp.Items[0].Logins,
+		"desktop logins should only contain granted logins, not requestable ones")
 }
 
 type clusterAlertsGetResponse struct {
@@ -3452,6 +3497,37 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			)
 		})
 	})
+}
+
+func TestInstallerScriptRenderedWithTextTemplate(t *testing.T) {
+	t.Parallel()
+	s := newWebSuite(t)
+	wc := s.client(t)
+
+	require.NoError(t, s.server.Auth().SetInstaller(
+		s.ctx,
+		types.MustNewInstallerV1("custom", `{{ .AzureClientID }}`),
+	))
+
+	const azureClientID = `abc&<>'";$(touch /tmp/pwn)`
+
+	re, err := wc.Get(
+		s.ctx,
+		wc.Endpoint("webapi", "scripts", "installer", "custom"),
+		url.Values{"azure-client-id": []string{azureClientID}},
+	)
+	require.NoError(t, err)
+
+	response := string(re.Bytes())
+
+	require.Equal(t, `abc\&\<\>\'\"\;\$\(touch\ /tmp/pwn\)`, response)
+
+	// Assert that HTML escaping did not occur.
+	require.NotContains(t, response, "&amp;")
+	require.NotContains(t, response, "&lt;")
+	require.NotContains(t, response, "&gt;")
+	require.NotContains(t, response, "&#39;")
+	require.NotContains(t, response, "&#34;")
 }
 
 func TestMultipleConnectors(t *testing.T) {
@@ -8628,22 +8704,24 @@ func waitForOutputWithDuration(ctx context.Context, r io.Reader, substr string, 
 	timeoutCh := time.After(timeout)
 	errC := make(chan error, 1)
 	go func() {
-		var prev string
-		out := make([]byte, int64(len(substr)*3))
+		var out strings.Builder
+		chunk := make([]byte, int64(len(substr)*2))
 		for {
-			n, err := r.Read(out)
-			outStr := removeSpace(string(out[:n]))
+			n, err := r.Read(chunk)
+			out.Write(chunk[:n])
 
-			slog.DebugContext(ctx, "waitForOutput read", "output", outStr, "expected", substr)
+			normalized := removeSpace(out.String())
+			slog.DebugContext(ctx, "waitForOutput read", "output", normalized, "expected", substr)
 
 			// Check for [substr] before checking the error,
 			// as it's valid for n > 0 even when there is an error.
 			// The [substr] is checked against the current and previous
 			// output to account for scenarios where the [substr] is split
-			// across two reads. While we try to prevent this by reading
+			// across 2+ reads. While we try to prevent this by reading
 			// twice the length of [substr] there are no guarantees the
-			// whole thing will arrive in a single read.
-			if n > 0 && strings.Contains(prev+outStr, substr) {
+			// whole thing will arrive in a single read since there is no
+			// minimum chunk length.
+			if n > 0 && strings.Contains(normalized, substr) {
 				errC <- nil
 				return
 			}
@@ -8651,7 +8729,6 @@ func waitForOutputWithDuration(ctx context.Context, r io.Reader, substr string, 
 				errC <- err
 				return
 			}
-			prev = outStr
 		}
 	}()
 
@@ -8722,6 +8799,7 @@ type WebPackOptions struct {
 	enableAuthCache bool
 	modules         *modulestest.Modules
 	insecureMode    bool
+	scopesFeatures  scopes.Features
 }
 
 type webPackOptions func(*WebPackOptions)
@@ -8750,6 +8828,12 @@ func withInsecureMode() webPackOptions {
 	}
 }
 
+func withScopesFeatures(scopesFeatures scopes.Features) webPackOptions {
+	return func(cfg *WebPackOptions) {
+		cfg.scopesFeatures = scopesFeatures
+	}
+}
+
 func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	options := &WebPackOptions{}
 
@@ -8766,13 +8850,14 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 
 	server, err := authtest.NewTestServer(authtest.ServerConfig{
 		Auth: authtest.AuthServerConfig{
-			ClusterName:  "localhost",
-			Dir:          t.TempDir(),
-			Clock:        clock,
-			AuditLog:     events.NewDiscardAuditLog(),
-			CacheEnabled: options.enableAuthCache,
-			InsecureMode: options.insecureMode,
-			Modules:      options.modules,
+			ClusterName:    "localhost",
+			Dir:            t.TempDir(),
+			Clock:          clock,
+			AuditLog:       events.NewDiscardAuditLog(),
+			CacheEnabled:   options.enableAuthCache,
+			InsecureMode:   options.insecureMode,
+			Modules:        options.modules,
+			ScopesFeatures: options.scopesFeatures,
 		},
 	})
 	require.NoError(t, err)
@@ -8887,7 +8972,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...webPackOptions) *webPack {
 	var proxies []*testProxy
 	for p := range numProxies {
 		proxyID := fmt.Sprintf("proxy%v", p)
-		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.modules, options.insecureMode, options.proxyOptions...))
+		proxies = append(proxies, createProxy(ctx, t, proxyID, node, server.TLS, hostSigners, clock, options.modules, options.insecureMode, options.scopesFeatures, options.proxyOptions...))
 	}
 
 	// Wait for proxies to fully register before starting the test.
@@ -8943,7 +9028,7 @@ func withKubeProxy() proxyOption {
 }
 
 func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regular.Server, authServer *authtest.TLSServer,
-	hostSigners []ssh.Signer, clock *clockwork.FakeClock, m *modulestest.Modules, insecureMode bool, opts ...proxyOption,
+	hostSigners []ssh.Signer, clock *clockwork.FakeClock, m *modulestest.Modules, insecureMode bool, scopesFeatures scopes.Features, opts ...proxyOption,
 ) *testProxy {
 	t.Helper()
 	cfg := proxyConfig{}
@@ -9223,6 +9308,10 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	require.NoError(t, err)
 	proxyClientCert, err := keys.X509KeyPair(proxyIdentity.TLSCertBytes, proxyIdentity.KeyBytes)
 	require.NoError(t, err)
+
+	handlerCfg := servicecfg.MakeDefaultConfig()
+	handlerCfg.ScopesFeatures = scopesFeatures
+
 	handler, err := NewHandler(Config{
 		Proxy:            revTunServer,
 		AuthServers:      utils.FromAddr(authServer.Addr()),
@@ -9234,7 +9323,7 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 		HostUUID:         proxyID,
 		Emitter:          client,
 		ProxySettings: &ProxySettings{
-			ServiceConfig: servicecfg.MakeDefaultConfig(),
+			ServiceConfig: handlerCfg,
 			ProxySSHAddr:  "127.0.0.1",
 			AccessPoint:   client,
 		},
@@ -10967,181 +11056,6 @@ func TestModeratedSession(t *testing.T) {
 	// closes its own connection without waiting for the session to end, so we only check peer output.
 	waitForOutput(t, peerTerm, "Forcefully terminating session...", "waiting for peer session to see termination broadcast")
 	waitForOutput(t, peerTerm, "Process exited with status 255", "waiting for peer session to be terminated")
-}
-
-// TestModeratedSessionWithMFA validates the same behavior as TestModeratedSession while
-// also ensuring that MFA is performed prior to accessing the host and that periodic
-// presence checks are performed by the moderator. When presence checks are not performed
-// the session is aborted.
-func TestModeratedSessionWithMFA(t *testing.T) {
-	const RPID = "localhost"
-
-	presenceClock := clockwork.NewFakeClock()
-	s := newWebSuiteWithConfig(t, webSuiteConfig{
-		clock:                     clockwork.NewFakeClockAt(presenceClock.Now()),
-		disableDiskBasedRecording: true,
-		authPreferenceSpec: &types.AuthPreferenceSpecV2{
-			Type:           constants.Local,
-			ConnectorName:  constants.PasswordlessConnector,
-			SecondFactor:   constants.SecondFactorOn,
-			RequireMFAType: types.RequireMFAType_SESSION,
-			Webauthn: &types.Webauthn{
-				RPID: RPID,
-			},
-		},
-		presenceChecker: func(ctx context.Context, term io.Writer, maintainer client.PresenceMaintainer, sessionID string, mfaCeremony *mfa.Ceremony, opts ...client.PresenceOption) error {
-			return trace.Wrap(client.RunPresenceTask(ctx, term, maintainer, sessionID, mfaCeremony, client.WithPresenceClock(presenceClock)))
-		},
-		modules: modulestest.EnterpriseModules(),
-	})
-
-	peerRole, err := types.NewRole("moderated", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			RequireSessionJoin: []*types.SessionRequirePolicy{
-				{
-					Name:   "moderated",
-					Filter: "contains(user.roles, \"moderator\")",
-					Kinds:  []string{string(types.SSHSessionKind)},
-					Count:  1,
-					Modes:  []string{string(types.SessionModeratorMode)},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	moderatorRole, err := types.NewRole("moderator", types.RoleSpecV6{
-		Allow: types.RoleConditions{
-			JoinSessions: []*types.SessionJoinPolicy{
-				{
-					Name:  "moderated",
-					Roles: []string{peerRole.GetName()},
-					Kinds: []string{string(types.SSHSessionKind)},
-					Modes: []string{string(types.SessionModeratorMode), string(types.SessionObserverMode)},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	peer := s.authPackWithMFA(t, "foo", peerRole)
-	moderator := s.authPackWithMFA(t, "bar", moderatorRole)
-
-	ctx, cancel := context.WithCancel(s.ctx)
-	t.Cleanup(cancel)
-
-	peerTerm, err := connectToHost(ctx, connectConfig{
-		pack:  peer,
-		host:  s.node.ID(),
-		proxy: s.webServer.Listener.Addr().String(),
-		mfaCeremony: func(challenge client.MFAAuthenticateChallenge) []byte {
-			res, err := peer.device.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-				WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
-			})
-			require.NoError(t, err)
-
-			webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
-			require.NoError(t, err)
-
-			envelope := &terminal.Envelope{
-				Version: defaults.WebsocketVersion,
-				Type:    defaults.WebsocketMFAChallenge,
-				Payload: string(webauthnResBytes),
-			}
-			envelopeBytes, err := proto.Marshal(envelope)
-			require.NoError(t, err)
-
-			return envelopeBytes
-		},
-	})
-	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		// This close can race with the moderated forced termination, which completes after the output is collected.
-		if err := peerTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
-			require.NoError(t, err)
-		}
-	})
-
-	waitForOutput(t, peerTerm, "Teleport > Waiting for required participants...", "waiting for peer to start session")
-
-	moderatorTerm, err := connectToHost(ctx, connectConfig{
-		pack:            moderator,
-		host:            s.node.ID(),
-		proxy:           s.webServer.Listener.Addr().String(),
-		sessionID:       peerTerm.GetSession().ID,
-		participantMode: types.SessionModeratorMode,
-		mfaCeremony: func(challenge client.MFAAuthenticateChallenge) []byte {
-			res, err := moderator.device.SolveAuthn(&authproto.MFAAuthenticateChallenge{
-				WebauthnChallenge: wantypes.CredentialAssertionToProto(challenge.WebauthnChallenge),
-			})
-			require.NoError(t, err)
-
-			webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
-			require.NoError(t, err)
-
-			envelope := &terminal.Envelope{
-				Version: defaults.WebsocketVersion,
-				Type:    defaults.WebsocketMFAChallenge,
-				Payload: string(webauthnResBytes),
-			}
-			envelopeBytes, err := proto.Marshal(envelope)
-			require.NoError(t, err)
-
-			return envelopeBytes
-		},
-	})
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		// This close can race with the moderated forced termination, which completes after the output is collected.
-		if err := moderatorTerm.Close(); !errors.Is(err, syscall.EPIPE) && !errors.Is(err, syscall.ECONNRESET) {
-			require.NoError(t, err)
-		}
-	})
-
-	waitForOutput(t, peerTerm, "Teleport > Connecting to node over SSH", "waiting for peer to connect after moderator joins")
-
-	// here we intentionally run a command where the output we're looking
-	// for is not present in the command itself
-	_, err = io.WriteString(peerTerm, "echo llxmx | sed 's/x/a/g'\r\n")
-	require.NoError(t, err)
-	waitForOutput(t, peerTerm, "llama", "waiting for output in peer terminal")
-	waitForOutput(t, moderatorTerm, "llama", "waiting for output in moderator terminal")
-
-	// run the presence check a few times
-	for range 3 {
-		presenceClock.BlockUntil(1)
-		presenceClock.Advance(30 * time.Second)
-		waitForOutput(t, moderatorTerm, "Teleport > Please tap your MFA key", "waiting for moderator mfa prompt")
-
-		challenge, err := moderatorTerm.stream.ReadChallenge(protobufMFACodec{})
-		require.NoError(t, err)
-
-		res, err := moderator.device.SolveAuthn(challenge)
-		require.NoError(t, err)
-
-		webauthnResBytes, err := json.Marshal(wantypes.CredentialAssertionResponseFromProto(res.GetWebauthn()))
-		require.NoError(t, err)
-
-		envelope := &terminal.Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketMFAChallenge,
-			Payload: string(webauthnResBytes),
-		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		require.NoError(t, err)
-
-		require.NoError(t, moderatorTerm.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
-	}
-
-	// Advance the clock far enough in the future to make the moderator stale
-	// which will terminate the session - because the clock is used by ALL server
-	// components, it's not practical to use BlockUntil here, so we use EventuallyWithT instead.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		s.clock.Advance(3 * time.Minute)
-		require.NoError(t, waitForOutputWithDuration(ctx, moderatorTerm, "wait: remote command exited without exit status or exit signal", 3*time.Second))
-		require.NoError(t, waitForOutputWithDuration(ctx, peerTerm, "Process exited with status 255", 3*time.Second))
-	}, 15*time.Second, 3*time.Second)
 }
 
 type proxyClientMock struct {

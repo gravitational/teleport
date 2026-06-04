@@ -39,11 +39,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
@@ -178,7 +178,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 
 	var labels map[string]string
 	if c.labels != "" {
-		labels, err = libclient.ParseLabelSpec(c.labels)
+		labels, err = parse.LabelSelectorSpec(c.labels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -186,7 +186,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 
 	var immutableLabels *joiningv1.ImmutableLabels
 	if c.sshLabels != "" {
-		sshLabels, err := libclient.ParseLabelSpec(c.sshLabels)
+		sshLabels, err := parse.LabelSelectorSpec(c.sshLabels)
 		if err != nil {
 			return trace.Wrap(err)
 		}

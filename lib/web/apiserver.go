@@ -43,8 +43,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	template "github.com/DataDog/datadog-agent/pkg/template/html"
-	"github.com/coreos/go-semver/semver"
+	htmltemplate "github.com/DataDog/datadog-agent/pkg/template/html"
+	texttemplate "github.com/DataDog/datadog-agent/pkg/template/text"
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/safetext/shsprintf"
 	"github.com/google/uuid"
@@ -66,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
-	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
 	linuxdesktopv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	notificationsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
@@ -362,7 +361,7 @@ func (c *Config) SetDefaults() {
 	}
 
 	if c.PresenceChecker == nil {
-		c.PresenceChecker = client.RunPresenceTask
+		c.PresenceChecker = client.RunDefaultPresenceTask
 	}
 
 	if c.AutomaticUpgradesChannels == nil {
@@ -664,7 +663,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	}
 
 	// serve the web UI from the embedded filesystem
-	var indexPage *template.Template
+	var indexPage *htmltemplate.Template
 	// we will set our etag based on the teleport version and
 	// the webasset app hash if available. The version only will not
 	// suffice as it can cause incorrect caching for local development.
@@ -686,7 +685,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		if err != nil {
 			return nil, trace.ConvertSystemError(err)
 		}
-		indexPage, err = template.New("index").Parse(string(indexContent))
+		indexPage, err = htmltemplate.New("index").Parse(string(indexContent))
 		if err != nil {
 			return nil, trace.BadParameter("failed parsing index.html template: %v", err)
 		}
@@ -2618,7 +2617,7 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 		targetVersion = teleport.SemVer()
 	}
 
-	instTmpl, err := template.New("").Parse(installer.GetScript())
+	instTmpl, err := texttemplate.New("").Parse(installer.GetScript())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3567,7 +3566,7 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			// Compute end-to-end feature support for this app: only features that are supported by the AppServer *and*
 			// by all required cluster hops (Auth + Proxy), so clients can hide features that would fail somewhere
 			// along the request path.
-			appComponentFeatures := appServerEffectiveFeatures(r, clusterAuthProxyServerFeatures)
+			appComponentFeatures := componentfeatures.Intersect(componentfeatures.GetEffectiveServerFeatures(r), clusterAuthProxyServerFeatures)
 
 			app := ui.MakeApp(r.GetApp(), ui.MakeAppsConfig{
 				LocalClusterName:  h.auth.clusterName,
@@ -3591,9 +3590,25 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
-			unifiedResources = append(unifiedResources, ui.MakeWindowsDesktop(r, enriched.Logins, enriched.RequiresRequest))
+			logins := enriched.Logins
+			if req.IncludeRequestable || req.UseSearchAsRoles {
+				var err error
+				logins, err = accessChecker.GetAllowedLoginsForResource(r)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			unifiedResources = append(unifiedResources, ui.MakeWindowsDesktop(r, logins, enriched.RequiresRequest))
 		case types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]:
-			unifiedResources = append(unifiedResources, ui.MakeLinuxDesktop(r.UnwrapT(), enriched.Logins, enriched.RequiresRequest))
+			logins := enriched.Logins
+			if req.IncludeRequestable || req.UseSearchAsRoles {
+				var err error
+				logins, err = accessChecker.GetAllowedLoginsForResource(enriched)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			unifiedResources = append(unifiedResources, ui.MakeLinuxDesktop(r.UnwrapT(), logins, enriched.RequiresRequest))
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)
@@ -3615,26 +3630,6 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 	}
 
 	return resp, nil
-}
-
-// appServerEffectiveFeatures computes the effective feature set for an app server,
-// intersected with cluster-wide auth/proxy features. App servers between v18.6.4 and
-// v18.7.2 advertise FeatureResourceConstraintsV1 but predate the constraint enforcement
-// code; for those versions, the advertisement is stripped before intersection so the
-// frontend doesn't show the constraints UI.
-//
-// TODO(kiosion): DELETE in 20.0.0
-func appServerEffectiveFeatures(appServer types.AppServer, clusterFeatures *componentfeaturesv1.ComponentFeatures) *componentfeaturesv1.ComponentFeatures {
-	appFeatures := appServer.GetComponentFeatures()
-	minVer, minVerErr := semver.NewVersion("18.7.3")
-	ver, verErr := semver.NewVersion(appServer.GetTeleportVersion())
-	if verErr == nil && minVerErr == nil && ver.LessThan(*minVer) && appFeatures != nil {
-		features := slices.DeleteFunc(slices.Clone(appFeatures.GetFeatures()), func(f componentfeaturesv1.ComponentFeatureID) bool {
-			return f == componentfeatures.FeatureResourceConstraintsV1.ToProto()
-		})
-		appFeatures = &componentfeaturesv1.ComponentFeatures{Features: features}
-	}
-	return componentfeatures.Intersect(appFeatures, clusterFeatures)
 }
 
 // clusterNodesGet returns a list of nodes for a given cluster site.

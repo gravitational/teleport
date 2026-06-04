@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/appauthconfig/v1/appauthconfig_sessions_service.proto
 
+//go:build !protoopaque
+
 package appauthconfigv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // App contains information about the application the new session will access.
 type App struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Cluster is cluster within which the application is running.
 	ClusterName string `protobuf:"bytes,1,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
 	// AppName is the name of the application.
@@ -79,11 +80,6 @@ func (x *App) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use App.ProtoReflect.Descriptor instead.
-func (*App) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *App) GetClusterName() string {
 	if x != nil {
 		return x.ClusterName
@@ -112,9 +108,52 @@ func (x *App) GetPublicAddr() string {
 	return ""
 }
 
+func (x *App) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *App) SetAppName(v string) {
+	x.AppName = v
+}
+
+func (x *App) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *App) SetPublicAddr(v string) {
+	x.PublicAddr = v
+}
+
+type App_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Cluster is cluster within which the application is running.
+	ClusterName string
+	// AppName is the name of the application.
+	AppName string
+	// Uri is the URI of the app. This is the internal endpoint where the
+	// application is running and isn't user-facing.
+	Uri string
+	// PublicAddr is the application public address. This value must come from
+	// the application resource without modificiation. It will be used when
+	// creating the session and issuing the credentials.
+	PublicAddr string
+}
+
+func (b0 App_builder) Build() *App {
+	m0 := &App{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClusterName = b.ClusterName
+	x.AppName = b.AppName
+	x.Uri = b.Uri
+	x.PublicAddr = b.PublicAddr
+	return m0
+}
+
 // Request for CreateAppSessionWithJWT.
 type CreateAppSessionWithJWTRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ConfigName is the app auth config name used to create the app session.
 	ConfigName string `protobuf:"bytes,1,opt,name=config_name,json=configName,proto3" json:"config_name,omitempty"`
 	// App is application the session will access.
@@ -152,11 +191,6 @@ func (x *CreateAppSessionWithJWTRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAppSessionWithJWTRequest.ProtoReflect.Descriptor instead.
-func (*CreateAppSessionWithJWTRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CreateAppSessionWithJWTRequest) GetConfigName() string {
 	if x != nil {
 		return x.ConfigName
@@ -185,9 +219,60 @@ func (x *CreateAppSessionWithJWTRequest) GetRemoteAddr() string {
 	return ""
 }
 
+func (x *CreateAppSessionWithJWTRequest) SetConfigName(v string) {
+	x.ConfigName = v
+}
+
+func (x *CreateAppSessionWithJWTRequest) SetApp(v *App) {
+	x.App = v
+}
+
+func (x *CreateAppSessionWithJWTRequest) SetJwt(v string) {
+	x.Jwt = v
+}
+
+func (x *CreateAppSessionWithJWTRequest) SetRemoteAddr(v string) {
+	x.RemoteAddr = v
+}
+
+func (x *CreateAppSessionWithJWTRequest) HasApp() bool {
+	if x == nil {
+		return false
+	}
+	return x.App != nil
+}
+
+func (x *CreateAppSessionWithJWTRequest) ClearApp() {
+	x.App = nil
+}
+
+type CreateAppSessionWithJWTRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ConfigName is the app auth config name used to create the app session.
+	ConfigName string
+	// App is application the session will access.
+	App *App
+	// The JWT token used to create the app session.
+	Jwt string
+	// RemoteAddr is a client (user's) address.
+	RemoteAddr string
+}
+
+func (b0 CreateAppSessionWithJWTRequest_builder) Build() *CreateAppSessionWithJWTRequest {
+	m0 := &CreateAppSessionWithJWTRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ConfigName = b.ConfigName
+	x.App = b.App
+	x.Jwt = b.Jwt
+	x.RemoteAddr = b.RemoteAddr
+	return m0
+}
+
 // Response for CreateAppSessionWithJWT.
 type CreateAppSessionWithJWTResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Session is the app session.
 	Session       *types.WebSessionV2 `protobuf:"bytes,1,opt,name=session,proto3" json:"session,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -219,16 +304,41 @@ func (x *CreateAppSessionWithJWTResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAppSessionWithJWTResponse.ProtoReflect.Descriptor instead.
-func (*CreateAppSessionWithJWTResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *CreateAppSessionWithJWTResponse) GetSession() *types.WebSessionV2 {
 	if x != nil {
 		return x.Session
 	}
 	return nil
+}
+
+func (x *CreateAppSessionWithJWTResponse) SetSession(v *types.WebSessionV2) {
+	x.Session = v
+}
+
+func (x *CreateAppSessionWithJWTResponse) HasSession() bool {
+	if x == nil {
+		return false
+	}
+	return x.Session != nil
+}
+
+func (x *CreateAppSessionWithJWTResponse) ClearSession() {
+	x.Session = nil
+}
+
+type CreateAppSessionWithJWTResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Session is the app session.
+	Session *types.WebSessionV2
+}
+
+func (b0 CreateAppSessionWithJWTResponse_builder) Build() *CreateAppSessionWithJWTResponse {
+	m0 := &CreateAppSessionWithJWTResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Session = b.Session
+	return m0
 }
 
 var File_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto protoreflect.FileDescriptor
@@ -253,18 +363,6 @@ const file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDes
 	"\asession\x18\x01 \x01(\v2\x13.types.WebSessionV2R\asession2\xb1\x01\n" +
 	"\x1cAppAuthConfigSessionsService\x12\x90\x01\n" +
 	"\x17CreateAppSessionWithJWT\x129.teleport.appauthconfig.v1.CreateAppSessionWithJWTRequest\x1a:.teleport.appauthconfig.v1.CreateAppSessionWithJWTResponseB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1b\x06proto3"
-
-var (
-	file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescOnce sync.Once
-	file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescData []byte
-)
-
-func file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescGZIP() []byte {
-	file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescOnce.Do(func() {
-		file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDesc), len(file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDesc)))
-	})
-	return file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_rawDescData
-}
 
 var file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_appauthconfig_v1_appauthconfig_sessions_service_proto_goTypes = []any{

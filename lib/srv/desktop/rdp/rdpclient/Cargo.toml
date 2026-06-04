@@ -28,17 +28,17 @@ ironrdp-tls.workspace = true
 ironrdp-tokio.workspace = true
 iso7816 = "0.2.0"
 iso7816-tlv = "0.4.4"
-log = "0.4.29"
+log = "0.4.30"
 rand = { version = "0.9.4", features = ["os_rng"] }
 rdp-decoder = { path = "../decoder" }
 rsa = "0.9.10"
-sspi = { version = "0.16.1", features = ["network_client"] }
+sspi = { version = "^0.21.0", features = ["network_client"] }
 tokio = { version = "1.52", features = ["full"] }
 tokio-boring = { git = "https://github.com/gravitational/boring", rev = "99897308abb5976ea05625b8314c24b16eebb01b", optional = true }
 utf16string = "0.2.0"
-uuid = { version = "1.23.1", features = ["v4"] }
+uuid = { version = ">=1.16, <1.21", features = ["v4"] } # Pinned below 1.21: uuid 1.21+ needs getrandom 0.4 -> rand_core 0.10 (stable), which conflicts with picky rc.22's pinned rand_core = "=0.10.0-rc-3". Remove this pin when picky ships with stable RustCrypto deps.
 url = "2.5.8"
-picky = { version = "7.0.0-rc.17", default-features = false }
+picky = { version = "7.0.0-rc.23", default-features = false }
 picky-asn1-der = "0.5.6"
 picky-asn1-x509 = "0.15.4"
 reqwest = { version = "0.13", default-features = false }
@@ -47,8 +47,11 @@ rustls = { version = "0.23.40", default-features = false, features = [
 ] }
 
 [build-dependencies]
-cbindgen = "0.29.2"
+cbindgen = "0.29.3"
 tempfile = "3.27.0"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]
+
+[dev-dependencies]
+base64 = "0.22.1"

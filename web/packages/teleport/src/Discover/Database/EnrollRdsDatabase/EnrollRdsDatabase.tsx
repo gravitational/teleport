@@ -167,15 +167,17 @@ export function EnrollRdsDatabase() {
           selectedRegion={selectedRegion}
         />
       )}
-      {showVpcSelector && !hasVpcs && (
-        // TODO(lisa): negative margin was required since the
-        // AwsRegionSelector added too much bottom margin.
-        // Refactor AwsRegionSelector so margins can be controlled
-        // outside of the component (or use flex columns with gap prop)
-        <P mt={-3}>
-          There are no VPCs defined in the selected region. Try another region.
-        </P>
-      )}
+      {showVpcSelector &&
+        !hasVpcs && (
+          // TODO(lisa): negative margin was required since the
+          // AwsRegionSelector added too much bottom margin.
+          // Refactor AwsRegionSelector so margins can be controlled
+          // outside of the component (or use flex columns with gap prop)
+          <P mt={-3}>
+            There are no VPCs defined in the selected region. Try another
+            region.
+          </P>
+        )}
       {hasIamPermError && (
         <Box mb={5}>
           <ConfigureIamPerms

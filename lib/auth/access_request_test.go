@@ -784,9 +784,6 @@ func testAccessRequestDenyRules(t *testing.T, testPack *accessRequestTestPack) {
 func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 	t.Parallel()
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
 	testCases := []struct {
 		desc                   string
 		requester              string
@@ -870,7 +867,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			// generateCerts executes a GenerateUserCerts request, optionally applying
 			// one or more access-requests to the certificate.
 			generateCerts := func(reqIDs ...string) (*proto.Certs, error) {
-				return requesterClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+				return requesterClient.GenerateUserCerts(t.Context(), proto.UserCertsRequest{
 					SSHPublicKey:   testPack.sshPubKey,
 					TLSPublicKey:   testPack.tlsPubKey,
 					Username:       tc.requester,
@@ -888,12 +885,12 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			checkCerts(t, certs, testPack.users[tc.requester], nil, nil, nil)
 
 			// should not be able to list any nodes
-			nodes, err := requesterClient.GetNodes(ctx, defaults.Namespace)
+			nodes, err := requesterClient.GetNodes(t.Context(), defaults.Namespace)
 			require.NoError(t, err)
 			require.Empty(t, nodes)
 
 			// requestable roles should be correct
-			caps, err := requesterClient.GetAccessCapabilities(ctx, types.AccessCapabilitiesRequest{
+			caps, err := requesterClient.GetAccessCapabilities(t.Context(), types.AccessCapabilitiesRequest{
 				RequestableRoles: true,
 			})
 			require.NoError(t, err)
@@ -914,7 +911,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.NoError(t, err)
 
 			// send the request to the auth server
-			req, err = requesterClient.CreateAccessRequestV2(ctx, req)
+			req, err = requesterClient.CreateAccessRequestV2(t.Context(), req)
 			require.ErrorIs(t, err, tc.expectRequestError)
 			if tc.expectRequestError != nil {
 				return
@@ -929,7 +926,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.NoError(t, err)
 
 			// approve the request
-			req, err = reviewerClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+			req, err = reviewerClient.SubmitAccessReview(t.Context(), types.AccessReviewSubmission{
 				RequestID: req.GetName(),
 				Review: types.AccessReview{
 					ProposedState: types.RequestState_APPROVED,
@@ -962,9 +959,9 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.NoError(t, err)
 
 			// should be able to list the expected nodes
-			nodes, err = elevatedClient.GetNodes(ctx, defaults.Namespace)
+			nodes, err = elevatedClient.GetNodes(t.Context(), defaults.Namespace)
 			require.NoError(t, err)
-			gotNodes := []string{}
+			gotNodes := make([]string, 0, len(nodes))
 			for _, node := range nodes {
 				gotNodes = append(gotNodes, node.GetName())
 			}
@@ -972,7 +969,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.Equal(t, tc.expectNodes, gotNodes)
 
 			// renew elevated certs
-			newCerts, err := elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
+			newCerts, err := elevatedClient.GenerateUserCerts(t.Context(), proto.UserCertsRequest{
 				SSHPublicKey: testPack.sshPubKey,
 				TLSPublicKey: testPack.tlsPubKey,
 				Username:     tc.requester,
@@ -983,7 +980,7 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 			require.NoError(t, err)
 
 			// in spite of providing no access requests, we still have elevated
-			// roles and the certicate shows the original access request
+			// roles and the certificate shows the original access request
 			checkCerts(t,
 				newCerts,
 				tc.expectRoles,
@@ -991,36 +988,55 @@ func testSingleAccessRequests(t *testing.T, testPack *accessRequestTestPack) {
 				[]string{req.GetName()},
 				requestResourceIDs)
 
-			// attempt to apply request in DENIED state (should fail)
-			require.NoError(t, testPack.tlsServer.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
+			// ensure that once in the APPROVED state, a request cannot be set to DENIED.
+			err = testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
 				RequestID: req.GetName(),
 				State:     types.RequestState_DENIED,
-			}))
-			_, err = generateCerts(req.GetName())
-			require.ErrorIs(t, err, trace.AccessDenied("access request %q has been denied", req.GetName()))
+			})
+			require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
 
-			// ensure that once in the DENIED state, a request cannot be set back to PENDING state.
-			require.Error(t, testPack.tlsServer.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
-				RequestID: req.GetName(),
-				State:     types.RequestState_PENDING,
-			}))
-
-			// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
-			require.Error(t, testPack.tlsServer.Auth().SetAccessRequestState(ctx, types.AccessRequestUpdate{
+			// ensure that once in the APPROVED state, a request cannot be updated again.
+			err = testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
 				RequestID: req.GetName(),
 				State:     types.RequestState_APPROVED,
+			})
+			require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
+
+			deniedReq, err := services.NewAccessRequestWithResources(tc.requester, tc.requestRoles, requestResourceIDs)
+			require.NoError(t, err)
+			deniedReq, err = requesterClient.CreateAccessRequestV2(t.Context(), deniedReq)
+			require.NoError(t, err)
+
+			// attempt to use a request in DENIED state (should fail)
+			require.NoError(t, testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+				RequestID: deniedReq.GetName(),
+				State:     types.RequestState_DENIED,
 			}))
 
 			// ensure that identities with requests in the DENIED state can't reissue new certs.
-			_, err = elevatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-				SSHPublicKey: testPack.sshPubKey,
-				TLSPublicKey: testPack.tlsPubKey,
-				Username:     tc.requester,
-				Expires:      time.Now().Add(time.Hour).UTC(),
-				// no new access requests
-				AccessRequests: nil,
+			_, err = generateCerts(deniedReq.GetName())
+			require.ErrorIs(t, err, trace.AccessDenied("access request %q has been denied", deniedReq.GetName()))
+
+			// ensure that once in the DENIED state, a request cannot be set back to PENDING state.
+			err = testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+				RequestID: deniedReq.GetName(),
+				State:     types.RequestState_PENDING,
 			})
-			require.ErrorIs(t, err, trace.AccessDenied("access request %q has been denied", req.GetName()))
+			require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
+
+			// ensure that once in the DENIED state, a request cannot be set back to APPROVED state.
+			err = testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+				RequestID: deniedReq.GetName(),
+				State:     types.RequestState_APPROVED,
+			})
+			require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
+
+			// ensure that once in the DENIED state, a request cannot be updated again.
+			err = testPack.tlsServer.Auth().SetAccessRequestState(t.Context(), types.AccessRequestUpdate{
+				RequestID: deniedReq.GetName(),
+				State:     types.RequestState_DENIED,
+			})
+			require.True(t, trace.IsBadParameter(err), "unexpected error: %v", err)
 		})
 	}
 }

@@ -75,10 +75,3 @@ jobs:
       build-command: make e2e-binaries
     permissions:
       contents: read
-
-  update-pr-comment:
-    needs: e2e
-    if: ${{ always() && needs.e2e.result != 'skipped' && github.event_name == 'pull_request' }}
-    uses: ./.github/workflows/e2e-pr-comment.yaml
-    permissions:
-      pull-requests: write

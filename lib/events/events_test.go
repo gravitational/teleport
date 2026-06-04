@@ -1301,7 +1301,7 @@ func TestTrimToMaxSize(t *testing.T) {
 		t.Run(eventName, func(t *testing.T) {
 			// clone the message to avoid modifying the original in the global map
 			event := proto.Clone(toV2Proto(t, eventMsg))
-			setProtoFields(event)
+			setProtoFields(event, false)
 
 			auditEvent := protoadapt.MessageV1Of(event).(apievents.AuditEvent)
 			size := auditEvent.Size()
@@ -1333,10 +1333,17 @@ type testingVal interface {
 	require.TestingT
 }
 
-func setProtoFields(msg proto.Message) {
+// setProtoFields recursively sets all fields in the given proto message to some default value.
+// Nested fields of metadata messages are set to smaller values because they are not trimmed.
+func setProtoFields(msg proto.Message, isMetadata bool) {
 	m := msg.ProtoReflect()
 
 	fields := m.Descriptor().Fields()
+
+	msgName := string(m.Descriptor().Name())
+	if strings.Contains(msgName, "Metadata") && msgName != "CommandMetadata" {
+		isMetadata = true
+	}
 
 	for i := range fields.Len() {
 		fd := fields.Get(i)
@@ -1349,9 +1356,9 @@ func setProtoFields(msg proto.Message) {
 			listValue := m.Mutable(fd).List()
 			if fd.Kind() == protoreflect.MessageKind {
 				listMsg := listValue.AppendMutable().Message()
-				setProtoFields(listMsg.Interface())
+				setProtoFields(listMsg.Interface(), isMetadata)
 			} else {
-				listValue.Append(getDefaultValue(m, fd))
+				listValue.Append(getDefaultValue(m, fd, isMetadata))
 			}
 			continue
 		}
@@ -1364,25 +1371,25 @@ func setProtoFields(msg proto.Message) {
 				keyDesc := fd.MapKey()
 				valueDesc := fd.MapValue()
 
-				keyVal := getDefaultValue(m, keyDesc).MapKey()
+				keyVal := getDefaultValue(m, keyDesc, isMetadata).MapKey()
 				var valueVal protoreflect.Value
 
 				if valueDesc.Kind() == protoreflect.MessageKind {
 					valueMsg := mapValue.NewValue().Message()
-					setProtoFields(valueMsg.Interface())
+					setProtoFields(valueMsg.Interface(), isMetadata)
 					valueVal = protoreflect.ValueOfMessage(valueMsg)
 				} else {
-					valueVal = getDefaultValue(m, valueDesc)
+					valueVal = getDefaultValue(m, valueDesc, isMetadata)
 				}
 
 				mapValue.Set(keyVal, valueVal)
 			} else {
 				// Handle singular message fields
 				nestedMsg := m.Mutable(fd).Message()
-				setProtoFields(nestedMsg.Interface())
+				setProtoFields(nestedMsg.Interface(), isMetadata)
 			}
 		default:
-			m.Set(fd, getDefaultValue(m, fd))
+			m.Set(fd, getDefaultValue(m, fd, isMetadata))
 		}
 	}
 }
@@ -1391,12 +1398,11 @@ const metadataString = "some metadata"
 
 var eventString = strings.Repeat("umai", 170)
 
-func getDefaultValue(m protoreflect.Message, fd protoreflect.FieldDescriptor) protoreflect.Value {
-	strVal := metadataString
-	msgName := string(m.Descriptor().Name())
-	// set shorter strings for metadata fields which won't be trimmed
-	if msgName == "CommandMetadata" || !strings.Contains(msgName, "Metadata") {
-		strVal = eventString
+func getDefaultValue(m protoreflect.Message, fd protoreflect.FieldDescriptor, isMetadata bool) protoreflect.Value {
+	strVal := eventString
+	if isMetadata {
+		// set shorter strings for metadata fields which won't be trimmed
+		strVal = metadataString
 	}
 
 	switch fd.Kind() {
@@ -1420,7 +1426,7 @@ func getDefaultValue(m protoreflect.Message, fd protoreflect.FieldDescriptor) pr
 	case protoreflect.MessageKind:
 		// Handle singular message fields
 		nestedMsg := m.NewField(fd).Message()
-		setProtoFields(nestedMsg.Interface())
+		setProtoFields(nestedMsg.Interface(), isMetadata)
 		return protoreflect.ValueOfMessage(nestedMsg)
 	default:
 		panic(fmt.Sprintf("unhandled field kind: %s", fd.Kind()))

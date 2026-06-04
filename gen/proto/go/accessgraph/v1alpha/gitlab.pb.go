@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/gitlab.proto
 
+//go:build !protoopaque
+
 package accessgraphv1alpha
 
 import (
@@ -28,7 +30,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -108,14 +109,9 @@ func (x AccessLevelType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use AccessLevelType.Descriptor instead.
-func (AccessLevelType) EnumDescriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_gitlab_proto_rawDescGZIP(), []int{0}
-}
-
 // GitlabSyncOperation is a request to sync Gitlab resources
 type GitlabSyncOperation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -145,14 +141,21 @@ func (x *GitlabSyncOperation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitlabSyncOperation.ProtoReflect.Descriptor instead.
-func (*GitlabSyncOperation) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_gitlab_proto_rawDescGZIP(), []int{0}
+type GitlabSyncOperation_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GitlabSyncOperation_builder) Build() *GitlabSyncOperation {
+	m0 := &GitlabSyncOperation{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GitlabResourceList is a request that contains resources to be sync.
 type GitlabResourceList struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// resources is a list of gitlab resources to sync.
 	Resources     []*GitlabResource `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -184,11 +187,6 @@ func (x *GitlabResourceList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitlabResourceList.ProtoReflect.Descriptor instead.
-func (*GitlabResourceList) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_gitlab_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GitlabResourceList) GetResources() []*GitlabResource {
 	if x != nil {
 		return x.Resources
@@ -196,9 +194,28 @@ func (x *GitlabResourceList) GetResources() []*GitlabResource {
 	return nil
 }
 
+func (x *GitlabResourceList) SetResources(v []*GitlabResource) {
+	x.Resources = v
+}
+
+type GitlabResourceList_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// resources is a list of gitlab resources to sync.
+	Resources []*GitlabResource
+}
+
+func (b0 GitlabResourceList_builder) Build() *GitlabResourceList {
+	m0 := &GitlabResourceList{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	return m0
+}
+
 // GitlabResource represents a Gitlab resource
 type GitlabResource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Resource:
 	//
 	//	*GitlabResource_Group
@@ -234,11 +251,6 @@ func (x *GitlabResource) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GitlabResource.ProtoReflect.Descriptor instead.
-func (*GitlabResource) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_gitlab_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *GitlabResource) GetResource() isGitlabResource_Resource {
@@ -293,6 +305,203 @@ func (x *GitlabResource) GetUser() *GitlabUser {
 	return nil
 }
 
+func (x *GitlabResource) SetGroup(v *GitlabGroup) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &GitlabResource_Group{v}
+}
+
+func (x *GitlabResource) SetProject(v *GitlabProject) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &GitlabResource_Project{v}
+}
+
+func (x *GitlabResource) SetProjectMember(v *GitlabProjectMember) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &GitlabResource_ProjectMember{v}
+}
+
+func (x *GitlabResource) SetGroupMember(v *GitlabGroupMember) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &GitlabResource_GroupMember{v}
+}
+
+func (x *GitlabResource) SetUser(v *GitlabUser) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &GitlabResource_User{v}
+}
+
+func (x *GitlabResource) HasResource() bool {
+	if x == nil {
+		return false
+	}
+	return x.Resource != nil
+}
+
+func (x *GitlabResource) HasGroup() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*GitlabResource_Group)
+	return ok
+}
+
+func (x *GitlabResource) HasProject() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*GitlabResource_Project)
+	return ok
+}
+
+func (x *GitlabResource) HasProjectMember() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*GitlabResource_ProjectMember)
+	return ok
+}
+
+func (x *GitlabResource) HasGroupMember() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*GitlabResource_GroupMember)
+	return ok
+}
+
+func (x *GitlabResource) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*GitlabResource_User)
+	return ok
+}
+
+func (x *GitlabResource) ClearResource() {
+	x.Resource = nil
+}
+
+func (x *GitlabResource) ClearGroup() {
+	if _, ok := x.Resource.(*GitlabResource_Group); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *GitlabResource) ClearProject() {
+	if _, ok := x.Resource.(*GitlabResource_Project); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *GitlabResource) ClearProjectMember() {
+	if _, ok := x.Resource.(*GitlabResource_ProjectMember); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *GitlabResource) ClearGroupMember() {
+	if _, ok := x.Resource.(*GitlabResource_GroupMember); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *GitlabResource) ClearUser() {
+	if _, ok := x.Resource.(*GitlabResource_User); ok {
+		x.Resource = nil
+	}
+}
+
+const GitlabResource_Resource_not_set_case case_GitlabResource_Resource = 0
+const GitlabResource_Group_case case_GitlabResource_Resource = 1
+const GitlabResource_Project_case case_GitlabResource_Resource = 2
+const GitlabResource_ProjectMember_case case_GitlabResource_Resource = 3
+const GitlabResource_GroupMember_case case_GitlabResource_Resource = 4
+const GitlabResource_User_case case_GitlabResource_Resource = 5
+
+func (x *GitlabResource) WhichResource() case_GitlabResource_Resource {
+	if x == nil {
+		return GitlabResource_Resource_not_set_case
+	}
+	switch x.Resource.(type) {
+	case *GitlabResource_Group:
+		return GitlabResource_Group_case
+	case *GitlabResource_Project:
+		return GitlabResource_Project_case
+	case *GitlabResource_ProjectMember:
+		return GitlabResource_ProjectMember_case
+	case *GitlabResource_GroupMember:
+		return GitlabResource_GroupMember_case
+	case *GitlabResource_User:
+		return GitlabResource_User_case
+	default:
+		return GitlabResource_Resource_not_set_case
+	}
+}
+
+type GitlabResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Resource:
+	// group represents a gitlab group or subgroup in an organization.
+	Group *GitlabGroup
+	// project represents a gitlab repository.
+	Project *GitlabProject
+	// project_member represents a user with certain access levels to a project.
+	ProjectMember *GitlabProjectMember
+	// group_member represents a user with certain access levels to a group and all subgroups/projects within.
+	GroupMember *GitlabGroupMember
+	// user represents a gitlab user.
+	User *GitlabUser
+	// -- end of Resource
+}
+
+func (b0 GitlabResource_builder) Build() *GitlabResource {
+	m0 := &GitlabResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Group != nil {
+		x.Resource = &GitlabResource_Group{b.Group}
+	}
+	if b.Project != nil {
+		x.Resource = &GitlabResource_Project{b.Project}
+	}
+	if b.ProjectMember != nil {
+		x.Resource = &GitlabResource_ProjectMember{b.ProjectMember}
+	}
+	if b.GroupMember != nil {
+		x.Resource = &GitlabResource_GroupMember{b.GroupMember}
+	}
+	if b.User != nil {
+		x.Resource = &GitlabResource_User{b.User}
+	}
+	return m0
+}
+
+type case_GitlabResource_Resource protoreflect.FieldNumber
+
+func (x case_GitlabResource_Resource) String() string {
+	md := file_accessgraph_v1alpha_gitlab_proto_msgTypes[2].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isGitlabResource_Resource interface {
 	isGitlabResource_Resource()
 }
@@ -334,7 +543,7 @@ func (*GitlabResource_User) isGitlabResource_Resource() {}
 
 // GitlabGroup represents a Gitlab group
 type GitlabGroup struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the group name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// path is the universal identifier for the group location.
@@ -372,11 +581,6 @@ func (x *GitlabGroup) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitlabGroup.ProtoReflect.Descriptor instead.
-func (*GitlabGroup) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_gitlab_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *GitlabGroup) GetName() string {
 	if x != nil {
 		return x.Name
@@ -405,9 +609,49 @@ func (x *GitlabGroup) GetDescription() string {
 	return ""
 }
 
+func (x *GitlabGroup) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GitlabGroup) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *GitlabGroup) SetFullName(v string) {
+	x.FullName = v
+}
+
+func (x *GitlabGroup) SetDescription(v string) {
+	x.Description = v
+}
+
+type GitlabGroup_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the group name.
+	Name string
+	// path is the universal identifier for the group location.
+	Path string
+	// full_name is the group full name.
+	FullName string
+	// description is the group description.
+	Description string
+}
+
+func (b0 GitlabGroup_builder) Build() *GitlabGroup {
+	m0 := &GitlabGroup{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Path = b.Path
+	x.FullName = b.FullName
+	x.Description = b.Description
+	return m0
+}
+
 // GitlabProject represents a Gitlab project
 type GitlabProject struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the repository name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// path is the universal identifier for the project location.
@@ -443,11 +687,6 @@ func (x *GitlabProject) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitlabProject.ProtoReflect.Descriptor instead.
-func (*GitlabProject) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_gitlab_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *GitlabProject) GetName() string {
 	if x != nil {
 		return x.Name
@@ -469,9 +708,42 @@ func (x *GitlabProject) GetDescription() string {
 	return ""
 }
 
+func (x *GitlabProject) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GitlabProject) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *GitlabProject) SetDescription(v string) {
+	x.Description = v
+}
+
+type GitlabProject_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the repository name.
+	Name string
+	// path is the universal identifier for the project location.
+	Path string
+	// description is the project description.
+	Description string
+}
+
+func (b0 GitlabProject_builder) Build() *GitlabProject {
+	m0 := &GitlabProject{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Path = b.Path
+	x.Description = b.Description
+	return m0
+}
+
 // GitlabProjectMember represents a Gitlab project member
 type GitlabProjectMember struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is the username of the user.
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// access_level defines the permissions the user has to the project.
@@ -507,11 +779,6 @@ func (x *GitlabProjectMember) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitlabProjectMember.ProtoReflect.Descriptor instead.
-func (*GitlabProjectMember) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_gitlab_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *GitlabProjectMember) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -533,9 +800,53 @@ func (x *GitlabProjectMember) GetProject() *GitlabProject {
 	return nil
 }
 
+func (x *GitlabProjectMember) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *GitlabProjectMember) SetAccessLevel(v AccessLevelType) {
+	x.AccessLevel = v
+}
+
+func (x *GitlabProjectMember) SetProject(v *GitlabProject) {
+	x.Project = v
+}
+
+func (x *GitlabProjectMember) HasProject() bool {
+	if x == nil {
+		return false
+	}
+	return x.Project != nil
+}
+
+func (x *GitlabProjectMember) ClearProject() {
+	x.Project = nil
+}
+
+type GitlabProjectMember_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the username of the user.
+	Username string
+	// access_level defines the permissions the user has to the project.
+	AccessLevel AccessLevelType
+	// project identifies the project that the user is member of.
+	Project *GitlabProject
+}
+
+func (b0 GitlabProjectMember_builder) Build() *GitlabProjectMember {
+	m0 := &GitlabProjectMember{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.AccessLevel = b.AccessLevel
+	x.Project = b.Project
+	return m0
+}
+
 // GitlabGroupMember represents a Gitlab group member
 type GitlabGroupMember struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is the username of the user.
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// access_level defines the permissions the user has to the group and all projects within.
@@ -571,11 +882,6 @@ func (x *GitlabGroupMember) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitlabGroupMember.ProtoReflect.Descriptor instead.
-func (*GitlabGroupMember) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_gitlab_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *GitlabGroupMember) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -597,9 +903,53 @@ func (x *GitlabGroupMember) GetGroup() *GitlabGroup {
 	return nil
 }
 
+func (x *GitlabGroupMember) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *GitlabGroupMember) SetAccessLevel(v AccessLevelType) {
+	x.AccessLevel = v
+}
+
+func (x *GitlabGroupMember) SetGroup(v *GitlabGroup) {
+	x.Group = v
+}
+
+func (x *GitlabGroupMember) HasGroup() bool {
+	if x == nil {
+		return false
+	}
+	return x.Group != nil
+}
+
+func (x *GitlabGroupMember) ClearGroup() {
+	x.Group = nil
+}
+
+type GitlabGroupMember_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the username of the user.
+	Username string
+	// access_level defines the permissions the user has to the group and all projects within.
+	AccessLevel AccessLevelType
+	// project identifies the project that the user is member of.
+	Group *GitlabGroup
+}
+
+func (b0 GitlabGroupMember_builder) Build() *GitlabGroupMember {
+	m0 := &GitlabGroupMember{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.AccessLevel = b.AccessLevel
+	x.Group = b.Group
+	return m0
+}
+
 // GitlabGroupMember represents a Gitlab user.
 type GitlabUser struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is the username of the user.
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// email is the user's email.
@@ -647,11 +997,6 @@ func (x *GitlabUser) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GitlabUser.ProtoReflect.Descriptor instead.
-func (*GitlabUser) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_gitlab_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *GitlabUser) GetUsername() string {
@@ -724,9 +1069,102 @@ func (x *GitlabUser) GetIdentities() []*GitlabUserIdentity {
 	return nil
 }
 
+func (x *GitlabUser) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *GitlabUser) SetEmail(v string) {
+	x.Email = v
+}
+
+func (x *GitlabUser) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GitlabUser) SetIsAdmin(v bool) {
+	x.IsAdmin = v
+}
+
+func (x *GitlabUser) SetOrganization(v string) {
+	x.Organization = v
+}
+
+func (x *GitlabUser) SetLastSignInAt(v *timestamppb.Timestamp) {
+	x.LastSignInAt = v
+}
+
+func (x *GitlabUser) SetCanCreateGroup(v bool) {
+	x.CanCreateGroup = v
+}
+
+func (x *GitlabUser) SetCanCreateProject(v bool) {
+	x.CanCreateProject = v
+}
+
+func (x *GitlabUser) SetTwoFactorEnabled(v bool) {
+	x.TwoFactorEnabled = v
+}
+
+func (x *GitlabUser) SetIdentities(v []*GitlabUserIdentity) {
+	x.Identities = v
+}
+
+func (x *GitlabUser) HasLastSignInAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastSignInAt != nil
+}
+
+func (x *GitlabUser) ClearLastSignInAt() {
+	x.LastSignInAt = nil
+}
+
+type GitlabUser_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the username of the user.
+	Username string
+	// email is the user's email.
+	Email string
+	// name is the user's name.
+	Name string
+	// is_admin indicates if a user is admin.
+	IsAdmin bool
+	// organization is the user's organization.
+	Organization string
+	// last_sign_in_at identifies the last sign in date.
+	LastSignInAt *timestamppb.Timestamp
+	// can_create_group identifies if the user can create groups.
+	CanCreateGroup bool
+	// can_create_project identifies if the user can create projects.
+	CanCreateProject bool
+	// two_factor_enabled identifies if the user has two factor authentication enabled.
+	TwoFactorEnabled bool
+	// identities represents the identity source for the user.
+	Identities []*GitlabUserIdentity
+}
+
+func (b0 GitlabUser_builder) Build() *GitlabUser {
+	m0 := &GitlabUser{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.Email = b.Email
+	x.Name = b.Name
+	x.IsAdmin = b.IsAdmin
+	x.Organization = b.Organization
+	x.LastSignInAt = b.LastSignInAt
+	x.CanCreateGroup = b.CanCreateGroup
+	x.CanCreateProject = b.CanCreateProject
+	x.TwoFactorEnabled = b.TwoFactorEnabled
+	x.Identities = b.Identities
+	return m0
+}
+
 // GitlabUserIdentity identifies the external identity of the user.
 type GitlabUserIdentity struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// provider identifies the identity provider.
 	Provider string `protobuf:"bytes,1,opt,name=provider,proto3" json:"provider,omitempty"`
 	// extern_uid identifies the external uid of the identity.
@@ -760,11 +1198,6 @@ func (x *GitlabUserIdentity) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitlabUserIdentity.ProtoReflect.Descriptor instead.
-func (*GitlabUserIdentity) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_gitlab_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *GitlabUserIdentity) GetProvider() string {
 	if x != nil {
 		return x.Provider
@@ -777,6 +1210,32 @@ func (x *GitlabUserIdentity) GetExternUid() string {
 		return x.ExternUid
 	}
 	return ""
+}
+
+func (x *GitlabUserIdentity) SetProvider(v string) {
+	x.Provider = v
+}
+
+func (x *GitlabUserIdentity) SetExternUid(v string) {
+	x.ExternUid = v
+}
+
+type GitlabUserIdentity_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// provider identifies the identity provider.
+	Provider string
+	// extern_uid identifies the external uid of the identity.
+	ExternUid string
+}
+
+func (b0 GitlabUserIdentity_builder) Build() *GitlabUserIdentity {
+	m0 := &GitlabUserIdentity{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Provider = b.Provider
+	x.ExternUid = b.ExternUid
+	return m0
 }
 
 var File_accessgraph_v1alpha_gitlab_proto protoreflect.FileDescriptor
@@ -840,18 +1299,6 @@ const file_accessgraph_v1alpha_gitlab_proto_rawDesc = "" +
 	"\x1bACCESS_LEVEL_TYPE_DEVELOPER\x10\x05\x12 \n" +
 	"\x1cACCESS_LEVEL_TYPE_MAINTAINER\x10\x06\x12\x1b\n" +
 	"\x17ACCESS_LEVEL_TYPE_OWNER\x10\aBWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
-
-var (
-	file_accessgraph_v1alpha_gitlab_proto_rawDescOnce sync.Once
-	file_accessgraph_v1alpha_gitlab_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1alpha_gitlab_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1alpha_gitlab_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1alpha_gitlab_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_gitlab_proto_rawDesc), len(file_accessgraph_v1alpha_gitlab_proto_rawDesc)))
-	})
-	return file_accessgraph_v1alpha_gitlab_proto_rawDescData
-}
 
 var file_accessgraph_v1alpha_gitlab_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_accessgraph_v1alpha_gitlab_proto_msgTypes = make([]protoimpl.MessageInfo, 9)

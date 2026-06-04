@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/beams/v1/beam.proto
 
+//go:build !protoopaque
+
 package beamsv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -89,11 +90,6 @@ func (x EgressMode) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use EgressMode.Descriptor instead.
-func (EgressMode) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{0}
-}
-
 // Protocol of the app that will be published.
 type Protocol int32
 
@@ -140,11 +136,6 @@ func (Protocol) Type() protoreflect.EnumType {
 
 func (x Protocol) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use Protocol.Descriptor instead.
-func (Protocol) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{1}
 }
 
 // ComputeStatus represents the current state of the beam's compute resources.
@@ -197,14 +188,9 @@ func (x ComputeStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ComputeStatus.Descriptor instead.
-func (ComputeStatus) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{2}
-}
-
 // Beam is an ephemeral AI-optimized compute environment.
 type Beam struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented. This is always `beam`.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// The sub_kind of the resource. Always "".
@@ -245,11 +231,6 @@ func (x *Beam) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Beam.ProtoReflect.Descriptor instead.
-func (*Beam) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Beam) GetKind() string {
@@ -294,9 +275,97 @@ func (x *Beam) GetStatus() *BeamStatus {
 	return nil
 }
 
+func (x *Beam) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *Beam) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *Beam) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *Beam) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *Beam) SetSpec(v *BeamSpec) {
+	x.Spec = v
+}
+
+func (x *Beam) SetStatus(v *BeamStatus) {
+	x.Status = v
+}
+
+func (x *Beam) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *Beam) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *Beam) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *Beam) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *Beam) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *Beam) ClearStatus() {
+	x.Status = nil
+}
+
+type Beam_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented. This is always `beam`.
+	Kind string
+	// The sub_kind of the resource. Always "".
+	SubKind string
+	// The version of the resource. Always "v1".
+	Version string
+	// Metadata about the beam, including it's server-generated name and labels.
+	Metadata *v1.Metadata
+	// User-configurable parts of the beam, including its egress and publishing
+	// settings.
+	Spec *BeamSpec
+	// User-immutable status of the beam and its supporting resources.
+	Status *BeamStatus
+}
+
+func (b0 Beam_builder) Build() *Beam {
+	m0 := &Beam{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // BeamSpec contains the configuration of the beam.
 type BeamSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Configures outgoing network connectivity from the beam.
 	Egress EgressMode `protobuf:"varint,1,opt,name=egress,proto3,enum=teleport.beams.v1.EgressMode" json:"egress,omitempty"`
 	// An allow-list of FQDNs that can be dialed from inside the beam. Can only
@@ -339,11 +408,6 @@ func (x *BeamSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BeamSpec.ProtoReflect.Descriptor instead.
-func (*BeamSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *BeamSpec) GetEgress() EgressMode {
 	if x != nil {
 		return x.Egress
@@ -372,9 +436,76 @@ func (x *BeamSpec) GetExpires() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *BeamSpec) SetEgress(v EgressMode) {
+	x.Egress = v
+}
+
+func (x *BeamSpec) SetAllowedDomains(v []string) {
+	x.AllowedDomains = v
+}
+
+func (x *BeamSpec) SetPublish(v *PublishSpec) {
+	x.Publish = v
+}
+
+func (x *BeamSpec) SetExpires(v *timestamppb.Timestamp) {
+	x.Expires = v
+}
+
+func (x *BeamSpec) HasPublish() bool {
+	if x == nil {
+		return false
+	}
+	return x.Publish != nil
+}
+
+func (x *BeamSpec) HasExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.Expires != nil
+}
+
+func (x *BeamSpec) ClearPublish() {
+	x.Publish = nil
+}
+
+func (x *BeamSpec) ClearExpires() {
+	x.Expires = nil
+}
+
+type BeamSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Configures outgoing network connectivity from the beam.
+	Egress EgressMode
+	// An allow-list of FQDNs that can be dialed from inside the beam. Can only
+	// be provided when EGRESS_MODE_RESTRICTED is set.
+	AllowedDomains []string
+	// Configures how the beam's application will be published.
+	Publish *PublishSpec
+	// Expiry time of the beam.
+	//
+	// Note: we do not use the `metadata.expires` field for this, because Teleport
+	// is responsible for garbage-collecting the compute resources, so we need the
+	// actual record not to be deleted until we're ready.
+	Expires *timestamppb.Timestamp
+}
+
+func (b0 BeamSpec_builder) Build() *BeamSpec {
+	m0 := &BeamSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Egress = b.Egress
+	x.AllowedDomains = b.AllowedDomains
+	x.Publish = b.Publish
+	x.Expires = b.Expires
+	return m0
+}
+
 // PublishSpec configures how the beam's application will be published.
 type PublishSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Beam-local port that will be published. Must be 8080.
 	Port uint32 `protobuf:"varint,1,opt,name=port,proto3" json:"port,omitempty"`
 	// Protocol of the app that will be published.
@@ -414,11 +545,6 @@ func (x *PublishSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PublishSpec.ProtoReflect.Descriptor instead.
-func (*PublishSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *PublishSpec) GetPort() uint32 {
 	if x != nil {
 		return x.Port
@@ -433,9 +559,41 @@ func (x *PublishSpec) GetProtocol() Protocol {
 	return Protocol_PROTOCOL_UNSPECIFIED
 }
 
+func (x *PublishSpec) SetPort(v uint32) {
+	x.Port = v
+}
+
+func (x *PublishSpec) SetProtocol(v Protocol) {
+	x.Protocol = v
+}
+
+type PublishSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Beam-local port that will be published. Must be 8080.
+	Port uint32
+	// Protocol of the app that will be published.
+	//
+	// If PROTOCOL_HTTP is provided, the app will be available to web browsers
+	// without running a local tunnel or VNet, with a TLS certificate.
+	//
+	// If PROTOCOL_TCP is provided, the app can be accessed using a local tunnel
+	// or VNet.
+	Protocol Protocol
+}
+
+func (b0 PublishSpec_builder) Build() *PublishSpec {
+	m0 := &PublishSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Port = b.Port
+	x.Protocol = b.Protocol
+	return m0
+}
+
 // BeamStatus contains the status of the beam and its derived resources.
 type BeamStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// User to which this beam belongs.
 	User string `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// Alias is the human-friendly identifier for the beam.
@@ -494,11 +652,6 @@ func (x *BeamStatus) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use BeamStatus.ProtoReflect.Descriptor instead.
-func (*BeamStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_beams_v1_beam_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *BeamStatus) GetUser() string {
@@ -585,6 +738,109 @@ func (x *BeamStatus) GetComputeStatus() ComputeStatus {
 	return ComputeStatus_COMPUTE_STATUS_UNSPECIFIED
 }
 
+func (x *BeamStatus) SetUser(v string) {
+	x.User = v
+}
+
+func (x *BeamStatus) SetAlias(v string) {
+	x.Alias = v
+}
+
+func (x *BeamStatus) SetNodeId(v string) {
+	x.NodeId = v
+}
+
+func (x *BeamStatus) SetSshAddr(v string) {
+	x.SshAddr = v
+}
+
+func (x *BeamStatus) SetAppName(v string) {
+	x.AppName = v
+}
+
+func (x *BeamStatus) SetAppAddrTcp(v string) {
+	x.AppAddrTcp = v
+}
+
+func (x *BeamStatus) SetAppAddrHttp(v string) {
+	x.AppAddrHttp = v
+}
+
+func (x *BeamStatus) SetBotName(v string) {
+	x.BotName = v
+}
+
+func (x *BeamStatus) SetJoinTokenName(v string) {
+	x.JoinTokenName = v
+}
+
+func (x *BeamStatus) SetDelegationSessionId(v string) {
+	x.DelegationSessionId = v
+}
+
+func (x *BeamStatus) SetWorkloadIdentityName(v string) {
+	x.WorkloadIdentityName = v
+}
+
+func (x *BeamStatus) SetComputeStatus(v ComputeStatus) {
+	x.ComputeStatus = v
+}
+
+type BeamStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// User to which this beam belongs.
+	User string
+	// Alias is the human-friendly identifier for the beam.
+	Alias string
+	// NodeID is the UUID that identifies the node that can be used to SSH into
+	// the beam.
+	NodeId string
+	// SSHAddr is the `host:port` address on which Teleport proxies can dial the
+	// beam's OpenSSH server.
+	SshAddr string
+	// AppName is the name of the app resource that can be used to access the
+	// application exposed by the beam.
+	AppName string
+	// AppAddrTCP is the `host:port` address on which the application service can
+	// dial the beam's application Envoy proxy for TCP applications.
+	AppAddrTcp string
+	// AppAddrHTTP is the `host:port` address on which the application service can
+	// dial the beam's application Envoy proxy for HTTP applications.
+	AppAddrHttp string
+	// BotName is the name of the beam's bot identity.
+	BotName string
+	// JoinTokenName is the name of the beam's join token.
+	JoinTokenName string
+	// DelegationSessionID identifies the delegation session through which the
+	// beam is using the user's identity.
+	DelegationSessionId string
+	// WorkloadIdentityName is the name of the workload identity used to
+	// authenticate the beam's Envoy proxy.
+	WorkloadIdentityName string
+	// ComputeStatus represents the current state of the beam's compute resources.
+	ComputeStatus ComputeStatus
+}
+
+func (b0 BeamStatus_builder) Build() *BeamStatus {
+	m0 := &BeamStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.User = b.User
+	x.Alias = b.Alias
+	x.NodeId = b.NodeId
+	x.SshAddr = b.SshAddr
+	x.AppName = b.AppName
+	x.AppAddrTcp = b.AppAddrTcp
+	x.AppAddrHttp = b.AppAddrHttp
+	x.BotName = b.BotName
+	x.JoinTokenName = b.JoinTokenName
+	x.DelegationSessionId = b.DelegationSessionId
+	x.WorkloadIdentityName = b.WorkloadIdentityName
+	x.ComputeStatus = b.ComputeStatus
+	return m0
+}
+
 var File_teleport_beams_v1_beam_proto protoreflect.FileDescriptor
 
 const file_teleport_beams_v1_beam_proto_rawDesc = "" +
@@ -634,18 +890,6 @@ const file_teleport_beams_v1_beam_proto_rawDesc = "" +
 	"\x1aCOMPUTE_STATUS_UNSPECIFIED\x10\x00\x12$\n" +
 	" COMPUTE_STATUS_PROVISION_PENDING\x10\x01\x12%\n" +
 	"!COMPUTE_STATUS_PROVISION_COMPLETE\x10\x02BNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/beams/v1;beamsv1b\x06proto3"
-
-var (
-	file_teleport_beams_v1_beam_proto_rawDescOnce sync.Once
-	file_teleport_beams_v1_beam_proto_rawDescData []byte
-)
-
-func file_teleport_beams_v1_beam_proto_rawDescGZIP() []byte {
-	file_teleport_beams_v1_beam_proto_rawDescOnce.Do(func() {
-		file_teleport_beams_v1_beam_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_beams_v1_beam_proto_rawDesc), len(file_teleport_beams_v1_beam_proto_rawDesc)))
-	})
-	return file_teleport_beams_v1_beam_proto_rawDescData
-}
 
 var file_teleport_beams_v1_beam_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_teleport_beams_v1_beam_proto_msgTypes = make([]protoimpl.MessageInfo, 4)

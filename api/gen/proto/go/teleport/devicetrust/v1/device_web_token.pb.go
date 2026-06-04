@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/device_web_token.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -43,7 +44,7 @@ const (
 // See
 // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-web-token.
 type DeviceWebToken struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Opaque token identifier.
 	// Required for token usage.
 	// System-generated.
@@ -107,11 +108,6 @@ func (x *DeviceWebToken) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeviceWebToken.ProtoReflect.Descriptor instead.
-func (*DeviceWebToken) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_device_web_token_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DeviceWebToken) GetId() string {
 	if x != nil {
 		return x.Id
@@ -168,6 +164,92 @@ func (x *DeviceWebToken) GetBrowserMaxTouchPoints() uint32 {
 	return 0
 }
 
+func (x *DeviceWebToken) SetId(v string) {
+	x.Id = v
+}
+
+func (x *DeviceWebToken) SetToken(v string) {
+	x.Token = v
+}
+
+func (x *DeviceWebToken) SetWebSessionId(v string) {
+	x.WebSessionId = v
+}
+
+func (x *DeviceWebToken) SetBrowserUserAgent(v string) {
+	x.BrowserUserAgent = v
+}
+
+func (x *DeviceWebToken) SetBrowserIp(v string) {
+	x.BrowserIp = v
+}
+
+func (x *DeviceWebToken) SetUser(v string) {
+	x.User = v
+}
+
+func (x *DeviceWebToken) SetExpectedDeviceIds(v []string) {
+	x.ExpectedDeviceIds = v
+}
+
+func (x *DeviceWebToken) SetBrowserMaxTouchPoints(v uint32) {
+	x.BrowserMaxTouchPoints = v
+}
+
+type DeviceWebToken_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Opaque token identifier.
+	// Required for token usage.
+	// System-generated.
+	Id string
+	// Opaque device web token, in plaintext, encoded in base64.RawURLEncoding
+	// (so it is inherently safe for URl use).
+	// Required for token usage.
+	// System-generated.
+	Token string
+	// Identifier for the Web Session being device-authorized.
+	// Required for creation.
+	WebSessionId string
+	// Browser user agent, as acquired from the Web UI browser.
+	// Used as part of expected device checks.
+	// Required for creation.
+	BrowserUserAgent string
+	// Browser public IP, as acquired from the Web UI browser.
+	// Used as part of expected device checks.
+	// Required for creation.
+	BrowserIp string
+	// Owner of the Web Session and trusted device.
+	// Used internally by the Device Trust system.
+	// Transient.
+	User string
+	// ID of the devices allowed to perform on-behalf-of device authentication.
+	// Used internally by the Device Trust system.
+	// Transient.
+	ExpectedDeviceIds []string
+	// BrowserMaxTouchPoints indicates whether the client device supports touch controls. It is sent
+	// by the frontend app to the proxy service and then forwarded to the auth service. It
+	// differentiates iPadOS from macOS since they both use the same user agent otherwise. This
+	// information is needed to decide whether to show the Device Trust prompt in the Web UI after a
+	// successful login.
+	BrowserMaxTouchPoints uint32
+}
+
+func (b0 DeviceWebToken_builder) Build() *DeviceWebToken {
+	m0 := &DeviceWebToken{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Token = b.Token
+	x.WebSessionId = b.WebSessionId
+	x.BrowserUserAgent = b.BrowserUserAgent
+	x.BrowserIp = b.BrowserIp
+	x.User = b.User
+	x.ExpectedDeviceIds = b.ExpectedDeviceIds
+	x.BrowserMaxTouchPoints = b.BrowserMaxTouchPoints
+	return m0
+}
+
 var File_teleport_devicetrust_v1_device_web_token_proto protoreflect.FileDescriptor
 
 const file_teleport_devicetrust_v1_device_web_token_proto_rawDesc = "" +
@@ -183,18 +265,6 @@ const file_teleport_devicetrust_v1_device_web_token_proto_rawDesc = "" +
 	"\x04user\x18\x06 \x01(\tR\x04user\x12.\n" +
 	"\x13expected_device_ids\x18\a \x03(\tR\x11expectedDeviceIds\x127\n" +
 	"\x18browser_max_touch_points\x18\b \x01(\rR\x15browserMaxTouchPointsBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_device_web_token_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_device_web_token_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_device_web_token_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_device_web_token_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_device_web_token_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_device_web_token_proto_rawDesc), len(file_teleport_devicetrust_v1_device_web_token_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_device_web_token_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_device_web_token_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_devicetrust_v1_device_web_token_proto_goTypes = []any{

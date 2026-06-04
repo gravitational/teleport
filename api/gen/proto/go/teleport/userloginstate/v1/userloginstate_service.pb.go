@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/userloginstate/v1/userloginstate_service.proto
 
+//go:build !protoopaque
+
 package userloginstatev1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // GetUserLoginStatesRequest is the request for getting all user login states.
 type GetUserLoginStatesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -68,14 +69,21 @@ func (x *GetUserLoginStatesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetUserLoginStatesRequest.ProtoReflect.Descriptor instead.
-func (*GetUserLoginStatesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP(), []int{0}
+type GetUserLoginStatesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetUserLoginStatesRequest_builder) Build() *GetUserLoginStatesRequest {
+	m0 := &GetUserLoginStatesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GetUserLoginStatesResponse is the response for getting all user login states.
 type GetUserLoginStatesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// user_login_states is the list of user login states.
 	UserLoginStates []*UserLoginState `protobuf:"bytes,1,rep,name=user_login_states,json=userLoginStates,proto3" json:"user_login_states,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -107,11 +115,6 @@ func (x *GetUserLoginStatesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetUserLoginStatesResponse.ProtoReflect.Descriptor instead.
-func (*GetUserLoginStatesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetUserLoginStatesResponse) GetUserLoginStates() []*UserLoginState {
 	if x != nil {
 		return x.UserLoginStates
@@ -119,9 +122,28 @@ func (x *GetUserLoginStatesResponse) GetUserLoginStates() []*UserLoginState {
 	return nil
 }
 
+func (x *GetUserLoginStatesResponse) SetUserLoginStates(v []*UserLoginState) {
+	x.UserLoginStates = v
+}
+
+type GetUserLoginStatesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// user_login_states is the list of user login states.
+	UserLoginStates []*UserLoginState
+}
+
+func (b0 GetUserLoginStatesResponse_builder) Build() *GetUserLoginStatesResponse {
+	m0 := &GetUserLoginStatesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserLoginStates = b.UserLoginStates
+	return m0
+}
+
 // GetUserLoginStateRequest is the request for retrieving a user login state.
 type GetUserLoginStateRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the user login state to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -153,11 +175,6 @@ func (x *GetUserLoginStateRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetUserLoginStateRequest.ProtoReflect.Descriptor instead.
-func (*GetUserLoginStateRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GetUserLoginStateRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -165,9 +182,28 @@ func (x *GetUserLoginStateRequest) GetName() string {
 	return ""
 }
 
+func (x *GetUserLoginStateRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetUserLoginStateRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the user login state to retrieve.
+	Name string
+}
+
+func (b0 GetUserLoginStateRequest_builder) Build() *GetUserLoginStateRequest {
+	m0 := &GetUserLoginStateRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // UpsertUserLoginStateRequest is the request for upserting a user login state.
 type UpsertUserLoginStateRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// user_login_state is the user login state to upsert.
 	UserLoginState *UserLoginState `protobuf:"bytes,1,opt,name=user_login_state,json=userLoginState,proto3" json:"user_login_state,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -199,11 +235,6 @@ func (x *UpsertUserLoginStateRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertUserLoginStateRequest.ProtoReflect.Descriptor instead.
-func (*UpsertUserLoginStateRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UpsertUserLoginStateRequest) GetUserLoginState() *UserLoginState {
 	if x != nil {
 		return x.UserLoginState
@@ -211,9 +242,39 @@ func (x *UpsertUserLoginStateRequest) GetUserLoginState() *UserLoginState {
 	return nil
 }
 
+func (x *UpsertUserLoginStateRequest) SetUserLoginState(v *UserLoginState) {
+	x.UserLoginState = v
+}
+
+func (x *UpsertUserLoginStateRequest) HasUserLoginState() bool {
+	if x == nil {
+		return false
+	}
+	return x.UserLoginState != nil
+}
+
+func (x *UpsertUserLoginStateRequest) ClearUserLoginState() {
+	x.UserLoginState = nil
+}
+
+type UpsertUserLoginStateRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// user_login_state is the user login state to upsert.
+	UserLoginState *UserLoginState
+}
+
+func (b0 UpsertUserLoginStateRequest_builder) Build() *UpsertUserLoginStateRequest {
+	m0 := &UpsertUserLoginStateRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserLoginState = b.UserLoginState
+	return m0
+}
+
 // DeleteUserLoginStateRequest is the request for deleting a user login state.
 type DeleteUserLoginStateRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the user login state to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -245,11 +306,6 @@ func (x *DeleteUserLoginStateRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteUserLoginStateRequest.ProtoReflect.Descriptor instead.
-func (*DeleteUserLoginStateRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DeleteUserLoginStateRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -257,9 +313,28 @@ func (x *DeleteUserLoginStateRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteUserLoginStateRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteUserLoginStateRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the user login state to delete.
+	Name string
+}
+
+func (b0 DeleteUserLoginStateRequest_builder) Build() *DeleteUserLoginStateRequest {
+	m0 := &DeleteUserLoginStateRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // DeleteAllUserLoginStatesRequest is the request for deleting all user login states.
 type DeleteAllUserLoginStatesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -289,14 +364,21 @@ func (x *DeleteAllUserLoginStatesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAllUserLoginStatesRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAllUserLoginStatesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP(), []int{5}
+type DeleteAllUserLoginStatesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteAllUserLoginStatesRequest_builder) Build() *DeleteAllUserLoginStatesRequest {
+	m0 := &DeleteAllUserLoginStatesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // ListUserLoginStatesRequest is the request for listing user login states with pagination.
 type ListUserLoginStatesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the maximum number of user login states to return.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token is the token for the next page of results.
@@ -330,11 +412,6 @@ func (x *ListUserLoginStatesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListUserLoginStatesRequest.ProtoReflect.Descriptor instead.
-func (*ListUserLoginStatesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *ListUserLoginStatesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -349,9 +426,35 @@ func (x *ListUserLoginStatesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListUserLoginStatesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListUserLoginStatesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListUserLoginStatesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the maximum number of user login states to return.
+	PageSize int32
+	// page_token is the token for the next page of results.
+	PageToken string
+}
+
+func (b0 ListUserLoginStatesRequest_builder) Build() *ListUserLoginStatesRequest {
+	m0 := &ListUserLoginStatesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListUserLoginStatesResponse is the response for listing user login states with pagination.
 type ListUserLoginStatesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// user_login_states is the list of user login states.
 	UserLoginStates []*UserLoginState `protobuf:"bytes,1,rep,name=user_login_states,json=userLoginStates,proto3" json:"user_login_states,omitempty"`
 	// next_page_token is the token for the next page of results.
@@ -385,11 +488,6 @@ func (x *ListUserLoginStatesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListUserLoginStatesResponse.ProtoReflect.Descriptor instead.
-func (*ListUserLoginStatesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *ListUserLoginStatesResponse) GetUserLoginStates() []*UserLoginState {
 	if x != nil {
 		return x.UserLoginStates
@@ -402,6 +500,32 @@ func (x *ListUserLoginStatesResponse) GetNextPageToken() string {
 		return x.NextPageToken
 	}
 	return ""
+}
+
+func (x *ListUserLoginStatesResponse) SetUserLoginStates(v []*UserLoginState) {
+	x.UserLoginStates = v
+}
+
+func (x *ListUserLoginStatesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListUserLoginStatesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// user_login_states is the list of user login states.
+	UserLoginStates []*UserLoginState
+	// next_page_token is the token for the next page of results.
+	NextPageToken string
+}
+
+func (b0 ListUserLoginStatesResponse_builder) Build() *ListUserLoginStatesResponse {
+	m0 := &ListUserLoginStatesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserLoginStates = b.UserLoginStates
+	x.NextPageToken = b.NextPageToken
+	return m0
 }
 
 var File_teleport_userloginstate_v1_userloginstate_service_proto protoreflect.FileDescriptor
@@ -433,18 +557,6 @@ const file_teleport_userloginstate_v1_userloginstate_service_proto_rawDesc = "" 
 	"\x14DeleteUserLoginState\x127.teleport.userloginstate.v1.DeleteUserLoginStateRequest\x1a\x16.google.protobuf.Empty\x12o\n" +
 	"\x18DeleteAllUserLoginStates\x12;.teleport.userloginstate.v1.DeleteAllUserLoginStatesRequest\x1a\x16.google.protobuf.Empty\x12\x86\x01\n" +
 	"\x13ListUserLoginStates\x126.teleport.userloginstate.v1.ListUserLoginStatesRequest\x1a7.teleport.userloginstate.v1.ListUserLoginStatesResponseB`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/userloginstate/v1;userloginstatev1b\x06proto3"
-
-var (
-	file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescOnce sync.Once
-	file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescData []byte
-)
-
-func file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescGZIP() []byte {
-	file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescOnce.Do(func() {
-		file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userloginstate_v1_userloginstate_service_proto_rawDesc), len(file_teleport_userloginstate_v1_userloginstate_service_proto_rawDesc)))
-	})
-	return file_teleport_userloginstate_v1_userloginstate_service_proto_rawDescData
-}
 
 var file_teleport_userloginstate_v1_userloginstate_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_userloginstate_v1_userloginstate_service_proto_goTypes = []any{

@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/defaults"
+	iterstream "github.com/gravitational/teleport/lib/itertools/stream"
 )
 
 // TestApplicationServersCRUD verifies backend operations on app servers.
@@ -141,6 +142,77 @@ func TestApplicationServersCRUD(t *testing.T) {
 	out, err = presence.GetApplicationServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+func mustCreateApplicationServer(t *testing.T, appName string) types.AppServer {
+	t.Helper()
+	app, err := types.NewAppV3(types.Metadata{
+		Name: appName,
+	}, types.AppSpecV3{
+		URI: "localhost",
+	})
+	require.NoError(t, err)
+
+	server, err := types.NewAppServerV3FromApp(app, "localhost", uuid.New().String())
+	require.NoError(t, err)
+	return server
+}
+
+func TestRangeApplicationServersWithName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(bk)
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeApplicationServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	server1 := mustCreateApplicationServer(t, "shared-app")
+	server2 := mustCreateApplicationServer(t, "shared-app")
+	server3 := mustCreateApplicationServer(t, "standalone-app")
+
+	for _, s := range []types.AppServer{server1, server2, server3} {
+		_, err := presence.UpsertApplicationServer(ctx, s)
+		require.NoError(t, err)
+	}
+
+	t.Run("MultipleServersSameApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "shared-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, s := range servers {
+			require.Equal(t, "shared-app", s.GetApp().GetName())
+		}
+	})
+
+	t.Run("SingleServerForApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "standalone-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-app", servers[0].GetApp().GetName())
+	})
+
+	t.Run("NoServersForApplication", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "nonexistent-app"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteApplicationServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeApplicationServersWithName(ctx, "shared-app"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
 }
 
 func mustCreateDatabase(t *testing.T, name, protocol, uri string) *types.DatabaseV3 {
@@ -240,6 +312,145 @@ func TestDatabaseServersCRUD(t *testing.T) {
 	out, err = presence.GetDatabaseServers(ctx, apidefaults.Namespace)
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+func mustCreateDatabaseServer(t *testing.T, dbName string) types.DatabaseServer {
+	t.Helper()
+	server, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: dbName,
+	}, types.DatabaseServerSpecV3{
+		HostID:   uuid.New().String(),
+		Hostname: "localhost",
+		Database: mustCreateDatabase(t, dbName, defaults.ProtocolPostgres, "localhost:5432"),
+	})
+	require.NoError(t, err)
+	return server
+}
+
+func TestRangeDatabaseServersWithName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(bk)
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	server1 := mustCreateDatabaseServer(t, "shared-db")
+	server2 := mustCreateDatabaseServer(t, "shared-db")
+	server3 := mustCreateDatabaseServer(t, "standalone-db")
+
+	for _, s := range []types.DatabaseServer{server1, server2, server3} {
+		_, err := presence.UpsertDatabaseServer(ctx, s)
+		require.NoError(t, err)
+	}
+
+	t.Run("MultipleServersSameDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "shared-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, s := range servers {
+			require.Equal(t, "shared-db", s.GetDatabase().GetName())
+		}
+	})
+
+	t.Run("SingleServerForDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "standalone-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-db", servers[0].GetDatabase().GetName())
+	})
+
+	t.Run("NoServersForDatabase", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "nonexistent-db"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteDatabaseServer(ctx, server1.GetNamespace(), server1.GetHostID(), server1.GetName())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeDatabaseServersWithName(ctx, "shared-db"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
+}
+
+func mustCreateKubernetesServer(t *testing.T, clusterName string) types.KubeServer {
+	t.Helper()
+	cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+		Name: clusterName,
+	}, types.KubernetesClusterSpecV3{})
+	require.NoError(t, err)
+
+	server, err := types.NewKubernetesServerV3FromCluster(cluster, "localhost", uuid.New().String())
+	require.NoError(t, err)
+	return server
+}
+
+func TestRangeKubernetesServersWithName(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	bk, err := memory.New(memory.Config{})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = bk.Close() })
+
+	presence := NewPresenceService(bk)
+
+	t.Run("ParameterValidation", func(t *testing.T) {
+		_, err = iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, ""))
+		require.ErrorAs(t, err, new(*trace.BadParameterError))
+	})
+
+	server1 := mustCreateKubernetesServer(t, "shared-cluster")
+	server2 := mustCreateKubernetesServer(t, "shared-cluster")
+	server3 := mustCreateKubernetesServer(t, "standalone-cluster")
+
+	for _, s := range []types.KubeServer{server1, server2, server3} {
+		_, err := presence.UpsertKubernetesServer(ctx, s)
+		require.NoError(t, err)
+	}
+
+	t.Run("MultipleServersSameCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 2)
+		for _, s := range servers {
+			require.Equal(t, "shared-cluster", s.GetCluster().GetName())
+		}
+	})
+
+	t.Run("SingleServerForCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "standalone-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, "standalone-cluster", servers[0].GetCluster().GetName())
+	})
+
+	t.Run("NoServersForCluster", func(t *testing.T) {
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "nonexistent-cluster"))
+		require.NoError(t, err)
+		require.Empty(t, servers)
+	})
+
+	t.Run("DeletedServersNotReturned", func(t *testing.T) {
+		err := presence.DeleteKubernetesServer(ctx, server1.GetHostID(), server1.GetName())
+		require.NoError(t, err)
+
+		servers, err := iterstream.Collect(presence.RangeKubernetesServersWithName(ctx, "shared-cluster"))
+		require.NoError(t, err)
+		require.Len(t, servers, 1)
+		require.Equal(t, server2.GetHostID(), servers[0].GetHostID())
+	})
 }
 
 func TestNodeCRUD(t *testing.T) {

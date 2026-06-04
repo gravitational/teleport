@@ -228,9 +228,9 @@ impl FilesystemBackend {
                     .create_options
                     .contains(efs::CreateOptions::FILE_DIRECTORY_FILE)
                 {
-                    if req.create_disposition.intersects(
-                        efs::CreateDisposition::FILE_OPEN_IF | efs::CreateDisposition::FILE_CREATE,
-                    ) {
+                    if req.create_disposition == efs::CreateDisposition::FILE_OPEN_IF
+                        || req.create_disposition == efs::CreateDisposition::FILE_CREATE
+                    {
                         // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L252
                         self.tdp_sd_create(req, tdp::FileType::Directory)?;
                         return Ok(());
@@ -1332,11 +1332,12 @@ impl FilesystemBackend {
     ) -> PduResult<()> {
         // See https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L187-L228
         let information = if io_status != efs::NtStatus::SUCCESS
-            || device_create_request.create_disposition.intersects(
+            || matches!(
+                device_create_request.create_disposition,
                 efs::CreateDisposition::FILE_SUPERSEDE
                     | efs::CreateDisposition::FILE_OPEN
                     | efs::CreateDisposition::FILE_CREATE
-                    | efs::CreateDisposition::FILE_OVERWRITE,
+                    | efs::CreateDisposition::FILE_OVERWRITE
             ) {
             Ok(efs::Information::FILE_SUPERSEDED)
         } else if device_create_request.create_disposition == efs::CreateDisposition::FILE_OPEN_IF {

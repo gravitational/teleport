@@ -178,6 +178,52 @@ func TestEncodeDecodeErrors(t *testing.T) {
 	})
 }
 
+// TestEncodeDecodeAgentPin tests that encoding and then decoding an agent scope Pin returns the original pin.
+func TestEncodeDecodeAgentPin(t *testing.T) {
+	t.Parallel()
+
+	tts := []struct {
+		name string
+		pin  *scopesv1.Pin
+	}{
+		{
+			name: "scope and primary system role only",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+				Scope: "/foo",
+				SystemRoles: &scopesv1.SystemRoles{
+					Primary: "Node",
+				},
+			},
+		},
+		{
+			name: "with additional system roles",
+			pin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+				Scope: "/staging/west",
+				SystemRoles: &scopesv1.SystemRoles{
+					Primary:    "Instance",
+					Additional: []string{"Node", "Proxy", "KubeProxy"},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.name, func(t *testing.T) {
+			encoded, err := Encode(tt.pin)
+			require.NoError(t, err)
+			require.NotEmpty(t, encoded)
+
+			decoded, err := Decode(encoded)
+			require.NoError(t, err)
+			require.NotNil(t, decoded)
+
+			require.Empty(t, cmp.Diff(tt.pin, decoded, protocmp.Transform()))
+		})
+	}
+}
+
 // TestDecodeKnown tests that decoding a known encoding returns the expected Pin. This includes
 // verification that Decode correctly handles json input.  As a rule we don't *need* decode to
 // continue to handle json input as the scopes feature was still highly unstable at the time we

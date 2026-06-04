@@ -97,6 +97,20 @@ func (s *Session) GetDirectoryAccess() (*DirectoryAccess, error) {
 	return s.dirAccess, nil
 }
 
+// CloseSharedDirectory releases the shared directory handle, if one was opened
+// via SetSharedDirectory. Safe to call multiple times.
+func (s *Session) CloseSharedDirectory() error {
+	s.dirAccessMu.Lock()
+	defer s.dirAccessMu.Unlock()
+
+	if s.dirAccess == nil {
+		return nil
+	}
+	err := s.dirAccess.Close()
+	s.dirAccess = nil
+	return trace.Wrap(err)
+}
+
 // Start starts a remote desktop session.
 func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], clusterClient *client.TeleportClient, proxyClient *proxy.Client) error {
 	keyRing, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
@@ -390,6 +404,12 @@ func (d *fsRequestHandler) handleSharedDirectoryListRequest(completionID uint32,
 }
 
 func (d *fsRequestHandler) handleSharedDirectoryReadRequest(completionID uint32, r *tdpbv1.SharedDirectoryRequest_Read, sendToServer func(message tdp.Message) error) error {
+	// Defense in depth: the protocol decoder already caps Length, but re-check here so
+	// the make([]byte, r.Length) below can't be driven into an unbounded allocation by a future caller.
+	if r.Length > tdp.MaxFileReadWriteLength {
+		return tdp.FileReadWriteMaxLenErr
+	}
+
 	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
 	if err != nil {
 		return trace.Wrap(err)
