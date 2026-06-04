@@ -47,6 +47,7 @@ jobs:
       env:
         WEBASSETS_SKIP_BUILD: 1
         TELEPORT_XAUTH_TEST: yes
+        GOWORK: off
 
     steps:
       - name: Checkout Teleport

@@ -38,5 +38,7 @@ jobs:
           go-version-file: api/go.mod
           cache-dependency-path: api/go.sum
 
-      - name: Build
-        run: cd api; go build ./...
+     - name: Build
+         env:
+           GOWORK: off
+         run: cd api; go build ./...

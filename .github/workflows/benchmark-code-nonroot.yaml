@@ -63,6 +63,7 @@ jobs:
         BENCH_COUNT: ${{ matrix.BENCH_COUNT }}
         GIT_BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha || github.event.before }}
         GIT_HEAD_SHA: ${{ github.sha }}
+        GOWORK: off
 
     steps:
       - name: Checkout

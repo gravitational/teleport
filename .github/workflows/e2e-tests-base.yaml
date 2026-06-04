@@ -94,6 +94,8 @@ jobs:
 
       - name: Check generated files are up to date
         working-directory: e2e/runner
+        env:
+          GOWORK: off
         run: |
           go generate ./...
           if ! git diff --quiet -- ../helpers/fixtures.ts; then
@@ -129,6 +131,8 @@ jobs:
           done
 
       - name: Build e2e runner
+        env:
+          GOWORK: off
         run: cd e2e/runner && go build -o e2e .
 
       - name: Build Connect

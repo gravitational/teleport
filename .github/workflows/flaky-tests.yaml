@@ -70,7 +70,7 @@ jobs:
         with:
           repository: gravitational/shared-workflows
           path: .github/shared-workflows
-          ref: dd8f30e8fd5dd1d1655b9d27049e5d0f6f4f9ef2 # workflows/v0.0.3
+          ref: 8ae2266014124663f8cb4286c9ef9fa9b829010f # workflows/v0.0.4
 
       - name: Find excluded tests
         id: find_excluded

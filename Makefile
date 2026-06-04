@@ -1402,6 +1402,7 @@ ADDLICENSE_COMMON_ARGS := -c 'Gravitational, Inc.' \
 		-ignore 'build.assets/.cache/**' \
 		-ignore 'docs/pages/includes/**/*.go' \
 		-ignore 'e/**' \
+		-ignore 'crypto/**' \ # TODO(cthach): remove before merging once crypto changes land upstream
 		-ignore 'gen/**' \
 		-ignore 'gitref.go' \
 		-ignore 'lib/limiter/internal/ratelimit/**' \
