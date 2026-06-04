@@ -144,7 +144,7 @@ func (c *HTTPClient) deleteTunnelConnection(ctx context.Context, clusterName, co
 
 // GetTunnelConnections returns all tunnel connections for a given cluster.
 //
-// TODO(noah): DELETE IN 21.0.0 — inline the gRPC page-loop directly once the
+// TODO(noah): DELETE IN 20.0.0 — inline the gRPC page-loop directly once the
 // HTTP fallback is removed; keep the method signature.
 func (c *Client) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
 	return c.listAllTunnelConnections(ctx, clusterName)
@@ -152,12 +152,12 @@ func (c *Client) GetTunnelConnections(ctx context.Context, clusterName string) (
 
 // GetAllTunnelConnections returns all tunnel connections across all clusters.
 //
-// TODO(noah): DELETE IN 21.0.0
+// TODO(noah): DELETE IN 20.0.0
 func (c *Client) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error) {
 	return c.listAllTunnelConnections(ctx, "")
 }
 
-// TODO(noah): DELETE IN 21.0.0
+// TODO(noah): DELETE IN 20.0.0
 func (c *Client) listAllTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
 	var filter *trustpb.ListTunnelConnectionsFilter
 	if clusterName != "" {
@@ -182,6 +182,55 @@ func (c *Client) listAllTunnelConnections(ctx context.Context, clusterName strin
 		return nil, trace.Wrap(err)
 	}
 	return items, nil
+}
+
+// getTunnelConnectionsLegacy returns tunnel connections for a given cluster.
+//
+// TODO(noah): DELETE IN 20.0.0
+func (c *HTTPClient) getTunnelConnectionsLegacy(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name parameter")
+	}
+	out, err := c.Get(ctx, c.Endpoint("tunnelconnections", clusterName), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conns := make([]types.TunnelConnection, len(items))
+	for i, raw := range items {
+		conn, err := services.UnmarshalTunnelConnection(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns[i] = conn
+	}
+	return conns, nil
+}
+
+// getAllTunnelConnectionsLegacy returns all tunnel connections.
+//
+// TODO(noah): DELETE IN 20.0.0
+func (c *HTTPClient) getAllTunnelConnectionsLegacy(ctx context.Context) ([]types.TunnelConnection, error) {
+	out, err := c.Get(ctx, c.Endpoint("tunnelconnections"), url.Values{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var items []json.RawMessage
+	if err := json.Unmarshal(out.Bytes(), &items); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	conns := make([]types.TunnelConnection, len(items))
+	for i, raw := range items {
+		conn, err := services.UnmarshalTunnelConnection(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		conns[i] = conn
+	}
+	return conns, nil
 }
 
 // GetAuthServers returns the list of auth servers registered in the cluster.
