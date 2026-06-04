@@ -599,6 +599,7 @@ formatters:
     paths:
       - (^|/)node_modules/
       - ^api/gen/
+      - ^crypto/ # TODO(cthach): remove before merging once crypto changes land upstream
       - ^docs/
       - ^gen/
       - ^rfd/
