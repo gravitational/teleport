@@ -30,7 +30,7 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 // to the unresolved path from struct filename in that case.
 struct inflight_disk_t {
     // valid_unsent is true if file_path is set and it has not already 
-    // beenadded to an event for userland to consume.
+    // been added to an event for userland to consume.
     bool valid_unsent;
     // file_path is the resolved path of the file being opened.
     u8 file_path[PATH_MAX];
