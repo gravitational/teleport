@@ -522,7 +522,9 @@ func (p *PAM) codeToError() error {
 		return trace.BadParameter("%s", C.GoString(err))
 	}
 
-	return nil
+	// Return a generic error message with the error code if pam_strerror
+	// somehow failed to return a string.
+	return trace.Errorf("PAM call failed with error code %d", p.retval)
 }
 
 // BuildHasPAM returns true if the binary was build with support for PAM
