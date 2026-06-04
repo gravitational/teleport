@@ -134,7 +134,7 @@ func (f *Forwarder) getKubeDetails(ctx context.Context) error {
 			types.Metadata{
 				Name: cluster,
 			}, types.KubernetesClusterSpecV3{},
-			types.KubeClusterWithScope(f.cfg.Scope),
+			types.KubeClusterWithScope(f.cfg.GetScope()),
 		)
 		if err != nil {
 			f.log.WarnContext(ctx, "failed to create KubernetesClusterV3 from credentials for cluster",

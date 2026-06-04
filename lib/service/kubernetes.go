@@ -271,6 +271,12 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 		publicAddr = cfg.Kube.PublicAddrs[0].String()
 	}
 
+	// if scope pin is set, we should not pass the bare agent scope along to the kube forwarder
+	agentScope := conn.Scope()
+	scopePin := conn.ScopePin()
+	if scopePin != nil {
+		agentScope = ""
+	}
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
 			Namespace:                     apidefaults.Namespace,
@@ -291,7 +297,8 @@ func (process *TeleportProcess) initKubernetesService(logger *slog.Logger, conn 
 			CheckImpersonationPermissions: cfg.Kube.CheckImpersonationPermissions,
 			PublicAddr:                    publicAddr,
 			ClusterFeatures:               process.GetClusterFeatures,
-			Scope:                         conn.Scope(),
+			ScopePin:                      scopePin,
+			Scope:                         agentScope,
 		},
 		TLS:                  tlsConfig,
 		AccessPoint:          accessPoint,
