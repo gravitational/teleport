@@ -246,6 +246,7 @@ require (
 	go.opentelemetry.io/proto/otlp v1.10.0
 	golang.org/x/crypto v0.51.0
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f
+	golang.org/x/image v0.33.0
 	golang.org/x/mod v0.35.0
 	golang.org/x/net v0.55.0
 	golang.org/x/oauth2 v0.36.0
@@ -280,6 +281,7 @@ require (
 	k8s.io/kubectl v0.35.1
 	k8s.io/metrics v0.35.1
 	k8s.io/utils v0.0.0-20251002143259-bc988d571ff4
+	pgregory.net/rapid v1.3.0
 	rsc.io/ordered v1.1.1
 	sigs.k8s.io/controller-runtime v0.20.4
 	sigs.k8s.io/controller-tools v0.17.1
