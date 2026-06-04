@@ -121,7 +121,7 @@ func (c *Cache) GetAllTunnelConnections(ctx context.Context) (conns []types.Tunn
 // ListTunnelConnections returns a page of tunnel connections matching the
 // given filter.
 func (c *Cache) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
-	_, span := c.Tracer.Start(ctx, "cache/ListTunnelConnections")
+	ctx, span := c.Tracer.Start(ctx, "cache/ListTunnelConnections")
 	defer span.End()
 
 	lister := genericLister[types.TunnelConnection, tunnelConnectionIndex]{
