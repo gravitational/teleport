@@ -2,7 +2,7 @@ name: Build on Windows
 run-name: Build on Windows
 
 on:
-  merge_group:
+  pull_request:
     paths:
       - ".github/workflows/build-windows.yaml"
       - "**.go"
