@@ -915,15 +915,17 @@ func (s *CA) ListTunnelConnections(
 	if pageSize <= 0 || pageSize > defaults.DefaultChunkSize {
 		pageSize = defaults.DefaultChunkSize
 	}
-	limit := pageSize + 1
 
-	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
+	conns := make([]types.TunnelConnection, 0, pageSize)
+	next := ""
+	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
+		StartKey: rangeStart,
+		EndKey:   rangeEnd,
+	}) {
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
 
-	conns := make([]types.TunnelConnection, 0, len(result.Items))
-	for _, item := range result.Items {
 		conn, err := services.UnmarshalTunnelConnection(item.Value,
 			services.WithExpires(item.Expires),
 			services.WithRevision(item.Revision),
@@ -932,14 +934,14 @@ func (s *CA) ListTunnelConnections(
 			s.logger.WarnContext(ctx, "Skipping item during ListTunnelConnections because conversion from backend item failed", "key", item.Key, "error", err)
 			continue
 		}
-		conns = append(conns, conn)
-	}
 
-	next := ""
-	if len(conns) > pageSize {
-		next = conns[pageSize].GetClusterName() + backend.SeparatorString + conns[pageSize].GetName()
-		clear(conns[pageSize:])
-		conns = conns[:pageSize]
+		if len(conns) == pageSize {
+			// First good item beyond the requested page size becomes the next
+			// token.
+			next = conn.GetClusterName() + backend.SeparatorString + conn.GetName()
+			break
+		}
+		conns = append(conns, conn)
 	}
 	return conns, next, nil
 }
