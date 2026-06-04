@@ -340,6 +340,7 @@ func Open(config *pamcfg.PAMConfig) (_ *PAM, retErr error) {
 
 	defer func() {
 		if retErr != nil {
+			unregisterHandler(p.handlerIndex)
 			p.free()
 		}
 	}()
