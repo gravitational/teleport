@@ -147,7 +147,7 @@ func Validate(ctx context.Context, params ValidateParams) (*ValidatedTPM, error)
 func parseEK(
 	ctx context.Context, params ValidateParams,
 ) (*x509.Certificate, crypto.PublicKey, error) {
-	_, span := tracer.Start(ctx, "parseEK")
+	ctx, span := tracer.Start(ctx, "parseEK")
 	defer span.End()
 
 	ekCertPresent := len(params.EKCert) > 0
@@ -175,7 +175,7 @@ func verifyEKCert(
 	allowedCAs *x509.CertPool,
 	ekCert *x509.Certificate,
 ) error {
-	_, span := tracer.Start(ctx, "verifyEKCert")
+	ctx, span := tracer.Start(ctx, "verifyEKCert")
 	defer span.End()
 
 	if ekCert == nil {
