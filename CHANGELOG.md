@@ -4,6 +4,7 @@
 
 * Fixed minor formatting bug on `tsh request show` output. [#67447](https://github.com/gravitational/teleport/pull/67447)
 * The embedded session helper functionality introduced in v18.8.0 to improve memory usage and latency of SSH sessions is now disabled by default due to incompatibility with some endpoint protection services. It can be enabled by setting the `TELEPORT_UNSTABLE_DISABLE_EMBEDDED_REEXEC` envvar to `no`. [#67430](https://github.com/gravitational/teleport/pull/67430)
+* Updated Go to 1.25.11. [#67421](https://github.com/gravitational/teleport/pull/67421)
 * Improved notification messaging for Slack and Discord access plugins. [#67415](https://github.com/gravitational/teleport/pull/67415)
 * Added support for auto discovering VMs deployed in uniform Azure VM Scale Sets to terraform modules used in Auto Discovery. [#67323](https://github.com/gravitational/teleport/pull/67323)
 * Added secret lookup support for `TeleportOIDCConnector.spec.google_service_account` to the Teleport Kubernetes Operator. [#67309](https://github.com/gravitational/teleport/pull/67309)
