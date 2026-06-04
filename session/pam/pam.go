@@ -424,9 +424,12 @@ func (p *PAM) Close() error {
 //	It should be noted that this memory will never be free()'d by libpam.
 //	Once obtained by a call to pam_getenvlist, it is the responsibility
 //	of the calling application to free() this memory.
-func (p *PAM) Environment() []string {
+func (p *PAM) Environment() ([]string, error) {
 	// Get list of additional environment variables requested from PAM.
 	pam_envlist := C._pam_getenvlist(pamHandle, p.pamh)
+	if pam_envlist == nil {
+		return nil, trace.BadParameter("failed to find PAM getenvlist symbol")
+	}
 	defer C.free(unsafe.Pointer(pam_envlist))
 
 	// Find out how many environment variables exist and size the output
@@ -443,7 +446,7 @@ func (p *PAM) Environment() []string {
 		env = append(env, C.GoStringN(pam_env, pam_env_size))
 	}
 
-	return env
+	return env, nil
 }
 
 // free will end the PAM transaction (which itself will free memory) and
