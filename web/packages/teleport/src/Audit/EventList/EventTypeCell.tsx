@@ -230,6 +230,7 @@ export const EventIconMap: Record<EventCode, any> = {
   [eventCodes.AZURERUN_FAIL]: Icons.Warning,
   [eventCodes.BOT_JOIN]: Icons.Info,
   [eventCodes.BOT_JOIN_FAILURE]: Icons.Warning,
+  [eventCodes.BOT_JOIN_LIMIT]: Icons.Warning,
   [eventCodes.INSTANCE_JOIN]: Icons.Info,
   [eventCodes.INSTANCE_JOIN_FAILURE]: Icons.Warning,
   [eventCodes.INSTANCE_JOIN_LIMIT]: Icons.Warning,

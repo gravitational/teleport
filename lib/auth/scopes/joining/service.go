@@ -375,6 +375,7 @@ func (s *Server) emitEvent(ctx context.Context, kind string, token *scopedjoinin
 			Roles:         token.GetSpec().GetRoles(),
 			JoinMethod:    token.GetSpec().GetJoinMethod(),
 			Scope:         token.GetScope(),
+			UsageMode:     token.GetSpec().GetUsageMode(),
 			AssignedScope: token.GetSpec().GetAssignedScope(),
 		}
 	case events.ScopedTokenUpsertEvent:
@@ -392,6 +393,7 @@ func (s *Server) emitEvent(ctx context.Context, kind string, token *scopedjoinin
 			Roles:         token.GetSpec().GetRoles(),
 			JoinMethod:    token.GetSpec().GetJoinMethod(),
 			Scope:         token.GetScope(),
+			UsageMode:     token.GetSpec().GetUsageMode(),
 			AssignedScope: token.GetSpec().GetAssignedScope(),
 		}
 	case events.ScopedTokenUpdateEvent:
@@ -409,6 +411,7 @@ func (s *Server) emitEvent(ctx context.Context, kind string, token *scopedjoinin
 			Roles:         token.GetSpec().GetRoles(),
 			JoinMethod:    token.GetSpec().GetJoinMethod(),
 			Scope:         token.GetScope(),
+			UsageMode:     token.GetSpec().GetUsageMode(),
 			AssignedScope: token.GetSpec().GetAssignedScope(),
 		}
 	case events.ScopedTokenDeleteEvent:

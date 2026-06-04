@@ -477,6 +477,7 @@ func TestScopedJoiningService(t *testing.T) {
 	t.Run("audit events", func(t *testing.T) {
 		service := newServerForIdentity(t, pack, &services.AccessInfo{
 			ScopePin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging": {"/staging": {"staging-admin"}},

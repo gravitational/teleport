@@ -1471,8 +1471,11 @@ export const formatters: Formatters = {
   [eventCodes.BOT_JOIN]: {
     type: 'bot.join',
     desc: 'Bot Joined',
-    format: ({ bot_name, method, token_name }) => {
-      return `Bot [${bot_name}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`;
+    format: ({ bot_name, method, token_name, scope }) => {
+      if (scope) {
+        return `Bot [${bot_name}] joined the cluster using the [${method}] join method and the [${token_name || 'unknown'}] token`;
+      }
+      return `Bot [${bot_name}] joined the cluster in scope [${scope}] using the [${method}] join method and the [${token_name || 'unknown'}] token`;
     },
   },
   [eventCodes.BOT_JOIN_FAILURE]: {
@@ -1480,6 +1483,13 @@ export const formatters: Formatters = {
     desc: 'Bot Join Failed',
     format: ({ bot_name, method, token_name }) => {
       return `Bot [${bot_name || 'unknown'}] failed to join the cluster using the [${method || 'unknown'}] join method and the [${token_name || 'unknown'}] token`;
+    },
+  },
+  [eventCodes.BOT_JOIN_LIMIT]: {
+    type: 'bot.join',
+    desc: 'Bot Join Failed',
+    format: ({ bot_name }) => {
+      return `Bot [${bot_name || 'unknown'}] failed to join the cluster due to token limits`;
     },
   },
   [eventCodes.INSTANCE_JOIN]: {

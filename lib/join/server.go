@@ -639,6 +639,9 @@ func (s *Server) makeBotResult(
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
+	diag.Set(func(i *diagnostic.Info) {
+		i.BotInstanceID = botInstanceID
+	})
 	certificates, err := convertCerts(certs)
 	if err != nil {
 		return nil, "", trace.Wrap(err)

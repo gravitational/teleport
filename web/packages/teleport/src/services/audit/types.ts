@@ -237,6 +237,7 @@ export const eventCodes = {
   ENVIRONMENT_PROFILE_UPDATED: 'TEP01I',
   BOT_JOIN: 'TJ001I',
   BOT_JOIN_FAILURE: 'TJ001E',
+  BOT_JOIN_LIMIT: 'TJ001L',
   INSTANCE_JOIN: 'TJ002I',
   INSTANCE_JOIN_FAILURE: 'TJ002E',
   INSTANCE_JOIN_LIMIT: 'TJ002L',
@@ -1462,10 +1463,19 @@ export type RawEvents = {
       bot_name: string;
       method: string;
       token_name: string;
+      scope: string;
     }
   >;
   [eventCodes.BOT_JOIN_FAILURE]: RawEvent<
     typeof eventCodes.BOT_JOIN_FAILURE,
+    {
+      bot_name: string;
+      method: string;
+      token_name: string;
+    }
+  >;
+  [eventCodes.BOT_JOIN_LIMIT]: RawEvent<
+    typeof eventCodes.BOT_JOIN_LIMIT,
     {
       bot_name: string;
       method: string;
