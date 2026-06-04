@@ -85,10 +85,6 @@ ssh.config
 /teleport
 /tsh
 
-# Go workspace files
-go.work
-go.work.sum
-
 # gogoproto side-effects
 /gogogen
 node_modules
