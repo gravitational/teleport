@@ -23,11 +23,18 @@ import (
 	"github.com/gravitational/teleport/lib/utils/aws/awsfips"
 )
 
+// awsGlobalRegion is the AWS SDK's region identifier for the real global STS
+// endpoint, sts.amazonaws.com.
+const awsGlobalRegion = "aws-global"
+
 // NewFromConfig wraps [sts.NewFromConfig] and applies FIPS settings
 // according to environment variables.
 //
 // See [awsfips.IsFIPSDisabledByEnv].
 func NewFromConfig(cfg aws.Config, optFns ...func(*sts.Options)) *sts.Client {
+	if cfg.Region == "global" {
+		cfg.Region = awsGlobalRegion
+	}
 	if awsfips.IsFIPSDisabledByEnv() {
 		// append so it overrides any preceding settings.
 		optFns = append(optFns, func(opts *sts.Options) {

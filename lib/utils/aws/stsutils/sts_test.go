@@ -77,3 +77,41 @@ func TestNewFromConfig(t *testing.T) {
 		})
 	}
 }
+
+func TestNewFromConfigGlobalRegionFallback(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name       string
+		cfgRegion  string
+		wantRegion string
+	}{
+		{
+			name:       "global region uses AWS STS global endpoint region",
+			cfgRegion:  "global",
+			wantRegion: "aws-global",
+		},
+		{
+			name:       "regional endpoint is unchanged",
+			cfgRegion:  "us-west-2",
+			wantRegion: "us-west-2",
+		},
+		{
+			name:       "AWS STS global endpoint region is unchanged",
+			cfgRegion:  "aws-global",
+			wantRegion: "aws-global",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			stsClient := stsutils.NewFromConfig(aws.Config{
+				Region: test.cfgRegion,
+			})
+			require.NotNil(t, stsClient, "*sts.Client")
+
+			assert.Equal(t, test.wantRegion, stsClient.Options().Region)
+		})
+	}
+}
