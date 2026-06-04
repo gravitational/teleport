@@ -309,7 +309,7 @@ type PAM struct {
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *pamcfg.PAMConfig) (*PAM, error) {
+func Open(config *pamcfg.PAMConfig) (_ *PAM, retErr error) {
 	if config == nil {
 		return nil, trace.BadParameter("PAM configuration is required.")
 	}
@@ -337,6 +337,12 @@ func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 	// PAM context has it's own handle which is used to communicate between C
 	// and a instance of a PAM context.
 	p.handlerIndex = registerHandler(p)
+
+	defer func() {
+		if retErr != nil {
+			p.free()
+		}
+	}()
 
 	// Create and initialize a PAM context. The pam_start function will
 	// allocate pamh if needed and the pam_end function will release any
@@ -403,9 +409,10 @@ func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 func (p *PAM) Close() error {
 	// Close the PAM session. Closing a session can entail anything from
 	// unmounting a home directory and updating auth.log.
+	var closeErr error
 	p.retval = C._pam_close_session(pamHandle, p.pamh, 0)
 	if p.retval != C.PAM_SUCCESS {
-		return p.codeToError()
+		closeErr = p.codeToError()
 	}
 
 	// Unregister handler index at the package level.
@@ -414,7 +421,7 @@ func (p *PAM) Close() error {
 	// Free any allocated memory on close.
 	p.free()
 
-	return nil
+	return closeErr
 }
 
 // Environment returns the PAM environment variables associated with a PAM
@@ -461,7 +468,7 @@ func (p *PAM) free() {
 			slog.WarnContext(context.Background(),
 				"Failed to end PAM transaction",
 				logconstants.ComponentKey, logComponent,
-				"error", p._codeToError(),
+				"error", p.codeToError(),
 			)
 		}
 
@@ -507,18 +514,8 @@ func (p *PAM) readStream(echo bool) (string, error) {
 	return text, nil
 }
 
-// codeToError returns a human readable string from the PAM error and
-// frees any memory that was allocated.
+// codeToError returns a human readable string from the PAM error.
 func (p *PAM) codeToError() error {
-	// If an error is being returned, free any memory that was allocated.
-	defer p.free()
-
-	return p._codeToError()
-}
-
-func (p *PAM) _codeToError() error {
-	// Error strings are not allocated on the heap, so memory does not need
-	// released.
 	err := C._pam_strerror(pamHandle, p.pamh, p.retval)
 	if err != nil {
 		return trace.BadParameter("%s", C.GoString(err))
