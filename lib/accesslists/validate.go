@@ -31,7 +31,7 @@ import (
 var (
 	// ErrDeniedAccessListDeletion is returned when an Access List which also also a
 	// member of another Access List is attempted for deletion.
-	ErrDeniedAccessListDeletion = &trace.AccessDeniedError{Message: "Access List with nested Access List membership cannot be deleted without first removing the membership"}
+	ErrDeniedAccessListDeletion = &trace.AccessDeniedError{Message: "Access List with nested Access List membership cannot be deleted"}
 	// ErrCyclicMembership is returned when a cyclic Access List membership
 	// is detected. E.g. List A is a member of List B and List B is a member
 	// of List A.
