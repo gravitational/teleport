@@ -18,7 +18,7 @@ If you are using Teleport Connect, you can configure GUI clients directly from t
 ## Prerequisites
 
 - A running Teleport cluster. If you want to get started with Teleport, [sign up](https://goteleport.com/signup) for a free trial or [set up a demo environment](../../get-started/deploy-community.mdx).
-- The `tsh` client tool. Visit [Installation](../../installation/installation.mdx) for instructions on downloading `tsh`. See the [Using Teleport Connect](../teleport-clients/teleport-connect.mdx) guide for a graphical desktop client that includes `tsh`.
+- The `tsh` client tool. Visit [Installation](../../installation/single-machine/single-machine.mdx) for instructions on downloading `tsh`. See the [Using Teleport Connect](../teleport-clients/teleport-connect.mdx) guide for a graphical desktop client that includes `tsh`.
 - The Teleport Database Service configured to access a database. See one of our [guides](../../enroll-resources/database-access/guides/guides.mdx) for how to set up the Teleport Database Service for your database.
 
 To check that you can connect to your Teleport cluster, sign in with `tsh login`. For example:
@@ -131,7 +131,7 @@ Use the displayed local proxy host/port and credential paths when configuring yo
 
 ## Direct to Proxy (self-hosted, TLS routing disabled)
 
-This method applies when your self-hosted Proxy Service is configured **without TLS routing**, and the Proxy exposes **protocol-specific ports** for database traffic. In this configuration, GUI clients connect to the Proxy address on a database protocol port and authenticate with mTLS.
+This method applies when your self-hosted Proxy Service is configured **without [TLS routing](../../zero-trust-access/management/tls-routing.mdx)**, and the Proxy exposes **protocol-specific ports** for database traffic. In this configuration, GUI clients connect to the Proxy address on a database protocol port and authenticate with mTLS.
 
 To view connection info and local credential file paths:
 
@@ -347,6 +347,26 @@ If using **Local proxy with mTLS files**, set SSL Mode and provide CA/cert/key p
 |Client certificate key|`key_file`|
 |Root certificate|`ca_file`|
 
+## Redshift
+
+<Admonition type="note">
+You can also use the [PostgreSQL DBeaver setup](#postgresql) to connect to Redshift, but using the native Redshift driver additionally provides support for Redshift-specific datatypes and external schemas.
+</Admonition>
+
+### DBeaver
+
+To connect to your Redshift instance, use the authenticated tunnel address (for example, `127.0.0.1:62652` — see [Authenticated tunnel](#authenticated-tunnel-recommended)).
+
+Use "Username/password" authentication. Set the username to match the database user passed to `--db-user` and leave the password empty:
+
+![DBeaver Redshift Configure Server](https://website.goteleport.com/_uploads/dbeaver_redshift_new_connection_1476289fec.png)
+
+Go to **Driver Properties** and set `ssl=false`. This disables encryption on the local connection only — the connection to Redshift is encrypted by Teleport.
+
+![DBeaver Redshift Driver Properties](https://website.goteleport.com/_uploads/dbeaver_redshift_new_connection_ssl_b3e0c732ee.png)
+
+Click "Test connection" to verify connectivity, then "Finish" to save the configuration.
+
 ## Redis
 
 ### Redis Insight
@@ -462,11 +482,26 @@ Use "Custom JDBC" and paste the JDBC URL from `tsh proxy db` output.
 
 ### Toad
 
-Use the "Direct" tab and configure localhost + port + service name.
-
 <Admonition type="important" title="Toad requires the EXTERNAL username">
 Toad authenticates with Teleport-provided certificates, but the UI requires you to enter a username. Use exactly `EXTERNAL` (all caps) with an empty password. Any other username will produce **ORA-01017**.
 </Admonition>
+
+Add a new login record in the logins dialog.
+
+![Add Login Record dialog in Toad](../../../img/database-access/guides/oracle/toad-add-login-record@2x.png)
+
+Enter the connection details on the "Direct" tab:
+
+| Field           | Value                        |
+|-----------------|------------------------------|
+| Host name       | `127.0.0.1`                  |
+| Port number     | `--port` flag value          |
+| Service name    | `--db-name` flag value       |
+| User name       | `EXTERNAL`                   |
+| Password        | (leave empty)                |
+| Connection name | (choose per your preference) |
+
+Test the connection to verify the setup.
 
 ### DBeaver
 
