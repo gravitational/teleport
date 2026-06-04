@@ -456,10 +456,8 @@ func (dd *Directory) Write(ctx context.Context, name string, data []byte) error 
 }
 
 func (dd *Directory) Read(ctx context.Context, name string) ([]byte, error) {
-	// Nota Bene: If at a later date this function consumes ctx, ensure you
-	// use the value returned by tracer.Start as to ensure span propagation
-	// works correctly.
-	_, span := tracer.Start(
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := tracer.Start(
 		ctx,
 		"Directory/Read",
 		oteltrace.WithAttributes(attribute.String("name", name)),
