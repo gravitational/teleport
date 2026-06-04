@@ -82,7 +82,7 @@ $TCTL recordings search --username=<user> --resource-name=<host> \
 ```
 
 Reconstruct the timeline from the results, then **corroborate with the actual
-recording** for anything high-stakes: `tsh play <session-id>` or
+recording** for anything high-stakes: `$TSH play <session-id>` or
 `$TCTL recordings download <session-id>` (the summary is a lead, the recording is
 the evidence).
 

@@ -162,7 +162,7 @@ Relevant fields (observed on a live v18.8 Enterprise cluster):
 | `entitlements.Identity.enabled` | Identity Security entitlement is on. |
 
 `config.js` does **not** include the Teleport version — get that from
-`tsh version` (`Proxy version:`) or `tctl version` (the `search` subcommand
+`$TSH version` (`Proxy version:`) or `$TCTL version` (the `search` subcommand
 requires 18.8.0+).
 
 Capability summary: `recordings ls` / `download` and `tsh play` work on **every
