@@ -23,18 +23,6 @@ You'll be prompted to pick which agents to install into and whether to install
 globally or per-project. Review a skill before use — skills run with your agent's
 full permissions.
 
-### Local development
-
-To iterate on a skill from a clone of this repo, symlink them into Claude Code:
-
-```bash
-make -C skills install-skills     # symlink every skill into ~/.claude/skills
-make -C skills uninstall-skills   # remove the symlinks
-```
-
-For the Claude Desktop app (which takes a single `SKILL.md` or a `.zip`), build
-archives with `make -C skills package-skills`.
-
 ## Available Skills
 
 ### teleport-acl-review
