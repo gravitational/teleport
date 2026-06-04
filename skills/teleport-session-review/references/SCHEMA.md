@@ -135,6 +135,31 @@ All require Teleport Enterprise + Identity Security + Access Graph (v1.30+
 self-hosted) with PostgreSQL `pg_trgm` and `pgvector`, plus generated session
 summaries. On any of these, fall back to `recordings ls`.
 
+### Pre-flight capability check via `config.js`
+
+Prefer detecting support *before* running the command. The proxy serves an
+unauthenticated bootstrap config at `https://<proxy>/web/config.js` (a
+`var GRV_CONFIG = {…};` assignment — strip the prefix/trailing `;` to get JSON).
+Relevant fields (observed on a live v18.8 Enterprise cluster):
+
+| Field | Meaning |
+|---|---|
+| `edition` | `ent` = Enterprise; `oss`/`community` = no summaries/search. |
+| `identitySecurity.licensed` | Identity Security is licensed. |
+| `identitySecurity.sessionSummarizationEnabled` | **The session-summarization gate.** Must be `true` for search/summaries. |
+| `identitySecurity.accessGraphConfigSet` | Access Graph is configured. |
+| `sessionSummarizerEnabled` | Top-level mirror of the summarization gate. |
+| `entitlements.Identity.enabled` | Identity Security entitlement is on. |
+
+`config.js` does **not** include the Teleport version — get that from
+`tsh version` (`Proxy version:`) or `tctl version` (the `search` subcommand
+requires 18.8.0+).
+
+Capability summary: `recordings ls` / `download` and `tsh play` work on **every
+edition**; `recordings search` (+ AI summaries) needs `edition=ent` **and**
+`identitySecurity.licensed=true` **and**
+`identitySecurity.sessionSummarizationEnabled=true` on a **v18.8.0+** proxy.
+
 ---
 
 ## Behavioral notes (verified against a live v18.8 cluster)

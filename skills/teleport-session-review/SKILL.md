@@ -47,16 +47,24 @@ appropriate role.
 
 ## Step 1: Choose the Right Command
 
-Pick based on what the user is asking:
+Pick based on what the user is asking — but note the two command groups have very
+different cluster requirements:
+
+| Capability | Commands | Requirement |
+|---|---|---|
+| **List / download / play recordings** | `recordings ls`, `recordings download`, `tsh play` | **Any edition**, incl. Community. All recorded clusters have these. |
+| **Search + AI session summaries** | `recordings search` | **Enterprise + Teleport Identity Security**, proxy **v18.8.0+**, and session summarization **enabled** on the cluster. |
 
 - **"List / show recent recordings", browse by time** → use **`recordings ls`**
-  (Step 2). Works on any cluster.
+  (Step 2). Works everywhere.
 - **"Find sessions where…", search by content, triage by risk/severity** → use
-  **`recordings search`** (Step 3). Requires Identity Security session search to
-  be enabled on the cluster.
+  **`recordings search`** (Step 3) — but first confirm the cluster supports it
+  (Step 3 capability check), because most of the value (summaries, risk scores)
+  only exists on Enterprise + Identity Security clusters.
 
 When in doubt, prefer search if the user describes *what happened* in a session,
-and `ls` if they describe *a time window* or just want the latest activity.
+and `ls` if they describe *a time window* or just want the latest activity. If
+search isn't available, `ls` is the universal fallback.
 
 ## Step 2: List Recent Recordings
 
@@ -80,6 +88,42 @@ If the output is an empty array, tell the user no recordings exist in that range
 and stop (or widen the range).
 
 ## Step 3: Search Recordings
+
+### First: confirm the cluster supports session search
+
+Session search needs Enterprise + Identity Security, proxy **v18.8.0+**, and
+session summarization turned on. Check before running, so you can give a clear
+answer instead of a raw error:
+
+1. **Version** — from `tsh version` (the `Proxy version:` line) or `tctl version`.
+   The `recordings search` subcommand only exists in **18.8.0+**; older proxies
+   won't have it at all.
+2. **Edition + summarization** — fetch the proxy's public web config (no auth
+   needed; derive `<proxy>` from `tsh status`):
+
+   ```bash
+   curl -s https://<proxy>/web/config.js \
+     | sed -E 's/^[^{]*//; s/;[[:space:]]*$//' \
+     | jq '{edition,
+            identitySecurityLicensed: .identitySecurity.licensed,
+            sessionSummarization: .identitySecurity.sessionSummarizationEnabled,
+            accessGraphConfigSet: .identitySecurity.accessGraphConfigSet}'
+   ```
+
+   Interpret:
+   - `edition` is `oss`/`community` **or** `identitySecurityLicensed` is false →
+     this cluster cannot do summaries/search. Tell the user it requires
+     Enterprise + Identity Security, and use `recordings ls` instead.
+   - `sessionSummarization` (i.e. `identitySecurity.sessionSummarizationEnabled`,
+     the gate the user asked about) is false, or `accessGraphConfigSet` is false →
+     licensed but not turned on; tell them to enable session summarization /
+     finish Access Graph setup, then fall back to `recordings ls`.
+   - all true → proceed.
+
+If you cannot reach `config.js` (e.g. offline, or running against a mock), skip
+this probe and rely on the runtime error below as the backstop.
+
+### Run the search
 
 ```bash
 $TCTL recordings search "<natural-language query>" --format=json --limit=50
@@ -153,19 +197,23 @@ For ready-made workflows, see [PLAYBOOKS.md](references/PLAYBOOKS.md):
 - **Incident pivot** — "what did <user> do on <host>":
   `--username=<u> --resource-name=<host> --from=… --to=…`, then play/download.
 
-### If search is not enabled
+### If search is not available (runtime backstop)
 
-`recordings search` fails with a `NotImplemented` error when the cluster lacks
-the backing feature, e.g.:
+Even after the Step 3 capability check, `recordings search` can fail at runtime
+with a `NotImplemented` error when the backing infrastructure is missing, e.g.:
 
 - "session search requires Access Graph to be enabled with session recording support"
 - "session search requires the pg_trgm PostgreSQL extension to be installed"
 - "session search requires the pgvector PostgreSQL extension to be installed"
 
-If you see one of these, tell the user that session search requires Teleport
-Enterprise with Identity Security and Access Graph (with the `pg_trgm` and
-`pgvector` PostgreSQL extensions) and session summaries generated, then fall back
-to `recordings ls` (Step 2) for plain listing.
+And on a Community/older cluster the subcommand may not exist at all (e.g.
+"unknown command 'search'").
+
+In every one of these cases — not licensed, not enabled, or too old — give the
+user the same clear message: search + AI summaries require Teleport Enterprise
+with Identity Security and Access Graph (PostgreSQL `pg_trgm` + `pgvector`) on
+proxy v18.8.0+ with session summarization enabled. Then **fall back to
+`recordings ls`** (Step 2), which works on every edition.
 
 ## Step 4: Present the Findings Table
 
