@@ -50,6 +50,14 @@ export interface ClientHello {
      * @generated from protobuf field: uint32 keyboard_layout = 3;
      */
     keyboardLayout: number;
+    /**
+     * Indicates whether the client supports in-band MFA. When true, the server may send an AuthPrompt to enforce MFA
+     * during session establishment. When false or absent, the server falls back to validating the per-session MFA
+     * certificate presented during TLS handshake.
+     *
+     * @generated from protobuf field: bool in_band_mfa_supported = 4;
+     */
+    inBandMfaSupported: boolean;
 }
 /**
  * Sent by server in response to a 'Client Hello'. Advertises server capabilities.
@@ -342,6 +350,65 @@ export interface MFA {
      * @generated from protobuf field: teleport.mfa.v1.AuthenticateResponse authentication_response = 4;
      */
     authenticationResponse?: AuthenticateResponse;
+}
+/**
+ * AuthPrompt is shown to the user during TDPB session establishment.
+ *
+ * @generated from protobuf message teleport.desktop.v1.AuthPrompt
+ */
+export interface AuthPrompt {
+    /**
+     * @generated from protobuf oneof: prompt
+     */
+    prompt: {
+        oneofKind: "mfaPrompt";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.MFAPrompt mfa_prompt = 1;
+         */
+        mfaPrompt: MFAPrompt;
+    } | {
+        oneofKind: undefined;
+    };
+}
+/**
+ * MFAPrompt indicates MFA is required for in-band MFA enforcement during TDPB session establishment.
+ *
+ * @generated from protobuf message teleport.desktop.v1.MFAPrompt
+ */
+export interface MFAPrompt {
+}
+/**
+ * MFAPromptResponse is the user's response to an MFA prompt.
+ *
+ * @generated from protobuf message teleport.desktop.v1.MFAPromptResponse
+ */
+export interface MFAPromptResponse {
+    /**
+     * @generated from protobuf oneof: response
+     */
+    response: {
+        oneofKind: "reference";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.MFAPromptResponseReference reference = 1;
+         */
+        reference: MFAPromptResponseReference;
+    } | {
+        oneofKind: undefined;
+    };
+}
+/**
+ * MFAPromptResponseReference instructs the Windows Desktop Service to retrieve the MFA response from the MFA
+ * service.
+ *
+ * @generated from protobuf message teleport.desktop.v1.MFAPromptResponseReference
+ */
+export interface MFAPromptResponseReference {
+    /**
+     * challenge_name is the name of the MFA challenge created by the client.
+     *
+     * @generated from protobuf field: string challenge_name = 1;
+     */
+    challengeName: string;
 }
 /**
  * Sent by client to announce a new shared directory.
@@ -916,6 +983,18 @@ export interface Envelope {
          */
         sessionSelection: SessionSelection;
     } | {
+        oneofKind: "authPrompt";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.AuthPrompt auth_prompt = 23;
+         */
+        authPrompt: AuthPrompt;
+    } | {
+        oneofKind: "mfaPromptResponse";
+        /**
+         * @generated from protobuf field: teleport.desktop.v1.MFAPromptResponse mfa_prompt_response = 24;
+         */
+        mfaPromptResponse: MFAPromptResponse;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -1009,13 +1088,15 @@ class ClientHello$Type extends MessageType<ClientHello> {
         super("teleport.desktop.v1.ClientHello", [
             { no: 1, name: "username", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "screen_spec", kind: "message", T: () => ClientScreenSpec },
-            { no: 3, name: "keyboard_layout", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+            { no: 3, name: "keyboard_layout", kind: "scalar", T: 13 /*ScalarType.UINT32*/ },
+            { no: 4, name: "in_band_mfa_supported", kind: "scalar", T: 8 /*ScalarType.BOOL*/ }
         ]);
     }
     create(value?: PartialMessage<ClientHello>): ClientHello {
         const message = globalThis.Object.create((this.messagePrototype!));
         message.username = "";
         message.keyboardLayout = 0;
+        message.inBandMfaSupported = false;
         if (value !== undefined)
             reflectionMergePartial<ClientHello>(this, message, value);
         return message;
@@ -1033,6 +1114,9 @@ class ClientHello$Type extends MessageType<ClientHello> {
                     break;
                 case /* uint32 keyboard_layout */ 3:
                     message.keyboardLayout = reader.uint32();
+                    break;
+                case /* bool in_band_mfa_supported */ 4:
+                    message.inBandMfaSupported = reader.bool();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -1055,6 +1139,9 @@ class ClientHello$Type extends MessageType<ClientHello> {
         /* uint32 keyboard_layout = 3; */
         if (message.keyboardLayout !== 0)
             writer.tag(3, WireType.Varint).uint32(message.keyboardLayout);
+        /* bool in_band_mfa_supported = 4; */
+        if (message.inBandMfaSupported !== false)
+            writer.tag(4, WireType.Varint).bool(message.inBandMfaSupported);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -2051,6 +2138,178 @@ class MFA$Type extends MessageType<MFA> {
  * @generated MessageType for protobuf message teleport.desktop.v1.MFA
  */
 export const MFA = new MFA$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class AuthPrompt$Type extends MessageType<AuthPrompt> {
+    constructor() {
+        super("teleport.desktop.v1.AuthPrompt", [
+            { no: 1, name: "mfa_prompt", kind: "message", oneof: "prompt", T: () => MFAPrompt }
+        ]);
+    }
+    create(value?: PartialMessage<AuthPrompt>): AuthPrompt {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.prompt = { oneofKind: undefined };
+        if (value !== undefined)
+            reflectionMergePartial<AuthPrompt>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: AuthPrompt): AuthPrompt {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.desktop.v1.MFAPrompt mfa_prompt */ 1:
+                    message.prompt = {
+                        oneofKind: "mfaPrompt",
+                        mfaPrompt: MFAPrompt.internalBinaryRead(reader, reader.uint32(), options, (message.prompt as any).mfaPrompt)
+                    };
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: AuthPrompt, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.desktop.v1.MFAPrompt mfa_prompt = 1; */
+        if (message.prompt.oneofKind === "mfaPrompt")
+            MFAPrompt.internalBinaryWrite(message.prompt.mfaPrompt, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.AuthPrompt
+ */
+export const AuthPrompt = new AuthPrompt$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class MFAPrompt$Type extends MessageType<MFAPrompt> {
+    constructor() {
+        super("teleport.desktop.v1.MFAPrompt", []);
+    }
+    create(value?: PartialMessage<MFAPrompt>): MFAPrompt {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<MFAPrompt>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MFAPrompt): MFAPrompt {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: MFAPrompt, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.MFAPrompt
+ */
+export const MFAPrompt = new MFAPrompt$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class MFAPromptResponse$Type extends MessageType<MFAPromptResponse> {
+    constructor() {
+        super("teleport.desktop.v1.MFAPromptResponse", [
+            { no: 1, name: "reference", kind: "message", oneof: "response", T: () => MFAPromptResponseReference }
+        ]);
+    }
+    create(value?: PartialMessage<MFAPromptResponse>): MFAPromptResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.response = { oneofKind: undefined };
+        if (value !== undefined)
+            reflectionMergePartial<MFAPromptResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MFAPromptResponse): MFAPromptResponse {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* teleport.desktop.v1.MFAPromptResponseReference reference */ 1:
+                    message.response = {
+                        oneofKind: "reference",
+                        reference: MFAPromptResponseReference.internalBinaryRead(reader, reader.uint32(), options, (message.response as any).reference)
+                    };
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: MFAPromptResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* teleport.desktop.v1.MFAPromptResponseReference reference = 1; */
+        if (message.response.oneofKind === "reference")
+            MFAPromptResponseReference.internalBinaryWrite(message.response.reference, writer.tag(1, WireType.LengthDelimited).fork(), options).join();
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.MFAPromptResponse
+ */
+export const MFAPromptResponse = new MFAPromptResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class MFAPromptResponseReference$Type extends MessageType<MFAPromptResponseReference> {
+    constructor() {
+        super("teleport.desktop.v1.MFAPromptResponseReference", [
+            { no: 1, name: "challenge_name", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<MFAPromptResponseReference>): MFAPromptResponseReference {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.challengeName = "";
+        if (value !== undefined)
+            reflectionMergePartial<MFAPromptResponseReference>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: MFAPromptResponseReference): MFAPromptResponseReference {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string challenge_name */ 1:
+                    message.challengeName = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: MFAPromptResponseReference, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string challenge_name = 1; */
+        if (message.challengeName !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.challengeName);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.desktop.v1.MFAPromptResponseReference
+ */
+export const MFAPromptResponseReference = new MFAPromptResponseReference$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class SharedDirectoryAnnounce$Type extends MessageType<SharedDirectoryAnnounce> {
     constructor() {
@@ -3426,7 +3685,9 @@ class Envelope$Type extends MessageType<Envelope> {
             { no: 19, name: "latency_stats", kind: "message", oneof: "payload", T: () => LatencyStats },
             { no: 20, name: "ping", kind: "message", oneof: "payload", T: () => Ping },
             { no: 21, name: "shared_directory_remove", kind: "message", oneof: "payload", T: () => SharedDirectoryRemove },
-            { no: 22, name: "session_selection", kind: "message", oneof: "payload", T: () => SessionSelection }
+            { no: 22, name: "session_selection", kind: "message", oneof: "payload", T: () => SessionSelection },
+            { no: 23, name: "auth_prompt", kind: "message", oneof: "payload", T: () => AuthPrompt },
+            { no: 24, name: "mfa_prompt_response", kind: "message", oneof: "payload", T: () => MFAPromptResponse }
         ]);
     }
     create(value?: PartialMessage<Envelope>): Envelope {
@@ -3573,6 +3834,18 @@ class Envelope$Type extends MessageType<Envelope> {
                         sessionSelection: SessionSelection.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).sessionSelection)
                     };
                     break;
+                case /* teleport.desktop.v1.AuthPrompt auth_prompt */ 23:
+                    message.payload = {
+                        oneofKind: "authPrompt",
+                        authPrompt: AuthPrompt.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).authPrompt)
+                    };
+                    break;
+                case /* teleport.desktop.v1.MFAPromptResponse mfa_prompt_response */ 24:
+                    message.payload = {
+                        oneofKind: "mfaPromptResponse",
+                        mfaPromptResponse: MFAPromptResponse.internalBinaryRead(reader, reader.uint32(), options, (message.payload as any).mfaPromptResponse)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -3651,6 +3924,12 @@ class Envelope$Type extends MessageType<Envelope> {
         /* teleport.desktop.v1.SessionSelection session_selection = 22; */
         if (message.payload.oneofKind === "sessionSelection")
             SessionSelection.internalBinaryWrite(message.payload.sessionSelection, writer.tag(22, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.AuthPrompt auth_prompt = 23; */
+        if (message.payload.oneofKind === "authPrompt")
+            AuthPrompt.internalBinaryWrite(message.payload.authPrompt, writer.tag(23, WireType.LengthDelimited).fork(), options).join();
+        /* teleport.desktop.v1.MFAPromptResponse mfa_prompt_response = 24; */
+        if (message.payload.oneofKind === "mfaPromptResponse")
+            MFAPromptResponse.internalBinaryWrite(message.payload.mfaPromptResponse, writer.tag(24, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);

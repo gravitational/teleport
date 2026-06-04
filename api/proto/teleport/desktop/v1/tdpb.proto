@@ -30,6 +30,10 @@ message ClientHello {
   string username = 1;
   ClientScreenSpec screen_spec = 2;
   uint32 keyboard_layout = 3;
+  // Indicates whether the client supports in-band MFA. When true, the server may send an AuthPrompt to enforce MFA
+  // during session establishment. When false or absent, the server falls back to validating the per-session MFA
+  // certificate presented during TLS handshake.
+  bool in_band_mfa_supported = 4;
 }
 
 // Sent by server in response to a 'Client Hello'. Advertises server capabilities.
@@ -177,6 +181,30 @@ message MFA {
   string channel_id = 2;
   mfa.v1.AuthenticateChallenge challenge = 3;
   mfa.v1.AuthenticateResponse authentication_response = 4;
+}
+
+// AuthPrompt is shown to the user during TDPB session establishment.
+message AuthPrompt {
+  oneof prompt {
+    MFAPrompt mfa_prompt = 1;
+  }
+}
+
+// MFAPrompt indicates MFA is required for in-band MFA enforcement during TDPB session establishment.
+message MFAPrompt {}
+
+// MFAPromptResponse is the user's response to an MFA prompt.
+message MFAPromptResponse {
+  oneof response {
+    MFAPromptResponseReference reference = 1;
+  }
+}
+
+// MFAPromptResponseReference instructs the Windows Desktop Service to retrieve the MFA response from the MFA
+// service.
+message MFAPromptResponseReference {
+  // challenge_name is the name of the MFA challenge created by the client.
+  string challenge_name = 1;
 }
 
 // Sent by client to announce a new shared directory.
@@ -365,5 +393,7 @@ message Envelope {
     Ping ping = 20;
     SharedDirectoryRemove shared_directory_remove = 21;
     SessionSelection session_selection = 22;
+    AuthPrompt auth_prompt = 23;
+    MFAPromptResponse mfa_prompt_response = 24;
   }
 }
