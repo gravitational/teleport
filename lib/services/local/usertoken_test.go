@@ -19,11 +19,13 @@
 package local
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -145,4 +147,76 @@ func TestIdentityService_ListUserTokens(t *testing.T) {
 			protocmp.Transform(),
 		))
 	})
+}
+
+func TestListUserTokens_SkipsUnmarshalErrorsHittingPageBounrary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewIdentityService(backend.NewSanitizer(mem))
+	require.NoError(t, err)
+
+	createUserToken := func(name, user string) {
+		_, err := service.CreateUserToken(ctx, &types.UserTokenV3{
+			Kind:    types.KindUserToken,
+			Version: types.V3,
+			Metadata: types.Metadata{
+				Name: name,
+			},
+			Spec: types.UserTokenSpecV3{
+				User:    user,
+				Created: time.Now(),
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	createMalformedUserToken := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(userTokenPrefix, name, paramsPrefix),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedUserToken(key)
+		} else {
+			createUserToken(key, fmt.Sprintf("user%d", i))
+		}
+	}
+
+	page1, next, err := service.ListUserTokens(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListUserTokens(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListUserTokens(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	slices := [][]types.UserToken{page1, page2, page3}
+	for i := range len(slices) {
+		for j := i + 1; j < len(slices); j++ {
+			assert.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
+		}
+	}
+
 }
