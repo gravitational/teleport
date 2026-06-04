@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Rate Limiter Bug Debugger — rate-vs-conn ordering</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Courier New', monospace; background: #1e1e2e; color: #cdd6f4; min-height: 100vh; }
+
+  .layout { display: grid; grid-template-columns: 1fr 400px; grid-template-rows: auto 1fr auto; height: 100vh; }
+  .header { grid-column: 1 / -1; background: #181825; border-bottom: 1px solid #313244; padding: 10px 20px; }
+  .header h1 { font-size: 14px; color: #cba6f7; font-weight: bold; }
+  .header .subtitle { font-size: 12px; color: #6c7086; margin-top: 2px; }
+
+  .code-panel { background: #1e1e2e; border-right: 1px solid #313244; overflow: auto; }
+  .sidebar { background: #181825; overflow: auto; display: flex; flex-direction: column; }
+  .footer { grid-column: 1 / -1; background: #11111b; border-top: 1px solid #313244; padding: 10px 20px; display: flex; align-items: center; gap: 12px; }
+
+  .code-section { border-bottom: 1px solid #313244; }
+  .code-section-title { background: #181825; padding: 7px 16px; font-size: 11px; color: #89b4fa; border-bottom: 1px solid #313244; display: flex; gap: 10px; align-items: center; }
+  .code-section-title .file { color: #6c7086; }
+  .code-section-title .tag { padding: 1px 8px; border-radius: 8px; font-size: 10px; }
+  .code-section-title .tag.good { background: #2a4438; color: #a6e3a1; }
+  .code-section-title .tag.bad { background: #4a2a2a; color: #f38ba8; }
+
+  .code-line { display: flex; font-size: 12px; line-height: 1.7; padding: 0 8px 0 0; transition: background 0.1s; }
+  .code-line.active { background: #3b3b58; border-left: 3px solid #f38ba8; }
+  .code-line.active-ok { background: #2e4034; border-left: 3px solid #a6e3a1; }
+  .code-line.consumed { background: #3a3a4e; border-left: 3px solid #f9e2af; }
+  .code-line.dim { opacity: 0.5; }
+  .ln { min-width: 42px; padding: 0 8px; color: #45475a; text-align: right; user-select: none; font-size: 11px; background: #181825; border-right: 1px solid #313244; margin-right: 12px; flex-shrink: 0; }
+  .code-text { white-space: pre; flex: 1; }
+
+  .kw  { color: #cba6f7; }
+  .fn  { color: #89b4fa; }
+  .ty  { color: #89dceb; }
+  .num { color: #fab387; }
+  .str { color: #a6e3a1; }
+  .cm  { color: #585b70; font-style: italic; }
+  .red { color: #f38ba8; font-weight: bold; }
+  .grn { color: #a6e3a1; font-weight: bold; }
+  .ylw { color: #f9e2af; }
+
+  .panel { border-bottom: 1px solid #313244; }
+  .panel-title { padding: 8px 14px; font-size: 11px; color: #89b4fa; background: #1e1e2e; border-bottom: 1px solid #313244; text-transform: uppercase; letter-spacing: 0.05em; }
+  .panel-body { padding: 10px 14px; }
+
+  .scenario-row { display: flex; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #313244; }
+  .scenario-btn { padding: 6px 12px; font-size: 11px; border-radius: 3px; border: 1px solid #45475a; background: #313244; color: #cdd6f4; cursor: pointer; font-family: inherit; flex: 1; }
+  .scenario-btn:hover { background: #45475a; }
+  .scenario-btn.active.grpc { background: #f38ba8; color: #1e1e2e; border-color: #f38ba8; font-weight: bold; }
+  .scenario-btn.active.http { background: #a6e3a1; color: #1e1e2e; border-color: #a6e3a1; font-weight: bold; }
+
+  .stack-frame { padding: 5px 10px; border-radius: 4px; margin-bottom: 4px; font-size: 12px; border-left: 3px solid transparent; background: #1e1e2e; }
+  .stack-frame.active { background: #2e2e45; border-left-color: #f38ba8; }
+  .stack-frame.inactive { color: #6c7086; }
+  .stack-frame .fname { color: #89b4fa; }
+  .stack-frame .ffile { font-size: 10px; color: #45475a; margin-top: 1px; }
+
+  .var-row { display: flex; justify-content: space-between; align-items: baseline; padding: 5px 0; font-size: 12px; }
+  .var-name { color: #cba6f7; }
+  .var-val { color: #fab387; font-weight: bold; }
+  .var-val.good { color: #a6e3a1; }
+  .var-val.bad  { color: #f38ba8; }
+  .var-val.warn { color: #f9e2af; }
+
+  .meter { margin-top: 4px; }
+  .bar { height: 14px; background: #313244; border-radius: 2px; overflow: hidden; }
+  .bar > span { display: block; height: 100%; background: #a6e3a1; transition: width 0.35s; }
+  .bar.warn > span { background: #f9e2af; }
+  .bar.bad  > span { background: #f38ba8; }
+  .bar.full > span { background: #f38ba8; }
+  .delta { font-size: 11px; color: #f38ba8; margin-left: 8px; font-weight: bold; }
+  .delta.up { color: #a6e3a1; }
+
+  .explanation { padding: 12px 14px; font-size: 12px; line-height: 1.7; color: #cdd6f4; }
+  .explanation .step-num { color: #89b4fa; font-size: 10px; text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 6px; }
+  .explanation .title { color: #cba6f7; font-weight: bold; margin-bottom: 8px; font-size: 13px; }
+  .explanation p { margin-bottom: 8px; color: #bac2de; }
+  .explanation code { background: #313244; padding: 1px 5px; border-radius: 3px; color: #f9e2af; font-size: 11px; }
+  .explanation .insight { background: #2a1f24; border-left: 3px solid #f38ba8; padding: 8px 10px; margin-top: 8px; border-radius: 0 4px 4px 0; font-size: 11.5px; color: #f5c2c7; line-height: 1.55; }
+  .explanation .ok-note { background: #1f2a24; border-left: 3px solid #a6e3a1; padding: 8px 10px; margin-top: 8px; border-radius: 0 4px 4px 0; font-size: 11.5px; color: #b8e6c1; line-height: 1.55; }
+
+  .btn { padding: 6px 14px; border-radius: 4px; border: 1px solid #45475a; background: #313244; color: #cdd6f4; cursor: pointer; font-size: 12px; font-family: inherit; }
+  .btn:hover:not(:disabled) { background: #45475a; }
+  .btn.primary { background: #89b4fa; color: #1e1e2e; border-color: #89b4fa; font-weight: bold; }
+  .btn.primary:hover:not(:disabled) { background: #b4d0fb; }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .progress { flex: 1; display: flex; align-items: center; gap: 8px; }
+  .progress-label { font-size: 11px; color: #6c7086; }
+  .dots { display: flex; gap: 4px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: #313244; border: 1px solid #45475a; cursor: pointer; }
+  .dot.done { background: #a6e3a1; border-color: #a6e3a1; }
+  .dot.active { background: #89b4fa; border-color: #89b4fa; box-shadow: 0 0 6px #89b4fa; }
+  .dot.bug { background: #f38ba8; border-color: #f38ba8; box-shadow: 0 0 6px #f38ba8; }
+  .dot.ok { background: #a6e3a1; border-color: #a6e3a1; box-shadow: 0 0 6px #a6e3a1; }
+
+  .status-bar { font-size: 11px; padding: 6px 20px; background: #11111b; border-top: 1px solid #313244; color: #6c7086; }
+  .status-bar .status-msg { color: #cdd6f4; }
+  .status-bar.is-bug { background: #2d1a1a; }
+  .status-bar.is-bug .status-msg { color: #f38ba8; }
+  .status-bar.is-ok  { background: #1a2d1f; }
+  .status-bar.is-ok  .status-msg { color: #a6e3a1; }
+
+  .hint { padding: 8px 14px; font-size: 11px; color: #6c7086; border-bottom: 1px solid #313244; background: #181825; }
+  .hint b { color: #f9e2af; }
+</style>
+</head>
+<body>
+<div class="layout">
+  <div class="header">
+    <h1>&#x1F41B; Rate Limiter Bug Debugger</h1>
+    <div class="subtitle">lib/limiter &mdash; <b>rate-vs-conn ordering inconsistency</b> between the HTTP middleware and the gRPC / direct entry points</div>
+  </div>
+
+  <div class="code-panel" id="codePanel"></div>
+
+  <div class="sidebar">
+    <div class="panel">
+      <div class="panel-title">Pick a code path</div>
+      <div class="scenario-row">
+        <button class="scenario-btn grpc active" id="btn-grpc" onclick="selectScenario('grpc')">&#x1F534; gRPC / direct path</button>
+        <button class="scenario-btn http" id="btn-http" onclick="selectScenario('http')">&#x1F7E2; HTTP path</button>
+      </div>
+      <div class="hint">
+        Configured: rate <b>5 / min</b> (burst 5), max conn <b>1</b>. Client <code>1.2.3.4</code> already holds the single conn slot. <b>Both paths will reject the request.</b> Watch the rate bucket.
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">World state (shared Limiter)</div>
+      <div class="panel-body">
+        <div class="var-row">
+          <span class="var-name">rate bucket</span>
+          <span class="var-val" id="rate-val">5 / 5</span>
+        </div>
+        <div class="meter"><div class="bar" id="rate-bar"><span style="width:100%"></span></div></div>
+
+        <div class="var-row" style="margin-top:10px">
+          <span class="var-name">conn slots used</span>
+          <span class="var-val bad" id="conn-val">1 / 1</span>
+        </div>
+        <div class="meter"><div class="bar full" id="conn-bar"><span style="width:100%"></span></div></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="panel-title">Call Stack</div>
+      <div class="panel-body" id="callStack"></div>
+    </div>
+
+    <div class="panel" style="flex:1; overflow:auto;">
+      <div class="panel-title">Textbook Note</div>
+      <div id="explanation"></div>
+    </div>
+  </div>
+
+  <div class="footer">
+    <button class="btn" id="btn-prev" onclick="step(-1)">&#x25C0; Prev</button>
+    <button class="btn primary" id="btn-next" onclick="step(1)">Next &#x25B6;</button>
+    <button class="btn" onclick="replay()">&#x21BA; Replay scenario</button>
+    <button class="btn" onclick="resetWorld()">&#x1F9F9; Reset world</button>
+    <div class="progress">
+      <span class="progress-label">Step:</span>
+      <div class="dots" id="dots"></div>
+    </div>
+  </div>
+</div>
+
+<div class="status-bar" id="statusBar">
+  <span class="status-msg" id="statusMsg">Press <b>Next</b> to step through the function.</span>
+</div>
+
+<script>
+// ─────────────────────────── CODE LISTINGS ───────────────────────────
+
+const GRPC_CODE = [
+  { ln: 97,  t: `<span class="cm">// lib/limiter/limiter.go</span>` },
+  { ln: 98,  t: `<span class="kw">func</span> (l *<span class="ty">Limiter</span>) <span class="fn">RegisterRequestAndConnection</span>(token <span class="ty">string</span>) (<span class="kw">func</span>(), <span class="ty">error</span>) {` },
+  { ln: 99,  t: `    <span class="cm">// 1) Apply rate limiting.</span>` },
+  { ln: 100, t: `    <span class="kw">if</span> err := l.<span class="fn">RegisterRequest</span>(token); err != <span class="kw">nil</span> {` },
+  { ln: 101, t: `        <span class="kw">return</span> <span class="kw">func</span>(){}, trace.<span class="fn">LimitExceeded</span>(<span class="str">"rate limit exceeded for %q"</span>, token)` },
+  { ln: 102, t: `    }   <span class="cm">// &lt;-- on success the bucket has already been debited by 1</span>` },
+  { ln: 103, t: `` },
+  { ln: 104, t: `    <span class="cm">// 2) Apply connection limiting.</span>` },
+  { ln: 105, t: `    <span class="kw">if</span> err := l.connectionLimiter.<span class="fn">AcquireConnection</span>(token); err != <span class="kw">nil</span> {` },
+  { ln: 106, t: `        <span class="kw">return</span> <span class="kw">func</span>(){}, trace.<span class="fn">LimitExceeded</span>(<span class="str">"exceeded connection limit for %q"</span>, token)` },
+  { ln: 107, t: `    }   <span class="red">// &lt;-- no code refunds the rate token consumed on line 100</span>` },
+  { ln: 108, t: `` },
+  { ln: 109, t: `    <span class="kw">return</span> <span class="kw">func</span>(){ l.connectionLimiter.<span class="fn">ReleaseConnection</span>(token) }, <span class="kw">nil</span>` },
+  { ln: 110, t: `}` },
+];
+
+const HTTP_CODE = [
+  { ln: 60, t: `<span class="cm">// lib/limiter/connlimiter.go</span>` },
+  { ln: 61, t: `<span class="kw">func</span> (l *<span class="ty">ConnectionsLimiter</span>) <span class="fn">ServeHTTP</span>(w, r) {` },
+  { ln: 62, t: `    <span class="kw">if</span> l.next == <span class="kw">nil</span> { http.<span class="fn">Error</span>(w, ..., <span class="num">500</span>); <span class="kw">return</span> }` },
+  { ln: 67, t: `    <span class="kw">if</span> l.maxConnections == <span class="num">0</span> { l.next.<span class="fn">ServeHTTP</span>(w, r); <span class="kw">return</span> }` },
+  { ln: 72, t: `    clientIP, err := ratelimit.<span class="fn">ExtractClientIP</span>(r)         <span class="cm">// "1.2.3.4"</span>` },
+  { ln: 73, t: `    <span class="kw">if</span> err != <span class="kw">nil</span> { ServeHTTPError(w, r, err); <span class="kw">return</span> }` },
+  { ln: 78, t: `` },
+  { ln: 79, t: `    <span class="cm">// 1) Connection check runs FIRST</span>` },
+  { ln: 80, t: `    <span class="kw">if</span> err := l.<span class="fn">AcquireConnection</span>(clientIP); err != <span class="kw">nil</span> {` },
+  { ln: 81, t: `        w.<span class="fn">WriteHeader</span>(<span class="num">429</span>)` },
+  { ln: 82, t: `        w.<span class="fn">Write</span>([]<span class="ty">byte</span>(trace.<span class="fn">UserMessage</span>(err)))` },
+  { ln: 83, t: `        <span class="grn">return</span>   <span class="cm">// &lt;-- l.next (the rate limiter) is NEVER invoked</span>` },
+  { ln: 84, t: `    }` },
+  { ln: 85, t: `` },
+  { ln: 86, t: `    <span class="kw">defer</span> l.<span class="fn">ReleaseConnection</span>(clientIP)` },
+  { ln: 87, t: `    <span class="cm">// 2) Only reached if conn check passed; rate limiter runs here</span>` },
+  { ln: 88, t: `    l.next.<span class="fn">ServeHTTP</span>(w, r)` },
+  { ln: 89, t: `}` },
+];
+
+// ─────────────────────────── STEP SCRIPTS ───────────────────────────
+
+const GRPC_STEPS = [
+  {
+    activeLn: 98, rateDelta: 0, connDelta: 0,
+    stack: [{name:'Limiter.RegisterRequestAndConnection("1.2.3.4")', file:'limiter.go:98', active:true}],
+    title: 'Step 0 — Enter the non-HTTP entry point',
+    body: 'Some caller (a gRPC unary/stream interceptor, the app-proxy connection handler, etc.) reaches <code>l.RegisterRequestAndConnection("1.2.3.4")</code>. Read the function body top-down: rate check, <em>then</em> connection check.',
+  },
+  {
+    activeLn: 100, rateDelta: 0, connDelta: 0,
+    stack: [
+      {name:'Limiter.RegisterRequestAndConnection', file:'limiter.go:98', active:false},
+      {name:'l.RegisterRequest("1.2.3.4")', file:'ratelimiter.go:119', active:true},
+    ],
+    title: 'Step 1 — RegisterRequest is called first',
+    body: 'The non-HTTP path runs <code>RegisterRequest</code> before <code>AcquireConnection</code>. <code>RegisterRequest</code> reaches into the per-IP token-bucket cache and asks it to consume one token.',
+  },
+  {
+    activeLn: 100, rateDelta: -1, connDelta: 0,
+    stack: [
+      {name:'Limiter.RegisterRequestAndConnection', file:'limiter.go:98', active:false},
+      {name:'RegisterRequest', file:'ratelimiter.go:119', active:false},
+      {name:'bucketSet.Consume(1)', file:'tokenbucket.go:91', active:true},
+    ],
+    title: 'Step 2 — One token is committed',
+    body: '<code>tokenBucket.consume(1)</code> succeeds (delay=0, err=nil). Inside <code>TokenBucketSet.Consume</code> the rollback branch is skipped and the bucket is permanently decremented. <code>RegisterRequest</code> returns <code>nil</code>.',
+    ok: 'After this step <code>availableTokens</code> is one less than before. The only way back is for time to pass at the configured refill rate (<code>period/average</code>). There is no synchronous refund hook anywhere in the package.',
+  },
+  {
+    activeLn: 105, rateDelta: 0, connDelta: 0,
+    stack: [
+      {name:'Limiter.RegisterRequestAndConnection', file:'limiter.go:98', active:false},
+      {name:'l.connectionLimiter.AcquireConnection("1.2.3.4")', file:'connlimiter.go:94', active:true},
+    ],
+    title: 'Step 3 — Now check the connection limit',
+    body: '<code>AcquireConnection</code> grabs the mutex, reads <code>connections["1.2.3.4"]&nbsp;==&nbsp;1</code>, sees <code>1 &gt;= maxConnections (1)</code>, and returns <code>trace.LimitExceeded</code>.',
+  },
+  {
+    activeLn: 106, rateDelta: 0, connDelta: 0,
+    stack: [{name:'Limiter.RegisterRequestAndConnection (returning err)', file:'limiter.go:106', active:true}],
+    title: 'Step 4 — Return the connection-limit error',
+    body: 'We propagate the connection error to the caller. Look at lines 102 → 106: <strong>there is no statement between the successful <code>RegisterRequest</code> and this return that puts the token back.</strong>',
+    bug: 'BUG &mdash; the client was rejected for hitting the connection limit, but the rate bucket was charged anyway. Repeat the same call five times against the same conn-full IP and the rate budget reaches zero, even though no useful work was ever done.',
+  },
+];
+
+const HTTP_STEPS = [
+  {
+    activeLn: 61, rateDelta: 0, connDelta: 0,
+    stack: [{name:'Limiter.ServeHTTP(w, r)', file:'limiter.go:78', active:false},
+            {name:'ConnectionsLimiter.ServeHTTP', file:'connlimiter.go:61', active:true}],
+    title: 'Step 0 — Enter the HTTP middleware',
+    body: '<code>Limiter.WrapHandle</code> wired the chain as <strong>connLimiter → rateLimiter → handler</strong>. So when an HTTP request arrives, the connection-limiter\'s <code>ServeHTTP</code> runs first — <em>opposite</em> order from the non-HTTP entry point.',
+  },
+  {
+    activeLn: 72, rateDelta: 0, connDelta: 0,
+    stack: [{name:'ConnectionsLimiter.ServeHTTP', file:'connlimiter.go:61', active:true}],
+    title: 'Step 1 — Extract client IP',
+    body: '<code>ratelimit.ExtractClientIP(r)</code> parses <code>"1.2.3.4"</code> from <code>r.RemoteAddr</code>. (Yes, it has its own bug for IPv6 — issue #51 — but that is unrelated to this one.)',
+  },
+  {
+    activeLn: 80, rateDelta: 0, connDelta: 0,
+    stack: [
+      {name:'ConnectionsLimiter.ServeHTTP', file:'connlimiter.go:61', active:false},
+      {name:'l.AcquireConnection("1.2.3.4")', file:'connlimiter.go:94', active:true},
+    ],
+    title: 'Step 2 — Connection check (same data, same outcome)',
+    body: 'Same state as the gRPC scenario: <code>connections["1.2.3.4"] = 1</code>, <code>maxConnections = 1</code>. <code>AcquireConnection</code> returns <code>trace.LimitExceeded</code>.',
+  },
+  {
+    activeLn: 83, rateDelta: 0, connDelta: 0,
+    stack: [{name:'ConnectionsLimiter.ServeHTTP (returning 429)', file:'connlimiter.go:80-84', active:true}],
+    title: 'Step 3 — Write 429, return',
+    body: 'We write <code>429 Too Many Requests</code> and <strong>return immediately</strong>. <code>l.next.ServeHTTP(w, r)</code> on line 88 is unreachable on this path — so the rate limiter middleware never gets a chance to debit the bucket.',
+    ok: 'CORRECT &mdash; the rejection cost the client nothing in their rate budget. Run this scenario five times: still 5 tokens. The HTTP path "fails closed" on the connection limit without leaking rate budget.',
+  },
+];
+
+// ─────────────────────────── STATE ───────────────────────────
+
+const RATE_MAX = 5;
+const CONN_MAX = 1;
+let rate = RATE_MAX;
+let conn = CONN_MAX;
+let scenario = 'grpc';
+let stepIdx = 0;
+
+const $ = id => document.getElementById(id);
+const currentSteps = () => scenario === 'grpc' ? GRPC_STEPS : HTTP_STEPS;
+const currentCode  = () => scenario === 'grpc' ? GRPC_CODE  : HTTP_CODE;
+
+// ─────────────────────────── RENDER ───────────────────────────
+
+function renderCode() {
+  const steps = currentSteps();
+  const ln = steps[stepIdx]?.activeLn;
+  const isOk = scenario === 'http';
+  const fileLabel = scenario === 'grpc' ? 'lib/limiter/limiter.go' : 'lib/limiter/connlimiter.go';
+  const tag = scenario === 'grpc'
+    ? '<span class="tag bad">RATE THEN CONN &mdash; rate consumed on conn reject</span>'
+    : '<span class="tag good">CONN THEN RATE &mdash; rate untouched on conn reject</span>';
+  let html = `<div class="code-section">
+    <div class="code-section-title"><span class="file">${fileLabel}</span>${tag}</div>`;
+  for (const line of currentCode()) {
+    let cls = 'code-line';
+    if (line.ln === ln) cls += isOk ? ' active-ok' : ' active';
+    html += `<div class="${cls}"><div class="ln">${line.ln}</div><div class="code-text">${line.t}</div></div>`;
+  }
+  html += `</div>`;
+  $('codePanel').innerHTML = html;
+}
+
+function renderStack() {
+  const frames = currentSteps()[stepIdx]?.stack || [];
+  $('callStack').innerHTML = frames.map(f =>
+    `<div class="stack-frame ${f.active ? 'active' : 'inactive'}">
+       <div class="fname">${f.name}</div>
+       <div class="ffile">${f.file}</div>
+     </div>`
+  ).join('');
+}
+
+function renderState(deltas) {
+  // rate
+  const ratePct = (rate / RATE_MAX) * 100;
+  $('rate-val').textContent = `${rate} / ${RATE_MAX}` + (deltas?.rate ? `  (Δ ${deltas.rate})` : '');
+  $('rate-val').className = 'var-val ' + (rate === 0 ? 'bad' : rate <= 2 ? 'warn' : 'good');
+  const rateBar = $('rate-bar');
+  rateBar.className = 'bar' + (rate === 0 ? ' bad' : rate <= 2 ? ' warn' : '');
+  rateBar.querySelector('span').style.width = ratePct + '%';
+
+  // conn
+  const connPct = (conn / CONN_MAX) * 100;
+  $('conn-val').textContent = `${conn} / ${CONN_MAX}`;
+  $('conn-val').className = 'var-val ' + (conn >= CONN_MAX ? 'bad' : 'good');
+  const connBar = $('conn-bar');
+  connBar.className = 'bar' + (conn >= CONN_MAX ? ' full' : '');
+  connBar.querySelector('span').style.width = connPct + '%';
+}
+
+function renderExplanation() {
+  const s = currentSteps()[stepIdx];
+  if (!s) return;
+  let html = `<div class="explanation">
+    <div class="step-num">Step ${stepIdx} of ${currentSteps().length - 1}</div>
+    <div class="title">${s.title}</div>
+    <p>${s.body}</p>`;
+  if (s.bug) html += `<div class="insight">&#x26A0;&#xFE0F; ${s.bug}</div>`;
+  if (s.ok)  html += `<div class="ok-note">&#x2713; ${s.ok}</div>`;
+  html += `</div>`;
+  $('explanation').innerHTML = html;
+}
+
+function renderDots() {
+  const n = currentSteps().length;
+  let html = '';
+  for (let i = 0; i < n; i++) {
+    let cls = 'dot';
+    if (i === stepIdx) {
+      const s = currentSteps()[i];
+      if (s.bug) cls += ' bug';
+      else if (s.ok) cls += ' ok';
+      else cls += ' active';
+    } else if (i < stepIdx) cls += ' done';
+    html += `<div class="${cls}" onclick="goTo(${i})"></div>`;
+  }
+  $('dots').innerHTML = html;
+}
+
+function renderStatus() {
+  const s = currentSteps()[stepIdx];
+  const bar = $('statusBar');
+  const msg = $('statusMsg');
+  if (s?.bug) {
+    bar.className = 'status-bar is-bug';
+    msg.innerHTML = '&#x1F41B; Rate token consumed even though the request was rejected by the connection limit.';
+  } else if (s?.ok) {
+    bar.className = 'status-bar is-ok';
+    msg.innerHTML = '&#x2705; Rejection occurred without touching the rate bucket.';
+  } else {
+    bar.className = 'status-bar';
+    msg.textContent = s?.title || '';
+  }
+}
+
+function renderAll(deltas) {
+  renderCode();
+  renderStack();
+  renderState(deltas);
+  renderExplanation();
+  renderDots();
+  renderStatus();
+  $('btn-prev').disabled = stepIdx === 0;
+  $('btn-next').disabled = stepIdx === currentSteps().length - 1;
+}
+
+// ─────────────────────────── NAVIGATION ───────────────────────────
+
+function step(dir) {
+  const steps = currentSteps();
+  let deltas = null;
+  if (dir > 0 && stepIdx < steps.length - 1) {
+    stepIdx++;
+    const s = steps[stepIdx];
+    rate += s.rateDelta || 0;
+    conn += s.connDelta || 0;
+    if (s.rateDelta) deltas = { rate: s.rateDelta };
+  } else if (dir < 0 && stepIdx > 0) {
+    const s = steps[stepIdx];
+    rate -= s.rateDelta || 0;
+    conn -= s.connDelta || 0;
+    stepIdx--;
+  }
+  renderAll(deltas);
+}
+
+function goTo(target) {
+  while (stepIdx < target) step(1);
+  while (stepIdx > target) step(-1);
+}
+
+function selectScenario(s) {
+  // Auto-rewind the current scenario so partial deltas don't leak across switches.
+  while (stepIdx > 0) step(-1);
+  scenario = s;
+  document.querySelectorAll('.scenario-btn').forEach(b => b.classList.remove('active'));
+  $('btn-' + s).classList.add('active');
+  stepIdx = 0;
+  renderAll();
+}
+
+function replay() {
+  // Rewind to step 0 of the current scenario WITHOUT undoing deltas — so re-stepping
+  // accumulates on top of the current world. This is the key trick for visualising
+  // the gRPC drain: replay 5 times to watch the bucket hit 0.
+  stepIdx = 0;
+  renderAll();
+}
+
+function resetWorld() {
+  rate = RATE_MAX;
+  conn = CONN_MAX;
+  stepIdx = 0;
+  renderAll();
+}
+
+renderAll();
+</script>
+</body>
+</html>
