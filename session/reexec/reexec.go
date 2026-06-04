@@ -446,7 +446,10 @@ func RunCommand() (exitErr error, err error) {
 		defer pamContext.Close()
 
 		// Save off any environment variables that come from PAM.
-		pamEnvironment = pamContext.Environment()
+		pamEnvironment, err = pamContext.Environment()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	uaccHandler := uacc.NewUserAccountHandler(uacc.UaccConfig{
@@ -789,7 +792,10 @@ func RunNetworking() (code int, err error) {
 		}
 		defer pamContext.Close()
 
-		pamEnvironment = pamContext.Environment()
+		pamEnvironment, err = pamContext.Environment()
+		if err != nil {
+			return reexecconstants.RemoteCommandFailure, trace.Wrap(err)
+		}
 	}
 
 	// Once the PAM stack is called with parent process permissions, set the process uid
