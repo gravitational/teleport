@@ -70,7 +70,7 @@ func newTunnelConnectionCollection(upstream services.Trust, w types.WatchKind) (
 
 // GetTunnelConnections is a part of auth.Cache implementation
 func (c *Cache) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
-	_, span := c.Tracer.Start(ctx, "cache/GetTunnelConnections")
+	ctx, span := c.Tracer.Start(ctx, "cache/GetTunnelConnections")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.tunnelConnections)
@@ -96,7 +96,7 @@ func (c *Cache) GetTunnelConnections(ctx context.Context, clusterName string) ([
 
 // GetAllTunnelConnections is a part of auth.Cache implementation
 func (c *Cache) GetAllTunnelConnections(ctx context.Context) (conns []types.TunnelConnection, err error) {
-	_, span := c.Tracer.Start(ctx, "cache/GetAllTunnelConnections")
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAllTunnelConnections")
 	defer span.End()
 
 	rg, err := acquireReadGuard(c, c.collections.tunnelConnections)
