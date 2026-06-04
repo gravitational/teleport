@@ -206,6 +206,9 @@ func TestMakeBeamFilterFunc(t *testing.T) {
 			name: "filter users",
 			options: &services.ListBeamsRequestOptions{
 				FilterUsers: set.New("user-1"),
+				FilterFn: func(b *beamsv1.Beam) bool {
+					return true
+				},
 			},
 			beam:     testBeam(withUser("user-2")),
 			expected: false,
@@ -214,6 +217,9 @@ func TestMakeBeamFilterFunc(t *testing.T) {
 			name: "filter users match",
 			options: &services.ListBeamsRequestOptions{
 				FilterUsers: set.New("user-1"),
+				FilterFn: func(b *beamsv1.Beam) bool {
+					return true
+				},
 			},
 			beam:     testBeam(withUser("user-1")),
 			expected: true,
@@ -222,6 +228,9 @@ func TestMakeBeamFilterFunc(t *testing.T) {
 			name: "filter users empty",
 			options: &services.ListBeamsRequestOptions{
 				FilterUsers: set.NewWithCapacity[string](0),
+				FilterFn: func(b *beamsv1.Beam) bool {
+					return true
+				},
 			},
 			beam:     testBeam(withUser("user-1")),
 			expected: true,
@@ -232,8 +241,9 @@ func TestMakeBeamFilterFunc(t *testing.T) {
 				FilterFn: func(b *beamsv1.Beam) bool {
 					return false
 				},
+				FilterUsers: set.New("user-1"),
 			},
-			beam:     testBeam(),
+			beam:     testBeam(withUser("user-1")),
 			expected: false,
 		},
 		{
@@ -242,8 +252,9 @@ func TestMakeBeamFilterFunc(t *testing.T) {
 				FilterFn: func(b *beamsv1.Beam) bool {
 					return true
 				},
+				FilterUsers: set.New("user-1"),
 			},
-			beam:     testBeam(),
+			beam:     testBeam(withUser("user-1")),
 			expected: true,
 		},
 		{
