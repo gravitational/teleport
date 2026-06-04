@@ -490,7 +490,7 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 // i.e. every well-formed connection after the corrupt one is still returned.
 func TestCA_ListTunnelConnections_CorruptItem(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
+	ctx := t.Context()
 
 	bk, err := memory.New(memory.Config{})
 	require.NoError(t, err)
