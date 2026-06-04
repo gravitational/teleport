@@ -1649,6 +1649,14 @@ type ClientI interface {
 	// ListUnifiedInstances returns a paginated list of unified instances (teleport instances and bot instances).
 	ListUnifiedInstances(ctx context.Context, req *inventoryv1.ListUnifiedInstancesRequest) (*inventoryv1.ListUnifiedInstancesResponse, error)
 
+	// UpsertProxyServerWithoutReturn registers a proxy server heartbeat.
+	// The upserted server is not returned because the HTTP fallback path
+	// cannot provide it.
+	//
+	// TODO(noah): DELETE IN v20.0.0 — replace with a returning variant once
+	// the HTTP fallback is removed.
+	UpsertProxyServerWithoutReturn(ctx context.Context, s types.Server) error
+
 	types.WebSessionsGetter
 	services.WebToken
 

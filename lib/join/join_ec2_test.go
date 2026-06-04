@@ -642,11 +642,11 @@ func TestHostUniqueCheck(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 				}
-				err := a.UpsertProxy(context.Background(), proxy)
+				_, err := a.UpsertProxyServer(context.Background(), proxy)
 				require.NoError(t, err)
 			},
 			deleter: func(t *testing.T, hostID string) {
-				require.NoError(t, a.DeleteProxy(t.Context(), hostID))
+				require.NoError(t, a.DeleteProxyServer(t.Context(), hostID))
 			},
 		},
 		{

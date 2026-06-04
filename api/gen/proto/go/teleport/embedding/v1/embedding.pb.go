@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/embedding/v1/embedding.proto
 
+//go:build !protoopaque
+
 package embeddingv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // the smaller the distance between two vectors, the closer the concepts are.
 // Teleport Assist embeds resources to perform semantic search.
 type Embedding struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// EmbeddedKind is the kind of the embedded resource.
 	EmbeddedKind string `protobuf:"bytes,1,opt,name=embedded_kind,json=embeddedKind,proto3" json:"embedded_kind,omitempty"`
 	// EmbeddedId is the ID of the embedded resource.
@@ -79,11 +80,6 @@ func (x *Embedding) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Embedding.ProtoReflect.Descriptor instead.
-func (*Embedding) Descriptor() ([]byte, []int) {
-	return file_teleport_embedding_v1_embedding_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *Embedding) GetEmbeddedKind() string {
 	if x != nil {
 		return x.EmbeddedKind
@@ -112,6 +108,50 @@ func (x *Embedding) GetVector() []float64 {
 	return nil
 }
 
+func (x *Embedding) SetEmbeddedKind(v string) {
+	x.EmbeddedKind = v
+}
+
+func (x *Embedding) SetEmbeddedId(v string) {
+	x.EmbeddedId = v
+}
+
+func (x *Embedding) SetEmbeddedHash(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.EmbeddedHash = v
+}
+
+func (x *Embedding) SetVector(v []float64) {
+	x.Vector = v
+}
+
+type Embedding_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// EmbeddedKind is the kind of the embedded resource.
+	EmbeddedKind string
+	// EmbeddedId is the ID of the embedded resource.
+	EmbeddedId string
+	// EmbeddedHash is the hash of the embedded resource after serialization.
+	// This helps checking if the resource has changed and needs a new embedding.
+	EmbeddedHash []byte
+	// Vector is the embedding itself, as provided by the model.
+	Vector []float64
+}
+
+func (b0 Embedding_builder) Build() *Embedding {
+	m0 := &Embedding{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.EmbeddedKind = b.EmbeddedKind
+	x.EmbeddedId = b.EmbeddedId
+	x.EmbeddedHash = b.EmbeddedHash
+	x.Vector = b.Vector
+	return m0
+}
+
 var File_teleport_embedding_v1_embedding_proto protoreflect.FileDescriptor
 
 const file_teleport_embedding_v1_embedding_proto_rawDesc = "" +
@@ -123,18 +163,6 @@ const file_teleport_embedding_v1_embedding_proto_rawDesc = "" +
 	"embeddedId\x12#\n" +
 	"\rembedded_hash\x18\x03 \x01(\fR\fembeddedHash\x12\x16\n" +
 	"\x06vector\x18\x04 \x03(\x01R\x06vectorBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1;embeddingv1b\x06proto3"
-
-var (
-	file_teleport_embedding_v1_embedding_proto_rawDescOnce sync.Once
-	file_teleport_embedding_v1_embedding_proto_rawDescData []byte
-)
-
-func file_teleport_embedding_v1_embedding_proto_rawDescGZIP() []byte {
-	file_teleport_embedding_v1_embedding_proto_rawDescOnce.Do(func() {
-		file_teleport_embedding_v1_embedding_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_embedding_v1_embedding_proto_rawDesc), len(file_teleport_embedding_v1_embedding_proto_rawDesc)))
-	})
-	return file_teleport_embedding_v1_embedding_proto_rawDescData
-}
 
 var file_teleport_embedding_v1_embedding_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_embedding_v1_embedding_proto_goTypes = []any{

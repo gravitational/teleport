@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/clusterconfig/v1/access_graph.proto
 
+//go:build !protoopaque
+
 package clusterconfigv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // AccessGraphConfig holds the information about the configured Access Graph service.
 type AccessGraphConfig struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// enabled indicates if the Access Graph is enabled for the cluster.
 	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	// address is the address of the access graph service. The address is in the
@@ -80,11 +81,6 @@ func (x *AccessGraphConfig) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AccessGraphConfig.ProtoReflect.Descriptor instead.
-func (*AccessGraphConfig) Descriptor() ([]byte, []int) {
-	return file_teleport_clusterconfig_v1_access_graph_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AccessGraphConfig) GetEnabled() bool {
@@ -129,9 +125,90 @@ func (x *AccessGraphConfig) GetAuditLogConfig() *AuditLogConfig {
 	return nil
 }
 
+func (x *AccessGraphConfig) SetEnabled(v bool) {
+	x.Enabled = v
+}
+
+func (x *AccessGraphConfig) SetAddress(v string) {
+	x.Address = v
+}
+
+func (x *AccessGraphConfig) SetCa(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Ca = v
+}
+
+func (x *AccessGraphConfig) SetInsecure(v bool) {
+	x.Insecure = v
+}
+
+func (x *AccessGraphConfig) SetSecretsScanConfig(v *AccessGraphSecretsScanConfiguration) {
+	x.SecretsScanConfig = v
+}
+
+func (x *AccessGraphConfig) SetAuditLogConfig(v *AuditLogConfig) {
+	x.AuditLogConfig = v
+}
+
+func (x *AccessGraphConfig) HasSecretsScanConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.SecretsScanConfig != nil
+}
+
+func (x *AccessGraphConfig) HasAuditLogConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.AuditLogConfig != nil
+}
+
+func (x *AccessGraphConfig) ClearSecretsScanConfig() {
+	x.SecretsScanConfig = nil
+}
+
+func (x *AccessGraphConfig) ClearAuditLogConfig() {
+	x.AuditLogConfig = nil
+}
+
+type AccessGraphConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// enabled indicates if the Access Graph is enabled for the cluster.
+	Enabled bool
+	// address is the address of the access graph service. The address is in the
+	// form of "host:port".
+	Address string
+	// ca is the PEM-encoded CA certificate of the access graph service.
+	Ca []byte
+	// insecure is a flag that indicates whether the access graph service should
+	// skip verifying the server's certificate chain and host name.
+	Insecure bool
+	// secrets_scan_config is used to configure the parameters for the secrets scanning functionality.
+	SecretsScanConfig *AccessGraphSecretsScanConfiguration
+	// audit_log_config sets up audit log event exporting.
+	AuditLogConfig *AuditLogConfig
+}
+
+func (b0 AccessGraphConfig_builder) Build() *AccessGraphConfig {
+	m0 := &AccessGraphConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Enabled = b.Enabled
+	x.Address = b.Address
+	x.Ca = b.Ca
+	x.Insecure = b.Insecure
+	x.SecretsScanConfig = b.SecretsScanConfig
+	x.AuditLogConfig = b.AuditLogConfig
+	return m0
+}
+
 // AccessGraphSecretsScanConfiguration controls the secrets scanning service parameters.
 type AccessGraphSecretsScanConfiguration struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ssh_scan_enabled indicates if the SSH scan feature is enabled for the cluster.
 	SshScanEnabled bool `protobuf:"varint,1,opt,name=ssh_scan_enabled,json=sshScanEnabled,proto3" json:"ssh_scan_enabled,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -163,11 +240,6 @@ func (x *AccessGraphSecretsScanConfiguration) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessGraphSecretsScanConfiguration.ProtoReflect.Descriptor instead.
-func (*AccessGraphSecretsScanConfiguration) Descriptor() ([]byte, []int) {
-	return file_teleport_clusterconfig_v1_access_graph_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AccessGraphSecretsScanConfiguration) GetSshScanEnabled() bool {
 	if x != nil {
 		return x.SshScanEnabled
@@ -175,9 +247,28 @@ func (x *AccessGraphSecretsScanConfiguration) GetSshScanEnabled() bool {
 	return false
 }
 
+func (x *AccessGraphSecretsScanConfiguration) SetSshScanEnabled(v bool) {
+	x.SshScanEnabled = v
+}
+
+type AccessGraphSecretsScanConfiguration_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ssh_scan_enabled indicates if the SSH scan feature is enabled for the cluster.
+	SshScanEnabled bool
+}
+
+func (b0 AccessGraphSecretsScanConfiguration_builder) Build() *AccessGraphSecretsScanConfiguration {
+	m0 := &AccessGraphSecretsScanConfiguration{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SshScanEnabled = b.SshScanEnabled
+	return m0
+}
+
 // AuditLogConfig specifies the audit log event export setup.
 type AuditLogConfig struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// enbled indicates if Audit Log event exporting is enabled.
 	Enabled bool `protobuf:"varint,1,opt,name=enabled,proto3" json:"enabled,omitempty"`
 	// start_date is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
@@ -211,11 +302,6 @@ func (x *AuditLogConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuditLogConfig.ProtoReflect.Descriptor instead.
-func (*AuditLogConfig) Descriptor() ([]byte, []int) {
-	return file_teleport_clusterconfig_v1_access_graph_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *AuditLogConfig) GetEnabled() bool {
 	if x != nil {
 		return x.Enabled
@@ -228,6 +314,43 @@ func (x *AuditLogConfig) GetStartDate() *timestamppb.Timestamp {
 		return x.StartDate
 	}
 	return nil
+}
+
+func (x *AuditLogConfig) SetEnabled(v bool) {
+	x.Enabled = v
+}
+
+func (x *AuditLogConfig) SetStartDate(v *timestamppb.Timestamp) {
+	x.StartDate = v
+}
+
+func (x *AuditLogConfig) HasStartDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartDate != nil
+}
+
+func (x *AuditLogConfig) ClearStartDate() {
+	x.StartDate = nil
+}
+
+type AuditLogConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// enbled indicates if Audit Log event exporting is enabled.
+	Enabled bool
+	// start_date is the start date for exporting audit logs. It defaults to 90 days ago on the first export.
+	StartDate *timestamppb.Timestamp
+}
+
+func (b0 AuditLogConfig_builder) Build() *AuditLogConfig {
+	m0 := &AuditLogConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Enabled = b.Enabled
+	x.StartDate = b.StartDate
+	return m0
 }
 
 var File_teleport_clusterconfig_v1_access_graph_proto protoreflect.FileDescriptor
@@ -248,18 +371,6 @@ const file_teleport_clusterconfig_v1_access_graph_proto_rawDesc = "" +
 	"\aenabled\x18\x01 \x01(\bR\aenabled\x129\n" +
 	"\n" +
 	"start_date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\tstartDateB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1;clusterconfigv1b\x06proto3"
-
-var (
-	file_teleport_clusterconfig_v1_access_graph_proto_rawDescOnce sync.Once
-	file_teleport_clusterconfig_v1_access_graph_proto_rawDescData []byte
-)
-
-func file_teleport_clusterconfig_v1_access_graph_proto_rawDescGZIP() []byte {
-	file_teleport_clusterconfig_v1_access_graph_proto_rawDescOnce.Do(func() {
-		file_teleport_clusterconfig_v1_access_graph_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_clusterconfig_v1_access_graph_proto_rawDesc), len(file_teleport_clusterconfig_v1_access_graph_proto_rawDesc)))
-	})
-	return file_teleport_clusterconfig_v1_access_graph_proto_rawDescData
-}
 
 var file_teleport_clusterconfig_v1_access_graph_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_clusterconfig_v1_access_graph_proto_goTypes = []any{

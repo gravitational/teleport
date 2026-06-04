@@ -20,6 +20,8 @@
 // 	protoc        (unknown)
 // source: teleport/hardwarekeyagent/v1/hardwarekeyagent_service.proto
 
+//go:build !protoopaque
+
 package hardwarekeyagentv1
 
 import (
@@ -27,7 +29,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -94,11 +95,6 @@ func (x PIVSlotKey) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use PIVSlotKey.Descriptor instead.
-func (PIVSlotKey) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{0}
-}
-
 // Hash refers to a specific hash function used during signing.
 type Hash int32
 
@@ -147,14 +143,9 @@ func (x Hash) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use Hash.Descriptor instead.
-func (Hash) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{1}
-}
-
 // PingRequest is a request to Ping.
 type PingRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -184,14 +175,21 @@ func (x *PingRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PingRequest.ProtoReflect.Descriptor instead.
-func (*PingRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{0}
+type PingRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 PingRequest_builder) Build() *PingRequest {
+	m0 := &PingRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // PingResponse is a response to Ping.
 type PingResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PID is the PID of the client process running the agent.
 	Pid           uint32 `protobuf:"varint,1,opt,name=pid,proto3" json:"pid,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -223,11 +221,6 @@ func (x *PingResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PingResponse.ProtoReflect.Descriptor instead.
-func (*PingResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *PingResponse) GetPid() uint32 {
 	if x != nil {
 		return x.Pid
@@ -235,9 +228,28 @@ func (x *PingResponse) GetPid() uint32 {
 	return 0
 }
 
+func (x *PingResponse) SetPid(v uint32) {
+	x.Pid = v
+}
+
+type PingResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PID is the PID of the client process running the agent.
+	Pid uint32
+}
+
+func (b0 PingResponse_builder) Build() *PingResponse {
+	m0 := &PingResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Pid = b.Pid
+	return m0
+}
+
 // SignRequest is a request to perform a signature with a specific hardware private key.
 type SignRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Digest is a hashed message to sign.
 	Digest []byte `protobuf:"bytes,1,opt,name=digest,proto3" json:"digest,omitempty"`
 	// Hash is the hash function used to prepare the digest.
@@ -285,11 +297,6 @@ func (x *SignRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SignRequest.ProtoReflect.Descriptor instead.
-func (*SignRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *SignRequest) GetDigest() []byte {
 	if x != nil {
 		return x.Digest
@@ -332,9 +339,94 @@ func (x *SignRequest) GetCommand() string {
 	return ""
 }
 
+func (x *SignRequest) SetDigest(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Digest = v
+}
+
+func (x *SignRequest) SetHash(v Hash) {
+	x.Hash = v
+}
+
+func (x *SignRequest) SetSaltLength(v uint32) {
+	x.SaltLength = v
+}
+
+func (x *SignRequest) SetKeyRef(v *KeyRef) {
+	x.KeyRef = v
+}
+
+func (x *SignRequest) SetKeyInfo(v *KeyInfo) {
+	x.KeyInfo = v
+}
+
+func (x *SignRequest) SetCommand(v string) {
+	x.Command = v
+}
+
+func (x *SignRequest) HasKeyRef() bool {
+	if x == nil {
+		return false
+	}
+	return x.KeyRef != nil
+}
+
+func (x *SignRequest) HasKeyInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.KeyInfo != nil
+}
+
+func (x *SignRequest) ClearKeyRef() {
+	x.KeyRef = nil
+}
+
+func (x *SignRequest) ClearKeyInfo() {
+	x.KeyInfo = nil
+}
+
+type SignRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Digest is a hashed message to sign.
+	Digest []byte
+	// Hash is the hash function used to prepare the digest.
+	Hash Hash
+	// SaltLength specifies the length of the salt added to the digest before a signature.
+	// This salt length is precomputed by the client, following the crypto/rsa implementation.
+	// Only used, and required, for PSS RSA signatures.
+	SaltLength uint32
+	// KeyRef references a specific hardware private key.
+	KeyRef *KeyRef
+	// KeyInfo contains additional, optional key info which generally will improve UX by
+	// giving the agent context about the key, such as whether PIN/touch prompts are
+	// expected, or what cluster login is trying to interface with the key.
+	KeyInfo *KeyInfo
+	// Command is the client command or action requiring a signature, e.g. "tsh ssh server01".
+	// The agent can include this detail in PIN/touch prompts to show the origin of the
+	// signature request to the user.
+	Command string
+}
+
+func (b0 SignRequest_builder) Build() *SignRequest {
+	m0 := &SignRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Digest = b.Digest
+	x.Hash = b.Hash
+	x.SaltLength = b.SaltLength
+	x.KeyRef = b.KeyRef
+	x.KeyInfo = b.KeyInfo
+	x.Command = b.Command
+	return m0
+}
+
 // Signature is a private key signature.
 type Signature struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// For an RSA key, signature should be either a PKCS #1 v1.5 or PSS signature,
 	// depending on the hash and salt chosen. For an (EC)DSA key, it should be a
 	// DER-serialised, ASN.1 signature structure.
@@ -368,11 +460,6 @@ func (x *Signature) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Signature.ProtoReflect.Descriptor instead.
-func (*Signature) Descriptor() ([]byte, []int) {
-	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *Signature) GetSignature() []byte {
 	if x != nil {
 		return x.Signature
@@ -380,9 +467,33 @@ func (x *Signature) GetSignature() []byte {
 	return nil
 }
 
+func (x *Signature) SetSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Signature = v
+}
+
+type Signature_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// For an RSA key, signature should be either a PKCS #1 v1.5 or PSS signature,
+	// depending on the hash and salt chosen. For an (EC)DSA key, it should be a
+	// DER-serialised, ASN.1 signature structure.
+	Signature []byte
+}
+
+func (b0 Signature_builder) Build() *Signature {
+	m0 := &Signature{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Signature = b.Signature
+	return m0
+}
+
 // KeyRef references a specific hardware private key.
 type KeyRef struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SerialNumber is the serial number of the hardware key.
 	SerialNumber uint32 `protobuf:"varint,1,opt,name=serial_number,json=serialNumber,proto3" json:"serial_number,omitempty"`
 	// SlotKey is a PIV slot key reference.
@@ -420,11 +531,6 @@ func (x *KeyRef) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KeyRef.ProtoReflect.Descriptor instead.
-func (*KeyRef) Descriptor() ([]byte, []int) {
-	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *KeyRef) GetSerialNumber() uint32 {
 	if x != nil {
 		return x.SerialNumber
@@ -446,9 +552,47 @@ func (x *KeyRef) GetPublicKeyDer() []byte {
 	return nil
 }
 
+func (x *KeyRef) SetSerialNumber(v uint32) {
+	x.SerialNumber = v
+}
+
+func (x *KeyRef) SetSlotKey(v PIVSlotKey) {
+	x.SlotKey = v
+}
+
+func (x *KeyRef) SetPublicKeyDer(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicKeyDer = v
+}
+
+type KeyRef_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SerialNumber is the serial number of the hardware key.
+	SerialNumber uint32
+	// SlotKey is a PIV slot key reference.
+	SlotKey PIVSlotKey
+	// PublicKey is the public key encoded in PKIX, ASN.1 DER form. If the public key does
+	// not match the private key currently in the hardware key's PIV slot, the signature
+	// will fail early.
+	PublicKeyDer []byte
+}
+
+func (b0 KeyRef_builder) Build() *KeyRef {
+	m0 := &KeyRef{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SerialNumber = b.SerialNumber
+	x.SlotKey = b.SlotKey
+	x.PublicKeyDer = b.PublicKeyDer
+	return m0
+}
+
 // KeyInfo contains additional information about a hardware private key.
 type KeyInfo struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// TouchRequired is a client hint as to whether the hardware private key requires touch.
 	// The agent will use this to provide the ideal UX for the touch prompt. If this client
 	// hint is incorrect, touch will still be prompted.
@@ -499,11 +643,6 @@ func (x *KeyInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KeyInfo.ProtoReflect.Descriptor instead.
-func (*KeyInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *KeyInfo) GetTouchRequired() bool {
 	if x != nil {
 		return x.TouchRequired
@@ -544,6 +683,80 @@ func (x *KeyInfo) GetPinCacheTtl() *durationpb.Duration {
 		return x.PinCacheTtl
 	}
 	return nil
+}
+
+func (x *KeyInfo) SetTouchRequired(v bool) {
+	x.TouchRequired = v
+}
+
+func (x *KeyInfo) SetPinRequired(v bool) {
+	x.PinRequired = v
+}
+
+func (x *KeyInfo) SetProxyHost(v string) {
+	x.ProxyHost = v
+}
+
+func (x *KeyInfo) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *KeyInfo) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *KeyInfo) SetPinCacheTtl(v *durationpb.Duration) {
+	x.PinCacheTtl = v
+}
+
+func (x *KeyInfo) HasPinCacheTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.PinCacheTtl != nil
+}
+
+func (x *KeyInfo) ClearPinCacheTtl() {
+	x.PinCacheTtl = nil
+}
+
+type KeyInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TouchRequired is a client hint as to whether the hardware private key requires touch.
+	// The agent will use this to provide the ideal UX for the touch prompt. If this client
+	// hint is incorrect, touch will still be prompted.
+	TouchRequired bool
+	// PinRequired is a client hint as to whether the hardware private key requires PIN.
+	// The agent will use this to provide the ideal UX for the PIN prompt. If this client
+	// hint is incorrect, PIN will still be prompted for YubiKey versions >= 4.3.0, and
+	// failing with an auth error otherwise.
+	PinRequired bool
+	// ProxyHost is a Teleport proxy hostname that the key is associated with.
+	// May be used to add context to PIN/touch prompts.
+	ProxyHost string
+	// Username is a Teleport username that the key is associated with.
+	// May be used to add context to PIN/touch prompts.
+	Username string
+	// ClusterName is a Teleport cluster name that the key is associated with.
+	// May be used to add context to PIN/touch prompts.
+	ClusterName string
+	// PinCacheTtl is the amount of time that the PIN should be cached for
+	// PIN prompts associated with this key. A TTL of 0 means no PIN caching.
+	PinCacheTtl *durationpb.Duration
+}
+
+func (b0 KeyInfo_builder) Build() *KeyInfo {
+	m0 := &KeyInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TouchRequired = b.TouchRequired
+	x.PinRequired = b.PinRequired
+	x.ProxyHost = b.ProxyHost
+	x.Username = b.Username
+	x.ClusterName = b.ClusterName
+	x.PinCacheTtl = b.PinCacheTtl
+	return m0
 }
 
 var File_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto protoreflect.FileDescriptor
@@ -591,18 +804,6 @@ const file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc =
 	"\x17HardwareKeyAgentService\x12_\n" +
 	"\x04Ping\x12).teleport.hardwarekeyagent.v1.PingRequest\x1a*.teleport.hardwarekeyagent.v1.PingResponse\"\x00\x12\\\n" +
 	"\x04Sign\x12).teleport.hardwarekeyagent.v1.SignRequest\x1a'.teleport.hardwarekeyagent.v1.Signature\"\x00BdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/hardwarekeyagent/v1;hardwarekeyagentv1b\x06proto3"
-
-var (
-	file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescOnce sync.Once
-	file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescData []byte
-)
-
-func file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescGZIP() []byte {
-	file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescOnce.Do(func() {
-		file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc), len(file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDesc)))
-	})
-	return file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_rawDescData
-}
 
 var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_hardwarekeyagent_v1_hardwarekeyagent_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)

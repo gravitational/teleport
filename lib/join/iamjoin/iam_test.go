@@ -18,10 +18,14 @@ package iamjoin
 
 import (
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
 func TestValidateSTSHost(t *testing.T) {
@@ -119,6 +123,101 @@ func TestValidateSTSHost(t *testing.T) {
 		t.Run("fips required", func(t *testing.T) {
 			err := validateSTSHost(t.Context(), endpoint, true /*requireFIPS*/)
 			require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+		})
+	}
+}
+
+func TestAccountOUIsAllowed(t *testing.T) {
+	const (
+		orgID     = "o-testorg"
+		rootID    = "r-root1"
+		accountID = "123456789012"
+	)
+
+	fullAccountPath := func(segments ...string) string {
+		parts := append([]string{orgID}, segments...)
+		parts = append(parts, accountID)
+		return strings.Join(parts, "/")
+	}
+
+	for _, tt := range []struct {
+		name        string
+		accountPath []string
+		ouMatcher   *types.AWSOrganizationUnitsMatcher
+		expected    bool
+	}{
+		{
+			name:        "allow when matcher is nil: validation is only for the organization id",
+			accountPath: []string{fullAccountPath(rootID, "ou-a")},
+			ouMatcher:   nil,
+			expected:    true,
+		},
+		{
+			name:        "allow when matcher has no Include or Exclude: no filtering configured",
+			accountPath: []string{fullAccountPath(rootID, "ou-a")},
+			ouMatcher:   &types.AWSOrganizationUnitsMatcher{},
+			expected:    true,
+		},
+		{
+			name:        "empty paths slice rejects account (fails closed)",
+			accountPath: []string{},
+			ouMatcher:   &types.AWSOrganizationUnitsMatcher{Include: []string{"ou-a"}},
+			expected:    false,
+		},
+		{
+			name:        "malformed path with fewer than 3 parts is skipped and rejects when no valid paths remain",
+			accountPath: []string{"invalid/path"},
+			ouMatcher:   &types.AWSOrganizationUnitsMatcher{Include: []string{"ou-a"}},
+			expected:    false,
+		},
+		{
+			name:        "valid path alongside malformed path is still evaluated",
+			accountPath: []string{"invalid/path", fullAccountPath(rootID, "ou-a")},
+			ouMatcher:   &types.AWSOrganizationUnitsMatcher{Include: []string{"ou-a"}},
+			expected:    true,
+		},
+		{
+			name: "multiple account paths: match in any path is sufficient for inclusion",
+			accountPath: []string{
+				fullAccountPath(rootID, "ou-a"),
+				fullAccountPath(rootID, "ou-b"),
+			},
+			ouMatcher: &types.AWSOrganizationUnitsMatcher{Include: []string{"ou-b"}},
+			expected:  true,
+		},
+		{
+			name: "multiple account paths: exclude match in any path rejects",
+			accountPath: []string{
+				fullAccountPath(rootID, "ou-a"),
+				fullAccountPath(rootID, "ou-b"),
+			},
+			ouMatcher: &types.AWSOrganizationUnitsMatcher{
+				Include: []string{"ou-a"},
+				Exclude: []string{"ou-b"},
+			},
+			expected: false,
+		},
+		{
+			name:        "root OU is treated as an OU for inclusion",
+			accountPath: []string{fullAccountPath(rootID)},
+			ouMatcher:   &types.AWSOrganizationUnitsMatcher{Include: []string{rootID}},
+			expected:    true,
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			params := &CheckIAMRequestParams{
+				Logger: logtest.NewLogger(),
+				ProvisionToken: &types.ProvisionTokenV2{
+					Metadata: types.Metadata{Name: "test-token"},
+				},
+			}
+			identity := &AWSIdentity{Account: accountID}
+			account := &accountDetails{
+				organizationID: orgID,
+				paths:          tt.accountPath,
+			}
+			got := accountOUIsAllowed(t.Context(), params, identity, account, tt.ouMatcher)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }

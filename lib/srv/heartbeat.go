@@ -411,7 +411,7 @@ func (h *Heartbeat) announce() (doneSomething bool, _ error) {
 			if !ok {
 				return false, trace.BadParameter("expected services.Server, got %#v", h.current)
 			}
-			err := h.Announcer.UpsertProxy(h.cancelCtx, proxy)
+			err := h.Announcer.UpsertProxyServerWithoutReturn(h.cancelCtx, proxy)
 			if err != nil {
 				// try next announce using keep alive period,
 				// that happens more frequently

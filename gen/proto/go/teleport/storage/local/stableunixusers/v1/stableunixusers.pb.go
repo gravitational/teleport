@@ -20,13 +20,14 @@
 // 	protoc        (unknown)
 // source: teleport/storage/local/stableunixusers/v1/stableunixusers.proto
 
+//go:build !protoopaque
+
 package stableunixusersv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // a pair of stable UNIX username and UID, stored in
 // "/stable_unix_users/by_username/" and "/stable_unix_users/by_uid/"
 type StableUNIXUser struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Username      string                 `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	Uid           int32                  `protobuf:"varint,2,opt,name=uid,proto3" json:"uid,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -72,11 +73,6 @@ func (x *StableUNIXUser) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StableUNIXUser.ProtoReflect.Descriptor instead.
-func (*StableUNIXUser) Descriptor() ([]byte, []int) {
-	return file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *StableUNIXUser) GetUsername() string {
 	if x != nil {
 		return x.Username
@@ -91,6 +87,30 @@ func (x *StableUNIXUser) GetUid() int32 {
 	return 0
 }
 
+func (x *StableUNIXUser) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *StableUNIXUser) SetUid(v int32) {
+	x.Uid = v
+}
+
+type StableUNIXUser_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Username string
+	Uid      int32
+}
+
+func (b0 StableUNIXUser_builder) Build() *StableUNIXUser {
+	m0 := &StableUNIXUser{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.Uid = b.Uid
+	return m0
+}
+
 var File_teleport_storage_local_stableunixusers_v1_stableunixusers_proto protoreflect.FileDescriptor
 
 const file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_rawDesc = "" +
@@ -99,18 +119,6 @@ const file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_rawDe
 	"\x0eStableUNIXUser\x12\x1a\n" +
 	"\busername\x18\x01 \x01(\tR\busername\x12\x10\n" +
 	"\x03uid\x18\x02 \x01(\x05R\x03uidBlZjgithub.com/gravitational/teleport/gen/proto/go/teleport/storage/local/stableunixusers/v1;stableunixusersv1b\x06proto3"
-
-var (
-	file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_rawDescOnce sync.Once
-	file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_rawDescData []byte
-)
-
-func file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_rawDescGZIP() []byte {
-	file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_rawDescOnce.Do(func() {
-		file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_rawDesc), len(file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_rawDesc)))
-	})
-	return file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_rawDescData
-}
 
 var file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_storage_local_stableunixusers_v1_stableunixusers_proto_goTypes = []any{

@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/automaticupgrades"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -191,6 +192,7 @@ func TestUpdateDeployServices(t *testing.T) {
 		}
 
 		err := UpdateDeployService(ctx, m, log, UpdateServiceRequest{
+			TeleportBuildType:   modules.BuildOSS,
 			TeleportClusterName: clusterName,
 			TeleportVersionTag:  teleportVersion,
 			OwnershipTags:       ownershipTags,
@@ -227,6 +229,7 @@ func TestUpdateDeployServices(t *testing.T) {
 		}
 
 		err := UpdateDeployService(ctx, m, log, UpdateServiceRequest{
+			TeleportBuildType:   modules.BuildOSS,
 			TeleportClusterName: clusterName,
 			TeleportVersionTag:  teleportVersion,
 			OwnershipTags:       ownershipTags,
@@ -285,6 +288,7 @@ func TestUpdateDeployServices(t *testing.T) {
 		}
 
 		err := UpdateDeployService(ctx, m, log, UpdateServiceRequest{
+			TeleportBuildType:   modules.BuildOSS,
 			TeleportClusterName: clusterName,
 			TeleportVersionTag:  teleportVersion,
 			OwnershipTags:       ownershipTags,
@@ -355,6 +359,7 @@ func TestUpdateDeployServices(t *testing.T) {
 		}
 
 		err := UpdateDeployService(ctx, m, log, UpdateServiceRequest{
+			TeleportBuildType:   modules.BuildOSS,
 			TeleportClusterName: clusterName,
 			TeleportVersionTag:  teleportVersion,
 			OwnershipTags:       ownershipTags,
@@ -378,6 +383,7 @@ func TestUpdateDeployServices(t *testing.T) {
 		m := &mockDeployServiceClient{}
 
 		err := UpdateDeployService(ctx, m, log, UpdateServiceRequest{
+			TeleportBuildType:   modules.BuildOSS,
 			TeleportClusterName: clusterName,
 			TeleportVersionTag:  teleportVersion,
 			OwnershipTags:       ownershipTags,

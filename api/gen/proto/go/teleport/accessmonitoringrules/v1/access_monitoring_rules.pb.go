@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/accessmonitoringrules/v1/access_monitoring_rules.proto
 
+//go:build !protoopaque
+
 package accessmonitoringrulesv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // AccessMonitoringRule represents an access monitoring rule resources.
 type AccessMonitoringRule struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// metadata is the rules's metadata.
 	Metadata *v1.Metadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// kind is a resource kind
@@ -78,11 +79,6 @@ func (x *AccessMonitoringRule) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessMonitoringRule.ProtoReflect.Descriptor instead.
-func (*AccessMonitoringRule) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AccessMonitoringRule) GetMetadata() *v1.Metadata {
 	if x != nil {
 		return x.Metadata
@@ -118,9 +114,78 @@ func (x *AccessMonitoringRule) GetSpec() *AccessMonitoringRuleSpec {
 	return nil
 }
 
+func (x *AccessMonitoringRule) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *AccessMonitoringRule) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *AccessMonitoringRule) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *AccessMonitoringRule) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *AccessMonitoringRule) SetSpec(v *AccessMonitoringRuleSpec) {
+	x.Spec = v
+}
+
+func (x *AccessMonitoringRule) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *AccessMonitoringRule) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *AccessMonitoringRule) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *AccessMonitoringRule) ClearSpec() {
+	x.Spec = nil
+}
+
+type AccessMonitoringRule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// metadata is the rules's metadata.
+	Metadata *v1.Metadata
+	// kind is a resource kind
+	Kind string
+	// sub_kind is an optional resource sub kind, used in some resources
+	SubKind string
+	// version is version
+	Version string
+	// Spec is an AccessMonitoringRule specification
+	Spec *AccessMonitoringRuleSpec
+}
+
+func (b0 AccessMonitoringRule_builder) Build() *AccessMonitoringRule {
+	m0 := &AccessMonitoringRule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Spec = b.Spec
+	return m0
+}
+
 // AccessMonitoringRuleSpec is the access monitoring rule spec
 type AccessMonitoringRuleSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// subjects the rule operates on, can be a resource kind or a particular resource property.
 	Subjects []string `protobuf:"bytes,1,rep,name=subjects,proto3" json:"subjects,omitempty"`
 	// states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.
@@ -178,11 +243,6 @@ func (x *AccessMonitoringRuleSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessMonitoringRuleSpec.ProtoReflect.Descriptor instead.
-func (*AccessMonitoringRuleSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *AccessMonitoringRuleSpec) GetSubjects() []string {
 	if x != nil {
 		return x.Subjects
@@ -232,9 +292,106 @@ func (x *AccessMonitoringRuleSpec) GetSchedules() map[string]*Schedule {
 	return nil
 }
 
+func (x *AccessMonitoringRuleSpec) SetSubjects(v []string) {
+	x.Subjects = v
+}
+
+func (x *AccessMonitoringRuleSpec) SetStates(v []string) {
+	x.States = v
+}
+
+func (x *AccessMonitoringRuleSpec) SetCondition(v string) {
+	x.Condition = v
+}
+
+func (x *AccessMonitoringRuleSpec) SetNotification(v *Notification) {
+	x.Notification = v
+}
+
+func (x *AccessMonitoringRuleSpec) SetAutomaticReview(v *AutomaticReview) {
+	x.AutomaticReview = v
+}
+
+func (x *AccessMonitoringRuleSpec) SetDesiredState(v string) {
+	x.DesiredState = v
+}
+
+func (x *AccessMonitoringRuleSpec) SetSchedules(v map[string]*Schedule) {
+	x.Schedules = v
+}
+
+func (x *AccessMonitoringRuleSpec) HasNotification() bool {
+	if x == nil {
+		return false
+	}
+	return x.Notification != nil
+}
+
+func (x *AccessMonitoringRuleSpec) HasAutomaticReview() bool {
+	if x == nil {
+		return false
+	}
+	return x.AutomaticReview != nil
+}
+
+func (x *AccessMonitoringRuleSpec) ClearNotification() {
+	x.Notification = nil
+}
+
+func (x *AccessMonitoringRuleSpec) ClearAutomaticReview() {
+	x.AutomaticReview = nil
+}
+
+type AccessMonitoringRuleSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// subjects the rule operates on, can be a resource kind or a particular resource property.
+	Subjects []string
+	// states are the desired state which the monitoring rule is attempting to bring the subjects matching the condition to.
+	States []string
+	// condition is a predicate expression that operates on the specified subject resources,
+	// and determines whether the subject will be moved into desired state.
+	Condition string
+	// notification defines the plugin configuration for notifications if rule is triggered.
+	// Both notification and automatic_review may be set within the same
+	// access_monitoring_rule. If both fields are set, the rule will trigger
+	// both notifications and automatic reviews for the same set of access events.
+	// Separate plugins may be used if both notifications and automatic_reviews is
+	// set.
+	Notification *Notification
+	// automatic_review defines automatic review configurations for Access Requests.
+	// Both notification and automatic_review may be set within the same
+	// access_monitoring_rule. If both fields are set, the rule will trigger
+	// both notifications and automatic reviews for the same set of access events.
+	// Separate plugins may be used if both notifications and automatic_reviews is
+	// set.
+	AutomaticReview *AutomaticReview
+	// desired_state defines the desired state of the subject. For Access Request
+	// subjects, the desired_state may be set to `reviewed` to indicate that the
+	// Access Request should be automatically reviewed.
+	DesiredState string
+	// schedules specifies a map of schedules that can be used to configure the
+	// access monitoring rule conditions.
+	Schedules map[string]*Schedule
+}
+
+func (b0 AccessMonitoringRuleSpec_builder) Build() *AccessMonitoringRuleSpec {
+	m0 := &AccessMonitoringRuleSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Subjects = b.Subjects
+	x.States = b.States
+	x.Condition = b.Condition
+	x.Notification = b.Notification
+	x.AutomaticReview = b.AutomaticReview
+	x.DesiredState = b.DesiredState
+	x.Schedules = b.Schedules
+	return m0
+}
+
 // Notification contains configurations for plugin notification rules.
 type Notification struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the plugin to which this configuration should apply.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// recipients is the list of recipients the plugin should notify.
@@ -268,11 +425,6 @@ func (x *Notification) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Notification.ProtoReflect.Descriptor instead.
-func (*Notification) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *Notification) GetName() string {
 	if x != nil {
 		return x.Name
@@ -287,9 +439,35 @@ func (x *Notification) GetRecipients() []string {
 	return nil
 }
 
+func (x *Notification) SetName(v string) {
+	x.Name = v
+}
+
+func (x *Notification) SetRecipients(v []string) {
+	x.Recipients = v
+}
+
+type Notification_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the plugin to which this configuration should apply.
+	Name string
+	// recipients is the list of recipients the plugin should notify.
+	Recipients []string
+}
+
+func (b0 Notification_builder) Build() *Notification {
+	m0 := &Notification{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Recipients = b.Recipients
+	return m0
+}
+
 // AutomaticReview contains configurations for automatic review rules.
 type AutomaticReview struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// integration is the name of the integration that is responsible for monitoring
 	// the rule. Set this value to `builtin` to monitor the rule with Teleport.
 	Integration string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
@@ -325,11 +503,6 @@ func (x *AutomaticReview) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AutomaticReview.ProtoReflect.Descriptor instead.
-func (*AutomaticReview) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *AutomaticReview) GetIntegration() string {
 	if x != nil {
 		return x.Integration
@@ -344,9 +517,37 @@ func (x *AutomaticReview) GetDecision() string {
 	return ""
 }
 
+func (x *AutomaticReview) SetIntegration(v string) {
+	x.Integration = v
+}
+
+func (x *AutomaticReview) SetDecision(v string) {
+	x.Decision = v
+}
+
+type AutomaticReview_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// integration is the name of the integration that is responsible for monitoring
+	// the rule. Set this value to `builtin` to monitor the rule with Teleport.
+	Integration string
+	// decision specifies the proposed state of the access review. This can be
+	// either 'APPROVED' or 'DENIED'.
+	Decision string
+}
+
+func (b0 AutomaticReview_builder) Build() *AutomaticReview {
+	m0 := &AutomaticReview{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Integration = b.Integration
+	x.Decision = b.Decision
+	return m0
+}
+
 // Schedule specifies a schedule that can be used to configure rule conditions.
 type Schedule struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// TimeSchedule specifies an in-line schedule.
 	Time          *TimeSchedule `protobuf:"bytes,1,opt,name=time,proto3" json:"time,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -378,11 +579,6 @@ func (x *Schedule) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Schedule.ProtoReflect.Descriptor instead.
-func (*Schedule) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *Schedule) GetTime() *TimeSchedule {
 	if x != nil {
 		return x.Time
@@ -390,9 +586,39 @@ func (x *Schedule) GetTime() *TimeSchedule {
 	return nil
 }
 
+func (x *Schedule) SetTime(v *TimeSchedule) {
+	x.Time = v
+}
+
+func (x *Schedule) HasTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.Time != nil
+}
+
+func (x *Schedule) ClearTime() {
+	x.Time = nil
+}
+
+type Schedule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TimeSchedule specifies an in-line schedule.
+	Time *TimeSchedule
+}
+
+func (b0 Schedule_builder) Build() *Schedule {
+	m0 := &Schedule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Time = b.Time
+	return m0
+}
+
 // TimeSchedule specifies an in-line schedule.
 type TimeSchedule struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Shifts contains a set of shifts that make up the schedule.
 	Shifts []*TimeSchedule_Shift `protobuf:"bytes,1,rep,name=shifts,proto3" json:"shifts,omitempty"`
 	// Timezone specifies the schedule timezone. This field is optional and defaults
@@ -431,11 +657,6 @@ func (x *TimeSchedule) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TimeSchedule.ProtoReflect.Descriptor instead.
-func (*TimeSchedule) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *TimeSchedule) GetShifts() []*TimeSchedule_Shift {
 	if x != nil {
 		return x.Shifts
@@ -450,9 +671,40 @@ func (x *TimeSchedule) GetTimezone() string {
 	return ""
 }
 
+func (x *TimeSchedule) SetShifts(v []*TimeSchedule_Shift) {
+	x.Shifts = v
+}
+
+func (x *TimeSchedule) SetTimezone(v string) {
+	x.Timezone = v
+}
+
+type TimeSchedule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Shifts contains a set of shifts that make up the schedule.
+	Shifts []*TimeSchedule_Shift
+	// Timezone specifies the schedule timezone. This field is optional and defaults
+	// to "UTC". Accepted values use timezone locations as defined in the IANA
+	// Time Zone Database, such as "America/Los_Angeles", "Europe/Lisbon", or
+	// "Asia/Singapore".
+	//
+	// See https://data.iana.org/time-zones/tzdb/zone1970.tab for a list of supported values.
+	Timezone string
+}
+
+func (b0 TimeSchedule_builder) Build() *TimeSchedule {
+	m0 := &TimeSchedule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Shifts = b.Shifts
+	x.Timezone = b.Timezone
+	return m0
+}
+
 // CreateAccessMonitoringRuleRequest is the request for CreateAccessMonitoringRule.
 type CreateAccessMonitoringRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// access_monitoring_rule is the specification of the rule to be created.
 	Rule          *AccessMonitoringRule `protobuf:"bytes,1,opt,name=rule,proto3" json:"rule,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -484,11 +736,6 @@ func (x *CreateAccessMonitoringRuleRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAccessMonitoringRuleRequest.ProtoReflect.Descriptor instead.
-func (*CreateAccessMonitoringRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *CreateAccessMonitoringRuleRequest) GetRule() *AccessMonitoringRule {
 	if x != nil {
 		return x.Rule
@@ -496,9 +743,39 @@ func (x *CreateAccessMonitoringRuleRequest) GetRule() *AccessMonitoringRule {
 	return nil
 }
 
+func (x *CreateAccessMonitoringRuleRequest) SetRule(v *AccessMonitoringRule) {
+	x.Rule = v
+}
+
+func (x *CreateAccessMonitoringRuleRequest) HasRule() bool {
+	if x == nil {
+		return false
+	}
+	return x.Rule != nil
+}
+
+func (x *CreateAccessMonitoringRuleRequest) ClearRule() {
+	x.Rule = nil
+}
+
+type CreateAccessMonitoringRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// access_monitoring_rule is the specification of the rule to be created.
+	Rule *AccessMonitoringRule
+}
+
+func (b0 CreateAccessMonitoringRuleRequest_builder) Build() *CreateAccessMonitoringRuleRequest {
+	m0 := &CreateAccessMonitoringRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rule = b.Rule
+	return m0
+}
+
 // UpdateAccessMonitoringRuleRequest is the request for UpdateAccessMonitoringRule.
 type UpdateAccessMonitoringRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// access_monitoring_rule is the specification of the rule to be updated.
 	Rule          *AccessMonitoringRule `protobuf:"bytes,1,opt,name=rule,proto3" json:"rule,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -530,11 +807,6 @@ func (x *UpdateAccessMonitoringRuleRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateAccessMonitoringRuleRequest.ProtoReflect.Descriptor instead.
-func (*UpdateAccessMonitoringRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *UpdateAccessMonitoringRuleRequest) GetRule() *AccessMonitoringRule {
 	if x != nil {
 		return x.Rule
@@ -542,9 +814,39 @@ func (x *UpdateAccessMonitoringRuleRequest) GetRule() *AccessMonitoringRule {
 	return nil
 }
 
+func (x *UpdateAccessMonitoringRuleRequest) SetRule(v *AccessMonitoringRule) {
+	x.Rule = v
+}
+
+func (x *UpdateAccessMonitoringRuleRequest) HasRule() bool {
+	if x == nil {
+		return false
+	}
+	return x.Rule != nil
+}
+
+func (x *UpdateAccessMonitoringRuleRequest) ClearRule() {
+	x.Rule = nil
+}
+
+type UpdateAccessMonitoringRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// access_monitoring_rule is the specification of the rule to be updated.
+	Rule *AccessMonitoringRule
+}
+
+func (b0 UpdateAccessMonitoringRuleRequest_builder) Build() *UpdateAccessMonitoringRuleRequest {
+	m0 := &UpdateAccessMonitoringRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rule = b.Rule
+	return m0
+}
+
 // UpsertAccessMonitoringRuleRequest is the request for UpsertAccessMonitoringRule.
 type UpsertAccessMonitoringRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// access_monitoring_rule is the specification of the rule to be upserted.
 	Rule          *AccessMonitoringRule `protobuf:"bytes,1,opt,name=rule,proto3" json:"rule,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -576,11 +878,6 @@ func (x *UpsertAccessMonitoringRuleRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertAccessMonitoringRuleRequest.ProtoReflect.Descriptor instead.
-func (*UpsertAccessMonitoringRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *UpsertAccessMonitoringRuleRequest) GetRule() *AccessMonitoringRule {
 	if x != nil {
 		return x.Rule
@@ -588,9 +885,39 @@ func (x *UpsertAccessMonitoringRuleRequest) GetRule() *AccessMonitoringRule {
 	return nil
 }
 
+func (x *UpsertAccessMonitoringRuleRequest) SetRule(v *AccessMonitoringRule) {
+	x.Rule = v
+}
+
+func (x *UpsertAccessMonitoringRuleRequest) HasRule() bool {
+	if x == nil {
+		return false
+	}
+	return x.Rule != nil
+}
+
+func (x *UpsertAccessMonitoringRuleRequest) ClearRule() {
+	x.Rule = nil
+}
+
+type UpsertAccessMonitoringRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// access_monitoring_rule is the specification of the rule to be upserted.
+	Rule *AccessMonitoringRule
+}
+
+func (b0 UpsertAccessMonitoringRuleRequest_builder) Build() *UpsertAccessMonitoringRuleRequest {
+	m0 := &UpsertAccessMonitoringRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rule = b.Rule
+	return m0
+}
+
 // GetAccessMonitoringRuleRequest is the request for GetAccessMonitoringRule.
 type GetAccessMonitoringRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// resource_name is the name of the rule to be returned.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -622,11 +949,6 @@ func (x *GetAccessMonitoringRuleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAccessMonitoringRuleRequest.ProtoReflect.Descriptor instead.
-func (*GetAccessMonitoringRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *GetAccessMonitoringRuleRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -634,9 +956,28 @@ func (x *GetAccessMonitoringRuleRequest) GetName() string {
 	return ""
 }
 
+func (x *GetAccessMonitoringRuleRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetAccessMonitoringRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// resource_name is the name of the rule to be returned.
+	Name string
+}
+
+func (b0 GetAccessMonitoringRuleRequest_builder) Build() *GetAccessMonitoringRuleRequest {
+	m0 := &GetAccessMonitoringRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // DeleteAccessMonitoringRuleRequest is the request for DeleteAccessMonitoringRule.
 type DeleteAccessMonitoringRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// resource_name is the name of the rule to be removed.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -668,11 +1009,6 @@ func (x *DeleteAccessMonitoringRuleRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAccessMonitoringRuleRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAccessMonitoringRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *DeleteAccessMonitoringRuleRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -680,9 +1016,28 @@ func (x *DeleteAccessMonitoringRuleRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteAccessMonitoringRuleRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteAccessMonitoringRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// resource_name is the name of the rule to be removed.
+	Name string
+}
+
+func (b0 DeleteAccessMonitoringRuleRequest_builder) Build() *DeleteAccessMonitoringRuleRequest {
+	m0 := &DeleteAccessMonitoringRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // ListAccessMonitoringRulesRequest is the request for ListAccessMonitoringRules.
 type ListAccessMonitoringRulesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int64 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -717,11 +1072,6 @@ func (x *ListAccessMonitoringRulesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAccessMonitoringRulesRequest.ProtoReflect.Descriptor instead.
-func (*ListAccessMonitoringRulesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *ListAccessMonitoringRulesRequest) GetPageSize() int64 {
 	if x != nil {
 		return x.PageSize
@@ -736,9 +1086,36 @@ func (x *ListAccessMonitoringRulesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListAccessMonitoringRulesRequest) SetPageSize(v int64) {
+	x.PageSize = v
+}
+
+func (x *ListAccessMonitoringRulesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListAccessMonitoringRulesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int64
+	// page_token is the next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListAccessMonitoringRulesRequest_builder) Build() *ListAccessMonitoringRulesRequest {
+	m0 := &ListAccessMonitoringRulesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListAccessMonitoringRulesWithFilterRequest is the request for ListAccessMonitoringRulesWithFilter.
 type ListAccessMonitoringRulesWithFilterRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int64 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -780,11 +1157,6 @@ func (x *ListAccessMonitoringRulesWithFilterRequest) ProtoReflect() protoreflect
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAccessMonitoringRulesWithFilterRequest.ProtoReflect.Descriptor instead.
-func (*ListAccessMonitoringRulesWithFilterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *ListAccessMonitoringRulesWithFilterRequest) GetPageSize() int64 {
 	if x != nil {
 		return x.PageSize
@@ -820,9 +1192,58 @@ func (x *ListAccessMonitoringRulesWithFilterRequest) GetAutomaticReviewName() st
 	return ""
 }
 
+func (x *ListAccessMonitoringRulesWithFilterRequest) SetPageSize(v int64) {
+	x.PageSize = v
+}
+
+func (x *ListAccessMonitoringRulesWithFilterRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListAccessMonitoringRulesWithFilterRequest) SetSubjects(v []string) {
+	x.Subjects = v
+}
+
+func (x *ListAccessMonitoringRulesWithFilterRequest) SetNotificationName(v string) {
+	x.NotificationName = v
+}
+
+func (x *ListAccessMonitoringRulesWithFilterRequest) SetAutomaticReviewName(v string) {
+	x.AutomaticReviewName = v
+}
+
+type ListAccessMonitoringRulesWithFilterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int64
+	// page_token is the next_page_token value returned from a previous List request, if any.
+	PageToken string
+	// subjects are the subjects the access monitoring rules must have. This field is optional.
+	Subjects []string
+	// notification_name is the value of the notification name field the rule must have. This field is optional.
+	NotificationName string
+	// automatic_review_name is the value of the automatic_review integration field
+	// the rule must have. This field is optional.
+	AutomaticReviewName string
+}
+
+func (b0 ListAccessMonitoringRulesWithFilterRequest_builder) Build() *ListAccessMonitoringRulesWithFilterRequest {
+	m0 := &ListAccessMonitoringRulesWithFilterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.Subjects = b.Subjects
+	x.NotificationName = b.NotificationName
+	x.AutomaticReviewName = b.AutomaticReviewName
+	return m0
+}
+
 // ListAccessMonitoringRulesResponse is the response from ListAccessMonitoringRules.
 type ListAccessMonitoringRulesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of AccessMonitoringRule that matched the request.
 	Rules []*AccessMonitoringRule `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -857,11 +1278,6 @@ func (x *ListAccessMonitoringRulesResponse) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAccessMonitoringRulesResponse.ProtoReflect.Descriptor instead.
-func (*ListAccessMonitoringRulesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *ListAccessMonitoringRulesResponse) GetRules() []*AccessMonitoringRule {
 	if x != nil {
 		return x.Rules
@@ -876,9 +1292,36 @@ func (x *ListAccessMonitoringRulesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListAccessMonitoringRulesResponse) SetRules(v []*AccessMonitoringRule) {
+	x.Rules = v
+}
+
+func (x *ListAccessMonitoringRulesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListAccessMonitoringRulesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of AccessMonitoringRule that matched the request.
+	Rules []*AccessMonitoringRule
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListAccessMonitoringRulesResponse_builder) Build() *ListAccessMonitoringRulesResponse {
+	m0 := &ListAccessMonitoringRulesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rules = b.Rules
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // ListAccessMonitoringRulesWithFilterResponse is the response from ListAccessMonitoringRulesWithFilter.
 type ListAccessMonitoringRulesWithFilterResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of AccessMonitoringRule that matched the request.
 	Rules []*AccessMonitoringRule `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -913,11 +1356,6 @@ func (x *ListAccessMonitoringRulesWithFilterResponse) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAccessMonitoringRulesWithFilterResponse.ProtoReflect.Descriptor instead.
-func (*ListAccessMonitoringRulesWithFilterResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *ListAccessMonitoringRulesWithFilterResponse) GetRules() []*AccessMonitoringRule {
 	if x != nil {
 		return x.Rules
@@ -932,9 +1370,36 @@ func (x *ListAccessMonitoringRulesWithFilterResponse) GetNextPageToken() string 
 	return ""
 }
 
+func (x *ListAccessMonitoringRulesWithFilterResponse) SetRules(v []*AccessMonitoringRule) {
+	x.Rules = v
+}
+
+func (x *ListAccessMonitoringRulesWithFilterResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListAccessMonitoringRulesWithFilterResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of AccessMonitoringRule that matched the request.
+	Rules []*AccessMonitoringRule
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListAccessMonitoringRulesWithFilterResponse_builder) Build() *ListAccessMonitoringRulesWithFilterResponse {
+	m0 := &ListAccessMonitoringRulesWithFilterResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rules = b.Rules
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Shift contains the weekday, start time, and end time of a shift.
 type TimeSchedule_Shift struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Weekday specifies the day of the week, e.g., "Sunday", "Monday", "Tuesday".
 	Weekday string `protobuf:"bytes,1,opt,name=weekday,proto3" json:"weekday,omitempty"`
 	// Start specifies the start time in the format HH:MM, e.g., "12:30".
@@ -970,11 +1435,6 @@ func (x *TimeSchedule_Shift) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TimeSchedule_Shift.ProtoReflect.Descriptor instead.
-func (*TimeSchedule_Shift) Descriptor() ([]byte, []int) {
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP(), []int{5, 0}
-}
-
 func (x *TimeSchedule_Shift) GetWeekday() string {
 	if x != nil {
 		return x.Weekday
@@ -994,6 +1454,39 @@ func (x *TimeSchedule_Shift) GetEnd() string {
 		return x.End
 	}
 	return ""
+}
+
+func (x *TimeSchedule_Shift) SetWeekday(v string) {
+	x.Weekday = v
+}
+
+func (x *TimeSchedule_Shift) SetStart(v string) {
+	x.Start = v
+}
+
+func (x *TimeSchedule_Shift) SetEnd(v string) {
+	x.End = v
+}
+
+type TimeSchedule_Shift_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Weekday specifies the day of the week, e.g., "Sunday", "Monday", "Tuesday".
+	Weekday string
+	// Start specifies the start time in the format HH:MM, e.g., "12:30".
+	Start string
+	// End specifies the end time in the format HH:MM, e.g., "12:30".
+	End string
+}
+
+func (b0 TimeSchedule_Shift_builder) Build() *TimeSchedule_Shift {
+	m0 := &TimeSchedule_Shift{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Weekday = b.Weekday
+	x.Start = b.Start
+	x.End = b.End
+	return m0
 }
 
 var File_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto protoreflect.FileDescriptor
@@ -1062,18 +1555,6 @@ const file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDe
 	"+ListAccessMonitoringRulesWithFilterResponse\x12M\n" +
 	"\x05rules\x18\x01 \x03(\v27.teleport.accessmonitoringrules.v1.AccessMonitoringRuleR\x05rules\x12&\n" +
 	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageTokenBnZlgithub.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1;accessmonitoringrulesv1b\x06proto3"
-
-var (
-	file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescOnce sync.Once
-	file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescData []byte
-)
-
-func file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescGZIP() []byte {
-	file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescOnce.Do(func() {
-		file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDesc), len(file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDesc)))
-	})
-	return file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_rawDescData
-}
 
 var file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_teleport_accessmonitoringrules_v1_access_monitoring_rules_proto_goTypes = []any{

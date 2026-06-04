@@ -27,6 +27,7 @@ import (
 	"os"
 	"os/user"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -44,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
@@ -337,6 +339,10 @@ func (m *mockServer) ChildLogConfig() ChildLogConfig {
 	}
 }
 
+func (m *mockServer) GetPresenceMaxDuration() time.Duration {
+	return client.DefaultPresenceMaxDuration
+}
+
 // Implementation of ssh.Conn interface.
 type mockSSHConn struct {
 	remoteAddr net.Addr
@@ -383,61 +389,70 @@ func (c *mockSSHConn) Wait() error {
 	return nil
 }
 
+// mockSSHChannel is one side of a mocked ssh channel.
 type mockSSHChannel struct {
-	stdIn  io.ReadCloser
-	stdOut io.WriteCloser
-	stdErr io.ReadWriter
+	reader io.ReadCloser
+	writer io.WriteCloser
 }
 
-func newMockSSHChannel() ssh.Channel {
-	stdIn, stdOut := io.Pipe()
-	return &mockSSHChannel{
-		stdIn:  stdIn,
-		stdOut: stdOut,
-		stdErr: new(bytes.Buffer),
+// newMockSSHChannel creates a mock ssh channel and returns both the client and server side.
+// When the server side is handed to a running session, the client side must be drained
+// so the session's stdout writes don't block on the unread pipe.
+func newMockSSHChannel(t *testing.T) (client *mockSSHChannel, server *mockSSHChannel) {
+	stdinReader, stdinWriter := io.Pipe()
+	stdoutReader, stdoutWriter := io.Pipe()
+
+	client = &mockSSHChannel{
+		reader: stdoutReader,
+		writer: stdinWriter,
 	}
+	t.Cleanup(func() { client.Close() })
+
+	server = &mockSSHChannel{
+		reader: stdinReader,
+		writer: stdoutWriter,
+	}
+	t.Cleanup(func() { server.Close() })
+
+	return client, server
 }
 
-// Read reads up to len(data) bytes from the channel.
+// Read up to len(data) bytes from the channel.
 func (c *mockSSHChannel) Read(data []byte) (int, error) {
-	return c.stdIn.Read(data)
+	return c.reader.Read(data)
 }
 
-// Write writes len(data) bytes to the channel.
+// Write len(data) bytes to the channel.
 func (c *mockSSHChannel) Write(data []byte) (int, error) {
-	return c.stdOut.Write(data)
+	return c.writer.Write(data)
+}
+
+// Drain the reader in a goroutine until it is closed.
+func (c *mockSSHChannel) Drain() {
+	go io.ReadAll(c.reader)
 }
 
 // Close signals end of channel use. No data may be sent after this
 // call.
 func (c *mockSSHChannel) Close() error {
-	return trace.NewAggregate(c.stdIn.Close(), c.stdOut.Close())
+	return trace.NewAggregate(c.reader.Close(), c.writer.Close())
 }
 
 // CloseWrite signals the end of sending in-band
 // data. Requests may still be sent, and the other side may
 // still send data
 func (c *mockSSHChannel) CloseWrite() error {
-	return trace.NewAggregate(c.stdOut.Close())
+	return trace.NewAggregate(c.writer.Close())
 }
 
-// SendRequest sends a channel request.  If wantReply is true,
-// it will wait for a reply and return the result as a
-// boolean, otherwise the return value will be false. Channel
-// requests are out-of-band messages so they may be sent even
-// if the data stream is closed or blocked by flow control.
-// If the channel is closed before a reply is returned, io.EOF
-// is returned.
 func (c *mockSSHChannel) SendRequest(name string, wantReply bool, payload []byte) (bool, error) {
 	return true, nil
 }
 
-// Stderr returns an io.ReadWriter that writes to this channel
-// with the extended data type set to stderr. Stderr may
-// safely be read and written from a different goroutine than
-// Read and Write respectively.
+// Stderr is not modeled by this mock yet. Return a sink so tests that only
+// write stderr do not panic.
 func (c *mockSSHChannel) Stderr() io.ReadWriter {
-	return c.stdErr
+	return new(bytes.Buffer)
 }
 
 type fakeBPF struct {

@@ -238,7 +238,7 @@ func parseIP(protocol string, addrString string) (net.IP, error) {
 		return nil, trace.BadParameter("failed to parse address")
 	case addr.To4() != nil && protocol != TCP4:
 		return nil, trace.BadParameter("got IPV4 address %q for IPV6 proto %q", addr.String(), protocol)
-	case addr.To4() == nil && protocol == TCP6:
+	case addr.To4() == nil && protocol != TCP6:
 		return nil, trace.BadParameter("got IPV6 address %v %q for IPV4 proto %q", len(addr), addr.String(), protocol)
 	}
 	return addr, nil

@@ -19,7 +19,6 @@
 import styled from 'styled-components';
 
 import { Box, Flex } from 'design';
-import cloudCity from 'design/assets/images/backgrounds/cloud-city.png';
 
 import { LogoHero } from 'teleport/components/LogoHero';
 
@@ -50,30 +49,7 @@ const OnboardWrapper = styled.div`
   top: 0;
   left: 0;
   overflow: hidden;
-  // z-index -2 will place the image behind the black transparent/blur effect
-  z-index: -2;
-
-  background: url('${cloudCity}');
-  -webkit-background-size: cover;
-  -moz-background-size: cover;
-  -o-background-size: cover;
-  background-size: cover;
-
-  // leveraging pseudo element for opacity/blur
-  &::after {
-    content: '';
-    top: 0;
-    left: 0;
-    bottom: 0;
-    right: 0;
-    position: absolute;
-    // z-index -1 will place the transparent/blur effect behind all other components on the page
-    z-index: -1;
-
-    background-color: black;
-    opacity: 0.25;
-    backdrop-filter: blur(17.5px);
-  }
+  background: ${props => props.theme.colors.levels.sunken};
 `;
 
 const WelcomeHeader = styled(Box)`

@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/userpreferences/v1/cluster_preferences.proto
 
+//go:build !protoopaque
+
 package userpreferencesv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 // PinnedResourcesUserPreferences is a collection of resource IDs that will be
 // displayed in the user's pinned resources tab in the Web UI.
 type PinnedResourcesUserPreferences struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// resource_ids is a list of unified resource name sort keys.
 	ResourceIds   []string `protobuf:"bytes,1,rep,name=resource_ids,json=resourceIds,proto3" json:"resource_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *PinnedResourcesUserPreferences) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PinnedResourcesUserPreferences.ProtoReflect.Descriptor instead.
-func (*PinnedResourcesUserPreferences) Descriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_cluster_preferences_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *PinnedResourcesUserPreferences) GetResourceIds() []string {
 	if x != nil {
 		return x.ResourceIds
@@ -82,9 +78,28 @@ func (x *PinnedResourcesUserPreferences) GetResourceIds() []string {
 	return nil
 }
 
+func (x *PinnedResourcesUserPreferences) SetResourceIds(v []string) {
+	x.ResourceIds = v
+}
+
+type PinnedResourcesUserPreferences_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// resource_ids is a list of unified resource name sort keys.
+	ResourceIds []string
+}
+
+func (b0 PinnedResourcesUserPreferences_builder) Build() *PinnedResourcesUserPreferences {
+	m0 := &PinnedResourcesUserPreferences{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ResourceIds = b.ResourceIds
+	return m0
+}
+
 // ClusterUserPreferences are user preferences saved per cluster.
 type ClusterUserPreferences struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// pinned_resources is a list of pinned resources.
 	PinnedResources *PinnedResourcesUserPreferences `protobuf:"bytes,1,opt,name=pinned_resources,json=pinnedResources,proto3" json:"pinned_resources,omitempty"`
 	unknownFields   protoimpl.UnknownFields
@@ -116,16 +131,41 @@ func (x *ClusterUserPreferences) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClusterUserPreferences.ProtoReflect.Descriptor instead.
-func (*ClusterUserPreferences) Descriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_cluster_preferences_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ClusterUserPreferences) GetPinnedResources() *PinnedResourcesUserPreferences {
 	if x != nil {
 		return x.PinnedResources
 	}
 	return nil
+}
+
+func (x *ClusterUserPreferences) SetPinnedResources(v *PinnedResourcesUserPreferences) {
+	x.PinnedResources = v
+}
+
+func (x *ClusterUserPreferences) HasPinnedResources() bool {
+	if x == nil {
+		return false
+	}
+	return x.PinnedResources != nil
+}
+
+func (x *ClusterUserPreferences) ClearPinnedResources() {
+	x.PinnedResources = nil
+}
+
+type ClusterUserPreferences_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// pinned_resources is a list of pinned resources.
+	PinnedResources *PinnedResourcesUserPreferences
+}
+
+func (b0 ClusterUserPreferences_builder) Build() *ClusterUserPreferences {
+	m0 := &ClusterUserPreferences{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PinnedResources = b.PinnedResources
+	return m0
 }
 
 var File_teleport_userpreferences_v1_cluster_preferences_proto protoreflect.FileDescriptor
@@ -137,18 +177,6 @@ const file_teleport_userpreferences_v1_cluster_preferences_proto_rawDesc = "" +
 	"\fresource_ids\x18\x01 \x03(\tR\vresourceIds\"\x80\x01\n" +
 	"\x16ClusterUserPreferences\x12f\n" +
 	"\x10pinned_resources\x18\x01 \x01(\v2;.teleport.userpreferences.v1.PinnedResourcesUserPreferencesR\x0fpinnedResourcesBYZWgithub.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1;userpreferencesv1b\x06proto3"
-
-var (
-	file_teleport_userpreferences_v1_cluster_preferences_proto_rawDescOnce sync.Once
-	file_teleport_userpreferences_v1_cluster_preferences_proto_rawDescData []byte
-)
-
-func file_teleport_userpreferences_v1_cluster_preferences_proto_rawDescGZIP() []byte {
-	file_teleport_userpreferences_v1_cluster_preferences_proto_rawDescOnce.Do(func() {
-		file_teleport_userpreferences_v1_cluster_preferences_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userpreferences_v1_cluster_preferences_proto_rawDesc), len(file_teleport_userpreferences_v1_cluster_preferences_proto_rawDesc)))
-	})
-	return file_teleport_userpreferences_v1_cluster_preferences_proto_rawDescData
-}
 
 var file_teleport_userpreferences_v1_cluster_preferences_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_userpreferences_v1_cluster_preferences_proto_goTypes = []any{

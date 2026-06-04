@@ -835,7 +835,7 @@ func TestDiscoveryServer(t *testing.T) {
 				t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
 				if tc.requiresProxy {
-					err = testAuthServer.AuthServer.UpsertProxy(ctx, &types.ServerV2{
+					_, err = testAuthServer.AuthServer.UpsertProxyServer(ctx, &types.ServerV2{
 						Kind: types.KindProxy,
 						Metadata: types.Metadata{
 							Name: "proxy",
@@ -2838,7 +2838,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					PublicAddrs: []string{"teleport.example.com"},
 				})
 				require.NoError(t, err)
-				err = tlsServer.Auth().UpsertProxy(ctx, proxy)
+				_, err = tlsServer.Auth().UpsertProxyServer(ctx, proxy)
 				require.NoError(t, err)
 
 				_, err = tlsServer.Auth().CreateIntegration(ctx, awsOIDCIntegration)
@@ -3562,7 +3562,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 				require.NoError(t, err)
 				t.Cleanup(func() { require.NoError(t, testAuthServer.Close()) })
 
-				err = testAuthServer.AuthServer.UpsertProxy(t.Context(), &types.ServerV2{
+				_, err = testAuthServer.AuthServer.UpsertProxyServer(t.Context(), &types.ServerV2{
 					Kind: types.KindProxy,
 					Metadata: types.Metadata{
 						Name: "proxy",

@@ -20,6 +20,8 @@
 // 	protoc        (unknown)
 // source: teleport/relaypeering/v1alpha/dial.proto
 
+//go:build !protoopaque
+
 package relaypeeringv1alpha
 
 import (
@@ -27,7 +29,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // the message sent by the client at the beginning of a connection
 type DialRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// the target agent for the connection attempt; should be "<host id>.<cluster name>"
 	TargetHostId string `protobuf:"bytes,1,opt,name=target_host_id,json=targetHostId,proto3" json:"target_host_id,omitempty"`
 	// the type of the connection as defined by api/types.TunnelType ("node",
@@ -77,11 +78,6 @@ func (x *DialRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DialRequest.ProtoReflect.Descriptor instead.
-func (*DialRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_relaypeering_v1alpha_dial_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DialRequest) GetTargetHostId() string {
 	if x != nil {
 		return x.TargetHostId
@@ -110,12 +106,73 @@ func (x *DialRequest) GetDestination() *Addr {
 	return nil
 }
 
+func (x *DialRequest) SetTargetHostId(v string) {
+	x.TargetHostId = v
+}
+
+func (x *DialRequest) SetConnectionType(v string) {
+	x.ConnectionType = v
+}
+
+func (x *DialRequest) SetSource(v *Addr) {
+	x.Source = v
+}
+
+func (x *DialRequest) SetDestination(v *Addr) {
+	x.Destination = v
+}
+
+func (x *DialRequest) HasSource() bool {
+	if x == nil {
+		return false
+	}
+	return x.Source != nil
+}
+
+func (x *DialRequest) HasDestination() bool {
+	if x == nil {
+		return false
+	}
+	return x.Destination != nil
+}
+
+func (x *DialRequest) ClearSource() {
+	x.Source = nil
+}
+
+func (x *DialRequest) ClearDestination() {
+	x.Destination = nil
+}
+
+type DialRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// the target agent for the connection attempt; should be "<host id>.<cluster name>"
+	TargetHostId string
+	// the type of the connection as defined by api/types.TunnelType ("node",
+	// "app", "kube"...)
+	ConnectionType string
+	Source         *Addr
+	Destination    *Addr
+}
+
+func (b0 DialRequest_builder) Build() *DialRequest {
+	m0 := &DialRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TargetHostId = b.TargetHostId
+	x.ConnectionType = b.ConnectionType
+	x.Source = b.Source
+	x.Destination = b.Destination
+	return m0
+}
+
 // the message sent by the server as a response to a DialRequest; in case of
 // success (status is missing or reports "ok") the connection data follows on
 // the same stream, otherwise the stream ends and any data sent by the client is
 // to be treated as silently discarded
 type DialResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Status        *status.Status         `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -146,11 +203,6 @@ func (x *DialResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DialResponse.ProtoReflect.Descriptor instead.
-func (*DialResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_relaypeering_v1alpha_dial_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *DialResponse) GetStatus() *status.Status {
 	if x != nil {
 		return x.Status
@@ -158,9 +210,38 @@ func (x *DialResponse) GetStatus() *status.Status {
 	return nil
 }
 
+func (x *DialResponse) SetStatus(v *status.Status) {
+	x.Status = v
+}
+
+func (x *DialResponse) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *DialResponse) ClearStatus() {
+	x.Status = nil
+}
+
+type DialResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Status *status.Status
+}
+
+func (b0 DialResponse_builder) Build() *DialResponse {
+	m0 := &DialResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Status = b.Status
+	return m0
+}
+
 // a stringy Go net.Addr, usually converted to and from lib/utils.NetAddr
 type Addr struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// likely always "tcp"
 	Network string `protobuf:"bytes,1,opt,name=network,proto3" json:"network,omitempty"`
 	// depending on the network, likely "<ip address>:<port>"
@@ -194,11 +275,6 @@ func (x *Addr) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Addr.ProtoReflect.Descriptor instead.
-func (*Addr) Descriptor() ([]byte, []int) {
-	return file_teleport_relaypeering_v1alpha_dial_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *Addr) GetNetwork() string {
 	if x != nil {
 		return x.Network
@@ -211,6 +287,32 @@ func (x *Addr) GetAddr() string {
 		return x.Addr
 	}
 	return ""
+}
+
+func (x *Addr) SetNetwork(v string) {
+	x.Network = v
+}
+
+func (x *Addr) SetAddr(v string) {
+	x.Addr = v
+}
+
+type Addr_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// likely always "tcp"
+	Network string
+	// depending on the network, likely "<ip address>:<port>"
+	Addr string
+}
+
+func (b0 Addr_builder) Build() *Addr {
+	m0 := &Addr{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Network = b.Network
+	x.Addr = b.Addr
+	return m0
 }
 
 var File_teleport_relaypeering_v1alpha_dial_proto protoreflect.FileDescriptor
@@ -228,18 +330,6 @@ const file_teleport_relaypeering_v1alpha_dial_proto_rawDesc = "" +
 	"\x04Addr\x12\x18\n" +
 	"\anetwork\x18\x01 \x01(\tR\anetwork\x12\x12\n" +
 	"\x04addr\x18\x02 \x01(\tR\x04addrBbZ`github.com/gravitational/teleport/gen/proto/go/teleport/relaypeering/v1alpha;relaypeeringv1alphab\x06proto3"
-
-var (
-	file_teleport_relaypeering_v1alpha_dial_proto_rawDescOnce sync.Once
-	file_teleport_relaypeering_v1alpha_dial_proto_rawDescData []byte
-)
-
-func file_teleport_relaypeering_v1alpha_dial_proto_rawDescGZIP() []byte {
-	file_teleport_relaypeering_v1alpha_dial_proto_rawDescOnce.Do(func() {
-		file_teleport_relaypeering_v1alpha_dial_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_relaypeering_v1alpha_dial_proto_rawDesc), len(file_teleport_relaypeering_v1alpha_dial_proto_rawDesc)))
-	})
-	return file_teleport_relaypeering_v1alpha_dial_proto_rawDescData
-}
 
 var file_teleport_relaypeering_v1alpha_dial_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_relaypeering_v1alpha_dial_proto_goTypes = []any{

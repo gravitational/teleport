@@ -155,7 +155,8 @@ func TestProxyWatcher(t *testing.T) {
 	require.NoError(t, w.WaitInitialization())
 	// Add a proxy server.
 	proxy := newProxyServer(t, "proxy1", "127.0.0.1:2023")
-	require.NoError(t, presence.UpsertProxy(ctx, proxy))
+	_, err = presence.UpsertProxyServer(ctx, proxy)
+	require.NoError(t, err)
 
 	// The first event is always the current list of proxies.
 	select {
@@ -170,7 +171,8 @@ func TestProxyWatcher(t *testing.T) {
 
 	// Add a second proxy.
 	proxy2 := newProxyServer(t, "proxy2", "127.0.0.1:2023")
-	require.NoError(t, presence.UpsertProxy(ctx, proxy2))
+	_, err = presence.UpsertProxyServer(ctx, proxy2)
+	require.NoError(t, err)
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -183,7 +185,7 @@ func TestProxyWatcher(t *testing.T) {
 	}
 
 	// Delete the first proxy.
-	require.NoError(t, presence.DeleteProxy(ctx, proxy.GetName()))
+	require.NoError(t, presence.DeleteProxyServer(ctx, proxy.GetName()))
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -197,7 +199,7 @@ func TestProxyWatcher(t *testing.T) {
 	}
 
 	// Delete the second proxy.
-	require.NoError(t, presence.DeleteProxy(ctx, proxy2.GetName()))
+	require.NoError(t, presence.DeleteProxyServer(ctx, proxy2.GetName()))
 
 	// Watcher should detect the proxy list change.
 	select {

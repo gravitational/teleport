@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/assert.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -54,7 +55,7 @@ const (
 // A successful ceremony signifies that the device is registered, enrolled and
 // passed the authentication challenge.
 type AssertDeviceRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*AssertDeviceRequest_Init
@@ -88,11 +89,6 @@ func (x *AssertDeviceRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AssertDeviceRequest.ProtoReflect.Descriptor instead.
-func (*AssertDeviceRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_assert_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *AssertDeviceRequest) GetPayload() isAssertDeviceRequest_Payload {
@@ -129,6 +125,140 @@ func (x *AssertDeviceRequest) GetTpmChallengeResponse() *TPMAuthenticateDeviceCh
 	return nil
 }
 
+func (x *AssertDeviceRequest) SetInit(v *AssertDeviceInit) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AssertDeviceRequest_Init{v}
+}
+
+func (x *AssertDeviceRequest) SetChallengeResponse(v *AuthenticateDeviceChallengeResponse) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AssertDeviceRequest_ChallengeResponse{v}
+}
+
+func (x *AssertDeviceRequest) SetTpmChallengeResponse(v *TPMAuthenticateDeviceChallengeResponse) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AssertDeviceRequest_TpmChallengeResponse{v}
+}
+
+func (x *AssertDeviceRequest) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *AssertDeviceRequest) HasInit() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AssertDeviceRequest_Init)
+	return ok
+}
+
+func (x *AssertDeviceRequest) HasChallengeResponse() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AssertDeviceRequest_ChallengeResponse)
+	return ok
+}
+
+func (x *AssertDeviceRequest) HasTpmChallengeResponse() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AssertDeviceRequest_TpmChallengeResponse)
+	return ok
+}
+
+func (x *AssertDeviceRequest) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *AssertDeviceRequest) ClearInit() {
+	if _, ok := x.Payload.(*AssertDeviceRequest_Init); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *AssertDeviceRequest) ClearChallengeResponse() {
+	if _, ok := x.Payload.(*AssertDeviceRequest_ChallengeResponse); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *AssertDeviceRequest) ClearTpmChallengeResponse() {
+	if _, ok := x.Payload.(*AssertDeviceRequest_TpmChallengeResponse); ok {
+		x.Payload = nil
+	}
+}
+
+const AssertDeviceRequest_Payload_not_set_case case_AssertDeviceRequest_Payload = 0
+const AssertDeviceRequest_Init_case case_AssertDeviceRequest_Payload = 1
+const AssertDeviceRequest_ChallengeResponse_case case_AssertDeviceRequest_Payload = 2
+const AssertDeviceRequest_TpmChallengeResponse_case case_AssertDeviceRequest_Payload = 3
+
+func (x *AssertDeviceRequest) WhichPayload() case_AssertDeviceRequest_Payload {
+	if x == nil {
+		return AssertDeviceRequest_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *AssertDeviceRequest_Init:
+		return AssertDeviceRequest_Init_case
+	case *AssertDeviceRequest_ChallengeResponse:
+		return AssertDeviceRequest_ChallengeResponse_case
+	case *AssertDeviceRequest_TpmChallengeResponse:
+		return AssertDeviceRequest_TpmChallengeResponse_case
+	default:
+		return AssertDeviceRequest_Payload_not_set_case
+	}
+}
+
+type AssertDeviceRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	Init                 *AssertDeviceInit
+	ChallengeResponse    *AuthenticateDeviceChallengeResponse
+	TpmChallengeResponse *TPMAuthenticateDeviceChallengeResponse
+	// -- end of Payload
+}
+
+func (b0 AssertDeviceRequest_builder) Build() *AssertDeviceRequest {
+	m0 := &AssertDeviceRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Init != nil {
+		x.Payload = &AssertDeviceRequest_Init{b.Init}
+	}
+	if b.ChallengeResponse != nil {
+		x.Payload = &AssertDeviceRequest_ChallengeResponse{b.ChallengeResponse}
+	}
+	if b.TpmChallengeResponse != nil {
+		x.Payload = &AssertDeviceRequest_TpmChallengeResponse{b.TpmChallengeResponse}
+	}
+	return m0
+}
+
+type case_AssertDeviceRequest_Payload protoreflect.FieldNumber
+
+func (x case_AssertDeviceRequest_Payload) String() string {
+	md := file_teleport_devicetrust_v1_assert_proto_msgTypes[0].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAssertDeviceRequest_Payload interface {
 	isAssertDeviceRequest_Payload()
 }
@@ -154,7 +284,7 @@ func (*AssertDeviceRequest_TpmChallengeResponse) isAssertDeviceRequest_Payload()
 // Response of the device assertion ceremony.
 // See [AssertDeviceRequest].
 type AssertDeviceResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Payload:
 	//
 	//	*AssertDeviceResponse_Challenge
@@ -188,11 +318,6 @@ func (x *AssertDeviceResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AssertDeviceResponse.ProtoReflect.Descriptor instead.
-func (*AssertDeviceResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_assert_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AssertDeviceResponse) GetPayload() isAssertDeviceResponse_Payload {
@@ -229,6 +354,140 @@ func (x *AssertDeviceResponse) GetDeviceAsserted() *DeviceAsserted {
 	return nil
 }
 
+func (x *AssertDeviceResponse) SetChallenge(v *AuthenticateDeviceChallenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AssertDeviceResponse_Challenge{v}
+}
+
+func (x *AssertDeviceResponse) SetTpmChallenge(v *TPMAuthenticateDeviceChallenge) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AssertDeviceResponse_TpmChallenge{v}
+}
+
+func (x *AssertDeviceResponse) SetDeviceAsserted(v *DeviceAsserted) {
+	if v == nil {
+		x.Payload = nil
+		return
+	}
+	x.Payload = &AssertDeviceResponse_DeviceAsserted{v}
+}
+
+func (x *AssertDeviceResponse) HasPayload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Payload != nil
+}
+
+func (x *AssertDeviceResponse) HasChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AssertDeviceResponse_Challenge)
+	return ok
+}
+
+func (x *AssertDeviceResponse) HasTpmChallenge() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AssertDeviceResponse_TpmChallenge)
+	return ok
+}
+
+func (x *AssertDeviceResponse) HasDeviceAsserted() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Payload.(*AssertDeviceResponse_DeviceAsserted)
+	return ok
+}
+
+func (x *AssertDeviceResponse) ClearPayload() {
+	x.Payload = nil
+}
+
+func (x *AssertDeviceResponse) ClearChallenge() {
+	if _, ok := x.Payload.(*AssertDeviceResponse_Challenge); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *AssertDeviceResponse) ClearTpmChallenge() {
+	if _, ok := x.Payload.(*AssertDeviceResponse_TpmChallenge); ok {
+		x.Payload = nil
+	}
+}
+
+func (x *AssertDeviceResponse) ClearDeviceAsserted() {
+	if _, ok := x.Payload.(*AssertDeviceResponse_DeviceAsserted); ok {
+		x.Payload = nil
+	}
+}
+
+const AssertDeviceResponse_Payload_not_set_case case_AssertDeviceResponse_Payload = 0
+const AssertDeviceResponse_Challenge_case case_AssertDeviceResponse_Payload = 1
+const AssertDeviceResponse_TpmChallenge_case case_AssertDeviceResponse_Payload = 2
+const AssertDeviceResponse_DeviceAsserted_case case_AssertDeviceResponse_Payload = 3
+
+func (x *AssertDeviceResponse) WhichPayload() case_AssertDeviceResponse_Payload {
+	if x == nil {
+		return AssertDeviceResponse_Payload_not_set_case
+	}
+	switch x.Payload.(type) {
+	case *AssertDeviceResponse_Challenge:
+		return AssertDeviceResponse_Challenge_case
+	case *AssertDeviceResponse_TpmChallenge:
+		return AssertDeviceResponse_TpmChallenge_case
+	case *AssertDeviceResponse_DeviceAsserted:
+		return AssertDeviceResponse_DeviceAsserted_case
+	default:
+		return AssertDeviceResponse_Payload_not_set_case
+	}
+}
+
+type AssertDeviceResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Payload:
+	Challenge      *AuthenticateDeviceChallenge
+	TpmChallenge   *TPMAuthenticateDeviceChallenge
+	DeviceAsserted *DeviceAsserted
+	// -- end of Payload
+}
+
+func (b0 AssertDeviceResponse_builder) Build() *AssertDeviceResponse {
+	m0 := &AssertDeviceResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Challenge != nil {
+		x.Payload = &AssertDeviceResponse_Challenge{b.Challenge}
+	}
+	if b.TpmChallenge != nil {
+		x.Payload = &AssertDeviceResponse_TpmChallenge{b.TpmChallenge}
+	}
+	if b.DeviceAsserted != nil {
+		x.Payload = &AssertDeviceResponse_DeviceAsserted{b.DeviceAsserted}
+	}
+	return m0
+}
+
+type case_AssertDeviceResponse_Payload protoreflect.FieldNumber
+
+func (x case_AssertDeviceResponse_Payload) String() string {
+	md := file_teleport_devicetrust_v1_assert_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAssertDeviceResponse_Payload interface {
 	isAssertDeviceResponse_Payload()
 }
@@ -254,7 +513,7 @@ func (*AssertDeviceResponse_DeviceAsserted) isAssertDeviceResponse_Payload() {}
 // AssertDeviceInit initiates the device assertion ceremony.
 // See [AssertDeviceRequest].
 type AssertDeviceInit struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ID of the enrolled device credential.
 	CredentialId string `protobuf:"bytes,1,opt,name=credential_id,json=credentialId,proto3" json:"credential_id,omitempty"`
 	// Device collected data.
@@ -290,11 +549,6 @@ func (x *AssertDeviceInit) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AssertDeviceInit.ProtoReflect.Descriptor instead.
-func (*AssertDeviceInit) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_assert_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *AssertDeviceInit) GetCredentialId() string {
 	if x != nil {
 		return x.CredentialId
@@ -309,10 +563,49 @@ func (x *AssertDeviceInit) GetDeviceData() *DeviceCollectedData {
 	return nil
 }
 
+func (x *AssertDeviceInit) SetCredentialId(v string) {
+	x.CredentialId = v
+}
+
+func (x *AssertDeviceInit) SetDeviceData(v *DeviceCollectedData) {
+	x.DeviceData = v
+}
+
+func (x *AssertDeviceInit) HasDeviceData() bool {
+	if x == nil {
+		return false
+	}
+	return x.DeviceData != nil
+}
+
+func (x *AssertDeviceInit) ClearDeviceData() {
+	x.DeviceData = nil
+}
+
+type AssertDeviceInit_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ID of the enrolled device credential.
+	CredentialId string
+	// Device collected data.
+	// Matched against the device registration information and any previously
+	// collected data.
+	DeviceData *DeviceCollectedData
+}
+
+func (b0 AssertDeviceInit_builder) Build() *AssertDeviceInit {
+	m0 := &AssertDeviceInit{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CredentialId = b.CredentialId
+	x.DeviceData = b.DeviceData
+	return m0
+}
+
 // DeviceAsserted marks a successful device assertion ceremony.
 // See [AssertDeviceRequest].
 type DeviceAsserted struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -342,9 +635,16 @@ func (x *DeviceAsserted) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeviceAsserted.ProtoReflect.Descriptor instead.
-func (*DeviceAsserted) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_assert_proto_rawDescGZIP(), []int{3}
+type DeviceAsserted_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeviceAsserted_builder) Build() *DeviceAsserted {
+	m0 := &DeviceAsserted{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_devicetrust_v1_assert_proto protoreflect.FileDescriptor
@@ -367,18 +667,6 @@ const file_teleport_devicetrust_v1_assert_proto_rawDesc = "" +
 	"\vdevice_data\x18\x02 \x01(\v2,.teleport.devicetrust.v1.DeviceCollectedDataR\n" +
 	"deviceData\"\x10\n" +
 	"\x0eDeviceAssertedBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_assert_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_assert_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_assert_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_assert_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_assert_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_assert_proto_rawDesc), len(file_teleport_devicetrust_v1_assert_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_assert_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_assert_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_devicetrust_v1_assert_proto_goTypes = []any{

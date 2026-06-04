@@ -30,18 +30,44 @@ import (
 const (
 	// featureVarName is the name of the unstable scopes feature flag.
 	featureVarName = "TELEPORT_UNSTABLE_SCOPES"
+
+	// agentPinVarName is the name of the unstable agent scope pin feature flag.
+	agentPinVarName = "TELEPORT_UNSTABLE_AGENT_SCOPE_PIN"
 )
 
-// FeatureEnabled checks if the scopes feature is enabled.
-func FeatureEnabled() bool {
+// Features describes which scopes-related functionality is enabled.
+type Features struct {
+	// Enabled indicates whether the base scopes feature is enabled.
+	Enabled bool
+
+	// AgentPinEnabled checks if the agent scope pin feature is enabled.
+	AgentPinEnabled bool
+}
+
+// AssertEnabled returns an error if the base scopes feature is disabled.
+func (f Features) AssertEnabled() error {
+	if !f.Enabled {
+		return trace.Errorf("scoping features are not enabled, set " + featureVarName + "=yes to enable scoping features (caution: not ready for production use)")
+	}
+
+	return nil
+}
+
+// FeaturesFromEnv builds Features from scopes-related environment variables.
+func FeaturesFromEnv() Features {
+	var f Features
 	enabled, err := apiutils.ParseBool(os.Getenv(featureVarName))
-	return enabled && err == nil
+	f.Enabled = enabled && err == nil
+	agentPinEnabled, err := apiutils.ParseBool(os.Getenv(agentPinVarName))
+	f.AgentPinEnabled = agentPinEnabled && err == nil
+	return f
 }
 
 // AssertFeatureEnabled checks if the scopes feature is enabled, and returns a helpful
 // error message if it is not.
+// Deprecated: inject scopes.Features instead.
 func AssertFeatureEnabled() error {
-	if !FeatureEnabled() {
+	if !FeaturesFromEnv().Enabled {
 		return trace.Errorf("scoping features are not enabled, set " + featureVarName + "=yes to enable scoping features (caution: not ready for production use)")
 	}
 

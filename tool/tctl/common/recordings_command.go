@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -286,7 +287,7 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 
 	var labels map[string]string
 	if c.searchLabel != "" {
-		labels, err = client.ParseLabelSpec(c.searchLabel)
+		labels, err = parse.LabelSelectorSpec(c.searchLabel)
 		if err != nil {
 			return trace.Wrap(err, "parsing --label")
 		}

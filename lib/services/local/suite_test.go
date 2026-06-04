@@ -63,7 +63,7 @@ type ServicesTestSuite struct {
 	Access         services.Access
 	TrustS         services.Trust
 	TrustInternalS services.TrustInternal
-	PresenceS      services.Presence
+	PresenceS      services.PresenceInternal
 	ProvisioningS  services.Provisioner
 	WebS           services.Identity
 	ConfigS        services.ClusterConfiguration
@@ -395,7 +395,8 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
 	proxy.Spec.Hostname = "proxy.llama"
-	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
+	_, err = s.PresenceS.UpsertProxyServer(ctx, proxy)
+	require.NoError(t, err)
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	out, err = s.PresenceS.GetProxies()
@@ -403,7 +404,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out, []types.Server{proxy}, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.PresenceS.DeleteProxy(ctx, proxy.GetName())
+	err = s.PresenceS.DeleteProxyServer(ctx, proxy.GetName())
 	require.NoError(t, err)
 
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -1220,6 +1221,7 @@ func (s *ServicesTestSuite) OIDCPagination(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
+	ctx := t.Context()
 	clusterName := "example.com"
 	out, err := s.TrustS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
@@ -1233,7 +1235,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.TrustS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
 	out, err = s.TrustS.GetTunnelConnections(clusterName)
@@ -1249,7 +1251,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	dt = dt.Add(time.Hour)
 	conn.SetLastHeartbeat(dt)
 
-	err = s.TrustS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
 	out, err = s.TrustS.GetTunnelConnections(clusterName)
@@ -1260,12 +1262,12 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	out, err = s.TrustS.GetAllTunnelConnections()
 	require.NoError(t, err)
 	for _, tc := range out {
-		err = s.TrustS.DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
+		err = s.TrustS.DeleteTunnelConnection(ctx, tc.GetClusterName(), tc.GetName())
 		require.NoError(t, err)
 	}
 
 	// test delete individual connection
-	err = s.TrustS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
 	out, err = s.TrustS.GetTunnelConnections(clusterName)
@@ -1273,7 +1275,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.TrustS.DeleteTunnelConnection(clusterName, conn.GetName())
+	err = s.TrustS.DeleteTunnelConnection(ctx, clusterName, conn.GetName())
 	require.NoError(t, err)
 
 	out, err = s.TrustS.GetTunnelConnections(clusterName)
@@ -2220,7 +2222,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			crud: func(context.Context) types.Resource {
 				srv := NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 
-				err := s.PresenceS.UpsertProxy(ctx, srv)
+				_, err := s.PresenceS.UpsertProxyServer(ctx, srv)
 				require.NoError(t, err)
 
 				//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
@@ -2228,7 +2230,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				require.NoError(t, err)
 
 				for _, p := range out {
-					require.NoError(t, s.PresenceS.DeleteProxy(ctx, p.GetName()))
+					require.NoError(t, s.PresenceS.DeleteProxyServer(ctx, p.GetName()))
 				}
 
 				return out[0]
@@ -2239,7 +2241,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			kind: types.WatchKind{
 				Kind: types.KindTunnelConnection,
 			},
-			crud: func(context.Context) types.Resource {
+			crud: func(ctx context.Context) types.Resource {
 				conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
 					ClusterName:   "example.com",
 					ProxyName:     "p1",
@@ -2247,13 +2249,13 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.TrustS.UpsertTunnelConnection(conn)
+				err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 				require.NoError(t, err)
 
 				out, err := s.TrustS.GetTunnelConnections("example.com")
 				require.NoError(t, err)
 
-				err = s.TrustS.DeleteTunnelConnection(conn.GetClusterName(), conn.GetName())
+				err = s.TrustS.DeleteTunnelConnection(ctx, conn.GetClusterName(), conn.GetName())
 				require.NoError(t, err)
 
 				return out[0]

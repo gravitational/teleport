@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/appauthconfig/v1/appauthconfig_service.proto
 
+//go:build !protoopaque
+
 package appauthconfigv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // Request for CreateAppAuthConfig.
 type CreateAppAuthConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Config is the resource to create.
 	Config        *AppAuthConfig `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *CreateAppAuthConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateAppAuthConfigRequest.ProtoReflect.Descriptor instead.
-func (*CreateAppAuthConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateAppAuthConfigRequest) GetConfig() *AppAuthConfig {
 	if x != nil {
 		return x.Config
@@ -82,9 +78,39 @@ func (x *CreateAppAuthConfigRequest) GetConfig() *AppAuthConfig {
 	return nil
 }
 
+func (x *CreateAppAuthConfigRequest) SetConfig(v *AppAuthConfig) {
+	x.Config = v
+}
+
+func (x *CreateAppAuthConfigRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.Config != nil
+}
+
+func (x *CreateAppAuthConfigRequest) ClearConfig() {
+	x.Config = nil
+}
+
+type CreateAppAuthConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Config is the resource to create.
+	Config *AppAuthConfig
+}
+
+func (b0 CreateAppAuthConfigRequest_builder) Build() *CreateAppAuthConfigRequest {
+	m0 := &CreateAppAuthConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Config = b.Config
+	return m0
+}
+
 // GetAppAuthConfigRequest is a request for GetAppAuthConfig.
 type GetAppAuthConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the AppAuthConfig to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -116,11 +142,6 @@ func (x *GetAppAuthConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAppAuthConfigRequest.ProtoReflect.Descriptor instead.
-func (*GetAppAuthConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetAppAuthConfigRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -128,9 +149,28 @@ func (x *GetAppAuthConfigRequest) GetName() string {
 	return ""
 }
 
+func (x *GetAppAuthConfigRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetAppAuthConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the AppAuthConfig to retrieve.
+	Name string
+}
+
+func (b0 GetAppAuthConfigRequest_builder) Build() *GetAppAuthConfigRequest {
+	m0 := &GetAppAuthConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // ListAppAuthConfigsRequest is the request for ListAppAuthConfigs.
 type ListAppAuthConfigsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PageSize is the maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -165,11 +205,6 @@ func (x *ListAppAuthConfigsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAppAuthConfigsRequest.ProtoReflect.Descriptor instead.
-func (*ListAppAuthConfigsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListAppAuthConfigsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -184,9 +219,36 @@ func (x *ListAppAuthConfigsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListAppAuthConfigsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListAppAuthConfigsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListAppAuthConfigsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PageSize is the maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// PageToken is the page token value returned from a prior list request, if any.
+	PageToken string
+}
+
+func (b0 ListAppAuthConfigsRequest_builder) Build() *ListAppAuthConfigsRequest {
+	m0 := &ListAppAuthConfigsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListAppAuthConfigsResponse is the response from ListAppAuthConfigs.
 type ListAppAuthConfigsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Configs is a page of app auth configs.
 	Configs []*AppAuthConfig `protobuf:"bytes,1,rep,name=configs,proto3" json:"configs,omitempty"`
 	// NextPageToken is the token that can be used to retrieve the next page of
@@ -221,11 +283,6 @@ func (x *ListAppAuthConfigsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAppAuthConfigsResponse.ProtoReflect.Descriptor instead.
-func (*ListAppAuthConfigsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListAppAuthConfigsResponse) GetConfigs() []*AppAuthConfig {
 	if x != nil {
 		return x.Configs
@@ -240,9 +297,36 @@ func (x *ListAppAuthConfigsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListAppAuthConfigsResponse) SetConfigs(v []*AppAuthConfig) {
+	x.Configs = v
+}
+
+func (x *ListAppAuthConfigsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListAppAuthConfigsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Configs is a page of app auth configs.
+	Configs []*AppAuthConfig
+	// NextPageToken is the token that can be used to retrieve the next page of
+	// results or empty if there are no more pages.
+	NextPageToken string
+}
+
+func (b0 ListAppAuthConfigsResponse_builder) Build() *ListAppAuthConfigsResponse {
+	m0 := &ListAppAuthConfigsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Configs = b.Configs
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request for UpdateAppAuthConfig.
 type UpdateAppAuthConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Config is the resource to update.
 	Config        *AppAuthConfig `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -274,11 +358,6 @@ func (x *UpdateAppAuthConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateAppAuthConfigRequest.ProtoReflect.Descriptor instead.
-func (*UpdateAppAuthConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateAppAuthConfigRequest) GetConfig() *AppAuthConfig {
 	if x != nil {
 		return x.Config
@@ -286,9 +365,39 @@ func (x *UpdateAppAuthConfigRequest) GetConfig() *AppAuthConfig {
 	return nil
 }
 
+func (x *UpdateAppAuthConfigRequest) SetConfig(v *AppAuthConfig) {
+	x.Config = v
+}
+
+func (x *UpdateAppAuthConfigRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.Config != nil
+}
+
+func (x *UpdateAppAuthConfigRequest) ClearConfig() {
+	x.Config = nil
+}
+
+type UpdateAppAuthConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Config is the resource to update.
+	Config *AppAuthConfig
+}
+
+func (b0 UpdateAppAuthConfigRequest_builder) Build() *UpdateAppAuthConfigRequest {
+	m0 := &UpdateAppAuthConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Config = b.Config
+	return m0
+}
+
 // Request for UpsertAppAuthConfig.
 type UpsertAppAuthConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Config is the resource to upsert.
 	Config        *AppAuthConfig `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -320,11 +429,6 @@ func (x *UpsertAppAuthConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertAppAuthConfigRequest.ProtoReflect.Descriptor instead.
-func (*UpsertAppAuthConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpsertAppAuthConfigRequest) GetConfig() *AppAuthConfig {
 	if x != nil {
 		return x.Config
@@ -332,9 +436,39 @@ func (x *UpsertAppAuthConfigRequest) GetConfig() *AppAuthConfig {
 	return nil
 }
 
+func (x *UpsertAppAuthConfigRequest) SetConfig(v *AppAuthConfig) {
+	x.Config = v
+}
+
+func (x *UpsertAppAuthConfigRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.Config != nil
+}
+
+func (x *UpsertAppAuthConfigRequest) ClearConfig() {
+	x.Config = nil
+}
+
+type UpsertAppAuthConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Config is the resource to upsert.
+	Config *AppAuthConfig
+}
+
+func (b0 UpsertAppAuthConfigRequest_builder) Build() *UpsertAppAuthConfigRequest {
+	m0 := &UpsertAppAuthConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Config = b.Config
+	return m0
+}
+
 // Request for DeleteAppAuthConfig.
 type DeleteAppAuthConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the AppAuthConfig to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -366,16 +500,30 @@ func (x *DeleteAppAuthConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAppAuthConfigRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAppAuthConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteAppAuthConfigRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *DeleteAppAuthConfigRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteAppAuthConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the AppAuthConfig to delete.
+	Name string
+}
+
+func (b0 DeleteAppAuthConfigRequest_builder) Build() *DeleteAppAuthConfigRequest {
+	m0 := &DeleteAppAuthConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
 }
 
 var File_teleport_appauthconfig_v1_appauthconfig_service_proto protoreflect.FileDescriptor
@@ -407,18 +555,6 @@ const file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDesc = "" +
 	"\x13UpdateAppAuthConfig\x125.teleport.appauthconfig.v1.UpdateAppAuthConfigRequest\x1a(.teleport.appauthconfig.v1.AppAuthConfig\x12v\n" +
 	"\x13UpsertAppAuthConfig\x125.teleport.appauthconfig.v1.UpsertAppAuthConfigRequest\x1a(.teleport.appauthconfig.v1.AppAuthConfig\x12d\n" +
 	"\x13DeleteAppAuthConfig\x125.teleport.appauthconfig.v1.DeleteAppAuthConfigRequest\x1a\x16.google.protobuf.EmptyB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1;appauthconfigv1b\x06proto3"
-
-var (
-	file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescOnce sync.Once
-	file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescData []byte
-)
-
-func file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescGZIP() []byte {
-	file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescOnce.Do(func() {
-		file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDesc), len(file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDesc)))
-	})
-	return file_teleport_appauthconfig_v1_appauthconfig_service_proto_rawDescData
-}
 
 var file_teleport_appauthconfig_v1_appauthconfig_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_appauthconfig_v1_appauthconfig_service_proto_goTypes = []any{

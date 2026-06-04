@@ -34,6 +34,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -49,6 +50,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -67,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -1237,6 +1240,58 @@ func TestTCPIPForward(t *testing.T) {
 		cliUsingSessionJoin := f.newSSHClient(ctx, t, &user.User{Username: teleport.SSHSessionJoinPrincipal})
 		_, err := cliUsingSessionJoin.Listen("tcp", "127.0.0.1:0")
 		require.ErrorContains(t, err, "ssh: tcpip-forward request denied by peer")
+	})
+
+	t.Run("user cannot cancel another user's port forward", func(t *testing.T) {
+		f := newFixtureWithoutDiskBasedLogging(t)
+		setPortForwarding(t, t.Context(), f, nil, nil, nil)
+
+		aliceUp, err := newUpack(t.Context(), f.testSrv, "alice", []string{f.user}, wildcardAllow)
+		require.NoError(t, err)
+		aliceCfg := apissh.ClientConfig{
+			User: f.user,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{aliceUp.certSigner}, nil
+				},
+			},
+			HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+		}
+		aliceConn, err := apissh.Dial(t.Context(), "tcp", f.ssh.srvAddress, aliceCfg)
+		require.NoError(t, err)
+		defer aliceConn.Close()
+
+		bobUp, err := newUpack(t.Context(), f.testSrv, "bob", []string{f.user}, wildcardAllow)
+		require.NoError(t, err)
+		bobCfg := apissh.ClientConfig{
+			User: f.user,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{bobUp.certSigner}, nil
+				},
+			},
+			HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+		}
+
+		bobConn, err := apissh.Dial(t.Context(), "tcp", f.ssh.srvAddress, bobCfg)
+		require.NoError(t, err)
+		defer bobConn.Close()
+
+		listener, err := aliceConn.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { listener.Close() })
+
+		_, port, err := net.SplitHostPort(listener.Addr().String())
+		require.NoError(t, err)
+		portInt, err := strconv.Atoi(port)
+		require.NoError(t, err)
+		listenReq := ssh.Marshal(sshutils.TCPIPForwardReq{
+			Addr: "localhost",
+			Port: uint32(portInt),
+		})
+		ok, _, err := bobConn.SendRequest(t.Context(), teleport.CancelTCPIPForwardRequest, true, listenReq)
+		require.NoError(t, err)
+		require.False(t, ok, "bob should not be able to close another user's listener")
 	})
 }
 
@@ -3887,4 +3942,139 @@ func TestServerInfo(t *testing.T) {
 	info, err := f.ssh.srv.getServerInfo(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, scope, info.Scope)
+}
+
+func TestGetServerInfoHeartbeat(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	expiry := clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
+	sshFeatures := componentfeatures.ForSSHServer()
+
+	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         t.TempDir(),
+			Clock:       clock,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testServer.Close()) })
+
+	hostSigner := newSigner(t, ctx, testServer)
+	newServer := func(t *testing.T, role types.SystemRole, hostname, serverID string, extraOpts ...ServerOption) *Server {
+		t.Helper()
+		client, err := testServer.NewClient(authtest.TestIdentity{
+			I: authz.BuiltinRole{Role: role, Username: serverID},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+		lockWatcher := newLockWatcher(ctx, t, client)
+		sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+			Semaphores:   client,
+			AccessPoint:  client,
+			LockEnforcer: lockWatcher,
+			Emitter:      client,
+			Component:    teleport.ComponentNode,
+			ServerID:     serverID,
+		})
+		require.NoError(t, err)
+
+		opts := []ServerOption{
+			SetUUID(serverID),
+			SetNamespace(apidefaults.Namespace),
+			SetEmitter(client),
+			SetClock(clock),
+			SetLockWatcher(lockWatcher),
+			SetSessionController(sessionController),
+			SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		}
+		opts = append(opts, extraOpts...)
+
+		s, err := New(
+			ctx,
+			utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+			hostname,
+			sshutils.StaticHostSigners(hostSigner),
+			client,
+			t.TempDir(),
+			"",
+			utils.NetAddr{},
+			client,
+			opts...,
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, s.Close()) })
+		return s
+	}
+
+	tests := []struct {
+		name     string
+		buildSrv func(t *testing.T) *Server
+		want     *types.ServerV2
+	}{
+		{
+			name: "node mode",
+			buildSrv: func(t *testing.T) *Server {
+				return newServer(t, types.RoleNode, "node-host", "node-uuid",
+					SetLabels(map[string]string{"static-label": "static-value"}, nil, nil),
+					SetScope("/scope"),
+				)
+			},
+			want: &types.ServerV2{
+				Kind:    types.KindNode,
+				Version: types.V2,
+				Scope:   "/scope",
+				Metadata: types.Metadata{
+					Name:      "node-uuid",
+					Namespace: apidefaults.Namespace,
+					Labels:    map[string]string{"static-label": "static-value"},
+					Expires:   &expiry,
+				},
+				Spec: types.ServerSpecV2{
+					CmdLabels:         map[string]types.CommandLabelV2{},
+					Hostname:          "node-host",
+					Version:           teleport.Version,
+					ComponentFeatures: sshFeatures,
+				},
+			},
+		},
+		{
+			name: "proxy mode",
+			buildSrv: func(t *testing.T) *Server {
+				return newServer(t, types.RoleProxy, "proxy-host", "proxy-uuid",
+					SetProxyMode("10.0.0.1:1234", nil, nil, nil),
+				)
+			},
+			want: &types.ServerV2{
+				Kind:    types.KindProxy,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      "proxy-uuid",
+					Namespace: apidefaults.Namespace,
+					Expires:   &expiry,
+				},
+				Spec: types.ServerSpecV2{
+					CmdLabels:         map[string]types.CommandLabelV2{},
+					Hostname:          "proxy-host",
+					Version:           teleport.Version,
+					PeerAddr:          "10.0.0.1:1234",
+					ComponentFeatures: sshFeatures,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := tt.buildSrv(t)
+			info, err := s.getServerInfo(t.Context())
+			require.NoError(t, err)
+			// listener addr is bound dynamically on instantiation, so we fetch
+			// as we won't know ahead of time.
+			tt.want.Spec.Addr = s.AdvertiseAddr()
+			require.Empty(t, cmp.Diff(tt.want, info, protocmp.Transform()))
+		})
+	}
 }

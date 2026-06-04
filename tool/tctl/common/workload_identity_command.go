@@ -100,11 +100,10 @@ func (c *WorkloadIdentityCommand) Initialize(
 	c.listCmd.
 		Flag(
 			"format",
-			"Output format, 'text' or 'json'",
+			"Output format.",
 		).
-		Hidden().
 		Default(teleport.Text).
-		EnumVar(&c.format, teleport.Text, teleport.JSON)
+		EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.rmCmd = cmd.Command(
 		"rm",
@@ -140,11 +139,10 @@ func (c *WorkloadIdentityCommand) Initialize(
 	c.revocationsLsCmd.
 		Flag(
 			"format",
-			"Output format, 'text' or 'json'",
+			"Output format.",
 		).
-		Hidden().
 		Default(teleport.Text).
-		EnumVar(&c.format, teleport.Text, teleport.JSON)
+		EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.revocationsCrlCmd = revocationsCmd.Command(
 		"crl", "Fetch the signed CRL for existing revocations.",
@@ -289,7 +287,8 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 		req.PageToken = resp.NextPageToken
 	}
 
-	if c.format == teleport.Text {
+	switch c.format {
+	case teleport.Text:
 		if len(workloadIdentities) == 0 {
 			fmt.Fprintln(c.stdout, "No workload identities configured")
 			return nil
@@ -301,11 +300,18 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
-	} else {
+	case teleport.JSON:
 		err := utils.WriteJSONArray(c.stdout, workloadIdentities)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal workload identities")
 		}
+	case teleport.YAML:
+		err := utils.WriteYAML(c.stdout, workloadIdentities)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal workload identities")
+		}
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }
@@ -426,7 +432,8 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 		req.PageToken = resp.NextPageToken
 	}
 
-	if c.format == teleport.Text {
+	switch c.format {
+	case teleport.Text:
 		if len(revocations) == 0 {
 			fmt.Fprintln(c.stdout, "No revocations configured")
 			return nil
@@ -447,15 +454,24 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
-	} else {
+	case teleport.JSON, teleport.YAML:
 		converted := []types.Resource{}
 		for _, resource := range revocations {
 			converted = append(converted, types.ProtoResource153ToLegacy(resource))
 		}
-		err := utils.WriteJSONArray(c.stdout, converted)
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal revocations")
+		if c.format == teleport.JSON {
+			err := utils.WriteJSONArray(c.stdout, converted)
+			if err != nil {
+				return trace.Wrap(err, "failed to marshal revocations")
+			}
+		} else {
+			err := utils.WriteYAML(c.stdout, converted)
+			if err != nil {
+				return trace.Wrap(err, "failed to marshal revocations")
+			}
 		}
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }

@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/linuxdesktop/v1/linux_desktop.proto
 
+//go:build !protoopaque
+
 package linuxdesktopv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // LinuxDesktop represents Linux desktop resource.
 type LinuxDesktop struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubKind is the resource sub-kind.
@@ -78,11 +79,6 @@ func (x *LinuxDesktop) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use LinuxDesktop.ProtoReflect.Descriptor instead.
-func (*LinuxDesktop) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *LinuxDesktop) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -118,9 +114,78 @@ func (x *LinuxDesktop) GetSpec() *LinuxDesktopSpec {
 	return nil
 }
 
+func (x *LinuxDesktop) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *LinuxDesktop) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *LinuxDesktop) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *LinuxDesktop) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *LinuxDesktop) SetSpec(v *LinuxDesktopSpec) {
+	x.Spec = v
+}
+
+func (x *LinuxDesktop) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *LinuxDesktop) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *LinuxDesktop) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *LinuxDesktop) ClearSpec() {
+	x.Spec = nil
+}
+
+type LinuxDesktop_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the resource kind.
+	Kind string
+	// SubKind is the resource sub-kind.
+	SubKind string
+	// Version is the resource version.
+	Version string
+	// Metadata contains the resource metadata.
+	Metadata *v1.Metadata
+	// Spec is the Linux desktop specification.
+	Spec *LinuxDesktopSpec
+}
+
+func (b0 LinuxDesktop_builder) Build() *LinuxDesktop {
+	m0 := &LinuxDesktop{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // LinuxDesktopSpec is the specification of a Linux desktop.
 type LinuxDesktopSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Address of the server for this desktop.
 	Addr string `protobuf:"bytes,1,opt,name=addr,proto3" json:"addr,omitempty"`
 	// Hostname is name of this host
@@ -156,11 +221,6 @@ func (x *LinuxDesktopSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use LinuxDesktopSpec.ProtoReflect.Descriptor instead.
-func (*LinuxDesktopSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *LinuxDesktopSpec) GetAddr() string {
 	if x != nil {
 		return x.Addr
@@ -182,6 +242,39 @@ func (x *LinuxDesktopSpec) GetProxyIds() []string {
 	return nil
 }
 
+func (x *LinuxDesktopSpec) SetAddr(v string) {
+	x.Addr = v
+}
+
+func (x *LinuxDesktopSpec) SetHostname(v string) {
+	x.Hostname = v
+}
+
+func (x *LinuxDesktopSpec) SetProxyIds(v []string) {
+	x.ProxyIds = v
+}
+
+type LinuxDesktopSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Address of the server for this desktop.
+	Addr string
+	// Hostname is name of this host
+	Hostname string
+	// ProxyIDs is a list of proxy IDs this server is expected to be connected to.
+	ProxyIds []string
+}
+
+func (b0 LinuxDesktopSpec_builder) Build() *LinuxDesktopSpec {
+	m0 := &LinuxDesktopSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Addr = b.Addr
+	x.Hostname = b.Hostname
+	x.ProxyIds = b.ProxyIds
+	return m0
+}
+
 var File_teleport_linuxdesktop_v1_linux_desktop_proto protoreflect.FileDescriptor
 
 const file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDesc = "" +
@@ -197,18 +290,6 @@ const file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDesc = "" +
 	"\x04addr\x18\x01 \x01(\tR\x04addr\x12\x1a\n" +
 	"\bhostname\x18\x02 \x01(\tR\bhostname\x12\x1b\n" +
 	"\tproxy_ids\x18\x03 \x03(\tR\bproxyIdsB\\ZZgithub.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1;linuxdesktopv1b\x06proto3"
-
-var (
-	file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDescOnce sync.Once
-	file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDescData []byte
-)
-
-func file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDescGZIP() []byte {
-	file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDescOnce.Do(func() {
-		file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDesc), len(file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDesc)))
-	})
-	return file_teleport_linuxdesktop_v1_linux_desktop_proto_rawDescData
-}
 
 var file_teleport_linuxdesktop_v1_linux_desktop_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_linuxdesktop_v1_linux_desktop_proto_goTypes = []any{

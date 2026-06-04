@@ -664,6 +664,10 @@ func (c *fakeClusterClient) SessionSSHKeyRing(ctx context.Context, user string, 
 	return k, false, nil
 }
 
+func (c *fakeClusterClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
+	return "", trace.NotImplemented("PerformSessionMFACeremony not implemented")
+}
+
 // fakeAuthClient is a fake auth client that answers GetResources requests with a static list of apps.
 type fakeAuthClient struct {
 	authclient.ClientI

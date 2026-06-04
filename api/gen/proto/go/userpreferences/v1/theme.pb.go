@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/userpreferences/v1/theme.proto
 
+//go:build !protoopaque
+
 package userpreferencesv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -82,11 +83,6 @@ func (x Theme) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use Theme.Descriptor instead.
-func (Theme) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_theme_proto_rawDescGZIP(), []int{0}
-}
-
 var File_teleport_userpreferences_v1_theme_proto protoreflect.FileDescriptor
 
 const file_teleport_userpreferences_v1_theme_proto_rawDesc = "" +
@@ -97,18 +93,6 @@ const file_teleport_userpreferences_v1_theme_proto_rawDesc = "" +
 	"\vTHEME_LIGHT\x10\x01\x12\x0e\n" +
 	"\n" +
 	"THEME_DARK\x10\x02BYZWgithub.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1;userpreferencesv1b\x06proto3"
-
-var (
-	file_teleport_userpreferences_v1_theme_proto_rawDescOnce sync.Once
-	file_teleport_userpreferences_v1_theme_proto_rawDescData []byte
-)
-
-func file_teleport_userpreferences_v1_theme_proto_rawDescGZIP() []byte {
-	file_teleport_userpreferences_v1_theme_proto_rawDescOnce.Do(func() {
-		file_teleport_userpreferences_v1_theme_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userpreferences_v1_theme_proto_rawDesc), len(file_teleport_userpreferences_v1_theme_proto_rawDesc)))
-	})
-	return file_teleport_userpreferences_v1_theme_proto_rawDescData
-}
 
 var file_teleport_userpreferences_v1_theme_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_userpreferences_v1_theme_proto_goTypes = []any{

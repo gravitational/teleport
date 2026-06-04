@@ -54,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -250,7 +251,7 @@ type Server struct {
 
 	// remoteForwardingMap holds the remote port forwarding listeners that need
 	// to be closed when forwarding finishes, keyed by listen addr.
-	remoteForwardingMap utils.SyncMap[string, io.Closer]
+	remoteForwardingMap utils.SyncMap[remoteForwardingMapKey, io.Closer]
 
 	// stableUnixUsers is used to obtain fallback UIDs for host user
 	// provisioning from the control plane.
@@ -267,6 +268,22 @@ type Server struct {
 
 	// immutableLabels are the immutable labels assigned to the server's host certificate
 	immutableLabels map[string]string
+
+	// presenceMaxDuration is the max duration that a moderated session
+	// can continue between presence verifications.
+	presenceMaxDuration time.Duration
+}
+
+type remoteForwardingMapKey struct {
+	user    string
+	srcAddr string
+}
+
+func getRemoteForwardingMapKey(scx *srv.ServerContext) remoteForwardingMapKey {
+	return remoteForwardingMapKey{
+		user:    scx.Identity.TeleportUser,
+		srcAddr: scx.SrcAddr,
+	}
 }
 
 // EventMetadata returns metadata about the server.
@@ -378,6 +395,12 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 	}
 }
 
+// GetPresenceMaxDuration returns the max duration that a moderated session
+// can continue between presence verifications.
+func (s *Server) GetPresenceMaxDuration() time.Duration {
+	return s.presenceMaxDuration
+}
+
 // ServerOption is a functional option passed to the server
 type ServerOption func(s *Server) error
 
@@ -404,7 +427,7 @@ func (s *Server) Close() error {
 	// Close the server first so we don't accept any new forwarding connections
 	// after we've closed them all.
 	errors := []error{s.srv.Close()}
-	s.remoteForwardingMap.Range(func(_ string, closer io.Closer) bool {
+	s.remoteForwardingMap.Range(func(_ remoteForwardingMapKey, closer io.Closer) bool {
 		if closer != nil {
 			if err := closer.Close(); err != nil {
 				errors = append(errors, err)
@@ -840,6 +863,15 @@ func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	}
 }
 
+// SetPresenceMaxDuration sets the max duration that a moderated session
+// can continue between presence verifications.
+func SetPresenceMaxDuration(maxDuration time.Duration) ServerOption {
+	return func(s *Server) error {
+		s.presenceMaxDuration = maxDuration
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(
 	ctx context.Context,
@@ -910,6 +942,10 @@ func New(
 
 	if s.tracerProvider == nil {
 		s.tracerProvider = tracing.DefaultProvider()
+	}
+
+	if s.presenceMaxDuration == 0 {
+		s.presenceMaxDuration = client.DefaultPresenceMaxDuration
 	}
 
 	var component string
@@ -1195,8 +1231,12 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		// protobuf message
 		relayGroup, relayIDs = s.relayInfoGetter()
 	}
+	kind := types.KindNode
+	if s.proxyMode {
+		kind = types.KindProxy
+	}
 	srv := &types.ServerV2{
-		Kind:    types.KindNode,
+		Kind:    kind,
 		Version: types.V2,
 		Scope:   s.scope,
 		Metadata: types.Metadata{
@@ -2493,12 +2533,13 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		}
 	}
 
-	s.remoteForwardingMap.Store(scx.SrcAddr, listener)
+	key := getRemoteForwardingMapKey(scx)
+	s.remoteForwardingMap.Store(key, listener)
 
 	// Close the listener once the connection is closed, if it hasn't
 	// been closed already via a cancel-tcpip-forward request.
 	ccx.AddCloser(utils.CloseFunc(func() error {
-		listener, ok := s.remoteForwardingMap.LoadAndDelete(scx.SrcAddr)
+		listener, ok := s.remoteForwardingMap.LoadAndDelete(key)
 		if ok {
 			return trace.Wrap(listener.Close())
 		}
@@ -2516,7 +2557,7 @@ func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshut
 		return trace.Wrap(err)
 	}
 	defer scx.Close()
-	listener, ok := s.remoteForwardingMap.LoadAndDelete(scx.SrcAddr)
+	listener, ok := s.remoteForwardingMap.LoadAndDelete(getRemoteForwardingMapKey(scx))
 	if !ok {
 		return trace.NotFound("no remote forwarding listener at %v", scx.SrcAddr)
 	}

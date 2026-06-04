@@ -134,6 +134,7 @@ func TestScopePin(t *testing.T) {
 	identity := Identity{
 		Username: "alice@example.com",
 		ScopePin: &scopesv1.Pin{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"r1"}, "/foo": {"r2"}},
@@ -760,6 +761,92 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				User:      "system.teleport.name",
 				UserKind:  apievents.UserKind_USER_KIND_SYSTEM,
 				UserRoles: []string{string(types.RoleOkta)},
+			},
+		},
+		{
+			name: "pinned user identity",
+			identity: Identity{
+				Username: "alpaca",
+				ScopePin: &scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_USER,
+					Scope: "/staging",
+					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+						"/staging": {
+							"/staging":       {"staging-admin"},
+							"/staging/blue":  {"staging-access"},
+							"/staging/green": {"staging-access"},
+						},
+					}),
+				},
+			},
+			want: apievents.UserMetadata{
+				User:     "alpaca",
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
+				ScopePin: &apievents.ScopePin{
+					Scope: "/staging",
+					Assignments: map[string]*apievents.ScopePinnedAssignments{
+						"/staging":       {Roles: []string{"staging-admin"}},
+						"/staging/blue":  {Roles: []string{"staging-access"}},
+						"/staging/green": {Roles: []string{"staging-access"}},
+					},
+				},
+			},
+		},
+		{
+			name: "pinned bot identity",
+			identity: Identity{
+				Username:      "bot-alpaca",
+				BotName:       "alpaca",
+				BotInstanceID: "123-123",
+				ScopePin: &scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_USER,
+					Scope: "/staging",
+					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+						"/staging": {
+							"/staging":       {"staging-admin"},
+							"/staging/blue":  {"staging-access"},
+							"/staging/green": {"staging-access"},
+						},
+					}),
+				},
+			},
+			want: apievents.UserMetadata{
+				User:          "bot-alpaca",
+				UserKind:      apievents.UserKind_USER_KIND_BOT,
+				BotName:       "alpaca",
+				BotInstanceID: "123-123",
+				ScopePin: &apievents.ScopePin{
+					Scope: "/staging",
+					Assignments: map[string]*apievents.ScopePinnedAssignments{
+						"/staging":       {Roles: []string{"staging-admin"}},
+						"/staging/blue":  {Roles: []string{"staging-access"}},
+						"/staging/green": {Roles: []string{"staging-access"}},
+					},
+				},
+			},
+		},
+		{
+			name: "pinned system identity",
+			identity: Identity{
+				Username: "system.teleport.name",
+				ScopePin: &scopesv1.Pin{
+					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+					Scope: "/staging",
+					SystemRoles: &scopesv1.SystemRoles{
+						Primary: types.RoleInstance.String(),
+						Additional: []string{
+							types.RoleNode.String(), types.RoleKube.String(),
+						},
+					},
+				},
+			},
+			want: apievents.UserMetadata{
+				User:     "system.teleport.name",
+				UserKind: apievents.UserKind_USER_KIND_SYSTEM,
+				ScopePin: &apievents.ScopePin{
+					Scope:       "/staging",
+					SystemRoles: []string{types.RoleNode.String(), types.RoleKube.String()},
+				},
 			},
 		},
 	}
