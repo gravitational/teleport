@@ -1464,6 +1464,7 @@ func approveAllAccessRequests(ctx context.Context, approver accessApprover) erro
 func TestSSHOnMultipleNodes(t *testing.T) {
 	t.Parallel()
 	// Maybe I'm flaky!
+	t.Log("maybe im flaky")
 
 	ctx := t.Context()
 
