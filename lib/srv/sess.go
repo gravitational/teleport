@@ -1895,7 +1895,7 @@ func (s *session) checkIfFileTransferApproved(req *fileTransferRequestWithApprov
 	var participants []moderation.SessionAccessContext
 
 	for _, party := range req.approvers {
-		if party.ctx.Identity.TeleportUser == s.initiator.user && party.ctx.Identity.OriginClusterName == s.initiator.cluster {
+		if party.ctx.Identity.TeleportUser == s.initiator.user {
 			continue
 		}
 
@@ -2039,8 +2039,7 @@ func (s *session) checkIfStartUnderLock() (bool, moderation.PolicyOptions, error
 	var participants []moderation.SessionAccessContext
 
 	for _, party := range s.parties {
-		if party.ctx.Identity.TeleportUser == s.initiator.user &&
-			party.ctx.Identity.OriginClusterName == s.initiator.cluster {
+		if party.ctx.Identity.TeleportUser == s.initiator.user {
 			continue
 		}
 
@@ -2170,7 +2169,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 }
 
 func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionParticipantMode) error {
-	if scx.Identity.TeleportUser != s.initiator.user || scx.Identity.OriginClusterName != s.initiator.cluster {
+	if scx.Identity.TeleportUser != s.initiator.user {
 		var roles []types.Role
 		if scx.Identity.UnstableSessionJoiningAccessChecker != nil {
 			roles = scx.Identity.UnstableSessionJoiningAccessChecker.Roles()
@@ -2317,7 +2316,7 @@ func (p *party) closeUnderSessionLock() error {
 // trackSession creates a new session tracker for the ssh session.
 // While ctx is open, the session tracker's expiration will be extended
 // on an interval until the session tracker is closed.
-func (s *session) trackSession(ctx context.Context, teleportUser string, policySet []*types.SessionTrackerPolicySet, p *party, sessType sessionType) error {
+func (s *session) trackSession(ctx context.Context, hostUser string, policySet []*types.SessionTrackerPolicySet, p *party, sessType sessionType) error {
 	s.logger.DebugContext(ctx, "Tracking participant.", "party", p)
 	var initialCommand []string
 	if execRequest, err := s.scx.GetExecRequest(); err == nil {
@@ -2331,7 +2330,7 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		Address:      s.scx.srv.ID(),
 		ClusterName:  s.scx.ClusterName,
 		Login:        s.login,
-		HostUser:     teleportUser,
+		HostUser:     hostUser,
 		HostPolicies: policySet,
 		Created:      s.registry.clock.Now().UTC(),
 		Participants: []types.Participant{

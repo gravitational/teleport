@@ -165,6 +165,19 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 				approvers: approvers,
 			},
 		},
+		{
+			name:           "cross-cluster username collision rejected",
+			expectedResult: false,
+			expectedError:  "Teleport user does not match original requester",
+			reqID:          "123",
+			req: &fileTransferRequestWithApprovers{
+				FileTransferRequest: reexecsftp.FileTransferRequest{
+					ID:        "123",
+					Requester: services.UsernameForRemoteCluster("teleportUser", "root.example.com"),
+				},
+				approvers: make(map[string]*party),
+			},
+		},
 	}
 
 	for _, tt := range cases {
