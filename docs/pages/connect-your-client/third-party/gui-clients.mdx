@@ -81,7 +81,7 @@ connect to.
 
 <Checkpoint
   title="Verify database visibility"
-  description="Run tsh db ls. Success looks like: the database you want appears in the list."
+  description="Run tsh db ls. Success looks like: the database you want appears in the list. An empty list means no databases are currently visible to your Teleport role."
 >
 - If no databases are listed:
   - Confirm the Database Service is running and has registered databases in the cluster.
@@ -92,8 +92,8 @@ connect to.
 - If the database exists but does not appear for you:
   - Your role may restrict access via `db_names`, `db_labels`, or `db_users`.
   - Ask your administrator to confirm your role allows the database and at least one database user.
-- If the database name errors (not found):
-  - Confirm the database resource name matches exactly.
+- If a later command (such as `tsh db login` or `tsh proxy db`) reports the database is not found:
+  - Confirm the database resource name matches the entry in `tsh db ls` exactly, including any prefixes or environment suffixes.
 
 </Checkpoint>
 
@@ -170,6 +170,11 @@ Key:       /Users/alice/.tsh/keys/teleport.example.com/alice
 The displayed `CA`, `Cert`, and `Key` files are used to connect through pgAdmin
 4, MySQL Workbench, and other graphical database clients that support mutual
 TLS authentication.
+
+### Verify your local proxy or tunnel
+
+Once you have started a tunnel, local proxy, or retrieved remote host and port
+configuration, verify the result before configuring your GUI client.
 
 <Checkpoint
   title="Verify the local proxy is running"
@@ -430,7 +435,7 @@ user passed to `--db-user` and leave the password empty:
 Server](https://website.goteleport.com/_uploads/dbeaver_redshift_new_connection_1476289fec.png)
 
 Go to **Driver Properties** and set `ssl=false`. This disables encryption on the
-local connection only — the connection to Redshift is encrypted by Teleport.
+local connection only as the connection to Redshift is encrypted by Teleport.
 
 ![DBeaver Redshift Driver Properties](https://website.goteleport.com/_uploads/dbeaver_redshift_new_connection_ssl_b3e0c732ee.png)
 
@@ -488,7 +493,7 @@ tsh proxy db --tunnel --port 2000 snowflake
 Snowflake drivers require two non-obvious properties for the localhost connection to work:
 
 - Set `account` to any non-empty value (required by the driver UI).
-- Set `ssl` to `off` — this disables TLS only for the localhost hop; Teleport still encrypts the remote connection to Snowflake.
+- Set `ssl` to `off` - this disables TLS only for the localhost hop; Teleport still encrypts the remote connection to Snowflake.
 
 The driver also requires a password field even though Teleport ignores it. Use any placeholder value. The same requirements apply to the JetBrains setup in the next section.
 </Admonition>
@@ -803,15 +808,15 @@ Test the connection to verify the setup. Finalize by clicking "Finish".
   - For most GUI clients leave the password field empty or use a placeholder; Teleport authenticates via certificates, not passwords.
   - For SQL Server, use SQL Login / SQL Server Authentication (not Windows Authentication).
 - If you see **certificate verify failed / TLS errors**:
-  - For the Authenticated tunnel, do not configure client certificates in the GUI — the tunnel handles TLS.
+  - For the Authenticated tunnel, do not configure client certificates in the GUI (the tunnel handles TLS).
   - For the Local proxy server, confirm the CA, certificate, and key paths exactly match what `tsh proxy db` printed and include the `-----BEGIN` / `-----END` lines when pasted.
   - For SQL Server / Azure Data Studio, set Encrypt to `False` on the localhost connection.
 - If you see **connection refused / cannot connect to localhost**:
   - Confirm `tsh proxy db` is still running and the port matches.
-  - Try both `localhost` and `127.0.0.1` — some clients prefer one or the other.
+  - Try both `localhost` and `127.0.0.1`; some clients prefer one or the other.
   - On Windows for SQL Server clients, use `127.0.0.1,PORT` (comma separator, not colon).
 - If the GUI app cannot read certificate files:
-  - On macOS, sandboxed apps may not see files under `~/.tsh/`. Copy them to a user-accessible location (for example `/tmp/teleport-db/`) and update paths in the GUI.
+  - On macOS, sandboxed apps may not see files under `~/.tsh/`. This affects multiple clients (MySQL Workbench, pgAdmin, and others). Copy the files to a user-accessible location (for example `/tmp/teleport-db/`) and update the paths in your GUI.
 
 </Checkpoint>
 
@@ -822,7 +827,7 @@ Use these steps for errors not covered above.
 ### General connection issues
 
 - If the tunnel/proxy terminates unexpectedly:
-  - Check credentials:
+  - Check `tsh status` to ensure your session hasn't expired and your certificates are still valid:
     ```code
     $ tsh status
     ```
@@ -850,16 +855,16 @@ Use these steps for errors not covered above.
 
 ### Database-specific issues
 
-- **DynamoDB:** if you see credential or signature errors in NoSQL Workbench, do not enter AWS credentials for the localhost connection — Teleport provides auth via the tunnel. If your environment requires AWS credentials regardless, confirm the Teleport DynamoDB integration mode in your cluster configuration.
+- **DynamoDB:** if you see credential or signature errors in NoSQL Workbench, do not enter AWS credentials for the localhost connection. Teleport provides auth via the tunnel. If your environment requires AWS credentials regardless, confirm the Teleport DynamoDB integration mode in your cluster configuration.
 - **Redis:** if you see **NOAUTH Authentication required**, your Redis deployment requires Redis credentials or ACLs separately from Teleport. Provide the Redis username and password if your Redis server enforces them.
 - **Cloud Spanner:** if you see **PERMISSION_DENIED**, confirm the Database Service's GCP identity has Spanner IAM permissions.
 - **Oracle:** if you see **ORA-12505**, ensure you're using service name format (not SID). For the SQL Developer VS Code extension in TCP mode, use `/` for username and password if required by the extension UI. For DBeaver, accept Oracle license prompts and configure proxy settings if driver download fails.
-- **MySQL Workbench on macOS:** if Workbench can't read certificate files, copy certs to a location the app can read (for example `/tmp/teleport-db/`) and update paths.
 
 For a graphical alternative to managing tunnels manually, see [Using Teleport Connect](../teleport-clients/teleport-connect.mdx#connecting-to-a-database).
 
 ## Next steps
 
+-{/* vale messaging.protocol-products = NO */}
 - See the [Database Access guides](../../enroll-resources/database-access/guides/guides.mdx) for setting up the Teleport Database Service for specific database engines.
 - Learn about [role-based access controls for databases](../../enroll-resources/database-access/rbac.mdx) including `db_users`, `db_names`, and `db_labels`.
 - Review the [`tsh` reference](../../reference/cli/tsh.mdx) for additional `tsh proxy db` flags and options.

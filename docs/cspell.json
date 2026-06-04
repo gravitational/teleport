@@ -162,6 +162,7 @@
     "Multifactor",
     "Multihost",
     "Mzgz",
+    "NOAUTH",
     "NOEXEC",
     "NOFILE",
     "NOKEY",
