@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/entitlements"
+	"github.com/gravitational/teleport/lib/accesslists"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -1636,7 +1637,10 @@ func TestService_UpsertAccessListMember(t *testing.T) {
 	})
 	// now that a3 is a member of a4, adding a4 as a member of a3 should fail
 	_, err = c.svc.UpsertAccessListMember(c.ownerCtx, &accesslistv1.UpsertAccessListMemberRequest{Member: conv.ToMemberProto(newAccessListMember(t, a3.GetName(), a4.GetName(), accesslist.MembershipKindList, c.clock))})
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because '%s' is already included as a Member or Owner in '%s'", a4.Spec.Title, a3.Spec.Title, a3.Spec.Title, a4.Spec.Title))
+	expectedErrMsg := fmt.Sprintf("Access List '%s' can't be added as a Member of '%s' because '%s' is already included as a Member or Owner in '%s'", a4.Spec.Title, a3.Spec.Title, a3.Spec.Title, a4.Spec.Title)
+	require.ErrorContains(t, err, expectedErrMsg)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorIs(t, err, accesslists.ErrCyclicMembership)
 	expectEvent(t, events.AccessListMemberCreateFailureCode, c.emitter, func(event *apievents.AccessListMemberCreate) {
 		require.False(t, event.Success)
 	})
@@ -1777,8 +1781,10 @@ func TestService_UpsertAccessListMemberMaxDepth(t *testing.T) {
 		})
 
 		if i == accesslist.MaxAllowedDepth {
-			require.Error(t, err)
-			require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedList.Spec.Title, parentList.Spec.Title, accesslist.MaxAllowedDepth))
+			expectedErrMsg := fmt.Sprintf("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedList.Spec.Title, parentList.Spec.Title, accesslist.MaxAllowedDepth)
+			require.ErrorContains(t, err, expectedErrMsg)
+			require.True(t, trace.IsBadParameter(err))
+			require.ErrorIs(t, err, accesslists.ErrMaxNestedMembershipDepth)
 			expectEvent(t, events.AccessListMemberCreateFailureCode, c.emitter, func(event *apievents.AccessListMemberCreate) {
 				require.False(t, event.Success)
 			})
