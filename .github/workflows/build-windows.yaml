@@ -45,4 +45,5 @@ jobs:
         shell: bash
         run: |
           export OS="windows"
+          rustup show
           make build/tsh build/tctl build/tbot
