@@ -676,7 +676,7 @@ func runBPFTestCase(t *testing.T, srv Server, bpfSrv bpf.BPF, tt bpfTestCase, cl
 	for cmd, addrs := range commandDstAddrs {
 		for _, addr := range addrs {
 			if addr.count > 0 {
-				t.Errorf("error: network event for program %q with destination address %q was expected %d more times", cmd, addr.value, addr.count)
+				t.Errorf("error: network event for program %q with destination address %v was expected %d more times", cmd, addr.value, addr.count)
 			}
 		}
 	}
