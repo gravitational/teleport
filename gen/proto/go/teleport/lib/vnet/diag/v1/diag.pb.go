@@ -1516,11 +1516,15 @@ type DNSZoneResult struct {
 	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// zone is the DNS zone that was tested, e.g. "company.test".
 	Zone string `protobuf:"bytes,1,opt,name=zone,proto3" json:"zone,omitempty"`
-	// a_record is the outcome of the A-record part of the per-zone query. Null if no expected A was
-	// captured.
+	// a_record is the outcome of the A-record query for this zone, compared to the
+	// A returned by VNet's DNS server on direct query. The check is skipped and
+	// this field is null when VNet's DNS server failed to return an A on direct
+	// query.
 	ARecord *RecordResult `protobuf:"bytes,2,opt,name=a_record,json=aRecord,proto3" json:"a_record,omitempty"`
-	// aaaa_record is the outcome of the AAAA-record part of the per-zone query. Null if no expected
-	// AAAA was captured.
+	// aaaa_record is the outcome of the AAAA-record query for this zone, compared
+	// to the AAAA returned by VNet's DNS server on direct query. The check is
+	// skipped and this field is null when VNet's DNS server failed to return an
+	// AAAA on direct query.
 	AaaaRecord    *RecordResult `protobuf:"bytes,3,opt,name=aaaa_record,json=aaaaRecord,proto3" json:"aaaa_record,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1611,11 +1615,15 @@ type DNSZoneResult_builder struct {
 
 	// zone is the DNS zone that was tested, e.g. "company.test".
 	Zone string
-	// a_record is the outcome of the A-record part of the per-zone query. Null if no expected A was
-	// captured.
+	// a_record is the outcome of the A-record query for this zone, compared to the
+	// A returned by VNet's DNS server on direct query. The check is skipped and
+	// this field is null when VNet's DNS server failed to return an A on direct
+	// query.
 	ARecord *RecordResult
-	// aaaa_record is the outcome of the AAAA-record part of the per-zone query. Null if no expected
-	// AAAA was captured.
+	// aaaa_record is the outcome of the AAAA-record query for this zone, compared
+	// to the AAAA returned by VNet's DNS server on direct query. The check is
+	// skipped and this field is null when VNet's DNS server failed to return an
+	// AAAA on direct query.
 	AaaaRecord *RecordResult
 }
 

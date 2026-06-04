@@ -375,15 +375,19 @@ export interface DNSZoneResult {
      */
     zone: string;
     /**
-     * a_record is the outcome of the A-record part of the per-zone query. Null if no expected A was
-     * captured.
+     * a_record is the outcome of the A-record query for this zone, compared to the
+     * A returned by VNet's DNS server on direct query. The check is skipped and
+     * this field is null when VNet's DNS server failed to return an A on direct
+     * query.
      *
      * @generated from protobuf field: teleport.lib.vnet.diag.v1.RecordResult a_record = 2;
      */
     aRecord?: RecordResult;
     /**
-     * aaaa_record is the outcome of the AAAA-record part of the per-zone query. Null if no expected
-     * AAAA was captured.
+     * aaaa_record is the outcome of the AAAA-record query for this zone, compared
+     * to the AAAA returned by VNet's DNS server on direct query. The check is
+     * skipped and this field is null when VNet's DNS server failed to return an
+     * AAAA on direct query.
      *
      * @generated from protobuf field: teleport.lib.vnet.diag.v1.RecordResult aaaa_record = 3;
      */

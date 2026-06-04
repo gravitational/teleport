@@ -311,6 +311,7 @@ func (s *Service) RunDiagnostics(ctx context.Context, req *api.RunDiagnosticsReq
 	}
 	diagChecks = append(diagChecks, sshDiag)
 
+	// TODO(tangyatsu): release s.mu before diag checks and cancel them on Stop.
 	report, err := diag.GenerateReport(ctx, diag.ReportPrerequisites{
 		Clock:               s.cfg.Clock,
 		NetworkStackAttempt: nsa,
