@@ -112,7 +112,7 @@ describe('UserDisplayName', () => {
     }
   }
 
-  it('formats inline username with delimiters', () => {
+  it('formats inline supporting values with delimiters', () => {
     render(
       <UserDisplayName
         username={username}
@@ -124,17 +124,25 @@ describe('UserDisplayName', () => {
 
     const primaryLine = screen.getByText('Alice Jones')
       .parentElement as HTMLElement;
-    expect(within(primaryLine).getByText('Engineering')).toBeInTheDocument();
     const inlineUsername = within(primaryLine).getByText(username);
-    expect(inlineUsername).toHaveStyleRule('content', "'('", {
+    const inlineSupportingValues = inlineUsername.parentElement as HTMLElement;
+    const inlineSecondary = within(inlineSupportingValues).getByText(
+      'Engineering'
+    );
+
+    expect(primaryLine).toContainElement(inlineSupportingValues);
+    expect(inlineSupportingValues).toHaveStyleRule('content', "'('", {
       modifier: '::before',
     });
-    expect(inlineUsername).toHaveStyleRule('content', "')'", {
+    expect(inlineSupportingValues).toHaveStyleRule('content', "')'", {
       modifier: '::after',
+    });
+    expect(inlineSecondary).toHaveStyleRule('content', "'•'", {
+      modifier: '::before',
     });
   });
 
-  it('renders stacked supporting values outside the primary line', () => {
+  it('renders stacked supporting values together below the primary line', () => {
     render(
       <UserDisplayName
         username={username}
@@ -150,8 +158,33 @@ describe('UserDisplayName', () => {
       within(primaryLine).queryByText('Engineering')
     ).not.toBeInTheDocument();
     expect(within(primaryLine).queryByText(username)).not.toBeInTheDocument();
+
+    const supportingLine = screen.getByText(username)
+      .parentElement as HTMLElement;
+    const secondary = within(supportingLine).getByText('Engineering');
+
+    expect(supportingLine).toContainElement(screen.getByText(username));
+    expect(secondary).toHaveStyleRule('content', "'•'", {
+      modifier: '::before',
+    });
+  });
+
+  it('does not repeat the username when primary text is absent', () => {
+    render(
+      <UserDisplayName
+        username={username}
+        secondaryText="Engineering"
+        layout="stacked"
+      />
+    );
+
+    expect(screen.queryAllByText(username)).toHaveLength(1);
+
+    const primaryLine = screen.getByText(username).parentElement as HTMLElement;
+    expect(
+      within(primaryLine).queryByText('Engineering')
+    ).not.toBeInTheDocument();
     expect(screen.getByText('Engineering')).toBeInTheDocument();
-    expect(screen.getByText(username)).toBeInTheDocument();
   });
 
   it('defaults to tooltip layout', async () => {

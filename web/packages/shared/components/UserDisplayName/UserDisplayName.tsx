@@ -51,13 +51,20 @@ export function UserDisplayName({
     <SecondaryValue title={displaySecondary}>{displaySecondary}</SecondaryValue>
   );
 
-  const usernameValue =
-    displayPrimary &&
-    (layout === 'inline' ? (
-      <InlineUsernameValue title={username}>{username}</InlineUsernameValue>
-    ) : (
+  const separatedSecondaryValue = displaySecondary && (
+    <SeparatedSecondaryValue title={displaySecondary}>
+      {displaySecondary}
+    </SeparatedSecondaryValue>
+  );
+
+  const supportingValues = displayPrimary ? (
+    <>
       <UsernameValue title={username}>{username}</UsernameValue>
-    ));
+      {separatedSecondaryValue}
+    </>
+  ) : (
+    secondaryValue
+  );
 
   switch (layout) {
     case 'inline':
@@ -65,8 +72,13 @@ export function UserDisplayName({
         <Root className={className}>
           <DisplayLine>
             {primaryValue()}
-            {secondaryValue}
-            {usernameValue}
+            {displayPrimary ? (
+              <InlineSupportingValues>
+                {supportingValues}
+              </InlineSupportingValues>
+            ) : (
+              supportingValues
+            )}
           </DisplayLine>
         </Root>
       );
@@ -75,8 +87,11 @@ export function UserDisplayName({
       return (
         <Root className={className}>
           <DisplayLine>{primaryValue()}</DisplayLine>
-          {secondaryValue}
-          {usernameValue}
+          {displayPrimary ? (
+            <SupportingLine>{supportingValues}</SupportingLine>
+          ) : (
+            supportingValues
+          )}
         </Root>
       );
 
@@ -149,6 +164,12 @@ const DisplayLine = styled.span`
   gap: ${props => props.theme.space[1]}px;
 `;
 
+const SupportingLine = styled.span`
+  ${containedContent}
+  display: inline-flex;
+  align-items: baseline;
+`;
+
 const PrimaryValue = styled(singleLineText).attrs({
   typography: 'body2',
 })``;
@@ -163,11 +184,23 @@ const SecondaryValue = styled(singleLineText).attrs({
   typography: 'body3',
 })``;
 
-// The parentheses are decorative wrappers around the inline username — using
-// `::before/::after` keeps them out of the React text content so they don't
-// appear in `textContent`, snapshots, or the accessibility tree, and lets us
-// style them independently from the value itself.
-const InlineUsernameValue = styled(UsernameValue)`
+const SeparatedSecondaryValue = styled(SecondaryValue)`
+  &::before {
+    content: '•';
+    margin: 0 ${props => props.theme.space[1]}px;
+  }
+`;
+
+// Decorative delimiters stay out of textContent
+const InlineSupportingValues = styled(Text).attrs({
+  as: 'span',
+  color: 'text.muted',
+  typography: 'body3',
+})`
+  ${containedContent}
+  display: inline-flex;
+  align-items: baseline;
+
   &::before {
     content: '(';
   }

@@ -228,6 +228,7 @@ export function UserDetailsTitle({
             username={user.name}
             primaryText={user.displayPrimary}
             secondaryText={user.displaySecondary}
+            layout="stacked"
           />
         </Box>
       </Flex>

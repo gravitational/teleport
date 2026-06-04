@@ -79,12 +79,12 @@ export default function UserList({
           key: 'name',
           headerText: 'Name',
           render: (user: User) => (
-            <Cell>
+            <Cell style={{ minWidth: '320px', maxWidth: '480px' }}>
               <UserDisplayName
                 username={user.name}
                 primaryText={user.displayPrimary}
                 secondaryText={user.displaySecondary}
-                layout="inline"
+                layout="stacked"
               />
             </Cell>
           ),
