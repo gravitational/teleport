@@ -1,0 +1,103 @@
+[
+    {
+        "ei": 23,
+        "event": "session.end",
+        "uid": "06e350a3-7a27-4e77-88f1-3992ce1f4ccd",
+        "code": "T2004I",
+        "time": "2026-06-03T20:39:01.765Z",
+        "cluster_name": "teleport.example.com",
+        "user": "alice",
+        "login": "ubuntu",
+        "user_kind": 1,
+        "user_roles": [
+            "access",
+            "auditor",
+            "editor"
+        ],
+        "user_traits": {
+            "logins": [
+                "alice"
+            ]
+        },
+        "sid": "bab829cb-c076-4660-892b-d16fed350605",
+        "private_key_policy": "none",
+        "addr.remote": "203.0.113.10:62616",
+        "proto": "ssh",
+        "namespace": "default",
+        "server_id": "03b987c5-780d-4126-89b1-6e5e35894514",
+        "server_hostname": "minio",
+        "server_labels": {
+            "env": "staging",
+            "app": "minio"
+        },
+        "server_version": "18.8.1",
+        "enhanced_recording": false,
+        "interactive": true,
+        "participants": [
+            "alice"
+        ],
+        "session_start": "2026-06-03T20:38:49.621446047Z",
+        "session_stop": "2026-06-03T20:39:01.765142978Z",
+        "session_recording": "node"
+    },
+    {
+        "ei": 41,
+        "event": "session.end",
+        "uid": "d02344f2-e52e-4a5f-b35e-f7a23823501e",
+        "code": "T2004I",
+        "time": "2026-06-03T19:12:44.103Z",
+        "cluster_name": "teleport.example.com",
+        "user": "bob",
+        "login": "root",
+        "user_kind": 1,
+        "user_roles": [
+            "access",
+            "editor"
+        ],
+        "user_traits": {
+            "logins": [
+                "bob"
+            ]
+        },
+        "sid": "4f5c9c96-f33a-4ab6-876e-0744efc7b588",
+        "private_key_policy": "none",
+        "addr.remote": "198.51.100.7:51110",
+        "proto": "ssh",
+        "namespace": "default",
+        "server_id": "9c1f2e44-7a55-4d2e-bf03-2b1a0c9d77aa",
+        "server_hostname": "prod-web-1",
+        "server_labels": {
+            "env": "prod",
+            "role": "web"
+        },
+        "server_version": "18.8.1",
+        "enhanced_recording": false,
+        "interactive": true,
+        "participants": [
+            "bob"
+        ],
+        "session_start": "2026-06-03T19:05:12.004Z",
+        "session_stop": "2026-06-03T19:12:44.103Z",
+        "session_recording": "node"
+    },
+    {
+        "ei": 8,
+        "event": "db.session.end",
+        "uid": "c7b1a0e2-3f44-4a91-9c12-aa5566778899",
+        "code": "TDB01I",
+        "time": "2026-06-03T18:10:22.500Z",
+        "cluster_name": "teleport.example.com",
+        "user": "bob",
+        "sid": "1c2d3e4f-5a6b-7c8d-9e0f-112233445566",
+        "participants": [
+            "bob"
+        ],
+        "db_service": "prod-postgres",
+        "db_protocol": "postgres",
+        "db_uri": "prod-postgres.example.com:5432",
+        "db_name": "payments",
+        "db_user": "readonly",
+        "session_start": "2026-06-03T18:05:00Z",
+        "session_stop": "2026-06-03T18:10:22.5Z"
+    }
+]
