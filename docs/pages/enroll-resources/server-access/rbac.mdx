@@ -47,7 +47,7 @@ spec:
       # regular expressions start with ^ and end with $
       # Teleport uses Go's regexp syntax (https://github.com/google/re2/wiki/Syntax)
       # the list example above can be expressed as:
-      'reg': '^us-west-1|eu-central-1$'
+      'region': '^us-west-1|eu-central-1$'
 
     # List of host groups the created user will be added to. Any that don't
     # already exist are created. Only applies when create_host_user_mode
@@ -88,7 +88,7 @@ server environment types and allowed logins from the user's Okta `environments` 
 spec:
   allow:
     node_labels:
-    - env:  '{{external.environments}}'
+      env:  '{{external.environments}}'
     logins:
     - '{{external.allowedlogins}}'
 ```
@@ -134,7 +134,7 @@ spec:
   allow:
     #....
   options:
-    # Sets the default shell for automatically provisioned SSH users. An absolute path to a shell or a name
+    # Sets the default shell for automatically provisioning SSH users. An absolute path to a shell or a name
     # reachable through the system PATH are both valid values. Only applies when
     # create_host_user_mode is not set to off.
     create_host_user_default_shell: bash
