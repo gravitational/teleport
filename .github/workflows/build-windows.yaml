@@ -35,11 +35,11 @@ jobs:
           cache: false
           go-version-file: go.mod
 
-      - name: Setup Rust
-        run: |
-          $RustVersion = $(make --no-print-directory -C "build.assets" print-rust-version).Trim()
-          . "build.assets/windows/build.ps1"
-          Install-Rust -RustVersion "$RustVersion" -ToolchainDir "C:\toolchains"
+      ##- name: Setup Rust
+      ##  run: |
+      ##    $RustVersion = $(make --no-print-directory -C "build.assets" print-rust-version).Trim()
+      ##    . "build.assets/windows/build.ps1"
+      ##    Install-Rust -RustVersion "$RustVersion" -ToolchainDir "C:\toolchains"
 
       - name: Build
         shell: bash
