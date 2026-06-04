@@ -26,7 +26,7 @@ import (
 // - startKey: pagination cursor
 // - filter: case-insensitive substring match on role name
 func (p *Plugin) listRootScopedRolesHandler(_ http.ResponseWriter, r *http.Request, _ httprouter.Params, ctx *web.SessionContext) (any, error) {
-	if err := scopes.AssertFeatureEnabled(); err != nil {
+	if err := p.ScopesFeatures.AssertEnabled(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

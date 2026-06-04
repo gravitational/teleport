@@ -190,10 +190,11 @@ func addPlugins(cfg *servicecfg.Config, license *licensefile.LicenseFile, plugin
 		}
 
 		webPlugin, err = web.NewPlugin(web.Config{
-			PluginShimURL: pluginShimURL,
-			AccessGraph:   accessGraphCfg,
-			Logger:        cfg.Logger,
-			Modules:       cfg.Modules,
+			PluginShimURL:  pluginShimURL,
+			AccessGraph:    accessGraphCfg,
+			Logger:         cfg.Logger,
+			Modules:        cfg.Modules,
+			ScopesFeatures: cfg.ScopesFeatures,
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)

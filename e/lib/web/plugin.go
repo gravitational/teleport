@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -85,6 +86,9 @@ type Config struct {
 
 	// Modules defines build time constraints and licensed features.
 	Modules modules.Modules
+
+	// ScopesFeatures specifies which scopes features are enabled.
+	ScopesFeatures scopes.Features
 }
 
 // CheckAndSetDefaults checks and sets the defaults
