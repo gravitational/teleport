@@ -97,7 +97,8 @@ func (d createDBAuthority) Up(ctx context.Context, b backend.Backend) error {
 
 // Down deletes any existing CAs of the new CA type for all clusters.
 func (d createDBAuthority) Down(ctx context.Context, b backend.Backend) error {
-	ctx, span := tracer.Start(ctx, "CreateDBAuthorityDown")
+	// Nota Bene: If at a later date this function consumes ctx, ensure you use the value returned by tracer.Start as to ensure span propagation works correctly.
+	_, span := tracer.Start(ctx, "CreateDBAuthorityDown")
 	defer span.End()
 
 	if d.trustServiceFn == nil {

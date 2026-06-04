@@ -85,7 +85,10 @@ func (dm *Memory) Verify(keys []string) error {
 }
 
 func (dm *Memory) Write(ctx context.Context, name string, data []byte) error {
-	ctx, span := tracer.Start(
+	// Nota Bene: If at a later date this function consumes ctx, ensure you
+	// use the value returned by tracer.Start as to ensure span propagation
+	// works correctly.
+	_, span := tracer.Start(
 		ctx,
 		"Memory/Write",
 		oteltrace.WithAttributes(attribute.String("name", name)),
@@ -100,7 +103,10 @@ func (dm *Memory) Write(ctx context.Context, name string, data []byte) error {
 }
 
 func (dm *Memory) Read(ctx context.Context, name string) ([]byte, error) {
-	ctx, span := tracer.Start(
+	// Nota Bene: If at a later date this function consumes ctx, ensure you
+	// use the value returned by tracer.Start as to ensure span propagation
+	// works correctly.
+	_, span := tracer.Start(
 		ctx,
 		"Memory/Read",
 		oteltrace.WithAttributes(attribute.String("name", name)),

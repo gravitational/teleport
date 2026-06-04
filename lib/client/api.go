@@ -1387,7 +1387,10 @@ func (tc *TeleportClient) ProfileStatus() (*ProfileStatus, error) {
 // LoadKeyForCluster fetches a cluster-specific SSH key and loads it into the
 // SSH agent.
 func (tc *TeleportClient) LoadKeyForCluster(ctx context.Context, clusterName string) error {
-	ctx, span := tc.Tracer.Start(
+	// Nota Bene: If at a later date this function consumes ctx, ensure you
+	// use the value returned by tracer.Start as to ensure span propagation
+	// works correctly.
+	_, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/LoadKeyForCluster",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -1446,7 +1449,10 @@ func (tc *TeleportClient) LocalAgent() *LocalKeyAgent {
 
 // RootClusterName returns root cluster name.
 func (tc *TeleportClient) RootClusterName(ctx context.Context) (string, error) {
-	ctx, span := tc.Tracer.Start(ctx,
+	// Nota Bene: If at a later date this function consumes ctx, ensure you
+	// use the value returned by tracer.Start as to ensure span propagation
+	// works correctly.
+	_, span := tc.Tracer.Start(ctx,
 		"teleportClient/RootClusterName",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
 	)
@@ -4396,7 +4402,10 @@ func (tc *TeleportClient) ConnectToRootCluster(ctx context.Context, keyRing *Key
 // activateKeyRing saves the target session cert into the local
 // keystore (and into the ssh-agent) for future use.
 func (tc *TeleportClient) activateKeyRing(ctx context.Context, keyRing *KeyRing) error {
-	ctx, span := tc.Tracer.Start(
+	// Nota Bene: If at a later date this function consumes ctx, ensure you
+	// use the value returned by tracer.Start as to ensure span propagation
+	// works correctly.
+	_, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/activateKey",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -4884,7 +4893,10 @@ func (tc *TeleportClient) applyAuthSettings(authSettings webclient.Authenticatio
 
 // AddTrustedCA adds a new CA as trusted CA for this client, used in tests
 func (tc *TeleportClient) AddTrustedCA(ctx context.Context, ca types.CertAuthority) error {
-	ctx, span := tc.Tracer.Start(
+	// Nota Bene: If at a later date this function consumes ctx, ensure you
+	// use the value returned by tracer.Start as to ensure span propagation
+	// works correctly.
+	_, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/AddTrustedCA",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -5379,7 +5391,10 @@ func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(ctx context.Conte
 
 // RootClusterCACertPool returns a *x509.CertPool with the root cluster CA.
 func (tc *TeleportClient) RootClusterCACertPool(ctx context.Context) (*x509.CertPool, error) {
-	ctx, span := tc.Tracer.Start(
+	// Nota Bene: If at a later date this function consumes ctx, ensure you
+	// use the value returned by tracer.Start as to ensure span propagation
+	// works correctly.
+	_, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/RootClusterCACertPool",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
@@ -5402,7 +5417,10 @@ func (tc *TeleportClient) RootClusterCACertPool(ctx context.Context) (*x509.Cert
 
 // RootClusterCACertPoolPEM returns a PEM-encoded cert pool with the root cluster CA.
 func (tc *TeleportClient) RootClusterCACertPoolPEM(ctx context.Context) ([]byte, error) {
-	ctx, span := tc.Tracer.Start(
+	// Nota Bene: If at a later date this function consumes ctx, ensure you
+	// use the value returned by tracer.Start as to ensure span propagation
+	// works correctly.
+	_, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/RootClusterCACertPoolPEM",
 		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
