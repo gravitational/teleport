@@ -1,0 +1,21 @@
+- Permissions to create Access Lists. These are included in the preset
+  [`editor`](../../../reference/access-controls/roles.mdx#preset-roles) role,
+  or you can copy and paste the following into your own role:
+  ```yaml
+  allow:
+    rules:
+      - resources:
+          - access_list
+        verbs:
+          - create
+          - read
+          - update
+          - list
+          - delete
+      - resources:
+          - user
+          - role
+        verbs:
+          - read
+          - list
+  ```

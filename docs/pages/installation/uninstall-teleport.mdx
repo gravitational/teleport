@@ -89,105 +89,107 @@ $ docker stop teleport
 
 Follow the steps for your operating system to remove Teleport binaries.
 
-### Linux
+<Tabs>
+  <TabItem label="Linux">
 
-First, uninstall the Teleport automatic updater (`teleport-update`) and the Teleport versions it potentially installed:
+  First, uninstall the Teleport automatic updater (`teleport-update`) and the Teleport versions it potentially installed:
 
   ```code
   teleport-update uninstall
   ```
 
-Then, follow the instructions for your Linux distribution:
+  Then, follow the instructions for your Linux distribution:
 
-<Tabs>
-  <TabItem label="Debian/Ubuntu Linux (DEB)">
+  <Tabs>
+    <TabItem label="Debian/Ubuntu Linux (DEB)">
 
-  Uninstall the Teleport binary using APT:
+    Uninstall the Teleport binary using APT:
 
-  ```code
-  $ sudo apt-get -y remove teleport-ent
-  ```
+    ```code
+    $ sudo apt-get -y remove teleport-ent
+    ```
 
-  For Teleport Community Edition, use the following command:
+    For Teleport Community Edition, use the following command:
 
-  ```code
-  $ sudo apt-get -y remove teleport
-  ```
+    ```code
+    $ sudo apt-get -y remove teleport
+    ```
 
-  Uninstall the Teleport APT repo:
+    Uninstall the Teleport APT repo:
 
-  ```code
-  $ sudo rm -f /etc/apt/sources.list.d/teleport.list
-  ```
+    ```code
+    $ sudo rm -f /etc/apt/sources.list.d/teleport.list
+    ```
 
-  <Admonition type="note" title="Uninstall standalone DEB package">
-  If the commands above do not work, you may have installed Teleport using a standalone DEB package. Remove it with:
+    <Admonition type="note" title="Uninstall standalone DEB package">
+    If the commands above do not work, you may have installed Teleport using a standalone DEB package. Remove it with:
 
-  ```code
-  # Use "teleport" instead of "teleport-ent" for Teleport Community Edition
-  $ sudo dpkg -r teleport-ent
-  ```
-  </Admonition>
+    ```code
+    # Use "teleport" instead of "teleport-ent" for Teleport Community Edition
+    $ sudo dpkg -r teleport-ent
+    ```
+    </Admonition>
+
+    </TabItem>
+    <TabItem label="Amazon Linux 2/RHEL (RPM)">
+
+    Uninstall the Teleport binary using YUM:
+
+    ```code
+    # Change the package name to "teleport" for Teleport Community Edition
+    $ sudo yum -y remove teleport-ent
+    # Optional: Use DNF on newer distributions
+    # $ sudo dnf -y remove teleport-ent
+    ```
+
+    Uninstall the Teleport YUM repo:
+
+    ```code
+    $ sudo rm -f /etc/yum.repos.d/teleport.repo
+    ```
+
+    <Admonition type="note" title="Uninstall standalone RPM package">
+    If the commands above do not work, you may have installed Teleport using a standalone RPM package. Remove it with:
+
+    ```code
+    # Use "teleport" for Teleport Community Edition
+    $ sudo rpm -e teleport-ent
+    ```
+    </Admonition>
+
+    </TabItem>
+    <TabItem label="SUSE Linux Enterprise Server (zypper)">
+
+    Uninstall the Teleport binary using zypper:
+
+    ```code
+    # Change the package name to "teleport" for Teleport Community Edition
+    $ sudo zypper -y remove teleport-ent
+    ```
+
+    Uninstall the Teleport zypper repo:
+
+    ```code
+    $ sudo zypper removerepo teleport
+    ```
+
+    </TabItem>
+    <TabItem label="Linux Tarball">
+
+    <Admonition type="note">
+    These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
+    You can use `dirname $(which teleport)` to look this up automatically.
+    </Admonition>
+
+    Then, remove the Teleport binaries from the machine:
+
+    (!docs/pages/includes/uninstall-teleport-binaries.mdx!)
+
+    </TabItem>
+  </Tabs>
 
   </TabItem>
-  <TabItem label="Amazon Linux 2/RHEL (RPM)">
-
-  Uninstall the Teleport binary using YUM:
-
-  ```code
-  # Change the package name to "teleport" for Teleport Community Edition
-  $ sudo yum -y remove teleport-ent
-  # Optional: Use DNF on newer distributions
-  # $ sudo dnf -y remove teleport-ent
-  ```
-
-  Uninstall the Teleport YUM repo:
-
-  ```code
-  $ sudo rm -f /etc/yum.repos.d/teleport.repo
-  ```
-
-  <Admonition type="note" title="Uninstall standalone RPM package">
-  If the commands above do not work, you may have installed Teleport using a standalone RPM package. Remove it with:
-
-  ```code
-  # Use "teleport" for Teleport Community Edition
-  $ sudo rpm -e teleport-ent
-  ```
-  </Admonition>
-
-  </TabItem>
-  <TabItem label="SUSE Linux Enterprise Server (zypper)">
-
-  Uninstall the Teleport binary using zypper:
-
-  ```code
-  # Change the package name to "teleport" for Teleport Community Edition
-  $ sudo zypper -y remove teleport-ent
-  ```
-
-  Uninstall the Teleport zypper repo:
-
-  ```code
-  $ sudo zypper removerepo teleport
-  ```
-
-  </TabItem>
-  <TabItem label="Linux Tarball">
-
-  <Admonition type="note">
-  These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
-  You can use `dirname $(which teleport)` to look this up automatically.
-  </Admonition>
-
-  Then, remove the Teleport binaries from the machine:
-
-  (!docs/pages/includes/uninstall-teleport-binaries.mdx!)
-
-  </TabItem>
-</Tabs>
-
-### macOS
+  <TabItem label="macOS">
 
   <Admonition type="note">
   These are the default paths to the Teleport binaries. If you have changed these from the defaults on your system, substitute those paths here.
@@ -214,7 +216,8 @@ Then, follow the instructions for your Linux distribution:
   ```
   </Admonition>
 
-### Windows
+  </TabItem>
+  <TabItem label="Windows">
 
   Remove the `tsh.exe`, `tctl.exe`, and `tbot.exe` binaries from the machine:
 
@@ -223,9 +226,13 @@ Then, follow the instructions for your Linux distribution:
   $ del C:\Path\To\tctl.exe
   $ del C:\Path\To\tbot.exe
   ```
-(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
 
-(!docs/pages/includes/uninstall-windows-auth.mdx!)
+  (!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
+
+  (!docs/pages/includes/uninstall-windows-auth.mdx!)
+
+  </TabItem>
+</Tabs>
 
 ## Step 3/3. Remove Teleport data and configuration files
 

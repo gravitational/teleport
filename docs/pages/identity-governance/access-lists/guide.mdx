@@ -11,40 +11,42 @@ enterprise: Identity Governance
 
 {/* lint disable page-structure remark-lint */}
 
-This guide will help you:
+This guide walks you through the Teleport Web UI to:
+
 - Create an Access List
 - Assign a member to it
 - Verify permissions granted through the list membership
 
+If you'd rather manage Access Lists as code, follow the
+[Access Lists with Terraform and Kubernetes Operator](../../zero-trust-access/infrastructure-as-code/managing-resources/access-list.mdx)
+guide instead.
+
 ## Prerequisites
 
-(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+- A running Teleport Enterprise (v18.8.0 or higher) cluster. If you don't have one yet,
+  [sign up](https://goteleport.com/signup) for a free trial.
 
-- (!docs/pages/includes/tctl.mdx!)
-- A user with the preset `editor` role, which will have permissions to create Access Lists.
+(!docs/pages/identity-governance/access-lists/includes/acl-permissions.mdx!)
 
-## Step 1/4. Setting up the Application Service on the cluster for testing
+## Step 1/4. Enroll a test resource
 
-One of the easiest ways to get resources on the cluster for testing is to set up a Teleport Application Service
-instance with the debugging application enabled. To do this:
+We need at least one resource on the cluster to grant access to. If you already
+have a resource enrolled that you can use for testing, skip to the next step.
 
-1. Add the following config to your `teleport.yaml` configuration:
+Otherwise, follow the <a href="/get-started/connect/" target="_blank" rel="noopener">Connect Infrastructure</a>
+guide to enroll a host through the Web UI's guided setup. The linked page uses an
+Ubuntu server as its example, but the same flow works for your own machine
+(Linux or macOS) — just pick your OS during the guided setup and run the
+install command it gives you.
 
-   ```yaml
-   app_service:
-     enabled: true
-     debug_app: true
-   ```
+<Admonition type="tip">
+When the guided setup asks you to add labels, add at least one — for example,
+`env: test`. We'll use this label in Step 3 to select the host. (You can also
+match all hosts with a `*` wildcard, but using a real label is closer to how
+you'd build an Access List in practice.)
+</Admonition>
 
-1. Restart Teleport:
-
-   ```code
-   $ sudo systemctl reload teleport
-   ```
-
-The "dumper" app should show up in the resource list.
-
-![Debug app](../../../img/access-controls/access-lists/debug-app.png)
+The rest of this guide assumes you've enrolled an SSH server.
 
 ## Step 2/4. Create a test user
 
@@ -52,49 +54,110 @@ We need to create a simple test user that has only the `requester` role, which h
 to anything within a cluster. This user will only be used for the purposes of this guide, so you may use
 another user if you so choose. If you would rather use your own user, skip to the next step.
 
-To create a user, first navigate to Zero Trust Access in the left pane and click Users. Click on "Enroll Users" and fill in `test-user` as
+From the sidebar menu, click **Zero Trust Access** > **Users** > **Enroll Users**. Fill in `test-user` as
 the name and select `requester` as the role.
 
 ![Create Test User](../../../img/access-controls/access-lists/create-test-user.png)
 
-Click "Save," and then navigate to the provided URL in order to set up the credentials for your test user.
+Submit the form to create the user, then navigate to the provided URL in order to set up the credentials for your test user.
 Try logging into the cluster with the test user to verify that no resources show up in the resources page.
 
 ## Step 3/4. Create an Access List
 
-Next, we'll create a simple Access List that will grant the `access` role to its members.
-Login as the administrative user mentioned in the prerequisites. Click on "Add New" in the left pane, and then "Create an Access List."
+Next, we'll create an Access List that grants its members access to the SSH
+host we enrolled in Step 1. Login as the admin user mentioned in the
+prerequisites.
 
-![Navigate to create new Access List](../../../img/access-controls/access-lists/create-new-access-list.png)
+From the sidebar menu, hover over **Add New** then click **Access List**.
 
-Here, fill in a title, description, and grant the `access` role. Select a date in the future for the next
-review date.
+Enter `test-list` as the Access List name, optionally add a description, then
+select **Standing Access Guide** — this is the flow that grants members access on
+login, which is what we want for this tutorial. (Other options:
+[Just-in-Time Access](./jit-access-list.mdx) makes resources *requestable*
+instead of granted automatically, and the
+[Custom Form](./custom-access-list.mdx) lets you assign existing roles
+directly without the guided flow.)
 
-![Fill out Access List Fields](../../../img/access-controls/access-lists/fill-out-access-list-fields.png)
+Click **Start Guide**.
 
-Under "List Owners" select `editor` as a required role, then add your administrative user under "Add
-Eligible List Owners." By selecting `editor` as a required role, this will ensure that any owner of the list
-must have the `editor` role in order to actually manage the list. If the user loses this role later, they will
-not be able to manage the list, though they will still be reflected as an owner.
+<Admonition type="tip" title="Prefer Terraform?">
+As you fill out the guided flow, a Terraform panel on the side mirrors your input
+live. At the final **Deployment** step you can choose to apply the list with Teleport
+directly or follow the in-UI instructions to apply it with Terraform.
+</Admonition>
 
-![Select an owner](../../../img/access-controls/access-lists/select-owner.png)
+#### 1. Define Access to Resources
 
-Under "Members" select `requester` as a required role, then add your test user to the Access List. Similar to
-the owner requirements, this will ensure that any member of the list must have the `requester` role in order to
-be granted the access described in this list. If the user loses this role later, they will not be granted the
-roles or traits described in the Access List.
+- Click **Server** from the resource-type column on the left.
+- Click the `env: test` label next to your host (or whichever label you set in
+  Step 1) to select it.
+- If you didn't add a label, type `*` into the label input box and press
+  **Enter** to match all servers.
 
-![Add a member](../../../img/access-controls/access-lists/add-member.png)
+This gives members of the list access to SSH servers matching the
+`env: test` label (or any SSH server, if you used `*`).
 
-Finally, click "Create Access List" at the bottom of the page.
+(!docs/pages/identity-governance/access-lists/includes/preview-resources-warning.mdx!)
 
-## Step 4/4. Login as the test user
+#### 2. Define Resource Identities or Principals
 
-Again, login as the test user. When logging in now, you should now see the dumper application contained within
-the cluster, and should be able to interact with it as expected.
+- Under Server Identities **Logins**, add the OS user(s) you want members to be
+  able to log in as on the host (for example, `ubuntu` on a Linux server or your
+  local username on macOS).
+
+Note: this screen only asks for SSH logins because Server was the only resource
+type you selected in the previous step.
+
+#### 3. Basic Information
+
+- Confirm the title and description.
+- Select a date in the future for the next review.
+
+#### 4. Define Membership
+
+- Add your test user as a member.
+- Optionally, expand **Optional Advanced Settings** and select `requester` as a
+  required role. The required role ensures any member of the list must hold
+  `requester` to be granted access; if a member loses the role later, they will
+  not be granted the access described in the list.
+
+#### 5. Define Ownership
+
+- Add your admin user as an eligible owner.
+- Optionally, expand **Optional Advanced Settings** and select `editor` as a
+  required role. The required role ensures any owner must hold `editor` to
+  manage the list; if an owner loses the role later, they remain reflected as
+  an owner but cannot manage the list.
+
+#### 6. Deployment
+
+- Review the summary and click **Create Access List Now**.
+
+(!docs/pages/identity-governance/access-lists/includes/editing-roles-warning.mdx!)
+
+## Step 4/4. Log in as the test user
+
+Log in as the test user in the Web UI. You should see the SSH server from
+Step 1 in the **Resources** list. Click **Connect**, then click one of the
+logins you allowed in the **Define Resource Identities or Principals** step
+to SSH into the server.
+
+## Cleanup (optional)
+
+If you'd like to remove the SSH server you enrolled in Step 1, follow
+[Uninstall Teleport](../../installation/uninstall-teleport.mdx#step-13-stop-any-running-teleport-processes).
+
+Once the agent is stopped, Teleport automatically removes the server from the
+resource list after a few minutes.
 
 ## Next steps
 
+- Read more about the flow you just used in [Standing Access
+  Lists](./standing-access-list.mdx).
+- Create an Access List whose members can [request temporary access to
+  resources](./jit-access-list.mdx) instead of receiving them on login.
+- Create an Access List by assigning existing roles directly with the
+  [Custom Form](./custom-access-list.mdx).
 - Read [Creating Access Lists with
   IaC](../../zero-trust-access/infrastructure-as-code/managing-resources/access-list.mdx) for instructions on managing Access Lists with the Teleport Terraform provider and Kubernetes operator.
 - Familiarize yourself with the CLI tooling available for managing Access Lists in the [reference](../../reference/access-controls/access-lists.mdx).
