@@ -150,7 +150,7 @@ To install on Linux:
 
 1. (!docs/pages/includes/install-linux.mdx!)
 
-1. Create the configuration file for Grafana at `/etc/app_config.yaml`
+1. Create the configuration file for Grafana at `/etc/teleport.yaml`
 with a command similar to the following:
    
    ```code
@@ -195,7 +195,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
 
 - Set `proxyAddr` to the address for your Teleport cluster (for example, 
 `teleport.example.com` or `mytenant.teleport.sh`).
-- Set `-authToken` to the invitation token that you previously generated.
+- Set `authToken` to the invitation token that you previously generated.
 - Change `apps[0].name` and `apps[0].uri` if you're configuring access to a different 
 web application.
 
