@@ -46,20 +46,21 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 		return nil, trace.BadParameter("CreateWebSession is not supported when creating GitHub auth request for authenticated user")
 	}
 
-	authCtx, gitServer, err := s.authAndFindServerByOrg(ctx, in.Organization)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	authCtx, gitServer, findErr := s.authAndFindServerByOrg(ctx, in.Organization)
+	if findErr != nil {
+		return nil, trace.Wrap(findErr)
 	}
 
 	s.cfg.Log.DebugContext(ctx, "Creating GitHub auth request for authenticated user.",
 		"user", authCtx.User.GetName(),
 		"org", gitServer.GetGitHub().Organization,
 		"integration", gitServer.GetGitHub().Integration,
+		"git_server", gitServer.GetName(),
 	)
 
 	// Make a "temporary" connector spec and save it in the request.
 	uuid := uuid.NewString()
-	spec, err := s.makeGithubConnectorSpec(ctx, uuid, gitServer.GetGitHub().Organization, gitServer.GetGitHub().Integration)
+	spec, err := s.makeGithubConnectorSpec(ctx, uuid, gitServer)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -105,7 +106,11 @@ func (s *Service) authAndFindServerByOrg(ctx context.Context, org string) (*auth
 	return nil, nil, trace.NotFound("git server with organization %q not found", org)
 }
 
-func (s *Service) makeGithubConnectorSpec(ctx context.Context, uuid, org, integration string) (*types.GithubConnectorSpecV3, error) {
+func (s *Service) makeGithubConnectorSpec(ctx context.Context, uuid string, gitServer types.Server) (*types.GithubConnectorSpecV3, error) {
+	github := gitServer.GetGitHub()
+	org := github.Organization
+	integration := github.Integration
+
 	ref, err := credentials.GetIntegrationRef(ctx, integration, s.cfg.Backend)
 	if err != nil {
 		return nil, trace.Wrap(err)

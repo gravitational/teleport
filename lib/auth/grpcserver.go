@@ -792,6 +792,10 @@ func validateCertUsage(req *authpb.UserCertsRequest) error {
 		if err := validateAccessGraphcertificateReq(req); err != nil {
 			return trace.Wrap(err)
 		}
+	case authpb.UserCertsRequest_Git:
+		if req.RouteToGit.GitServerName == "" {
+			return trace.BadParameter("missing GitServerName field in a git-only UserCertsRequest")
+		}
 	default:
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}

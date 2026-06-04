@@ -198,6 +198,8 @@ message UserCertsRequest {
     // LinuxDesktop means a request for a TLS certificate for access to a specific
     // linux desktop.
     LinuxDesktop = 7;
+    // Git means a request for a TLS certificate for Git HTTPS proxying.
+    Git = 8;
   }
   // CertUsage limits the resulting user certificate to a single protocol.
   CertUsage Usage = 10 [(gogoproto.jsontag) = "usage,omitempty"];
@@ -321,6 +323,18 @@ message UserCertsRequest {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "route_to_linux_desktop,omitempty"
   ];
+
+  // RouteToGit specifies the target git server for Git HTTPS proxying.
+  RouteToGit RouteToGit = 29 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "route_to_git,omitempty"
+  ];
+}
+
+// RouteToGit contains parameters for Git HTTPS proxying certificate requests.
+message RouteToGit {
+  // GitServerName is the name of the git server resource.
+  string GitServerName = 1 [(gogoproto.jsontag) = "git_server_name"];
 }
 
 // RouteToDatabase combines parameters for database service routing information.

@@ -813,3 +813,125 @@ func (a *Server) CreateAppSessionForAppAuth(ctx context.Context, req *appauthcon
 func (a *Server) UpdateAppSession(ctx context.Context, session types.WebSession) error {
 	return trace.Wrap(a.Services.IdentityInternal.UpdateAppSession(ctx, session))
 }
+
+// CreateGitSession creates a session for Git HTTPS proxying.
+// Web sessions are not allowed to create git sessions.
+func (a *Server) CreateGitSession(ctx context.Context, username, gitServerName string, identity tlsca.Identity, checker services.AccessChecker) (types.WebSession, error) {
+	// Reject web sessions.
+	if identity.PrivateKeyPolicy == keys.PrivateKeyPolicyWebSession {
+		return nil, trace.AccessDenied("web sessions cannot create git sessions")
+	}
+
+	ttl := checker.AdjustSessionTTL(identity.Expires.Sub(a.clock.Now()))
+
+	roles, traits, err := services.ExtractFromIdentity(ctx, a, identity)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	user, err := a.GetUserOrLoginState(ctx, username)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	clusterName, err := a.GetClusterName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sessionID, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	priv, err := cryptosuites.GenerateKey(ctx, cryptosuites.GetCurrentSuiteFromAuthPreference(a), cryptosuites.UserTLS)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(priv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	tlsPublicKey, err := keys.MarshalPublicKey(priv.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessChecker, err := services.NewAccessChecker(&services.AccessInfo{
+		Username:                 username,
+		Roles:                    roles,
+		Traits:                   traits,
+		AllowedResourceAccessIDs: identity.AllowedResourceAccessIDs,
+	}, clusterName.GetClusterName(), a)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := a.GenerateUserCerts(ctx, cert.Request{
+		User:           user,
+		LoginIP:        identity.LoginIP,
+		TLSPublicKey:   tlsPublicKey,
+		CheckerContext: services.NewScopedAccessCheckerContextFromUnscoped(accessChecker),
+		TTL:            ttl,
+		Traits:         traits,
+		ActiveRequests: identity.ActiveRequests,
+		Usage:          []string{teleport.UsageGitOnly},
+		GitServerName:  gitServerName,
+		GitSessionID:   sessionID,
+		DeviceExtensions: tlsca.DeviceExtensions(identity.DeviceExtensions),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	bearer, err := utils.CryptoRandomHex(defaults.SessionTokenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	// Reuse KindAppSession for storage. TODO(greedy52) add KindGitSession.
+	session, err := types.NewWebSession(sessionID, types.KindAppSession, types.WebSessionSpecV2{
+		User:        username,
+		TLSPriv:     privateKeyPEM,
+		TLSCert:     certs.TLS,
+		LoginTime:   a.clock.Now().UTC(),
+		Expires:     a.clock.Now().UTC().Add(ttl),
+		BearerToken: bearer,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err = a.UpsertAppSession(ctx, session); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	a.logger.DebugContext(ctx, "Created git session",
+		"user", username,
+		"git_server", gitServerName,
+		"ttl", ttl,
+	)
+
+	if err := a.emitter.EmitAuditEvent(a.closeCtx, &apievents.AppSessionStart{
+		Metadata: apievents.Metadata{
+			Type: events.AppSessionStartEvent,
+			Code: events.AppSessionStartCode,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerVersion: teleport.Version,
+			ServerID:      a.ServerID,
+		},
+		SessionMetadata: apievents.SessionMetadata{
+			SessionID: session.GetName(),
+		},
+		UserMetadata: apievents.UserMetadata{
+			User: username,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: gitServerName,
+			SubKind: "git",
+		},
+	}); err != nil {
+		a.logger.WarnContext(ctx, "Failed to emit git session start event", "error", err)
+	}
+
+	return session, nil
+}

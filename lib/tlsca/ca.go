@@ -163,6 +163,8 @@ type Identity struct {
 	TeleportCluster string
 	// RouteToDatabase contains routing information for databases.
 	RouteToDatabase RouteToDatabase
+	// RouteToGit holds routing information for Git HTTPS proxying.
+	RouteToGit RouteToGit
 	// DatabaseNames is a list of allowed database names.
 	DatabaseNames []string
 	// DatabaseUsers is a list of allowed database users.
@@ -290,6 +292,14 @@ type RouteToApp struct {
 	// This is a JSON string that conforms with
 	// https://docs.aws.amazon.com/sdkref/latest/guide/feature-process-credentials.html#feature-process-credentials-output
 	AWSCredentialProcessCredentials string
+}
+
+// RouteToGit holds routing information for Git HTTPS proxying.
+type RouteToGit struct {
+	// GitServerName is the name of the git server resource.
+	GitServerName string
+	// SessionID is the ID of the git session.
+	SessionID string
 }
 
 // RouteToDatabase contains routing information for databases.
@@ -667,6 +677,13 @@ var (
 	// encoding the agent's pinned scope and system roles.
 	AgentScopePinASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 31}
 
+	// GitServerNameASN1ExtensionOID is an extension OID used to encode the
+	// git server name for Git HTTPS routing.
+	GitServerNameASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 32}
+	// GitSessionIDASN1ExtensionOID is an extension OID used to encode the
+	// git session ID for Git HTTPS routing.
+	GitSessionIDASN1ExtensionOID = asn1.ObjectIdentifier{1, 3, 9999, 2, 33}
+
 	// CAClusterNameExtensionOID records the cluster name in a Teleport CA
 	// certificate.
 	//
@@ -895,6 +912,21 @@ func (id *Identity) Subject() (pkix.Name, error) {
 	}
 
 	// Encode routing metadata for databases.
+	if id.RouteToGit.GitServerName != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  GitServerNameASN1ExtensionOID,
+				Value: id.RouteToGit.GitServerName,
+			})
+	}
+	if id.RouteToGit.SessionID != "" {
+		subject.ExtraNames = append(subject.ExtraNames,
+			pkix.AttributeTypeAndValue{
+				Type:  GitSessionIDASN1ExtensionOID,
+				Value: id.RouteToGit.SessionID,
+			})
+	}
+
 	if id.RouteToDatabase.ServiceName != "" {
 		subject.ExtraNames = append(subject.ExtraNames,
 			pkix.AttributeTypeAndValue{
@@ -1322,6 +1354,16 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 			val, ok := attr.Value.(string)
 			if ok {
 				id.LoginIP = val
+			}
+		case attr.Type.Equal(GitServerNameASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToGit.GitServerName = val
+			}
+		case attr.Type.Equal(GitSessionIDASN1ExtensionOID):
+			val, ok := attr.Value.(string)
+			if ok {
+				id.RouteToGit.SessionID = val
 			}
 		case attr.Type.Equal(DatabaseServiceNameASN1ExtensionOID):
 			val, ok := attr.Value.(string)

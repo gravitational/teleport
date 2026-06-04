@@ -22,6 +22,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/json"
 	"log/slog"
 	"net"
 	"slices"
@@ -730,4 +731,10 @@ func newGrpcClient(ctx context.Context, t *testing.T, addr string, tlsConfig *tl
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, conn.Close()) })
 	return proto.NewKubeServiceClient(conn)
+}
+
+func TestTmp(t *testing.T) {
+	a := map[string]json.RawMessage{}
+	json.Unmarshal([]byte(`{"aa": {"b":"bb", "B":"BB"}, "aA": "aA"}`), &a)
+	t.Log(a)
 }

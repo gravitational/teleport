@@ -587,6 +587,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return nil, trace.Wrap(err, "creating BackendInfo service")
 		}
 	}
+	if cfg.UserExternalCredentials == nil {
+		cfg.UserExternalCredentials = local.NewUserExternalCredentialsService(cfg.Backend)
+	}
 	if cfg.VnetConfigService == nil {
 		cfg.VnetConfigService, err = local.NewVnetConfigService(cfg.Backend)
 		if err != nil {
@@ -746,6 +749,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		WorkloadClusterService:          cfg.WorkloadClusterService,
 		Beams:                           cfg.Beams,
 		SubCAService:                    cfg.SubCAService,
+		UserExternalCredentialsService:  cfg.UserExternalCredentials,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -788,6 +792,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		recordingMetadataProvider:    cfg.RecordingMetadataProvider,
 		awsOrganizationsClientGetter: cfg.AWSOrganizationsClientGetter,
 		insecureMode:                 cfg.InsecureMode,
+		UserExternalCredentials:      cfg.UserExternalCredentials,
 		remoteClusterRefreshLimit:    cmp.Or(cfg.RemoteClusterRefreshLimit, defaultRemoteClusterRefreshLimit),
 		remoteClusterRefreshBuckets:  cmp.Or(cfg.RemoteClusterRefreshBuckets, defaultRemoteClusterRefreshBuckets),
 	}
@@ -1503,6 +1508,9 @@ type Server struct {
 
 	// ulsGenerator is the user login state generator.
 	ulsGenerator *userloginstate.Generator
+
+	// UserExternalCredentials manages per-user credentials for external services.
+	UserExternalCredentials services.UserExternalCredentialsService
 
 	// createDeviceWebTokenFunc is the CreateDeviceWebToken implementation.
 	// Is nil on OSS clusters.
@@ -4025,6 +4033,10 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 			Username:    req.DBUser,
 			Database:    req.DBName,
 			Roles:       req.DBRoles,
+		},
+		RouteToGit: tlsca.RouteToGit{
+			GitServerName: req.GitServerName,
+			SessionID:     req.GitSessionID,
 		},
 		DatabaseNames:            dbNames,
 		DatabaseUsers:            dbUsers,

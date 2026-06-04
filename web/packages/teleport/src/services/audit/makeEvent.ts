@@ -2164,6 +2164,20 @@ export const formatters: Formatters = {
       return `User [${user}] Git Command [${service}] at [${path}] failed [${exitError}]`;
     },
   },
+  [eventCodes.GIT_HTTP_REQUEST]: {
+    type: 'git.http_request',
+    desc: 'Git HTTP Request',
+    format: ({ method, path, host, status_code, git_server_name }) => {
+      return `Git HTTP request [${method} ${host}${path}] returned [${status_code}] via [${git_server_name}]`;
+    },
+  },
+  [eventCodes.GIT_SESSION_CHUNK]: {
+    type: 'git.session.chunk',
+    desc: 'Git Session Chunk',
+    format: ({ user, session_chunk_id, git_server_name }) => {
+      return `User [${user}] git session chunk [${session_chunk_id}] for [${git_server_name}]`;
+    },
+  },
   [eventCodes.STABLE_UNIX_USER_CREATE]: {
     type: 'stable_unix_user.create',
     desc: 'Stable UNIX user created',

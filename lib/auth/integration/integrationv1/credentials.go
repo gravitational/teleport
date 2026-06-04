@@ -20,6 +20,7 @@ package integrationv1
 
 import (
 	"context"
+	"strings"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
@@ -113,11 +114,13 @@ func (s *Service) createGitHubCredentials(ctx context.Context, ig types.Integrat
 		creds = append(creds, oauthCred)
 	}
 
-	// TODO(greedy52) support per auth CA like HSM.
-	if caCred, err := s.newGitHubSSHCA(ctx); err != nil {
-		return trace.Wrap(err)
-	} else {
-		creds = append(creds, caCred)
+	if !ig.GetGitHubIntegrationSpec().DisableSSHCA {
+		// TODO(greedy52) support per auth CA like HSM.
+		if caCred, err := s.newGitHubSSHCA(ctx); err != nil {
+			return trace.Wrap(err)
+		} else {
+			creds = append(creds, caCred)
+		}
 	}
 
 	return trace.Wrap(s.createStaticCredentials(ctx, ig, creds...))
@@ -243,4 +246,55 @@ func (s *Service) getStaticCredentialsWithPurpose(ctx context.Context, ig types.
 	}
 
 	return credentials.GetByPurpose(ctx, ig.GetCredentials().GetStaticCredentialsRef(), purpose, s.cache)
+}
+
+// maybeCreateGitHubSSHCA creates an SSH CA credential if one doesn't exist and
+// DisableSSHCA is false. Existing SSH CA credentials are never removed.
+func (s *Service) maybeCreateGitHubSSHCA(ctx context.Context, ig types.Integration) error {
+	if ig.GetGitHubIntegrationSpec().DisableSSHCA {
+		return nil
+	}
+	ref := ig.GetCredentials().GetStaticCredentialsRef()
+	if ref == nil {
+		return nil
+	}
+	_, err := credentials.GetByPurpose(ctx, ref, credentials.PurposeGitHubSSHCA, s.cache)
+	if err == nil {
+		return nil
+	}
+	if !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	caCred, err := s.newGitHubSSHCA(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(s.updateStaticCredentials(ctx, ig, caCred))
+}
+
+// setGitHubIntegrationStatus populates the GitHub integration status fields.
+// SSHCAConfigured is true if the spec enables it OR if it was previously configured
+// (credentials are never removed).
+func setGitHubIntegrationStatus(ig types.Integration) {
+	spec := ig.GetGitHubIntegrationSpec()
+	if spec == nil {
+		return
+	}
+
+	status := ig.GetStatus()
+	sshCAConfigured := !spec.DisableSSHCA
+	if status.GitHub != nil && status.GitHub.SSHCAConfigured {
+		sshCAConfigured = true
+	}
+
+	status.GitHub = &types.GitHubIntegrationStatusV1{
+		SSHCAConfigured: sshCAConfigured,
+	}
+
+	// GitHub App client IDs start with "Iv1." or "Iv23.".
+	if idSecret := ig.GetCredentials().GetIdSecret(); idSecret != nil {
+		status.GitHub.GitHubApp = strings.HasPrefix(idSecret.Id, "Iv")
+	}
+
+	ig.SetStatus(status)
 }

@@ -41,9 +41,17 @@ func (h *Handler) gitServerCreateOrUpsert(_ http.ResponseWriter, r *http.Request
 
 	// Only GitHub server is supported. Above req.Check() performs necessary
 	// checks to ensure all the fields are set.
+	var allowProtocols []string
+	if req.GitHub.SshEnabled {
+		allowProtocols = append(allowProtocols, types.GitProtocolSSH)
+	}
+	if req.GitHub.HttpEnabled {
+		allowProtocols = append(allowProtocols, types.GitProtocolHTTP)
+	}
 	gitServer, err := types.NewGitHubServerWithName(req.Name, types.GitHubServerMetadata{
-		Organization: req.GitHub.Organization,
-		Integration:  req.GitHub.Integration,
+		Organization:   req.GitHub.Organization,
+		Integration:    req.GitHub.Integration,
+		AllowProtocols: allowProtocols,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

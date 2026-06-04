@@ -152,6 +152,7 @@ func printGitServersAsText(cf *CLIConf, servers []types.Server) error {
 				"GitHub",
 				github.Organization,
 				login,
+				gitServerProtocols(github),
 				github.GetOrganizationURL(),
 			})
 		} else {
@@ -159,7 +160,7 @@ func printGitServersAsText(cf *CLIConf, servers []types.Server) error {
 		}
 	}
 
-	t := asciitable.MakeTable([]string{"Type", "Organization", "Username", "URL"}, rows...)
+	t := asciitable.MakeTable([]string{"Type", "Organization", "Username", "Protocols", "URL"}, rows...)
 	if _, err := fmt.Fprintln(cf.Stdout(), t.AsBuffer().String()); err != nil {
 		return trace.Wrap(err)
 	}
@@ -170,6 +171,20 @@ func printGitServersAsText(cf *CLIConf, servers []types.Server) error {
 
 	fmt.Fprint(cf.Stdout(), gitCommandsGeneralHint)
 	return nil
+}
+
+func gitServerProtocols(github *types.GitHubServerMetadata) string {
+	var protos []string
+	if types.GitServerSSHEnabled(github) {
+		protos = append(protos, "ssh")
+	}
+	if types.GitServerHTTPEnabled(github) {
+		protos = append(protos, "https")
+	}
+	if len(protos) == 0 {
+		return "(none)"
+	}
+	return strings.Join(protos, ", ")
 }
 
 const gitLoginNote = "" +

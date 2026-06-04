@@ -908,6 +908,10 @@ const (
 
 	// GitCommandEvent is emitted when a Git command is executed.
 	GitCommandEvent = "git.command"
+	// GitHTTPRequestEvent is emitted for each HTTP request during Git HTTPS proxying.
+	GitHTTPRequestEvent = "git.http_request"
+	// GitSessionChunkEvent is emitted at the start of a session chunk for Git HTTPS access.
+	GitSessionChunkEvent = "git.session.chunk"
 
 	// StableUNIXUserCreateEvent is emitted when a stable UNIX user is created.
 	StableUNIXUserCreateEvent = "stable_unix_user.create"
@@ -1084,6 +1088,9 @@ var SessionRecordingEvents = []string{
 	// TCP application sessions emit AppSessionEndEvent but produce no
 	// recordings, so it is excluded.
 	AppSessionChunkEvent,
+
+	// Git HTTPS sessions use GitSessionChunkEvent for recording IDs.
+	GitSessionChunkEvent,
 }
 
 // ServerMetadataGetter represents interface

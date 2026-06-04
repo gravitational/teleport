@@ -25,6 +25,8 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
 // gitConfigCommand implements `tsh git config`.
@@ -89,6 +91,8 @@ func (c *gitConfigCommand) run(cf *CLIConf) error {
 }
 
 func (c *gitConfigCommand) doCheck(cf *CLIConf) error {
+	configured := false
+
 	sshCommand, err := c.getCoreSSHCommand(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -96,11 +100,19 @@ func (c *gitConfigCommand) doCheck(cf *CLIConf) error {
 	wantPrefix := makeGitCoreSSHCommand(cf.executablePath, "")
 	if strings.HasPrefix(sshCommand, wantPrefix) {
 		_, org, _ := strings.Cut(sshCommand, wantPrefix)
-		fmt.Fprintf(cf.Stdout(), "The current Git directory is configured with Teleport for GitHub organization %q.\n", org)
-		return nil
+		fmt.Fprintf(cf.Stdout(), "Git SSH is configured with Teleport for GitHub organization %q.\n", org)
+		configured = true
 	}
 
-	c.printDirNotConfigured(cf.Stdout(), true, sshCommand)
+	remoteURL, err := execGitAndCaptureStdout(cf, "config", "--local", "--default", "", "--get", "remote.origin.url")
+	if err == nil && strings.HasPrefix(remoteURL, "teleport://") {
+		fmt.Fprintf(cf.Stdout(), "Git HTTPS is configured with Teleport remote %q.\n", remoteURL)
+		configured = true
+	}
+
+	if !configured {
+		c.printDirNotConfigured(cf.Stdout(), true, sshCommand)
+	}
 	return nil
 }
 
@@ -117,52 +129,125 @@ func (c *gitConfigCommand) printDirNotConfigured(w io.Writer, withUpdate bool, e
 }
 
 func (c *gitConfigCommand) doUpdate(cf *CLIConf) error {
-	urls, err := execGitAndCaptureStdout(cf, "ls-remote", "--get-url")
+	url, err := execGitAndCaptureStdout(cf, "ls-remote", "--get-url")
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	for url := range strings.SplitSeq(urls, "\n") {
-		u, err := parseGitSSHURL(url)
-		if err != nil {
-			logger.DebugContext(cf.Context, "Skipping URL", "error", err, "url", url)
-			continue
-		}
-		if !u.isGitHub() {
-			logger.DebugContext(cf.Context, "Skipping non-GitHub host", "host", u.Host)
-			continue
-		}
+	url = strings.TrimSpace(url)
 
-		logger.DebugContext(cf.Context, "Configuring repo to use tsh.", "url", url, "owner", u.owner())
-		args := []string{
-			"config", "--local",
-			"--replace-all", gitCoreSSHCommand,
-			makeGitCoreSSHCommand(cf.executablePath, u.owner()),
-		}
-		if err := execGit(cf, args...); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Fprintln(cf.Stdout(), "Teleport configuration added.")
-		return trace.Wrap(c.doCheck(cf))
+	if isHTTPSGitURL(url) {
+		return trace.Wrap(c.doUpdateHTTPS(cf, url))
 	}
-	return trace.NotFound("no GitHub SSH URL found from 'git ls-remote --get-url'")
+
+	u, err := parseGitSSHURL(url)
+	if err != nil {
+		return trace.BadParameter("unsupported remote URL %q", url)
+	}
+	if !u.isGitHub() {
+		return trace.BadParameter("unsupported non-GitHub host %q", u.Host)
+	}
+
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	gitServer, err := findGitServerByOrg(cf, tc, u.owner())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	github := gitServer.GetGitHub()
+	if github == nil {
+		return trace.BadParameter("git server %v is not a GitHub server", gitServer.GetName())
+	}
+	if !types.GitServerSSHEnabled(github) {
+		return trace.BadParameter("git server %v does not have SSH proxying enabled", gitServer.GetName())
+	}
+
+	logger.DebugContext(cf.Context, "Configuring repo to use tsh.", "url", url, "owner", u.owner())
+	args := []string{
+		"config", "--local",
+		"--replace-all", gitCoreSSHCommand,
+		makeGitCoreSSHCommand(cf.executablePath, u.owner()),
+	}
+	if err := execGit(cf, args...); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Fprintln(cf.Stdout(), "Teleport configuration added.")
+	return trace.Wrap(c.doCheck(cf))
+}
+
+func (c *gitConfigCommand) doUpdateHTTPS(cf *CLIConf, rawURL string) error {
+	org, repoPath, err := parseGitHTTPSURL(rawURL)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	gitServer, err := findGitServerByOrg(cf, tc, org)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	github := gitServer.GetGitHub()
+	if github == nil || !types.GitServerHTTPEnabled(github) {
+		return trace.BadParameter("git server %v does not have HTTP proxying enabled", gitServer.GetName())
+	}
+
+	teleportURL := fmt.Sprintf("teleport://github.com/%s", repoPath)
+	if err := execGit(cf, "remote", "set-url", "origin", teleportURL); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ensureGitRemoteHelper(cf)
+	fmt.Fprintf(cf.Stdout(), "Remote origin rewritten to %q.\n", teleportURL)
+	return trace.Wrap(c.doCheck(cf))
 }
 
 func (c *gitConfigCommand) doReset(cf *CLIConf) error {
+	resetSSH := false
 	sshCommand, err := c.getCoreSSHCommand(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	wantPrefix := makeGitCoreSSHCommand(cf.executablePath, "")
-	if !strings.HasPrefix(sshCommand, wantPrefix) {
-		c.printDirNotConfigured(cf.Stdout(), false, sshCommand)
-		return nil
+	if strings.HasPrefix(sshCommand, wantPrefix) {
+		if err := execGit(cf, "config", "--local", "--unset-all", gitCoreSSHCommand); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Fprintln(cf.Stdout(), "Teleport SSH configuration removed.")
+		resetSSH = true
 	}
 
-	if err := execGit(cf, "config", "--local", "--unset-all", gitCoreSSHCommand); err != nil {
-		return trace.Wrap(err)
+	resetHTTPS := false
+	remoteURL, err := execGitAndCaptureStdout(cf, "config", "--local", "--default", "", "--get", "remote.origin.url")
+	if err == nil {
+		remoteURL = strings.TrimSpace(remoteURL)
+		if strings.HasPrefix(remoteURL, "teleport://") {
+			httpsURL := teleportURLToHTTPS(remoteURL)
+			if err := execGit(cf, "remote", "set-url", "origin", httpsURL); err != nil {
+				return trace.Wrap(err)
+			}
+			fmt.Fprintf(cf.Stdout(), "Remote origin restored to %q.\n", httpsURL)
+			resetHTTPS = true
+		}
 	}
-	fmt.Fprintln(cf.Stdout(), "Teleport configuration removed.")
+
+	if !resetSSH && !resetHTTPS {
+		c.printDirNotConfigured(cf.Stdout(), false, sshCommand)
+	}
 	return nil
+}
+
+// teleportURLToHTTPS converts teleport://github.com/org/repo.git back to
+// https://github.com/org/repo.git.
+func teleportURLToHTTPS(teleportURL string) string {
+	return strings.Replace(teleportURL, "teleport://", "https://", 1)
 }
 
 func (c *gitConfigCommand) getCoreSSHCommand(cf *CLIConf) (string, error) {

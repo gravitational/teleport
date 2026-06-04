@@ -154,6 +154,7 @@ export const ossRoutes = {
   dbConnect: consoleRoutePatterns.dbConnect,
   player: '/web/cluster/:clusterId/session/:sid', // ?recordingType=ssh|desktop|k8s&durationMs=1234
   login: '/web/login',
+  githubIntegrationCallback: '/web/github/integration/callback',
   loginSuccess: '/web/msg/info/login_success',
   loginTerminalRedirect: '/web/msg/info/login_terminal',
   loginClose: '/web/msg/info/login_close',
@@ -407,6 +408,8 @@ const cfg = {
     presetRolesPath: '/v1/webapi/presetroles',
     listRequestableRolesPath:
       '/v1/webapi/requestableroles?startKey=:startKey?&search=:search?&limit=:limit?',
+    githubIntegrationCallbackPath: '/v1/webapi/github/integration/callback',
+    githubIntegrationManifestPath: '/v1/webapi/github/integration/manifest',
     githubConnectorsPath: '/v1/webapi/github/:name?',
     githubConnectorPath: '/v1/webapi/github/connector/:name',
     trustedClustersPath: '/v1/webapi/trustedcluster/:name?',

@@ -39,6 +39,191 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
+// GetGitCredentialsStatusRequest is a request to check the status of stored
+// git credentials for the calling user.
+type GetGitCredentialsStatusRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Integration is the name of the integration.
+	Integration   string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetGitCredentialsStatusRequest) Reset() {
+	*x = GetGitCredentialsStatusRequest{}
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGitCredentialsStatusRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGitCredentialsStatusRequest) ProtoMessage() {}
+
+func (x *GetGitCredentialsStatusRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGitCredentialsStatusRequest.ProtoReflect.Descriptor instead.
+func (*GetGitCredentialsStatusRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *GetGitCredentialsStatusRequest) GetIntegration() string {
+	if x != nil {
+		return x.Integration
+	}
+	return ""
+}
+
+// GetGitCredentialsStatusResponse contains the status of stored git credentials.
+type GetGitCredentialsStatusResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Exists indicates whether credentials exist for this user.
+	Exists bool `protobuf:"varint,1,opt,name=exists,proto3" json:"exists,omitempty"`
+	// AccessTokenExpiry is the expiration time of the access token, if it exists.
+	AccessTokenExpiry *timestamppb.Timestamp `protobuf:"bytes,2,opt,name=access_token_expiry,json=accessTokenExpiry,proto3" json:"access_token_expiry,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
+}
+
+func (x *GetGitCredentialsStatusResponse) Reset() {
+	*x = GetGitCredentialsStatusResponse{}
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetGitCredentialsStatusResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetGitCredentialsStatusResponse) ProtoMessage() {}
+
+func (x *GetGitCredentialsStatusResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetGitCredentialsStatusResponse.ProtoReflect.Descriptor instead.
+func (*GetGitCredentialsStatusResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GetGitCredentialsStatusResponse) GetExists() bool {
+	if x != nil {
+		return x.Exists
+	}
+	return false
+}
+
+func (x *GetGitCredentialsStatusResponse) GetAccessTokenExpiry() *timestamppb.Timestamp {
+	if x != nil {
+		return x.AccessTokenExpiry
+	}
+	return nil
+}
+
+// DeleteGitCredentialsRequest is a request to delete stored git credentials.
+type DeleteGitCredentialsRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Integration is the name of the integration.
+	Integration   string `protobuf:"bytes,1,opt,name=integration,proto3" json:"integration,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteGitCredentialsRequest) Reset() {
+	*x = DeleteGitCredentialsRequest{}
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteGitCredentialsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteGitCredentialsRequest) ProtoMessage() {}
+
+func (x *DeleteGitCredentialsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteGitCredentialsRequest.ProtoReflect.Descriptor instead.
+func (*DeleteGitCredentialsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *DeleteGitCredentialsRequest) GetIntegration() string {
+	if x != nil {
+		return x.Integration
+	}
+	return ""
+}
+
+// DeleteGitCredentialsResponse is the response to DeleteGitCredentials.
+type DeleteGitCredentialsResponse struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteGitCredentialsResponse) Reset() {
+	*x = DeleteGitCredentialsResponse{}
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[3]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteGitCredentialsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteGitCredentialsResponse) ProtoMessage() {}
+
+func (x *DeleteGitCredentialsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[3]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DeleteGitCredentialsResponse.ProtoReflect.Descriptor instead.
+func (*DeleteGitCredentialsResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{3}
+}
+
 // ListIntegrationsRequest is a request for a paginated list of Integrations.
 type ListIntegrationsRequest struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
@@ -52,7 +237,7 @@ type ListIntegrationsRequest struct {
 
 func (x *ListIntegrationsRequest) Reset() {
 	*x = ListIntegrationsRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[0]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -64,7 +249,7 @@ func (x *ListIntegrationsRequest) String() string {
 func (*ListIntegrationsRequest) ProtoMessage() {}
 
 func (x *ListIntegrationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[0]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -77,7 +262,7 @@ func (x *ListIntegrationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListIntegrationsRequest.ProtoReflect.Descriptor instead.
 func (*ListIntegrationsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{0}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *ListIntegrationsRequest) GetLimit() int32 {
@@ -109,7 +294,7 @@ type ListIntegrationsResponse struct {
 
 func (x *ListIntegrationsResponse) Reset() {
 	*x = ListIntegrationsResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[1]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[5]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -121,7 +306,7 @@ func (x *ListIntegrationsResponse) String() string {
 func (*ListIntegrationsResponse) ProtoMessage() {}
 
 func (x *ListIntegrationsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[1]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[5]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -134,7 +319,7 @@ func (x *ListIntegrationsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ListIntegrationsResponse.ProtoReflect.Descriptor instead.
 func (*ListIntegrationsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{1}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *ListIntegrationsResponse) GetIntegrations() []*types.IntegrationV1 {
@@ -169,7 +354,7 @@ type GetIntegrationRequest struct {
 
 func (x *GetIntegrationRequest) Reset() {
 	*x = GetIntegrationRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[2]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -181,7 +366,7 @@ func (x *GetIntegrationRequest) String() string {
 func (*GetIntegrationRequest) ProtoMessage() {}
 
 func (x *GetIntegrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[2]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -194,7 +379,7 @@ func (x *GetIntegrationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GetIntegrationRequest.ProtoReflect.Descriptor instead.
 func (*GetIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{2}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *GetIntegrationRequest) GetName() string {
@@ -215,7 +400,7 @@ type CreateIntegrationRequest struct {
 
 func (x *CreateIntegrationRequest) Reset() {
 	*x = CreateIntegrationRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[3]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -227,7 +412,7 @@ func (x *CreateIntegrationRequest) String() string {
 func (*CreateIntegrationRequest) ProtoMessage() {}
 
 func (x *CreateIntegrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[3]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -240,7 +425,7 @@ func (x *CreateIntegrationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CreateIntegrationRequest.ProtoReflect.Descriptor instead.
 func (*CreateIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{3}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *CreateIntegrationRequest) GetIntegration() *types.IntegrationV1 {
@@ -261,7 +446,7 @@ type UpdateIntegrationRequest struct {
 
 func (x *UpdateIntegrationRequest) Reset() {
 	*x = UpdateIntegrationRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[4]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -273,7 +458,7 @@ func (x *UpdateIntegrationRequest) String() string {
 func (*UpdateIntegrationRequest) ProtoMessage() {}
 
 func (x *UpdateIntegrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[4]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -286,7 +471,7 @@ func (x *UpdateIntegrationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use UpdateIntegrationRequest.ProtoReflect.Descriptor instead.
 func (*UpdateIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{4}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *UpdateIntegrationRequest) GetIntegration() *types.IntegrationV1 {
@@ -310,7 +495,7 @@ type DeleteIntegrationRequest struct {
 
 func (x *DeleteIntegrationRequest) Reset() {
 	*x = DeleteIntegrationRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[5]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -322,7 +507,7 @@ func (x *DeleteIntegrationRequest) String() string {
 func (*DeleteIntegrationRequest) ProtoMessage() {}
 
 func (x *DeleteIntegrationRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[5]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -335,7 +520,7 @@ func (x *DeleteIntegrationRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteIntegrationRequest.ProtoReflect.Descriptor instead.
 func (*DeleteIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{5}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *DeleteIntegrationRequest) GetName() string {
@@ -362,7 +547,7 @@ type DeleteAllIntegrationsRequest struct {
 
 func (x *DeleteAllIntegrationsRequest) Reset() {
 	*x = DeleteAllIntegrationsRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[6]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -374,7 +559,7 @@ func (x *DeleteAllIntegrationsRequest) String() string {
 func (*DeleteAllIntegrationsRequest) ProtoMessage() {}
 
 func (x *DeleteAllIntegrationsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[6]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -387,7 +572,7 @@ func (x *DeleteAllIntegrationsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DeleteAllIntegrationsRequest.ProtoReflect.Descriptor instead.
 func (*DeleteAllIntegrationsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{6}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{10}
 }
 
 // GenerateAWSOIDCTokenRequest are the parameters used to request an AWS OIDC
@@ -410,7 +595,7 @@ type GenerateAWSOIDCTokenRequest struct {
 
 func (x *GenerateAWSOIDCTokenRequest) Reset() {
 	*x = GenerateAWSOIDCTokenRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[7]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -422,7 +607,7 @@ func (x *GenerateAWSOIDCTokenRequest) String() string {
 func (*GenerateAWSOIDCTokenRequest) ProtoMessage() {}
 
 func (x *GenerateAWSOIDCTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[7]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -435,7 +620,7 @@ func (x *GenerateAWSOIDCTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateAWSOIDCTokenRequest.ProtoReflect.Descriptor instead.
 func (*GenerateAWSOIDCTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{7}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{11}
 }
 
 // Deprecated: Marked as deprecated in teleport/integration/v1/integration_service.proto.
@@ -464,7 +649,7 @@ type GenerateAWSOIDCTokenResponse struct {
 
 func (x *GenerateAWSOIDCTokenResponse) Reset() {
 	*x = GenerateAWSOIDCTokenResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[8]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -476,7 +661,7 @@ func (x *GenerateAWSOIDCTokenResponse) String() string {
 func (*GenerateAWSOIDCTokenResponse) ProtoMessage() {}
 
 func (x *GenerateAWSOIDCTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[8]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -489,7 +674,7 @@ func (x *GenerateAWSOIDCTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateAWSOIDCTokenResponse.ProtoReflect.Descriptor instead.
 func (*GenerateAWSOIDCTokenResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{8}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *GenerateAWSOIDCTokenResponse) GetToken() string {
@@ -512,7 +697,7 @@ type GenerateAzureOIDCTokenRequest struct {
 
 func (x *GenerateAzureOIDCTokenRequest) Reset() {
 	*x = GenerateAzureOIDCTokenRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[9]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -524,7 +709,7 @@ func (x *GenerateAzureOIDCTokenRequest) String() string {
 func (*GenerateAzureOIDCTokenRequest) ProtoMessage() {}
 
 func (x *GenerateAzureOIDCTokenRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[9]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -537,7 +722,7 @@ func (x *GenerateAzureOIDCTokenRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateAzureOIDCTokenRequest.ProtoReflect.Descriptor instead.
 func (*GenerateAzureOIDCTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{9}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GenerateAzureOIDCTokenRequest) GetIntegration() string {
@@ -558,7 +743,7 @@ type GenerateAzureOIDCTokenResponse struct {
 
 func (x *GenerateAzureOIDCTokenResponse) Reset() {
 	*x = GenerateAzureOIDCTokenResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[10]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -570,7 +755,7 @@ func (x *GenerateAzureOIDCTokenResponse) String() string {
 func (*GenerateAzureOIDCTokenResponse) ProtoMessage() {}
 
 func (x *GenerateAzureOIDCTokenResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[10]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -583,7 +768,7 @@ func (x *GenerateAzureOIDCTokenResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateAzureOIDCTokenResponse.ProtoReflect.Descriptor instead.
 func (*GenerateAzureOIDCTokenResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{10}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *GenerateAzureOIDCTokenResponse) GetToken() string {
@@ -613,7 +798,7 @@ type GenerateGitHubUserCertRequest struct {
 
 func (x *GenerateGitHubUserCertRequest) Reset() {
 	*x = GenerateGitHubUserCertRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[11]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -625,7 +810,7 @@ func (x *GenerateGitHubUserCertRequest) String() string {
 func (*GenerateGitHubUserCertRequest) ProtoMessage() {}
 
 func (x *GenerateGitHubUserCertRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[11]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -638,7 +823,7 @@ func (x *GenerateGitHubUserCertRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateGitHubUserCertRequest.ProtoReflect.Descriptor instead.
 func (*GenerateGitHubUserCertRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{11}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{15}
 }
 
 func (x *GenerateGitHubUserCertRequest) GetIntegration() string {
@@ -687,7 +872,7 @@ type GenerateGitHubUserCertResponse struct {
 
 func (x *GenerateGitHubUserCertResponse) Reset() {
 	*x = GenerateGitHubUserCertResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[12]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -699,7 +884,7 @@ func (x *GenerateGitHubUserCertResponse) String() string {
 func (*GenerateGitHubUserCertResponse) ProtoMessage() {}
 
 func (x *GenerateGitHubUserCertResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[12]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -712,7 +897,7 @@ func (x *GenerateGitHubUserCertResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateGitHubUserCertResponse.ProtoReflect.Descriptor instead.
 func (*GenerateGitHubUserCertResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{12}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{16}
 }
 
 func (x *GenerateGitHubUserCertResponse) GetAuthorizedKey() []byte {
@@ -734,7 +919,7 @@ type ExportIntegrationCertAuthoritiesRequest struct {
 
 func (x *ExportIntegrationCertAuthoritiesRequest) Reset() {
 	*x = ExportIntegrationCertAuthoritiesRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[13]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -746,7 +931,7 @@ func (x *ExportIntegrationCertAuthoritiesRequest) String() string {
 func (*ExportIntegrationCertAuthoritiesRequest) ProtoMessage() {}
 
 func (x *ExportIntegrationCertAuthoritiesRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[13]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -759,7 +944,7 @@ func (x *ExportIntegrationCertAuthoritiesRequest) ProtoReflect() protoreflect.Me
 
 // Deprecated: Use ExportIntegrationCertAuthoritiesRequest.ProtoReflect.Descriptor instead.
 func (*ExportIntegrationCertAuthoritiesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{13}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *ExportIntegrationCertAuthoritiesRequest) GetIntegration() string {
@@ -781,7 +966,7 @@ type ExportIntegrationCertAuthoritiesResponse struct {
 
 func (x *ExportIntegrationCertAuthoritiesResponse) Reset() {
 	*x = ExportIntegrationCertAuthoritiesResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[14]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[18]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -793,7 +978,7 @@ func (x *ExportIntegrationCertAuthoritiesResponse) String() string {
 func (*ExportIntegrationCertAuthoritiesResponse) ProtoMessage() {}
 
 func (x *ExportIntegrationCertAuthoritiesResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[14]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[18]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -806,7 +991,7 @@ func (x *ExportIntegrationCertAuthoritiesResponse) ProtoReflect() protoreflect.M
 
 // Deprecated: Use ExportIntegrationCertAuthoritiesResponse.ProtoReflect.Descriptor instead.
 func (*ExportIntegrationCertAuthoritiesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{14}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *ExportIntegrationCertAuthoritiesResponse) GetCertAuthorities() *types.CAKeySet {
@@ -841,7 +1026,7 @@ type GenerateAWSRACredentialsRequest struct {
 
 func (x *GenerateAWSRACredentialsRequest) Reset() {
 	*x = GenerateAWSRACredentialsRequest{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[15]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[19]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -853,7 +1038,7 @@ func (x *GenerateAWSRACredentialsRequest) String() string {
 func (*GenerateAWSRACredentialsRequest) ProtoMessage() {}
 
 func (x *GenerateAWSRACredentialsRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[15]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[19]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -866,7 +1051,7 @@ func (x *GenerateAWSRACredentialsRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateAWSRACredentialsRequest.ProtoReflect.Descriptor instead.
 func (*GenerateAWSRACredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{15}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{19}
 }
 
 func (x *GenerateAWSRACredentialsRequest) GetIntegration() string {
@@ -929,7 +1114,7 @@ type GenerateAWSRACredentialsResponse struct {
 
 func (x *GenerateAWSRACredentialsResponse) Reset() {
 	*x = GenerateAWSRACredentialsResponse{}
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[16]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[20]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -941,7 +1126,7 @@ func (x *GenerateAWSRACredentialsResponse) String() string {
 func (*GenerateAWSRACredentialsResponse) ProtoMessage() {}
 
 func (x *GenerateAWSRACredentialsResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[16]
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[20]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -954,7 +1139,7 @@ func (x *GenerateAWSRACredentialsResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use GenerateAWSRACredentialsResponse.ProtoReflect.Descriptor instead.
 func (*GenerateAWSRACredentialsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{16}
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *GenerateAWSRACredentialsResponse) GetAccessKeyId() string {
@@ -985,11 +1170,115 @@ func (x *GenerateAWSRACredentialsResponse) GetExpiration() *timestamppb.Timestam
 	return nil
 }
 
+// GenerateGitHubAppTokenRequest is a request to issue a GitHub access token.
+// Used by the old IntegrationService RPC.
+// TODO(greedy52) remove in v20.
+type GenerateGitHubAppTokenRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// SessionID is the git session ID.
+	SessionId     string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GenerateGitHubAppTokenRequest) Reset() {
+	*x = GenerateGitHubAppTokenRequest{}
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenerateGitHubAppTokenRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenerateGitHubAppTokenRequest) ProtoMessage() {}
+
+func (x *GenerateGitHubAppTokenRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GenerateGitHubAppTokenRequest.ProtoReflect.Descriptor instead.
+func (*GenerateGitHubAppTokenRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{21}
+}
+
+func (x *GenerateGitHubAppTokenRequest) GetSessionId() string {
+	if x != nil {
+		return x.SessionId
+	}
+	return ""
+}
+
+// GenerateGitHubAppTokenResponse contains the issued GitHub access token.
+// Used by the old IntegrationService RPC.
+// TODO(greedy52) remove in v20.
+type GenerateGitHubAppTokenResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// AccessToken is the GitHub access token.
+	AccessToken   string `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GenerateGitHubAppTokenResponse) Reset() {
+	*x = GenerateGitHubAppTokenResponse{}
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GenerateGitHubAppTokenResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GenerateGitHubAppTokenResponse) ProtoMessage() {}
+
+func (x *GenerateGitHubAppTokenResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_integration_v1_integration_service_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GenerateGitHubAppTokenResponse.ProtoReflect.Descriptor instead.
+func (*GenerateGitHubAppTokenResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_integration_v1_integration_service_proto_rawDescGZIP(), []int{22}
+}
+
+func (x *GenerateGitHubAppTokenResponse) GetAccessToken() string {
+	if x != nil {
+		return x.AccessToken
+	}
+	return ""
+}
+
 var File_teleport_integration_v1_integration_service_proto protoreflect.FileDescriptor
 
 const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"\n" +
-	"1teleport/integration/v1/integration_service.proto\x12\x17teleport.integration.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\"J\n" +
+	"1teleport/integration/v1/integration_service.proto\x12\x17teleport.integration.v1\x1a\x1egoogle/protobuf/duration.proto\x1a\x1bgoogle/protobuf/empty.proto\x1a\x1fgoogle/protobuf/timestamp.proto\x1a!teleport/legacy/types/types.proto\"B\n" +
+	"\x1eGetGitCredentialsStatusRequest\x12 \n" +
+	"\vintegration\x18\x01 \x01(\tR\vintegration\"\x85\x01\n" +
+	"\x1fGetGitCredentialsStatusResponse\x12\x16\n" +
+	"\x06exists\x18\x01 \x01(\bR\x06exists\x12J\n" +
+	"\x13access_token_expiry\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\x11accessTokenExpiry\"?\n" +
+	"\x1bDeleteGitCredentialsRequest\x12 \n" +
+	"\vintegration\x18\x01 \x01(\tR\vintegration\"\x1e\n" +
+	"\x1cDeleteGitCredentialsResponse\"J\n" +
 	"\x17ListIntegrationsRequest\x12\x14\n" +
 	"\x05limit\x18\x01 \x01(\x05R\x05limit\x12\x19\n" +
 	"\bnext_key\x18\x02 \x01(\tR\anextKey\"\x90\x01\n" +
@@ -1044,8 +1333,12 @@ const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"\rsession_token\x18\x03 \x01(\tR\fsessionToken\x12:\n" +
 	"\n" +
 	"expiration\x18\x04 \x01(\v2\x1a.google.protobuf.TimestampR\n" +
-	"expiration2\xc3\n" +
+	"expiration\">\n" +
+	"\x1dGenerateGitHubAppTokenRequest\x12\x1d\n" +
 	"\n" +
+	"session_id\x18\x01 \x01(\tR\tsessionId\"C\n" +
+	"\x1eGenerateGitHubAppTokenResponse\x12!\n" +
+	"\faccess_token\x18\x01 \x01(\tR\vaccessToken2\xe4\r\n" +
 	"\x12IntegrationService\x12w\n" +
 	"\x10ListIntegrations\x120.teleport.integration.v1.ListIntegrationsRequest\x1a1.teleport.integration.v1.ListIntegrationsResponse\x12V\n" +
 	"\x0eGetIntegration\x12..teleport.integration.v1.GetIntegrationRequest\x1a\x14.types.IntegrationV1\x12\\\n" +
@@ -1057,7 +1350,10 @@ const file_teleport_integration_v1_integration_service_proto_rawDesc = "" +
 	"\x16GenerateAzureOIDCToken\x126.teleport.integration.v1.GenerateAzureOIDCTokenRequest\x1a7.teleport.integration.v1.GenerateAzureOIDCTokenResponse\x12\x89\x01\n" +
 	"\x16GenerateGitHubUserCert\x126.teleport.integration.v1.GenerateGitHubUserCertRequest\x1a7.teleport.integration.v1.GenerateGitHubUserCertResponse\x12\xa7\x01\n" +
 	" ExportIntegrationCertAuthorities\x12@.teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest\x1aA.teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse\x12\x8f\x01\n" +
-	"\x18GenerateAWSRACredentials\x128.teleport.integration.v1.GenerateAWSRACredentialsRequest\x1a9.teleport.integration.v1.GenerateAWSRACredentialsResponseBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1b\x06proto3"
+	"\x18GenerateAWSRACredentials\x128.teleport.integration.v1.GenerateAWSRACredentialsRequest\x1a9.teleport.integration.v1.GenerateAWSRACredentialsResponse\x12\x89\x01\n" +
+	"\x16GenerateGitHubAppToken\x126.teleport.integration.v1.GenerateGitHubAppTokenRequest\x1a7.teleport.integration.v1.GenerateGitHubAppTokenResponse\x12\x8c\x01\n" +
+	"\x17GetGitCredentialsStatus\x127.teleport.integration.v1.GetGitCredentialsStatusRequest\x1a8.teleport.integration.v1.GetGitCredentialsStatusResponse\x12\x83\x01\n" +
+	"\x14DeleteGitCredentials\x124.teleport.integration.v1.DeleteGitCredentialsRequest\x1a5.teleport.integration.v1.DeleteGitCredentialsResponseBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1;integrationv1b\x06proto3"
 
 var (
 	file_teleport_integration_v1_integration_service_proto_rawDescOnce sync.Once
@@ -1071,66 +1367,79 @@ func file_teleport_integration_v1_integration_service_proto_rawDescGZIP() []byte
 	return file_teleport_integration_v1_integration_service_proto_rawDescData
 }
 
-var file_teleport_integration_v1_integration_service_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_teleport_integration_v1_integration_service_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_teleport_integration_v1_integration_service_proto_goTypes = []any{
-	(*ListIntegrationsRequest)(nil),                  // 0: teleport.integration.v1.ListIntegrationsRequest
-	(*ListIntegrationsResponse)(nil),                 // 1: teleport.integration.v1.ListIntegrationsResponse
-	(*GetIntegrationRequest)(nil),                    // 2: teleport.integration.v1.GetIntegrationRequest
-	(*CreateIntegrationRequest)(nil),                 // 3: teleport.integration.v1.CreateIntegrationRequest
-	(*UpdateIntegrationRequest)(nil),                 // 4: teleport.integration.v1.UpdateIntegrationRequest
-	(*DeleteIntegrationRequest)(nil),                 // 5: teleport.integration.v1.DeleteIntegrationRequest
-	(*DeleteAllIntegrationsRequest)(nil),             // 6: teleport.integration.v1.DeleteAllIntegrationsRequest
-	(*GenerateAWSOIDCTokenRequest)(nil),              // 7: teleport.integration.v1.GenerateAWSOIDCTokenRequest
-	(*GenerateAWSOIDCTokenResponse)(nil),             // 8: teleport.integration.v1.GenerateAWSOIDCTokenResponse
-	(*GenerateAzureOIDCTokenRequest)(nil),            // 9: teleport.integration.v1.GenerateAzureOIDCTokenRequest
-	(*GenerateAzureOIDCTokenResponse)(nil),           // 10: teleport.integration.v1.GenerateAzureOIDCTokenResponse
-	(*GenerateGitHubUserCertRequest)(nil),            // 11: teleport.integration.v1.GenerateGitHubUserCertRequest
-	(*GenerateGitHubUserCertResponse)(nil),           // 12: teleport.integration.v1.GenerateGitHubUserCertResponse
-	(*ExportIntegrationCertAuthoritiesRequest)(nil),  // 13: teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
-	(*ExportIntegrationCertAuthoritiesResponse)(nil), // 14: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
-	(*GenerateAWSRACredentialsRequest)(nil),          // 15: teleport.integration.v1.GenerateAWSRACredentialsRequest
-	(*GenerateAWSRACredentialsResponse)(nil),         // 16: teleport.integration.v1.GenerateAWSRACredentialsResponse
-	(*types.IntegrationV1)(nil),                      // 17: types.IntegrationV1
-	(*durationpb.Duration)(nil),                      // 18: google.protobuf.Duration
-	(*types.CAKeySet)(nil),                           // 19: types.CAKeySet
-	(*timestamppb.Timestamp)(nil),                    // 20: google.protobuf.Timestamp
-	(*emptypb.Empty)(nil),                            // 21: google.protobuf.Empty
+	(*GetGitCredentialsStatusRequest)(nil),           // 0: teleport.integration.v1.GetGitCredentialsStatusRequest
+	(*GetGitCredentialsStatusResponse)(nil),          // 1: teleport.integration.v1.GetGitCredentialsStatusResponse
+	(*DeleteGitCredentialsRequest)(nil),              // 2: teleport.integration.v1.DeleteGitCredentialsRequest
+	(*DeleteGitCredentialsResponse)(nil),             // 3: teleport.integration.v1.DeleteGitCredentialsResponse
+	(*ListIntegrationsRequest)(nil),                  // 4: teleport.integration.v1.ListIntegrationsRequest
+	(*ListIntegrationsResponse)(nil),                 // 5: teleport.integration.v1.ListIntegrationsResponse
+	(*GetIntegrationRequest)(nil),                    // 6: teleport.integration.v1.GetIntegrationRequest
+	(*CreateIntegrationRequest)(nil),                 // 7: teleport.integration.v1.CreateIntegrationRequest
+	(*UpdateIntegrationRequest)(nil),                 // 8: teleport.integration.v1.UpdateIntegrationRequest
+	(*DeleteIntegrationRequest)(nil),                 // 9: teleport.integration.v1.DeleteIntegrationRequest
+	(*DeleteAllIntegrationsRequest)(nil),             // 10: teleport.integration.v1.DeleteAllIntegrationsRequest
+	(*GenerateAWSOIDCTokenRequest)(nil),              // 11: teleport.integration.v1.GenerateAWSOIDCTokenRequest
+	(*GenerateAWSOIDCTokenResponse)(nil),             // 12: teleport.integration.v1.GenerateAWSOIDCTokenResponse
+	(*GenerateAzureOIDCTokenRequest)(nil),            // 13: teleport.integration.v1.GenerateAzureOIDCTokenRequest
+	(*GenerateAzureOIDCTokenResponse)(nil),           // 14: teleport.integration.v1.GenerateAzureOIDCTokenResponse
+	(*GenerateGitHubUserCertRequest)(nil),            // 15: teleport.integration.v1.GenerateGitHubUserCertRequest
+	(*GenerateGitHubUserCertResponse)(nil),           // 16: teleport.integration.v1.GenerateGitHubUserCertResponse
+	(*ExportIntegrationCertAuthoritiesRequest)(nil),  // 17: teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
+	(*ExportIntegrationCertAuthoritiesResponse)(nil), // 18: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
+	(*GenerateAWSRACredentialsRequest)(nil),          // 19: teleport.integration.v1.GenerateAWSRACredentialsRequest
+	(*GenerateAWSRACredentialsResponse)(nil),         // 20: teleport.integration.v1.GenerateAWSRACredentialsResponse
+	(*GenerateGitHubAppTokenRequest)(nil),            // 21: teleport.integration.v1.GenerateGitHubAppTokenRequest
+	(*GenerateGitHubAppTokenResponse)(nil),           // 22: teleport.integration.v1.GenerateGitHubAppTokenResponse
+	(*timestamppb.Timestamp)(nil),                    // 23: google.protobuf.Timestamp
+	(*types.IntegrationV1)(nil),                      // 24: types.IntegrationV1
+	(*durationpb.Duration)(nil),                      // 25: google.protobuf.Duration
+	(*types.CAKeySet)(nil),                           // 26: types.CAKeySet
+	(*emptypb.Empty)(nil),                            // 27: google.protobuf.Empty
 }
 var file_teleport_integration_v1_integration_service_proto_depIdxs = []int32{
-	17, // 0: teleport.integration.v1.ListIntegrationsResponse.integrations:type_name -> types.IntegrationV1
-	17, // 1: teleport.integration.v1.CreateIntegrationRequest.integration:type_name -> types.IntegrationV1
-	17, // 2: teleport.integration.v1.UpdateIntegrationRequest.integration:type_name -> types.IntegrationV1
-	18, // 3: teleport.integration.v1.GenerateGitHubUserCertRequest.ttl:type_name -> google.protobuf.Duration
-	19, // 4: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse.cert_authorities:type_name -> types.CAKeySet
-	18, // 5: teleport.integration.v1.GenerateAWSRACredentialsRequest.session_max_duration:type_name -> google.protobuf.Duration
-	20, // 6: teleport.integration.v1.GenerateAWSRACredentialsResponse.expiration:type_name -> google.protobuf.Timestamp
-	0,  // 7: teleport.integration.v1.IntegrationService.ListIntegrations:input_type -> teleport.integration.v1.ListIntegrationsRequest
-	2,  // 8: teleport.integration.v1.IntegrationService.GetIntegration:input_type -> teleport.integration.v1.GetIntegrationRequest
-	3,  // 9: teleport.integration.v1.IntegrationService.CreateIntegration:input_type -> teleport.integration.v1.CreateIntegrationRequest
-	4,  // 10: teleport.integration.v1.IntegrationService.UpdateIntegration:input_type -> teleport.integration.v1.UpdateIntegrationRequest
-	5,  // 11: teleport.integration.v1.IntegrationService.DeleteIntegration:input_type -> teleport.integration.v1.DeleteIntegrationRequest
-	6,  // 12: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:input_type -> teleport.integration.v1.DeleteAllIntegrationsRequest
-	7,  // 13: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:input_type -> teleport.integration.v1.GenerateAWSOIDCTokenRequest
-	9,  // 14: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:input_type -> teleport.integration.v1.GenerateAzureOIDCTokenRequest
-	11, // 15: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:input_type -> teleport.integration.v1.GenerateGitHubUserCertRequest
-	13, // 16: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:input_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
-	15, // 17: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:input_type -> teleport.integration.v1.GenerateAWSRACredentialsRequest
-	1,  // 18: teleport.integration.v1.IntegrationService.ListIntegrations:output_type -> teleport.integration.v1.ListIntegrationsResponse
-	17, // 19: teleport.integration.v1.IntegrationService.GetIntegration:output_type -> types.IntegrationV1
-	17, // 20: teleport.integration.v1.IntegrationService.CreateIntegration:output_type -> types.IntegrationV1
-	17, // 21: teleport.integration.v1.IntegrationService.UpdateIntegration:output_type -> types.IntegrationV1
-	21, // 22: teleport.integration.v1.IntegrationService.DeleteIntegration:output_type -> google.protobuf.Empty
-	21, // 23: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:output_type -> google.protobuf.Empty
-	8,  // 24: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:output_type -> teleport.integration.v1.GenerateAWSOIDCTokenResponse
-	10, // 25: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:output_type -> teleport.integration.v1.GenerateAzureOIDCTokenResponse
-	12, // 26: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:output_type -> teleport.integration.v1.GenerateGitHubUserCertResponse
-	14, // 27: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:output_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
-	16, // 28: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:output_type -> teleport.integration.v1.GenerateAWSRACredentialsResponse
-	18, // [18:29] is the sub-list for method output_type
-	7,  // [7:18] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	23, // 0: teleport.integration.v1.GetGitCredentialsStatusResponse.access_token_expiry:type_name -> google.protobuf.Timestamp
+	24, // 1: teleport.integration.v1.ListIntegrationsResponse.integrations:type_name -> types.IntegrationV1
+	24, // 2: teleport.integration.v1.CreateIntegrationRequest.integration:type_name -> types.IntegrationV1
+	24, // 3: teleport.integration.v1.UpdateIntegrationRequest.integration:type_name -> types.IntegrationV1
+	25, // 4: teleport.integration.v1.GenerateGitHubUserCertRequest.ttl:type_name -> google.protobuf.Duration
+	26, // 5: teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse.cert_authorities:type_name -> types.CAKeySet
+	25, // 6: teleport.integration.v1.GenerateAWSRACredentialsRequest.session_max_duration:type_name -> google.protobuf.Duration
+	23, // 7: teleport.integration.v1.GenerateAWSRACredentialsResponse.expiration:type_name -> google.protobuf.Timestamp
+	4,  // 8: teleport.integration.v1.IntegrationService.ListIntegrations:input_type -> teleport.integration.v1.ListIntegrationsRequest
+	6,  // 9: teleport.integration.v1.IntegrationService.GetIntegration:input_type -> teleport.integration.v1.GetIntegrationRequest
+	7,  // 10: teleport.integration.v1.IntegrationService.CreateIntegration:input_type -> teleport.integration.v1.CreateIntegrationRequest
+	8,  // 11: teleport.integration.v1.IntegrationService.UpdateIntegration:input_type -> teleport.integration.v1.UpdateIntegrationRequest
+	9,  // 12: teleport.integration.v1.IntegrationService.DeleteIntegration:input_type -> teleport.integration.v1.DeleteIntegrationRequest
+	10, // 13: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:input_type -> teleport.integration.v1.DeleteAllIntegrationsRequest
+	11, // 14: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:input_type -> teleport.integration.v1.GenerateAWSOIDCTokenRequest
+	13, // 15: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:input_type -> teleport.integration.v1.GenerateAzureOIDCTokenRequest
+	15, // 16: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:input_type -> teleport.integration.v1.GenerateGitHubUserCertRequest
+	17, // 17: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:input_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesRequest
+	19, // 18: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:input_type -> teleport.integration.v1.GenerateAWSRACredentialsRequest
+	21, // 19: teleport.integration.v1.IntegrationService.GenerateGitHubAppToken:input_type -> teleport.integration.v1.GenerateGitHubAppTokenRequest
+	0,  // 20: teleport.integration.v1.IntegrationService.GetGitCredentialsStatus:input_type -> teleport.integration.v1.GetGitCredentialsStatusRequest
+	2,  // 21: teleport.integration.v1.IntegrationService.DeleteGitCredentials:input_type -> teleport.integration.v1.DeleteGitCredentialsRequest
+	5,  // 22: teleport.integration.v1.IntegrationService.ListIntegrations:output_type -> teleport.integration.v1.ListIntegrationsResponse
+	24, // 23: teleport.integration.v1.IntegrationService.GetIntegration:output_type -> types.IntegrationV1
+	24, // 24: teleport.integration.v1.IntegrationService.CreateIntegration:output_type -> types.IntegrationV1
+	24, // 25: teleport.integration.v1.IntegrationService.UpdateIntegration:output_type -> types.IntegrationV1
+	27, // 26: teleport.integration.v1.IntegrationService.DeleteIntegration:output_type -> google.protobuf.Empty
+	27, // 27: teleport.integration.v1.IntegrationService.DeleteAllIntegrations:output_type -> google.protobuf.Empty
+	12, // 28: teleport.integration.v1.IntegrationService.GenerateAWSOIDCToken:output_type -> teleport.integration.v1.GenerateAWSOIDCTokenResponse
+	14, // 29: teleport.integration.v1.IntegrationService.GenerateAzureOIDCToken:output_type -> teleport.integration.v1.GenerateAzureOIDCTokenResponse
+	16, // 30: teleport.integration.v1.IntegrationService.GenerateGitHubUserCert:output_type -> teleport.integration.v1.GenerateGitHubUserCertResponse
+	18, // 31: teleport.integration.v1.IntegrationService.ExportIntegrationCertAuthorities:output_type -> teleport.integration.v1.ExportIntegrationCertAuthoritiesResponse
+	20, // 32: teleport.integration.v1.IntegrationService.GenerateAWSRACredentials:output_type -> teleport.integration.v1.GenerateAWSRACredentialsResponse
+	22, // 33: teleport.integration.v1.IntegrationService.GenerateGitHubAppToken:output_type -> teleport.integration.v1.GenerateGitHubAppTokenResponse
+	1,  // 34: teleport.integration.v1.IntegrationService.GetGitCredentialsStatus:output_type -> teleport.integration.v1.GetGitCredentialsStatusResponse
+	3,  // 35: teleport.integration.v1.IntegrationService.DeleteGitCredentials:output_type -> teleport.integration.v1.DeleteGitCredentialsResponse
+	22, // [22:36] is the sub-list for method output_type
+	8,  // [8:22] is the sub-list for method input_type
+	8,  // [8:8] is the sub-list for extension type_name
+	8,  // [8:8] is the sub-list for extension extendee
+	0,  // [0:8] is the sub-list for field type_name
 }
 
 func init() { file_teleport_integration_v1_integration_service_proto_init() }
@@ -1144,7 +1453,7 @@ func file_teleport_integration_v1_integration_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_integration_v1_integration_service_proto_rawDesc), len(file_teleport_integration_v1_integration_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   17,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

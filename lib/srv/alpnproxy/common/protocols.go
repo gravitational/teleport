@@ -127,6 +127,11 @@ const (
 	// it always has the "-ping" suffix. See callers to IsPingProtocol for more
 	// details on ping handling.
 	ProtocolAppHTTPS Protocol = "teleport-app-https-ping"
+
+	// ProtocolGit tunnels HTTPS inside a mTLS tunnel for Git HTTPS proxying
+	// (git clone/fetch/push and GitHub API). This tunnel always uses ping
+	// protocol so it always has the "-ping" suffix.
+	ProtocolGit Protocol = "teleport-git-ping"
 )
 
 // SupportedProtocols is the list of supported ALPN protocols.
@@ -149,6 +154,7 @@ var SupportedProtocols = WithPingProtocols(
 		ProtocolProxyGRPCSecure,
 		ProtocolMCP,
 		ProtocolAppHTTPS,
+		ProtocolGit,
 	}, DatabaseProtocols...),
 )
 
@@ -256,6 +262,7 @@ var ProtocolsWithPingSupport = append(
 	ProtocolTCP,
 	ProtocolMCP,
 	ProtocolAppHTTPS,
+	ProtocolGit,
 )
 
 // WithPingProtocols adds Ping protocols to the list for each protocol that

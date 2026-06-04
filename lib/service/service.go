@@ -130,6 +130,8 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/athena"
 	"github.com/gravitational/teleport/lib/events/azsessions"
+	"github.com/gravitational/teleport/lib/events/recorder"
+	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/events/dynamoevents"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/events/firestoreevents"
@@ -174,6 +176,7 @@ import (
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
 	"github.com/gravitational/teleport/lib/srv/db"
+	git "github.com/gravitational/teleport/lib/srv/git"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/srv/mcp"
@@ -5612,6 +5615,44 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			FeatureWatchInterval:      retryutils.HalfJitter(web.DefaultFeatureWatchInterval * 2),
 			DatabaseREPLRegistry:      cfg.DatabaseREPLRegistry,
 		}
+
+		gitHTTPHandler, err := git.NewHTTPHandler(process.GracefulExitContext(), git.HTTPHandlerConfig{
+			IntegrationsClient: conn.Client.IntegrationsClient(),
+			GitServerGetter:    conn.Client.GitServerReadOnlyClient(),
+			Authorizer:         authorizer,
+			AccessPoint:        accessPoint,
+			ClusterName:        cn.GetClusterName(),
+			Emitter:            conn.Client,
+			HostID:             conn.HostUUID(),
+			NewSessionRecorder: func(ctx context.Context, sessionID string) (events.SessionPreparerRecorder, error) {
+				recConfig, err := conn.Client.GetSessionRecordingConfig(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				clusterName, err := conn.Client.GetClusterName(ctx)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				return recorder.New(recorder.Config{
+					SessionID:    rsession.ID(sessionID),
+					ServerID:     conn.HostUUID(),
+					Namespace:    apidefaults.Namespace,
+					Clock:        process.Clock,
+					ClusterName:  clusterName.GetClusterName(),
+					RecordingCfg: recConfig,
+					SyncStreamer: conn.Client,
+					DataDir:      cfg.DataDir,
+					Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentGit),
+					Context:      ctx,
+					StartTime:    process.Clock.Now(),
+				})
+			},
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		webConfig.GitHTTPHandler = gitHTTPHandler
+
 		webHandler, err := web.NewHandler(webConfig, web.SetClock(process.Clock))
 		if err != nil {
 			return trace.Wrap(err)
@@ -5629,7 +5670,22 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 				// will break some application access use-cases.
 				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
 				IdleTimeout:       apidefaults.DefaultIdleTimeout,
-				ConnState:         ingress.HTTPConnStateReporter(ingress.Web, ingressReporter),
+				ConnState: func(c net.Conn, state http.ConnState) {
+					ingress.HTTPConnStateReporter(ingress.Web, ingressReporter)(c, state)
+					if state == http.StateNew {
+						hasTLS := false
+						hasPeerCerts := false
+						if tlsConn, ok := c.(*tls.Conn); ok {
+							hasTLS = true
+							hasPeerCerts = len(tlsConn.ConnectionState().PeerCertificates) > 0
+						}
+						slog.DebugContext(context.Background(), "Web server new connection",
+							"remote_addr", c.RemoteAddr(),
+							"has_tls", hasTLS,
+							"has_peer_certs", hasPeerCerts,
+						)
+					}
+				},
 				ConnContext: func(ctx context.Context, c net.Conn) context.Context {
 					ctx = authz.ContextWithConn(ctx, c)
 					return authz.ContextWithClientAddrs(ctx, c.RemoteAddr(), c.LocalAddr())

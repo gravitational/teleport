@@ -46,6 +46,9 @@ const (
 	IntegrationService_GenerateGitHubUserCert_FullMethodName           = "/teleport.integration.v1.IntegrationService/GenerateGitHubUserCert"
 	IntegrationService_ExportIntegrationCertAuthorities_FullMethodName = "/teleport.integration.v1.IntegrationService/ExportIntegrationCertAuthorities"
 	IntegrationService_GenerateAWSRACredentials_FullMethodName         = "/teleport.integration.v1.IntegrationService/GenerateAWSRACredentials"
+	IntegrationService_GenerateGitHubAppToken_FullMethodName           = "/teleport.integration.v1.IntegrationService/GenerateGitHubAppToken"
+	IntegrationService_GetGitCredentialsStatus_FullMethodName          = "/teleport.integration.v1.IntegrationService/GetGitCredentialsStatus"
+	IntegrationService_DeleteGitCredentials_FullMethodName             = "/teleport.integration.v1.IntegrationService/DeleteGitCredentials"
 )
 
 // IntegrationServiceClient is the client API for IntegrationService service.
@@ -77,6 +80,13 @@ type IntegrationServiceClient interface {
 	ExportIntegrationCertAuthorities(ctx context.Context, in *ExportIntegrationCertAuthoritiesRequest, opts ...grpc.CallOption) (*ExportIntegrationCertAuthoritiesResponse, error)
 	// GenerateAWSRACredentials generates a set of AWS Credentials using the AWS IAM Roles Anywhere integration.
 	GenerateAWSRACredentials(ctx context.Context, in *GenerateAWSRACredentialsRequest, opts ...grpc.CallOption) (*GenerateAWSRACredentialsResponse, error)
+	// GenerateGitHubAppToken generates a GitHub App access token for git operations.
+	GenerateGitHubAppToken(ctx context.Context, in *GenerateGitHubAppTokenRequest, opts ...grpc.CallOption) (*GenerateGitHubAppTokenResponse, error)
+	// GetGitCredentialsStatus checks whether stored git credentials exist for
+	// the calling user.
+	GetGitCredentialsStatus(ctx context.Context, in *GetGitCredentialsStatusRequest, opts ...grpc.CallOption) (*GetGitCredentialsStatusResponse, error)
+	// DeleteGitCredentials deletes stored git credentials for the calling user.
+	DeleteGitCredentials(ctx context.Context, in *DeleteGitCredentialsRequest, opts ...grpc.CallOption) (*DeleteGitCredentialsResponse, error)
 }
 
 type integrationServiceClient struct {
@@ -197,6 +207,36 @@ func (c *integrationServiceClient) GenerateAWSRACredentials(ctx context.Context,
 	return out, nil
 }
 
+func (c *integrationServiceClient) GenerateGitHubAppToken(ctx context.Context, in *GenerateGitHubAppTokenRequest, opts ...grpc.CallOption) (*GenerateGitHubAppTokenResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GenerateGitHubAppTokenResponse)
+	err := c.cc.Invoke(ctx, IntegrationService_GenerateGitHubAppToken_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *integrationServiceClient) GetGitCredentialsStatus(ctx context.Context, in *GetGitCredentialsStatusRequest, opts ...grpc.CallOption) (*GetGitCredentialsStatusResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(GetGitCredentialsStatusResponse)
+	err := c.cc.Invoke(ctx, IntegrationService_GetGitCredentialsStatus_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *integrationServiceClient) DeleteGitCredentials(ctx context.Context, in *DeleteGitCredentialsRequest, opts ...grpc.CallOption) (*DeleteGitCredentialsResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(DeleteGitCredentialsResponse)
+	err := c.cc.Invoke(ctx, IntegrationService_DeleteGitCredentials_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // IntegrationServiceServer is the server API for IntegrationService service.
 // All implementations must embed UnimplementedIntegrationServiceServer
 // for forward compatibility.
@@ -226,6 +266,13 @@ type IntegrationServiceServer interface {
 	ExportIntegrationCertAuthorities(context.Context, *ExportIntegrationCertAuthoritiesRequest) (*ExportIntegrationCertAuthoritiesResponse, error)
 	// GenerateAWSRACredentials generates a set of AWS Credentials using the AWS IAM Roles Anywhere integration.
 	GenerateAWSRACredentials(context.Context, *GenerateAWSRACredentialsRequest) (*GenerateAWSRACredentialsResponse, error)
+	// GenerateGitHubAppToken generates a GitHub App access token for git operations.
+	GenerateGitHubAppToken(context.Context, *GenerateGitHubAppTokenRequest) (*GenerateGitHubAppTokenResponse, error)
+	// GetGitCredentialsStatus checks whether stored git credentials exist for
+	// the calling user.
+	GetGitCredentialsStatus(context.Context, *GetGitCredentialsStatusRequest) (*GetGitCredentialsStatusResponse, error)
+	// DeleteGitCredentials deletes stored git credentials for the calling user.
+	DeleteGitCredentials(context.Context, *DeleteGitCredentialsRequest) (*DeleteGitCredentialsResponse, error)
 	mustEmbedUnimplementedIntegrationServiceServer()
 }
 
@@ -268,6 +315,15 @@ func (UnimplementedIntegrationServiceServer) ExportIntegrationCertAuthorities(co
 }
 func (UnimplementedIntegrationServiceServer) GenerateAWSRACredentials(context.Context, *GenerateAWSRACredentialsRequest) (*GenerateAWSRACredentialsResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GenerateAWSRACredentials not implemented")
+}
+func (UnimplementedIntegrationServiceServer) GenerateGitHubAppToken(context.Context, *GenerateGitHubAppTokenRequest) (*GenerateGitHubAppTokenResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GenerateGitHubAppToken not implemented")
+}
+func (UnimplementedIntegrationServiceServer) GetGitCredentialsStatus(context.Context, *GetGitCredentialsStatusRequest) (*GetGitCredentialsStatusResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetGitCredentialsStatus not implemented")
+}
+func (UnimplementedIntegrationServiceServer) DeleteGitCredentials(context.Context, *DeleteGitCredentialsRequest) (*DeleteGitCredentialsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method DeleteGitCredentials not implemented")
 }
 func (UnimplementedIntegrationServiceServer) mustEmbedUnimplementedIntegrationServiceServer() {}
 func (UnimplementedIntegrationServiceServer) testEmbeddedByValue()                            {}
@@ -488,6 +544,60 @@ func _IntegrationService_GenerateAWSRACredentials_Handler(srv interface{}, ctx c
 	return interceptor(ctx, in, info, handler)
 }
 
+func _IntegrationService_GenerateGitHubAppToken_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GenerateGitHubAppTokenRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IntegrationServiceServer).GenerateGitHubAppToken(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IntegrationService_GenerateGitHubAppToken_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IntegrationServiceServer).GenerateGitHubAppToken(ctx, req.(*GenerateGitHubAppTokenRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IntegrationService_GetGitCredentialsStatus_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetGitCredentialsStatusRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IntegrationServiceServer).GetGitCredentialsStatus(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IntegrationService_GetGitCredentialsStatus_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IntegrationServiceServer).GetGitCredentialsStatus(ctx, req.(*GetGitCredentialsStatusRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _IntegrationService_DeleteGitCredentials_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DeleteGitCredentialsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(IntegrationServiceServer).DeleteGitCredentials(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: IntegrationService_DeleteGitCredentials_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(IntegrationServiceServer).DeleteGitCredentials(ctx, req.(*DeleteGitCredentialsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // IntegrationService_ServiceDesc is the grpc.ServiceDesc for IntegrationService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -538,6 +648,18 @@ var IntegrationService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GenerateAWSRACredentials",
 			Handler:    _IntegrationService_GenerateAWSRACredentials_Handler,
+		},
+		{
+			MethodName: "GenerateGitHubAppToken",
+			Handler:    _IntegrationService_GenerateGitHubAppToken_Handler,
+		},
+		{
+			MethodName: "GetGitCredentialsStatus",
+			Handler:    _IntegrationService_GetGitCredentialsStatus_Handler,
+		},
+		{
+			MethodName: "DeleteGitCredentials",
+			Handler:    _IntegrationService_DeleteGitCredentials_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

@@ -40,6 +40,7 @@ import { HeadlessRequest } from './HeadlessRequest';
 import { Login } from './Login';
 import { LoginClose } from './Login/LoginClose';
 import { LoginFailed } from './Login/LoginFailed';
+import { GitHubIntegrationCallback } from './GitHubIntegrationCallback';
 import { LoginSuccess } from './Login/LoginSuccess';
 import { LoginTerminalRedirect } from './Login/LoginTerminalRedirect';
 import { Main } from './Main';
@@ -213,6 +214,12 @@ function privateOSSRoutes() {
 
 export function getSharedPrivateRoutes() {
   return [
+    <Route
+      key="github-integration-callback"
+      title="GitHub Integration"
+      path={cfg.routes.githubIntegrationCallback}
+      element={<GitHubIntegrationCallback />}
+    />,
     <Route
       key="desktop"
       path={cfg.routes.desktop}

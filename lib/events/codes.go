@@ -741,6 +741,10 @@ const (
 	GitCommandCode = "TGIT001I"
 	// GitCommandFailureCode is the git command feature event code.
 	GitCommandFailureCode = "TGIT001E"
+	// GitHTTPRequestCode is the git HTTP request event code.
+	GitHTTPRequestCode = "TGIT002I"
+	// GitSessionChunkCode is the git session chunk event code.
+	GitSessionChunkCode = "TGIT003I"
 
 	// StableUNIXUserCreateCode is the stable UNIX user create event code.
 	StableUNIXUserCreateCode = "TSUU001I"

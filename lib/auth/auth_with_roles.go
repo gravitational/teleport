@@ -3985,7 +3985,17 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 
 	var appSessionID string
 	var webSessionID string
-	if req.RouteToApp.Name != "" {
+	var gitSessionID string
+	if req.RouteToGit.GitServerName != "" {
+		if isScoped {
+			return nil, trace.Wrap(services.ErrScopedIdentity, "creating git session")
+		}
+		ws, err := a.authServer.CreateGitSession(ctx, req.Username, req.RouteToGit.GitServerName, a.getIdentity(), checker)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		gitSessionID = ws.GetName()
+	} else if req.RouteToApp.Name != "" {
 		if isScoped {
 			return nil, trace.Wrap(services.ErrScopedIdentity, "creating app session")
 		}
@@ -4088,6 +4098,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		AWSRoleARN:                       req.RouteToApp.AWSRoleARN,
 		AzureIdentity:                    req.RouteToApp.AzureIdentity,
 		GCPServiceAccount:                req.RouteToApp.GCPServiceAccount,
+		GitServerName:                    req.RouteToGit.GitServerName,
+		GitSessionID:                     gitSessionID,
 		CheckerContext:                   checkerCtx,
 		// Copy IP from current identity to the generated certificate, if present,
 		// to avoid generateUserCerts() being used to drop IP pinning in the new certificates.
@@ -4146,6 +4158,8 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	case proto.UserCertsRequest_WindowsDesktop:
 		// Desktop certs.
 		certReq.Usage = []string{teleport.UsageWindowsDesktopOnly}
+	case proto.UserCertsRequest_Git:
+		certReq.Usage = []string{teleport.UsageGitOnly}
 	default:
 		return nil, trace.BadParameter("unsupported cert usage %q", req.Usage)
 	}

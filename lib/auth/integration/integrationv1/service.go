@@ -97,6 +97,9 @@ type Backend interface {
 	services.GitServers
 	services.DiscoveryConfigs
 	services.Presence
+	services.UserExternalCredentialsService
+	// GetAppSession gets an application web session (used for git sessions too).
+	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 }
 
 // ServiceConfig holds configuration options for
@@ -268,6 +271,7 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
 			return nil, trace.Wrap(err)
 		}
+		setGitHubIntegrationStatus(req.Integration)
 	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
 		if err := awscommon.ValidIntegrationName(req.Integration.GetName()); err != nil {
 			return nil, trace.Wrap(err)
@@ -330,6 +334,13 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 
 	if err := s.maybeUpdateStaticCredentials(ctx, req.Integration); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if req.Integration.GetSubKind() == types.IntegrationSubKindGitHub {
+		if err := s.maybeCreateGitHubSSHCA(ctx, req.Integration); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		setGitHubIntegrationStatus(req.Integration)
 	}
 
 	ig, err := s.backend.UpdateIntegration(ctx, req.Integration)

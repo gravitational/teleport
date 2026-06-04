@@ -73,6 +73,9 @@ type UsersService interface {
 type IdentityInternal interface {
 	Identity
 
+	// DeleteGithubAuthRequest deletes a Github auth request by state token.
+	DeleteGithubAuthRequest(ctx context.Context, stateToken string) error
+
 	// AppendPutUserParamsActions adds conditional actions to an atomic write to
 	// create or update the user params resource (without secrets, mfa devices).
 	AppendPutUserParamsActions(

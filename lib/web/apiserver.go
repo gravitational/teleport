@@ -343,6 +343,9 @@ type Config struct {
 	// IntegrationAppHandler handles App Access requests which use an Integration.
 	IntegrationAppHandler app.ServerHandler
 
+	// GitHTTPHandler handles Git HTTPS proxy requests.
+	GitHTTPHandler http.Handler
+
 	// FeatureWatchInterval is the interval between pings to the auth server
 	// to fetch new cluster features
 	FeatureWatchInterval time.Duration
@@ -383,6 +386,9 @@ type APIHandler struct {
 
 	// appHandler is a http.Handler to forward requests to applications.
 	appHandler *app.Handler
+
+	// gitHandler is a http.Handler to forward requests for Git HTTPS proxying.
+	gitHandler http.Handler
 }
 
 // ConnectionHandler defines a function for serving incoming connections.
@@ -464,6 +470,12 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		h.handler.accessGraphHandler.ServeHTTP(w, r)
 		return
 	}
+	// If the request has a client cert with RouteToGit, forward to the git handler.
+	if h.gitHandler != nil && hasGitClientCert(r) {
+		h.gitHandler.ServeHTTP(w, r)
+		return
+	}
+
 	// If the request is either to the fragment authentication endpoint or if the
 	// request has a session cookie or a client cert, forward to
 	// application handlers. If the request is requesting a
@@ -503,6 +515,19 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Serve the Web UI.
 	h.handler.ServeHTTP(w, r)
+}
+
+// hasGitClientCert checks if the request has a client certificate with
+// RouteToGit set, indicating it should be handled by the git handler.
+func hasGitClientCert(r *http.Request) bool {
+	if r.TLS == nil || len(r.TLS.PeerCertificates) == 0 {
+		return false
+	}
+	identity, err := tlsca.FromSubject(r.TLS.PeerCertificates[0].Subject, r.TLS.PeerCertificates[0].NotAfter)
+	if err != nil {
+		return false
+	}
+	return identity.RouteToGit.GitServerName != ""
 }
 
 // SetAccessGraphHandler sets the handler used to serve Access Graph API
@@ -827,6 +852,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	return &APIHandler{
 		handler:    h,
 		appHandler: appHandler,
+		gitHandler: cfg.GitHTTPHandler,
 	}, nil
 }
 
@@ -1041,6 +1067,15 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/github/login/web", h.WithRedirect(h.githubLoginWeb))
 	h.GET("/webapi/github/callback", h.WithMetaRedirect(h.githubCallback))
 	h.POST("/webapi/github/login/console", h.WithLimiter(h.githubLoginConsole))
+
+	// Authenticated GitHub integration callback. Called by the web UI page
+	// at /web/github/integration/callback after the user completes the GitHub
+	// OAuth flow. WithAuth requires session cookie + CSRF bearer token.
+	// TODO(greedy52) implement the web UI page at /web/github/integration/callback
+	// that extracts code/state from the URL and POSTs here.
+	h.POST("/webapi/github/integration/callback", h.WithAuth(h.githubIntegrationCallback))
+	h.POST("/webapi/github/integration/manifest", h.WithAuth(h.githubIntegrationManifest))
+	h.Handle("GET", "/webapi/github/integration/manifest/redirect", h.githubManifestRedirectRaw)
 
 	// MFA public endpoints.
 	h.POST("/webapi/sites/:site/mfa/required", h.WithClusterAuth(h.isMFARequired))
@@ -2498,6 +2533,17 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	logger := h.logger.With("auth", "github")
 	logger.DebugContext(r.Context(), "Callback start", "query", r.URL.Query())
 
+	// If this is an authenticated user flow (git integration), redirect to the
+	// authenticated web UI page instead of processing here. This prevents
+	// login-CSRF attacks by requiring a valid web session.
+	if state := r.URL.Query().Get("state"); state != "" {
+		if authRequest, err := h.cfg.ProxyClient.GetGithubAuthRequest(r.Context(), state); err == nil && authRequest.AuthenticatedUser != "" {
+			redirectURL := fmt.Sprintf("/web/github/integration/callback?%s", r.URL.RawQuery)
+			logger.DebugContext(r.Context(), "Redirecting authenticated user to integration callback", "redirect", redirectURL)
+			return redirectURL
+		}
+	}
+
 	response, err := h.cfg.ProxyClient.ValidateGithubAuthCallback(r.Context(), r.URL.Query())
 	if err != nil {
 		logger.ErrorContext(r.Context(), "Error while processing callback", "error", err)
@@ -2573,6 +2619,70 @@ func (h *Handler) githubCallback(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	return redirectURL.String()
+}
+
+// githubIntegrationCallback handles the authenticated GitHub OAuth callback for
+// git integration. Called by the web UI page after extracting code/state from
+// the GitHub redirect URL. Requires a valid web session + CSRF token, ensuring
+// the user completing the OAuth flow is the same user who initiated it.
+func (h *Handler) githubIntegrationCallback(w http.ResponseWriter, r *http.Request, params httprouter.Params, sctx *SessionContext) (interface{}, error) {
+	var req struct {
+		Code  string `json:"code"`
+		State string `json:"state"`
+	}
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.Code == "" || req.State == "" {
+		return nil, trace.BadParameter("missing code or state")
+	}
+
+	// Verify the auth request belongs to the authenticated user.
+	authRequest, err := h.cfg.ProxyClient.GetGithubAuthRequest(r.Context(), req.State)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if authRequest.AuthenticatedUser == "" {
+		return nil, trace.BadParameter("auth request is not for an authenticated user")
+	}
+
+	if authRequest.AuthenticatedUser != sctx.GetUser() {
+		return nil, trace.AccessDenied("session user %q does not match auth request user %q",
+			sctx.GetUser(), authRequest.AuthenticatedUser)
+	}
+
+	// Validate through the normal callback flow.
+	q := make(url.Values)
+	q.Set("code", req.Code)
+	q.Set("state", req.State)
+
+	response, err := h.cfg.ProxyClient.ValidateGithubAuthCallback(r.Context(), q)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Build the redirect URL for tsh's local callback server.
+	redirectURL, err := ConstructSSHResponse(AuthParams{
+		ClientRedirectURL: response.Req.ClientRedirectURL,
+		Username:          response.Username,
+		Identity:          response.Identity,
+		Session:           response.Session,
+		Cert:              response.Cert,
+		TLSCert:           response.TLSCert,
+		HostSigners:       response.HostSigners,
+		FIPS:              h.cfg.FIPS,
+		ClientOptions:     response.ClientOptions,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return map[string]interface{}{
+		"username":     response.Username,
+		"redirect_url": redirectURL.String(),
+	}, nil
 }
 
 // BuildDeviceWebRedirectPath constructs the redirect path for device web authorization.

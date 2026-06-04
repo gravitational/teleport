@@ -426,6 +426,10 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SpannerRPC{}
 	case GitCommandEvent:
 		e = &events.GitCommand{}
+	case GitHTTPRequestEvent:
+		e = &events.GitHTTPRequest{}
+	case GitSessionChunkEvent:
+		e = &events.GitSessionChunk{}
 	case UnknownEvent:
 		e = &events.Unknown{}
 

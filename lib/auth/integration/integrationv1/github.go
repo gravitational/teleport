@@ -92,6 +92,9 @@ func (s *Service) getGitHubSigner(ctx context.Context, integration string) (ssh.
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	if status := ig.GetStatus().GitHub; status == nil || !status.SSHCAConfigured {
+		return nil, trace.BadParameter("SSH CA is not configured for GitHub integration %q", integration)
+	}
 	caKeySet, err := credentials.GetGitHubCertAuthorities(ctx, ig, s.cache)
 	if err != nil {
 		return nil, trace.Wrap(err)

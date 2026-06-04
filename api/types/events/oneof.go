@@ -854,6 +854,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_GitCommand{
 			GitCommand: e,
 		}
+	case *GitHTTPRequest:
+		out.Event = &OneOf_GitHTTPRequest{
+			GitHTTPRequest: e,
+		}
+	case *GitSessionChunk:
+		out.Event = &OneOf_GitSessionChunk{
+			GitSessionChunk: e,
+		}
 	case *StableUNIXUserCreate:
 		out.Event = &OneOf_StableUNIXUserCreate{
 			StableUNIXUserCreate: e,

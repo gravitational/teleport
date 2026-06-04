@@ -674,10 +674,15 @@ const (
 	// KindSigstorePolicy is the kind of teleport.workloadidentity.v1.SigstorePolicy.
 	KindSigstorePolicy = "sigstore_policy"
 
+	// KindGit represents a git integration (e.g. a GitHub organization).
+	KindGit = "git"
 	// KindGitServer represents a Git server that can proxy git commands.
 	KindGitServer = "git_server"
 	// SubKindGitHub specifies the GitHub subkind of a Git server.
 	SubKindGitHub = "github"
+
+	// KindUserExternalCredentials stores per-user credentials for external services.
+	KindUserExternalCredentials = "user_external_credentials"
 
 	// KindStableUNIXUser is the RBAC-only kind to refer to interactions with
 	// stable UNIX users.
