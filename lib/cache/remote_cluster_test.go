@@ -99,17 +99,17 @@ func TestTunnelConnections(t *testing.T) {
 				LastHeartbeat: time.Now().UTC(),
 			})
 		},
-		create:    modifyNoContext(p.trustS.UpsertTunnelConnection),
+		create:    p.trustS.UpsertTunnelConnection,
 		list:      getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.trustS.GetAllTunnelConnections() }),
 		cacheList: getAllAdapter(func(ctx context.Context) ([]types.TunnelConnection, error) { return p.cache.GetAllTunnelConnections() }),
-		update:    modifyNoContext(p.trustS.UpsertTunnelConnection),
+		update:    p.trustS.UpsertTunnelConnection,
 		deleteAll: func(ctx context.Context) error {
 			all, err := p.trustS.GetAllTunnelConnections()
 			if err != nil {
 				return err
 			}
 			for _, tc := range all {
-				err := p.trustS.DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
+				err := p.trustS.DeleteTunnelConnection(ctx, tc.GetClusterName(), tc.GetName())
 				if err != nil {
 					return err
 				}
@@ -126,7 +126,7 @@ func TestTunnelConnections(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.NoError(t, p.trustS.UpsertTunnelConnection(tunnel))
+		require.NoError(t, p.trustS.UpsertTunnelConnection(t.Context(), tunnel))
 	}
 
 	for i := range 3 {
@@ -136,7 +136,7 @@ func TestTunnelConnections(t *testing.T) {
 			LastHeartbeat: time.Now().UTC(),
 		})
 		require.NoError(t, err)
-		require.NoError(t, p.trustS.UpsertTunnelConnection(tunnel))
+		require.NoError(t, p.trustS.UpsertTunnelConnection(t.Context(), tunnel))
 	}
 
 	require.EventuallyWithT(t, func(tt *assert.CollectT) {
