@@ -20,7 +20,6 @@ package accessgraph
 
 import (
 	"context"
-	_ "embed"
 	"fmt"
 	"io"
 	"os"
@@ -37,12 +36,6 @@ import (
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
 )
-
-// investigateSkill is the Markdown blob `--skill` prints, written for an
-// LLM agent that needs to learn the command from a single read.
-//
-//go:embed skills/investigate.md
-var investigateSkill string
 
 // investigateArgs holds the parsed flag values for `tctl investigate`. The
 // include/exclude slices mirror the filter fields exposed by the Identity
@@ -111,7 +104,6 @@ type investigateArgs struct {
 	allFacets     bool
 	showUnmatched bool
 	facetsOnly    bool
-	skill         bool
 }
 
 // facetTextTopN is the default number of facet values to show in text output
@@ -166,7 +158,9 @@ func (a *investigateArgs) luceneToFlagMap() map[string]string {
 
 // initInvestigate registers `tctl investigate` and all its flags.
 func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
-	cmd := app.Command("investigate", "Search and explore Identity Security activity logs.")
+	cmd := app.Command("investigate", "Search and explore Identity Security activity logs.\n\n"+
+		"To let an AI agent drive this command, install the matching Agent Skill:\n"+
+		"  npx skills add https://github.com/gravitational/teleport/tree/master/skills/teleport-investigate")
 
 	cmd.Flag("from", fmt.Sprintf("Include activity at or after this time. (Examples: %s, %s, 24h, 7d; negative durations like -1h are future-relative. Default: 1d)", time.RFC3339, time.DateOnly)).
 		Default("1d").
@@ -190,8 +184,6 @@ func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
 		BoolVar(&c.investigate.showUnmatched)
 	cmd.Flag("facets-only", "Skip fetching events; return only the facet summary. Useful for narrowing a query before pulling logs.").
 		BoolVar(&c.investigate.facetsOnly)
-	cmd.Flag("skill", "Print a Markdown skill describing how an LLM agent should use this command, then exit. All other flags are ignored.").
-		BoolVar(&c.investigate.skill)
 
 	for _, f := range c.investigate.filterFields() {
 		include := cmd.Flag(f.flag, f.help)
@@ -223,13 +215,6 @@ func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
 // Investigate executes `tctl investigate`.
 func (c *AccessGraphCommand) Investigate(ctx context.Context, client *accessgraph.ClientWithResponses) error {
 	args := &c.investigate
-
-	// --skill short-circuits everything: print the agent skill and exit
-	// without touching the backend or any other flag.
-	if args.skill {
-		_, err := io.WriteString(c.stdout, investigateSkill)
-		return trace.Wrap(err)
-	}
 
 	// Check raw-vs-structured conflict before --print-query: it shapes the query.
 	if err := args.validateRawQueryExclusive(); err != nil {

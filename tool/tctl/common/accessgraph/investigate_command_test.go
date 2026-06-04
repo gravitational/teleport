@@ -356,17 +356,6 @@ func (h *investigateHandler) serve(t *testing.T) http.Handler {
 
 func TestInvestigate(t *testing.T) {
 
-	t.Run("--skill prints the embedded skill and skips the backend", func(t *testing.T) {
-		ag := newAccessGraphTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			t.Errorf("server reached despite --skill: %s", r.URL.Path)
-		}))
-		c, buf := newInvestigateCommand(t, teleport.Text)
-		c.investigate.skill = true
-
-		require.NoError(t, c.Investigate(context.Background(), ag))
-		require.Equal(t, investigateSkill, buf.String())
-	})
-
 	t.Run("--print-query prints the assembled query and skips the backend", func(t *testing.T) {
 		ag := newAccessGraphTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			t.Errorf("server reached despite --print-query: %s", r.URL.Path)
@@ -738,7 +727,6 @@ func TestInitInvestigateFlags(t *testing.T) {
 		require.Equal(t, teleport.Text, got.format)
 		require.Equal(t, string(accessgraph.Desc), got.order)
 		require.Equal(t, 100, got.limit)
-		require.False(t, got.skill)
 		require.False(t, got.facetsOnly)
 
 		// --from defaults to "1d"; widened slack absorbs CI clock drift.
