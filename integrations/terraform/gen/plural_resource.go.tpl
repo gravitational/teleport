@@ -91,8 +91,8 @@ func (r resourceTeleport{{.Name}}) Create(ctx context.Context, req tfsdk.CreateR
 	}
 
 	{{- if .SaveSpecStateFromPlan}}
-	specFromPlan, ok := plan.Attrs["spec"]
-	if !ok {
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
 		return
 	}
@@ -482,11 +482,18 @@ func (r resourceTeleport{{.Name}}) Update(ctx context.Context, req tfsdk.UpdateR
 
 {{- if .SaveSpecStateFromPlan}}
 
-	specFromPlan, ok := plan.Attrs["spec"]
-	if !ok {
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading {{.Name}}", trace.Wrap(trace.Errorf("spec not found in the plan")), "{{.Kind}}"))
 		return
 	}
+
+	specFromPlan, err := deepCopyAttrValue(ctx, specFromPlan)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error copying {{.Name}} spec", trace.Wrap(err), "{{.Kind}}"))
+		return
+	}
+
 {{- end}}
 
 	{{.VarName}} := &{{.ProtoPackage}}.{{.TypeName}}{}

@@ -67,8 +67,8 @@ func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req tfsdk.C
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	specFromPlan, ok := plan.Attrs["spec"]
-	if !ok {
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
 		return
 	}
@@ -219,9 +219,15 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 		return
 	}
 
-	specFromPlan, ok := plan.Attrs["spec"]
-	if !ok {
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
+		return
+	}
+
+	specFromPlan, err := deepCopyAttrValue(ctx, specFromPlan)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error copying InferenceSecret spec", trace.Wrap(err), "inference_secret"))
 		return
 	}
 
