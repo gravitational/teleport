@@ -30,13 +30,11 @@ type commandDataT struct {
 }
 
 type commandInflightExecT struct {
-	_        structs.HostLayout
-	Valid    bool
-	Filename [512]uint8
-	_        [7]byte
-	Argv     uint64
-	Emitted  bool
-	_        [7]byte
+	_           structs.HostLayout
+	ValidUnsent bool
+	Filename    [512]uint8
+	_           [7]byte
+	Argv        uint64
 }
 
 // loadCommand returns the embedded CollectionSpec for command.
