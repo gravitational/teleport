@@ -38,7 +38,6 @@ type ResponseRecorder struct {
 	http.ResponseWriter
 	flusher http.Flusher
 
-	ctx          context.Context
 	log          *slog.Logger
 	status       int
 	written      int
@@ -65,7 +64,7 @@ type ResponseRecorder struct {
 }
 
 // NewResponseRecorder creates a new response recorder.
-func NewResponseRecorder(ctx context.Context, log *slog.Logger, w http.ResponseWriter) (*ResponseRecorder, error) {
+func NewResponseRecorder(log *slog.Logger, w http.ResponseWriter) (*ResponseRecorder, error) {
 	f, ok := w.(http.Flusher)
 	if !ok {
 		return nil, trace.BadParameter("response writer must be flusher")
@@ -73,7 +72,6 @@ func NewResponseRecorder(ctx context.Context, log *slog.Logger, w http.ResponseW
 	r := &ResponseRecorder{
 		ResponseWriter: w,
 		flusher:        f,
-		ctx:            ctx,
 		log:            log,
 		buf:            new(bytes.Buffer),
 	}
@@ -90,7 +88,6 @@ func NewResponseRecorder(ctx context.Context, log *slog.Logger, w http.ResponseW
 
 // WriteHeader implements [http.ResponseWriter].
 func (r *ResponseRecorder) WriteHeader(status int) {
-	r.status = status
 	// In case of errors or response type not JSON, we delete the original
 	// Content-Length because we might rewrite the result contents, changing the
 	// total length.
@@ -101,12 +98,16 @@ func (r *ResponseRecorder) WriteHeader(status int) {
 
 	// When the result is an unsupported content-type we set as error
 	// here since it might not contain a body (resulting in no [Write] calls).
+	//
+	// In addition, we "force" an error status code. This is done to keep the
+	// API contract where errors return only when status code is not 200.
 	if contentType != "application/json" && contentType != "text/event-stream" {
-		r.containsErr = true
+		status = http.StatusInternalServerError
 	}
 	if status != http.StatusOK {
 		r.containsErr = true
 	}
+	r.status = status
 	r.ResponseWriter.WriteHeader(status)
 }
 
@@ -131,7 +132,7 @@ func (r *ResponseRecorder) Write(data []byte) (int, error) {
 	case "text/event-stream":
 		return r.writeStream(data)
 	default:
-		r.log.ErrorContext(r.ctx, "unsupported response content-type", "content_type", contentType)
+		r.log.ErrorContext(context.Background(), "unsupported response content-type", "content_type", contentType)
 		// This is very unlikely to happen, but in any case the upstream
 		// misbehave we default the response to JSON.
 		//
@@ -143,7 +144,7 @@ func (r *ResponseRecorder) Write(data []byte) (int, error) {
 	}
 }
 
-// Writer implements [http.Flusher].
+// Flush implements [http.Flusher].
 func (r *ResponseRecorder) Flush() {
 	if r.skipFlush.Load() {
 		return
@@ -183,6 +184,8 @@ func (r *ResponseRecorder) OutputTokensCount() int {
 }
 
 // Close closes the recorder.
+//
+// Must be called once.
 func (r *ResponseRecorder) Close() {
 	// In case the response contains an error, this is the place where we write
 	// it back to the upstream.
@@ -191,15 +194,15 @@ func (r *ResponseRecorder) Close() {
 		// is malformed.
 		apiErr, err := parseProviderError(r.buf.Bytes())
 		if err != nil {
-			r.log.WarnContext(r.ctx, "unable to parse the provider error message", "error", err)
-			apiErr = llmerrors.ErrUnknown
+			r.log.WarnContext(context.Background(), "unable to parse the provider error message", "error", err)
+			apiErr = llmerrors.NewProviderError(llmerrors.ErrUnknown, "")
 		}
 
 		encodedErr := marshalError(newErrorMessage(apiErr))
 		r.err = apiErr
 		r.written += len(encodedErr)
 		if _, err := r.ResponseWriter.Write(encodedErr); err != nil {
-			r.log.WarnContext(r.ctx, "unable to write error message to downstream", "error", err)
+			r.log.WarnContext(context.Background(), "unable to write error message to downstream", "error", err)
 		}
 	}
 
@@ -231,7 +234,7 @@ func (r *ResponseRecorder) writeStream(data []byte) (int, error) {
 		go func() {
 			defer close(r.streamDoneCh)
 			w := &writeFlusher{writer: r.ResponseWriter, flushFunc: r.flusher.Flush}
-			r.inputTokensCount, r.outputTokensCount, r.err = processSSEEvents(r.ctx, r.log, pr, w)
+			r.inputTokensCount, r.outputTokensCount, r.err = processSSEEvents(context.Background(), r.log, pr, w)
 			r.written = w.written
 		}()
 	})

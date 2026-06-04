@@ -18,10 +18,10 @@ package anthropic
 
 import (
 	"bytes"
+	"cmp"
 	"errors"
 	"net/http"
 	"net/url"
-	"os"
 	"strings"
 
 	"github.com/gravitational/teleport"
@@ -33,21 +33,60 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// NewRequestConfig is config used to create a new provide request.
+type NewRequestConfig struct {
+	// LLM inference endpoint configuration.
+	LLM *types.LLM
+	// DownstreamRequest is the received downstream request.
+	DownstreamRequest *http.Request
+	// ProviderURL is the provider URL address.
+	ProviderURL *url.URL
+	// GetAPIKeyFunc is the function used to retrieve Anthropic API keys.
+	GetAPIKeyFunc func() string
+}
+
+func (c *NewRequestConfig) CheckAndSetDefaults() error {
+	if c.LLM == nil {
+		return trace.BadParameter("llm information is required")
+	}
+	if c.DownstreamRequest == nil {
+		return trace.BadParameter("downstream request is required")
+	}
+	if c.GetAPIKeyFunc == nil {
+		return trace.BadParameter("get api key function is required")
+	}
+
+	// Default URL address.
+	//
+	// https://platform.claude.com/docs/en/api/overview
+	c.ProviderURL = cmp.Or(c.ProviderURL, &url.URL{
+		Scheme: "https",
+		Host:   "api.anthropic.com",
+		Path:   "/v1",
+	})
+	return nil
+}
+
 // NewRequest creates a new provider request based on the downstream request,
 // and inference endpoint configuration.
-func NewRequest(llm *types.LLM, r *http.Request) (*http.Request, *RequestInfo, error) {
+func NewRequest(cfg *NewRequestConfig) (*http.Request, *RequestInfo, error) {
 	var (
 		info            = &RequestInfo{}
 		providerPath    string
 		providerMethod  string
 		providerHeaders http.Header = http.Header{}
 	)
+
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, info, trace.Wrap(err)
+	}
+
 	// TODO(gabrielcorado): add support for bedrock provider.
-	switch llm.Provider {
+	switch cfg.LLM.Provider {
 	case types.LLMProviderAnthropic:
-		switch strings.TrimPrefix(r.URL.Path, "/v1") {
+		switch strings.TrimPrefix(cfg.DownstreamRequest.URL.Path, "/v1") {
 		case "/messages":
-			if r.Method != http.MethodPost {
+			if cfg.DownstreamRequest.Method != http.MethodPost {
 				// We're ok with returning 404 back to clients instead 405 status.
 				return nil, info, trace.NotFound("messages API supports only POST requests")
 			}
@@ -66,26 +105,21 @@ func NewRequest(llm *types.LLM, r *http.Request) (*http.Request, *RequestInfo, e
 			//   - "content-type": Request content type.
 			//
 			// https://platform.claude.com/docs/en/api/overview#authentication
-			providerHeaders.Set("x-api-key", os.Getenv(apiKeyEnvVarName))
+			providerHeaders.Set("x-api-key", cfg.GetAPIKeyFunc())
 			providerHeaders.Set("anthropic-version", "2023-06-01") // Currently, the only version supported.
 			providerHeaders.Set("content-type", "application/json")
 		default:
 			return nil, info, trace.NotFound("unsupported endpoint")
 		}
 	default:
-		return nil, info, trace.NotImplemented("provider %q is not supported", llm.Provider)
+		return nil, info, trace.NotImplemented("provider %q is not supported", cfg.LLM.Provider)
 	}
 
-	host, err := getAPIAddr()
+	body, err := utils.ReadAtMost(cfg.DownstreamRequest.Body, teleport.MaxHTTPRequestSize)
 	if err != nil {
-		return nil, info, trace.ConnectionProblem(err, "unable to resolve provider address")
+		return nil, info, trace.Wrap(err)
 	}
-
-	body, err := utils.ReadAtMost(r.Body, teleport.MaxHTTPRequestSize)
-	if err != nil {
-		return nil, info, trace.ConnectionProblem(err, "failed to read request body")
-	}
-	defer r.Body.Close()
+	defer cfg.DownstreamRequest.Body.Close()
 
 	var req messagesAPIRequest
 	if err := utils.FastUnmarshal(body, &req); err != nil {
@@ -94,8 +128,7 @@ func NewRequest(llm *types.LLM, r *http.Request) (*http.Request, *RequestInfo, e
 	info.requestedModel = req.Model
 	info.stream = req.Stream
 
-	var found bool
-	providerModel, found := models.ConvertName(llm.Models, llm.FallbackModel, req.Model)
+	providerModel, found := models.ConvertName(cfg.LLM.Models, cfg.LLM.FallbackModel, req.Model)
 	if !found {
 		return nil, info, trace.BadParameter("requested model %q is not supported", req.Model)
 	}
@@ -116,9 +149,9 @@ func NewRequest(llm *types.LLM, r *http.Request) (*http.Request, *RequestInfo, e
 	// easier to use a "fresh" request, and copy what is used from downstream
 	// request.
 	providerReq, err := http.NewRequestWithContext(
-		r.Context(), // Keep original context so cancelation propagates.
+		cfg.DownstreamRequest.Context(), // Keep original context so cancelation propagates.
 		providerMethod,
-		host.JoinPath(providerPath).String(),
+		cfg.ProviderURL.JoinPath(providerPath).String(),
 		bytes.NewBuffer(providerBody),
 	)
 	if err != nil {
@@ -175,25 +208,8 @@ func newErrorMessage(err error) *errorEnvelope {
 	return r
 }
 
-// getAPIAddr returns configured base address.
-func getAPIAddr() (*url.URL, error) {
-	if envValue := os.Getenv(addressEnvVarName); envValue != "" {
-		addr, err := url.Parse(envValue)
-		return addr, trace.Wrap(err)
-	}
-
-	// Default URL address.
-	//
-	// https://platform.claude.com/docs/en/api/overview
-	return &url.URL{
-		Scheme: "https",
-		Host:   "api.anthropic.com",
-		Path:   "/v1",
-	}, nil
-}
-
 // parseProviderError parses errors that come from Anthropic API.
-func parseProviderError(body []byte) (error, error) {
+func parseProviderError(body []byte) (*llmerrors.ProviderError, error) {
 	var r errorEnvelope
 	if err := utils.FastUnmarshal(body, &r); err != nil {
 		return nil, trace.Wrap(err)
@@ -217,18 +233,14 @@ func parseProviderError(body []byte) (error, error) {
 }
 
 const (
-	// addressEnvVarName is the Anthropic's default environment variable used to
-	// set base API address.
-	//
-	// https://code.claude.com/docs/en/env-vars#variables
-	addressEnvVarName = "ANTHROPIC_BASE_URL"
-	// apiKeyEnvVarName is the Anthropic's default environment variable used to
-	// set API keys.
-	//
-	// https://code.claude.com/docs/en/env-vars#variables
-	apiKeyEnvVarName = "ANTHROPIC_API_KEY"
-
 	// maxNonStreamingTokens defines the max tokens that can be generated for
 	// non-streaming requests.
-	maxNonStreamingTokens = 8192
+	//
+	// The rule for this definition by Anthropic is any request that might take
+	// more than 10 minutes to complete, must use streaming.
+	// To calculate how many tokens would 10 minutes take, we use the formula
+	// available on Anthropic SDKs, for example, in the Golang SDK: https://github.com/anthropics/anthropic-sdk-go/blob/058d85cd7e656f5fe972591bcf841c99564581e9/client.go#L297
+	// The result give us around 21k tokens. This value covers all non-legacy
+	// models.
+	maxNonStreamingTokens = 21_000
 )

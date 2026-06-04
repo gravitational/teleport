@@ -26,14 +26,12 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 )
 
 func TestNewRequest(t *testing.T) {
 	apiKey := "random-api-key"
-	baseAddr := "https://api.anthropic.com/v1"
-	t.Setenv(apiKeyEnvVarName, apiKey)
-	t.Setenv(addressEnvVarName, baseAddr)
 
 	for name, tc := range map[string]struct {
 		llm             *types.LLM
@@ -188,6 +186,28 @@ func TestNewRequest(t *testing.T) {
 				require.Equal(tt, "claude-sonnet-4-20250514", info.ProviderModel())
 			},
 		},
+		"request exceeds max size": {
+			llm: &types.LLM{
+				Provider: types.LLMProviderAnthropic,
+			},
+			request: func() *http.Request {
+				r, _ := http.NewRequest(
+					http.MethodPost,
+					"/messages",
+					strings.NewReader(
+						`{"model":"claude-sonnet-4-20250514", "max_tokens": 1024,"messages":[{"role":"user","content":"`+strings.Repeat("a", teleport.MaxHTTPRequestSize)+`"}]}`,
+					),
+				)
+				return r
+			},
+			expectedError:   require.Error,
+			expectedRequest: require.Nil,
+			expectedInfo: func(tt require.TestingT, i1 any, i2 ...any) {
+				info, _ := i1.(*RequestInfo)
+				require.Empty(tt, info.RequestedModel())
+				require.Empty(tt, info.ProviderModel())
+			},
+		},
 		"unsupported endpoint": {
 			llm: &types.LLM{
 				Provider: types.LLMProviderAnthropic,
@@ -222,7 +242,13 @@ func TestNewRequest(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			req, info, err := NewRequest(tc.llm, tc.request())
+			req, info, err := NewRequest(&NewRequestConfig{
+				LLM:               tc.llm,
+				DownstreamRequest: tc.request(),
+				GetAPIKeyFunc: func() string {
+					return apiKey
+				},
+			})
 			tc.expectedError(t, err)
 			tc.expectedRequest(t, req)
 			tc.expectedInfo(t, info)
@@ -245,9 +271,6 @@ func buildRequestBody(fillerBytes int) []byte {
 //
 //	go test ./lib/srv/app/llm/anthropic/ -run '^$' -bench BenchmarkNewRequest -benchmem
 func BenchmarkNewRequest(b *testing.B) {
-	b.Setenv(apiKeyEnvVarName, "random-api-key")
-	b.Setenv(addressEnvVarName, "https://api.anthropic.com/v1")
-
 	// Maps the requested model to a provider model so the conversion path
 	// (the common case in production) is exercised.
 	llm := &types.LLM{
@@ -276,7 +299,11 @@ func BenchmarkNewRequest(b *testing.B) {
 
 			for b.Loop() {
 				r.Body = io.NopCloser(bytes.NewReader(bc.body))
-				if _, _, err := NewRequest(llm, r); err != nil {
+				if _, _, err := NewRequest(&NewRequestConfig{
+					LLM:               llm,
+					DownstreamRequest: r,
+					GetAPIKeyFunc:     func() string { return "" },
+				}); err != nil {
 					b.Fatal(err)
 				}
 			}

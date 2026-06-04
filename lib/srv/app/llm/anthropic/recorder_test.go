@@ -17,7 +17,6 @@
 package anthropic
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -91,7 +90,7 @@ func TestHandleNonStreaming(t *testing.T) {
 				require.NoError(tt, json.Unmarshal([]byte(body), &apiErr), "expected message to be in JSON format")
 				require.Contains(tt, body, llmerrors.ErrUnknown.Error(), "expected error response to include Teleport message")
 			},
-			expectedDownstreamStatusCode: expectStatus(http.StatusOK),
+			expectedDownstreamStatusCode: expectStatus(http.StatusInternalServerError),
 			// In case of errors, we always expect empty Content-Length.
 			expectedContentLength: require.Empty,
 			expectedRecorder: func(tt require.TestingT, i1 any, i2 ...any) {
@@ -200,7 +199,7 @@ func TestHandleNonStreaming(t *testing.T) {
 			// responses.
 			t.Run("single write", func(t *testing.T) {
 				w := httptest.NewRecorder()
-				rec, err := NewResponseRecorder(t.Context(), slog.Default(), w)
+				rec, err := NewResponseRecorder(slog.Default(), w)
 				require.NoError(t, err)
 
 				rec.Header().Add("Content-Type", tc.providerContentType)
@@ -226,7 +225,7 @@ func TestHandleNonStreaming(t *testing.T) {
 			// responses and network conditions.
 			t.Run("multi write", func(t *testing.T) {
 				w := httptest.NewRecorder()
-				rec, err := NewResponseRecorder(t.Context(), slog.Default(), w)
+				rec, err := NewResponseRecorder(slog.Default(), w)
 				require.NoError(t, err)
 
 				rec.Header().Add("Content-Type", tc.providerContentType)
@@ -346,7 +345,7 @@ func TestHandleStreaming(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			w := httptest.NewRecorder()
-			rec, err := NewResponseRecorder(t.Context(), slog.Default(), w)
+			rec, err := NewResponseRecorder(slog.Default(), w)
 			require.NoError(t, err)
 			tc.providerResp(rec)
 			rec.Close()
@@ -421,7 +420,7 @@ func BenchmarkResponseRecorderJSON(b *testing.B) {
 			for b.Loop() {
 				w := &discardResponseWriter{header: http.Header{}}
 				w.header.Set("Content-Type", "application/json")
-				rec, err := NewResponseRecorder(context.Background(), log, w)
+				rec, err := NewResponseRecorder(log, w)
 				if err != nil {
 					b.Fatal(err)
 				}
@@ -461,7 +460,7 @@ func BenchmarkResponseRecorderStream(b *testing.B) {
 			for b.Loop() {
 				w := &discardResponseWriter{header: http.Header{}}
 				w.header.Set("Content-Type", "text/event-stream")
-				rec, err := NewResponseRecorder(context.Background(), log, w)
+				rec, err := NewResponseRecorder(log, w)
 				if err != nil {
 					b.Fatal(err)
 				}
