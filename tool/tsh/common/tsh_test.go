@@ -1725,7 +1725,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		user            types.User
 		logSuccess      []string
 	}{
-		{
+		{ //20
 			name:           "default auth preference runs commands on multiple nodes without mfa",
 			authPreference: defaultPreference,
 			proxyAddr:      rootProxyAddr.String(),
@@ -1742,7 +1742,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			errAssertion: require.NoError,
 			logSuccess:   []string{stage1Hostname, stage2Hostname},
 		},
-		{
+		{ //19
 			name:      "webauthn auth preference runs commands on multiple matches without mfa",
 			target:    "env=stage",
 			proxyAddr: rootProxyAddr.String(),
@@ -1758,7 +1758,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			errAssertion: require.NoError,
 			logSuccess:   []string{stage1Hostname, stage2Hostname},
 		},
-		{
+		{ //18
 			name:      "webauthn auth preference runs commands on a single match without mfa",
 			target:    "env=prod",
 			proxyAddr: rootProxyAddr.String(),
@@ -1771,7 +1771,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
-		{
+		{ //17
 			name:            "no matching hosts",
 			target:          "env=dev",
 			proxyAddr:       rootProxyAddr.String(),
@@ -1780,7 +1780,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			stderrAssertion: require.Empty,
 			stdoutAssertion: require.Empty,
 		},
-		{
+		{ //16
 			name: "command runs on multiple matches with mfa set via auth preference",
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
@@ -1809,7 +1809,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			errAssertion:   require.NoError,
 			logSuccess:     []string{stage1Hostname, stage2Hostname},
 		},
-		{
+		{ //15
 			name: "command runs on a single match with mfa set via auth preference",
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
@@ -1835,7 +1835,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			mfaPromptCount: 1,
 			errAssertion:   require.NoError,
 		},
-		{
+		{ //14
 			name: "no matching hosts with mfa",
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
@@ -1856,7 +1856,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			stderrAssertion: require.Empty,
 			stdoutAssertion: require.Empty,
 		},
-		{
+		{ //13
 			name: "command runs on a multiple matches with mfa set via role",
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
@@ -1885,7 +1885,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			errAssertion:   require.NoError,
 			logSuccess:     []string{stage1Hostname, stage2Hostname},
 		},
-		{
+		{ //12
 			name:      "role permits access without mfa",
 			target:    sshHostID,
 			proxyAddr: rootProxyAddr.String(),
@@ -1899,7 +1899,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
-		{
+		{ //11
 			name:            "role prevents access",
 			target:          sshHostID,
 			proxyAddr:       rootProxyAddr.String(),
@@ -1913,7 +1913,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			errAssertion: require.Error,
 		},
-		{
+		{ //10
 			name:          "command runs on a hostname with mfa set via role",
 			target:        sshHostID,
 			proxyAddr:     rootProxyAddr.String(),
@@ -1929,7 +1929,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			mfaPromptCount: 1,
 			errAssertion:   require.NoError,
 		},
-		{
+		{ //9
 			name: "failed ceremony when role requires per session mfa",
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
@@ -1955,7 +1955,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			mfaPromptCount: 1,
 			errAssertion:   require.Error,
 		},
-		{
+		{ //8
 			name: "aborted ceremony when role requires per session mfa",
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
@@ -1980,7 +1980,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			errAssertion: require.Error,
 		},
-		{
+		{ //7
 			name: "mfa ceremony prevented when using headless auth",
 			authPreference: &types.AuthPreferenceV2{
 				Spec: types.AuthPreferenceSpecV2{
@@ -2006,7 +2006,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			errAssertion: require.NoError,
 			headless:     true,
 		},
-		{
+		{ //6
 			name:          "command runs on a leaf node with mfa set via role",
 			target:        sshLeafHostID,
 			proxyAddr:     leafProxyAddr,
@@ -2022,7 +2022,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			mfaPromptCount: 1,
 			errAssertion:   require.NoError,
 		},
-		{
+		{ //5
 			name:          "command runs on a leaf node via root without mfa",
 			target:        sshLeafHostID,
 			proxyAddr:     rootProxyAddr.String(),
@@ -2038,7 +2038,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
-		{
+		{ //4
 			name:      "command runs on a leaf node without mfa",
 			target:    sshLeafHostID,
 			proxyAddr: leafProxyAddr,
@@ -2053,7 +2053,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			errAssertion: require.NoError,
 		},
-		{
+		{ //3
 			name:          "command runs on a leaf node via root with mfa set via role",
 			target:        sshLeafHostID,
 			proxyAddr:     rootProxyAddr.String(),
@@ -2070,7 +2070,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			mfaPromptCount: 1,
 			errAssertion:   require.NoError,
 		},
-		{
+		{ //2
 			name:            "invalid login on leaf node with no devices enrolled in root",
 			target:          "invalid@" + sshLeafHostID,
 			proxyAddr:       rootProxyAddr.String(),
@@ -2086,7 +2086,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 			},
 			errAssertion: require.Error,
 		},
-		{
+		{ //1
 			name:            "invalid login on leaf node with devices enrolled in root",
 			target:          "invalid@" + sshLeafHostID,
 			proxyAddr:       rootProxyAddr.String(),
