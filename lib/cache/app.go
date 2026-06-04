@@ -19,13 +19,19 @@ package cache
 import (
 	"context"
 	"iter"
+	"strings"
 
 	"github.com/gravitational/trace"
+	"rsc.io/ordered"
 
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 type appIndex string
@@ -152,6 +158,18 @@ func (c *Cache) GetApp(ctx context.Context, name string) (types.Application, err
 type appServerIndex string
 
 const appServerNameIndex appServerIndex = "name"
+const appServerAppNameIndex appServerIndex = "app_name"
+
+func appServerByAppNameKey(s types.AppServer) string {
+	// Delete events deliver header only resources with a nil App. This returns
+	// "" so the secondary index lookup is a no-op. The primary index deletion
+	// removes the entry from all indexes.
+	app := s.GetApp()
+	if app == nil {
+		return ""
+	}
+	return string(ordered.Encode(app.GetName(), s.GetHostID(), s.GetName()))
+}
 
 func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection[types.AppServer, appServerIndex], error) {
 	if p == nil {
@@ -166,6 +184,7 @@ func newAppServerCollection(p services.Presence, w types.WatchKind) (*collection
 				appServerNameIndex: func(u types.AppServer) string {
 					return u.GetHostID() + "/" + u.GetName()
 				},
+				appServerAppNameIndex: appServerByAppNameKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]types.AppServer, error) {
 			return p.GetApplicationServers(ctx, defaults.Namespace)
@@ -208,4 +227,89 @@ func (c *Cache) GetApplicationServers(ctx context.Context, namespace string) ([]
 
 	servers, err := c.Config.Presence.GetApplicationServers(ctx, namespace)
 	return servers, trace.Wrap(err)
+}
+
+// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+func (c *Cache) RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error] {
+	if appName == "" {
+		return stream.Fail[types.AppServer](trace.BadParameter("missing application name"))
+	}
+
+	return func(yield func(types.AppServer, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeApplicationServersWithName")
+		defer span.End()
+
+		upstreamListFn := func(ctx context.Context, pageSize int, startToken string) ([]types.AppServer, string, error) {
+			var tokenAppName string
+			rest, err := ordered.DecodePrefix([]byte(startToken), &tokenAppName)
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			// Verify that the token's app name matches the requested app name.
+			// This ensures that if the token is malformed or belongs to a different
+			// app, we don't return incorrect results.
+			if tokenAppName != appName {
+				return nil, "", trace.BadParameter("pagination token does not match the requested application name")
+			}
+
+			backendKey := ""
+			if len(rest) > 0 {
+				var hostID, serverName string
+				if err := ordered.Decode(rest, &hostID, &serverName); err != nil {
+					return nil, "", trace.Wrap(err)
+				}
+				backendKey = hostID + "/" + serverName
+			}
+
+			resp, err := c.Config.Presence.ListResources(ctx, clientproto.ListResourcesRequest{
+				ResourceType: types.KindAppServer,
+				Namespace:    defaults.Namespace,
+				Limit:        int32(pageSize),
+				StartKey:     backendKey,
+			})
+			if err != nil {
+				return nil, "", trace.Wrap(err)
+			}
+
+			var page []types.AppServer
+			for _, r := range resp.Resources {
+				server, ok := r.(types.AppServer)
+				if !ok {
+					c.Logger.WarnContext(ctx, "expected AppServer but received unexpected type", "resource_type", logutils.TypeAttr(r))
+					continue
+				}
+				if app := server.GetApp(); app != nil && app.GetName() == appName {
+					page = append(page, server)
+				}
+			}
+
+			next := ""
+			if resp.NextKey != "" {
+				hostID, serverName, ok := strings.Cut(resp.NextKey, backend.SeparatorString)
+				if !ok {
+					return nil, "", trace.BadParameter("invalid pagination token: %q", resp.NextKey)
+				}
+				next = string(ordered.Encode(appName, hostID, serverName))
+			}
+			return page, next, nil
+		}
+
+		lister := genericLister[types.AppServer, appServerIndex]{
+			cache:           c,
+			collection:      c.collections.appServers,
+			index:           appServerAppNameIndex,
+			nextToken:       appServerByAppNameKey,
+			defaultPageSize: defaults.DefaultChunkSize,
+			upstreamList:    upstreamListFn,
+		}
+
+		start := string(ordered.Encode(appName))
+		end := string(ordered.Encode(appName, ordered.Inf))
+		for item, err := range lister.Range(ctx, start, end) {
+			if !yield(item, err) {
+				return
+			}
+		}
+	}
 }
