@@ -1110,7 +1110,7 @@ func (a *aggregatedAppServer) GetComponentFeatures() *componentfeaturesv1.Compon
 func intersectComponentFeaturesForAppServers(servers map[string]types.AppServer) *componentfeaturesv1.ComponentFeatures {
 	allFeatures := make([]*componentfeaturesv1.ComponentFeatures, 0, len(servers))
 	for _, s := range servers {
-		allFeatures = append(allFeatures, s.GetComponentFeatures())
+		allFeatures = append(allFeatures, componentfeatures.GetEffectiveServerFeatures(s))
 	}
 	return componentfeatures.Intersect(allFeatures...)
 }
