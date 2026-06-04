@@ -202,11 +202,11 @@ func (c *AccessGraphCommand) initInvestigate(app *kingpin.Application) {
 	cmd.Flag("print-query", "Print the constructed query and exit without contacting the backend.").
 		BoolVar(&c.investigate.printQuery)
 
-	cmd.Flag("latitude", "Center latitude for geo-filtered search (decimal degrees). Requires --longitude and --radius.").
+	cmd.Flag("latitude", "Center latitude for geo-filtered search (decimal degrees, e.g. 37.8044). Requires --longitude and --radius.").
 		SetValue(optionalFloat32{target: &c.investigate.latitude})
-	cmd.Flag("longitude", "Center longitude for geo-filtered search (decimal degrees). Requires --latitude and --radius.").
+	cmd.Flag("longitude", "Center longitude for geo-filtered search (decimal degrees, e.g. -122.2712). Requires --latitude and --radius.").
 		SetValue(optionalFloat32{target: &c.investigate.longitude})
-	cmd.Flag("radius", "Radius in kilometers around the geo center. Requires --latitude and --longitude.").
+	cmd.Flag("radius", "Radius in kilometers around the geo center (e.g. 25). Requires --latitude and --longitude.").
 		SetValue(optionalFloat32{target: &c.investigate.radius})
 
 	c.investigate.cmd = cmd
