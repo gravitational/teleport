@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
 	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // investigateArgs holds the parsed flag values for `tctl investigate`. The
@@ -553,20 +554,24 @@ func displayFacetsText(out io.Writer, facets []logsFacet, allFacets bool) error 
 			values = values[:facetTextTopN]
 		}
 
-		header := fmt.Sprintf("%s (%d)", f.Name, total)
+		// Facet names and values originate from activity-log data that
+		// external clients can influence so escape control characters
+		name := utils.EscapeControl(f.Name)
+		header := fmt.Sprintf("%s (%d)", name, total)
 		if truncated {
-			header = fmt.Sprintf("%s (top %d of %d)", f.Name, facetTextTopN, total)
+			header = fmt.Sprintf("%s (top %d of %d)", name, facetTextTopN, total)
 		}
 
 		parts := make([]string, len(values))
 		for i, v := range values {
+			value := utils.EscapeControl(v.Value)
 			// count == -1 is the --show-unmatched sentinel; render it as a
 			// label rather than leaking the negative count.
 			if v.Count < 0 {
-				parts[i] = fmt.Sprintf("%s (unmatched)", v.Value)
+				parts[i] = fmt.Sprintf("%s (unmatched)", value)
 				continue
 			}
-			parts[i] = fmt.Sprintf("%s (%d)", v.Value, v.Count)
+			parts[i] = fmt.Sprintf("%s (%d)", value, v.Count)
 		}
 		rows = append(rows, row{header: header, parts: parts})
 		if len(header) > maxHeader {

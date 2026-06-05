@@ -185,6 +185,25 @@ func TestStripUnmatchedFacets(t *testing.T) {
 	})
 }
 
+func TestDisplayFacetsTextEscapesControlSequences(t *testing.T) {
+	// A user-agent facet value carrying an OSC 52 clipboard-write plus a
+	// screen clear, exercised through both the normal and --show-unmatched
+	// (count == -1) render branches.
+	const inject = "evil\x1b]52;c;AAAA\a\x1b[2Jspoofed"
+	facets := []logsFacet{{Name: "user-agent", Values: []logsFacetValue{
+		{Value: inject, Count: 3},
+		{Value: inject, Count: -1},
+	}}}
+
+	var buf bytes.Buffer
+	require.NoError(t, displayFacetsText(&buf, facets, true /* allFacets */))
+
+	out := buf.String()
+	require.NotContains(t, out, "\x1b", "raw escape byte leaked to terminal")
+	require.NotContains(t, out, "\a", "raw BEL byte leaked to terminal")
+	require.Contains(t, out, `\x1b`, "control sequence should be rendered as a visible escape")
+}
+
 // statsResponse builds a stats endpoint body for table tests.
 func statsResponse(columns ...statsColumn) map[string]any {
 	data := make([]map[string]any, 0, len(columns))

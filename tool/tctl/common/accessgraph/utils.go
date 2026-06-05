@@ -261,14 +261,16 @@ func displayEventsText(out io.Writer, events []logmodels.AccessgraphStorageV1alp
 		if resource == "" && ev.Target.Id != "" {
 			resource = ev.Target.Id
 		}
+		// Event fields originate from activity-log data external clients can
+		// influence, so escape control characters before writing the row.
 		table.AddRow([]string{
 			ev.Time.Format(time.RFC3339),
-			identity,
-			ev.EventType,
-			ev.Action,
-			ev.Status,
-			resource,
-			strings.TrimSpace(string(ev.EventSource)),
+			utils.EscapeControl(identity),
+			utils.EscapeControl(ev.EventType),
+			utils.EscapeControl(ev.Action),
+			utils.EscapeControl(ev.Status),
+			utils.EscapeControl(resource),
+			utils.EscapeControl(strings.TrimSpace(string(ev.EventSource))),
 		})
 	}
 	_, err := fmt.Fprintln(out, table.AsBuffer().String())
