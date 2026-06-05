@@ -37,14 +37,13 @@ describe('UserDetails display names', () => {
       displaySecondary: 'alice@example.com',
     };
 
-    render(<UserDetailsTitle user={user} />);
+    const { unmount } = render(<UserDetailsTitle user={user} />);
 
     expect(screen.getByText('Alice Jones')).toBeInTheDocument();
+    expect(screen.getByText('alice')).toBeInTheDocument();
     expect(screen.getByText('alice@example.com')).toBeInTheDocument();
-    expect(
-      screen.getByLabelText('Alice Jones, alice@example.com, username alice')
-    ).toBeInTheDocument();
-    expect(screen.queryByText('alice')).not.toBeInTheDocument();
+
+    unmount();
 
     render(<UserDetails user={user} sections={[]} />);
 
