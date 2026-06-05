@@ -41,7 +41,6 @@ exclude_fields:
 # These fields will be marked as Computed: true
 computed_fields:
   # Metadata
-  - 'DiscoveryConfig.header.metadata.expires'
   - 'DiscoveryConfig.header.metadata.namespace'
   - 'DiscoveryConfig.header.kind'
   - 'DiscoveryConfig.header.sub_kind'
