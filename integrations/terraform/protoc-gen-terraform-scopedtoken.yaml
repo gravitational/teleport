@@ -36,7 +36,6 @@ exclude_fields:
 
 # These fields will be marked as Computed: true
 computed_fields:
-  - "ScopedToken.metadata.expires"
   - "ScopedToken.metadata.namespace"
   - "ScopedToken.kind"
 
