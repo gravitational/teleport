@@ -91,7 +91,7 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 		Identity: IdentityContext{
 			UnmappedIdentity: ident,
 			Login:            usr.Username,
-			TeleportUser:     "teleportUser",
+			TeleportUser:     ident.Username,
 			AccessPermit:     accessPermit,
 			// roles do not actually exist in mock backend, just need a non-nil
 			// session joining access checker to avoid panic
