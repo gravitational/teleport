@@ -144,9 +144,11 @@ type handler interface {
 	readStream(bool) (string, error)
 }
 
-var handlerMu sync.Mutex
-var handlerCount int
-var handlers map[int]handler = make(map[int]handler)
+var (
+	handlerMu    sync.Mutex
+	handlerCount int
+	handlers     map[int]handler = make(map[int]handler)
+)
 
 //export writeCallback
 func writeCallback(index C.int, stream C.int, s *C.char) {
@@ -246,8 +248,10 @@ func lookupHandler(handlerIndex int) (handler, error) {
 	return handle, nil
 }
 
-var buildHasPAM bool = true
-var systemHasPAM bool = false
+var (
+	buildHasPAM  bool = true
+	systemHasPAM bool = false
+)
 
 // pamHandle is a opaque handle to the libpam object.
 var pamHandle unsafe.Pointer
@@ -305,7 +309,7 @@ type PAM struct {
 
 // Open creates a PAM context and initiates a PAM transaction to check the
 // account and then opens a session.
-func Open(config *pamcfg.PAMConfig) (*PAM, error) {
+func Open(config *pamcfg.PAMConfig) (_ *PAM, retErr error) {
 	if config == nil {
 		return nil, trace.BadParameter("PAM configuration is required.")
 	}
@@ -334,12 +338,19 @@ func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 	// and a instance of a PAM context.
 	p.handlerIndex = registerHandler(p)
 
+	defer func() {
+		if retErr != nil {
+			unregisterHandler(p.handlerIndex)
+			p.free()
+		}
+	}()
+
 	// Create and initialize a PAM context. The pam_start function will
 	// allocate pamh if needed and the pam_end function will release any
 	// allocated memory.
 	p.retval = C._pam_start(pamHandle, p.service_name, p.login, p.conv, &p.pamh)
 	if p.retval != C.PAM_SUCCESS {
-		return nil, p.codeToError(p.retval)
+		return nil, p.codeToError()
 	}
 
 	for k, v := range config.Env {
@@ -352,9 +363,9 @@ func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 		kv := C.CString(fmt.Sprintf("%s=%s", k, v))
 		// pam_putenv makes a copy of kv, so we can free it right away.
 		defer C.free(unsafe.Pointer(kv))
-		retval := C._pam_putenv(pamHandle, p.pamh, kv)
-		if retval != C.PAM_SUCCESS {
-			return nil, p.codeToError(retval)
+		p.retval = C._pam_putenv(pamHandle, p.pamh, kv)
+		if p.retval != C.PAM_SUCCESS {
+			return nil, p.codeToError()
 		}
 	}
 
@@ -365,9 +376,9 @@ func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 	// checking if the account is expired or has access restrictions.
 	//
 	// Note: This function does not perform any authentication!
-	retval := C._pam_acct_mgmt(pamHandle, p.pamh, 0)
-	if retval != C.PAM_SUCCESS {
-		return nil, p.codeToError(retval)
+	p.retval = C._pam_acct_mgmt(pamHandle, p.pamh, 0)
+	if p.retval != C.PAM_SUCCESS {
+		return nil, p.codeToError()
 	}
 
 	if config.UsePAMAuth {
@@ -375,9 +386,9 @@ func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 		//
 		// These would perform any extra authentication steps configured in the PAM
 		// stack, like per-session 2FA.
-		retval = C._pam_authenticate(pamHandle, p.pamh, 0)
-		if retval != C.PAM_SUCCESS {
-			return nil, p.codeToError(retval)
+		p.retval = C._pam_authenticate(pamHandle, p.pamh, 0)
+		if p.retval != C.PAM_SUCCESS {
+			return nil, p.codeToError()
 		}
 	}
 
@@ -388,7 +399,7 @@ func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 	// printing the MOTD, mounting a home directory, updating auth.log.
 	p.retval = C._pam_open_session(pamHandle, p.pamh, 0)
 	if p.retval != C.PAM_SUCCESS {
-		return nil, p.codeToError(p.retval)
+		return nil, p.codeToError()
 	}
 
 	return p, nil
@@ -399,9 +410,10 @@ func Open(config *pamcfg.PAMConfig) (*PAM, error) {
 func (p *PAM) Close() error {
 	// Close the PAM session. Closing a session can entail anything from
 	// unmounting a home directory and updating auth.log.
+	var closeErr error
 	p.retval = C._pam_close_session(pamHandle, p.pamh, 0)
 	if p.retval != C.PAM_SUCCESS {
-		return p.codeToError(p.retval)
+		closeErr = p.codeToError()
 	}
 
 	// Unregister handler index at the package level.
@@ -410,7 +422,7 @@ func (p *PAM) Close() error {
 	// Free any allocated memory on close.
 	p.free()
 
-	return nil
+	return closeErr
 }
 
 // Environment returns the PAM environment variables associated with a PAM
@@ -455,12 +467,12 @@ func (p *PAM) free() {
 	// Only free memory one time to prevent double free bugs.
 	p.once.Do(func() {
 		// Terminate the PAM transaction.
-		retval := C._pam_end(pamHandle, p.pamh, p.retval)
-		if retval != C.PAM_SUCCESS {
+		p.retval = C._pam_end(pamHandle, p.pamh, p.retval)
+		if p.retval != C.PAM_SUCCESS {
 			slog.WarnContext(context.Background(),
 				"Failed to end PAM transaction",
 				logconstants.ComponentKey, logComponent,
-				"error", p.codeToError(retval),
+				"error", p.codeToError(),
 			)
 		}
 
@@ -507,18 +519,15 @@ func (p *PAM) readStream(echo bool) (string, error) {
 }
 
 // codeToError returns a human readable string from the PAM error.
-func (p *PAM) codeToError(returnValue C.int) error {
-	// If an error is being returned, free any memory that was allocated.
-	defer p.free()
-
-	// Error strings are not allocated on the heap, so memory does not need
-	// released.
-	err := C._pam_strerror(pamHandle, p.pamh, returnValue)
+func (p *PAM) codeToError() error {
+	err := C._pam_strerror(pamHandle, p.pamh, p.retval)
 	if err != nil {
 		return trace.BadParameter("%s", C.GoString(err))
 	}
 
-	return nil
+	// Return a generic error message with the error code if pam_strerror
+	// somehow failed to return a string.
+	return trace.Errorf("PAM call failed with error code %d", p.retval)
 }
 
 // BuildHasPAM returns true if the binary was build with support for PAM
