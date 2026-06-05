@@ -1665,37 +1665,42 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		return trace.BadParameter("cannot start exec with BPF enabled without an ssh access permit (this is a bug)")
 	}
 
-	auditSessID, err := execRequest.ReadAuditSessionID()
-	if err != nil {
-		s.logger.ErrorContext(ctx, "Failed to get child PID", "error", err)
-		return trace.Wrap(err)
-	}
+	var sessionContext *bpf.SessionContext
+	if bpfEnabled && len(eventsMap) != 0 {
+		auditSessID, err := execRequest.ReadAuditSessionID()
+		if err != nil {
+			s.logger.ErrorContext(ctx, "Failed to get child PID", "error", err)
+			return trace.Wrap(err)
+		}
 
-	// Open a BPF recording session.
-	sessionContext := &bpf.SessionContext{
-		Context:               scx.srv.Context(),
-		AuditSessionID:        auditSessID,
-		Emitter:               scx.BPFEmitter(),
-		Namespace:             scx.srv.GetNamespace(),
-		SessionID:             string(s.id),
-		ServerID:              scx.srv.ID(),
-		ServerHostname:        scx.srv.GetInfo().GetHostname(),
-		Login:                 scx.Identity.Login,
-		User:                  scx.Identity.TeleportUser,
-		UserOriginClusterName: scx.Identity.OriginClusterName,
-		Events:                eventsMap,
-	}
+		// Open a BPF recording session.
+		sessionContext = &bpf.SessionContext{
+			Context:               scx.srv.Context(),
+			AuditSessionID:        auditSessID,
+			Emitter:               scx.BPFEmitter(),
+			Namespace:             scx.srv.GetNamespace(),
+			SessionID:             string(s.id),
+			ServerID:              scx.srv.ID(),
+			ServerHostname:        scx.srv.GetInfo().GetHostname(),
+			Login:                 scx.Identity.Login,
+			User:                  scx.Identity.TeleportUser,
+			UserOriginClusterName: scx.Identity.OriginClusterName,
+			UserRoles:             scx.Identity.MappedRoles,
+			UserTraits:            scx.Identity.Traits,
+			Events:                eventsMap,
+		}
 
-	if err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
-		s.logger.ErrorContext(
-			ctx, "Failed to open enhanced recording (exec) session.",
-			"command", execRequest.GetCommand(),
-			"error", err,
-		)
-		return trace.Wrap(err)
-	}
+		if err := scx.srv.GetBPF().OpenSession(sessionContext); err != nil {
+			s.logger.ErrorContext(
+				ctx, "Failed to open enhanced recording (exec) session.",
+				"command", execRequest.GetCommand(),
+				"error", err,
+			)
+			return trace.Wrap(err)
+		}
 
-	s.setHasEnhancedRecording(bpfEnabled && len(eventsMap) > 0)
+		s.setHasEnhancedRecording(true)
+	}
 
 	s.logger.DebugContext(ctx, "Waiting for continue signal.")
 
@@ -1709,17 +1714,27 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		result := execRequest.Wait()
 		scx.SendExecResult(ctx, result)
 
-		// Wait a little bit to let all events filter through before closing the
-		// BPF session so everything can be recorded.
+		// Wait a little bit to let all events filter through before
+		// closing the BPF session so everything can be recorded.
+		//
+		// TODO: This sleep is also necessary to prevent the SSH server
+		// from closing an SSH session without sending the exit status
+		// to the client. The SSH server code in handleSessionRequests
+		// should be refactored to consistently wait for the exit result
+		// before cleaning up.
 		time.Sleep(2 * time.Second)
 
-		err = scx.srv.GetBPF().CloseSession(sessionContext)
-		if err != nil {
-			s.logger.ErrorContext(ctx, "Failed to close enhanced recording (exec) session.", "error", err)
+		if sessionContext != nil {
+			err = scx.srv.GetBPF().CloseSession(sessionContext)
+			if err != nil {
+				s.logger.ErrorContext(ctx, "Failed to close enhanced recording (exec) session.", "error", err)
+			}
 		}
 
 		s.emitSessionEndEvent()
-		s.Close()
+		if err := s.Close(); err != nil {
+			s.logger.WarnContext(ctx, "Failed to close session.", "error", err)
+		}
 
 		s.io.Close()
 		close(s.doneCh)
