@@ -65,10 +65,10 @@ func TestCreateCrownJewel(t *testing.T) {
 	resp, err := webPack.clt.PostJSON(ctx, generateEndpoint, createCrownJewelRequest{
 		Query:       "SELECT * FROM nodes",
 		Description: "test description",
-		TeleportMatcher: &crownjewelv1.TeleportMatcher{
+		TeleportMatcher: crownjewelv1.TeleportMatcher_builder{
 			Kinds: []string{"node"},
 			Names: []string{"test"},
-		},
+		}.Build(),
 	})
 	require.NoError(t, err)
 
@@ -94,7 +94,7 @@ func TestCreateCrownJewel(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Len(t, authResp, 1)
-	require.Equal(t, "test", authResp[0].Spec.TeleportMatchers[0].Names[0])
+	require.Equal(t, "test", authResp[0].GetSpec().GetTeleportMatchers()[0].GetNames()[0])
 }
 
 func TestDeleteCrownJewel(t *testing.T) {
@@ -108,19 +108,19 @@ func TestDeleteCrownJewel(t *testing.T) {
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
 	ctx := context.Background()
-	_, err := authClient.CrownJewelServiceClient().CreateCrownJewel(ctx, &crownjewelv1.CrownJewel{
-		Metadata: &headerv1.Metadata{
+	_, err := authClient.CrownJewelServiceClient().CreateCrownJewel(ctx, crownjewelv1.CrownJewel_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: "test",
-		},
-		Spec: &crownjewelv1.CrownJewelSpec{
+		}.Build(),
+		Spec: crownjewelv1.CrownJewelSpec_builder{
 			TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-				{
+				crownjewelv1.TeleportMatcher_builder{
 					Kinds: []string{"node"},
 					Names: []string{"test"},
-				},
+				}.Build(),
 			},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	const crownJewelName = "test"
@@ -229,19 +229,19 @@ func verifyCrownJewelsRange(t *testing.T, ctx context.Context, webPack *authWebP
 }
 
 func createCrownJewel(t *testing.T, ctx context.Context, authClient authclient.ClientI, number int) {
-	_, err := authClient.CrownJewelServiceClient().CreateCrownJewel(ctx, &crownjewelv1.CrownJewel{
-		Metadata: &headerv1.Metadata{
+	_, err := authClient.CrownJewelServiceClient().CreateCrownJewel(ctx, crownjewelv1.CrownJewel_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: fmt.Sprintf("test-%d", number),
-		},
-		Spec: &crownjewelv1.CrownJewelSpec{
+		}.Build(),
+		Spec: crownjewelv1.CrownJewelSpec_builder{
 			Query: "SELECT * FROM nodes",
 			TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-				{
+				crownjewelv1.TeleportMatcher_builder{
 					Kinds: []string{"node"},
 					Names: []string{"test"},
-				},
+				}.Build(),
 			},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 }

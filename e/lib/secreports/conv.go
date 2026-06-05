@@ -10,16 +10,16 @@ import (
 func toProtoTableSchemaDetails(in []*eventschema.TableSchemaDetails) []*pb.GetSchemaResponse_ViewDesc {
 	out := make([]*pb.GetSchemaResponse_ViewDesc, 0, len(in))
 	for _, v := range in {
-		view := &pb.GetSchemaResponse_ViewDesc{
+		view := pb.GetSchemaResponse_ViewDesc_builder{
 			Name: v.SQLViewName,
 			Desc: v.Description,
-		}
+		}.Build()
 		for _, c := range v.Columns {
-			view.Columns = append(view.Columns, &pb.GetSchemaResponse_ViewDesc_ColumnDesc{
+			view.SetColumns(append(view.GetColumns(), pb.GetSchemaResponse_ViewDesc_ColumnDesc_builder{
 				Name: c.NameSQL(),
 				Type: c.Type,
 				Desc: c.Description,
-			})
+			}.Build()))
 		}
 		out = append(out, view)
 	}

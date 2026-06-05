@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -37,10 +38,10 @@ func TestCreateBeam(t *testing.T) {
 	})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	resp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	resp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress:         beamsv1pb.EgressMode_EGRESS_MODE_RESTRICTED,
 		AllowedDomains: []string{"example.com."},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	beam := resp.GetBeam()
@@ -52,19 +53,19 @@ func TestCreateBeam(t *testing.T) {
 		types.BeamAliasLabel: "steady-river",
 	}
 
-	expectedBeam := &beamsv1pb.Beam{
+	expectedBeam := beamsv1pb.Beam_builder{
 		Kind:    types.KindBeam,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:   beam.GetMetadata().GetName(),
 			Labels: expectedLabels,
-		},
-		Spec: &beamsv1pb.BeamSpec{
+		}.Build(),
+		Spec: beamsv1pb.BeamSpec_builder{
 			Egress:         beamsv1pb.EgressMode_EGRESS_MODE_RESTRICTED,
 			AllowedDomains: []string{"example.com."},
 			Expires:        beam.GetSpec().GetExpires(),
-		},
-		Status: &beamsv1pb.BeamStatus{
+		}.Build(),
+		Status: beamsv1pb.BeamStatus_builder{
 			User:                 "alice",
 			Alias:                "steady-river",
 			BotName:              beamResourceName(beam),
@@ -76,8 +77,8 @@ func TestCreateBeam(t *testing.T) {
 			AppAddrHttp:          "127.0.0.1:8080",
 			AppAddrTcp:           "127.0.0.1:10080",
 			NodeId:               beam.GetStatus().GetNodeId(),
-		},
-	}
+		}.Build(),
+	}.Build()
 	require.Empty(t, cmp.Diff(
 		expectedBeam,
 		beam,
@@ -143,25 +144,25 @@ func TestCreateBeam(t *testing.T) {
 	workloadIdentity, err := pack.workloadIdentity.GetWorkloadIdentity(t.Context(), beam.GetStatus().GetWorkloadIdentityName())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(
-		&workloadidentityv1pb.WorkloadIdentity{
+		workloadidentityv1pb.WorkloadIdentity_builder{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name:    beam.GetStatus().GetWorkloadIdentityName(),
 				Labels:  expectedLabels,
 				Expires: beam.GetSpec().GetExpires(),
-			},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Rules: &workloadidentityv1pb.WorkloadIdentityRules{
+			}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Rules: workloadidentityv1pb.WorkloadIdentityRules_builder{
 					Allow: []*workloadidentityv1pb.WorkloadIdentityRule{
-						{Expression: `user.bot_name == "` + beam.GetStatus().GetBotName() + `"`},
+						workloadidentityv1pb.WorkloadIdentityRule_builder{Expression: `user.bot_name == "` + beam.GetStatus().GetBotName() + `"`}.Build(),
 					},
-				},
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+				}.Build(),
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
 					Id: "/_teleport-cloud/beams/" + beam.GetMetadata().GetName(),
-				},
-			},
-		},
+				}.Build(),
+			}.Build(),
+		}.Build(),
 		workloadIdentity,
 		protocmp.Transform(),
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
@@ -170,29 +171,27 @@ func TestCreateBeam(t *testing.T) {
 	delegationSession, err := pack.delegationSession.GetDelegationSession(t.Context(), beam.GetStatus().GetDelegationSessionId())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(
-		&delegationv1.DelegationSession{
+		delegationv1.DelegationSession_builder{
 			Kind:    types.KindDelegationSession,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name:    beam.GetStatus().GetDelegationSessionId(),
 				Labels:  expectedLabels,
 				Expires: beam.GetSpec().GetExpires(),
-			},
-			Spec: &delegationv1.DelegationSessionSpec{
+			}.Build(),
+			Spec: delegationv1.DelegationSessionSpec_builder{
 				User: "alice",
 				Resources: []*delegationv1.DelegationResourceSpec{
-					{Kind: types.Wildcard, Name: types.Wildcard},
+					delegationv1.DelegationResourceSpec_builder{Kind: types.Wildcard, Name: types.Wildcard}.Build(),
 				},
 				AuthorizedUsers: []*delegationv1.DelegationUserSpec{
-					{
-						Kind: types.KindBot,
-						Matcher: &delegationv1.DelegationUserSpec_BotName{
-							BotName: beam.GetStatus().GetBotName(),
-						},
-					},
+					delegationv1.DelegationUserSpec_builder{
+						Kind:    types.KindBot,
+						BotName: proto.String(beam.GetStatus().GetBotName()),
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 		delegationSession,
 		protocmp.Transform(),
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
@@ -214,17 +213,17 @@ func TestCreateBeamRetriesAliasCollision(t *testing.T) {
 	})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	firstResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	firstResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress:         beamsv1pb.EgressMode_EGRESS_MODE_RESTRICTED,
 		AllowedDomains: []string{"example.com."},
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "steady-river", firstResp.GetBeam().GetStatus().GetAlias())
 
-	resp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	resp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress:         beamsv1pb.EgressMode_EGRESS_MODE_RESTRICTED,
 		AllowedDomains: []string{"example.com."},
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "brisk-otter", resp.GetBeam().GetStatus().GetAlias())
 
@@ -253,10 +252,10 @@ func TestCreateBeamProvisionFailureCleansUp(t *testing.T) {
 	})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	_, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	_, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress:         beamsv1pb.EgressMode_EGRESS_MODE_RESTRICTED,
 		AllowedDomains: []string{"example.com."},
-	})
+	}.Build())
 	require.ErrorContains(t, err, "failed to provision beam compute")
 	require.Len(t, computeClient.getProvisionRequests(), 1)
 	require.Len(t, computeClient.getDestroyRequests(), 1)
@@ -287,9 +286,9 @@ func TestCreateBeamProvisionResourceExhaustedReturnsLimitExceeded(t *testing.T) 
 	})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	_, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	_, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.True(t, trace.IsLimitExceeded(err), "expected limit exceeded error, got %v", err)
 	require.ErrorContains(t, err, "limit exceeded; please try again later")
 	require.Empty(t, computeClient.getDestroyRequests())
@@ -312,9 +311,9 @@ func TestCreateBeamProvisionFailureDestroyNotFoundCleansUp(t *testing.T) {
 	})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	_, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	_, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.ErrorContains(t, err, "failed to provision beam compute")
 	require.Len(t, computeClient.getDestroyRequests(), 1)
 
@@ -336,9 +335,9 @@ func TestCreateBeamProvisionFailureDestroyFailureLeavesBeam(t *testing.T) {
 	})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	_, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	_, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.ErrorContains(t, err, "failed to provision beam compute")
 	require.Len(t, computeClient.getDestroyRequests(), 1)
 

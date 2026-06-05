@@ -111,7 +111,7 @@ func TestProcessSAMLIdPRequest(t *testing.T) {
 	// Used to validate successful assertion responses.
 	validateResp := func(t *testing.T, resp *samlidppb.ProcessSAMLIdPRequestResponse) {
 		respDoc := etree.NewDocument()
-		require.NoError(t, respDoc.ReadFromBytes(resp.Response))
+		require.NoError(t, respDoc.ReadFromBytes(resp.GetResponse()))
 
 		cas, err := env.SamlIDPService.client.GetCertAuthorities(ctx, types.SAMLIDPCA, false)
 		require.NoError(t, err)
@@ -137,7 +137,7 @@ func TestProcessSAMLIdPRequest(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	req := &samlidppb.ProcessSAMLIdPRequestRequest{
+	req := samlidppb.ProcessSAMLIdPRequestRequest_builder{
 		Assertion:                    assertionBytes,
 		Destination:                  "http://destination",
 		RequestId:                    "request-id",
@@ -145,7 +145,7 @@ func TestProcessSAMLIdPRequest(t *testing.T) {
 		MetadataUrl:                  "https://metadata",
 		SignatureMethod:              dsig.RSASHA256SignatureMethod,
 		ServiceProviderSsoDescriptor: ssoDescriptorBytes,
-	}
+	}.Build()
 
 	// Admin shouldn't have access
 	_, err = env.SamlIDPService.ProcessSAMLIdPRequest(withRole(ctx, types.RoleAdmin), req)
@@ -157,24 +157,24 @@ func TestProcessSAMLIdPRequest(t *testing.T) {
 	validateResp(t, resp)
 
 	// If an invalid MFA response is provided, it should fail.
-	req.MfaResponse = &proto.MFAAuthenticateResponse{
+	req.SetMfaResponse(&proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_TOTP{
 			TOTP: &proto.TOTPResponse{
 				Code: "invalid",
 			},
 		},
-	}
+	})
 	_, err = env.SamlIDPService.ProcessSAMLIdPRequest(withRole(ctx, types.RoleProxy), req)
 	require.True(t, trace.IsAccessDenied(err))
 
 	// If a valid MFA response is provided, it should succeed.
-	req.MfaResponse = &proto.MFAAuthenticateResponse{
+	req.SetMfaResponse(&proto.MFAAuthenticateResponse{
 		Response: &proto.MFAAuthenticateResponse_TOTP{
 			TOTP: &proto.TOTPResponse{
 				Code: validTOTPCode,
 			},
 		},
-	}
+	})
 	resp, err = env.SamlIDPService.ProcessSAMLIdPRequest(withRole(ctx, types.RoleProxy), req)
 	require.NoError(t, err)
 	validateResp(t, resp)
@@ -188,7 +188,7 @@ func TestAttributeMappingCommand(t *testing.T) {
 	env := newTEnv(t, clock)
 	setupUsers(t, env)
 
-	req := &samlidppb.TestSAMLIdPAttributeMappingRequest{
+	req := samlidppb.TestSAMLIdPAttributeMappingRequest_builder{
 		ServiceProvider: &types.SAMLIdPServiceProviderV1{
 			ResourceHeader: types.ResourceHeader{
 				Metadata: types.Metadata{
@@ -224,11 +224,11 @@ func TestAttributeMappingCommand(t *testing.T) {
 				},
 			},
 		},
-	}
+	}.Build()
 
-	expectedResp := &samlidppb.TestSAMLIdPAttributeMappingResponse{
+	expectedResp := samlidppb.TestSAMLIdPAttributeMappingResponse_builder{
 		MappedAttributes: []*samlidppb.MappedAttribute{
-			{
+			samlidppb.MappedAttribute_builder{
 				Username: "testuser",
 				MappedValues: map[string]*wrappers.StringValues{
 					"username": {
@@ -238,9 +238,9 @@ func TestAttributeMappingCommand(t *testing.T) {
 						Values: []string{"FIRST"},
 					},
 				},
-			},
+			}.Build(),
 		},
-	}
+	}.Build()
 
 	userWithListVerbContext := getUserContext(ctx, "userWithListVerb", []string{"samllist"})
 	_, err := env.SamlIDPService.TestSAMLIdPAttributeMapping(userWithListVerbContext, req)

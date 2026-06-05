@@ -50,17 +50,15 @@ func (s *inventorySyncer) SyncInventory(stream devicepb.DeviceTrustService_SyncI
 	}
 
 	// start: Validate source.
-	source := startReq.Source
+	source := startReq.GetSource()
 	if err := storage.ValidateDeviceSource(source); err != nil {
 		return trace.Wrap(err, "start: source")
 	}
 
 	// start: Ack.
-	if err := stream.Send(&devicepb.SyncInventoryResponse{
-		Payload: &devicepb.SyncInventoryResponse_Ack{
-			Ack: &devicepb.SyncInventoryAck{},
-		},
-	}); err != nil {
+	if err := stream.Send(devicepb.SyncInventoryResponse_builder{
+		Ack: &devicepb.SyncInventoryAck{},
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -68,7 +66,7 @@ func (s *inventorySyncer) SyncInventory(stream devicepb.DeviceTrustService_SyncI
 
 	// allowedOSTypes is the set of OS types this sync covers. An empty OsTypes
 	// falls back to the "computer" OS types only for backwards compatibility.
-	osTypes := startReq.OsTypes
+	osTypes := startReq.GetOsTypes()
 	if len(osTypes) == 0 {
 		osTypes = []devicepb.OSType{
 			devicepb.OSType_OS_TYPE_MACOS,
@@ -88,18 +86,18 @@ func (s *inventorySyncer) SyncInventory(stream devicepb.DeviceTrustService_SyncI
 	}
 	seenDevices := make(map[deviceKey]struct{})
 	updateSeen := func(devs []*devicepb.Device) {
-		if !startReq.TrackMissingDevices {
+		if !startReq.GetTrackMissingDevices() {
 			return
 		}
 
 		for _, dev := range devs {
-			if dev == nil || dev.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED || dev.AssetTag == "" {
+			if dev == nil || dev.GetOsType() == devicepb.OSType_OS_TYPE_UNSPECIFIED || dev.GetAssetTag() == "" {
 				continue
 			}
 
 			seenDevices[deviceKey{
-				osType:   dev.OsType,
-				assetTag: dev.AssetTag,
+				osType:   dev.GetOsType(),
+				assetTag: dev.GetAssetTag(),
 			}] = struct{}{}
 		}
 	}
@@ -114,34 +112,32 @@ Devices:
 
 		var statuses []*devicepb.DeviceOrStatus
 		var err error
-		switch req := req.Payload.(type) {
-		case *devicepb.SyncInventoryRequest_End:
+		switch req.WhichPayload() {
+		case devicepb.SyncInventoryRequest_End_case:
 			break Devices
-		case *devicepb.SyncInventoryRequest_DevicesToUpsert:
-			devs := req.DevicesToUpsert.GetDevices()
+		case devicepb.SyncInventoryRequest_DevicesToUpsert_case:
+			devs := req.GetDevicesToUpsert().GetDevices()
 			statuses, err = s.upsertDevices(ctx, source, devs, allowedOSTypes)
 			// err handled below.
 
 			// Mark all devices as seen, regardless of outcome.
 			// We don't want an Update failure to cause a device to be deleted.
 			updateSeen(devs)
-		case *devicepb.SyncInventoryRequest_DevicesToRemove:
-			statuses, err = s.deleteDevices(ctx, source, req.DevicesToRemove.GetDevices(), allowedOSTypes)
+		case devicepb.SyncInventoryRequest_DevicesToRemove_case:
+			statuses, err = s.deleteDevices(ctx, source, req.GetDevicesToRemove().GetDevices(), allowedOSTypes)
 			// err handled below.
 		default:
-			return trace.BadParameter("unexpected payload type %T during devices phase", req)
+			return trace.BadParameter("unexpected payload type %v during devices phase", req)
 		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
-		if err := stream.Send(&devicepb.SyncInventoryResponse{
-			Payload: &devicepb.SyncInventoryResponse_Result{
-				Result: &devicepb.SyncInventoryResult{
-					Devices: statuses,
-				},
-			},
-		}); err != nil {
+		if err := stream.Send(devicepb.SyncInventoryResponse_builder{
+			Result: devicepb.SyncInventoryResult_builder{
+				Devices: statuses,
+			}.Build(),
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -168,19 +164,19 @@ Devices:
 
 		for _, dev := range devs {
 			// Is the device managed by the source?
-			if !sourcesMatch(dev.Source, source) {
+			if !sourcesMatch(dev.GetSource(), source) {
 				continue
 			}
 
 			// Is the device's OsType in the sync's declared set?
-			if _, ok := allowedOSTypes[dev.OsType]; !ok {
+			if _, ok := allowedOSTypes[dev.GetOsType()]; !ok {
 				continue
 			}
 
 			// Did we see the device previously in the sync?
 			key := deviceKey{
-				osType:   dev.OsType,
-				assetTag: dev.AssetTag,
+				osType:   dev.GetOsType(),
+				assetTag: dev.GetAssetTag(),
 			}
 			if _, seen := seenDevices[key]; seen {
 				continue
@@ -189,14 +185,14 @@ Devices:
 			// Record missing device.
 			// Control which fields are sent, so we have leeway to change the
 			// implementation.
-			missingDevs = append(missingDevs, &devicepb.Device{
-				Id:       dev.Id,
-				OsType:   dev.OsType,
-				AssetTag: dev.AssetTag,
-				Profile: &devicepb.DeviceProfile{
-					ExternalId: dev.Profile.GetExternalId(),
-				},
-			})
+			missingDevs = append(missingDevs, devicepb.Device_builder{
+				Id:       dev.GetId(),
+				OsType:   dev.GetOsType(),
+				AssetTag: dev.GetAssetTag(),
+				Profile: devicepb.DeviceProfile_builder{
+					ExternalId: dev.GetProfile().GetExternalId(),
+				}.Build(),
+			}.Build())
 
 			if len(missingDevs) >= missingDevicesBatchSize {
 				if err := s.handleMissingDevices(ctx, stream, source, missingDevs, allowedOSTypes); err != nil {
@@ -242,22 +238,22 @@ func (s *inventorySyncer) upsertDevices(
 	}
 
 	for i, dev := range devs {
-		if err := validateOSType(allowedOSTypes, dev.OsType); err != nil {
-			setStatus(i, &devicepb.DeviceOrStatus{Status: errToStatus(err)})
+		if err := validateOSType(allowedOSTypes, dev.GetOsType()); err != nil {
+			setStatus(i, devicepb.DeviceOrStatus_builder{Status: errToStatus(err)}.Build())
 			continue
 		}
 
 		// Avoid querying clearly-invalid devices.
 		const createAsResource = false
 		if err := storage.ValidateDeviceForCreate(dev, createAsResource); err != nil {
-			setStatus(i, &devicepb.DeviceOrStatus{
+			setStatus(i, devicepb.DeviceOrStatus_builder{
 				Status: errToStatus(err),
-			})
+			}.Build())
 			continue
 		}
 
 		// Synced devices always use the "global" source.
-		dev.Source = source
+		dev.SetSource(source)
 
 		i := i
 		dev := dev
@@ -265,7 +261,7 @@ func (s *inventorySyncer) upsertDevices(
 			// Find if the device exists.
 			// A non-empty ID is not a guarantee that the device exists, as indexes
 			// can have leftover data, but it's a strong sign that it does.
-			deviceID, err := s.storage.GetDeviceIDByOSTag(ctx, dev.OsType, dev.AssetTag, false /* verifyExistence */)
+			deviceID, err := s.storage.GetDeviceIDByOSTag(ctx, dev.GetOsType(), dev.GetAssetTag(), false /* verifyExistence */)
 			// err handled below.
 
 			// Attempt Update first.
@@ -273,18 +269,18 @@ func (s *inventorySyncer) upsertDevices(
 			if err == nil {
 				var prevUpdateTime *timestamppb.Timestamp
 				stored, err = s.storage.UpdateDevice(ctx, deviceID, func(stored *devicepb.Device) *devicepb.Device {
-					prevUpdateTime = stored.UpdateTime
+					prevUpdateTime = stored.GetUpdateTime()
 
 					// Copy system-managed fields and fields that sync can't, by
 					// definition, change.
 					// Everything else we take from the sync device.
-					dev.ApiVersion = stored.ApiVersion
-					dev.Id = stored.Id
-					dev.CreateTime = stored.CreateTime
-					dev.UpdateTime = stored.UpdateTime
-					dev.EnrollStatus = stored.EnrollStatus
-					dev.Credential = stored.Credential
-					dev.Owner = stored.Owner
+					dev.SetApiVersion(stored.GetApiVersion())
+					dev.SetId(stored.GetId())
+					dev.SetCreateTime(stored.GetCreateTime())
+					dev.SetUpdateTime(stored.GetUpdateTime())
+					dev.SetEnrollStatus(stored.GetEnrollStatus())
+					dev.SetCredential(stored.GetCredential())
+					dev.SetOwner(stored.GetOwner())
 					return dev
 				})
 				// err handled below
@@ -305,10 +301,10 @@ func (s *inventorySyncer) upsertDevices(
 				// err handled below.
 			}
 
-			setStatus(i, &devicepb.DeviceOrStatus{
+			setStatus(i, devicepb.DeviceOrStatus_builder{
 				Status: errToStatus(err),
 				Id:     stored.GetId(), // only present on success.
-			})
+			}.Build())
 
 			return nil
 		})
@@ -330,43 +326,43 @@ func (s *inventorySyncer) deleteDevices(
 		st := &devicepb.DeviceOrStatus{}
 		statuses[i] = st
 
-		if err := validateOSType(allowedOSTypes, dev.OsType); err != nil {
-			st.Status = errToStatus(err)
+		if err := validateOSType(allowedOSTypes, dev.GetOsType()); err != nil {
+			st.SetStatus(errToStatus(err))
 			continue
 		}
 
 		// Either Id or (OsType,AssetTag) must be present for the device to be
 		// identified.
-		hasID := dev.Id != ""
-		hasOSTag := dev.OsType != devicepb.OSType_OS_TYPE_UNSPECIFIED && dev.AssetTag != ""
+		hasID := dev.GetId() != ""
+		hasOSTag := dev.GetOsType() != devicepb.OSType_OS_TYPE_UNSPECIFIED && dev.GetAssetTag() != ""
 		if !hasID && !hasOSTag {
-			st.Status = &spb.Status{
+			st.SetStatus(&spb.Status{
 				Code:    int32(codes.InvalidArgument),
 				Message: "device has no identifiers (id or os_type+asset_tag)",
-			}
+			})
 			continue
 		}
 
 		// Query device ID?
 		// Assign the queried ID to the device itself, it's useful for audit below.
-		if dev.Id == "" {
+		if dev.GetId() == "" {
 			var err error
-			dev.Id, err = s.storage.GetDeviceIDByOSTag(ctx, dev.OsType, dev.AssetTag, false /* verifyExistence */)
+			dev.Id, err = s.storage.GetDeviceIDByOSTag(ctx, dev.GetOsType(), dev.GetAssetTag(), false /* verifyExistence */)
 			if err != nil {
-				st.Status = errToStatus(err)
+				st.SetStatus(errToStatus(err))
 				continue
 			}
 		}
 
 		// Delete.
-		err := s.storage.DeleteDevicePredicate(ctx, dev.Id, func(stored *devicepb.Device) error {
+		err := s.storage.DeleteDevicePredicate(ctx, dev.GetId(), func(stored *devicepb.Device) error {
 			switch {
 			// If multiple identifiers are provided, make sure all of them match.
-			case dev.AssetTag != "" && dev.AssetTag != stored.AssetTag,
-				dev.OsType != devicepb.OSType_OS_TYPE_UNSPECIFIED && dev.OsType != stored.OsType:
+			case dev.GetAssetTag() != "" && dev.GetAssetTag() != stored.GetAssetTag(),
+				dev.GetOsType() != devicepb.OSType_OS_TYPE_UNSPECIFIED && dev.GetOsType() != stored.GetOsType():
 				return trace.BadParameter("device identifiers don't match the same device (id vs os_type+asset_tag)")
 			// Source must match.
-			case !sourcesMatch(stored.Source, source):
+			case !sourcesMatch(stored.GetSource(), source):
 				return trace.BadParameter("device is owned by another source")
 			default:
 				return nil
@@ -374,10 +370,10 @@ func (s *inventorySyncer) deleteDevices(
 		})
 		s.deleteCallback(source, dev, err)
 		if err == nil {
-			st.Id = dev.Id
-			st.Deleted = true
+			st.SetId(dev.GetId())
+			st.SetDeleted(true)
 		} else {
-			st.Status = errToStatus(err)
+			st.SetStatus(errToStatus(err))
 		}
 	}
 	return statuses, nil
@@ -397,13 +393,11 @@ func (s *inventorySyncer) handleMissingDevices(
 	}
 
 	// Notify missing devices.
-	if err := stream.Send(&devicepb.SyncInventoryResponse{
-		Payload: &devicepb.SyncInventoryResponse_MissingDevices{
-			MissingDevices: &devicepb.SyncInventoryMissingDevices{
-				Devices: missingDevs,
-			},
-		},
-	}); err != nil {
+	if err := stream.Send(devicepb.SyncInventoryResponse_builder{
+		MissingDevices: devicepb.SyncInventoryMissingDevices_builder{
+			Devices: missingDevs,
+		}.Build(),
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -424,12 +418,12 @@ func (s *inventorySyncer) handleMissingDevices(
 	// In principle we don't want this step to be used for arbitrary deletions.
 	missingDevIDs := make(map[string]struct{})
 	for _, missing := range missingDevs {
-		missingDevIDs[missing.Id] = struct{}{}
+		missingDevIDs[missing.GetId()] = struct{}{}
 	}
 	devicesToRemove := removeReq.GetDevices()
 	for _, dev := range devicesToRemove {
-		_, ok := missingDevIDs[dev.Id]
-		if dev.Id == "" || !ok {
+		_, ok := missingDevIDs[dev.GetId()]
+		if dev.GetId() == "" || !ok {
 			// We could fail this particular device, instead of failing the entire
 			// stream, but this is likely a programming error and failing the stream
 			// will make that much clearer.
@@ -443,13 +437,11 @@ func (s *inventorySyncer) handleMissingDevices(
 	}
 
 	// Report deletion results.
-	return trace.Wrap(stream.Send(&devicepb.SyncInventoryResponse{
-		Payload: &devicepb.SyncInventoryResponse_Result{
-			Result: &devicepb.SyncInventoryResult{
-				Devices: statuses,
-			},
-		},
-	}))
+	return trace.Wrap(stream.Send(devicepb.SyncInventoryResponse_builder{
+		Result: devicepb.SyncInventoryResult_builder{
+			Devices: statuses,
+		}.Build(),
+	}.Build()))
 }
 
 func errToStatus(err error) *spb.Status {
@@ -474,5 +466,5 @@ func sourcesMatch(s1, s2 *devicepb.DeviceSource) bool {
 	if s1 == nil || s2 == nil {
 		return s1 == s2
 	}
-	return s1.Name == s2.Name && s1.Origin == s2.Origin
+	return s1.GetName() == s2.GetName() && s1.GetOrigin() == s2.GetOrigin()
 }

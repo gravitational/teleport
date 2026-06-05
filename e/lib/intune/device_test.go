@@ -146,16 +146,16 @@ func TestManagedDeviceToDevice(t *testing.T) {
 				OSVersion:               "15.5 (24F74)",
 			},
 			check: func(t *testing.T, md *msgraph.ManagedDevice, d *devicepb.Device) {
-				want := &devicepb.Device{
+				want := devicepb.Device_builder{
 					AssetTag: md.SerialNumber,
 					OsType:   devicepb.OSType_OS_TYPE_MACOS,
-					Profile: &devicepb.DeviceProfile{
+					Profile: devicepb.DeviceProfile_builder{
 						ExternalId:      md.ID,
 						OsVersion:       "15.5",
 						OsBuild:         "24F74",
 						ModelIdentifier: "",
-					},
-				}
+					}.Build(),
+				}.Build()
 				require.Equal(t, want, d)
 			},
 		},
@@ -171,16 +171,16 @@ func TestManagedDeviceToDevice(t *testing.T) {
 				OSVersion:               "26.3.1",
 			},
 			check: func(t *testing.T, md *msgraph.ManagedDevice, d *devicepb.Device) {
-				want := &devicepb.Device{
+				want := devicepb.Device_builder{
 					AssetTag: md.SerialNumber,
 					OsType:   devicepb.OSType_OS_TYPE_IOS,
-					Profile: &devicepb.DeviceProfile{
+					Profile: devicepb.DeviceProfile_builder{
 						ExternalId:      md.ID,
 						OsVersion:       "26.3.1",
 						OsBuild:         "",
 						ModelIdentifier: "",
-					},
-				}
+					}.Build(),
+				}.Build()
 				require.Equal(t, want, d)
 			},
 		},
@@ -196,16 +196,16 @@ func TestManagedDeviceToDevice(t *testing.T) {
 				OSVersion:               "18.6",
 			},
 			check: func(t *testing.T, md *msgraph.ManagedDevice, d *devicepb.Device) {
-				want := &devicepb.Device{
+				want := devicepb.Device_builder{
 					AssetTag: md.SerialNumber,
 					OsType:   devicepb.OSType_OS_TYPE_IPADOS,
-					Profile: &devicepb.DeviceProfile{
+					Profile: devicepb.DeviceProfile_builder{
 						ExternalId:      md.ID,
 						OsVersion:       "18.6",
 						OsBuild:         "",
 						ModelIdentifier: "",
-					},
-				}
+					}.Build(),
+				}.Build()
 				require.Equal(t, want, d)
 			},
 		},

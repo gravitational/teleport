@@ -56,8 +56,8 @@ func TestDevicesFormat(t *testing.T) {
 	buf, err := runDevicesCommand(t, client, []string{"add", "--os=macos", "--asset-tag=dummy1", "--format", teleport.JSON})
 	require.NoError(t, err)
 	out := mustDecodeJSON[*devicepb.Device](t, buf)
-	require.Equal(t, "dummy1", out.AssetTag)
-	require.Equal(t, devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED, out.EnrollStatus)
+	require.Equal(t, "dummy1", out.GetAssetTag())
+	require.Equal(t, devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED, out.GetEnrollStatus())
 
 	buf, err = runDevicesCommand(t, client, []string{"add", "--os=macos", "--asset-tag=dummy2", "--format", teleport.YAML})
 	require.NoError(t, err)
@@ -65,8 +65,8 @@ func TestDevicesFormat(t *testing.T) {
 	yamlBuf := mustTranscodeYAMLToJSON(t, buf)
 	out = mustDecodeJSON[*devicepb.Device](t, bytes.NewReader(yamlBuf))
 
-	require.Equal(t, "dummy2", out.AssetTag)
-	require.Equal(t, devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED, out.EnrollStatus)
+	require.Equal(t, "dummy2", out.GetAssetTag())
+	require.Equal(t, devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED, out.GetEnrollStatus())
 
 	// test all output formats of "devices ls"
 	buf, err = runDevicesCommand(t, client, []string{"ls", "--format", teleport.JSON})

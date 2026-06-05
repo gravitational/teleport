@@ -78,9 +78,9 @@ func (s *Service) GetGroups(ctx context.Context, req *oktapb.GetGroupsRequest) (
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &oktapb.GetGroupsResponse{
+	return oktapb.GetGroupsResponse_builder{
 		Groups: toGroups(filtered),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) GetApps(ctx context.Context, req *oktapb.GetAppsRequest) (*oktapb.GetAppsResponse, error) {
@@ -95,9 +95,9 @@ func (s *Service) GetApps(ctx context.Context, req *oktapb.GetAppsRequest) (*okt
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &oktapb.GetAppsResponse{
+	return oktapb.GetAppsResponse_builder{
 		Apps: toApps(filtered),
-	}, nil
+	}.Build(), nil
 }
 
 // CreateIntegration creates a new Okta integration. Depending on the request, it may create a new
@@ -165,27 +165,27 @@ func (s *Service) createIntegration(ctx context.Context, req *oktapb.CreateInteg
 		return nil, trace.Wrap(err, "failed to gather all the necessary information for the plugin creation")
 	}
 
-	createPluginRequest := &pluginspb.CreatePluginRequest{
+	createPluginRequest := pluginspb.CreatePluginRequest_builder{
 		Plugin:                oktaPlugin,
 		StaticCredentialsList: creds,
 		CredentialLabels: map[string]string{
 			eteleport.OktaOrgURLLabel: req.GetOktaOrganizationUrl(),
 		},
-	}
+	}.Build()
 
 	if _, err = s.pluginService.CreatePlugin(ctx, createPluginRequest); err != nil {
 		return nil, trace.Wrap(err, "failed to create Okta plugin")
 	}
 
-	return &oktapb.CreateIntegrationResponse{
+	return oktapb.CreateIntegrationResponse_builder{
 		Plugin: oktaPlugin,
-		ConnectorInfo: &oktapb.ConnectorInfo{
+		ConnectorInfo: oktapb.ConnectorInfo_builder{
 			OktaAppId:             connectorInfo.OktaAppID,
 			OktaAppName:           connectorInfo.OktaAppName,
 			OktaAppLabels:         connectorInfo.OktaAppLabel,
 			TeleportConnectorName: connectorInfo.Connector.GetName(),
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 func newOktaPlugin(req *oktapb.CreateIntegrationRequest, connectorInfo *sso.SAMLConnectorInfo, creds []*types.PluginStaticCredentialsV1) (*types.PluginV1, error) {
@@ -293,7 +293,7 @@ func (s *Service) updateIntegration(ctx context.Context, req *oktapb.UpdateInteg
 	if !ok {
 		return nil, trace.BadParameter("plugin is not of type PluginV1")
 	}
-	return &oktapb.UpdateIntegrationResponse{
+	return oktapb.UpdateIntegrationResponse_builder{
 		Plugin: updatedPluginV1,
-	}, nil
+	}.Build(), nil
 }

@@ -70,10 +70,10 @@ func (l *GroupLister) ListResources(ctx context.Context, req *scimpb.ListSCIMRes
 			scimGroupResults = append(scimGroupResults, resource)
 		}
 	}
-	return &scimpb.ResourceList{
+	return scimpb.ResourceList_builder{
 		TotalResults: int32(currentIndex),
 		StartIndex:   int32(startIndex),
 		ItemsPerPage: int32(len(scimGroupResults)),
 		Resources:    scimGroupResults,
-	}, nil
+	}.Build(), nil
 }

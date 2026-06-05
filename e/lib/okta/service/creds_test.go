@@ -34,10 +34,10 @@ func Test_createOktaClient_orgUrl(t *testing.T) {
 	)
 	oktatest.UpsertPluginStaticCredentials(t, svc.credsBackend, staticCreds)
 
-	req := &oktav1.GetAppsRequest{
+	req := oktav1.GetAppsRequest_builder{
 		ApiCredentials:      nil,             // no API credentials
 		OktaOrganizationUrl: maliciousOrgUrl, // but malicious org URL trying to intercept the credentials from the plugin
-	}
+	}.Build()
 	client, err := svc.createOktaClient(ctx, req, nil)
 	require.NoError(t, err)
 	require.NotEqual(t, maliciousOrgUrl, client.GetOrgUrl())

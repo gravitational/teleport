@@ -24,7 +24,7 @@ type accountAssignmentMap map[services.IdentityCenterAccountAssignmentID]*identi
 // ID from an Account Assignment record, as fetching it directly is tediously
 // verbose.
 func getAccountAssignmentID(asmt *identitycenterv1.AccountAssignment) services.IdentityCenterAccountAssignmentID {
-	return services.IdentityCenterAccountAssignmentID(asmt.Metadata.Name)
+	return services.IdentityCenterAccountAssignmentID(asmt.GetMetadata().GetName())
 }
 
 // loadAccountAssignmentResources loads all of the Account Assignment records
@@ -46,7 +46,7 @@ func (svc *Service) reconcileAccountAssignments(ctx context.Context, oldAssignme
 
 	for k, old := range oldAssignments {
 		if new, present := newAssignments[k]; present {
-			new.Metadata.Revision = old.Metadata.Revision
+			new.GetMetadata().SetRevision(old.GetMetadata().GetRevision())
 		}
 	}
 
@@ -100,28 +100,28 @@ func (svc *Service) reconcileAccountAssignments(ctx context.Context, oldAssignme
 }
 
 func newAccountAssignment(acct *identitycenterv1.Account, ps *identitycenterv1.PermissionSetInfo) *identitycenterv1.AccountAssignment {
-	return &identitycenterv1.AccountAssignment{
+	return identitycenterv1.AccountAssignment_builder{
 		Kind:    types.KindIdentityCenterAccountAssignment,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: normalizeResourceName(fmt.Sprintf("%s--%s", acct.GetSpec().GetId(), ps.Name)),
+		Metadata: headerv1.Metadata_builder{
+			Name: normalizeResourceName(fmt.Sprintf("%s--%s", acct.GetSpec().GetId(), ps.GetName())),
 			Labels: map[string]string{
 				types.OriginLabel:         common.OriginAWSIdentityCenter,
 				types.AWSAccountIDLabel:   acct.GetSpec().GetId(),
 				types.AWSAccountNameLabel: acct.GetSpec().GetName(),
 			},
-		},
-		Spec: &identitycenterv1.AccountAssignmentSpec{
-			Display: fmt.Sprintf("%q on %q", ps.Name, acct.Spec.Name),
-			PermissionSet: &identitycenterv1.PermissionSetInfo{
-				Arn:  ps.Arn,
-				Name: ps.Name,
-				Role: ps.Role,
-			},
-			AccountName: acct.Spec.Name,
-			AccountId:   acct.Spec.Id,
-		},
-	}
+		}.Build(),
+		Spec: identitycenterv1.AccountAssignmentSpec_builder{
+			Display: fmt.Sprintf("%q on %q", ps.GetName(), acct.GetSpec().GetName()),
+			PermissionSet: identitycenterv1.PermissionSetInfo_builder{
+				Arn:  ps.GetArn(),
+				Name: ps.GetName(),
+				Role: ps.GetRole(),
+			}.Build(),
+			AccountName: acct.GetSpec().GetName(),
+			AccountId:   acct.GetSpec().GetId(),
+		}.Build(),
+	}.Build()
 }
 
 func compareAccountAssignments(a, b *identitycenterv1.AccountAssignment) int {

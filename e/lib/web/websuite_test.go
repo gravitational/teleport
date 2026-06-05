@@ -699,12 +699,12 @@ func (f *fakeAccessGraphServer) Query(_ context.Context, req *accessgraphv1alpha
 
 func (f *fakeAccessGraphServer) GetFile(_ context.Context, req *accessgraphv1alpha.GetFileRequest) (*accessgraphv1alpha.GetFileResponse, error) {
 	f.fileCounter.Add(1)
-	if strings.TrimLeft(req.Filepath, "/") != "features.json" {
+	if strings.TrimLeft(req.GetFilepath(), "/") != "features.json" {
 		return nil, fmt.Errorf("file not found")
 	}
-	return &accessgraphv1alpha.GetFileResponse{
+	return accessgraphv1alpha.GetFileResponse_builder{
 		Data: []byte(f.features),
-	}, nil
+	}.Build(), nil
 }
 
 type createUserOpts struct {

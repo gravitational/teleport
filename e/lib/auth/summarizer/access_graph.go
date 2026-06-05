@@ -73,20 +73,20 @@ func (s *SessionSummarizer) pushSummaryToAccessGraph(
 
 	var embeddingsToSend []*accessgraphv1.EmbeddingChunk
 	for i, doc := range docs {
-		embeddingsToSend = append(embeddingsToSend, &accessgraphv1.EmbeddingChunk{
+		embeddingsToSend = append(embeddingsToSend, accessgraphv1.EmbeddingChunk_builder{
 			Values:     doc.Embedding,
 			Chunk:      doc.Content,
 			ChunkIndex: uint32(i),
-		})
+		}.Build())
 	}
 
-	req := &accessgraphv1.StoreSessionSummaryRequest{
+	req := accessgraphv1.StoreSessionSummaryRequest_builder{
 		SessionId:       details.sessionID.String(),
 		Kind:            string(details.kind),
 		Embeddings:      embeddingsToSend,
 		SessionEndEvent: details.summary.GetSessionEndEvent(),
 		Severity:        details.summary.GetEnhancedSummary().GetRiskLevel(),
-	}
+	}.Build()
 
 	if err := populateSessionSummaryRequest(req, details.sessionEnd); err != nil {
 		return trace.Wrap(err)
@@ -104,43 +104,39 @@ func populateSessionSummaryRequest(req *accessgraphv1.StoreSessionSummaryRequest
 		if err != nil {
 			return trace.Wrap(err, "failed to convert user traits")
 		}
-		req.Username = o.User
-		req.SessionStart = timestamppb.New(o.StartTime)
-		req.SessionEnd = timestamppb.New(o.EndTime)
-		req.UserRoles = o.UserRoles
-		req.AccessRequestIds = o.AccessRequests
-		req.Participants = o.Participants
-		req.UserTraits = userTraits
+		req.SetUsername(o.User)
+		req.SetSessionStart(timestamppb.New(o.StartTime))
+		req.SetSessionEnd(timestamppb.New(o.EndTime))
+		req.SetUserRoles(o.UserRoles)
+		req.SetAccessRequestIds(o.AccessRequests)
+		req.SetParticipants(o.Participants)
+		req.SetUserTraits(userTraits)
 		if o.Protocol == events.EventProtocolKube {
 			podNamespace, podName := o.KubernetesPodNamespace, o.KubernetesPodName
-			req.ResourceKind = types.KindKubernetesCluster
-			req.ResourceName = o.KubernetesCluster
-			req.ResourceId = o.KubernetesCluster
-			req.HostId = o.ServerID
-			req.ResourceLabels = o.KubernetesLabels
-			req.ResourceProperties = &accessgraphv1.ResourceProperties{
-				Type: &accessgraphv1.ResourceProperties_Kubernetes{
-					Kubernetes: &accessgraphv1.KubernetesProperties{
-						PodNamespace: &podNamespace,
-						PodName:      &podName,
-					},
-				},
-			}
+			req.SetResourceKind(types.KindKubernetesCluster)
+			req.SetResourceName(o.KubernetesCluster)
+			req.SetResourceId(o.KubernetesCluster)
+			req.SetHostId(o.ServerID)
+			req.SetResourceLabels(o.KubernetesLabels)
+			req.SetResourceProperties(accessgraphv1.ResourceProperties_builder{
+				Kubernetes: accessgraphv1.KubernetesProperties_builder{
+					PodNamespace: &podNamespace,
+					PodName:      &podName,
+				}.Build(),
+			}.Build())
 		} else {
 			hostname, addr := o.ServerHostname, o.ServerAddr
-			req.ResourceKind = types.KindNode
-			req.ResourceName = o.ServerHostname
-			req.ResourceId = o.ServerID
-			req.HostId = o.ServerID
-			req.ResourceLabels = o.ServerLabels
-			req.ResourceProperties = &accessgraphv1.ResourceProperties{
-				Type: &accessgraphv1.ResourceProperties_Ssh{
-					Ssh: &accessgraphv1.SSHProperties{
-						ServerHostname: &hostname,
-						ServerAddr:     &addr,
-					},
-				},
-			}
+			req.SetResourceKind(types.KindNode)
+			req.SetResourceName(o.ServerHostname)
+			req.SetResourceId(o.ServerID)
+			req.SetHostId(o.ServerID)
+			req.SetResourceLabels(o.ServerLabels)
+			req.SetResourceProperties(accessgraphv1.ResourceProperties_builder{
+				Ssh: accessgraphv1.SSHProperties_builder{
+					ServerHostname: &hostname,
+					ServerAddr:     &addr,
+				}.Build(),
+			}.Build())
 		}
 	case *apievents.DatabaseSessionEnd:
 		userTraits, err := traitsToStruct(o.UserMetadata.UserTraits)
@@ -148,25 +144,23 @@ func populateSessionSummaryRequest(req *accessgraphv1.StoreSessionSummaryRequest
 			return trace.Wrap(err, "failed to convert user traits")
 		}
 		dbName := o.DatabaseName
-		req.Username = o.User
-		req.SessionStart = timestamppb.New(o.StartTime)
-		req.SessionEnd = timestamppb.New(o.EndTime)
-		req.UserRoles = o.UserRoles
-		req.AccessRequestIds = o.AccessRequests
-		req.Participants = o.Participants
-		req.UserTraits = userTraits
-		req.ResourceKind = types.KindDatabase
-		req.ResourceName = o.DatabaseName
-		req.ResourceId = o.DatabaseService
-		req.HostId = o.DatabaseService
-		req.ResourceLabels = o.DatabaseLabels
-		req.ResourceProperties = &accessgraphv1.ResourceProperties{
-			Type: &accessgraphv1.ResourceProperties_Database{
-				Database: &accessgraphv1.DatabaseProperties{
-					DatabaseName: &dbName,
-				},
-			},
-		}
+		req.SetUsername(o.User)
+		req.SetSessionStart(timestamppb.New(o.StartTime))
+		req.SetSessionEnd(timestamppb.New(o.EndTime))
+		req.SetUserRoles(o.UserRoles)
+		req.SetAccessRequestIds(o.AccessRequests)
+		req.SetParticipants(o.Participants)
+		req.SetUserTraits(userTraits)
+		req.SetResourceKind(types.KindDatabase)
+		req.SetResourceName(o.DatabaseName)
+		req.SetResourceId(o.DatabaseService)
+		req.SetHostId(o.DatabaseService)
+		req.SetResourceLabels(o.DatabaseLabels)
+		req.SetResourceProperties(accessgraphv1.ResourceProperties_builder{
+			Database: accessgraphv1.DatabaseProperties_builder{
+				DatabaseName: &dbName,
+			}.Build(),
+		}.Build())
 	default:
 		return trace.BadParameter("unsupported session end event type %T", sessionEnd)
 	}
@@ -177,14 +171,14 @@ func (s *SessionSummarizer) newEmbeddingProvider(
 	ctx context.Context,
 	model *summarizerv1pb.RetrievalModel,
 ) (EmbeddingProvider, error) {
-	switch providerCfg := model.Spec.EmbeddingsProvider.(type) {
-	case *summarizerv1pb.RetrievalModelSpec_Openai:
-		secret, err := s.cache.GetInferenceSecret(ctx, providerCfg.Openai.GetApiKeySecretRef())
+	switch model.GetSpec().WhichEmbeddingsProvider() {
+	case summarizerv1pb.RetrievalModelSpec_Openai_case:
+		secret, err := s.cache.GetInferenceSecret(ctx, model.GetSpec().GetOpenai().GetApiKeySecretRef())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		p, err := openai.NewEmbeddingProvider(ctx, openai.EmbeddingProviderConfig{
-			EmbeddingsSpec:    providerCfg.Openai,
+			EmbeddingsSpec:    model.GetSpec().GetOpenai(),
 			SecretSpec:        secret.GetSpec(),
 			ClientFactory:     s.openAIClientFactory,
 			ModelResourceName: model.GetMetadata().GetName(),
@@ -194,9 +188,9 @@ func (s *SessionSummarizer) newEmbeddingProvider(
 		}
 		return p, nil
 
-	case *summarizerv1pb.RetrievalModelSpec_Bedrock:
+	case summarizerv1pb.RetrievalModelSpec_Bedrock_case:
 		p, err := bedrock.NewEmbeddingProvider(ctx, bedrock.EmbeddingProviderConfig{
-			Spec:              providerCfg.Bedrock,
+			Spec:              model.GetSpec().GetBedrock(),
 			ClientFactory:     s.bedrockClientFactory,
 			ModelResourceName: model.GetMetadata().GetName(),
 			AWSConfigCache:    s.awsConfigCache,
@@ -207,7 +201,7 @@ func (s *SessionSummarizer) newEmbeddingProvider(
 		}
 		return p, nil
 	default:
-		return nil, trace.BadParameter("unsupported embedding provider type: %T", model.Spec.EmbeddingsProvider)
+		return nil, trace.BadParameter("unsupported embedding provider type: %v", model.GetSpec().WhichEmbeddingsProvider())
 	}
 }
 

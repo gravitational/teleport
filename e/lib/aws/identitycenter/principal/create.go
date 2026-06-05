@@ -34,23 +34,23 @@ func NewFor(r types.Resource) (*identitycenterv1.PrincipalAssignment, error) {
 		return nil, trace.BadParameter("unsupported resource type %T", r)
 	}
 
-	principalAsssignment := &identitycenterv1.PrincipalAssignment{
+	principalAsssignment := identitycenterv1.PrincipalAssignment_builder{
 		Kind:    types.KindIdentityCenterPrincipalAssignment,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: string(principalID),
 			Labels: map[string]string{
 				types.OriginLabel: common.OriginAWSIdentityCenter,
 			},
-		},
-		Spec: &identitycenterv1.PrincipalAssignmentSpec{
+		}.Build(),
+		Spec: identitycenterv1.PrincipalAssignmentSpec_builder{
 			PrincipalType: principalType,
 			PrincipalId:   r.GetName(),
-		},
-		Status: &identitycenterv1.PrincipalAssignmentStatus{
+		}.Build(),
+		Status: identitycenterv1.PrincipalAssignmentStatus_builder{
 			ProvisioningState: identitycenterv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	return principalAsssignment, nil
 }

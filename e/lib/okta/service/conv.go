@@ -12,10 +12,10 @@ func toGroups(in []*oktaResourceItem) []*oktapb.GetGroupsResponse_Group {
 	}
 	out := make([]*oktapb.GetGroupsResponse_Group, 0, len(in))
 	for _, v := range in {
-		out = append(out, &oktapb.GetGroupsResponse_Group{
+		out = append(out, oktapb.GetGroupsResponse_Group_builder{
 			Name:        v.Name,
 			Description: v.Description,
-		})
+		}.Build())
 	}
 	return out
 }
@@ -26,10 +26,10 @@ func toApps(in []*oktaResourceItem) []*oktapb.GetAppsResponse_App {
 	}
 	out := make([]*oktapb.GetAppsResponse_App, 0, len(in))
 	for _, v := range in {
-		out = append(out, &oktapb.GetAppsResponse_App{
+		out = append(out, oktapb.GetAppsResponse_App_builder{
 			Name:        v.Name,
 			Description: v.Description,
-		})
+		}.Build())
 	}
 	return out
 }

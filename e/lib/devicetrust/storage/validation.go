@@ -46,25 +46,25 @@ func ValidateDeviceCredential(cred *devicepb.DeviceCredential, os devicepb.OSTyp
 	switch {
 	case cred == nil:
 		return nil, trace.BadParameter("device credential required")
-	case cred.Id == "":
+	case cred.GetId() == "":
 		return nil, trace.BadParameter("credential ID required")
-	case len(cred.Id) > maxCredentialIDLength:
+	case len(cred.GetId()) > maxCredentialIDLength:
 		return nil, trace.BadParameter("credential ID exceeds %v characters", maxCredentialIDLength)
-	case os == devicepb.OSType_OS_TYPE_MACOS && len(cred.PublicKeyDer) == 0:
+	case os == devicepb.OSType_OS_TYPE_MACOS && len(cred.GetPublicKeyDer()) == 0:
 		return nil, trace.BadParameter("credential public key required")
-	case isTPM && len(cred.TpmAkPublic) == 0:
+	case isTPM && len(cred.GetTpmAkPublic()) == 0:
 		return nil, trace.BadParameter("credential TPM AK public required")
 	}
 
 	if isTPM {
-		akPub, err := devicetpm.ParseAKPublic(cred.TpmAkPublic)
+		akPub, err := devicetpm.ParseAKPublic(cred.GetTpmAkPublic())
 		if err != nil {
 			return nil, trace.BadParameter("invalid TPM credential public key DER")
 		}
 		return akPub.Public, nil
 	}
 
-	pubKey, err := x509.ParsePKIXPublicKey(cred.PublicKeyDer)
+	pubKey, err := x509.ParsePKIXPublicKey(cred.GetPublicKeyDer())
 	if err != nil {
 		return nil, trace.BadParameter("invalid credential public key DER")
 	}
@@ -84,31 +84,31 @@ func validateCollectedData(cd *devicepb.DeviceCollectedData, createAsResource bo
 	switch {
 	case cd == nil:
 		return trace.BadParameter("device collected data required")
-	case !cd.CollectTime.IsValid():
+	case !cd.GetCollectTime().IsValid():
 		return trace.BadParameter("device collect time missing or invalid")
-	case cd.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED:
+	case cd.GetOsType() == devicepb.OSType_OS_TYPE_UNSPECIFIED:
 		return trace.BadParameter("device data OS type required")
-	case cd.SerialNumber == "":
+	case cd.GetSerialNumber() == "":
 		return trace.BadParameter("device serial number required")
-	case len(cd.SerialNumber) > maxDeviceSerialNumberLength:
+	case len(cd.GetSerialNumber()) > maxDeviceSerialNumberLength:
 		return trace.BadParameter("device serial number exceeds %v characters", maxDeviceSerialNumberLength)
-	case len(cd.OsUsername) > maxDataOSUsernameLength:
+	case len(cd.GetOsUsername()) > maxDataOSUsernameLength:
 		return trace.BadParameter("device OS username exceeds %v characters", maxDataOSUsernameLength)
-	case len(cd.OsLoginUser) > maxDataOSUsernameLength:
+	case len(cd.GetOsLoginUser()) > maxDataOSUsernameLength:
 		return trace.BadParameter("device OS login user exceeds %v characters", maxDataOSUsernameLength)
-	case cd.OsType != devicepb.OSType_OS_TYPE_LINUX &&
-		cd.OsUsername != "" &&
-		cd.OsLoginUser != "" &&
-		cd.OsUsername != cd.OsLoginUser:
+	case cd.GetOsType() != devicepb.OSType_OS_TYPE_LINUX &&
+		cd.GetOsUsername() != "" &&
+		cd.GetOsLoginUser() != "" &&
+		cd.GetOsUsername() != cd.GetOsLoginUser():
 		// OsUsername is wrong on Linux, validate it otherwise.
 		return trace.BadParameter("device OS username and login user mismatch")
 	}
 
-	if err := validateCollectedDataLike(cd.OsType, cd); err != nil {
+	if err := validateCollectedDataLike(cd.GetOsType(), cd); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := validateCollectedDataTPMPlatformAttestation(cd.OsType, cd.TpmPlatformAttestation); err != nil {
+	if err := validateCollectedDataTPMPlatformAttestation(cd.GetOsType(), cd.GetTpmPlatformAttestation()); err != nil {
 		return trace.Wrap(err, "validating tpm_platform_attestation")
 	}
 
@@ -118,7 +118,7 @@ func validateCollectedData(cd *devicepb.DeviceCollectedData, createAsResource bo
 	}
 
 	// All fields must be set if writing collected data from a device resource.
-	if !cd.RecordTime.IsValid() {
+	if !cd.GetRecordTime().IsValid() {
 		return trace.BadParameter("record time missing or invalid")
 	}
 
@@ -133,10 +133,10 @@ func validateCollectedDataTPMPlatformAttestation(osType devicepb.OSType, pa *dev
 	}
 
 	// Validate top level
-	if len(pa.Nonce) == 0 {
+	if len(pa.GetNonce()) == 0 {
 		return trace.BadParameter("nonce required")
 	}
-	if pa.PlatformParameters == nil {
+	if !pa.HasPlatformParameters() {
 		return trace.BadParameter("platform_parameters required")
 	}
 
@@ -144,32 +144,32 @@ func validateCollectedDataTPMPlatformAttestation(osType devicepb.OSType, pa *dev
 	// These are set into the collected data server-side, so there's no need to
 	// parse the EventLog here again.
 	// Linux systems get a pass on having to provide the EventLog.
-	if osType != devicepb.OSType_OS_TYPE_LINUX && len(pa.PlatformParameters.EventLog) == 0 {
+	if osType != devicepb.OSType_OS_TYPE_LINUX && len(pa.GetPlatformParameters().GetEventLog()) == 0 {
 		return trace.BadParameter("platform_parameters.event_log required")
 	}
-	if len(pa.PlatformParameters.Quotes) == 0 {
+	if len(pa.GetPlatformParameters().GetQuotes()) == 0 {
 		return trace.BadParameter("platform_parameters.quotes required")
 	}
-	if len(pa.PlatformParameters.Pcrs) == 0 {
+	if len(pa.GetPlatformParameters().GetPcrs()) == 0 {
 		return trace.BadParameter("platform_parameters.pcrs required")
 	}
 
 	// Validate PlatformParameters.Quotes
-	for i, q := range pa.PlatformParameters.Quotes {
-		if len(q.Signature) == 0 {
+	for i, q := range pa.GetPlatformParameters().GetQuotes() {
+		if len(q.GetSignature()) == 0 {
 			return trace.BadParameter("platform_parameters.quotes[%d].signature required", i)
 		}
-		if len(q.Quote) == 0 {
+		if len(q.GetQuote()) == 0 {
 			return trace.BadParameter("platform_parameters.quotes[%d].quote required", i)
 		}
 	}
 
 	// Validate PlatformParameters.Pcrs
-	for i, p := range pa.PlatformParameters.Pcrs {
-		if len(p.Digest) == 0 {
+	for i, p := range pa.GetPlatformParameters().GetPcrs() {
+		if len(p.GetDigest()) == 0 {
 			return trace.BadParameter("platform_parameters.pcrs[%d].digest required", i)
 		}
-		if p.DigestAlg == 0 {
+		if p.GetDigestAlg() == 0 {
 			return trace.BadParameter("platform_parameters.pcrs[%d].digest_alg must be non-zero", i)
 		}
 	}
@@ -244,21 +244,21 @@ func validateSemver(v string) error {
 // multi-step ceremonies, such as device enrollment and authentication.
 func ValidateCollectedDataAgainstDevice(cd *devicepb.DeviceCollectedData, dev *devicepb.Device) error {
 	switch {
-	case dev.OsType != cd.OsType:
+	case dev.GetOsType() != cd.GetOsType():
 		return NewCollectedDataDriftError(
 			fmt.Sprintf(
 				"collected data OS type mismatch: %v vs %v",
-				dtoss.FriendlyOSType(dev.OsType),
-				dtoss.FriendlyOSType(cd.OsType)))
-	case dev.AssetTag != cd.SerialNumber:
+				dtoss.FriendlyOSType(dev.GetOsType()),
+				dtoss.FriendlyOSType(cd.GetOsType())))
+	case dev.GetAssetTag() != cd.GetSerialNumber():
 		return NewCollectedDataDriftError(
 			fmt.Sprintf(
 				"collected data serial number mismatch: %q vs %q",
-				dev.AssetTag, cd.SerialNumber))
+				dev.GetAssetTag(), cd.GetSerialNumber()))
 	}
 
-	if dev.Profile != nil {
-		if err := validateDeviceProfileDrift(cd, dev.Profile); err != nil {
+	if dev.HasProfile() {
+		if err := validateDeviceProfileDrift(cd, dev.GetProfile()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -268,12 +268,12 @@ func ValidateCollectedDataAgainstDevice(cd *devicepb.DeviceCollectedData, dev *d
 
 func validateDeviceProfileDrift(cd *devicepb.DeviceCollectedData, profile *devicepb.DeviceProfile) error {
 	// OS username.
-	if len(profile.OsUsernames) > 0 {
+	if len(profile.GetOsUsernames()) > 0 {
 		username := getOSLoginUser(cd)
 		switch {
 		case username == "":
 			return NewCollectedDataDriftError("device OS username required by profile")
-		case !slices.Contains(profile.OsUsernames, username):
+		case !slices.Contains(profile.GetOsUsernames(), username):
 			return NewCollectedDataDriftError("device OS username not present in profile")
 		}
 	}
@@ -284,13 +284,13 @@ func validateDeviceProfileDrift(cd *devicepb.DeviceCollectedData, profile *devic
 
 func getOSLoginUser(cd *devicepb.DeviceCollectedData) string {
 	switch {
-	case cd.OsLoginUser != "":
-		return cd.OsLoginUser
-	case cd.OsType == devicepb.OSType_OS_TYPE_LINUX:
+	case cd.GetOsLoginUser() != "":
+		return cd.GetOsLoginUser()
+	case cd.GetOsType() == devicepb.OSType_OS_TYPE_LINUX:
 		// Don't trust OsUsername from Linux, it wrongly reports the display name.
 		return ""
 	default:
-		return cd.OsUsername
+		return cd.GetOsUsername()
 	}
 }
 
@@ -302,22 +302,22 @@ func ValidateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
 	switch {
 	case d == nil:
 		return trace.BadParameter("device required")
-	case d.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED:
+	case d.GetOsType() == devicepb.OSType_OS_TYPE_UNSPECIFIED:
 		return trace.BadParameter("unknown or invalid os_type")
-	case d.AssetTag == "":
+	case d.GetAssetTag() == "":
 		return trace.BadParameter("asset_tag required")
-	case len(d.AssetTag) > maxDeviceAssetTagLength:
+	case len(d.GetAssetTag()) > maxDeviceAssetTagLength:
 		return trace.BadParameter("asset_tag exceeds %v characters", maxDeviceAssetTagLength)
 	}
 
-	if d.Source != nil {
-		if err := ValidateDeviceSource(d.Source); err != nil {
+	if d.HasSource() {
+		if err := ValidateDeviceSource(d.GetSource()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
-	if d.Profile != nil {
-		if err := validateDeviceProfile(d.OsType, d.Profile, createAsResource); err != nil {
+	if d.HasProfile() {
+		if err := validateDeviceProfile(d.GetOsType(), d.GetProfile(), createAsResource); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -329,29 +329,29 @@ func ValidateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
 
 	// Validate "simple" readonly fields.
 	switch {
-	case d.ApiVersion != "" && d.ApiVersion != currentAPIVersion: // Only v1 supported.
-		return trace.BadParameter("invalid or unsupported api_version: %v", d.ApiVersion)
-	case d.CreateTime != nil && d.UpdateTime == nil,
-		d.CreateTime == nil && d.UpdateTime != nil:
+	case d.GetApiVersion() != "" && d.GetApiVersion() != currentAPIVersion: // Only v1 supported.
+		return trace.BadParameter("invalid or unsupported api_version: %v", d.GetApiVersion())
+	case d.HasCreateTime() && !d.HasUpdateTime(),
+		!d.HasCreateTime() && d.HasUpdateTime():
 		return trace.BadParameter("either both or none of create_time and update_time must be set")
-	case d.CreateTime != nil && !d.CreateTime.IsValid():
+	case d.HasCreateTime() && !d.GetCreateTime().IsValid():
 		return trace.BadParameter("invalid create_time")
-	case d.UpdateTime != nil && !d.UpdateTime.IsValid():
+	case d.HasUpdateTime() && !d.GetUpdateTime().IsValid():
 		return trace.BadParameter("invalid update_time")
-	case d.CreateTime != nil && d.UpdateTime != nil && d.CreateTime.AsTime().After(d.UpdateTime.AsTime()):
+	case d.HasCreateTime() && d.HasUpdateTime() && d.GetCreateTime().AsTime().After(d.GetUpdateTime().AsTime()):
 		return trace.BadParameter("create_time cannot be more recent than update_time")
 	}
 
 	// ID.
-	if d.Id != "" {
-		if _, err := uuid.Parse(d.Id); err != nil {
+	if d.GetId() != "" {
+		if _, err := uuid.Parse(d.GetId()); err != nil {
 			return trace.BadParameter("device ID is not an UUID")
 		}
 	}
 
 	// DeviceCredential.
-	if d.Credential != nil {
-		if _, err := ValidateDeviceCredential(d.Credential, d.OsType); err != nil {
+	if d.HasCredential() {
+		if _, err := ValidateDeviceCredential(d.GetCredential(), d.GetOsType()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -366,11 +366,11 @@ func ValidateDeviceSource(source *devicepb.DeviceSource) error {
 	switch {
 	case source == nil:
 		return trace.BadParameter("device source required")
-	case source.Name == "":
+	case source.GetName() == "":
 		return trace.BadParameter("device source name required")
-	case len(source.Name) > maxSourceNameLength:
+	case len(source.GetName()) > maxSourceNameLength:
 		return trace.BadParameter("device source name exceeds %v characters", maxSourceNameLength)
-	case source.Origin == devicepb.DeviceOrigin_DEVICE_ORIGIN_UNSPECIFIED:
+	case source.GetOrigin() == devicepb.DeviceOrigin_DEVICE_ORIGIN_UNSPECIFIED:
 		return trace.BadParameter("unknown or invalid device source origin")
 	default:
 		return nil
@@ -383,7 +383,7 @@ func validateDeviceProfile(osType devicepb.OSType, profile *devicepb.DeviceProfi
 	}
 
 	// Usernames.
-	for i, username := range profile.OsUsernames {
+	for i, username := range profile.GetOsUsernames() {
 		switch {
 		case username == "":
 			return trace.BadParameter("device profile username[%v]: username cannot be empty", i)
@@ -397,7 +397,7 @@ func validateDeviceProfile(osType devicepb.OSType, profile *devicepb.DeviceProfi
 		return nil
 	}
 
-	if profile.UpdateTime != nil && !profile.UpdateTime.IsValid() {
+	if profile.HasUpdateTime() && !profile.GetUpdateTime().IsValid() {
 		return trace.BadParameter("invalid device profile update time")
 	}
 	return nil
@@ -405,44 +405,44 @@ func validateDeviceProfile(osType devicepb.OSType, profile *devicepb.DeviceProfi
 
 func validateDeviceForUpdate(updated, stored *devicepb.Device) error {
 	switch {
-	case updated.ApiVersion != currentAPIVersion:
-		return trace.BadParameter("unsupported api_version: %q", updated.ApiVersion)
-	case updated.Id != stored.Id:
+	case updated.GetApiVersion() != currentAPIVersion:
+		return trace.BadParameter("unsupported api_version: %q", updated.GetApiVersion())
+	case updated.GetId() != stored.GetId():
 		return trace.BadParameter("id is readonly and cannot be updated")
-	case updated.OsType != stored.OsType:
+	case updated.GetOsType() != stored.GetOsType():
 		return trace.BadParameter("os_type is readonly and cannot be updated")
-	case updated.AssetTag != stored.AssetTag:
+	case updated.GetAssetTag() != stored.GetAssetTag():
 		return trace.BadParameter("asset_tag is readonly and cannot be updated")
-	case !proto.Equal(updated.CreateTime, stored.CreateTime):
+	case !proto.Equal(updated.GetCreateTime(), stored.GetCreateTime()):
 		return trace.BadParameter("create_time is readonly and cannot be updated")
-	case !proto.Equal(updated.UpdateTime, stored.UpdateTime):
+	case !proto.Equal(updated.GetUpdateTime(), stored.GetUpdateTime()):
 		// UpdateTime is changed as part of the update, but we make an attempt to
 		// flag changes here first.
 		return trace.BadParameter("update_time is readonly and cannot be updated")
-	case !proto.Equal(updated.Credential, stored.Credential):
+	case !proto.Equal(updated.GetCredential(), stored.GetCredential()):
 		return trace.BadParameter("credential is readonly and cannot be updated")
-	case updated.Owner != stored.Owner:
+	case updated.GetOwner() != stored.GetOwner():
 		return trace.BadParameter("owner is readonly and cannot be updated")
 	}
 
 	// EnrollStatus can only transition to NOT_ENROLLED.
 	const notEnrolled = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
-	if updated.EnrollStatus != stored.EnrollStatus && updated.EnrollStatus != notEnrolled {
+	if updated.GetEnrollStatus() != stored.GetEnrollStatus() && updated.GetEnrollStatus() != notEnrolled {
 		return trace.BadParameter(
 			"enroll_status can only be manually transitioned to %q",
 			dtoss.FriendlyDeviceEnrollStatus(notEnrolled))
 	}
 
 	// Source is mutable.
-	if updated.Source != nil {
-		if err := ValidateDeviceSource(updated.Source); err != nil {
+	if updated.HasSource() {
+		if err := ValidateDeviceSource(updated.GetSource()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
 
 	// Profile is mutable.
-	if updated.Profile != nil {
-		if err := validateDeviceProfile(updated.OsType, updated.Profile, false /* createAsResource */); err != nil {
+	if updated.HasProfile() {
+		if err := validateDeviceProfile(updated.GetOsType(), updated.GetProfile(), false /* createAsResource */); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -454,15 +454,15 @@ func validateCollectedDataDrift(target, source *devicepb.DeviceCollectedData) er
 	switch {
 	case target == nil || source == nil:
 		return trace.BadParameter("target and source required")
-	case target.OsType != source.OsType:
+	case target.GetOsType() != source.GetOsType():
 		return NewCollectedDataDriftError("os_type drift detected")
-	case target.SerialNumber != source.SerialNumber:
+	case target.GetSerialNumber() != source.GetSerialNumber():
 		return NewCollectedDataDriftError("serial number drift detected")
-	case source.OsLoginUser != "" && source.OsLoginUser != target.OsLoginUser:
+	case source.GetOsLoginUser() != "" && source.GetOsLoginUser() != target.GetOsLoginUser():
 		return NewCollectedDataDriftError("device OS login user drift detected")
-	case target.OsType != devicepb.OSType_OS_TYPE_LINUX &&
-		source.OsUsername != "" &&
-		source.OsUsername != target.OsUsername:
+	case target.GetOsType() != devicepb.OSType_OS_TYPE_LINUX &&
+		source.GetOsUsername() != "" &&
+		source.GetOsUsername() != target.GetOsUsername():
 		// OsUsername is wrong on Linux, validate it otherwise.
 		return NewCollectedDataDriftError("device OS username drift detected")
 	}
@@ -503,13 +503,13 @@ func validateCollectedDataAgainstDeviceStrict(cd *devicepb.DeviceCollectedData, 
 	}
 
 	// Strict profile checks.
-	p := dev.Profile
+	p := dev.GetProfile()
 	switch {
 	case p == nil:
 		return nil // Nothing to check!
-	case p.OsVersion != "" && !isVersionEqual(p.OsVersion, cd.OsVersion):
+	case p.GetOsVersion() != "" && !isVersionEqual(p.GetOsVersion(), cd.GetOsVersion()):
 		return NewCollectedDataDriftError("device OS version drift")
-	case p.JamfBinaryVersion != "" && !isVersionEqual(p.JamfBinaryVersion, cd.JamfBinaryVersion):
+	case p.GetJamfBinaryVersion() != "" && !isVersionEqual(p.GetJamfBinaryVersion(), cd.GetJamfBinaryVersion()):
 		return NewCollectedDataDriftError("jamf binary version drift")
 	}
 
@@ -518,9 +518,9 @@ func validateCollectedDataAgainstDeviceStrict(cd *devicepb.DeviceCollectedData, 
 	// sometimes the build cleanly matches OsBuild and sometimes it matches
 	// OsBuildSupplemental (for exampple, when a rapid security response patch is
 	// in effect).
-	if p.OsBuild != "" || p.OsBuildSupplemental != "" {
-		matchesBuild := p.OsBuild != "" && p.OsBuild == cd.OsBuild
-		matchesBuildSupplemental := p.OsBuildSupplemental != "" && p.OsBuildSupplemental == cd.OsBuild
+	if p.GetOsBuild() != "" || p.GetOsBuildSupplemental() != "" {
+		matchesBuild := p.GetOsBuild() != "" && p.GetOsBuild() == cd.GetOsBuild()
+		matchesBuildSupplemental := p.GetOsBuildSupplemental() != "" && p.GetOsBuildSupplemental() == cd.GetOsBuild()
 		if !matchesBuild && !matchesBuildSupplemental {
 			return NewCollectedDataDriftError("device OS build drift")
 		}
@@ -560,20 +560,20 @@ func validateDeviceWebToken(webToken *devicepb.DeviceWebToken) error {
 	switch {
 	case webToken == nil:
 		return trace.BadParameter("device web token required")
-	case webToken.WebSessionId == "":
+	case webToken.GetWebSessionId() == "":
 		return trace.BadParameter("web session ID required")
-	case webToken.BrowserUserAgent == "":
+	case webToken.GetBrowserUserAgent() == "":
 		return trace.BadParameter("browser user agent required")
-	case webToken.BrowserIp == "":
+	case webToken.GetBrowserIp() == "":
 		return trace.BadParameter("browser IP required")
-	case webToken.User == "":
+	case webToken.GetUser() == "":
 		return trace.BadParameter("user required")
-	case webToken.ExpectedDeviceIds == nil:
+	case webToken.GetExpectedDeviceIds() == nil:
 		return trace.BadParameter("expected device IDs required")
 	}
 
 	// Disallow empty IDs.
-	for i, id := range webToken.ExpectedDeviceIds {
+	for i, id := range webToken.GetExpectedDeviceIds() {
 		if id == "" {
 			return trace.BadParameter("expected device ID %v is empty", i)
 		}

@@ -221,7 +221,7 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 	})
 
 	require.NoError(t, err)
-	_, err = authClient.PluginsClient().CreatePlugin(ctx, &pluginsv1.CreatePluginRequest{
+	_, err = authClient.PluginsClient().CreatePlugin(ctx, pluginsv1.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Kind:    types.KindPlugin,
 			SubKind: types.PluginSubkindAccessGraph,
@@ -262,11 +262,11 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 				},
 			},
 		},
-	})
+	}.Build())
 
 	require.NoError(t, err)
 
-	_, err = authClient.PluginsClient().CreatePlugin(ctx, &pluginsv1.CreatePluginRequest{
+	_, err = authClient.PluginsClient().CreatePlugin(ctx, pluginsv1.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Kind: types.KindPlugin,
 			Metadata: types.Metadata{
@@ -297,11 +297,11 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 				},
 			},
 		},
-	})
+	}.Build())
 
 	require.NoError(t, err)
 
-	_, err = authClient.PluginsClient().CreatePlugin(ctx, &pluginsv1.CreatePluginRequest{
+	_, err = authClient.PluginsClient().CreatePlugin(ctx, pluginsv1.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Kind: types.KindPlugin,
 			Metadata: types.Metadata{
@@ -332,7 +332,7 @@ func TestGetAccessGraphIntegrations(t *testing.T) {
 				},
 			},
 		},
-	})
+	}.Build())
 
 	require.NoError(t, err)
 
@@ -360,18 +360,18 @@ func TestAccessGraphSettings(t *testing.T) {
 		{
 			name:   "enable secrets scan",
 			change: true,
-			initialSpec: &clusterconfigpb.AccessGraphSettingsSpec{
+			initialSpec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 				SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-			},
+			}.Build(),
 			want: accessgraphui.AccessGraphSettings{
 				EnableSecretsScan: true,
 			},
 		},
 		{
 			name: "disable secrets scan",
-			initialSpec: &clusterconfigpb.AccessGraphSettingsSpec{
+			initialSpec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 				SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-			},
+			}.Build(),
 			change: false,
 			want: accessgraphui.AccessGraphSettings{
 				EnableSecretsScan: false,
@@ -380,18 +380,18 @@ func TestAccessGraphSettings(t *testing.T) {
 		{
 			name:   "enable demo mode",
 			change: true,
-			initialSpec: &clusterconfigpb.AccessGraphSettingsSpec{
+			initialSpec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 				DemoMode: clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED,
-			},
+			}.Build(),
 			want: accessgraphui.AccessGraphSettings{
 				EnableSecretsScan: true,
 			},
 		},
 		{
 			name: "disable demo mode",
-			initialSpec: &clusterconfigpb.AccessGraphSettingsSpec{
+			initialSpec: clusterconfigpb.AccessGraphSettingsSpec_builder{
 				DemoMode: clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_DISABLED,
-			},
+			}.Build(),
 			change: false,
 			want: accessgraphui.AccessGraphSettings{
 				EnableSecretsScan: false,
@@ -423,17 +423,17 @@ func TestAccessGraphSettings(t *testing.T) {
 				},
 			}),
 			)
-			_, err := s.testAuthServer.Auth().UpsertAccessGraphSettings(s.ctx, &clusterconfigpb.AccessGraphSettings{
+			_, err := s.testAuthServer.Auth().UpsertAccessGraphSettings(s.ctx, clusterconfigpb.AccessGraphSettings_builder{
 				Kind:    types.KindAccessGraphSettings,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: types.MetaNameAccessGraphSettings,
-				},
+				}.Build(),
 				Spec: tt.initialSpec,
-				Status: &clusterconfigpb.AccessGraphSettingsStatus{
+				Status: clusterconfigpb.AccessGraphSettingsStatus_builder{
 					InitialSyncComplete: tt.initialSyncComplete,
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.NoError(t, err)
 
 			webPack := s.newAuthWebPack(t, "foo", withExtraRules(types.Rule{
@@ -447,7 +447,7 @@ func TestAccessGraphSettings(t *testing.T) {
 				require.NoError(t, err)
 
 				got := unmarshal(t, resp)
-				expectedValue := cmp.Equal(tt.initialSpec.SecretsScanConfig, clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED)
+				expectedValue := cmp.Equal(tt.initialSpec.GetSecretsScanConfig(), clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED)
 				require.Equal(t, expectedValue, got.EnableSecretsScan)
 			}, 5*time.Second, 1*time.Second)
 

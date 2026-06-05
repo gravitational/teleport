@@ -174,7 +174,7 @@ func (s *Service) IsEnabled(
 		return nil, trace.Wrap(err)
 	}
 	if !s.isLicensed() {
-		return &pb.IsEnabledResponse{Availability: pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_UNSPECIFIED}, nil
+		return pb.IsEnabledResponse_builder{Availability: pb.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_UNSPECIFIED}.Build(), nil
 	}
 
 	availability, err := s.availabilityCache.Get(ctx)
@@ -182,9 +182,9 @@ func (s *Service) IsEnabled(
 		return nil, trace.Wrap(err)
 	}
 
-	return &pb.IsEnabledResponse{
+	return pb.IsEnabledResponse_builder{
 		Availability: convertAvailability(availability),
-	}, nil
+	}.Build(), nil
 }
 
 // authorizeIsEnabled enforces that the caller is either a proxy or admin role, or has access to
@@ -296,14 +296,12 @@ func (s *Service) SearchSessionSummaries(
 				},
 			})
 		default:
-			return stream.Send(&pb.SearchSessionSummariesResponse{
-				Payload: &pb.SearchSessionSummariesResponse_BatchComplete_{
-					BatchComplete: &pb.SearchSessionSummariesResponse_BatchComplete{
-						HasMore:        nextBatchToken != "",
-						NextBatchToken: nextBatchToken,
-					},
-				},
-			})
+			return stream.Send(pb.SearchSessionSummariesResponse_builder{
+				BatchComplete: pb.SearchSessionSummariesResponse_BatchComplete_builder{
+					HasMore:        nextBatchToken != "",
+					NextBatchToken: nextBatchToken,
+				}.Build(),
+			}.Build())
 		}
 	}))
 }
@@ -354,13 +352,13 @@ loop:
 			return trace.Wrap(err)
 		}
 
-		switch p := agResp.Payload.(type) {
-		case *accessgraphv1.SearchSessionSummariesResponse_Summary:
+		switch agResp.WhichPayload() {
+		case accessgraphv1.SearchSessionSummariesResponse_Summary_case:
 			// Always update the checkpoint cursor before RBAC filtering: the
 			// access graph has already advanced past this position regardless
 			// of whether we surface the summary to the caller.
-			lastCheckpointToken = p.Summary.GetCheckpointToken()
-			agSummary := p.Summary.GetSummary()
+			lastCheckpointToken = agResp.GetSummary().GetCheckpointToken()
+			agSummary := agResp.GetSummary().GetSummary()
 			if !s.canViewSession(ctx, authCtx, agSummary) {
 				continue
 			}
@@ -377,26 +375,24 @@ loop:
 				break loop
 			}
 
-		case *accessgraphv1.SearchSessionSummariesResponse_BatchComplete_:
+		case accessgraphv1.SearchSessionSummariesResponse_BatchComplete_case:
 			var nextBatchToken string
 			missingEntries := int32(agParams.GetMaxSummaries()) - int32(sentCount)
 			done := false
 			switch {
-			case p.BatchComplete.GetHasMore() && missingEntries > 0:
+			case agResp.GetBatchComplete().GetHasMore() && missingEntries > 0:
 				// Advance to the next page. On send failure, consume the real
 				// error via Recv (send errors on bidi streams are typically
 				// opaque, e.g. io.EOF).
-				if err := agStream.Send(&accessgraphv1.SearchSessionSummariesRequest{
-					Payload: &accessgraphv1.SearchSessionSummariesRequest_FetchMore_{
-						FetchMore: &accessgraphv1.SearchSessionSummariesRequest_FetchMore{
-							MaxSummaries: agParams.GetMaxSummaries(),
-						},
-					},
-				}); err != nil {
+				if err := agStream.Send(accessgraphv1.SearchSessionSummariesRequest_builder{
+					FetchMore: accessgraphv1.SearchSessionSummariesRequest_FetchMore_builder{
+						MaxSummaries: agParams.GetMaxSummaries(),
+					}.Build(),
+				}.Build()); err != nil {
 					_, recvErr := agStream.Recv()
 					return trace.Wrap(recvErr)
 				}
-			case p.BatchComplete.GetHasMore():
+			case agResp.GetBatchComplete().GetHasMore():
 				// Quota reached: record the resume cursor, half-close, and stop.
 				nextBatchToken = lastCheckpointToken
 				_ = agStream.CloseSend()
@@ -430,7 +426,7 @@ func (s *Service) buildAccessGraphParams(
 		maxSummaries = defaultPageSize
 	}
 
-	params := &accessgraphv1.SearchSessionSummariesParams{
+	params := accessgraphv1.SearchSessionSummariesParams_builder{
 		StartTime:          req.GetStartTime(),
 		EndTime:            req.GetEndTime(),
 		Kinds:              req.GetKinds(),
@@ -445,21 +441,21 @@ func (s *Service) buildAccessGraphParams(
 		MaxSummaries:       maxSummaries,
 		ResumeToken:        req.GetBatchToken(),
 		SearchMode:         accessgraphv1.SearchMode(req.GetSearchMode()),
-	}
+	}.Build()
 
 	skipEmbeddings := req.GetSearchMode() == pb.SearchMode_SEARCH_MODE_KEYWORD_ONLY
 
 	for _, query := range req.GetSearchQueries() {
-		eq := &accessgraphv1.EmbeddedQuery{Text: query}
+		eq := accessgraphv1.EmbeddedQuery_builder{Text: query}.Build()
 		if !skipEmbeddings {
 			vec, modelName, err := s.generateEmbeddings(ctx, query)
 			if err != nil {
 				return nil, trace.Wrap(err, "generating embeddings for search query")
 			}
-			eq.Embeddings = vec
-			eq.ModelName = modelName
+			eq.SetEmbeddings(vec)
+			eq.SetModelName(modelName)
 		}
-		params.SearchQueries = append(params.SearchQueries, eq)
+		params.SetSearchQueries(append(params.GetSearchQueries(), eq))
 	}
 
 	return params, nil
@@ -514,7 +510,7 @@ func (s *Service) canViewSession(ctx context.Context, authCtx *authz.Context, su
 // convertSummary maps an access graph SessionSummary to its auth server
 // counterpart, dropping the internal session_end_event field.
 func convertSummary(src *accessgraphv1.SessionSummary) *pb.SessionSummary {
-	return &pb.SessionSummary{
+	return pb.SessionSummary_builder{
 		SessionId:          src.GetSessionId(),
 		Kind:               src.GetKind(),
 		SessionStart:       src.GetSessionStart(),
@@ -531,7 +527,7 @@ func convertSummary(src *accessgraphv1.SessionSummary) *pb.SessionSummary {
 		Severity:           src.GetSeverity(),
 		SessionEnd:         src.GetSessionEnd(),
 		HostId:             src.GetHostId(),
-	}
+	}.Build()
 }
 
 // convertResourceProperties maps the caller's ResourceProperties to the
@@ -541,33 +537,27 @@ func convertResourceProperties(src *pb.ResourceProperties) *accessgraphv1.Resour
 	if src == nil {
 		return nil
 	}
-	switch f := src.Type.(type) {
-	case *pb.ResourceProperties_Ssh:
-		return &accessgraphv1.ResourceProperties{
-			Type: &accessgraphv1.ResourceProperties_Ssh{
-				Ssh: &accessgraphv1.SSHProperties{
-					ServerHostname: f.Ssh.ServerHostname,
-					ServerAddr:     f.Ssh.ServerAddr,
-				},
-			},
-		}
-	case *pb.ResourceProperties_Kubernetes:
-		return &accessgraphv1.ResourceProperties{
-			Type: &accessgraphv1.ResourceProperties_Kubernetes{
-				Kubernetes: &accessgraphv1.KubernetesProperties{
-					PodNamespace: f.Kubernetes.PodNamespace,
-					PodName:      f.Kubernetes.PodName,
-				},
-			},
-		}
-	case *pb.ResourceProperties_Database:
-		return &accessgraphv1.ResourceProperties{
-			Type: &accessgraphv1.ResourceProperties_Database{
-				Database: &accessgraphv1.DatabaseProperties{
-					DatabaseName: f.Database.DatabaseName,
-				},
-			},
-		}
+	switch src.WhichType() {
+	case pb.ResourceProperties_Ssh_case:
+		return accessgraphv1.ResourceProperties_builder{
+			Ssh: accessgraphv1.SSHProperties_builder{
+				ServerHostname: src.GetSsh().ServerHostname,
+				ServerAddr:     src.GetSsh().ServerAddr,
+			}.Build(),
+		}.Build()
+	case pb.ResourceProperties_Kubernetes_case:
+		return accessgraphv1.ResourceProperties_builder{
+			Kubernetes: accessgraphv1.KubernetesProperties_builder{
+				PodNamespace: src.GetKubernetes().PodNamespace,
+				PodName:      src.GetKubernetes().PodName,
+			}.Build(),
+		}.Build()
+	case pb.ResourceProperties_Database_case:
+		return accessgraphv1.ResourceProperties_builder{
+			Database: accessgraphv1.DatabaseProperties_builder{
+				DatabaseName: src.GetDatabase().DatabaseName,
+			}.Build(),
+		}.Build()
 	default:
 		return nil
 	}
@@ -579,33 +569,27 @@ func convertAGResourceProperties(src *accessgraphv1.ResourceProperties) *pb.Reso
 	if src == nil {
 		return nil
 	}
-	switch f := src.Type.(type) {
-	case *accessgraphv1.ResourceProperties_Ssh:
-		return &pb.ResourceProperties{
-			Type: &pb.ResourceProperties_Ssh{
-				Ssh: &pb.SSHProperties{
-					ServerHostname: f.Ssh.ServerHostname,
-					ServerAddr:     f.Ssh.ServerAddr,
-				},
-			},
-		}
-	case *accessgraphv1.ResourceProperties_Kubernetes:
-		return &pb.ResourceProperties{
-			Type: &pb.ResourceProperties_Kubernetes{
-				Kubernetes: &pb.KubernetesProperties{
-					PodNamespace: f.Kubernetes.PodNamespace,
-					PodName:      f.Kubernetes.PodName,
-				},
-			},
-		}
-	case *accessgraphv1.ResourceProperties_Database:
-		return &pb.ResourceProperties{
-			Type: &pb.ResourceProperties_Database{
-				Database: &pb.DatabaseProperties{
-					DatabaseName: f.Database.DatabaseName,
-				},
-			},
-		}
+	switch src.WhichType() {
+	case accessgraphv1.ResourceProperties_Ssh_case:
+		return pb.ResourceProperties_builder{
+			Ssh: pb.SSHProperties_builder{
+				ServerHostname: src.GetSsh().ServerHostname,
+				ServerAddr:     src.GetSsh().ServerAddr,
+			}.Build(),
+		}.Build()
+	case accessgraphv1.ResourceProperties_Kubernetes_case:
+		return pb.ResourceProperties_builder{
+			Kubernetes: pb.KubernetesProperties_builder{
+				PodNamespace: src.GetKubernetes().PodNamespace,
+				PodName:      src.GetKubernetes().PodName,
+			}.Build(),
+		}.Build()
+	case accessgraphv1.ResourceProperties_Database_case:
+		return pb.ResourceProperties_builder{
+			Database: pb.DatabaseProperties_builder{
+				DatabaseName: src.GetDatabase().DatabaseName,
+			}.Build(),
+		}.Build()
 	default:
 		return nil
 	}
@@ -618,23 +602,23 @@ func (s *Service) newEmbeddingsProvider(
 	ctx context.Context,
 	model *summarizerpb.RetrievalModel,
 ) (EmbeddingProvider, error) {
-	switch providerCfg := model.GetSpec().GetEmbeddingsProvider().(type) {
-	case *summarizerpb.RetrievalModelSpec_Openai:
-		secret, err := s.cache.GetInferenceSecret(ctx, providerCfg.Openai.GetApiKeySecretRef())
+	switch model.GetSpec().WhichEmbeddingsProvider() {
+	case summarizerpb.RetrievalModelSpec_Openai_case:
+		secret, err := s.cache.GetInferenceSecret(ctx, model.GetSpec().GetOpenai().GetApiKeySecretRef())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		p, err := openai.NewEmbeddingProvider(ctx, openai.EmbeddingProviderConfig{
-			EmbeddingsSpec:    providerCfg.Openai,
+			EmbeddingsSpec:    model.GetSpec().GetOpenai(),
 			SecretSpec:        secret.GetSpec(),
 			ClientFactory:     s.openAIClientFactory,
 			ModelResourceName: model.GetMetadata().GetName(),
 		})
 		return p, trace.Wrap(err)
 
-	case *summarizerpb.RetrievalModelSpec_Bedrock:
+	case summarizerpb.RetrievalModelSpec_Bedrock_case:
 		p, err := bedrock.NewEmbeddingProvider(ctx, bedrock.EmbeddingProviderConfig{
-			Spec:              providerCfg.Bedrock,
+			Spec:              model.GetSpec().GetBedrock(),
 			ClientFactory:     s.bedrockClientFactory,
 			ModelResourceName: model.GetMetadata().GetName(),
 			AWSConfigCache:    s.awsConfigCache,
@@ -643,6 +627,6 @@ func (s *Service) newEmbeddingsProvider(
 		return p, trace.Wrap(err)
 
 	default:
-		return nil, trace.BadParameter("unsupported embeddings provider type: %T", model.GetSpec().GetEmbeddingsProvider())
+		return nil, trace.BadParameter("unsupported embeddings provider type: %v", model.GetSpec().WhichEmbeddingsProvider())
 	}
 }

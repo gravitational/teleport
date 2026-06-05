@@ -87,10 +87,10 @@ func (s *Service) ListAuditQueries(ctx context.Context, req *pb.ListAuditQueries
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp := &pb.ListAuditQueriesResponse{
+	resp := pb.ListAuditQueriesResponse_builder{
 		Queries:       toProtoAuditQueries(items),
 		NextPageToken: nextToken,
-	}
+	}.Build()
 	return resp, nil
 }
 
@@ -110,9 +110,9 @@ func (s *Service) GetSchema(ctx context.Context, _ *pb.GetSchemaRequest) (*pb.Ge
 		s.log.ErrorContext(ctx, "Failed to get schema", "error", err)
 		return nil, trace.Wrap(err)
 	}
-	return &pb.GetSchemaResponse{
+	return pb.GetSchemaResponse_builder{
 		Views: toProtoTableSchemaDetails(eventSchema),
-	}, nil
+	}.Build(), nil
 }
 
 // DeleteAuditQuery deletes the Audit Query.
@@ -152,7 +152,7 @@ func (s *Service) UpsertReport(ctx context.Context, req *pb.UpsertReportRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	if reports.IsPreBuiltReport(req.GetReport().Header.GetMetadata().GetName()) {
+	if reports.IsPreBuiltReport(req.GetReport().GetHeader().GetMetadata().GetName()) {
 		return nil, trace.BadParameter("cannot modify pre-build report")
 	}
 
@@ -235,10 +235,10 @@ func (s *Service) listSecurityReports(ctx context.Context, req *pb.ListReportsRe
 	for _, v := range items {
 		reps = append(reps, conv.ToProtoReport(v))
 	}
-	resp := &pb.ListReportsResponse{
+	resp := pb.ListReportsResponse_builder{
 		Reports:       reps,
 		NextPageToken: nextToken,
-	}
+	}.Build()
 	return resp, nil
 }
 
@@ -300,9 +300,9 @@ func (s *Service) ListReportStates(ctx context.Context, req *pb.ListReportStates
 	for _, v := range items {
 		states = append(states, conv.ToProtoReportState(v))
 	}
-	resp := &pb.ListReportStatesResponse{
+	resp := pb.ListReportStatesResponse_builder{
 		ReportStates:  states,
 		NextPageToken: nextToken,
-	}
+	}.Build()
 	return resp, nil
 }

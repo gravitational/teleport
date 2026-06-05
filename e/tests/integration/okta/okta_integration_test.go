@@ -486,20 +486,20 @@ func TestOktaAccessRequestFlow(t *testing.T) {
 
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	start := time.Now()
-	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaAuthClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ApiCredentials:            apiCredentials,
 		EnableUserSync:            true,
 		DisableAssignDefaultRoles: false,
 		EnableAppGroupSync:        true,
 		EnableAccessListSync:      true,
 		EnableBidirectionalSync:   true,
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			GroupFilters: []string{"group-*"},
 			AppFilters:   []string{"app-*"},
 			DefaultOwner: []string{reviewerLogin},
-		},
+		}.Build(),
 		ReuseConnector: "okta-pre-created-test",
-	})
+	}.Build())
 	updateOktaDelays(t, sut, delays{
 		// TODO(smallinsky) Align timer when https://github.com/gravitational/teleport.e/issues/6558 issue is fixed
 		// to test the flow with overlapping Okta sync.
@@ -713,11 +713,11 @@ func TestOktaAccessRequestWithSCIMOktaSync(t *testing.T) {
 	)
 
 	start := time.Now()
-	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta, witAccessListSettings(&oktav1.AccessListSettings{
+	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta, witAccessListSettings(oktav1.AccessListSettings_builder{
 		GroupFilters: []string{"group-*"},
 		AppFilters:   []string{"app-*"},
 		DefaultOwner: []string{reviewerLogin},
-	}), withEnableFullSync())
+	}.Build()), withEnableFullSync())
 	scimClient := createSCIMClient(t, sut, scimToken)
 
 	waitForOktaSync(t, sut, withTimeout(time.Second*30), withStep(time.Millisecond*100), withTimePoint(start))
@@ -791,19 +791,19 @@ func TestOktaAssignmentRaceCheck(t *testing.T) {
 
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	start := time.Now()
-	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaAuthClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
 		EnableAccessListSync:    true,
 		EnableBidirectionalSync: true,
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			GroupFilters: []string{"group-*"},
 			AppFilters:   []string{"app-*"},
 			DefaultOwner: []string{"alice-admin"},
-		},
+		}.Build(),
 		ReuseConnector: "okta-pre-created-test",
-	})
+	}.Build())
 	updateOktaDelays(t, sut, delays{
 		timeBetweenImports:                1 * time.Second,
 		timeBetweenAssignmentProcessLoops: 1 * time.Second,
@@ -874,11 +874,11 @@ func TestCleanupAssignmentFilter(t *testing.T) {
 	fakeOkta.AddUserToGroup(groupID, memberID)
 
 	assignmentWatcher := sut.NewResourceWatcher(t, types.KindOktaAssignment)
-	createAndWaitForOktaIntegration(t, sut, fakeOkta, witAccessListSettings(&oktav1.AccessListSettings{
+	createAndWaitForOktaIntegration(t, sut, fakeOkta, witAccessListSettings(oktav1.AccessListSettings_builder{
 		GroupFilters: []string{"group-*"},
 		AppFilters:   []string{"app-*"},
 		DefaultOwner: []string{"alice-admin"},
-	}), withEnableFullSync())
+	}.Build()), withEnableFullSync())
 	// Wait for the per-user OktaAssignment to be created before proceeding.
 	//
 	// If we delete the access list member before any OktaAssignment exists,
@@ -969,19 +969,19 @@ func TestOktaAssignmentFailedCleanupProcessing(t *testing.T) {
 
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 	start := time.Now()
-	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaAuthClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
 		EnableAccessListSync:    true,
 		EnableBidirectionalSync: true,
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			GroupFilters: []string{"group-*"},
 			AppFilters:   []string{"app-*"},
 			DefaultOwner: []string{"alice-admin"},
-		},
+		}.Build(),
 		ReuseConnector: "okta-pre-created-test",
-	})
+	}.Build())
 	updateOktaDelays(t, sut, delays{
 		// We don't want timer-based processing to intertwine as it may cause extra cleanup
 		// audit events if re-processing kicks-in during EventuallyWithT.

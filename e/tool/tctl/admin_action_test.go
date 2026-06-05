@@ -62,56 +62,56 @@ func (s *adminActionTestSuite) testDeviceTrust(t *testing.T) {
 	macOSDev1, err := dttestenv.NewFakeMacOSDevice()
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
 
-	device := &devicetrustv1.Device{
+	device := devicetrustv1.Device_builder{
 		ApiVersion:   types.V1,
 		Id:           macOSDev1.ID,
 		OsType:       macOSDev1.GetDeviceOSType(),
 		AssetTag:     macOSDev1.SerialNumber,
 		EnrollStatus: devicetrustv1.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-	}
+	}.Build()
 
 	upsertDevice := func() error {
-		_, err := s.authClient.DevicesClient().UpsertDevice(ctx, &devicetrustv1.UpsertDeviceRequest{
+		_, err := s.authClient.DevicesClient().UpsertDevice(ctx, devicetrustv1.UpsertDeviceRequest_builder{
 			Device: device,
-		})
+		}.Build())
 		return trace.Wrap(err)
 	}
 
 	// For tests where we depend on the actual resource ID, rather than just the asset tag.
 	upsertDeviceWithID := func() error {
-		_, err := s.authClient.DevicesClient().UpsertDevice(ctx, &devicetrustv1.UpsertDeviceRequest{
+		_, err := s.authClient.DevicesClient().UpsertDevice(ctx, devicetrustv1.UpsertDeviceRequest_builder{
 			Device:           device,
 			CreateAsResource: true,
-		})
+		}.Build())
 		return trace.Wrap(err)
 	}
 
 	getDevice := func() (types.Resource, error) {
-		resp, err := s.authClient.DevicesClient().FindDevices(ctx, &devicetrustv1.FindDevicesRequest{
+		resp, err := s.authClient.DevicesClient().FindDevices(ctx, devicetrustv1.FindDevicesRequest_builder{
 			IdOrTag: macOSDev1.SerialNumber,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
-		} else if len(resp.Devices) == 0 {
+		} else if len(resp.GetDevices()) == 0 {
 			return nil, trace.NotFound("no devices found")
-		} else if len(resp.Devices) != 1 {
-			return nil, trace.BadParameter("expected 1 device but found %v", len(resp.Devices))
+		} else if len(resp.GetDevices()) != 1 {
+			return nil, trace.BadParameter("expected 1 device but found %v", len(resp.GetDevices()))
 		}
-		return types.DeviceToResource(resp.Devices[0]), nil
+		return types.DeviceToResource(resp.GetDevices()[0]), nil
 	}
 
 	deleteDevice := func() error {
-		resp, err := s.authClient.DevicesClient().FindDevices(ctx, &devicetrustv1.FindDevicesRequest{
+		resp, err := s.authClient.DevicesClient().FindDevices(ctx, devicetrustv1.FindDevicesRequest_builder{
 			IdOrTag: macOSDev1.SerialNumber,
-		})
+		}.Build())
 		if err != nil {
 			return trace.Wrap(err)
-		} else if len(resp.Devices) == 0 {
+		} else if len(resp.GetDevices()) == 0 {
 			return trace.NotFound("no devices found")
 		}
-		_, err = s.authClient.DevicesClient().DeleteDevice(ctx, &devicetrustv1.DeleteDeviceRequest{
-			DeviceId: resp.Devices[0].Id,
-		})
+		_, err = s.authClient.DevicesClient().DeleteDevice(ctx, devicetrustv1.DeleteDeviceRequest_builder{
+			DeviceId: resp.GetDevices()[0].GetId(),
+		}.Build())
 		return trace.Wrap(err)
 	}
 
@@ -155,7 +155,7 @@ func (s *adminActionTestSuite) testDeviceTrust(t *testing.T) {
 func (s *adminActionTestSuite) testLoginRules(t *testing.T) {
 	ctx := context.Background()
 
-	loginRulePB := &loginrulepb.LoginRule{
+	loginRulePB := loginrulepb.LoginRule_builder{
 		Metadata: &types.Metadata{
 			Name:      "loginrule",
 			Namespace: "default",
@@ -167,20 +167,20 @@ func (s *adminActionTestSuite) testLoginRules(t *testing.T) {
 				Values: []string{"external.login"},
 			},
 		},
-	}
+	}.Build()
 	loginRule := loginruleresource.ProtoToResource(loginRulePB)
 
 	createLoginRule := func() error {
-		_, err := s.authClient.LoginRuleClient().CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
+		_, err := s.authClient.LoginRuleClient().CreateLoginRule(ctx, loginrulepb.CreateLoginRuleRequest_builder{
 			LoginRule: loginRulePB,
-		})
+		}.Build())
 		return trace.Wrap(err)
 	}
 
 	getLoginRule := func() (types.Resource, error) {
-		resp, err := s.authClient.LoginRuleClient().GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
+		resp, err := s.authClient.LoginRuleClient().GetLoginRule(ctx, loginrulepb.GetLoginRuleRequest_builder{
 			Name: loginRule.GetName(),
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -188,9 +188,9 @@ func (s *adminActionTestSuite) testLoginRules(t *testing.T) {
 	}
 
 	deleteLoginRule := func() error {
-		_, err := s.authClient.LoginRuleClient().DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
+		_, err := s.authClient.LoginRuleClient().DeleteLoginRule(ctx, loginrulepb.DeleteLoginRuleRequest_builder{
 			Name: loginRule.GetName(),
-		})
+		}.Build())
 		return trace.Wrap(err)
 	}
 

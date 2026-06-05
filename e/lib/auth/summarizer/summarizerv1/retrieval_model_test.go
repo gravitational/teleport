@@ -22,28 +22,24 @@ import (
 
 // newTestRetrievalModel creates a test RetrievalModel with OpenAI provider.
 func newTestRetrievalModel() *summarizerv1pb.RetrievalModel {
-	return summarizer.NewRetrievalModel(&summarizerv1pb.RetrievalModelSpec{
-		EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
-			Openai: &summarizerv1pb.OpenAIProvider{
-				OpenaiModelId:   "text-embedding-3-small",
-				ApiKeySecretRef: "secret1",
-			},
-		},
+	return summarizer.NewRetrievalModel(summarizerv1pb.RetrievalModelSpec_builder{
+		Openai: summarizerv1pb.OpenAIProvider_builder{
+			OpenaiModelId:   "text-embedding-3-small",
+			ApiKeySecretRef: "secret1",
+		}.Build(),
 		InferenceModelName: "test-inference-model",
-	})
+	}.Build())
 }
 
 // newTestRetrievalModelBedrock creates a test RetrievalModel with Bedrock provider.
 func newTestRetrievalModelBedrock() *summarizerv1pb.RetrievalModel {
-	return summarizer.NewRetrievalModel(&summarizerv1pb.RetrievalModelSpec{
-		EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Bedrock{
-			Bedrock: &summarizerv1pb.BedrockProvider{
-				BedrockModelId: "amazon.titan-embed-text-v1",
-				Region:         "us-east-1",
-			},
-		},
+	return summarizer.NewRetrievalModel(summarizerv1pb.RetrievalModelSpec_builder{
+		Bedrock: summarizerv1pb.BedrockProvider_builder{
+			BedrockModelId: "amazon.titan-embed-text-v1",
+			Region:         "us-east-1",
+		}.Build(),
 		InferenceModelName: "test-inference-model",
-	})
+	}.Build())
 }
 
 // createTestInferenceModelForRetrieval creates the inference model referenced
@@ -51,7 +47,7 @@ func newTestRetrievalModelBedrock() *summarizerv1pb.RetrievalModel {
 func createTestInferenceModelForRetrieval(ctx context.Context, t *testing.T, sclt summarizerv1pb.SummarizerServiceClient) {
 	t.Helper()
 	model := newBedrockModel("test-inference-model")
-	_, err := sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{Model: model})
+	_, err := sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{Model: model}.Build())
 	require.NoError(t, err)
 }
 
@@ -95,9 +91,9 @@ func TestService_RetrievalModel_CreateAndGet(t *testing.T) {
 	secret, _, _ := newTestResources(t, "1")
 
 	// Create the secret first (required by the retrieval model).
-	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the inference model referenced by the retrieval model.
@@ -106,16 +102,16 @@ func TestService_RetrievalModel_CreateAndGet(t *testing.T) {
 	expectedModel := newTestRetrievalModel()
 
 	// Test creating the retrieval model.
-	createdModel, err := sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+	createdModel, err := sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 		Model: expectedModel,
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, expectedModel, createdModel.Model)
+	assertResourceEquals(t, expectedModel, createdModel.GetModel())
 
 	// Test retrieving the retrieval model.
 	gotModel, err := sclt.GetRetrievalModel(ctx, &summarizerv1pb.GetRetrievalModelRequest{})
 	require.NoError(t, err)
-	assertResourceEquals(t, expectedModel, gotModel.Model)
+	assertResourceEquals(t, expectedModel, gotModel.GetModel())
 }
 
 func TestService_RetrievalModel_Update(t *testing.T) {
@@ -132,9 +128,9 @@ func TestService_RetrievalModel_Update(t *testing.T) {
 	secret, _, _ := newTestResources(t, "1")
 
 	// Create the secret first.
-	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the inference model referenced by the retrieval model.
@@ -143,22 +139,22 @@ func TestService_RetrievalModel_Update(t *testing.T) {
 	expectedModel := newTestRetrievalModel()
 
 	// Create the retrieval model.
-	createdModel, err := sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+	createdModel, err := sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 		Model: expectedModel,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Test updating the retrieval model.
-	createdModel.Model.Spec.GetOpenai().Temperature = 0.5
-	updatedModel, err := sclt.UpdateRetrievalModel(ctx, &summarizerv1pb.UpdateRetrievalModelRequest{
-		Model: proto.Clone(createdModel.Model).(*summarizerv1pb.RetrievalModel),
-	})
+	createdModel.GetModel().GetSpec().GetOpenai().SetTemperature(0.5)
+	updatedModel, err := sclt.UpdateRetrievalModel(ctx, summarizerv1pb.UpdateRetrievalModelRequest_builder{
+		Model: proto.Clone(createdModel.GetModel()).(*summarizerv1pb.RetrievalModel),
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, createdModel.Model, updatedModel.Model)
+	assertResourceEquals(t, createdModel.GetModel(), updatedModel.GetModel())
 
 	gotModel, err := sclt.GetRetrievalModel(ctx, &summarizerv1pb.GetRetrievalModelRequest{})
 	require.NoError(t, err)
-	assertResourceEquals(t, createdModel.Model, gotModel.Model)
+	assertResourceEquals(t, createdModel.GetModel(), gotModel.GetModel())
 }
 
 func TestService_RetrievalModel_Upsert(t *testing.T) {
@@ -175,9 +171,9 @@ func TestService_RetrievalModel_Upsert(t *testing.T) {
 	secret, _, _ := newTestResources(t, "1")
 
 	// Create the secret first.
-	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the inference model referenced by the retrieval model.
@@ -186,23 +182,23 @@ func TestService_RetrievalModel_Upsert(t *testing.T) {
 	expectedModel := newTestRetrievalModel()
 
 	// Test creating by upserting the retrieval model.
-	createdModel, err := sclt.UpsertRetrievalModel(ctx, &summarizerv1pb.UpsertRetrievalModelRequest{
+	createdModel, err := sclt.UpsertRetrievalModel(ctx, summarizerv1pb.UpsertRetrievalModelRequest_builder{
 		Model: expectedModel,
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, expectedModel, createdModel.Model)
+	assertResourceEquals(t, expectedModel, createdModel.GetModel())
 
 	// Test updating the retrieval model.
-	createdModel.Model.Spec.GetOpenai().Temperature = 0.8
-	updatedModel, err := sclt.UpsertRetrievalModel(ctx, &summarizerv1pb.UpsertRetrievalModelRequest{
-		Model: proto.Clone(createdModel.Model).(*summarizerv1pb.RetrievalModel),
-	})
+	createdModel.GetModel().GetSpec().GetOpenai().SetTemperature(0.8)
+	updatedModel, err := sclt.UpsertRetrievalModel(ctx, summarizerv1pb.UpsertRetrievalModelRequest_builder{
+		Model: proto.Clone(createdModel.GetModel()).(*summarizerv1pb.RetrievalModel),
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, createdModel.Model, updatedModel.Model)
+	assertResourceEquals(t, createdModel.GetModel(), updatedModel.GetModel())
 
 	gotModel, err := sclt.GetRetrievalModel(ctx, &summarizerv1pb.GetRetrievalModelRequest{})
 	require.NoError(t, err)
-	assertResourceEquals(t, createdModel.Model, gotModel.Model)
+	assertResourceEquals(t, createdModel.GetModel(), gotModel.GetModel())
 }
 
 func TestService_RetrievalModel_Delete(t *testing.T) {
@@ -219,9 +215,9 @@ func TestService_RetrievalModel_Delete(t *testing.T) {
 	secret, _, _ := newTestResources(t, "1")
 
 	// Create the secret first.
-	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the inference model referenced by the retrieval model.
@@ -230,9 +226,9 @@ func TestService_RetrievalModel_Delete(t *testing.T) {
 	expectedModel := newTestRetrievalModel()
 
 	// Create the retrieval model.
-	_, err = sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+	_, err = sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 		Model: expectedModel,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Delete the retrieval model.
@@ -259,18 +255,18 @@ func TestService_RetrievalModel_RBAC(t *testing.T) {
 	secret, _, _ := newTestResources(t, "1")
 
 	// Create the secret first.
-	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the inference model referenced by the retrieval model.
 	createTestInferenceModelForRetrieval(ctx, t, sclt)
 
 	retrievalModel := newTestRetrievalModel()
-	createdModel, err := sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+	createdModel, err := sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 		Model: retrievalModel,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Resources for further creation attempts.
@@ -292,9 +288,9 @@ func TestService_RetrievalModel_RBAC(t *testing.T) {
 			resource: types.KindRetrievalModel,
 			verbs:    []string{types.VerbCreate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+				_, err := sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 					Model: retrievalModel2,
-				})
+				}.Build())
 				return err
 			},
 		},
@@ -312,9 +308,9 @@ func TestService_RetrievalModel_RBAC(t *testing.T) {
 			resource: types.KindRetrievalModel,
 			verbs:    []string{types.VerbUpdate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.UpdateRetrievalModel(ctx, &summarizerv1pb.UpdateRetrievalModelRequest{
-					Model: createdModel.Model,
-				})
+				_, err := sclt.UpdateRetrievalModel(ctx, summarizerv1pb.UpdateRetrievalModelRequest_builder{
+					Model: createdModel.GetModel(),
+				}.Build())
 				return err
 			},
 		},
@@ -323,9 +319,9 @@ func TestService_RetrievalModel_RBAC(t *testing.T) {
 			resource: types.KindRetrievalModel,
 			verbs:    []string{types.VerbCreate, types.VerbUpdate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.UpsertRetrievalModel(ctx, &summarizerv1pb.UpsertRetrievalModelRequest{
-					Model: createdModel.Model,
-				})
+				_, err := sclt.UpsertRetrievalModel(ctx, summarizerv1pb.UpsertRetrievalModelRequest_builder{
+					Model: createdModel.GetModel(),
+				}.Build())
 				return err
 			},
 		},
@@ -386,9 +382,9 @@ func TestService_RetrievalModel_SingletonBehavior(t *testing.T) {
 	secret, _, _ := newTestResources(t, "1")
 
 	// Create the secret first.
-	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the inference model referenced by the retrieval model.
@@ -397,24 +393,24 @@ func TestService_RetrievalModel_SingletonBehavior(t *testing.T) {
 	model1 := newTestRetrievalModel()
 
 	// Create the first retrieval model.
-	_, err = sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+	_, err = sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 		Model: model1,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Attempt to create a second retrieval model should fail
 	// (only one retrieval model can exist per cluster).
 	model2 := newTestRetrievalModelBedrock()
-	_, err = sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+	_, err = sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 		Model: model2,
-	})
+	}.Build())
 	require.Error(t, err)
 	assert.True(t, trace.IsAlreadyExists(err), "expected AlreadyExists error, got %v", err)
 
 	// Verify that the original model is still there.
 	gotModel, err := sclt.GetRetrievalModel(ctx, &summarizerv1pb.GetRetrievalModelRequest{})
 	require.NoError(t, err)
-	assertResourceEquals(t, model1, gotModel.Model)
+	assertResourceEquals(t, model1, gotModel.GetModel())
 }
 
 func TestService_RetrievalModel_ProviderVariations(t *testing.T) {
@@ -447,25 +443,25 @@ func TestService_RetrievalModel_ProviderVariations(t *testing.T) {
 			secret, _, _ := newTestResources(t, "1")
 
 			// Create the secret first.
-			_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+			_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 				Secret: secret,
-			})
+			}.Build())
 			require.NoError(t, err)
 
 			// Create the inference model referenced by the retrieval model.
 			createTestInferenceModelForRetrieval(ctx, t, sclt)
 
 			// Create the retrieval model.
-			createdModel, err := sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+			createdModel, err := sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 				Model: tt.model,
-			})
+			}.Build())
 			require.NoError(t, err)
-			assertResourceEquals(t, tt.model, createdModel.Model)
+			assertResourceEquals(t, tt.model, createdModel.GetModel())
 
 			// Retrieve and verify the model.
 			gotModel, err := sclt.GetRetrievalModel(ctx, &summarizerv1pb.GetRetrievalModelRequest{})
 			require.NoError(t, err)
-			assertResourceEquals(t, tt.model, gotModel.Model)
+			assertResourceEquals(t, tt.model, gotModel.GetModel())
 		})
 	}
 }
@@ -484,9 +480,9 @@ func TestService_RetrievalModel_UpdateProvider(t *testing.T) {
 	secret, _, _ := newTestResources(t, "1")
 
 	// Create the secret first.
-	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the inference model referenced by the retrieval model.
@@ -494,28 +490,28 @@ func TestService_RetrievalModel_UpdateProvider(t *testing.T) {
 
 	// Create an retrieval model with OpenAI provider.
 	openaiModel := newTestRetrievalModel()
-	createdModel, err := sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+	createdModel, err := sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 		Model: openaiModel,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Update to use Bedrock provider instead.
 	bedrockModel := newTestRetrievalModelBedrock()
 	// Copy the metadata from the created model to preserve the revision.
-	bedrockModel.Metadata = createdModel.Model.Metadata
-	updatedModel, err := sclt.UpdateRetrievalModel(ctx, &summarizerv1pb.UpdateRetrievalModelRequest{
+	bedrockModel.SetMetadata(createdModel.GetModel().GetMetadata())
+	updatedModel, err := sclt.UpdateRetrievalModel(ctx, summarizerv1pb.UpdateRetrievalModelRequest_builder{
 		Model: bedrockModel,
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, bedrockModel, updatedModel.Model)
+	assertResourceEquals(t, bedrockModel, updatedModel.GetModel())
 
 	// Verify the update persisted.
 	gotModel, err := sclt.GetRetrievalModel(ctx, &summarizerv1pb.GetRetrievalModelRequest{})
 	require.NoError(t, err)
-	assertResourceEquals(t, bedrockModel, gotModel.Model)
+	assertResourceEquals(t, bedrockModel, gotModel.GetModel())
 	assert.Empty(t, cmp.Diff(
-		bedrockModel.Spec.GetBedrock(),
-		gotModel.Model.Spec.GetBedrock(),
+		bedrockModel.GetSpec().GetBedrock(),
+		gotModel.GetModel().GetSpec().GetBedrock(),
 		protocmp.Transform(),
 	))
 }
@@ -532,38 +528,38 @@ func TestService_RetrievalModel_InferenceModelExistenceValidation(t *testing.T) 
 	sclt := clt.SummarizerServiceClient()
 
 	secret, _, _ := newTestResources(t, "1")
-	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Attempts to create, update, and upsert a retrieval model that references
 	// a non-existent inference model should all fail.
 	model := newTestRetrievalModel() // references "test-inference-model"
 
-	_, err = sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+	_, err = sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 		Model: model,
-	})
+	}.Build())
 	require.Error(t, err, "creating a retrieval model with non-existent inference model should fail")
 
-	_, err = sclt.UpdateRetrievalModel(ctx, &summarizerv1pb.UpdateRetrievalModelRequest{
+	_, err = sclt.UpdateRetrievalModel(ctx, summarizerv1pb.UpdateRetrievalModelRequest_builder{
 		Model: model,
-	})
+	}.Build())
 	require.Error(t, err, "updating a retrieval model with non-existent inference model should fail")
 
-	_, err = sclt.UpsertRetrievalModel(ctx, &summarizerv1pb.UpsertRetrievalModelRequest{
+	_, err = sclt.UpsertRetrievalModel(ctx, summarizerv1pb.UpsertRetrievalModelRequest_builder{
 		Model: model,
-	})
+	}.Build())
 	require.Error(t, err, "upserting a retrieval model with non-existent inference model should fail")
 
 	// Once the inference model exists, creation should succeed.
 	createTestInferenceModelForRetrieval(ctx, t, sclt)
 
-	createdModel, err := sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+	createdModel, err := sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 		Model: model,
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, model, createdModel.Model)
+	assertResourceEquals(t, model, createdModel.GetModel())
 }
 
 func TestService_RetrievalModel_RestrictedBedrock(t *testing.T) {
@@ -580,9 +576,9 @@ func TestService_RetrievalModel_RestrictedBedrock(t *testing.T) {
 	secret, _, _ := newTestResources(t, "1")
 
 	// Create the secret first (required by the retrieval model).
-	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the inference model referenced by the retrieval model.
@@ -591,9 +587,9 @@ func TestService_RetrievalModel_RestrictedBedrock(t *testing.T) {
 	expectedModel := newTestRetrievalModelBedrock()
 
 	// Test creating the retrieval model.
-	_, err = sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+	_, err = sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 		Model: expectedModel,
-	})
+	}.Build())
 	require.Error(t, err)
 }
 
@@ -630,12 +626,12 @@ func TestService_TestRetrievalModel(t *testing.T) {
 	sclt := clt.SummarizerServiceClient()
 
 	// Store a secret in the backend for the api_key_secret_ref tests.
-	storedSecret := summarizer.NewInferenceSecret("stored-secret", &summarizerv1pb.InferenceSecretSpec{
+	storedSecret := summarizer.NewInferenceSecret("stored-secret", summarizerv1pb.InferenceSecretSpec_builder{
 		Value: "stored-api-key",
-	})
-	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	}.Build())
+	_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: storedSecret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	tests := []struct {
@@ -647,19 +643,19 @@ func TestService_TestRetrievalModel(t *testing.T) {
 	}{
 		{
 			name: "nil model spec",
-			req: &summarizerv1pb.TestRetrievalModelRequest{
+			req: summarizerv1pb.TestRetrievalModelRequest_builder{
 				Model: nil,
-			},
+			}.Build(),
 			expectSuccess:   false,
 			messageContains: "model spec is required",
 		},
 		{
 			name: "invalid model spec - no embeddings provider",
-			req: &summarizerv1pb.TestRetrievalModelRequest{
-				Model: &summarizerv1pb.RetrievalModelSpec{
+			req: summarizerv1pb.TestRetrievalModelRequest_builder{
+				Model: summarizerv1pb.RetrievalModelSpec_builder{
 					InferenceModelName: "some-model",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectSuccess:   false,
 			messageContains: "invalid model spec",
 		},
@@ -667,16 +663,14 @@ func TestService_TestRetrievalModel(t *testing.T) {
 			// Validation requires api_key_secret_ref for OpenAI models; the
 			// error comes from ValidateRetrievalModel before reaching provider logic.
 			name: "OpenAI without api_key_secret_ref",
-			req: &summarizerv1pb.TestRetrievalModelRequest{
-				Model: &summarizerv1pb.RetrievalModelSpec{
-					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
-						Openai: &summarizerv1pb.OpenAIProvider{
-							OpenaiModelId: "text-embedding-3-small",
-						},
-					},
+			req: summarizerv1pb.TestRetrievalModelRequest_builder{
+				Model: summarizerv1pb.RetrievalModelSpec_builder{
+					Openai: summarizerv1pb.OpenAIProvider_builder{
+						OpenaiModelId: "text-embedding-3-small",
+					}.Build(),
 					InferenceModelName: "test-inference-model",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectSuccess:   false,
 			messageContains: "api_key_secret_ref is required",
 		},
@@ -684,17 +678,15 @@ func TestService_TestRetrievalModel(t *testing.T) {
 			// api_key_secret_ref is set but the secret does not exist in the
 			// backend and no inline secret was provided.
 			name: "OpenAI with api_key_secret_ref pointing to non-existent secret",
-			req: &summarizerv1pb.TestRetrievalModelRequest{
-				Model: &summarizerv1pb.RetrievalModelSpec{
-					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
-						Openai: &summarizerv1pb.OpenAIProvider{
-							OpenaiModelId:   "text-embedding-3-small",
-							ApiKeySecretRef: "non-existent-secret",
-						},
-					},
+			req: summarizerv1pb.TestRetrievalModelRequest_builder{
+				Model: summarizerv1pb.RetrievalModelSpec_builder{
+					Openai: summarizerv1pb.OpenAIProvider_builder{
+						OpenaiModelId:   "text-embedding-3-small",
+						ApiKeySecretRef: "non-existent-secret",
+					}.Build(),
 					InferenceModelName: "test-inference-model",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectSuccess:   false,
 			messageContains: "not found in backend",
 		},
@@ -702,21 +694,19 @@ func TestService_TestRetrievalModel(t *testing.T) {
 			// Inline secret overrides api_key_secret_ref lookup; the mock server
 			// returns 401 to simulate an invalid API key.
 			name: "OpenAI with inline secret and invalid API key",
-			req: &summarizerv1pb.TestRetrievalModelRequest{
-				Model: &summarizerv1pb.RetrievalModelSpec{
-					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
-						Openai: &summarizerv1pb.OpenAIProvider{
-							OpenaiModelId:   "text-embedding-3-small",
-							ApiKeySecretRef: "some-secret",
-							BaseUrl:         mockOpenAIUnauthorized.URL,
-						},
-					},
+			req: summarizerv1pb.TestRetrievalModelRequest_builder{
+				Model: summarizerv1pb.RetrievalModelSpec_builder{
+					Openai: summarizerv1pb.OpenAIProvider_builder{
+						OpenaiModelId:   "text-embedding-3-small",
+						ApiKeySecretRef: "some-secret",
+						BaseUrl:         mockOpenAIUnauthorized.URL,
+					}.Build(),
 					InferenceModelName: "test-inference-model",
-				},
-				Secret: &summarizerv1pb.InferenceSecretSpec{
+				}.Build(),
+				Secret: summarizerv1pb.InferenceSecretSpec_builder{
 					Value: "invalid-api-key",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectSuccess:   false,
 			messageContains: "Invalid API key",
 		},
@@ -725,18 +715,16 @@ func TestService_TestRetrievalModel(t *testing.T) {
 			// api_key_secret_ref. The stored secret exists but the mock server
 			// returns 401.
 			name: "OpenAI with stored secret and invalid API key",
-			req: &summarizerv1pb.TestRetrievalModelRequest{
-				Model: &summarizerv1pb.RetrievalModelSpec{
-					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
-						Openai: &summarizerv1pb.OpenAIProvider{
-							OpenaiModelId:   "text-embedding-3-small",
-							ApiKeySecretRef: "stored-secret",
-							BaseUrl:         mockOpenAIUnauthorized.URL,
-						},
-					},
+			req: summarizerv1pb.TestRetrievalModelRequest_builder{
+				Model: summarizerv1pb.RetrievalModelSpec_builder{
+					Openai: summarizerv1pb.OpenAIProvider_builder{
+						OpenaiModelId:   "text-embedding-3-small",
+						ApiKeySecretRef: "stored-secret",
+						BaseUrl:         mockOpenAIUnauthorized.URL,
+					}.Build(),
 					InferenceModelName: "test-inference-model",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectSuccess:   false,
 			messageContains: "Invalid API key",
 		},
@@ -744,21 +732,19 @@ func TestService_TestRetrievalModel(t *testing.T) {
 			// Inline secret with a mock server that returns a valid embeddings
 			// response — the full round-trip should succeed.
 			name: "OpenAI with inline secret and successful response",
-			req: &summarizerv1pb.TestRetrievalModelRequest{
-				Model: &summarizerv1pb.RetrievalModelSpec{
-					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
-						Openai: &summarizerv1pb.OpenAIProvider{
-							OpenaiModelId:   "text-embedding-3-small",
-							ApiKeySecretRef: "some-secret",
-							BaseUrl:         mockOpenAISuccess.URL,
-						},
-					},
+			req: summarizerv1pb.TestRetrievalModelRequest_builder{
+				Model: summarizerv1pb.RetrievalModelSpec_builder{
+					Openai: summarizerv1pb.OpenAIProvider_builder{
+						OpenaiModelId:   "text-embedding-3-small",
+						ApiKeySecretRef: "some-secret",
+						BaseUrl:         mockOpenAISuccess.URL,
+					}.Build(),
 					InferenceModelName: "test-inference-model",
-				},
-				Secret: &summarizerv1pb.InferenceSecretSpec{
+				}.Build(),
+				Secret: summarizerv1pb.InferenceSecretSpec_builder{
 					Value: "valid-api-key",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectSuccess:   true,
 			messageContains: "Successfully connected",
 		},
@@ -768,17 +754,15 @@ func TestService_TestRetrievalModel(t *testing.T) {
 			// are no real AWS credentials, but the failure message should NOT
 			// be the "restricted" message.
 			name: "Bedrock unrestricted but no real AWS creds",
-			req: &summarizerv1pb.TestRetrievalModelRequest{
-				Model: &summarizerv1pb.RetrievalModelSpec{
-					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Bedrock{
-						Bedrock: &summarizerv1pb.BedrockProvider{
-							BedrockModelId: "amazon.titan-embed-text-v1",
-							Region:         "us-east-1",
-						},
-					},
+			req: summarizerv1pb.TestRetrievalModelRequest_builder{
+				Model: summarizerv1pb.RetrievalModelSpec_builder{
+					Bedrock: summarizerv1pb.BedrockProvider_builder{
+						BedrockModelId: "amazon.titan-embed-text-v1",
+						Region:         "us-east-1",
+					}.Build(),
 					InferenceModelName: "test-inference-model",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectSuccess: false,
 		},
 	}
@@ -795,9 +779,9 @@ func TestService_TestRetrievalModel(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			assert.Equal(t, tt.expectSuccess, resp.Success)
+			assert.Equal(t, tt.expectSuccess, resp.GetSuccess())
 			if tt.messageContains != "" {
-				assert.Contains(t, resp.Message, tt.messageContains)
+				assert.Contains(t, resp.GetMessage(), tt.messageContains)
 			}
 		})
 	}
@@ -840,17 +824,15 @@ func TestService_TestRetrievalModel_RBAC(t *testing.T) {
 			require.NoError(t, err)
 			sclt := clt.SummarizerServiceClient()
 
-			_, err = sclt.TestRetrievalModel(ctx, &summarizerv1pb.TestRetrievalModelRequest{
-				Model: &summarizerv1pb.RetrievalModelSpec{
-					EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Openai{
-						Openai: &summarizerv1pb.OpenAIProvider{
-							OpenaiModelId:   "text-embedding-3-small",
-							ApiKeySecretRef: "some-secret",
-						},
-					},
+			_, err = sclt.TestRetrievalModel(ctx, summarizerv1pb.TestRetrievalModelRequest_builder{
+				Model: summarizerv1pb.RetrievalModelSpec_builder{
+					Openai: summarizerv1pb.OpenAIProvider_builder{
+						OpenaiModelId:   "text-embedding-3-small",
+						ApiKeySecretRef: "some-secret",
+					}.Build(),
 					InferenceModelName: "test-inference-model",
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.Error(t, err)
 			assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
 		})
@@ -869,19 +851,17 @@ func TestService_TestRetrievalModel_RestrictedBedrock(t *testing.T) {
 	require.NoError(t, err)
 	sclt := clt.SummarizerServiceClient()
 
-	resp, err := sclt.TestRetrievalModel(ctx, &summarizerv1pb.TestRetrievalModelRequest{
-		Model: &summarizerv1pb.RetrievalModelSpec{
-			EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Bedrock{
-				Bedrock: &summarizerv1pb.BedrockProvider{
-					BedrockModelId: "amazon.titan-embed-text-v1",
-					Region:         "us-east-1",
-				},
-			},
+	resp, err := sclt.TestRetrievalModel(ctx, summarizerv1pb.TestRetrievalModelRequest_builder{
+		Model: summarizerv1pb.RetrievalModelSpec_builder{
+			Bedrock: summarizerv1pb.BedrockProvider_builder{
+				BedrockModelId: "amazon.titan-embed-text-v1",
+				Region:         "us-east-1",
+			}.Build(),
 			InferenceModelName: "test-inference-model",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.NotNil(t, resp)
-	assert.False(t, resp.Success)
-	assert.Contains(t, resp.Message, "access to Amazon Bedrock models provided by Teleport Cloud is restricted")
+	assert.False(t, resp.GetSuccess())
+	assert.Contains(t, resp.GetMessage(), "access to Amazon Bedrock models provided by Teleport Cloud is restricted")
 }

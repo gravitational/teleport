@@ -1443,14 +1443,14 @@ func installLoginRule(ctx context.Context, t *testing.T, a *auth.Server, b backe
 	}
 
 	// Create login rule and upsert to backend.
-	rule := &loginrulepb.LoginRule{
+	rule := loginrulepb.LoginRule_builder{
 		Metadata: &types.Metadata{
 			Name: "testrule",
 		},
 		TraitsMap: make(map[string]*wrappers.StringValues),
-	}
+	}.Build()
 	for trait, values := range traitsMap {
-		rule.TraitsMap[trait] = &wrappers.StringValues{
+		rule.GetTraitsMap()[trait] = &wrappers.StringValues{
 			Values: values,
 		}
 	}

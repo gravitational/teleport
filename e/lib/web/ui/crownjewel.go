@@ -50,12 +50,12 @@ type AWSMatcher struct {
 // ToCrownJewel converts a Crown Jewel to a UI representation.
 func ToCrownJewel(cj *crownjewelv1.CrownJewel) *CrownJewel {
 	return &CrownJewel{
-		Name:        cj.Metadata.Name,
-		Description: cj.Metadata.Description,
+		Name:        cj.GetMetadata().GetName(),
+		Description: cj.GetMetadata().GetDescription(),
 		Spec: CrownJewelSpec{
-			Query:            cj.Spec.Query,
-			TeleportMatchers: ToTeleportMatchers(cj.Spec.TeleportMatchers),
-			AwsMatchers:      ToAWSMatchers(cj.Spec.AwsMatchers),
+			Query:            cj.GetSpec().GetQuery(),
+			TeleportMatchers: ToTeleportMatchers(cj.GetSpec().GetTeleportMatchers()),
+			AwsMatchers:      ToAWSMatchers(cj.GetSpec().GetAwsMatchers()),
 		},
 	}
 }
@@ -73,9 +73,9 @@ func ToAWSMatchers(matchers []*crownjewelv1.AWSMatcher) []AWSMatcher {
 	var result []AWSMatcher
 	for _, m := range matchers {
 		result = append(result, AWSMatcher{
-			Regions: m.Regions,
-			Types:   m.Types,
-			Tags:    toAWSTag(m.Tags),
+			Regions: m.GetRegions(),
+			Types:   m.GetTypes(),
+			Tags:    toAWSTag(m.GetTags()),
 		})
 	}
 	return result
@@ -86,9 +86,9 @@ func ToTeleportMatchers(matchers []*crownjewelv1.TeleportMatcher) []TeleportMatc
 	var result []TeleportMatcher
 	for _, m := range matchers {
 		result = append(result, TeleportMatcher{
-			Kinds:  m.Kinds,
-			Names:  m.Names,
-			Labels: toLabels(m.Labels),
+			Kinds:  m.GetKinds(),
+			Names:  m.GetNames(),
+			Labels: toLabels(m.GetLabels()),
 		})
 	}
 	return result
@@ -97,7 +97,7 @@ func ToTeleportMatchers(matchers []*crownjewelv1.TeleportMatcher) []TeleportMatc
 func toAWSTag(tags []*crownjewelv1.AWSTag) map[string][]string {
 	result := make(map[string][]string)
 	for _, t := range tags {
-		result[t.Key] = pbToStr(t.Values)
+		result[t.GetKey()] = pbToStr(t.GetValues())
 	}
 	return result
 }
@@ -113,7 +113,7 @@ func pbToStr(values []*wrapperspb.StringValue) []string {
 func toLabels(labels []*labelv1.Label) map[string][]string {
 	result := make(map[string][]string)
 	for _, l := range labels {
-		result[l.Name] = l.Values
+		result[l.GetName()] = l.GetValues()
 	}
 	return result
 }

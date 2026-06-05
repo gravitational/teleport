@@ -66,10 +66,10 @@ func TestGenerateEmbeddings(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			provider, err := NewEmbeddingProvider(ctx, EmbeddingProviderConfig{
-				Spec: &summarizerv1pb.BedrockProvider{
+				Spec: summarizerv1pb.BedrockProvider_builder{
 					Region:         "us-east-1",
 					BedrockModelId: "amazon.titan-embed-text-v2:0",
-				},
+				}.Build(),
 				ModelResourceName: "titan-embeddings",
 				ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
 				AWSConfigCache:    cache,
@@ -102,7 +102,7 @@ func TestNewEmbeddingProviderValidation(t *testing.T) {
 		{
 			name: "missing model resource name",
 			cfg: EmbeddingProviderConfig{
-				Spec:           &summarizerv1pb.BedrockProvider{Region: "us-east-1"},
+				Spec:           summarizerv1pb.BedrockProvider_builder{Region: "us-east-1"}.Build(),
 				AWSConfigCache: cache,
 			},
 			wantErr: "model resource name is required",
@@ -119,7 +119,7 @@ func TestNewEmbeddingProviderValidation(t *testing.T) {
 		{
 			name: "missing aws config cache",
 			cfg: EmbeddingProviderConfig{
-				Spec:              &summarizerv1pb.BedrockProvider{Region: "us-east-1"},
+				Spec:              summarizerv1pb.BedrockProvider_builder{Region: "us-east-1"}.Build(),
 				ModelResourceName: "m",
 			},
 			wantErr: "AWS config cache is required",
@@ -127,7 +127,7 @@ func TestNewEmbeddingProviderValidation(t *testing.T) {
 		{
 			name: "placeholder region with empty env var",
 			cfg: EmbeddingProviderConfig{
-				Spec:              &summarizerv1pb.BedrockProvider{Region: "{{env.bedrock_region}}"},
+				Spec:              summarizerv1pb.BedrockProvider_builder{Region: "{{env.bedrock_region}}"}.Build(),
 				ModelResourceName: "m",
 				AWSConfigCache:    cache,
 			},
@@ -136,7 +136,7 @@ func TestNewEmbeddingProviderValidation(t *testing.T) {
 		{
 			name: "placeholder region with surrounding spaces and empty env var",
 			cfg: EmbeddingProviderConfig{
-				Spec:              &summarizerv1pb.BedrockProvider{Region: "{{ env.bedrock_region }}"},
+				Spec:              summarizerv1pb.BedrockProvider_builder{Region: "{{ env.bedrock_region }}"}.Build(),
 				ModelResourceName: "m",
 				AWSConfigCache:    cache,
 			},
@@ -166,10 +166,10 @@ func TestNewEmbeddingProvider_RegionExpansion(t *testing.T) {
 		},
 	}
 	provider, err := NewEmbeddingProvider(ctx, EmbeddingProviderConfig{
-		Spec: &summarizerv1pb.BedrockProvider{
+		Spec: summarizerv1pb.BedrockProvider_builder{
 			BedrockModelId: "amazon.titan-embed-text-v2:0",
 			Region:         "{{env.bedrock_region}}",
-		},
+		}.Build(),
 		ModelResourceName: "m",
 		AWSConfigCache:    cache,
 		ClientFactory:     clientFactory,

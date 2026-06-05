@@ -148,7 +148,7 @@ func (s *Service) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerService_
 			}
 
 			// replace key with the system deviceID
-			key.Spec.DeviceId = devID
+			key.GetSpec().SetDeviceId(devID)
 			allKeys = append(allKeys, key)
 		}
 	}
@@ -167,7 +167,7 @@ func (s *Service) ReportSecrets(in accessgraphsecretsv1pb.SecretsScannerService_
 		&usagereporter.AccessGraphSecretsScanSSHPrivateKeysEvent{
 			DeviceId:     devID,
 			TotalKeys:    uint64(len(allKeys)),
-			DeviceOsType: dev.OsType.String(),
+			DeviceOsType: dev.GetOsType().String(),
 		})
 
 	return nil

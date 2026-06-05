@@ -46,12 +46,12 @@ func listTeleportUsers(ctx context.Context, svc accessPoint, connectorID string)
 
 	var pageToken string
 	for {
-		resp, err := svc.ListUsers(ctx, &userspb.ListUsersRequest{PageToken: pageToken})
+		resp, err := svc.ListUsers(ctx, userspb.ListUsersRequest_builder{PageToken: pageToken}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err, "listing teleport entra users")
 		}
 
-		for _, user := range resp.Users {
+		for _, user := range resp.GetUsers() {
 			if matchByLabel(user) {
 				result[user.GetName()] = user
 				continue
@@ -71,10 +71,10 @@ func listTeleportUsers(ctx context.Context, svc accessPoint, connectorID string)
 				result[user.GetName()] = user
 			}
 		}
-		if resp.NextPageToken == "" {
+		if resp.GetNextPageToken() == "" {
 			break
 		}
-		pageToken = resp.NextPageToken
+		pageToken = resp.GetNextPageToken()
 	}
 
 	return result, nil

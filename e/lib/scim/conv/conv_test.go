@@ -20,15 +20,15 @@ func TestUserConv(t *testing.T) {
 		"password":               "pa$$word", // should be omitted
 	})
 	require.NoError(t, err)
-	want := &scimpb.Resource{
+	want := scimpb.Resource_builder{
 		Id: "alice@example.com",
-		Meta: &scimpb.Meta{
+		Meta: scimpb.Meta_builder{
 			Version:      `W/"version1"`,
 			ResourceType: common.ResourceTypeUser,
-		},
+		}.Build(),
 		ExternalId: "external-id",
 		Attributes: attrs,
-	}
+	}.Build()
 	labels := map[string]string{
 		"external-id": want.GetExternalId(),
 	}
@@ -44,7 +44,7 @@ func TestUserConv(t *testing.T) {
 	}))
 	require.NoError(t, err)
 	require.NotNil(t, got.GetMeta().GetCreated())
-	got.Meta.Created = nil
+	got.GetMeta().ClearCreated()
 	deleteProtoField(t, &want.Attributes, "password")
 	require.Equal(t, want, got)
 }
@@ -73,13 +73,13 @@ func TestGroupConv(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	want := &scimpb.Resource{
-		Meta: &scimpb.Meta{
+	want := scimpb.Resource_builder{
+		Meta: scimpb.Meta_builder{
 			Version:      `W/"version1"`,
 			ResourceType: common.ResourceTypeGroup,
-		},
+		}.Build(),
 		Attributes: attrs,
-	}
+	}.Build()
 	labels := map[string]string{"test": "test"}
 	grants := accesslist.Grants{Roles: []string{"admin", "developer"}}
 	acl, members, err := AccessListFromResource(want,

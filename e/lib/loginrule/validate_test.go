@@ -20,46 +20,46 @@ func TestValidate(t *testing.T) {
 	}{
 		{
 			desc: "valid",
-			rule: &loginrulepb.LoginRule{
+			rule: loginrulepb.LoginRule_builder{
 				Metadata: &types.Metadata{
 					Name: "expressionless_rule",
 				},
 				Version:          "v1",
 				TraitsExpression: `external`,
-			},
+			}.Build(),
 		},
 		{
 			desc: "no metadata",
-			rule: &loginrulepb.LoginRule{
+			rule: loginrulepb.LoginRule_builder{
 				Version:          "v1",
 				TraitsExpression: `external`,
-			},
+			}.Build(),
 			errorContains: "must contain metadata",
 		},
 		{
 			desc: "no name",
-			rule: &loginrulepb.LoginRule{
+			rule: loginrulepb.LoginRule_builder{
 				Metadata: &types.Metadata{
 					Name: "",
 				},
 				Version:          "v1",
 				TraitsExpression: `external`,
-			},
+			}.Build(),
 			errorContains: "must have non-empty metadata.name",
 		},
 		{
 			desc: "no expressions",
-			rule: &loginrulepb.LoginRule{
+			rule: loginrulepb.LoginRule_builder{
 				Metadata: &types.Metadata{
 					Name: "expressionless_rule",
 				},
 				Version: "v1",
-			},
+			}.Build(),
 			errorContains: "both traits_map and traits_expression are empty",
 		},
 		{
 			desc: "too many expressions",
-			rule: &loginrulepb.LoginRule{
+			rule: loginrulepb.LoginRule_builder{
 				Metadata: &types.Metadata{
 					Name: "rule",
 				},
@@ -70,7 +70,7 @@ func TestValidate(t *testing.T) {
 						Values: []string{"external.groups"},
 					},
 				},
-			},
+			}.Build(),
 			errorContains: "both traits_map and traits_expression are non-empty",
 		},
 		{

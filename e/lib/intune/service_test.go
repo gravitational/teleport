@@ -23,14 +23,14 @@ import (
 
 var devicesCmpOpts = []cmp.Option{
 	cmpopts.SortSlices(func(a, b *devicepb.Device) bool {
-		return a.AssetTag < b.AssetTag
+		return a.GetAssetTag() < b.GetAssetTag()
 	}),
 	protocmp.Transform(),
 	protocmp.IgnoreFields(&devicepb.Device{}, "api_version", "id", "create_time", "update_time"),
 	protocmp.IgnoreFields(&devicepb.DeviceProfile{}, "update_time"),
 }
 
-var source = &devicepb.DeviceSource{Name: "intune", Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE}
+var source = devicepb.DeviceSource_builder{Name: "intune", Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE}.Build()
 
 // TestRun_fullSync runs a full sync once and verifies that only valid devices are pushed to
 // Teleport.
@@ -124,11 +124,11 @@ func TestRun_fullSync(t *testing.T) {
 	// Create a device that is going to get removed during a full sync since it comes from Intune but
 	// has no matching external ID.
 	mustBulkCreateDevices(t, devicesClient, []*devicepb.Device{
-		{
+		devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "deleteonfullsync1",
 			Source:   source,
-		},
+		}.Build(),
 	})
 
 	s := serviceFromEnv(t, env, syncPeriods{})
@@ -142,46 +142,46 @@ func TestRun_fullSync(t *testing.T) {
 	// Wait for devices to be synced.
 	waitForDevices(t, devicesClient,
 		[]*devicepb.Device{
-			{
+			devicepb.Device_builder{
 				OsType:       devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag:     intuneDevices[0].SerialNumber,
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 				Source:       source,
-				Profile: &devicepb.DeviceProfile{
+				Profile: devicepb.DeviceProfile_builder{
 					OsVersion:  "13.4.1",
 					OsBuild:    "22F82",
 					ExternalId: intuneDevices[0].ID,
-				},
-			},
-			{
+				}.Build(),
+			}.Build(),
+			devicepb.Device_builder{
 				OsType:       devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag:     intuneDevices[1].SerialNumber,
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 				Source:       source,
-				Profile: &devicepb.DeviceProfile{
+				Profile: devicepb.DeviceProfile_builder{
 					ExternalId: intuneDevices[1].ID,
-				},
-			},
-			{
+				}.Build(),
+			}.Build(),
+			devicepb.Device_builder{
 				OsType:       devicepb.OSType_OS_TYPE_IOS,
 				AssetTag:     intuneDevices[2].SerialNumber,
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 				Source:       source,
-				Profile: &devicepb.DeviceProfile{
+				Profile: devicepb.DeviceProfile_builder{
 					OsVersion:  "26.3.1",
 					ExternalId: intuneDevices[2].ID,
-				},
-			},
-			{
+				}.Build(),
+			}.Build(),
+			devicepb.Device_builder{
 				OsType:       devicepb.OSType_OS_TYPE_IPADOS,
 				AssetTag:     intuneDevices[3].SerialNumber,
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 				Source:       source,
-				Profile: &devicepb.DeviceProfile{
+				Profile: devicepb.DeviceProfile_builder{
 					OsVersion:  "18.6",
 					ExternalId: intuneDevices[3].ID,
-				},
-			},
+				}.Build(),
+			}.Build(),
 		})
 }
 
@@ -228,11 +228,11 @@ func TestRun_partialSync(t *testing.T) {
 	// Create a device that would get removed during a full sync. Later on verify that it wasn't
 	// removed by a partial sync.
 	mustBulkCreateDevices(t, devicesClient, []*devicepb.Device{
-		{
+		devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "deleteonfullsync1",
 			Source:   source,
-		},
+		}.Build(),
 	})
 
 	s := serviceFromEnv(t, env, syncPeriods{
@@ -272,15 +272,15 @@ func TestRun_partialSync(t *testing.T) {
 	// Verify that the right device had its OS version updated.
 	got := listAllDevices(t.Context(), t, devicesClient)
 	updatedDeviceIdx := slices.IndexFunc(got, func(d *devicepb.Device) bool {
-		return d.AssetTag == intuneDevices[0].SerialNumber
+		return d.GetAssetTag() == intuneDevices[0].SerialNumber
 	})
 	notUpdatedDeviceIdx := slices.IndexFunc(got, func(d *devicepb.Device) bool {
-		return d.AssetTag == intuneDevices[1].SerialNumber
+		return d.GetAssetTag() == intuneDevices[1].SerialNumber
 	})
 	updatedDevice := got[updatedDeviceIdx]
 	notUpdatedDevice := got[notUpdatedDeviceIdx]
-	require.Equal(t, "14.0.0", updatedDevice.Profile.OsVersion, "device with asset tag %s was not updated", updatedDevice.AssetTag)
-	require.Equal(t, "13.4.1", notUpdatedDevice.Profile.OsVersion, "device with asset tag %s was updated", notUpdatedDevice.AssetTag)
+	require.Equal(t, "14.0.0", updatedDevice.GetProfile().GetOsVersion(), "device with asset tag %s was not updated", updatedDevice.GetAssetTag())
+	require.Equal(t, "13.4.1", notUpdatedDevice.GetProfile().GetOsVersion(), "device with asset tag %s was updated", notUpdatedDevice.GetAssetTag())
 }
 
 // TestRun_fullSyncThenPartialSync verifies that the partial sync uses the highest observed
@@ -346,11 +346,11 @@ func TestRun_fullSyncThenPartialSync(t *testing.T) {
 	// Create a device with missing details which would get removed during a full sync. Its existence
 	// confirms that only a partial sync took place.
 	mustBulkCreateDevices(t, devicesClient, []*devicepb.Device{
-		{
+		devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "deleteonfullsync1",
 			Source:   source,
-		},
+		}.Build(),
 	})
 
 	// Wait for the partial sync.
@@ -358,10 +358,10 @@ func TestRun_fullSyncThenPartialSync(t *testing.T) {
 	// Verify that the OS version wasn't updated.
 	got := listAllDevices(t.Context(), t, devicesClient)
 	ogDeviceIdx := slices.IndexFunc(got, func(d *devicepb.Device) bool {
-		return d.AssetTag == intuneDevices[0].SerialNumber
+		return d.GetAssetTag() == intuneDevices[0].SerialNumber
 	})
 	ogDevice := got[ogDeviceIdx]
-	require.Equal(t, "13.4.1", ogDevice.Profile.OsVersion, "OS version has changed, indicating that the service didn't fetch a subset of devices")
+	require.Equal(t, "13.4.1", ogDevice.GetProfile().GetOsVersion(), "OS version has changed, indicating that the service didn't fetch a subset of devices")
 
 	// Update lastSyncDateTime of the og device and add another device.
 	t2 := advanceNow()
@@ -381,10 +381,10 @@ func TestRun_fullSyncThenPartialSync(t *testing.T) {
 	// Verify that the OS version was updated.
 	got = listAllDevices(t.Context(), t, devicesClient)
 	ogDeviceIdx = slices.IndexFunc(got, func(d *devicepb.Device) bool {
-		return d.AssetTag == intuneDevices[0].SerialNumber
+		return d.GetAssetTag() == intuneDevices[0].SerialNumber
 	})
 	ogDevice = got[ogDeviceIdx]
-	require.Equal(t, "14.0.0", ogDevice.Profile.OsVersion, "OS version has not changed, indicating that the OG device wasn't updated during a partial sync")
+	require.Equal(t, "14.0.0", ogDevice.GetProfile().GetOsVersion(), "OS version has not changed, indicating that the OG device wasn't updated during a partial sync")
 	ctx := t.Context()
 	// Wait for a full sync.
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -453,27 +453,27 @@ func TestRun_deviceConfirmation(t *testing.T) {
 	require.NoError(t, err)
 	waitForDevices(
 		t, devicesClient, []*devicepb.Device{
-			{
+			devicepb.Device_builder{
 				OsType:       devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag:     intuneDevices[0].SerialNumber,
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 				Source:       source,
-				Profile: &devicepb.DeviceProfile{
+				Profile: devicepb.DeviceProfile_builder{
 					OsVersion:       "13.4.1",
 					OsBuild:         "22F82",
 					ExternalId:      intuneDevices[0].ID,
 					ModelIdentifier: "",
-				},
-			},
-			{
+				}.Build(),
+			}.Build(),
+			devicepb.Device_builder{
 				OsType:       devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag:     intuneDevices[1].SerialNumber,
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 				Source:       source,
-				Profile: &devicepb.DeviceProfile{
+				Profile: devicepb.DeviceProfile_builder{
 					ExternalId: intuneDevices[1].ID,
-				},
-			},
+				}.Build(),
+			}.Build(),
 		})
 }
 
@@ -481,16 +481,16 @@ func listAllDevices(ctx context.Context, t require.TestingT, devicesClient devic
 	var devs []*devicepb.Device
 	var pageToken string
 	for {
-		resp, err := devicesClient.ListDevices(ctx, &devicepb.ListDevicesRequest{
+		resp, err := devicesClient.ListDevices(ctx, devicepb.ListDevicesRequest_builder{
 			PageToken: pageToken,
 			View:      devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
-		})
+		}.Build())
 		require.NoError(t, err)
-		devs = append(devs, resp.Devices...)
-		if resp.NextPageToken == "" {
+		devs = append(devs, resp.GetDevices()...)
+		if resp.GetNextPageToken() == "" {
 			return devs
 		}
-		pageToken = resp.NextPageToken
+		pageToken = resp.GetNextPageToken()
 	}
 }
 
@@ -542,11 +542,11 @@ func serviceFromEnv(t *testing.T, env *testenv.Env, syncPeriods syncPeriods) *Se
 
 func mustBulkCreateDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClient, devices []*devicepb.Device) {
 	t.Helper()
-	resp, err := devicesClient.BulkCreateDevices(t.Context(), &devicepb.BulkCreateDevicesRequest{
+	resp, err := devicesClient.BulkCreateDevices(t.Context(), devicepb.BulkCreateDevicesRequest_builder{
 		Devices: devices,
-	})
+	}.Build())
 	require.NoError(t, err)
-	for i, s := range resp.Devices {
+	for i, s := range resp.GetDevices() {
 		require.Equal(t, codes.OK, codes.Code(s.GetStatus().GetCode()), "device #%v has non-OK status: %+v", i, s)
 	}
 }

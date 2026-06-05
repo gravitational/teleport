@@ -51,18 +51,18 @@ func TestAccessListSync(t *testing.T) {
 	)
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
 
-	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ApiCredentials:            apiCredentials,
 		SsoMetadataUrl:            fakeOkta.URL() + "/sso/saml/metadata",
 		EnableUserSync:            true,
 		DisableAssignDefaultRoles: false,
 		EnableAppGroupSync:        true,
 		EnableAccessListSync:      true,
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			DefaultOwner: []string{"alice-admin"},
 			AppFilters:   []string{"my-soft-*"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	updateOktaDelays(t, sut, delays{
 		timeBetweenImports:                1 * time.Second,
@@ -192,17 +192,17 @@ func TestAccessListSync_bidirectionalSync(t *testing.T) {
 
 	// 1. Create integration with bidirectional sync disabled.
 
-	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaAuthClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
 		EnableAccessListSync:    true,
 		EnableBidirectionalSync: false, // disabled
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			DefaultOwner: []string{"alice-admin"},
-		},
+		}.Build(),
 		ReuseConnector: "okta-pre-created-test",
-	})
+	}.Build())
 	require.NoError(t, err)
 	updateOktaDelays(t, sut, delays{
 		timeBetweenImports:                1 * time.Second,
@@ -254,15 +254,15 @@ func TestAccessListSync_bidirectionalSync(t *testing.T) {
 
 	// 5. Update integration enabling bidirectional sync
 
-	mustUpdateOktaIntegration(ctx, t, oktaAuthClient, &oktav1.UpdateIntegrationRequest{
+	mustUpdateOktaIntegration(ctx, t, oktaAuthClient, oktav1.UpdateIntegrationRequest_builder{
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
 		EnableAccessListSync:    true,
 		EnableBidirectionalSync: true, // enabled
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			DefaultOwner: []string{"alice-admin"},
-		},
-	})
+		}.Build(),
+	}.Build())
 
 	// 6. Wait for AssignmentProcessor event and verify okta_assignments are in "successful" state
 

@@ -655,16 +655,16 @@ func (p *Plugin) accessRequestPromoteHandle(_ http.ResponseWriter, r *http.Reque
 	}
 
 	resp, err := clt.AccessListClient().AccessRequestPromote(r.Context(),
-		&accesslistv1.AccessRequestPromoteRequest{
+		accesslistv1.AccessRequestPromoteRequest_builder{
 			RequestId:      requestID,
 			AccessListName: req.AccessListName,
 			Reason:         req.Reason,
-		})
+		}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ar, err := ui.NewAccessRequest(resp.AccessRequest)
+	ar, err := ui.NewAccessRequest(resp.GetAccessRequest())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

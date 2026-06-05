@@ -32,11 +32,11 @@ func (h *Plugin) getSessionRecordingSummary(
 
 	response, err := clt.SummarizerServiceClient().GetSummary(
 		r.Context(),
-		&summarizerv1.GetSummaryRequest{SessionId: sessionId},
+		summarizerv1.GetSummaryRequest_builder{SessionId: sessionId}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return summarizer.MakeSummary(response.Summary), nil
+	return summarizer.MakeSummary(response.GetSummary()), nil
 }

@@ -249,24 +249,22 @@ func (s *Service) runWithSpec(ctx context.Context, spec runSpec) (nextDeviceLast
 	defer stream.CloseSend()
 
 	// Init.
-	if err := stream.Send(&devicepb.SyncInventoryRequest{
-		Payload: &devicepb.SyncInventoryRequest_Start{
-			Start: &devicepb.SyncInventoryStart{
-				Source: &devicepb.DeviceSource{
-					Name:   "intune",
-					Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE,
-				},
-				TrackMissingDevices: spec.mode == mdmsync.SyncModeFull,
-				OsTypes: []devicepb.OSType{
-					devicepb.OSType_OS_TYPE_MACOS,
-					devicepb.OSType_OS_TYPE_WINDOWS,
-					devicepb.OSType_OS_TYPE_LINUX,
-					devicepb.OSType_OS_TYPE_IOS,
-					devicepb.OSType_OS_TYPE_IPADOS,
-				},
+	if err := stream.Send(devicepb.SyncInventoryRequest_builder{
+		Start: devicepb.SyncInventoryStart_builder{
+			Source: devicepb.DeviceSource_builder{
+				Name:   "intune",
+				Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_INTUNE,
+			}.Build(),
+			TrackMissingDevices: spec.mode == mdmsync.SyncModeFull,
+			OsTypes: []devicepb.OSType{
+				devicepb.OSType_OS_TYPE_MACOS,
+				devicepb.OSType_OS_TYPE_WINDOWS,
+				devicepb.OSType_OS_TYPE_LINUX,
+				devicepb.OSType_OS_TYPE_IOS,
+				devicepb.OSType_OS_TYPE_IPADOS,
 			},
-		},
-	}); err != nil {
+		}.Build(),
+	}.Build()); err != nil {
 		return time.Time{}, trace.Wrap(err, "init: Send")
 	}
 	ackResp, err := stream.Recv()
@@ -335,13 +333,11 @@ func (s *Service) runWithSpec(ctx context.Context, spec runSpec) (nextDeviceLast
 			return time.Time{}, trace.Wrap(err)
 		}
 
-		if err := stream.Send(&devicepb.SyncInventoryRequest{
-			Payload: &devicepb.SyncInventoryRequest_DevicesToUpsert{
-				DevicesToUpsert: &devicepb.SyncInventoryDevices{
-					Devices: devicesResp.page.teleportDevices,
-				},
-			},
-		}); err != nil {
+		if err := stream.Send(devicepb.SyncInventoryRequest_builder{
+			DevicesToUpsert: devicepb.SyncInventoryDevices_builder{
+				Devices: devicesResp.page.teleportDevices,
+			}.Build(),
+		}.Build()); err != nil {
 			return time.Time{}, trace.Wrap(err, "devices: Send")
 		}
 		upsertResp, err := stream.Recv()
@@ -356,11 +352,9 @@ func (s *Service) runWithSpec(ctx context.Context, spec runSpec) (nextDeviceLast
 	}
 
 	// End.
-	if err := stream.Send(&devicepb.SyncInventoryRequest{
-		Payload: &devicepb.SyncInventoryRequest_End{
-			End: &devicepb.SyncInventoryEnd{},
-		},
-	}); err != nil {
+	if err := stream.Send(devicepb.SyncInventoryRequest_builder{
+		End: &devicepb.SyncInventoryEnd{},
+	}.Build()); err != nil {
 		return time.Time{}, trace.Wrap(err, "end: Send")
 	}
 
@@ -385,13 +379,11 @@ func (s *Service) runWithSpec(ctx context.Context, spec runSpec) (nextDeviceLast
 			return time.Time{}, trace.Wrap(err, "confirming missing devices in Intune")
 		}
 
-		if err := stream.Send(&devicepb.SyncInventoryRequest{
-			Payload: &devicepb.SyncInventoryRequest_DevicesToRemove{
-				DevicesToRemove: &devicepb.SyncInventoryDevices{
-					Devices: devicesToRemove,
-				},
-			},
-		}); err != nil {
+		if err := stream.Send(devicepb.SyncInventoryRequest_builder{
+			DevicesToRemove: devicepb.SyncInventoryDevices_builder{
+				Devices: devicesToRemove,
+			}.Build(),
+		}.Build()); err != nil {
 			return time.Time{}, trace.Wrap(err, "end: Send devices to remove")
 		}
 
@@ -460,7 +452,7 @@ func (s *Service) processDevicesPage(ctx context.Context, intuneDevices []*msgra
 				logGroup, slog.Any("error", err))
 			continue
 		}
-		if device.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED {
+		if device.GetOsType() == devicepb.OSType_OS_TYPE_UNSPECIFIED {
 			// Emit a debug message instead of a warning. This scenario is expected to happen often enough
 			// that we don't want to spam logs with warnings. A customer might have many devices in their
 			// inventory that we don't support, e.g., Android devices. Intune API offers no way to filter
@@ -487,7 +479,7 @@ func (s *Service) processDevicesPage(ctx context.Context, intuneDevices []*msgra
 			slog.String("operating_system", intuneDevice.OperatingSystem),
 			slog.String("model", intuneDevice.Model),
 			slog.String("os_version", intuneDevice.OSVersion),
-			slog.Any("profile", device.Profile),
+			slog.Any("profile", device.GetProfile()),
 		)
 	}
 
@@ -519,7 +511,7 @@ func (s *Service) confirmMissingDevices(ctx context.Context, missingDevices []*d
 	// We are looking for either confirmation that the device doesn't exist, or an existing but
 	// mismatched device.
 	for _, missingDevice := range missingDevices {
-		id := missingDevice.Profile.GetExternalId()
+		id := missingDevice.GetProfile().GetExternalId()
 		if id == "" {
 			s.cfg.Logger.DebugContext(ctx,
 				"Marking device without external_id for removal",
@@ -548,8 +540,8 @@ func (s *Service) confirmMissingDevices(ctx context.Context, missingDevices []*d
 				s.cfg.Logger.DebugContext(ctx, "Skipping removal of device, query failed",
 					"error", err, "device", missingDevice)
 
-			case operatingSystemToOSType(intuneDevice.OperatingSystem, intuneDevice.Model) == missingDevice.OsType &&
-				intuneDevice.SerialNumber == missingDevice.AssetTag:
+			case operatingSystemToOSType(intuneDevice.OperatingSystem, intuneDevice.Model) == missingDevice.GetOsType() &&
+				intuneDevice.SerialNumber == missingDevice.GetAssetTag():
 				s.cfg.Logger.DebugContext(ctx, "Skipping removal, device found in Intune", "device", missingDevice)
 
 			default:

@@ -42,23 +42,23 @@ func TestUserList(t *testing.T) {
 			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
-				require.Equal(t, int32(1), list.StartIndex)
-				require.Equal(t, int32(17), list.TotalResults)
-				require.Len(t, list.Resources, 17)
-				for i, res := range list.Resources {
+				require.Equal(t, int32(1), list.GetStartIndex())
+				require.Equal(t, int32(17), list.GetTotalResults())
+				require.Len(t, list.GetResources(), 17)
+				for i, res := range list.GetResources() {
 					expectedID := i * 3
-					require.Equal(t, fmt.Sprintf("test-user-%03d@example.com", expectedID), res.Id)
+					require.Equal(t, fmt.Sprintf("test-user-%03d@example.com", expectedID), res.GetId())
 				}
 			},
 		}, {
 			name:        "summary count",
-			page:        &scimpb.Page{StartIndex: 1, Count: 0},
+			page:        scimpb.Page_builder{StartIndex: 1, Count: 0}.Build(),
 			expectError: require.NoError,
 			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
-				require.Equal(t, int32(17), list.TotalResults)
-				require.Empty(t, list.Resources)
+				require.Equal(t, int32(17), list.GetTotalResults())
+				require.Empty(t, list.GetResources())
 			},
 		}, {
 			name:        "filtered (matching)",
@@ -67,10 +67,10 @@ func TestUserList(t *testing.T) {
 			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
-				require.Equal(t, int32(1), list.StartIndex)
-				require.Equal(t, int32(1), list.TotalResults)
-				require.Len(t, list.Resources, 1)
-				require.Equal(t, "test-user-012@example.com", list.Resources[0].Id)
+				require.Equal(t, int32(1), list.GetStartIndex())
+				require.Equal(t, int32(1), list.GetTotalResults())
+				require.Len(t, list.GetResources(), 1)
+				require.Equal(t, "test-user-012@example.com", list.GetResources()[0].GetId())
 			},
 		}, {
 			name:        "filtered (empty)",
@@ -79,9 +79,9 @@ func TestUserList(t *testing.T) {
 			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
-				require.Equal(t, int32(1), list.StartIndex)
-				require.Equal(t, int32(0), list.TotalResults)
-				require.Empty(t, list.Resources)
+				require.Equal(t, int32(1), list.GetStartIndex())
+				require.Equal(t, int32(0), list.GetTotalResults())
+				require.Empty(t, list.GetResources())
 			},
 		},
 	}
@@ -117,18 +117,18 @@ func TestUserList(t *testing.T) {
 			fix.users.
 				On("ListUsers", anyContext, anyListUserRequest).
 				Run(requireUserListDoesNotRequestSecrets(t)).
-				Return(&userspb.ListUsersResponse{Users: users}, nil)
+				Return(userspb.ListUsersResponse_builder{Users: users}.Build(), nil)
 
 			// When I attempt to list all of the User resources via SCIM...
-			list, err := uut.ListSCIMResources(fix.userCtx, &scimpb.ListSCIMResourcesRequest{
-				Target: &scimpb.RequestTarget{
+			list, err := uut.ListSCIMResources(fix.userCtx, scimpb.ListSCIMResourcesRequest_builder{
+				Target: scimpb.RequestTarget_builder{
 					Authorization: testAuthHeader,
 					PluginId:      testPluginName,
 					ResourceType:  "Users",
-				},
+				}.Build(),
 				Page:   tt.page,
 				Filter: tt.filter,
-			})
+			}.Build())
 
 			tt.expectError(t, err)
 			tt.expectValue(t, list)
@@ -173,33 +173,33 @@ func TestUsersListHandlesPagedUsers(t *testing.T) {
 	fix.users.
 		On("ListUsers", anyContext, listUserRequestWithPageToken("")).
 		Run(requireUserListDoesNotRequestSecrets(t)).
-		Return(&userspb.ListUsersResponse{Users: users[0:5], NextPageToken: "alpha"}, nil)
+		Return(userspb.ListUsersResponse_builder{Users: users[0:5], NextPageToken: "alpha"}.Build(), nil)
 	fix.users.
 		On("ListUsers", anyContext, listUserRequestWithPageToken("alpha")).
-		Return(&userspb.ListUsersResponse{Users: users[5:15], NextPageToken: "bravo"}, nil)
+		Return(userspb.ListUsersResponse_builder{Users: users[5:15], NextPageToken: "bravo"}.Build(), nil)
 	fix.users.
 		On("ListUsers", anyContext, listUserRequestWithPageToken("bravo")).
-		Return(&userspb.ListUsersResponse{Users: users[15:35], NextPageToken: "charlie"}, nil)
+		Return(userspb.ListUsersResponse_builder{Users: users[15:35], NextPageToken: "charlie"}.Build(), nil)
 	fix.users.
 		On("ListUsers", anyContext, listUserRequestWithPageToken("charlie")).
-		Return(&userspb.ListUsersResponse{Users: users[35:49], NextPageToken: ""}, nil)
+		Return(userspb.ListUsersResponse_builder{Users: users[35:49], NextPageToken: ""}.Build(), nil)
 
 	// When I attempt to list a specific user via a filtered list request ...
-	list, err := uut.ListSCIMResources(fix.userCtx, &scimpb.ListSCIMResourcesRequest{
-		Target: &scimpb.RequestTarget{
+	list, err := uut.ListSCIMResources(fix.userCtx, scimpb.ListSCIMResourcesRequest_builder{
+		Target: scimpb.RequestTarget_builder{
 			Authorization: testAuthHeader,
 			PluginId:      "test",
 			ResourceType:  "Users",
-		},
-	})
+		}.Build(),
+	}.Build())
 
 	// Expect the operation to succeed
 	require.NoError(t, err)
 
 	// Also expect that the operation returned all of the desired results
-	require.Equal(t, int32(1), list.StartIndex)
-	require.Equal(t, int32(17), list.TotalResults)
-	require.Len(t, list.Resources, 17)
+	require.Equal(t, int32(1), list.GetStartIndex())
+	require.Equal(t, int32(17), list.GetTotalResults())
+	require.Len(t, list.GetResources(), 17)
 }
 
 func isTestPluginUser(_ context.Context, u types.User) bool {
@@ -219,30 +219,30 @@ func testUserToResource(_ context.Context, user types.User) (*scimpb.Resource, e
 	}
 
 	externalID, _ := user.GetLabel(testUserExternalIDlabel)
-	result := &scimpb.Resource{
+	result := scimpb.Resource_builder{
 		Id:         user.GetName(),
 		ExternalId: externalID,
-		Meta: &scimpb.Meta{
+		Meta: scimpb.Meta_builder{
 			Created: timestamppb.New(user.GetCreatedBy().Time),
 			Version: user.GetRevision(),
-		},
+		}.Build(),
 		Attributes: attribsStruct,
-	}
+	}.Build()
 
 	return result, nil
 }
 
 func resourceToTestUser(_ context.Context, res *scimpb.Resource) (types.User, error) {
-	u, err := types.NewUser(res.Id)
+	u, err := types.NewUser(res.GetId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	u.SetStaticLabels(map[string]string{
 		testUserLabel:           testUserLabelValue,
-		testUserExternalIDlabel: res.ExternalId,
+		testUserExternalIDlabel: res.GetExternalId(),
 	})
 	traits := map[string][]string{}
-	for k, v := range res.Attributes.AsMap() {
+	for k, v := range res.GetAttributes().AsMap() {
 		switch typedVal := v.(type) {
 		case string:
 			traits[k] = []string{typedVal}
@@ -281,7 +281,7 @@ func TestUserGet(t *testing.T) {
 			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				res, ok := obj.(*scimpb.Resource)
 				require.True(t, ok, "invalid arg type")
-				require.Equal(t, "test-user-012@example.com", res.Id)
+				require.Equal(t, "test-user-012@example.com", res.GetId())
 			},
 		}, {
 			name:        "user exists but excluded from SCIM",
@@ -331,14 +331,14 @@ func TestUserGet(t *testing.T) {
 				Return(lookupUser)
 
 			// When I attempt to fetch a User resource via SCIM...
-			resource, err := uut.GetSCIMResource(fix.userCtx, &scimpb.GetSCIMResourceRequest{
-				Target: &scimpb.RequestTarget{
+			resource, err := uut.GetSCIMResource(fix.userCtx, scimpb.GetSCIMResourceRequest_builder{
+				Target: scimpb.RequestTarget_builder{
 					Authorization: testAuthHeader,
 					PluginId:      testPluginName,
 					ResourceType:  "Users",
 					ResourceId:    tt.username,
-				},
-			})
+				}.Build(),
+			}.Build())
 
 			tt.expectError(t, err)
 			tt.expectValue(t, resource)
@@ -380,9 +380,9 @@ func TestUserCreate(t *testing.T) {
 			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				created, ok := obj.(*scimpb.Resource)
 				require.True(t, ok, "expected a SCIM resource")
-				require.Equal(t, "newUser@example.com", created.Id)
-				require.Equal(t, "1234567890", created.ExternalId)
-				require.Equal(t, userRevision, created.Meta.Version)
+				require.Equal(t, "newUser@example.com", created.GetId())
+				require.Equal(t, "1234567890", created.GetExternalId())
+				require.Equal(t, userRevision, created.GetMeta().GetVersion())
 
 				expectedTraits := map[string]any{
 					"alpha": "0",
@@ -390,7 +390,7 @@ func TestUserCreate(t *testing.T) {
 					"gamma": "2",
 					"delta": "3",
 				}
-				require.Equal(t, expectedTraits, created.Attributes.AsMap())
+				require.Equal(t, expectedTraits, created.GetAttributes().AsMap())
 			},
 		}, {
 			name:               "name collision",
@@ -417,20 +417,20 @@ func TestUserCreate(t *testing.T) {
 			})
 			defer fix.AssertExpectations(t)
 
-			resource := &scimpb.Resource{
+			resource := scimpb.Resource_builder{
 				Id:         "newUser@example.com",
 				ExternalId: "1234567890",
 				Schemas:    []string{"urn:ietf:params:scim:schemas:core:2.0:User"},
-				Meta: &scimpb.Meta{
+				Meta: scimpb.Meta_builder{
 					ResourceType: "User",
-				},
+				}.Build(),
 				Attributes: must(structpb.NewStruct(map[string]any{
 					"alpha": "0",
 					"beta":  "1",
 					"gamma": "2",
 					"delta": "3",
 				})),
-			}
+			}.Build()
 
 			rigFixtureSetupForSCIMAuth(fix)
 
@@ -458,14 +458,14 @@ func TestUserCreate(t *testing.T) {
 				Return(mkTestPlugin(), nil)
 
 			// When I attempt to create a new user...
-			created, err := uut.CreateSCIMResource(fix.userCtx, &scimpb.CreateSCIMResourceRequest{
-				Target: &scimpb.RequestTarget{
+			created, err := uut.CreateSCIMResource(fix.userCtx, scimpb.CreateSCIMResourceRequest_builder{
+				Target: scimpb.RequestTarget_builder{
 					Authorization: testAuthHeader,
 					PluginId:      testPluginName,
 					ResourceType:  "Users",
-				},
+				}.Build(),
 				Resource: resource,
-			})
+			}.Build())
 
 			tt.expectError(t, err)
 			tt.expectValue(t, created)
@@ -490,20 +490,20 @@ func TestUserUpdate(t *testing.T) {
 
 	oldUser := mkTestUser(t, 7)
 
-	newResource := &scimpb.Resource{
+	newResource := scimpb.Resource_builder{
 		Id:         "User007@example.com",
 		ExternalId: "1234567890",
 		Schemas:    []string{"urn:ietf:params:scim:schemas:core:2.0:User"},
-		Meta: &scimpb.Meta{
+		Meta: scimpb.Meta_builder{
 			ResourceType: "User",
-		},
+		}.Build(),
 		Attributes: must(structpb.NewStruct(map[string]any{
 			"alpha": "0",
 			"beta":  "1",
 			"gamma": "2",
 			"delta": "3",
 		})),
-	}
+	}.Build()
 
 	rigFixtureSetupForSCIMAuth(fix)
 	fix.shim.
@@ -530,18 +530,18 @@ func TestUserUpdate(t *testing.T) {
 		Return(mkTestPlugin(), nil)
 
 	// When I attempt to create a new user...
-	updated, err := uut.UpdateSCIMResource(fix.userCtx, &scimpb.UpdateSCIMResourceRequest{
-		Target: &scimpb.RequestTarget{
+	updated, err := uut.UpdateSCIMResource(fix.userCtx, scimpb.UpdateSCIMResourceRequest_builder{
+		Target: scimpb.RequestTarget_builder{
 			Authorization: testAuthHeader,
 			PluginId:      testPluginName,
 			ResourceType:  "Users",
 			ResourceId:    oldUser.GetName(),
-		},
+		}.Build(),
 		Resource: newResource,
-	})
+	}.Build())
 
 	require.NoError(t, err)
-	require.Equal(t, "User007@example.com", updated.Id)
+	require.Equal(t, "User007@example.com", updated.GetId())
 
 	expectedTraits := map[string]any{
 		"alpha": "0",
@@ -549,7 +549,7 @@ func TestUserUpdate(t *testing.T) {
 		"gamma": "2",
 		"delta": "3",
 	}
-	require.Equal(t, expectedTraits, updated.Attributes.AsMap())
+	require.Equal(t, expectedTraits, updated.GetAttributes().AsMap())
 }
 
 // anyUser is an argument matcher for testify mocks that matches any user value
@@ -571,7 +571,7 @@ var anyListUserRequest any = mock.MatchedBy(func(r *userspb.ListUsersRequest) bo
 // listUserRequestWithPageToken is an argument matcher for testify mocks that
 // matches any ListUsersRequest with a given page token value
 func listUserRequestWithPageToken(token string) any {
-	return mock.MatchedBy(func(r *userspb.ListUsersRequest) bool { return r.PageToken == token })
+	return mock.MatchedBy(func(r *userspb.ListUsersRequest) bool { return r.GetPageToken() == token })
 }
 
 // requireUserListDoesNotRequestSecrets returns a function that can be used with
@@ -580,7 +580,7 @@ func listUserRequestWithPageToken(token string) any {
 func requireUserListDoesNotRequestSecrets(t *testing.T) func(mock.Arguments) {
 	return func(args mock.Arguments) {
 		r := getResultAs[*userspb.ListUsersRequest](args, 1)
-		require.False(t, r.WithSecrets, "User list request must not request secrets")
+		require.False(t, r.GetWithSecrets(), "User list request must not request secrets")
 	}
 }
 

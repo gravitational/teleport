@@ -42,12 +42,12 @@ func (s *S) CreateLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*
 
 	lease, err := s.backend.Create(ctx, *item)
 	if trace.IsAlreadyExists(err) {
-		return nil, trace.AlreadyExists("login rule %q already exists", rule.Metadata.Name)
+		return nil, trace.AlreadyExists("login rule %q already exists", rule.GetMetadata().Name)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	rule.Metadata.SetRevision(lease.Revision)
+	rule.GetMetadata().SetRevision(lease.Revision)
 
 	return rule, nil
 }
@@ -64,7 +64,7 @@ func (s *S) UpsertLoginRule(ctx context.Context, rule *loginrulepb.LoginRule) (*
 		return nil, trace.Wrap(err)
 	}
 
-	rule.Metadata.SetRevision(lease.Revision)
+	rule.GetMetadata().SetRevision(lease.Revision)
 
 	return rule, nil
 }
@@ -150,7 +150,7 @@ func (s *S) ListLoginRules(ctx context.Context, requestedPageSize int, pageToken
 	// name of the final rule which will be returned. Check len(res.Items)
 	// rather than len(rules) which could be off by one.
 	if len(res.Items) >= pageSize {
-		nextPageToken = rules[len(rules)-1].Metadata.Name
+		nextPageToken = rules[len(rules)-1].GetMetadata().Name
 	}
 
 	return rules, nextPageToken, nil
@@ -173,12 +173,12 @@ func marshalToItem(rule *loginrulepb.LoginRule) (*backend.Item, error) {
 	}
 
 	var expires time.Time
-	if rule.Metadata.Expires != nil {
-		expires = *rule.Metadata.Expires
+	if rule.GetMetadata().Expires != nil {
+		expires = *rule.GetMetadata().Expires
 	}
 
 	return &backend.Item{
-		Key:     loginRuleKey(rule.Metadata.Name),
+		Key:     loginRuleKey(rule.GetMetadata().Name),
 		Value:   value,
 		Expires: expires,
 	}, nil
@@ -191,13 +191,13 @@ func unmarshalFromItem(item *backend.Item) (*loginrulepb.LoginRule, error) {
 	}
 
 	// Sanity check that nothing untoward happened with storage.
-	if rule.Metadata == nil {
+	if !rule.HasMetadata() {
 		return nil, trace.BadParameter("unable to unmarshal login rule metadata from storage")
 	}
-	rule.Metadata.Revision = item.Revision
+	rule.GetMetadata().Revision = item.Revision
 	expires := item.Expires
 	if !expires.IsZero() {
-		rule.Metadata.Expires = &expires
+		rule.GetMetadata().Expires = &expires
 	}
 
 	return &rule, nil

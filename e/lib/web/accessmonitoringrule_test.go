@@ -52,26 +52,26 @@ func TestCreateAccessMonitoringRule(t *testing.T) {
 	webPack := s.newAuthWebPack(t, "foo")
 	clusterName := s.testAuthServer.ClusterName()
 
-	ruleMatchingValidYaml, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+	ruleMatchingValidYaml, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
 		States:    []string{"testing"},
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       "slack",
 			Recipients: []string{"llama", "alpaca"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
-	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, &pb.AccessMonitoringRuleSpec{
+	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
 		States:    []string{"testing2"},
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       "slack",
 			Recipients: []string{"apple", "banana"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	testcases := []struct {
@@ -127,15 +127,15 @@ func TestUpdateAccessMonitoringRule(t *testing.T) {
 	clusterName := s.testAuthServer.ClusterName()
 	authServer := s.testAuthServer.AuthServer.AuthServer
 
-	ruleMatchingValidYaml, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+	ruleMatchingValidYaml, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
 		States:    []string{"testing"},
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       "slack",
 			Recipients: []string{"llama", "alpaca"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	createdRule, err := authServer.CreateAccessMonitoringRule(ctx, ruleMatchingValidYaml)
@@ -172,7 +172,7 @@ version: v1
 			updateByYaml: updatedYaml,
 			paramName:    "rule1",
 			getUpdateRule: func() *pb.AccessMonitoringRule {
-				createdRule.Spec.Condition = "false"
+				createdRule.GetSpec().SetCondition("false")
 				return createdRule
 			},
 		},
@@ -192,7 +192,7 @@ version: v1
 			desc:      "udpate by resource object",
 			paramName: "rule1",
 			getUpdateRule: func() *pb.AccessMonitoringRule {
-				createdRule.Spec.Condition = "false"
+				createdRule.GetSpec().SetCondition("false")
 				return createdRule
 			},
 		},
@@ -233,31 +233,31 @@ func TestDeleteAccessMonitoringRule(t *testing.T) {
 	clusterName := s.testAuthServer.ClusterName()
 	authServer := s.testAuthServer.AuthServer.AuthServer
 
-	rule, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+	rule, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
 		States:    []string{"testing"},
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       "slack",
 			Recipients: []string{"llama", "alpaca"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	createdRule, err := authServer.CreateAccessMonitoringRule(ctx, rule)
 	require.NoError(t, err)
 
 	// Test it was created in the backend.
-	gotRule, err := authServer.GetAccessMonitoringRule(ctx, rule.Metadata.GetName())
+	gotRule, err := authServer.GetAccessMonitoringRule(ctx, rule.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Equal(t, createdRule.Metadata.GetName(), gotRule.Metadata.GetName())
+	require.Equal(t, createdRule.GetMetadata().GetName(), gotRule.GetMetadata().GetName())
 
-	endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "accessmonitoringrule", createdRule.Metadata.GetName())
+	endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "accessmonitoringrule", createdRule.GetMetadata().GetName())
 	_, err = webPack.clt.Delete(s.ctx, endpoint)
 	require.NoError(t, err)
 
 	// Check it's been removed from backend.
-	_, err = authServer.GetAccessMonitoringRule(ctx, rule.Metadata.GetName())
+	_, err = authServer.GetAccessMonitoringRule(ctx, rule.GetMetadata().GetName())
 	require.True(t, trace.IsNotFound(err))
 }
 
@@ -269,35 +269,35 @@ func TestGetAccessMonitoringRules_NoFilters(t *testing.T) {
 	clusterName := s.testAuthServer.ClusterName()
 	authServer := s.testAuthServer.AuthServer.AuthServer
 
-	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name: "slack",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	_, err = authServer.CreateAccessMonitoringRule(ctx, rule1)
 	require.NoError(t, err)
 
-	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, &pb.AccessMonitoringRuleSpec{
+	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{"somethingElse"},
 		Condition: "true",
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name: "slack",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	_, err = authServer.CreateAccessMonitoringRule(ctx, rule2)
 	require.NoError(t, err)
 
-	rule3, err := services.NewAccessMonitoringRuleWithLabels("rule3", nil, &pb.AccessMonitoringRuleSpec{
+	rule3, err := services.NewAccessMonitoringRuleWithLabels("rule3", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{"somethingElse2"},
 		Condition: "true",
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name: "slack",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	_, err = authServer.CreateAccessMonitoringRule(ctx, rule3)
 	require.NoError(t, err)
@@ -342,13 +342,13 @@ func TestGetAccessMonitoringRules_WithAccessRequestFilter(t *testing.T) {
 	}
 
 	for i := range randomSubjects {
-		rule, err := services.NewAccessMonitoringRuleWithLabels(fmt.Sprintf("rule%v", i), nil, &pb.AccessMonitoringRuleSpec{
+		rule, err := services.NewAccessMonitoringRuleWithLabels(fmt.Sprintf("rule%v", i), nil, pb.AccessMonitoringRuleSpec_builder{
 			Subjects:  []string{randomSubjects[i]},
 			Condition: "true",
-			Notification: &pb.Notification{
+			Notification: pb.Notification_builder{
 				Name: "slack",
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 		_, err = authServer.CreateAccessMonitoringRule(ctx, rule)
 		require.NoError(t, err)
@@ -366,7 +366,7 @@ func TestGetAccessMonitoringRules_WithAccessRequestFilter(t *testing.T) {
 	require.Len(t, page.Rules, 2)
 
 	for _, rule := range page.Rules {
-		require.Equal(t, types.KindAccessRequest, rule.Object.Spec.Subjects[0])
+		require.Equal(t, types.KindAccessRequest, rule.Object.GetSpec().GetSubjects()[0])
 		require.NotEmpty(t, rule.YAML)
 	}
 }
@@ -398,20 +398,20 @@ func TestGetAccessMonitoringRuleTerraform_Valid(t *testing.T) {
 	clusterName := s.testAuthServer.ClusterName()
 	authServer := s.testAuthServer.AuthServer.AuthServer
 
-	rule, err := services.NewAccessMonitoringRuleWithLabels("foo", nil, &pb.AccessMonitoringRuleSpec{
+	rule, err := services.NewAccessMonitoringRuleWithLabels("foo", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
 		States:    []string{"testing"},
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       "mattermost",
 			Recipients: []string{"apple"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	_, err = authServer.CreateAccessMonitoringRule(s.ctx, rule)
 	require.NoError(t, err)
 
-	endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "accessmonitoringrule", rule.Metadata.GetName(), "terraform")
+	endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "accessmonitoringrule", rule.GetMetadata().GetName(), "terraform")
 	re, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
 	require.NoError(t, err)
 

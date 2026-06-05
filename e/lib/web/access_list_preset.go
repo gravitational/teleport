@@ -36,15 +36,15 @@ func (p *Plugin) createAccessListWithPreset(_ http.ResponseWriter, r *http.Reque
 
 	aclClient := getAccessListServiceClient(sctx)
 
-	resp, err := aclClient.CreateAccessListWithPreset(r.Context(), &accesslistv1.CreateAccessListWithPresetRequest{
+	resp, err := aclClient.CreateAccessListWithPreset(r.Context(), accesslistv1.CreateAccessListWithPresetRequest_builder{
 		PresetType: req.PresetType,
 		AccessList: conv.ToProto(req.AccessList.AccessList),
 		Roles:      req.AccessRoles,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	acl, err := conv.FromProto(resp.AccessList)
+	acl, err := conv.FromProto(resp.GetAccessList())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -98,14 +98,14 @@ func (p *Plugin) updateAccessListWithPreset(_ http.ResponseWriter, r *http.Reque
 		return nil, trace.Wrap(err)
 	}
 	aclClient := getAccessListServiceClient(sctx)
-	resp, err := aclClient.UpdateAccessListWithPreset(r.Context(), &accesslistv1.UpdateAccessListWithPresetRequest{
+	resp, err := aclClient.UpdateAccessListWithPreset(r.Context(), accesslistv1.UpdateAccessListWithPresetRequest_builder{
 		AccessList: conv.ToProto(req.AccessList.AccessList),
 		Roles:      req.AccessRoles,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	acl, err := conv.FromProto(resp.AccessList)
+	acl, err := conv.FromProto(resp.GetAccessList())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,7 +134,7 @@ func (p *Plugin) updateAccessListWithPreset(_ http.ResponseWriter, r *http.Reque
 			Members:    membersToMembersSpec(updatedMembers),
 		},
 		AccessRoles:      resp.GetRoles(),
-		RolesToBeDeleted: resp.RolesToBeDeleted,
+		RolesToBeDeleted: resp.GetRolesToBeDeleted(),
 	}, nil
 }
 

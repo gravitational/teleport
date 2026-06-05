@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -56,13 +57,13 @@ func TestGetOktaGroups(t *testing.T) {
 				{Id: "3", Profile: &okta.GroupProfile{Name: "dev-group3"}},
 			},
 			expectErr: require.NoError,
-			expect: &oktapb.GetGroupsResponse{
+			expect: oktapb.GetGroupsResponse_builder{
 				Groups: []*oktapb.GetGroupsResponse_Group{
-					{Name: "group1", Description: "description"},
-					{Name: "admin-group2"},
-					{Name: "dev-group3"},
+					oktapb.GetGroupsResponse_Group_builder{Name: "group1", Description: "description"}.Build(),
+					oktapb.GetGroupsResponse_Group_builder{Name: "admin-group2"}.Build(),
+					oktapb.GetGroupsResponse_Group_builder{Name: "dev-group3"}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "get groups with no filters, one missing profile",
@@ -72,12 +73,12 @@ func TestGetOktaGroups(t *testing.T) {
 				{Id: "3", Profile: &okta.GroupProfile{Name: "dev-group3"}},
 			},
 			expectErr: require.NoError,
-			expect: &oktapb.GetGroupsResponse{
+			expect: oktapb.GetGroupsResponse_builder{
 				Groups: []*oktapb.GetGroupsResponse_Group{
-					{Name: "group1", Description: "description"},
-					{Name: "dev-group3"},
+					oktapb.GetGroupsResponse_Group_builder{Name: "group1", Description: "description"}.Build(),
+					oktapb.GetGroupsResponse_Group_builder{Name: "dev-group3"}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "get groups with filters, don't duplicate",
@@ -91,12 +92,12 @@ func TestGetOktaGroups(t *testing.T) {
 				"*-*",
 			},
 			expectErr: require.NoError,
-			expect: &oktapb.GetGroupsResponse{
+			expect: oktapb.GetGroupsResponse_builder{
 				Groups: []*oktapb.GetGroupsResponse_Group{
-					{Name: "admin-group2"},
-					{Name: "dev-group3"},
+					oktapb.GetGroupsResponse_Group_builder{Name: "admin-group2"}.Build(),
+					oktapb.GetGroupsResponse_Group_builder{Name: "dev-group3"}.Build(),
 				},
-			},
+			}.Build(),
 		},
 	}
 
@@ -124,13 +125,13 @@ func TestGetOktaGroups(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			got, err := svc.GetGroups(ctx, &oktapb.GetGroupsRequest{
-				ApiCredentials: &oktapb.OktaAPICredentials{
-					Auth: &oktapb.OktaAPICredentials_SswsBearerToken{SswsBearerToken: "token"},
-				},
+			got, err := svc.GetGroups(ctx, oktapb.GetGroupsRequest_builder{
+				ApiCredentials: oktapb.OktaAPICredentials_builder{
+					SswsBearerToken: proto.String("token"),
+				}.Build(),
 				OktaOrganizationUrl: oktaURL,
 				Filters:             test.filters,
-			})
+			}.Build())
 			test.expectErr(t, err)
 			if test.expect == nil {
 				require.Nil(t, got)
@@ -179,13 +180,13 @@ func TestGetOktaApps(t *testing.T) {
 				&okta.Application{Id: "3", Label: "dev-app3"},
 			},
 			expectErr: require.NoError,
-			expect: &oktapb.GetAppsResponse{
+			expect: oktapb.GetAppsResponse_builder{
 				Apps: []*oktapb.GetAppsResponse_App{
-					{Name: "app1"},
-					{Name: "admin-app2"},
-					{Name: "dev-app3"},
+					oktapb.GetAppsResponse_App_builder{Name: "app1"}.Build(),
+					oktapb.GetAppsResponse_App_builder{Name: "admin-app2"}.Build(),
+					oktapb.GetAppsResponse_App_builder{Name: "dev-app3"}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "get apps with no filters, one not an app instances",
@@ -195,12 +196,12 @@ func TestGetOktaApps(t *testing.T) {
 				&okta.Application{Id: "3", Label: "dev-app3"},
 			},
 			expectErr: require.NoError,
-			expect: &oktapb.GetAppsResponse{
+			expect: oktapb.GetAppsResponse_builder{
 				Apps: []*oktapb.GetAppsResponse_App{
-					{Name: "app1"},
-					{Name: "dev-app3"},
+					oktapb.GetAppsResponse_App_builder{Name: "app1"}.Build(),
+					oktapb.GetAppsResponse_App_builder{Name: "dev-app3"}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "get apps with filters, don't duplicate",
@@ -214,12 +215,12 @@ func TestGetOktaApps(t *testing.T) {
 				"*-*",
 			},
 			expectErr: require.NoError,
-			expect: &oktapb.GetAppsResponse{
+			expect: oktapb.GetAppsResponse_builder{
 				Apps: []*oktapb.GetAppsResponse_App{
-					{Name: "admin-app2"},
-					{Name: "dev-app3"},
+					oktapb.GetAppsResponse_App_builder{Name: "admin-app2"}.Build(),
+					oktapb.GetAppsResponse_App_builder{Name: "dev-app3"}.Build(),
 				},
-			},
+			}.Build(),
 		},
 	}
 
@@ -247,13 +248,13 @@ func TestGetOktaApps(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			got, err := svc.GetApps(ctx, &oktapb.GetAppsRequest{
-				ApiCredentials: &oktapb.OktaAPICredentials{
-					Auth: &oktapb.OktaAPICredentials_SswsBearerToken{SswsBearerToken: "token"},
-				},
+			got, err := svc.GetApps(ctx, oktapb.GetAppsRequest_builder{
+				ApiCredentials: oktapb.OktaAPICredentials_builder{
+					SswsBearerToken: proto.String("token"),
+				}.Build(),
 				OktaOrganizationUrl: oktaURL,
 				Filters:             test.filters,
-			})
+			}.Build())
 
 			test.expectErr(t, err)
 			if test.expect == nil {

@@ -42,14 +42,14 @@ func entraAppToProto(ctx context.Context, app *models.Application, ssoSettings *
 		}
 	}
 
-	return &accessgraphv1alpha.EntraApplication{
+	return accessgraphv1alpha.EntraApplication_builder{
 		Id:                  *id,
 		AppId:               *appID,
 		DisplayName:         *displayName,
 		TenantId:            tenantID,
 		SigningCertificates: signingCerts,
 		FederatedSsoV2:      federatedSSOV2,
-	}, nil
+	}.Build(), nil
 }
 
 func getAppSAMLSigningCertificates(ctx context.Context, client *http.Client, tenantID, appID string) ([]string, error) {

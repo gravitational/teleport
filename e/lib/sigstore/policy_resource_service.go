@@ -90,13 +90,13 @@ func (s *PolicyResourceService) CreateSigstorePolicy(ctx context.Context, req *w
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: created.Metadata.GetName(),
+			Name: created.GetMetadata().GetName(),
 		},
 	}); err != nil {
 		s.logger.ErrorContext(ctx,
 			"Failed to emit audit event for creation of SigstorePolicy",
 			"error", err,
-			"sigstore_policy_name", created.Metadata.GetName(),
+			"sigstore_policy_name", created.GetMetadata().GetName(),
 		)
 	}
 
@@ -112,7 +112,7 @@ func (s *PolicyResourceService) GetSigstorePolicy(ctx context.Context, req *work
 	if err := authCtx.CheckAccessToKind(types.KindSigstorePolicy, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
@@ -136,11 +136,11 @@ func (s *PolicyResourceService) DeleteSigstorePolicy(ctx context.Context, req *w
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	if err := s.backend.DeleteSigstorePolicy(ctx, req.Name); err != nil {
+	if err := s.backend.DeleteSigstorePolicy(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -152,13 +152,13 @@ func (s *PolicyResourceService) DeleteSigstorePolicy(ctx context.Context, req *w
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Name,
+			Name: req.GetName(),
 		},
 	}); err != nil {
 		s.logger.ErrorContext(
 			ctx, "Failed to emit audit event for deletion of SigstorePolicy",
 			"error", err,
-			"sigstore_policy_name", req.Name,
+			"sigstore_policy_name", req.GetName(),
 		)
 	}
 
@@ -178,7 +178,7 @@ func (s *PolicyResourceService) UpdateSigstorePolicy(ctx context.Context, req *w
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.backend.UpdateSigstorePolicy(ctx, req.SigstorePolicy)
+	updated, err := s.backend.UpdateSigstorePolicy(ctx, req.GetSigstorePolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -191,13 +191,13 @@ func (s *PolicyResourceService) UpdateSigstorePolicy(ctx context.Context, req *w
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: updated.Metadata.Name,
+			Name: updated.GetMetadata().GetName(),
 		},
 	}); err != nil {
 		s.logger.ErrorContext(
 			ctx, "Failed to emit audit event for update of SigstorePolicy",
 			"error", err,
-			"sigstore_policy_name", updated.Metadata.Name,
+			"sigstore_policy_name", updated.GetMetadata().GetName(),
 		)
 	}
 
@@ -217,7 +217,7 @@ func (s *PolicyResourceService) UpsertSigstorePolicy(ctx context.Context, req *w
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.backend.UpsertSigstorePolicy(ctx, req.SigstorePolicy)
+	created, err := s.backend.UpsertSigstorePolicy(ctx, req.GetSigstorePolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -230,13 +230,13 @@ func (s *PolicyResourceService) UpsertSigstorePolicy(ctx context.Context, req *w
 		UserMetadata:       authz.ClientUserMetadata(ctx),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: created.Metadata.GetName(),
+			Name: created.GetMetadata().GetName(),
 		},
 	}); err != nil {
 		s.logger.ErrorContext(ctx,
 			"Failed to emit audit event for upsert of SigstorePolicy",
 			"error", err,
-			"sigstore_policy_name", created.Metadata.GetName(),
+			"sigstore_policy_name", created.GetMetadata().GetName(),
 		)
 	}
 
@@ -254,15 +254,15 @@ func (s *PolicyResourceService) ListSigstorePolicies(ctx context.Context, req *w
 	}
 	resources, nextToken, err := s.backend.ListSigstorePolicies(
 		ctx,
-		int(req.PageSize),
-		req.PageToken,
+		int(req.GetPageSize()),
+		req.GetPageToken(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &workloadidentityv1.ListSigstorePoliciesResponse{
+	return workloadidentityv1.ListSigstorePoliciesResponse_builder{
 		SigstorePolicies: resources,
 		NextPageToken:    nextToken,
-	}, nil
+	}.Build(), nil
 }

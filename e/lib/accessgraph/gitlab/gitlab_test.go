@@ -43,11 +43,11 @@ func TestGitlab(t *testing.T) {
 				return
 			}
 			expectedUsers := []*accessgraphv1alpha.GitlabUser{
-				{Username: "jack_smith", Name: "Jack Smith"},
-				{Username: "john_smith", Name: "John Smith"},
+				accessgraphv1alpha.GitlabUser_builder{Username: "jack_smith", Name: "Jack Smith"}.Build(),
+				accessgraphv1alpha.GitlabUser_builder{Username: "john_smith", Name: "John Smith"}.Build(),
 			}
 			sort.Slice(res.Users, func(i, j int) bool {
-				return res.Users[i].Username < res.Users[j].Username
+				return res.Users[i].GetUsername() < res.Users[j].GetUsername()
 			})
 			require.Empty(t,
 				cmp.Diff(
@@ -56,11 +56,11 @@ func TestGitlab(t *testing.T) {
 					protocmp.Transform(),
 				))
 			expectedGroups := []*accessgraphv1alpha.GitlabGroup{
-				{
+				accessgraphv1alpha.GitlabGroup_builder{
 					Name:        "Foobar Group",
 					Path:        "foo-bar",
 					Description: "An interesting group",
-				},
+				}.Build(),
 			}
 			require.Empty(t,
 				cmp.Diff(
@@ -69,11 +69,11 @@ func TestGitlab(t *testing.T) {
 					protocmp.Transform(),
 				))
 			expectedProjects := []*accessgraphv1alpha.GitlabProject{
-				{
+				accessgraphv1alpha.GitlabProject_builder{
 					Name:        "Diaspora Client",
 					Path:        "diaspora/diaspora-client",
 					Description: "",
-				},
+				}.Build(),
 			}
 			require.Empty(t,
 				cmp.Diff(
@@ -82,15 +82,15 @@ func TestGitlab(t *testing.T) {
 					protocmp.Transform(),
 				))
 			expectedGroupMembers := []*accessgraphv1alpha.GitlabGroupMember{
-				{
+				accessgraphv1alpha.GitlabGroupMember_builder{
 					Username: "john_smith",
-					Group: &accessgraphv1alpha.GitlabGroup{
+					Group: accessgraphv1alpha.GitlabGroup_builder{
 						Name:        "Foobar Group",
 						Path:        "foo-bar",
 						Description: "An interesting group",
-					},
+					}.Build(),
 					AccessLevel: accessgraphv1alpha.AccessLevelType_ACCESS_LEVEL_TYPE_DEVELOPER,
-				},
+				}.Build(),
 			}
 			require.Empty(t,
 				cmp.Diff(
@@ -99,15 +99,15 @@ func TestGitlab(t *testing.T) {
 					protocmp.Transform(),
 				))
 			expectedProjectMembers := []*accessgraphv1alpha.GitlabProjectMember{
-				{
+				accessgraphv1alpha.GitlabProjectMember_builder{
 					Username: "jack_smith",
-					Project: &accessgraphv1alpha.GitlabProject{
+					Project: accessgraphv1alpha.GitlabProject_builder{
 						Name:        "Diaspora Client",
 						Path:        "diaspora/diaspora-client",
 						Description: "",
-					},
+					}.Build(),
 					AccessLevel: accessgraphv1alpha.AccessLevelType_ACCESS_LEVEL_TYPE_DEVELOPER,
-				},
+				}.Build(),
 			}
 			require.Empty(t,
 				cmp.Diff(

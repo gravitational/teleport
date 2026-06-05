@@ -393,7 +393,7 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 		return nil
 	}
 	s.logger.DebugContext(
-		ctx, "Matched summary inference policy", "session_id", details.sessionID, "policy", policy.Metadata.Name,
+		ctx, "Matched summary inference policy", "session_id", details.sessionID, "policy", policy.GetMetadata().GetName(),
 	)
 
 	endEventFields, err := events.ToEventFields(details.sessionEnd)
@@ -405,20 +405,20 @@ func (s *SessionSummarizer) summarize(ctx context.Context, details sessionDetail
 		return trace.Wrap(err)
 	}
 
-	provider, errorFormatter, err := s.newProvider(ctx, policy.Spec.Model)
+	provider, errorFormatter, err := s.newProvider(ctx, policy.GetSpec().GetModel())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	details.provider = provider
 	details.errorFormatFunc = errorFormatter
-	details.summary = &summarizerv1pb.Summary{
+	details.summary = summarizerv1pb.Summary_builder{
 		SessionId:          details.sessionID.String(),
 		State:              summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING,
 		InferenceStartedAt: timestamppb.New(s.clock.Now().UTC()),
-		ModelName:          policy.Spec.Model,
+		ModelName:          policy.GetSpec().GetModel(),
 		SessionEndEvent:    endEventStruct,
-	}
+	}.Build()
 
 	rBytes, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(details.summary)
 	if err != nil {
@@ -453,18 +453,18 @@ func (s *SessionSummarizer) summarizeNowAndReportMetrics(ctx context.Context, de
 				"stack", string(debug.Stack()),
 			)
 
-			metrics.SummarizationErrors.WithLabelValues(details.summary.ModelName).Inc()
+			metrics.SummarizationErrors.WithLabelValues(details.summary.GetModelName()).Inc()
 
 			s.finalizeFailedSummary(ctx, &details)
 		}
 	}()
 
-	metrics.SummarizationsTotal.WithLabelValues(details.summary.ModelName).Inc()
+	metrics.SummarizationsTotal.WithLabelValues(details.summary.GetModelName()).Inc()
 
 	success := true
 	if err := s.summarizeNow(ctx, &details); err != nil {
 		s.logger.ErrorContext(ctx, "Failed to summarize session", "session_id", details.sessionID, "kind", details.kind, "error", err)
-		metrics.SummarizationErrors.WithLabelValues(details.summary.ModelName).Inc()
+		metrics.SummarizationErrors.WithLabelValues(details.summary.GetModelName()).Inc()
 		success = false
 	}
 
@@ -502,7 +502,7 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details *sessionDe
 
 	log := s.logger.With("session_id", details.sessionID)
 
-	modelName := details.summary.ModelName
+	modelName := details.summary.GetModelName()
 
 	metrics.SummarizationsPending.WithLabelValues(modelName).Inc()
 	// sumErr is a summarization error that can be saved into the summary state
@@ -512,8 +512,8 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details *sessionDe
 
 	if sumErr != nil {
 		sumErr = trace.Wrap(sumErr, "Failed to acquire the concurrency limiter semaphore")
-		result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
-		result.ErrorMessage = details.errorFormatFunc(sumErr)
+		result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR)
+		result.SetErrorMessage(details.errorFormatFunc(sumErr))
 	} else {
 		metrics.SummarizationsRunning.WithLabelValues(modelName).Inc()
 
@@ -528,12 +528,12 @@ func (s *SessionSummarizer) summarizeNow(ctx context.Context, details *sessionDe
 		// This should be unreachable due to checks in the caller.
 		default:
 			sumErr = trace.BadParameter("unsupported session kind: %v", details.kind)
-			result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
-			result.ErrorMessage = details.errorFormatFunc(sumErr)
+			result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR)
+			result.SetErrorMessage(details.errorFormatFunc(sumErr))
 		}
 	}
 
-	result.InferenceFinishedAt = timestamppb.New(s.clock.Now().UTC())
+	result.SetInferenceFinishedAt(timestamppb.New(s.clock.Now().UTC()))
 
 	return s.uploadSummary(ctx, log, details, result, sumErr)
 }
@@ -572,8 +572,8 @@ func (s *SessionSummarizer) summarizeSession(
 		return s.summarizeSimple(ctx, log, result, details)
 	}
 
-	result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS
-	result.EnhancedSummary = schema.SessionAnalysisToProto(analysis, commands)
+	result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS)
+	result.SetEnhancedSummary(schema.SessionAnalysisToProto(analysis, commands))
 
 	return nil
 }
@@ -608,8 +608,8 @@ func (s *SessionSummarizer) summarizeSimple(
 		return handleError(ctx, log, result, err, "Failed to summarize session")
 	}
 
-	result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS
-	result.Content = content
+	result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS)
+	result.SetContent(content)
 
 	return nil
 }
@@ -624,9 +624,9 @@ func (s *SessionSummarizer) finalizeFailedSummary(ctx context.Context, details *
 	}
 
 	failed := proto.CloneOf(details.summary)
-	failed.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
-	failed.ErrorMessage = "internal error while processing session recording"
-	failed.InferenceFinishedAt = timestamppb.New(s.clock.Now().UTC())
+	failed.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR)
+	failed.SetErrorMessage("internal error while processing session recording")
+	failed.SetInferenceFinishedAt(timestamppb.New(s.clock.Now().UTC()))
 
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), failedSummaryUploadTimeout)
 	defer cancel()
@@ -709,8 +709,8 @@ func handleError(
 	//nolint:sloglint // msg is not a string literal or constant
 	log.ErrorContext(ctx, msg, "error", err)
 
-	result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR
-	result.ErrorMessage = err.Error()
+	result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR)
+	result.SetErrorMessage(err.Error())
 
 	return err
 }
@@ -759,15 +759,15 @@ func (s *SessionSummarizer) matchPolicy(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if !slices.Contains(policy.Spec.Kinds, string(kind)) {
+		if !slices.Contains(policy.GetSpec().GetKinds(), string(kind)) {
 			continue
 		}
 
-		if policy.Spec.Filter == "" {
+		if policy.GetSpec().GetFilter() == "" {
 			return policy, nil
 		}
 
-		parseResult, err := parser.Parse(policy.Spec.Filter)
+		parseResult, err := parser.Parse(policy.GetSpec().GetFilter())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -794,25 +794,25 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 		return nil, nil, trace.Wrap(err)
 	}
 
-	switch providerCfg := model.Spec.Provider.(type) {
-	case *summarizerv1pb.InferenceModelSpec_Openai:
-		apiKey, err := s.cache.GetInferenceSecret(ctx, providerCfg.Openai.GetApiKeySecretRef())
+	switch model.GetSpec().WhichProvider() {
+	case summarizerv1pb.InferenceModelSpec_Openai_case:
+		apiKey, err := s.cache.GetInferenceSecret(ctx, model.GetSpec().GetOpenai().GetApiKeySecretRef())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
 		p, err := openai.NewProvider(ctx, openai.ProviderConfig{
-			ModelProvider:     providerCfg.Openai,
+			ModelProvider:     model.GetSpec().GetOpenai(),
 			SecretSpec:        apiKey.GetSpec(),
 			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
 			ClientFactory:     s.openAIClientFactory,
 			ModelResourceName: modelName,
 		})
 		return p, func(err error) string {
-			return openai.FormatError(err, providerCfg.Openai)
+			return openai.FormatError(err, model.GetSpec().GetOpenai())
 		}, trace.Wrap(err)
 
-	case *summarizerv1pb.InferenceModelSpec_Bedrock:
+	case summarizerv1pb.InferenceModelSpec_Bedrock_case:
 		if !s.enableBedrockWithoutRestrictions &&
 			modelName != apisummarizer.CloudDefaultInferenceModelName &&
 			model.GetSpec().GetBedrock().GetIntegration() == "" {
@@ -821,19 +821,19 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 			)
 		}
 
-		bedrockCfg := proto.CloneOf(providerCfg.Bedrock) // Protect from modifying function arguments
-		if strings.ReplaceAll(bedrockCfg.BedrockModelId, " ", "") == apisummarizer.BedrockModelExpansionPlaceholder {
+		bedrockCfg := proto.CloneOf(model.GetSpec().GetBedrock()) // Protect from modifying function arguments
+		if strings.ReplaceAll(bedrockCfg.GetBedrockModelId(), " ", "") == apisummarizer.BedrockModelExpansionPlaceholder {
 			if s.envBedrockModelID == "" {
 				return nil, nil, trace.BadParameter("bedrock_model_id cannot be empty. Please set the TELEPORT_BEDROCK_MODEL environment variable")
 			}
-			bedrockCfg.BedrockModelId = s.envBedrockModelID
+			bedrockCfg.SetBedrockModelId(s.envBedrockModelID)
 		}
 
-		if strings.ReplaceAll(bedrockCfg.Region, " ", "") == apisummarizer.BedrockRegionExpansionPlaceholder {
+		if strings.ReplaceAll(bedrockCfg.GetRegion(), " ", "") == apisummarizer.BedrockRegionExpansionPlaceholder {
 			if s.envBedrockRegion == "" {
 				return nil, nil, trace.BadParameter("region cannot be empty. Please set the TELEPORT_BEDROCK_REGION environment variable")
 			}
-			bedrockCfg.Region = s.envBedrockRegion
+			bedrockCfg.SetRegion(s.envBedrockRegion)
 		}
 
 		p, err := bedrock.NewProvider(ctx, bedrock.ProviderConfig{
@@ -844,10 +844,10 @@ func (s *SessionSummarizer) newProvider(ctx context.Context, modelName string) (
 			AWSConfigCache:    s.awsConfigCache,
 		})
 		return p, func(err error) string {
-			return bedrock.FormatError(err, providerCfg.Bedrock)
+			return bedrock.FormatError(err, model.GetSpec().GetBedrock())
 		}, trace.Wrap(err)
 	default:
-		return nil, nil, trace.BadParameter("unsupported provider type: %T", model.Spec.Provider)
+		return nil, nil, trace.BadParameter("unsupported provider type: %v", model.GetSpec().WhichProvider())
 	}
 }
 

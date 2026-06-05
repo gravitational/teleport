@@ -17,11 +17,11 @@ import (
 )
 
 func getID(s *provisioningv1.PrincipalState) services.ProvisioningStateID {
-	return services.ProvisioningStateID(s.Metadata.Name)
+	return services.ProvisioningStateID(s.GetMetadata().GetName())
 }
 
 func getDownstreamID(s *provisioningv1.PrincipalState) services.DownstreamID {
-	return services.DownstreamID(s.GetSpec().DownstreamId)
+	return services.DownstreamID(s.GetSpec().GetDownstreamId())
 }
 
 func getIDForPrincipal(principalName string, principalType provisioningv1.PrincipalType) (services.ProvisioningStateID, error) {
@@ -61,21 +61,21 @@ func newPrincipalState(
 	principalName string,
 	provisioningState provisioningv1.ProvisioningState,
 ) *provisioningv1.PrincipalState {
-	return &provisioningv1.PrincipalState{
+	return provisioningv1.PrincipalState_builder{
 		Kind:    types.KindProvisioningPrincipalState,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: string(id),
-		},
-		Spec: &provisioningv1.PrincipalStateSpec{
+		}.Build(),
+		Spec: provisioningv1.PrincipalStateSpec_builder{
 			DownstreamId:  string(downstreamID),
 			PrincipalType: principalType,
 			PrincipalId:   principalName,
-		},
-		Status: &provisioningv1.PrincipalStateStatus{
+		}.Build(),
+		Status: provisioningv1.PrincipalStateStatus_builder{
 			ProvisioningState: provisioningState,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // recordExternalID sets the PrincipalState state's External ID and updates the
@@ -88,8 +88,8 @@ func recordExternalID(
 	locks []string,
 ) (*provisioningv1.PrincipalState, error) {
 	mutate := func(s *provisioningv1.PrincipalState) error {
-		s.Status.ExternalId = string(extID)
-		s.Status.ActiveLocks = locks
+		s.GetStatus().SetExternalId(string(extID))
+		s.GetStatus().SetActiveLocks(locks)
 		return nil
 	}
 	updatedState, err := updateProvisioningState(ctx, statesSvc, state, mutate)
@@ -111,7 +111,7 @@ func markStateInError(
 	errText := provisioningError.Error()
 
 	recordError := func(s *provisioningv1.PrincipalState) error {
-		s.Status.Error = errText
+		s.GetStatus().SetError(errText)
 		return nil
 	}
 	updatedState, err := updateProvisioningState(ctx, statesSvc, state, recordError)
@@ -142,20 +142,20 @@ func markStateAsProvisioned(
 	// want clobber a newer "STALE" state if the record has been touched while
 	// we've been busy with it. Because this isn't in the mutator, it won't get
 	// updated in the backend on a re-tried update.
-	status := state.Status
+	status := state.GetStatus()
 	if status == nil {
 		return nil, trace.BadParameter("provisioning state missing status block")
 	}
 
 	// Do NOT clobber a DELETED state; the record needs to go through the the
 	// full downstream de-provisioning cycle before it can be re-created.
-	if status.ProvisioningState != provisioningv1.ProvisioningState_PROVISIONING_STATE_DELETED {
-		status.ProvisioningState = provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED
+	if status.GetProvisioningState() != provisioningv1.ProvisioningState_PROVISIONING_STATE_DELETED {
+		status.SetProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED)
 	}
 
 	timestampPB := timestamppb.New(timestamp)
 	markProvisioned := func(s *provisioningv1.PrincipalState) error {
-		status := s.Status
+		status := s.GetStatus()
 		if status == nil {
 			return trace.BadParameter("provisioning state missing status block")
 		}
@@ -166,10 +166,10 @@ func markStateAsProvisioned(
 		// downstream. An updated record with DELETED needs to go through the
 		// whole downstream de-provisioning cycle before it can be re-created.
 
-		status.ActiveLocks = locks
-		status.LastProvisioned = timestampPB
-		status.ProvisionedPrincipalRevision = principalRevision
-		status.Error = ""
+		status.SetActiveLocks(locks)
+		status.SetLastProvisioned(timestampPB)
+		status.SetProvisionedPrincipalRevision(principalRevision)
+		status.SetError("")
 		return nil
 	}
 
@@ -196,7 +196,7 @@ func setProvisioningState(targetState provisioningv1.ProvisioningState) provisio
 		if ps.GetStatus().GetProvisioningState() == targetState {
 			return errNoChangeRequired
 		}
-		ps.GetStatus().ProvisioningState = targetState
+		ps.GetStatus().SetProvisioningState(targetState)
 		return nil
 	}
 }

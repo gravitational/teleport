@@ -259,10 +259,10 @@ func (s *Service) ListOktaImportRules(ctx context.Context, req *oktapb.ListOktaI
 		importRulesV1[i] = v1
 	}
 
-	return &oktapb.ListOktaImportRulesResponse{
+	return oktapb.ListOktaImportRulesResponse_builder{
 		ImportRules:   importRulesV1,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // GetOktaImportRule returns the specified Okta import rule resources.
@@ -381,10 +381,10 @@ func (s *Service) ListOktaAssignments(ctx context.Context, req *oktapb.ListOktaA
 		assignmentsV1[i] = v1
 	}
 
-	return &oktapb.ListOktaAssignmentsResponse{
+	return oktapb.ListOktaAssignmentsResponse_builder{
 		Assignments:   assignmentsV1,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // GetOktaAssignment returns the specified Okta assignment resources.
@@ -469,9 +469,9 @@ func (s *Service) ConditionalUpdateOktaAssignment(ctx context.Context, req *okta
 	if !ok {
 		return nil, trace.BadParameter("expected OktaAssignmentV1, got %T", item)
 	}
-	return &oktapb.ConditionalUpdateOktaAssignmentResponse{
+	return oktapb.ConditionalUpdateOktaAssignmentResponse_builder{
 		Assignment: v1,
-	}, nil
+	}.Build(), nil
 }
 
 // UpsertOktaAssignment upserts an Okta assignment resource, creating it if it doesn't exist or updating it if it does.
@@ -491,9 +491,9 @@ func (s *Service) UpsertOktaAssignment(ctx context.Context, req *oktapb.UpsertOk
 	if !ok {
 		return nil, trace.BadParameter("expected OktaAssignmentV1, got %T", item)
 	}
-	return &oktapb.UpsertOktaAssignmentResponse{
+	return oktapb.UpsertOktaAssignmentResponse_builder{
 		Assignment: v1,
-	}, nil
+	}.Build(), nil
 }
 
 // UpdateOktaAssignmentStatus will update the status for an Okta assignment.
@@ -507,7 +507,7 @@ func (s *Service) UpdateOktaAssignmentStatus(ctx context.Context, req *oktapb.Up
 		return nil, trace.Wrap(err)
 	}
 	err = s.oktaAssignments.UpdateOktaAssignmentStatus(ctx, req.GetName(), types.OktaAssignmentStatusProtoToString(req.GetStatus()),
-		req.TimeHasPassed.AsDuration())
+		req.GetTimeHasPassed().AsDuration())
 	return &emptypb.Empty{}, trace.Wrap(err)
 }
 

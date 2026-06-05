@@ -705,9 +705,9 @@ func (p *Plugin) accessGraphSupportsHTTP() bool {
 	const featuresFile = "features.json"
 	rsp, err := client.AccessGraphClient().GetFile(
 		ctx,
-		&accessgraphv1.GetFileRequest{
+		accessgraphv1.GetFileRequest_builder{
 			Filepath: featuresFile,
-		},
+		}.Build(),
 	)
 	if err != nil {
 		p.Logger.DebugContext(ctx, "Failed to get access graph features", "error", err)
@@ -719,7 +719,7 @@ func (p *Plugin) accessGraphSupportsHTTP() bool {
 	}
 
 	data := &jsonData{}
-	if err := json.Unmarshal(rsp.Data, data); err != nil {
+	if err := json.Unmarshal(rsp.GetData(), data); err != nil {
 		p.Logger.DebugContext(ctx, "Failed to parse access graph features payload", "error", err)
 		return false
 	}

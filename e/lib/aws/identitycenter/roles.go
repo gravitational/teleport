@@ -115,8 +115,8 @@ func NewAccountAssignmentRole(acct *identitycenterv1.Account, ps *identitycenter
 		Allow: types.RoleConditions{
 			AccountAssignments: []types.IdentityCenterAccountAssignment{
 				{
-					Account:       acct.Spec.Id,
-					PermissionSet: ps.Arn,
+					Account:       acct.GetSpec().GetId(),
+					PermissionSet: ps.GetArn(),
 				},
 			},
 		},
@@ -140,7 +140,7 @@ func NewAccountAssignmentRole(acct *identitycenterv1.Account, ps *identitycenter
 	}
 	// Mark the role as a new-style IC role that can handle multiple AWS accounts
 	// with the same name.
-	labels[roleAccountLabel] = acct.Spec.Id
+	labels[roleAccountLabel] = acct.GetSpec().GetId()
 
 	// Mark the role as being created by the identity center plugin (we can't
 	// use origin due to backwards compatibility issues) so that we can target

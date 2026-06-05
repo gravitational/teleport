@@ -170,10 +170,10 @@ func TestReportAuthorizedKeys(t *testing.T) {
 			stream, err := env.secretsScannerClient.ReportAuthorizedKeys(ctx)
 			require.NoError(t, err)
 
-			err = stream.Send(&accessgraphsecretsv1pb.ReportAuthorizedKeysRequest{
+			err = stream.Send(accessgraphsecretsv1pb.ReportAuthorizedKeysRequest_builder{
 				Keys:      tt.newAuthorizedKeys,
 				Operation: accessgraphsecretsv1pb.OperationType_OPERATION_TYPE_ADD,
-			})
+			}.Build())
 			/* ignore error if it's EOF, as it's expected */
 			if !errors.Is(err, io.EOF) {
 				require.NoError(t, err)
@@ -184,9 +184,9 @@ func TestReportAuthorizedKeys(t *testing.T) {
 				return
 			}
 
-			err = stream.Send(&accessgraphsecretsv1pb.ReportAuthorizedKeysRequest{
+			err = stream.Send(accessgraphsecretsv1pb.ReportAuthorizedKeysRequest_builder{
 				Operation: accessgraphsecretsv1pb.OperationType_OPERATION_TYPE_SYNC,
-			})
+			}.Build())
 			require.NoError(t, err)
 
 			require.Eventually(t, func() bool {
@@ -207,7 +207,7 @@ func TestReportAuthorizedKeys(t *testing.T) {
 			require.Empty(t,
 				cmp.Diff(tt.expectedAuthorizedKeys, got,
 					cmpopts.SortSlices(func(a, b *accessgraphsecretsv1pb.AuthorizedKey) bool {
-						return a.Metadata.Name < b.Metadata.Name
+						return a.GetMetadata().GetName() < b.GetMetadata().GetName()
 					}),
 					protocmp.Transform(),
 					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
@@ -227,7 +227,7 @@ func TestReportPrivateKeys(t *testing.T) {
 		deviceID = uuid.NewString()
 	)
 	setDeviceIdPrivateKey := func(key *accessgraphsecretsv1pb.PrivateKey) *accessgraphsecretsv1pb.PrivateKey {
-		key.Spec.DeviceId = deviceID
+		key.GetSpec().SetDeviceId(deviceID)
 		return key
 	}
 
@@ -408,13 +408,11 @@ func TestReportPrivateKeys(t *testing.T) {
 			}
 			require.NoError(t, err)
 
-			err = stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
-				Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_PrivateKeys{
-					PrivateKeys: &accessgraphsecretsv1pb.ReportPrivateKeys{
-						Keys: tt.newPrivateKeys,
-					},
-				},
-			})
+			err = stream.Send(accessgraphsecretsv1pb.ReportSecretsRequest_builder{
+				PrivateKeys: accessgraphsecretsv1pb.ReportPrivateKeys_builder{
+					Keys: tt.newPrivateKeys,
+				}.Build(),
+			}.Build())
 			require.NoError(t, err)
 
 			err = stream.CloseSend()
@@ -426,7 +424,7 @@ func TestReportPrivateKeys(t *testing.T) {
 			require.Empty(t,
 				cmp.Diff(tt.expectedPrivateKeys, got,
 					cmpopts.SortSlices(func(a, b *accessgraphsecretsv1pb.PrivateKey) bool {
-						return a.Metadata.Name < b.Metadata.Name
+						return a.GetMetadata().GetName() < b.GetMetadata().GetName()
 					}),
 					protocmp.Transform(),
 					protocmp.IgnoreFields(&headerv1.Metadata{}, "expires", "revision"),
@@ -496,12 +494,12 @@ func (f fakeAccessChecker) HasRole(role string) bool {
 func newAuthorizedKey(t *testing.T, hostID string, fingerprint string) *accessgraphsecretsv1pb.AuthorizedKey {
 	t.Helper()
 	k, err := accessgraph.NewAuthorizedKey(
-		&accessgraphsecretsv1pb.AuthorizedKeySpec{
+		accessgraphsecretsv1pb.AuthorizedKeySpec_builder{
 			HostUser:       "user",
 			HostId:         hostID,
 			KeyFingerprint: fingerprint,
 			KeyType:        "ssh-rsa",
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 	return k
@@ -535,11 +533,11 @@ func (a clientStreamAdapter) Recv() (*devicepb.AssertDeviceResponse, error) {
 func newPrivateKey(t *testing.T, fingerprint string) *accessgraphsecretsv1pb.PrivateKey {
 	t.Helper()
 	k, err := accessgraph.NewPrivateKey(
-		&accessgraphsecretsv1pb.PrivateKeySpec{
+		accessgraphsecretsv1pb.PrivateKeySpec_builder{
 			PublicKeyMode:        accessgraphsecretsv1pb.PublicKeyMode_PUBLIC_KEY_MODE_DERIVED,
 			DeviceId:             "something",
 			PublicKeyFingerprint: fingerprint,
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 	return k

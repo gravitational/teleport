@@ -33,12 +33,12 @@ func (*registrator) Register(ctx context.Context, config ServiceClientConfig, ge
 	if len(hostCAPems) == 0 {
 		return trace.BadParameter("expected at least one Host CA PEM to register")
 	}
-	_, err = client.Register(ctx, &accessgraphv1.RegisterRequest{
+	_, err = client.Register(ctx, accessgraphv1.RegisterRequest_builder{
 		// Keep compatibility with older TAG versions that expect a single Host CA PEM.
 		HostCaPem:   hostCAPems[0],
 		HostCaPems:  hostCAPems,
 		ClusterName: clusterName,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
@@ -51,7 +51,7 @@ func (*registrator) ReplaceCAs(ctx context.Context, config ServiceClientConfig, 
 	defer conn.Close()
 	client := accessgraphv1.NewAccessGraphServiceClient(conn)
 
-	_, err = client.ReplaceCAs(ctx, &accessgraphv1.ReplaceCAsRequest{HostCaPem: caPEMs})
+	_, err = client.ReplaceCAs(ctx, accessgraphv1.ReplaceCAsRequest_builder{HostCaPem: caPEMs}.Build())
 	return trace.Wrap(err)
 }
 

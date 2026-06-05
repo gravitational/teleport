@@ -147,7 +147,7 @@ func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 		return nil, trace.BadParameter("missing or malformed channels: %q", channelsText)
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
@@ -181,7 +181,7 @@ func installDiscordPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
@@ -209,7 +209,7 @@ func installOpsgeniePlugin(ctx context.Context, sessCtx *web.SessionContext, w h
 		return nil, trace.Wrap(err)
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
@@ -242,7 +242,7 @@ func installOpsgeniePlugin(ctx context.Context, sessCtx *web.SessionContext, w h
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
@@ -302,7 +302,7 @@ func installGithubPlugin(ctx context.Context, sessCtx *web.SessionContext, w htt
 		return nil, trace.Wrap(err)
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccessGraph,
 			Metadata: types.Metadata{
@@ -335,7 +335,7 @@ func installGithubPlugin(ctx context.Context, sessCtx *web.SessionContext, w htt
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
@@ -359,7 +359,7 @@ func installGitlabPlugin(ctx context.Context, sessCtx *web.SessionContext, w htt
 		return nil, trace.Wrap(err)
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccessGraph,
 			Metadata: types.Metadata{
@@ -388,7 +388,7 @@ func installGitlabPlugin(ctx context.Context, sessCtx *web.SessionContext, w htt
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
@@ -410,7 +410,7 @@ func installJamfPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 		return nil, trace.BadParameter("jamf API credentials required")
 	}
 
-	pluginReq := &pluginspb.CreatePluginRequest{
+	pluginReq := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindMDM,
 			Metadata: types.Metadata{
@@ -447,7 +447,7 @@ func installJamfPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, pluginReq)
 	if err != nil {
@@ -468,7 +468,7 @@ func installIntunePlugin(ctx context.Context, sessCtx *web.SessionContext, _ htt
 		return nil, trace.BadParameter("API credentials required")
 	}
 
-	pluginReq := &pluginspb.CreatePluginRequest{
+	pluginReq := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindMDM,
 			Metadata: types.Metadata{
@@ -503,7 +503,7 @@ func installIntunePlugin(ctx context.Context, sessCtx *web.SessionContext, _ htt
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, pluginReq)
 	return ui, trace.Wrap(err)
@@ -530,7 +530,7 @@ func installServiceNowPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 		return nil, trace.Wrap(err)
 	}
 
-	pluginReq := &pluginspb.CreatePluginRequest{
+	pluginReq := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
@@ -566,7 +566,7 @@ func installServiceNowPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, pluginReq)
 	if err != nil {
@@ -606,7 +606,7 @@ func installJiraPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 		return nil, trace.BadParameter("missing Jira issue type")
 	}
 
-	pluginReq := &pluginspb.CreatePluginRequest{
+	pluginReq := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
@@ -649,7 +649,7 @@ func installJiraPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, pluginReq)
 	if err != nil {
@@ -671,7 +671,7 @@ func installPagerdutyPlugin(ctx context.Context, sessCtx *web.SessionContext, w 
 		return nil, trace.BadParameter("missing PagerDuty API key")
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
@@ -705,7 +705,7 @@ func installPagerdutyPlugin(ctx context.Context, sessCtx *web.SessionContext, w 
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
@@ -749,7 +749,7 @@ func installMattermostPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 		labels["mattermost/email"] = email
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
@@ -782,7 +782,7 @@ func installMattermostPlugin(ctx context.Context, sessCtx *web.SessionContext, w
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
@@ -808,7 +808,7 @@ func installDatadogPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 	if len(applicationKey) == 0 {
 		return nil, trace.BadParameter("missing Datadog Application key")
 	}
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
@@ -861,7 +861,7 @@ func installDatadogPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 		CredentialLabels: map[string]string{
 			"datadog/api_endpoint": apiEndpoint,
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
@@ -893,7 +893,7 @@ func installMSTeamsPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 	}
 	region := r.FormValue("region")
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Kind:    types.PluginTypeMSTeams,
 			SubKind: types.PluginSubkindAccess,
@@ -928,7 +928,7 @@ func installMSTeamsPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
@@ -966,7 +966,7 @@ func installMailgunPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 		return nil, trace.BadParameter("missing Mailgun Private Key")
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
@@ -1005,7 +1005,7 @@ func installMailgunPlugin(ctx context.Context, sessCtx *web.SessionContext, w ht
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, req)
 	return ui, trace.Wrap(err)
@@ -1041,7 +1041,7 @@ func installSMTPPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 		return nil, trace.BadParameter("missing SMTP Password")
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
@@ -1086,7 +1086,7 @@ func installSMTPPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 				},
 			},
 		},
-	}
+	}.Build()
 
 	ui, err := installPlugin(ctx, sessCtx, req)
 	return ui, trace.Wrap(err)
@@ -1119,7 +1119,7 @@ func (slackDescriptor) getAuthURL(ctx context.Context, sctx *web.SessionContext,
 	}
 	uri.RawQuery = url.Values{
 		"scope":        {strings.Join(scopes, ",")},
-		"client_id":    {meta.OauthClientId},
+		"client_id":    {meta.GetOauthClientId()},
 		"redirect_uri": {callbackURL},
 		"state":        {state},
 	}.Encode()
@@ -1221,7 +1221,7 @@ func installSCIMPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 		return nil, trace.Wrap(err)
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
@@ -1239,7 +1239,7 @@ func installSCIMPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 		StaticCredentialsList: []*types.PluginStaticCredentialsV1{
 			buildOauthCreds(clientID, clientSecret),
 		},
-	}
+	}.Build()
 	uiResp, err := installPlugin(ctx, sessCtx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)

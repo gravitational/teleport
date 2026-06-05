@@ -69,20 +69,20 @@ func TestUnmarshalResource(t *testing.T) {
 	res, err := UnmarshalResource(bytes.NewReader([]byte(oktaJSON)))
 	require.NoError(t, err)
 
-	require.Equal(t, "vito@corleone-foundation.org", res.Id)
-	require.Equal(t, "00ub1q9yfsRSfO91a5d7", res.ExternalId)
-	require.Contains(t, res.Schemas, "urn:ietf:params:scim:schemas:core:2.0:User")
+	require.Equal(t, "vito@corleone-foundation.org", res.GetId())
+	require.Equal(t, "00ub1q9yfsRSfO91a5d7", res.GetExternalId())
+	require.Contains(t, res.GetSchemas(), "urn:ietf:params:scim:schemas:core:2.0:User")
 
-	require.Equal(t, "User", res.Meta.ResourceType)
-	require.Equal(t, "2a30170a-b609-473c-bbbb-2abcef8bcf41", res.Meta.Version)
+	require.Equal(t, "User", res.GetMeta().GetResourceType())
+	require.Equal(t, "2a30170a-b609-473c-bbbb-2abcef8bcf41", res.GetMeta().GetVersion())
 
-	require.NotNil(t, res.Meta.Created)
+	require.NotNil(t, res.GetMeta().GetCreated())
 	require.Equal(t, time.Date(2024, 01, 07, 22, 57, 9, 0, time.UTC),
-		res.Meta.Created.AsTime())
+		res.GetMeta().GetCreated().AsTime())
 
-	require.Nil(t, res.Meta.Modified)
+	require.Nil(t, res.GetMeta().GetModified())
 
-	require.Equal(t, "Don", res.Attributes.Fields["title"].GetStringValue())
+	require.Equal(t, "Don", res.GetAttributes().Fields["title"].GetStringValue())
 }
 
 func TestMarshalResource(t *testing.T) {

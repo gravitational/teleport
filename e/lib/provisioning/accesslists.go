@@ -27,7 +27,7 @@ func (p *provisioner) provisionAccessList(
 		return state, nil
 	}
 
-	acl, aclMembers, err := getAccessListWithMembers(ctx, state.Spec.PrincipalId, p.accessListSvc)
+	acl, aclMembers, err := getAccessListWithMembers(ctx, state.GetSpec().GetPrincipalId(), p.accessListSvc)
 	if err != nil {
 		return nil, trace.Wrap(err, "loading access list and members for provisioning")
 	}
@@ -44,7 +44,7 @@ func (p *provisioner) provisionAccessList(
 	// see if a group with the target display name exists downstream. If it does,
 	// we will adopt it by recording its ID against the current access list. If
 	// not we will create it from scratch
-	if state.Status.ExternalId == "" {
+	if state.GetStatus().GetExternalId() == "" {
 		updatedState, err := p.adoptOrCreateDownstreamGroup(ctx, state, acl)
 		if err != nil {
 			return nil, trace.Wrap(err)

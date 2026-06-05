@@ -192,9 +192,9 @@ func TestAWSICCreatePluginRollsBackSAMLServiceProviderWhenPluginExists(t *testin
 	))
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		_, _ = authClient.PluginsClient().DeletePlugin(wSuite.ctx, &pluginspb.DeletePluginRequest{
+		_, _ = authClient.PluginsClient().DeletePlugin(wSuite.ctx, pluginspb.DeletePluginRequest_builder{
 			Name: types.PluginTypeAWSIdentityCenter,
-		})
+		}.Build())
 		_ = authClient.DeleteSAMLIdPServiceProvider(wSuite.ctx, types.PluginTypeAWSIdentityCenter)
 	})
 
@@ -351,13 +351,13 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 			},
 		})
 
-		plugin, err := authClient.PluginsClient().GetPlugin(ctx, &pluginspb.GetPluginRequest{
+		plugin, err := authClient.PluginsClient().GetPlugin(ctx, pluginspb.GetPluginRequest_builder{
 			Name:        types.PluginTypeAWSIdentityCenter,
 			WithSecrets: false,
-		})
+		}.Build())
 		require.NoError(t, err)
 		require.NotEmpty(t, plugin)
-		_, err = authClient.PluginsClient().DeletePlugin(ctx, &pluginspb.DeletePluginRequest{Name: plugin.GetName()})
+		_, err = authClient.PluginsClient().DeletePlugin(ctx, pluginspb.DeletePluginRequest_builder{Name: plugin.GetName()}.Build())
 		require.NoError(t, err)
 	})
 
@@ -384,7 +384,7 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 		_, err = authClient.UpsertRole(ctx, fooUserRole)
 		require.NoError(t, err)
 
-		_, err = authClient.PluginsClient().DeletePlugin(ctx, &pluginspb.DeletePluginRequest{Name: types.PluginTypeAWSIdentityCenter})
+		_, err = authClient.PluginsClient().DeletePlugin(ctx, pluginspb.DeletePluginRequest_builder{Name: types.PluginTypeAWSIdentityCenter}.Build())
 		require.NoError(t, err)
 	})
 
@@ -398,10 +398,10 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, http.StatusOK, resp.Code())
 
-		_, err = authClient.PluginsClient().GetPlugin(wSuite.ctx, &pluginspb.GetPluginRequest{
+		_, err = authClient.PluginsClient().GetPlugin(wSuite.ctx, pluginspb.GetPluginRequest_builder{
 			Name:        types.PluginTypeAWSIdentityCenter,
 			WithSecrets: false,
-		})
+		}.Build())
 		require.True(t, trace.IsNotFound(err))
 
 		_, err = authClient.GetSAMLIdPServiceProvider(ctx, types.PluginTypeAWSIdentityCenter)
@@ -424,7 +424,7 @@ func TestAWSICDeletePluginResourceCleanup(t *testing.T) {
 			},
 		})
 
-		needCleanupResp, err := authClient.PluginsClient().NeedsCleanup(ctx, &pluginspb.NeedsCleanupRequest{Type: types.PluginTypeAWSIdentityCenter})
+		needCleanupResp, err := authClient.PluginsClient().NeedsCleanup(ctx, pluginspb.NeedsCleanupRequest_builder{Type: types.PluginTypeAWSIdentityCenter}.Build())
 		require.NoError(t, err)
 		require.Empty(t, needCleanupResp.GetResourcesToCleanup())
 	})

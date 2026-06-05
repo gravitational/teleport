@@ -20,26 +20,26 @@ func (s *Service) newTestProvider(ctx context.Context, req *pb.TestInferenceMode
 		return nil, trace.BadParameter("model spec is required")
 	}
 
-	switch providerCfg := modelSpec.Provider.(type) {
-	case *pb.InferenceModelSpec_Openai:
+	switch modelSpec.WhichProvider() {
+	case pb.InferenceModelSpec_Openai_case:
 		if req.GetSecret() == nil {
-			if providerCfg.Openai.GetApiKeySecretRef() == "" {
+			if modelSpec.GetOpenai().GetApiKeySecretRef() == "" {
 				return nil, trace.BadParameter("api_key_secret_ref is required for OpenAI models when no secret is provided in the request")
 			}
 			// Fetch the secret from the backend
-			secret, err := s.backend.GetInferenceSecret(ctx, providerCfg.Openai.GetApiKeySecretRef())
+			secret, err := s.backend.GetInferenceSecret(ctx, modelSpec.GetOpenai().GetApiKeySecretRef())
 			if trace.IsNotFound(err) {
-				return nil, trace.BadParameter("secret %q not found in backend; please provide it in the request or ensure it exists", providerCfg.Openai.GetApiKeySecretRef())
+				return nil, trace.BadParameter("secret %q not found in backend; please provide it in the request or ensure it exists", modelSpec.GetOpenai().GetApiKeySecretRef())
 			} else if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			req.Secret = secret.Spec
+			req.SetSecret(secret.GetSpec())
 
 		}
 
-	case *pb.InferenceModelSpec_Bedrock:
+	case pb.InferenceModelSpec_Bedrock_case:
 		if !s.enableBedrockWithoutRestrictions &&
-			providerCfg.Bedrock.GetIntegration() == "" {
+			modelSpec.GetBedrock().GetIntegration() == "" {
 			return nil, trace.AccessDenied(
 				"access to Amazon Bedrock models provided by Teleport Cloud is restricted; " +
 					"please refer to the documentation for more information on enabling Bedrock integrations",
@@ -47,21 +47,21 @@ func (s *Service) newTestProvider(ctx context.Context, req *pb.TestInferenceMode
 		}
 
 	default:
-		return nil, trace.BadParameter("unsupported provider type: %T", modelSpec.Provider)
+		return nil, trace.BadParameter("unsupported provider type: %v", modelSpec.WhichProvider())
 	}
 
 	return s.newProvider(ctx, apisummarizer.NewInferenceModel("test-model", modelSpec), req.GetSecret())
 }
 
 func (s *Service) newProvider(ctx context.Context, model *pb.InferenceModel, secret *pb.InferenceSecretSpec) (inferenceProvider, error) {
-	switch providerCfg := model.GetSpec().GetProvider().(type) {
-	case *pb.InferenceModelSpec_Openai:
+	switch model.GetSpec().WhichProvider() {
+	case pb.InferenceModelSpec_Openai_case:
 		if secret == nil {
 			return nil, trace.BadParameter("secret is required for OpenAI models")
 		}
 
 		p, err := openai.NewProvider(ctx, openai.ProviderConfig{
-			ModelProvider:     providerCfg.Openai,
+			ModelProvider:     model.GetSpec().GetOpenai(),
 			SecretSpec:        secret,
 			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
 			ClientFactory:     s.openAIClientFactory,
@@ -69,9 +69,9 @@ func (s *Service) newProvider(ctx context.Context, model *pb.InferenceModel, sec
 		})
 		return p, trace.Wrap(err)
 
-	case *pb.InferenceModelSpec_Bedrock:
+	case pb.InferenceModelSpec_Bedrock_case:
 		p, err := bedrock.NewProvider(ctx, bedrock.ProviderConfig{
-			Spec:              providerCfg.Bedrock,
+			Spec:              model.GetSpec().GetBedrock(),
 			MaxSessionLength:  model.GetSpec().GetMaxSessionLengthBytes(),
 			ClientFactory:     s.bedrockClientFactory,
 			ModelResourceName: model.GetMetadata().GetName(),
@@ -80,7 +80,7 @@ func (s *Service) newProvider(ctx context.Context, model *pb.InferenceModel, sec
 		return p, trace.Wrap(err)
 
 	default:
-		return nil, trace.BadParameter("unsupported provider type: %T", model.GetSpec().GetProvider())
+		return nil, trace.BadParameter("unsupported provider type: %v", model.GetSpec().WhichProvider())
 	}
 }
 
@@ -98,16 +98,16 @@ func (s *Service) newTestEmbeddingsProvider(ctx context.Context, req *pb.TestRet
 		return nil, trace.BadParameter("model spec is required")
 	}
 
-	switch providerCfg := modelSpec.EmbeddingsProvider.(type) {
-	case *pb.RetrievalModelSpec_Openai:
+	switch modelSpec.WhichEmbeddingsProvider() {
+	case pb.RetrievalModelSpec_Openai_case:
 		secret := req.GetSecret()
 		if secret == nil {
-			if providerCfg.Openai.GetApiKeySecretRef() == "" {
+			if modelSpec.GetOpenai().GetApiKeySecretRef() == "" {
 				return nil, trace.BadParameter("api_key_secret_ref is required for OpenAI models when no secret is provided in the request")
 			}
-			stored, err := s.backend.GetInferenceSecret(ctx, providerCfg.Openai.GetApiKeySecretRef())
+			stored, err := s.backend.GetInferenceSecret(ctx, modelSpec.GetOpenai().GetApiKeySecretRef())
 			if trace.IsNotFound(err) {
-				return nil, trace.BadParameter("secret %q not found in backend; please provide it in the request or ensure it exists", providerCfg.Openai.GetApiKeySecretRef())
+				return nil, trace.BadParameter("secret %q not found in backend; please provide it in the request or ensure it exists", modelSpec.GetOpenai().GetApiKeySecretRef())
 			}
 			if err != nil {
 				return nil, trace.Wrap(err)
@@ -115,22 +115,22 @@ func (s *Service) newTestEmbeddingsProvider(ctx context.Context, req *pb.TestRet
 			secret = stored.GetSpec()
 		}
 		p, err := openai.NewEmbeddingProvider(ctx, openai.EmbeddingProviderConfig{
-			EmbeddingsSpec:    providerCfg.Openai,
+			EmbeddingsSpec:    modelSpec.GetOpenai(),
 			SecretSpec:        secret,
 			ClientFactory:     s.openAIClientFactory,
 			ModelResourceName: "test-retrieval-model",
 		})
 		return p, trace.Wrap(err)
 
-	case *pb.RetrievalModelSpec_Bedrock:
-		if !s.enableBedrockWithoutRestrictions && providerCfg.Bedrock.GetIntegration() == "" {
+	case pb.RetrievalModelSpec_Bedrock_case:
+		if !s.enableBedrockWithoutRestrictions && modelSpec.GetBedrock().GetIntegration() == "" {
 			return nil, trace.AccessDenied(
 				"access to Amazon Bedrock models provided by Teleport Cloud is restricted; " +
 					"please refer to the documentation for more information on enabling Bedrock integrations",
 			)
 		}
 		p, err := bedrock.NewEmbeddingProvider(ctx, bedrock.EmbeddingProviderConfig{
-			Spec:              providerCfg.Bedrock,
+			Spec:              modelSpec.GetBedrock(),
 			ClientFactory:     s.bedrockClientFactory,
 			ModelResourceName: "test-retrieval-model",
 			AWSConfigCache:    s.awsConfigCache,
@@ -138,7 +138,7 @@ func (s *Service) newTestEmbeddingsProvider(ctx context.Context, req *pb.TestRet
 		return p, trace.Wrap(err)
 
 	default:
-		return nil, trace.BadParameter("unsupported provider type: %T", modelSpec.EmbeddingsProvider)
+		return nil, trace.BadParameter("unsupported provider type: %v", modelSpec.WhichEmbeddingsProvider())
 	}
 }
 

@@ -367,16 +367,16 @@ func createAccessListsMembers(t *testing.T, ctx context.Context, accessListClien
 func createICAccount(t *testing.T, ctx context.Context, icService services.IdentityCenter, accountNames []string) {
 	t.Helper()
 	for _, n := range accountNames {
-		_, err := icService.CreateIdentityCenterAccount(ctx, &identitycenterv1.Account{
+		_, err := icService.CreateIdentityCenterAccount(ctx, identitycenterv1.Account_builder{
 			Kind:     types.KindIdentityCenterAccount,
 			Version:  types.V1,
-			Metadata: &headerv1.Metadata{Name: n},
-			Spec: &identitycenterv1.AccountSpec{
+			Metadata: headerv1.Metadata_builder{Name: n}.Build(),
+			Spec: identitycenterv1.AccountSpec_builder{
 				Id:          "aws-account-id-" + n,
 				Arn:         fmt.Sprintf("arn:aws:sso::%s:", n),
 				Description: "Test account " + n,
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 }
@@ -384,16 +384,16 @@ func createICAccount(t *testing.T, ctx context.Context, icService services.Ident
 func createICAccountAssignment(t *testing.T, ctx context.Context, icService services.IdentityCenter, accountAssignmentNames []string) {
 	t.Helper()
 	for _, n := range accountAssignmentNames {
-		_, err := icService.CreateIdentityCenterAccountAssignment(ctx, &identitycenterv1.AccountAssignment{
+		_, err := icService.CreateIdentityCenterAccountAssignment(ctx, identitycenterv1.AccountAssignment_builder{
 			Kind:     types.KindIdentityCenterAccountAssignment,
 			Version:  types.V1,
-			Metadata: &headerv1.Metadata{Name: n},
-			Spec: &identitycenterv1.AccountAssignmentSpec{
+			Metadata: headerv1.Metadata_builder{Name: n}.Build(),
+			Spec: identitycenterv1.AccountAssignmentSpec_builder{
 				Display:     "Some-Permission-set on Some-AWS-account",
 				AccountName: "Some Account Name",
 				AccountId:   "some account id",
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 }
@@ -401,20 +401,20 @@ func createICAccountAssignment(t *testing.T, ctx context.Context, icService serv
 func createICPrincipleAssignment(t *testing.T, ctx context.Context, icService services.IdentityCenter, principalAssignmentNames []string) {
 	t.Helper()
 	for _, n := range principalAssignmentNames {
-		_, err := icService.CreatePrincipalAssignment(ctx, &identitycenterv1.PrincipalAssignment{
+		_, err := icService.CreatePrincipalAssignment(ctx, identitycenterv1.PrincipalAssignment_builder{
 			Kind:     types.KindIdentityCenterPrincipalAssignment,
 			Version:  types.V1,
-			Metadata: &headerv1.Metadata{Name: n},
-			Spec: &identitycenterv1.PrincipalAssignmentSpec{
+			Metadata: headerv1.Metadata_builder{Name: n}.Build(),
+			Spec: identitycenterv1.PrincipalAssignmentSpec_builder{
 				PrincipalType:    identitycenterv1.PrincipalType_PRINCIPAL_TYPE_USER,
 				PrincipalId:      n,
 				ExternalIdSource: "scim",
 				ExternalId:       "some external id",
-			},
-			Status: &identitycenterv1.PrincipalAssignmentStatus{
+			}.Build(),
+			Status: identitycenterv1.PrincipalAssignmentStatus_builder{
 				ProvisioningState: identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 }
@@ -422,20 +422,20 @@ func createICPrincipleAssignment(t *testing.T, ctx context.Context, icService se
 func createProvisioningState(t *testing.T, ctx context.Context, client services.ProvisioningStates, stateNames []string, downstreamID string) {
 	t.Helper()
 	for _, n := range stateNames {
-		_, err := client.CreateProvisioningState(ctx, &provisioningv1.PrincipalState{
+		_, err := client.CreateProvisioningState(ctx, provisioningv1.PrincipalState_builder{
 			Kind: types.KindProvisioningPrincipalState,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "u-" + n,
-			},
-			Spec: &provisioningv1.PrincipalStateSpec{
+			}.Build(),
+			Spec: provisioningv1.PrincipalStateSpec_builder{
 				DownstreamId:  downstreamID,
 				PrincipalType: provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER,
 				PrincipalId:   n,
-			},
-			Status: &provisioningv1.PrincipalStateStatus{
+			}.Build(),
+			Status: provisioningv1.PrincipalStateStatus_builder{
 				ProvisioningState: provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE,
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 }
@@ -443,16 +443,16 @@ func createProvisioningState(t *testing.T, ctx context.Context, client services.
 func createPermissionSets(t *testing.T, ctx context.Context, client services.IdentityCenter, names []string) {
 	t.Helper()
 	for _, n := range names {
-		_, err := client.CreatePermissionSet(ctx, &identitycenterv1.PermissionSet{
+		_, err := client.CreatePermissionSet(ctx, identitycenterv1.PermissionSet_builder{
 			Kind:     types.KindIdentityCenterPermissionSet,
 			Version:  types.V1,
-			Metadata: &headerv1.Metadata{Name: n},
-			Spec: &identitycenterv1.PermissionSetSpec{
+			Metadata: headerv1.Metadata_builder{Name: n}.Build(),
+			Spec: identitycenterv1.PermissionSetSpec_builder{
 				Arn:         fmt.Sprintf("arn:aws:sso:::permissionSet/ic-instance/%s", n),
 				Name:        "aws-permission-set-" + n,
 				Description: "Test permission set " + n,
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 }
@@ -601,7 +601,7 @@ func CreateAWSOIDCIntegration(t *testing.T, ctx context.Context, authClient auth
 
 // NewPluginV1CreateRequest returns a new CreatePluginRequest.
 func NewPluginV1CreateRequest(integrationName, samlServiceProviderName string) *pluginspb.CreatePluginRequest {
-	return &pluginspb.CreatePluginRequest{
+	return pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
 				Name: types.PluginTypeAWSIdentityCenter,
@@ -636,7 +636,7 @@ func NewPluginV1CreateRequest(integrationName, samlServiceProviderName string) *
 				},
 			},
 		},
-	}
+	}.Build()
 }
 
 // writeThroughStatusSink implements a simple [common.StatusSink] that writes

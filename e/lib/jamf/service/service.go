@@ -346,18 +346,16 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 	if deviceType == types.JamfDeviceTypeMobileDevices {
 		osTypes = []devicepb.OSType{devicepb.OSType_OS_TYPE_IOS, devicepb.OSType_OS_TYPE_IPADOS}
 	}
-	if err := stream.Send(&devicepb.SyncInventoryRequest{
-		Payload: &devicepb.SyncInventoryRequest_Start{
-			Start: &devicepb.SyncInventoryStart{
-				OsTypes: osTypes,
-				Source: &devicepb.DeviceSource{
-					Name:   sourceName,
-					Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
-				},
-				TrackMissingDevices: spec.Mode == mdmsync.SyncModeFull && spec.OnMissing == DeviceActionDelete,
-			},
-		},
-	}); err != nil {
+	if err := stream.Send(devicepb.SyncInventoryRequest_builder{
+		Start: devicepb.SyncInventoryStart_builder{
+			OsTypes: osTypes,
+			Source: devicepb.DeviceSource_builder{
+				Name:   sourceName,
+				Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
+			}.Build(),
+			TrackMissingDevices: spec.Mode == mdmsync.SyncModeFull && spec.OnMissing == DeviceActionDelete,
+		}.Build(),
+	}.Build()); err != nil {
 		return time.Time{}, trace.Wrap(err, "init: Send")
 	}
 	resp, err := stream.Recv()
@@ -445,13 +443,11 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 			continue // Empty page: cut time advanced, nothing to upsert.
 		}
 
-		if err := stream.Send(&devicepb.SyncInventoryRequest{
-			Payload: &devicepb.SyncInventoryRequest_DevicesToUpsert{
-				DevicesToUpsert: &devicepb.SyncInventoryDevices{
-					Devices: devsResp.teleportDevs,
-				},
-			},
-		}); err != nil {
+		if err := stream.Send(devicepb.SyncInventoryRequest_builder{
+			DevicesToUpsert: devicepb.SyncInventoryDevices_builder{
+				Devices: devsResp.teleportDevs,
+			}.Build(),
+		}.Build()); err != nil {
 			return time.Time{}, trace.Wrap(err, "devices: Send")
 		}
 		resp, err = stream.Recv()
@@ -466,11 +462,9 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 	}
 
 	// End.
-	if err := stream.Send(&devicepb.SyncInventoryRequest{
-		Payload: &devicepb.SyncInventoryRequest_End{
-			End: &devicepb.SyncInventoryEnd{},
-		},
-	}); err != nil {
+	if err := stream.Send(devicepb.SyncInventoryRequest_builder{
+		End: &devicepb.SyncInventoryEnd{},
+	}.Build()); err != nil {
 		return time.Time{}, trace.Wrap(err, "end: Send")
 	}
 
@@ -490,13 +484,11 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 		}
 
 		// Echo missing devices for deletion.
-		if err := stream.Send(&devicepb.SyncInventoryRequest{
-			Payload: &devicepb.SyncInventoryRequest_DevicesToRemove{
-				DevicesToRemove: &devicepb.SyncInventoryDevices{
-					Devices: devicesToRemove,
-				},
-			},
-		}); err != nil {
+		if err := stream.Send(devicepb.SyncInventoryRequest_builder{
+			DevicesToRemove: devicepb.SyncInventoryDevices_builder{
+				Devices: devicesToRemove,
+			}.Build(),
+		}.Build()); err != nil {
 			return time.Time{}, trace.Wrap(err, "end: Send devices to remove")
 		}
 
@@ -633,7 +625,7 @@ func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.D
 	// We are looking for either confirmation that the device doesn't exist, or an
 	// existing but mismatched device.
 	for _, dev := range missingDevs {
-		if dev.Profile.GetExternalId() == "" {
+		if dev.GetProfile().GetExternalId() == "" {
 			s.logger.DebugContext(ctx,
 				"Marking device without external_id for removal",
 				"device", dev,
@@ -651,7 +643,7 @@ func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.D
 			var matches bool
 			var jamfDevForLogging any
 			var err error
-			switch dev.OsType {
+			switch dev.GetOsType() {
 			case devicepb.OSType_OS_TYPE_IOS, devicepb.OSType_OS_TYPE_IPADOS:
 				matches, jamfDevForLogging, err = s.confirmMobile(groupCtx, dev)
 			default:

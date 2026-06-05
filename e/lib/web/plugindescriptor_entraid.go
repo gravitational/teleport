@@ -118,7 +118,7 @@ func (e entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessC
 		return nil, trace.Wrap(err)
 	}
 
-	req := &pluginsv1.CreatePluginRequest{
+	req := pluginsv1.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
 				Name: inputs.name,
@@ -143,16 +143,16 @@ func (e entraIDPluginDescriptor) HandleInstallRequest(ctx context.Context, sessC
 				},
 			},
 		},
-	}
+	}.Build()
 
 	_, err = client.PluginsClient().CreatePlugin(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+	plugin, err := client.PluginsClient().GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 		Name: inputs.name,
-	})
+	}.Build())
 
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -183,9 +183,9 @@ func (e entraIDPluginDescriptor) HandleValidateConfigRequest(ctx context.Context
 		return trace.Wrap(err)
 	}
 
-	_, err = client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+	_, err = client.PluginsClient().GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 		Name: inputs.name,
-	})
+	}.Build())
 	if err == nil {
 		return trace.BadParameter("integration named %q already exists", inputs.name)
 	} else if !trace.IsNotFound(err) {
@@ -232,9 +232,9 @@ func (entraIDPluginDescriptor) HandleUpdateRequest(ctx context.Context, sessCtx 
 		return nil, trace.Wrap(err)
 	}
 	existingPlugin, err := client.PluginsClient().GetPlugin(ctx,
-		&pluginsv1.GetPluginRequest{
+		pluginsv1.GetPluginRequest_builder{
 			Name: req.EntraID.Name,
-		},
+		}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "failed getting existing plugin")
@@ -253,9 +253,9 @@ func (entraIDPluginDescriptor) HandleUpdateRequest(ctx context.Context, sessCtx 
 	}
 
 	resp, err := client.PluginsClient().UpdatePlugin(ctx,
-		&pluginsv1.UpdatePluginRequest{
+		pluginsv1.UpdatePluginRequest_builder{
 			Plugin: newPlugin,
-		})
+		}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

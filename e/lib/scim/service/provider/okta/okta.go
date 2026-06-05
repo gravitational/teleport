@@ -132,7 +132,7 @@ func (s *oktaShim) ResourceToUser(ctx context.Context, res *scimpb.Resource) (ty
 	var err error
 	var teleportUser types.User
 	if s.syncSettings().GetEnableUserSync() {
-		if teleportUser, err = s.getOktaUser(ctx, res.ExternalId); err != nil {
+		if teleportUser, err = s.getOktaUser(ctx, res.GetExternalId()); err != nil {
 			return nil, trace.Wrap(err, "fetching Okta user from API")
 		}
 	} else {
@@ -256,7 +256,7 @@ type scimUserResource struct {
 // and deactivation into "update" messages
 func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, res *scimpb.Resource) (_ types.User, needsUpdate bool, _ error) {
 	var scimUser scimUserResource
-	if err := mapstructure.Decode(res.Attributes.AsMap(), &scimUser); err != nil {
+	if err := mapstructure.Decode(res.GetAttributes().AsMap(), &scimUser); err != nil {
 		return nil, false, trace.Wrap(err)
 	}
 
@@ -302,9 +302,9 @@ func (s *oktaShim) OnUpdatingUser(ctx context.Context, teleportUser types.User, 
 	// update the user without the label.
 	// Such situation may happen e.g. when Provision User button is clicked after SCIM
 	// provisioning is enabled in the Okta SAML app.
-	if res.ExternalId == "" {
+	if res.GetExternalId() == "" {
 		if oktaUserID, ok := teleportUser.GetLabel(eteleport.OktaUserIDLabel); ok {
-			res.ExternalId = oktaUserID
+			res.SetExternalId(oktaUserID)
 		}
 	}
 	newUser, err := s.ResourceToUser(ctx, res)
@@ -341,10 +341,10 @@ func (s *oktaShim) createUserFromSCIMResource(res *scimpb.Resource) (types.User,
 	if res == nil {
 		return nil, trace.BadParameter("Resource may not be empty")
 	}
-	if res.Attributes == nil {
+	if !res.HasAttributes() {
 		return nil, trace.BadParameter("Missing resource attributes")
 	}
-	username := res.Id
+	username := res.GetId()
 	if username == "" {
 		attrs := res.GetAttributes().AsMap()
 		var err error

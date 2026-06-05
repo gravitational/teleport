@@ -299,14 +299,14 @@ func convertTokenToProto(orgName string, token *github.PersonalAccessToken) *acc
 	if token.TokenExpiresAt != nil {
 		expires = timestamppb.New(token.TokenExpiresAt.Time)
 	}
-	return &accessgraphv1alpha.GithubTokenV1{
+	return accessgraphv1alpha.GithubTokenV1_builder{
 		Id:           token.GetID(),
 		Name:         token.GetTokenName(),
 		Owner:        owner,
 		Expires:      expires,
 		Permissions:  permissions,
 		Organization: orgName,
-	}
+	}.Build()
 }
 
 func (f *fetcher) fetchAdmins(ctx context.Context, res *pollResults, tokenOwners map[string]struct{}) error {
@@ -319,11 +319,11 @@ func (f *fetcher) fetchAdmins(ctx context.Context, res *pollResults, tokenOwners
 
 		for _, admin := range admins {
 			if _, hasToken := tokenOwners[admin.GetLogin()]; hasToken {
-				res.roleAssignments = append(res.roleAssignments, &accessgraphv1alpha.GithubRoleAssignmentV1{
+				res.roleAssignments = append(res.roleAssignments, accessgraphv1alpha.GithubRoleAssignmentV1_builder{
 					Owner:        true,
 					User:         admin.GetLogin(),
 					Organization: f.organizationName,
-				})
+				}.Build())
 			}
 		}
 
@@ -346,11 +346,11 @@ func (f *fetcher) fetchAdminRoles(ctx context.Context, res *pollResults) error {
 			continue
 		}
 
-		res.roles = append(res.roles, &accessgraphv1alpha.GithubRoleV1{
+		res.roles = append(res.roles, accessgraphv1alpha.GithubRoleV1_builder{
 			RoleId:       role.GetID(),
 			Name:         role.GetName(),
 			Organization: f.organizationName,
-		})
+		}.Build())
 
 		users, _, err := f.client.Organizations.ListUsersAssignedToOrgRole(ctx, f.organizationName, role.GetID(), &github.ListOptions{})
 		if err != nil {
@@ -358,11 +358,11 @@ func (f *fetcher) fetchAdminRoles(ctx context.Context, res *pollResults) error {
 		}
 
 		for _, user := range users {
-			res.roleAssignments = append(res.roleAssignments, &accessgraphv1alpha.GithubRoleAssignmentV1{
+			res.roleAssignments = append(res.roleAssignments, accessgraphv1alpha.GithubRoleAssignmentV1_builder{
 				RoleId:       role.GetID(),
 				User:         user.GetLogin(),
 				Organization: f.organizationName,
-			})
+			}.Build())
 		}
 	}
 	return nil
@@ -392,11 +392,11 @@ func (f *fetcher) fetchRepositories(ctx context.Context, res *pollResults) error
 				collabLogins = append(collabLogins, collab.GetLogin())
 			}
 
-			res.repos = append(res.repos, &accessgraphv1alpha.GithubRepositoryV1{
+			res.repos = append(res.repos, accessgraphv1alpha.GithubRepositoryV1_builder{
 				Name:          repo.GetName(),
 				Collaborators: collabLogins,
 				Organization:  f.organizationName,
-			})
+			}.Build())
 		}
 
 		if resp.NextPage == 0 {
@@ -418,11 +418,11 @@ func extractTokenPermissions(token *github.PersonalAccessToken) []*accessgraphv1
 		"other": token.Permissions.Other,
 	} {
 		for obj, verb := range perms {
-			permissions = append(permissions, &accessgraphv1alpha.GithubTokenV1Permission{
+			permissions = append(permissions, accessgraphv1alpha.GithubTokenV1Permission_builder{
 				Domain: domain,
 				Object: obj,
 				Verb:   verb,
-			})
+			}.Build())
 		}
 	}
 	return permissions

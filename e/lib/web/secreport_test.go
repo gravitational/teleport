@@ -45,15 +45,15 @@ func TestSecurityReports(t *testing.T) {
 		svcMock.getReportStateFunc = func(_ context.Context, req *pb.GetReportStateRequest) (*pb.ReportState, error) {
 			assert.Equal(t, "foobar", req.GetName())
 			assert.Equal(t, uint32(7), req.GetDays())
-			return &pb.ReportState{
-				Header: &headerv1.ResourceHeader{
-					Metadata: &headerv1.Metadata{Name: "security_report"},
-				},
-				Spec: &pb.ReportStateSpec{
+			return pb.ReportState_builder{
+				Header: headerv1.ResourceHeader_builder{
+					Metadata: headerv1.Metadata_builder{Name: "security_report"}.Build(),
+				}.Build(),
+				Spec: pb.ReportStateSpec_builder{
 					State:     "READY",
 					UpdatedAt: "2009-11-10T23:00:00Z",
-				},
-			}, nil
+				}.Build(),
+			}.Build(), nil
 
 		}
 		resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
@@ -70,17 +70,17 @@ func TestSecurityReports(t *testing.T) {
 	t.Run("GetSchema", func(t *testing.T) {
 		endpoint := webPack.clt.Endpoint("webapi", "sites", "localhost", "audit", "schema")
 		svcMock.getSchemaFunc = func(_ context.Context, req *pb.GetSchemaRequest) (*pb.GetSchemaResponse, error) {
-			return &pb.GetSchemaResponse{
+			return pb.GetSchemaResponse_builder{
 				Views: []*pb.GetSchemaResponse_ViewDesc{
-					{
+					pb.GetSchemaResponse_ViewDesc_builder{
 						Name: "name",
 						Desc: "desc",
 						Columns: []*pb.GetSchemaResponse_ViewDesc_ColumnDesc{
-							{Name: "name", Type: "type", Desc: "desc"},
+							pb.GetSchemaResponse_ViewDesc_ColumnDesc_builder{Name: "name", Type: "type", Desc: "desc"}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			}, nil
+			}.Build(), nil
 		}
 		resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
 		require.NoError(t, err)
@@ -103,17 +103,17 @@ func TestSecurityReports(t *testing.T) {
 		endpoint := webPack.clt.Endpoint("webapi", "sites", "localhost", "audit", "queries", "name")
 		svcMock.getAuditQueryFunc = func(_ context.Context, req *pb.GetAuditQueryRequest) (*pb.AuditQuery, error) {
 			assert.Equal(t, "name", req.GetName())
-			return &pb.AuditQuery{
-				Header: &headerv1.ResourceHeader{
-					Metadata: &headerv1.Metadata{Name: "name"},
-				},
-				Spec: &pb.AuditQuerySpec{
+			return pb.AuditQuery_builder{
+				Header: headerv1.ResourceHeader_builder{
+					Metadata: headerv1.Metadata_builder{Name: "name"}.Build(),
+				}.Build(),
+				Spec: pb.AuditQuerySpec_builder{
 					Name:        "name",
 					Title:       "title",
 					Query:       "query",
 					Description: "description",
-				},
-			}, nil
+				}.Build(),
+			}.Build(), nil
 		}
 		resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
 		require.NoError(t, err)
@@ -130,21 +130,21 @@ func TestSecurityReports(t *testing.T) {
 	t.Run("ListAuditQueries", func(t *testing.T) {
 		endpoint := webPack.clt.Endpoint("webapi", "sites", "localhost", "audit", "queries")
 		svcMock.listAuditQueriesFunc = func(_ context.Context, _ *pb.ListAuditQueriesRequest) (*pb.ListAuditQueriesResponse, error) {
-			return &pb.ListAuditQueriesResponse{
+			return pb.ListAuditQueriesResponse_builder{
 				Queries: []*pb.AuditQuery{
-					{
-						Header: &headerv1.ResourceHeader{
-							Metadata: &headerv1.Metadata{Name: "name"},
-						},
-						Spec: &pb.AuditQuerySpec{
+					pb.AuditQuery_builder{
+						Header: headerv1.ResourceHeader_builder{
+							Metadata: headerv1.Metadata_builder{Name: "name"}.Build(),
+						}.Build(),
+						Spec: pb.AuditQuerySpec_builder{
 							Name:        "name",
 							Title:       "title",
 							Query:       "query",
 							Description: "description",
-						},
-					},
+						}.Build(),
+					}.Build(),
 				},
-			}, nil
+			}.Build(), nil
 		}
 		resp, err := webPack.clt.Get(s.ctx, endpoint, url.Values{})
 		require.NoError(t, err)

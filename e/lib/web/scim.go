@@ -197,26 +197,26 @@ func (p *Plugin) scimGetResourceList(w http.ResponseWriter, r *http.Request, par
 
 	log.DebugContext(r.Context(), "Listing resources",
 		"filter", filter,
-		"start", page.validatedPage.StartIndex,
-		"count", page.validatedPage.Count)
+		"start", page.validatedPage.GetStartIndex(),
+		"count", page.validatedPage.GetCount())
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
-	resources, err := scimClient.ListSCIMResources(r.Context(), &scimpb.ListSCIMResourcesRequest{
-		Target: &scimpb.RequestTarget{
+	resources, err := scimClient.ListSCIMResources(r.Context(), scimpb.ListSCIMResourcesRequest_builder{
+		Target: scimpb.RequestTarget_builder{
 			Authorization: r.Header.Get("Authorization"),
 			PluginId:      integration,
 			ResourceType:  resourceType,
-		},
+		}.Build(),
 		Page:   page.validatedPage,
 		Filter: filter,
-	})
+	}.Build())
 
 	if err != nil {
 		log.ErrorContext(r.Context(), "Failed listing resources", "error", err)
 		return trace.Wrap(err)
 	}
 
-	event.ResourceCount = uint32(len(resources.Resources))
+	event.ResourceCount = uint32(len(resources.GetResources()))
 
 	body, err := scimsdk.MarshalResourceList(resources)
 	if err != nil {
@@ -252,19 +252,19 @@ func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params 
 	auditEvent.TeleportID = resourceID
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
-	resource, err := scimClient.GetSCIMResource(ctx, &scimpb.GetSCIMResourceRequest{
-		Target: &scimpb.RequestTarget{
+	resource, err := scimClient.GetSCIMResource(ctx, scimpb.GetSCIMResourceRequest_builder{
+		Target: scimpb.RequestTarget_builder{
 			Authorization: r.Header.Get("Authorization"),
 			PluginId:      integration,
 			ResourceType:  resourceType,
 			ResourceId:    resourceID,
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		log.ErrorContext(r.Context(), "Failed fetching resource", "error", err)
 		return trace.Wrap(err)
 	}
-	auditEvent.ExternalID = resource.ExternalId
+	auditEvent.ExternalID = resource.GetExternalId()
 	auditEvent.Display = extractDisplayName(resource)
 
 	body, err := scimsdk.MarshalResource(resource)
@@ -277,11 +277,11 @@ func (p *Plugin) scimGetResource(w http.ResponseWriter, r *http.Request, params 
 }
 
 func extractDisplayName(r *scimpb.Resource) string {
-	if r.Attributes == nil {
+	if !r.HasAttributes() {
 		return ""
 	}
 
-	displayName, ok := r.Attributes.Fields["displayName"]
+	displayName, ok := r.GetAttributes().Fields["displayName"]
 	if !ok {
 		return ""
 	}
@@ -313,7 +313,7 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 	}
 
 	auditEvent := scimNewResourceAuditEvent(integration, resourceType, r, events.SCIMCreateEvent, events.SCIMResourceCreateSuccessCode)
-	auditEvent.ExternalID = res.ExternalId
+	auditEvent.ExternalID = res.GetExternalId()
 	auditEvent.Request.Body, err = apievents.EncodeMap(bodyAttribs)
 	if err != nil {
 		return trace.Wrap(err, "malformed body JSON")
@@ -331,20 +331,20 @@ func (p *Plugin) scimCreateResource(w http.ResponseWriter, r *http.Request, para
 	log.DebugContext(ctx, "Creating new resource")
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
-	created, err := scimClient.CreateSCIMResource(ctx, &scimpb.CreateSCIMResourceRequest{
-		Target: &scimpb.RequestTarget{
+	created, err := scimClient.CreateSCIMResource(ctx, scimpb.CreateSCIMResourceRequest_builder{
+		Target: scimpb.RequestTarget_builder{
 			Authorization: r.Header.Get("Authorization"),
 			PluginId:      integration,
 			ResourceType:  resourceType,
-		},
+		}.Build(),
 		Resource: res,
-	})
+	}.Build())
 	if err != nil {
 		log.ErrorContext(r.Context(), "Failed creating new resource", "error", err)
 		return trace.Wrap(err)
 	}
-	auditEvent.ExternalID = created.ExternalId
-	auditEvent.TeleportID = created.Id
+	auditEvent.ExternalID = created.GetExternalId()
+	auditEvent.TeleportID = created.GetId()
 	auditEvent.Display = extractDisplayName(created)
 
 	// Return 201 Created status code
@@ -409,20 +409,20 @@ func (p *Plugin) scimUpdateResource(w http.ResponseWriter, r *http.Request, para
 
 	log.InfoContext(r.Context(), "Updating resource")
 	scimClient := p.h.GetProxyClient().SCIMClient()
-	updated, err := scimClient.UpdateSCIMResource(r.Context(), &scimpb.UpdateSCIMResourceRequest{
-		Target: &scimpb.RequestTarget{
+	updated, err := scimClient.UpdateSCIMResource(r.Context(), scimpb.UpdateSCIMResourceRequest_builder{
+		Target: scimpb.RequestTarget_builder{
 			Authorization: r.Header.Get("Authorization"),
 			PluginId:      integration,
 			ResourceType:  resourceType,
 			ResourceId:    resourceID,
-		},
+		}.Build(),
 		Resource: res,
-	})
+	}.Build())
 	if err != nil {
 		log.ErrorContext(r.Context(), "Failed updating resource", "error", err)
 		return trace.Wrap(err)
 	}
-	auditEvent.ExternalID = updated.ExternalId
+	auditEvent.ExternalID = updated.GetExternalId()
 	auditEvent.Display = extractDisplayName(updated)
 
 	err = writeSCIMResourceUpdateResponse(w, http.StatusOK, updated, auditEvent)
@@ -457,14 +457,14 @@ func (p *Plugin) scimDeleteResource(w http.ResponseWriter, r *http.Request, para
 	log.InfoContext(r.Context(), "Deleting resource")
 
 	scimClient := p.h.GetProxyClient().SCIMClient()
-	_, err := scimClient.DeleteSCIMResource(r.Context(), &scimpb.DeleteSCIMResourceRequest{
-		Target: &scimpb.RequestTarget{
+	_, err := scimClient.DeleteSCIMResource(r.Context(), scimpb.DeleteSCIMResourceRequest_builder{
+		Target: scimpb.RequestTarget_builder{
 			Authorization: r.Header.Get("Authorization"),
 			PluginId:      integration,
 			ResourceType:  resourceType,
 			ResourceId:    resourceID,
-		},
-	})
+		}.Build(),
+	}.Build())
 
 	if err != nil {
 		log.ErrorContext(r.Context(), "Failed deleting resource", "error", err)
@@ -525,19 +525,19 @@ func (p *Plugin) scimPatchResource(w http.ResponseWriter, r *http.Request, param
 		return trace.Wrap(err)
 	}
 
-	updated, err := p.h.GetProxyClient().SCIMClient().PatchSCIMResource(r.Context(), &scimpb.PatchSCIMResourceRequest{
-		Target: &scimpb.RequestTarget{
+	updated, err := p.h.GetProxyClient().SCIMClient().PatchSCIMResource(r.Context(), scimpb.PatchSCIMResourceRequest_builder{
+		Target: scimpb.RequestTarget_builder{
 			Authorization: r.Header.Get("Authorization"),
 			PluginId:      integration,
 			ResourceType:  resourceType,
 			ResourceId:    resourceID,
-		},
+		}.Build(),
 		Payload: payload,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	auditEvent.ExternalID = updated.ExternalId
+	auditEvent.ExternalID = updated.GetExternalId()
 	auditEvent.Display = extractDisplayName(updated)
 
 	err = writeSCIMResourceUpdateResponse(w, http.StatusOK, updated, auditEvent)
@@ -564,12 +564,12 @@ func (p *Plugin) getToken(w http.ResponseWriter, r *http.Request, params httprou
 	}
 	pluginClient := pluginspb.NewPluginServiceClient(authClient.GetConnection())
 
-	resp, err := pluginClient.CreatePluginOauthToken(r.Context(), &pluginspb.CreatePluginOauthTokenRequest{
+	resp, err := pluginClient.CreatePluginOauthToken(r.Context(), pluginspb.CreatePluginOauthTokenRequest_builder{
 		ClientId:     r.FormValue("client_id"),
 		ClientSecret: r.FormValue("client_secret"),
 		GrantType:    r.FormValue("grant_type"),
 		PluginName:   params.ByName("plugin_name"),
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -677,10 +677,10 @@ func getSCIMPage(r *http.Request) (scimPage, error) {
 	return scimPage{
 		rawStartIndex: rawStartIndex,
 		rawCount:      rawCount,
-		validatedPage: &scimpb.Page{
+		validatedPage: scimpb.Page_builder{
 			StartIndex: uint64(startIndex),
 			Count:      uint64(count),
-		},
+		}.Build(),
 	}, nil
 }
 

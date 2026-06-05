@@ -117,7 +117,7 @@ func (h *userHandler) PatchResource(ctx context.Context, req *scimpb.PatchSCIMRe
 }
 
 func (h *userHandler) checkForUserNameChange(ctx context.Context, existingUser types.User, updatedResource *scimpb.Resource) error {
-	userNameAttr, ok := updatedResource.Attributes.GetFields()[common.UsernameAttribute]
+	userNameAttr, ok := updatedResource.GetAttributes().GetFields()[common.UsernameAttribute]
 	if !ok {
 		return nil
 	}
@@ -165,7 +165,7 @@ func applyPatchOperations(ctx context.Context, log *slog.Logger, in *scimpb.Reso
 	if !ok {
 		return out, trace.BadParameter("could not clone resource")
 	}
-	if err = (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(patchedJSON, out.Attributes); err != nil {
+	if err = (protojson.UnmarshalOptions{DiscardUnknown: true}).Unmarshal(patchedJSON, out.GetAttributes()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

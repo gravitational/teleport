@@ -307,9 +307,9 @@ func (s *Service) GetAccessLists(ctx context.Context, _ *accesslistv1.GetAccessL
 		accessLists[i] = conv.ToProto(r)
 	}
 
-	return &accesslistv1.GetAccessListsResponse{
+	return accesslistv1.GetAccessListsResponse_builder{
 		AccessLists: accessLists,
-	}, nil
+	}.Build(), nil
 }
 
 // ListAccessListsV2 returns a paginated list of all access lists.
@@ -345,7 +345,7 @@ func (s *Service) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListA
 		if len(results) >= (pageSize) || nextToken == "" {
 			break
 		}
-		req.PageToken = nextToken
+		req.SetPageToken(nextToken)
 	}
 
 	if len(results) == 0 && authErr != nil {
@@ -371,10 +371,10 @@ func (s *Service) ListAccessListsV2(ctx context.Context, req *accesslistv1.ListA
 		accessLists[i] = conv.ToProto(r)
 	}
 
-	return &accesslistv1.ListAccessListsV2Response{
+	return accesslistv1.ListAccessListsV2Response_builder{
 		AccessLists:   accessLists,
 		NextPageToken: nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // ListAccessLists returns a paginated list of all access lists.
@@ -428,10 +428,10 @@ func (s *Service) ListAccessLists(ctx context.Context, req *accesslistv1.ListAcc
 		accessLists[i] = conv.ToProto(r)
 	}
 
-	return &accesslistv1.ListAccessListsResponse{
+	return accesslistv1.ListAccessListsResponse_builder{
 		AccessLists: accessLists,
 		NextToken:   nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // filterResults will return the following:
@@ -567,10 +567,10 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 // getAllUsers returns all users known to Teleport.
 func getAllUsers(ctx context.Context, cache Cache) ([]types.User, error) {
 	iterFn := func(ctx context.Context, pageSize int, nextToken string) ([]*types.UserV2, string, error) {
-		req := &userspb.ListUsersRequest{
+		req := userspb.ListUsersRequest_builder{
 			PageSize:  int32(pageSize),
 			PageToken: nextToken,
-		}
+		}.Build()
 		resp, err := cache.ListUsers(ctx, req)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -607,7 +607,7 @@ func (s *Service) GetAccessListsToReview(ctx context.Context, req *accesslistv1.
 			continue
 		}
 		if s.needsReviewBy(ctx, authCtx.User, accessList, now) {
-			resp.AccessLists = append(resp.AccessLists, conv.ToProto(accessList))
+			resp.SetAccessLists(append(resp.GetAccessLists(), conv.ToProto(accessList)))
 		}
 	}
 
@@ -732,9 +732,9 @@ func (s *Service) GetInheritedGrants(ctx context.Context, req *accesslistv1.GetI
 		return nil, trace.Wrap(err)
 	}
 
-	return &accesslistv1.GetInheritedGrantsResponse{
+	return accesslistv1.GetInheritedGrantsResponse_builder{
 		Grants: conv.ConvertGrantsToProto(*grants),
-	}, nil
+	}.Build(), nil
 }
 
 // upsertAccessList is a helper for upserting the access list that returns the response, whether this was an update request, and an error.
@@ -953,10 +953,10 @@ func (s *Service) CountAccessListMembers(ctx context.Context, req *accesslistv1.
 		return nil, trace.Wrap(err)
 	}
 
-	return &accesslistv1.CountAccessListMembersResponse{
+	return accesslistv1.CountAccessListMembersResponse_builder{
 		Count:     count,
 		ListCount: listCount,
-	}, nil
+	}.Build(), nil
 }
 
 // ListAccessListMembers returns a paginated list of all access list members.
@@ -980,10 +980,10 @@ func (s *Service) ListAccessListMembers(ctx context.Context, req *accesslistv1.L
 
 	members := applyMembersIneligibleStatus(results, retrievedAccessList.GetMembershipRequires(), s.clock, userLookup)
 
-	return &accesslistv1.ListAccessListMembersResponse{
+	return accesslistv1.ListAccessListMembersResponse_builder{
 		Members:       members,
 		NextPageToken: nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // ListAllAccessListMembers returns a page of access lists members. The members returned
@@ -1008,10 +1008,10 @@ func (s *Service) ListAllAccessListMembers(ctx context.Context, req *accesslistv
 		return nil, trace.Wrap(err)
 	}
 
-	return &accesslistv1.ListAllAccessListMembersResponse{
+	return accesslistv1.ListAllAccessListMembersResponse_builder{
 		NextPageToken: nextToken,
 		Members:       conv.ToMembersProto(members),
-	}, nil
+	}.Build(), nil
 }
 
 // GetAccessListMember returns the specified access list member resource.
@@ -1032,7 +1032,7 @@ func (s *Service) GetStaticAccessListMember(ctx context.Context, req *accesslist
 	m, err := s.getAccessListMember(ctx, req, memberOptions{
 		requireStatic: true,
 	})
-	return &accesslistv1.GetStaticAccessListMemberResponse{Member: m}, trace.Wrap(err)
+	return accesslistv1.GetStaticAccessListMemberResponse_builder{Member: m}.Build(), trace.Wrap(err)
 }
 
 func (s *Service) getAccessListMember(ctx context.Context, req memberMetaGetter, opts memberOptions) (*accesslistv1.Member, error) {
@@ -1079,7 +1079,7 @@ func (s *Service) UpsertStaticAccessListMember(ctx context.Context, req *accessl
 		return nil, trace.Wrap(err)
 	}
 	m, err := s.upsertAccessListMember(ctx, req, opts)
-	return &accesslistv1.UpsertStaticAccessListMemberResponse{Member: m}, trace.Wrap(err)
+	return accesslistv1.UpsertStaticAccessListMemberResponse_builder{Member: m}.Build(), trace.Wrap(err)
 }
 
 func (s *Service) upsertAccessListMember(ctx context.Context, req memberGetter, opts memberOptions) (*accesslistv1.Member, error) {
@@ -1792,10 +1792,10 @@ func (s *Service) upsertAccessListWithMembers(ctx context.Context, authCtx *auth
 	updatedAccessList.SetOwners(updatedOwners)
 
 	// Return the updated access list and members.
-	return &accesslistv1.UpsertAccessListWithMembersResponse{
+	return accesslistv1.UpsertAccessListWithMembersResponse_builder{
 		AccessList: conv.ToProto(updatedAccessList),
 		Members:    updatedProtoMembers,
-	}, updated, accessListModified, modified, nil
+	}.Build(), updated, accessListModified, modified, nil
 }
 
 // canUpdateMembership will return an error if the given user is unable to update membership for this member.
@@ -2030,9 +2030,9 @@ func (s *Service) AccessRequestPromote(ctx context.Context, req *accesslistv1.Ac
 		return nil, trace.Wrap(err)
 	}
 
-	return &accesslistv1.AccessRequestPromoteResponse{
+	return accesslistv1.AccessRequestPromoteResponse_builder{
 		AccessRequest: accessRequest,
-	}, nil
+	}.Build(), nil
 }
 
 // ListAccessListReviews will list access list reviews for a particular access list.
@@ -2046,13 +2046,13 @@ func (s *Service) ListAccessListReviews(ctx context.Context, req *accesslistv1.L
 		return nil, trace.Wrap(err)
 	}
 
-	resp := &accesslistv1.ListAccessListReviewsResponse{
+	resp := accesslistv1.ListAccessListReviewsResponse_builder{
 		Reviews:   make([]*accesslistv1.Review, len(reviews)),
 		NextToken: nextToken,
-	}
+	}.Build()
 
 	for i, review := range reviews {
-		resp.Reviews[i] = conv.ToReviewProto(review)
+		resp.GetReviews()[i] = conv.ToReviewProto(review)
 	}
 
 	return resp, nil
@@ -2128,10 +2128,10 @@ func (s *Service) createAccessListReview(ctx context.Context, review *accesslist
 		return nil, review, trace.Wrap(err)
 	}
 
-	return &accesslistv1.CreateAccessListReviewResponse{
+	return accesslistv1.CreateAccessListReviewResponse_builder{
 		ReviewName:    updatedReview.GetName(),
 		NextAuditDate: timestamppb.New(nextAuditDate),
-	}, updatedReview, nil
+	}.Build(), updatedReview, nil
 }
 
 // emitCreateAccessListReview will emit the create event for an access list review.
@@ -2279,7 +2279,7 @@ func (s *Service) GetSuggestedAccessLists(ctx context.Context, request *accessli
 	}
 
 	identity := authCtx.Identity.GetIdentity()
-	suggestions, err := s.modules.GetSuggestedAccessLists(ctx, &identity, s.authServer, s.accessLists, request.AccessRequestId)
+	suggestions, err := s.modules.GetSuggestedAccessLists(ctx, &identity, s.authServer, s.accessLists, request.GetAccessRequestId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2289,9 +2289,9 @@ func (s *Service) GetSuggestedAccessLists(ctx context.Context, request *accessli
 		suggestionsProto[i] = conv.ToProto(r)
 	}
 
-	return &accesslistv1.GetSuggestedAccessListsResponse{
+	return accesslistv1.GetSuggestedAccessListsResponse_builder{
 		AccessLists: suggestionsProto,
-	}, nil
+	}.Build(), nil
 }
 
 // ListUserAccessLists returns a paginated list of all access lists where the
@@ -2335,11 +2335,11 @@ func (s *Service) ListUserAccessLists(ctx context.Context, req *accesslistv1.Lis
 		accessLists[i] = conv.ToProto(r)
 	}
 
-	return &accesslistv1.ListUserAccessListsResponse{
+	return accesslistv1.ListUserAccessListsResponse_builder{
 		AccessLists:   accessLists,
 		NextPageToken: nextToken,
 		TotalCount:    int32(totalCount),
-	}, nil
+	}.Build(), nil
 }
 
 // listAccessListsForUser returns a slice of all access lists associated with
@@ -2382,10 +2382,10 @@ func (s *Service) listAccessListsForUser(ctx context.Context, user types.User) (
 	}
 
 	iterFn := func(ctx context.Context, pageSize int, nextToken string) ([]*accesslist.AccessList, string, error) {
-		req := &accesslistv1.ListAccessListsV2Request{
+		req := accesslistv1.ListAccessListsV2Request_builder{
 			PageSize:  int32(pageSize),
 			PageToken: nextToken,
-		}
+		}.Build()
 		page, nextToken, err := s.cache.ListAccessListsV2(ctx, req)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
@@ -2951,7 +2951,7 @@ func (s *Service) CreateAccessListWithPreset(ctx context.Context, req *accesslis
 	}
 	// TODO(smallinsky) implement proper access list creation flow instead of abusing Upsert calls
 	// when the CreateAccessList method will be available.
-	_, err = s.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: roleBuildResult.AccessList.GetName()})
+	_, err = s.GetAccessList(ctx, accesslistv1.GetAccessListRequest_builder{Name: roleBuildResult.AccessList.GetName()}.Build())
 	switch {
 	case err == nil:
 		return nil, trace.AlreadyExists("access list %v already exists", roleBuildResult.AccessList.GetName())
@@ -2960,9 +2960,9 @@ func (s *Service) CreateAccessListWithPreset(ctx context.Context, req *accesslis
 	default:
 		// expect that access list not exists.
 	}
-	acl, err := s.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{
+	acl, err := s.UpsertAccessList(ctx, accesslistv1.UpsertAccessListRequest_builder{
 		AccessList: conv.ToProto(roleBuildResult.AccessList),
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2973,10 +2973,10 @@ func (s *Service) CreateAccessListWithPreset(ctx context.Context, req *accesslis
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &accesslistv1.CreateAccessListWithPresetResponse{
+	return accesslistv1.CreateAccessListWithPresetResponse_builder{
 		AccessList: acl,
 		Roles:      outRoles,
-	}, nil
+	}.Build(), nil
 }
 
 // UpdateAccessListWithPreset updates existing access list preset.
@@ -3011,9 +3011,9 @@ func (s *Service) UpdateAccessListWithPreset(ctx context.Context, req *accesslis
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	resp, err := s.UpdateAccessList(ctx, &accesslistv1.UpdateAccessListRequest{
+	resp, err := s.UpdateAccessList(ctx, accesslistv1.UpdateAccessListRequest_builder{
 		AccessList: conv.ToProto(buildResult.AccessList),
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3025,11 +3025,11 @@ func (s *Service) UpdateAccessListWithPreset(ctx context.Context, req *accesslis
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &accesslistv1.UpdateAccessListWithPresetResponse{
+	return accesslistv1.UpdateAccessListWithPresetResponse_builder{
 		AccessList:       resp,
 		Roles:            outRoles,
 		RolesToBeDeleted: buildResult.RolesToBeDeleted,
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) upsertBuildResultRoles(ctx context.Context, in *preset.BuildResult) error {

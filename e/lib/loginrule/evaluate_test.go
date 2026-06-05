@@ -15,16 +15,16 @@ import (
 )
 
 func newLoginRuleWithTraitsMap(name string, priority int32, traitsMap map[string][]string) *loginrulepb.LoginRule {
-	rule := &loginrulepb.LoginRule{
+	rule := loginrulepb.LoginRule_builder{
 		Metadata: &types.Metadata{
 			Name: name,
 		},
 		Version:   types.V1,
 		Priority:  priority,
 		TraitsMap: make(map[string]*wrappers.StringValues),
-	}
+	}.Build()
 	for key, values := range traitsMap {
-		rule.TraitsMap[key] = &wrappers.StringValues{
+		rule.GetTraitsMap()[key] = &wrappers.StringValues{
 			Values: values,
 		}
 	}
@@ -32,14 +32,14 @@ func newLoginRuleWithTraitsMap(name string, priority int32, traitsMap map[string
 }
 
 func newLoginRuleWithTraitsExpression(name string, priority int32, expression string) *loginrulepb.LoginRule {
-	return &loginrulepb.LoginRule{
+	return loginrulepb.LoginRule_builder{
 		Metadata: &types.Metadata{
 			Name: name,
 		},
 		Version:          types.V1,
 		Priority:         priority,
 		TraitsExpression: expression,
-	}
+	}.Build()
 }
 
 func TestEvaluate(t *testing.T) {
@@ -650,7 +650,7 @@ func TestEvaluate(t *testing.T) {
 
 			var ruleNames []string
 			for _, rule := range tc.rules {
-				ruleNames = append(ruleNames, rule.Metadata.Name)
+				ruleNames = append(ruleNames, rule.GetMetadata().Name)
 			}
 
 			require.Empty(t, cmp.Diff(&oss.EvaluationOutput{

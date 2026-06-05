@@ -149,9 +149,9 @@ func TestPluginCreateDelete(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("empty plugin in request", func(t *testing.T) {
-		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+		_, err := suite.svc.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 			BootstrapCredentials: validBootstrapCredentials,
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))
 	})
@@ -167,18 +167,18 @@ func TestPluginCreateDelete(t *testing.T) {
 				},
 			},
 			nil)
-		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+		_, err := suite.svc.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 			Plugin: slackPlugin,
-		})
+		}.Build())
 		// Since the plugin refactoring change, Slack plugins can be created without bootstrap credentials.
 		require.NoError(t, err)
 	})
 
 	t.Run("unsupported plugin type", func(t *testing.T) {
-		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+		_, err := suite.svc.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 			BootstrapCredentials: validBootstrapCredentials,
 			Plugin:               &types.PluginV1{},
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))
 	})
@@ -194,10 +194,10 @@ func TestPluginCreateDelete(t *testing.T) {
 				},
 			},
 			nil)
-		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+		_, err := suite.svc.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 			Plugin:               slackPlugin,
 			BootstrapCredentials: invalidBootstrapCredentials,
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err), "Expected Access Denied, got %q", err)
 	})
@@ -213,10 +213,10 @@ func TestPluginCreateDelete(t *testing.T) {
 				},
 			},
 			nil)
-		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+		_, err := suite.svc.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 			Plugin:               slackPlugin,
 			BootstrapCredentials: validBootstrapCredentials,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		stored, err := suite.pluginService.GetPlugin(ctx, slackPlugin.GetName(), true)
@@ -228,10 +228,10 @@ func TestPluginCreateDelete(t *testing.T) {
 	})
 
 	t.Run("valid request with static credentials", func(t *testing.T) {
-		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+		_, err := suite.svc.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 			Plugin:            oktaPlugin,
 			StaticCredentials: staticCredentials,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		stored, err := suite.pluginService.GetPlugin(ctx, oktaPlugin.GetName(), true)
@@ -252,9 +252,9 @@ func TestPluginCreateDelete(t *testing.T) {
 
 		pluginCredentialsName := allCreds[0].GetName()
 
-		_, err = suite.svc.DeletePlugin(ctx, &pluginspb.DeletePluginRequest{
+		_, err = suite.svc.DeletePlugin(ctx, pluginspb.DeletePluginRequest_builder{
 			Name: oktaPlugin.GetName(),
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		_, err = suite.pluginService.GetPlugin(ctx, oktaPlugin.GetName(), true)
@@ -305,10 +305,10 @@ func TestPluginCreateDelete(t *testing.T) {
 		upsertRoles(t, ctx, suite.svc.authServer, roles...)
 
 		// Create plugin fails because there are Okta resources that need to be cleaned up.
-		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+		_, err := suite.svc.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 			Plugin:            oktaPlugin,
 			StaticCredentials: staticCredentials,
-		})
+		}.Build())
 		require.ErrorContains(t, err, "plugin needs to be cleaned up first")
 	})
 
@@ -319,7 +319,7 @@ func TestPluginCreateDelete(t *testing.T) {
 			"id_label_1": "value1",
 			"id_label_2": "value2",
 		}
-		req := &pluginspb.CreatePluginRequest{
+		req := pluginspb.CreatePluginRequest_builder{
 			Plugin: oktaPlugin,
 			StaticCredentialsList: []*types.PluginStaticCredentialsV1{
 				staticCredentials,
@@ -340,7 +340,7 @@ func TestPluginCreateDelete(t *testing.T) {
 				},
 			},
 			CredentialLabels: credIdentityLabels,
-		}
+		}.Build()
 
 		// When I attempt to create the plugin resource, expect that the
 		// operation succeeds
@@ -374,9 +374,9 @@ func TestPluginCreateDelete(t *testing.T) {
 		require.NotEqual(t, -1, scimCredIdx)
 
 		// When I delete the created plugin...
-		_, err = suite.svc.DeletePlugin(ctx, &pluginspb.DeletePluginRequest{
+		_, err = suite.svc.DeletePlugin(ctx, pluginspb.DeletePluginRequest_builder{
 			Name: oktaPlugin.GetName(),
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		// Expect the plugin record to no longer exist
@@ -398,10 +398,10 @@ func TestPluginCreateDelete(t *testing.T) {
 	})
 
 	t.Run("bad request with static credentials", func(t *testing.T) {
-		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+		_, err := suite.svc.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 			Plugin:            badOkta,
 			StaticCredentials: staticCredentialsForBadOkta,
-		})
+		}.Build())
 		require.Error(t, err)
 
 		_, err = suite.pluginService.GetPlugin(ctx, badOkta.GetName(), true)
@@ -431,9 +431,9 @@ func TestPluginCreateDelete(t *testing.T) {
 				},
 			},
 		}
-		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+		_, err := suite.svc.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 			Plugin: entra,
-		})
+		}.Build())
 		require.Error(t, err)
 
 		_, err = suite.pluginService.GetPlugin(ctx, entra.GetName(), true)
@@ -454,17 +454,17 @@ func TestPluginCreateDelete(t *testing.T) {
 				},
 			},
 		}
-		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+		_, err := suite.svc.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 			Plugin: entra,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		_, err = suite.pluginService.GetPlugin(ctx, entra.GetName(), true)
 		require.NoError(t, err)
 
-		_, err = suite.svc.DeletePlugin(ctx, &pluginspb.DeletePluginRequest{
+		_, err = suite.svc.DeletePlugin(ctx, pluginspb.DeletePluginRequest_builder{
 			Name: entra.GetName(),
-		})
+		}.Build())
 		require.NoError(t, err)
 	})
 }
@@ -584,10 +584,10 @@ func TestService_CreatePlugin_jamf(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := service.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+			_, err := service.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 				Plugin:            test.plugin,
 				StaticCredentials: test.staticCreds,
-			})
+			}.Build())
 			if test.wantErr == "" {
 				assert.NoError(t, err, "CreatePlugin")
 			} else {
@@ -599,9 +599,9 @@ func TestService_CreatePlugin_jamf(t *testing.T) {
 
 			// Delete plugin after tests. Makes consecutive test cases simpler, but
 			// otherwise this isn't part of the test scenario.
-			_, err = service.DeletePlugin(ctx, &pluginspb.DeletePluginRequest{
+			_, err = service.DeletePlugin(ctx, pluginspb.DeletePluginRequest_builder{
 				Name: test.plugin.GetName(),
-			})
+			}.Build())
 			assert.NoError(t, err, "DeletePlugin")
 		})
 	}
@@ -702,10 +702,10 @@ func TestService_CreatePlugin_intune(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := service.CreatePlugin(t.Context(), &pluginspb.CreatePluginRequest{
+			_, err := service.CreatePlugin(t.Context(), pluginspb.CreatePluginRequest_builder{
 				Plugin:            test.plugin,
 				StaticCredentials: test.staticCreds,
-			})
+			}.Build())
 			test.errAssertion(t, err)
 			if err != nil {
 				return
@@ -713,9 +713,9 @@ func TestService_CreatePlugin_intune(t *testing.T) {
 
 			// Delete plugin after tests. Makes consecutive test cases simpler, but
 			// otherwise this isn't part of the test scenario.
-			_, err = service.DeletePlugin(t.Context(), &pluginspb.DeletePluginRequest{
+			_, err = service.DeletePlugin(t.Context(), pluginspb.DeletePluginRequest_builder{
 				Name: test.plugin.GetName(),
-			})
+			}.Build())
 			require.NoError(t, err, "DeletePlugin")
 		})
 	}

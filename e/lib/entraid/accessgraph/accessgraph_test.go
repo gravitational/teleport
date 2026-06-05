@@ -23,45 +23,45 @@ func TestReconcile(t *testing.T) {
 	appID3 := uuid.NewString()
 	appID4 := uuid.NewString()
 
-	app1 := &accessgraphv1alpha.EntraApplication{
+	app1 := accessgraphv1alpha.EntraApplication_builder{
 		Id:                  id1,
 		AppId:               appID1,
 		TenantId:            tenantID,
 		DisplayName:         "App 1",
 		SigningCertificates: []string{"cert1"},
-	}
+	}.Build()
 
-	app2 := &accessgraphv1alpha.EntraApplication{
+	app2 := accessgraphv1alpha.EntraApplication_builder{
 		Id:                  id2,
 		AppId:               appID2,
 		TenantId:            tenantID,
 		DisplayName:         "App 2",
 		SigningCertificates: []string{"cert2"},
-	}
+	}.Build()
 
-	app2Updated := &accessgraphv1alpha.EntraApplication{
+	app2Updated := accessgraphv1alpha.EntraApplication_builder{
 		Id:                  id2,
 		AppId:               appID2,
 		TenantId:            tenantID,
 		DisplayName:         "App 2 updated",
 		SigningCertificates: []string{"cert2"},
-	}
+	}.Build()
 
-	app3 := &accessgraphv1alpha.EntraApplication{
+	app3 := accessgraphv1alpha.EntraApplication_builder{
 		Id:                  id3,
 		AppId:               appID3,
 		TenantId:            tenantID,
 		DisplayName:         "App 3",
 		SigningCertificates: []string{"cert3"},
-	}
+	}.Build()
 
-	app4 := &accessgraphv1alpha.EntraApplication{
+	app4 := accessgraphv1alpha.EntraApplication_builder{
 		Id:                  id4,
 		AppId:               appID4,
 		TenantId:            tenantID,
 		DisplayName:         "App 4",
 		SigningCertificates: []string{"cert4"},
-	}
+	}.Build()
 
 	oldApps := []*accessgraphv1alpha.EntraApplication{
 		app1,
@@ -76,29 +76,29 @@ func TestReconcile(t *testing.T) {
 		app4, // Newly inserted
 	}
 
-	wantUpsert := &accessgraphv1alpha.EntraResourceList{
+	wantUpsert := accessgraphv1alpha.EntraResourceList_builder{
 		Resources: []*accessgraphv1alpha.EntraResource{
 			{Resource: &accessgraphv1alpha.EntraResource_Application{Application: app2Updated}},
 			{Resource: &accessgraphv1alpha.EntraResource_Application{Application: app4}},
 		},
-	}
+	}.Build()
 
-	wantDelete := &accessgraphv1alpha.EntraResourceList{
+	wantDelete := accessgraphv1alpha.EntraResourceList_builder{
 		Resources: []*accessgraphv1alpha.EntraResource{
 			{Resource: &accessgraphv1alpha.EntraResource_Application{Application: app3}},
 		},
-	}
+	}.Build()
 
 	upsert, delete := reconcileResults(
 		&resources{Applications: oldApps},
 		&resources{Applications: newApps},
 	)
 	require.Empty(t, cmp.Diff(
-		wantUpsert.Resources, upsert.Resources,
+		wantUpsert.GetResources(), upsert.GetResources(),
 		protocmp.Transform(),
 	))
 	require.Empty(t, cmp.Diff(
-		wantDelete.Resources, delete.Resources,
+		wantDelete.GetResources(), delete.GetResources(),
 		protocmp.Transform(),
 	))
 }

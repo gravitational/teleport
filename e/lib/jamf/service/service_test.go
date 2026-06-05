@@ -32,7 +32,7 @@ import (
 
 var devicesCmpOpts = []cmp.Option{
 	cmpopts.SortSlices(func(a, b *devicepb.Device) bool {
-		return a.AssetTag < b.AssetTag
+		return a.GetAssetTag() < b.GetAssetTag()
 	}),
 	protocmp.Transform(),
 	protocmp.IgnoreFields(&devicepb.Device{}, "api_version", "id", "create_time", "update_time"),
@@ -429,17 +429,17 @@ func TestS_Run_syncDefaults(t *testing.T) {
 	}
 	api.SetInventory(jamfDevs)
 
-	source := &devicepb.DeviceSource{
+	source := devicepb.DeviceSource_builder{
 		Name:   "jamf",
 		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
-	}
+	}.Build()
 	wantDevs := []*devicepb.Device{
-		{
+		devicepb.Device_builder{
 			OsType:       devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag:     jamfDevs[0].Hardware.SerialNumber,
 			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 			Source:       source,
-			Profile: &devicepb.DeviceProfile{
+			Profile: devicepb.DeviceProfile_builder{
 				ModelIdentifier:     jamfDevs[0].Hardware.ModelIdentifier,
 				OsVersion:           jamfDevs[0].OperatingSystem.Version,
 				OsBuild:             jamfDevs[0].OperatingSystem.Build,
@@ -450,8 +450,8 @@ func TestS_Run_syncDefaults(t *testing.T) {
 				},
 				JamfBinaryVersion: jamfDevs[0].General.JamfBinaryVersion,
 				ExternalId:        jamfDevs[0].ID,
-			},
-		},
+			}.Build(),
+		}.Build(),
 		deviceFromMinimal(jamfDevs[1], source),
 		deviceFromMinimal(jamfDevs[2], source),
 		deviceFromMinimal(jamfDevs[3], source),
@@ -570,12 +570,12 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 	}
 	api.SetMobileDeviceInventory(jamfMobileDevs)
 
-	source := &devicepb.DeviceSource{
+	source := devicepb.DeviceSource_builder{
 		Name:   "jamf",
 		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
-	}
+	}.Build()
 	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
-		opts.Config.Spec.Name = source.Name
+		opts.Config.Spec.Name = source.GetName()
 		opts.Config.Spec.Inventory = []*types.JamfInventoryEntry{
 			{
 				DeviceType:        types.JamfDeviceTypeComputers,
@@ -594,43 +594,43 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 
 	// Add devices to Teleport that have no match in Jamf.
 	// These get removed in the first sync.
-	if resp, err := devicesClient.BulkCreateDevices(ctx, &devicepb.BulkCreateDevicesRequest{
+	if resp, err := devicesClient.BulkCreateDevices(ctx, devicepb.BulkCreateDevicesRequest_builder{
 		Devices: []*devicepb.Device{
 			// Computer: missing external_id.
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "deleteonsync1",
 				Source:   source,
-			},
+			}.Build(),
 			// Computer: mismatched Jamf ID.
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "deleteonsync2",
 				Source:   source,
-				Profile: &devicepb.DeviceProfile{
+				Profile: devicepb.DeviceProfile_builder{
 					ExternalId: jamfDevs[1].ID,
-				},
-			},
+				}.Build(),
+			}.Build(),
 			// Mobile device: missing external_id.
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_IPADOS,
 				AssetTag: "deleteonsync3",
 				Source:   source,
-			},
+			}.Build(),
 			// Mobile device: mismatched Jamf ID.
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_IOS,
 				AssetTag: "deleteonsync4",
 				Source:   source,
-				Profile: &devicepb.DeviceProfile{
+				Profile: devicepb.DeviceProfile_builder{
 					ExternalId: jamfMobileDevs[1].MobileDeviceID,
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
-	}); err != nil {
+	}.Build()); err != nil {
 		t.Fatalf("BulkCreateDevices failed: %v", err)
 	} else {
-		for i, s := range resp.Devices {
+		for i, s := range resp.GetDevices() {
 			if codes.Code(s.GetStatus().GetCode()) != codes.OK {
 				t.Fatalf("BulkCreateDevices: device #%v has non-OK status: %+v", i, s)
 			}
@@ -836,10 +836,10 @@ func TestS_RunOnce_partialSync(t *testing.T) {
 	t5 := advanceNow()
 	now := advanceNow()
 
-	source := &devicepb.DeviceSource{
+	source := devicepb.DeviceSource_builder{
 		Name:   "jamf2",
 		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
-	}
+	}.Build()
 
 	cases := []struct {
 		deviceType string
@@ -924,7 +924,7 @@ func TestS_RunOnce_partialSync(t *testing.T) {
 			allDevs := tc.setup()
 
 			s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
-				opts.Config.Spec.Name = source.Name
+				opts.Config.Spec.Name = source.GetName()
 			})
 			ctx := t.Context()
 
@@ -1207,29 +1207,29 @@ func TestS_RunOnce_mobileDeviceSync(t *testing.T) {
 	}
 	api.SetMobileDeviceInventory(jamfMobileDevs)
 
-	source := &devicepb.DeviceSource{
+	source := devicepb.DeviceSource_builder{
 		Name:   "jamf",
 		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
-	}
+	}.Build()
 	wantDevs := []*devicepb.Device{
-		{
+		devicepb.Device_builder{
 			OsType:       devicepb.OSType_OS_TYPE_IPADOS,
 			AssetTag:     "CXXXXXXXXX20",
 			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 			Source:       source,
-			Profile: &devicepb.DeviceProfile{
+			Profile: devicepb.DeviceProfile_builder{
 				ModelIdentifier:     "iPad15,7",
 				ExternalId:          "1",
 				OsVersion:           "26.3.1",
 				OsBuild:             "23D8133",
 				OsBuildSupplemental: "23D771330a",
-			},
-		},
+			}.Build(),
+		}.Build(),
 		mobileDeviceFromMinimal(jamfMobileDevs[1], source),
 	}
 
 	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
-		opts.Config.Spec.Name = source.Name
+		opts.Config.Spec.Name = source.GetName()
 	})
 
 	if _, err := s.RunOnce(t.Context(), jamfservice.RunSpec{
@@ -1327,7 +1327,7 @@ func TestS_RunOnce_deviceTypeFiltering(t *testing.T) {
 
 			var gotComputers, gotMobile int
 			for _, d := range listAllDevices(t, devicesClient) {
-				switch d.OsType {
+				switch d.GetOsType() {
 				case devicepb.OSType_OS_TYPE_MACOS:
 					gotComputers++
 				case devicepb.OSType_OS_TYPE_IOS, devicepb.OSType_OS_TYPE_IPADOS:
@@ -1473,23 +1473,23 @@ func clearDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClient)
 	for _, d := range listAllDevices(t, devicesClient) {
 		// Cannot use t.Context here as clearDevices is typically run from t.Cleanup
 		// so t.Context is already canceled.
-		_, err := devicesClient.DeleteDevice(context.Background(), &devicepb.DeleteDeviceRequest{
-			DeviceId: d.Id,
-		})
-		require.NoError(t, err, "DeleteDevice failed for %v", d.Id)
+		_, err := devicesClient.DeleteDevice(context.Background(), devicepb.DeleteDeviceRequest_builder{
+			DeviceId: d.GetId(),
+		}.Build())
+		require.NoError(t, err, "DeleteDevice failed for %v", d.GetId())
 	}
 }
 
 func deviceFromMinimal(c *jamf.ComputerInventory, source *devicepb.DeviceSource) *devicepb.Device {
-	return &devicepb.Device{
+	return devicepb.Device_builder{
 		OsType:       devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag:     c.Hardware.SerialNumber,
 		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 		Source:       source,
-		Profile: &devicepb.DeviceProfile{
+		Profile: devicepb.DeviceProfile_builder{
 			ExternalId: c.ID,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 func mobileDeviceFromMinimal(md *jamf.MobileDevice, source *devicepb.DeviceSource) *devicepb.Device {
@@ -1499,16 +1499,16 @@ func mobileDeviceFromMinimal(md *jamf.MobileDevice, source *devicepb.DeviceSourc
 	} else if strings.HasPrefix(md.Hardware.ModelIdentifier, "iPhone") {
 		osType = devicepb.OSType_OS_TYPE_IOS
 	}
-	return &devicepb.Device{
+	return devicepb.Device_builder{
 		OsType:       osType,
 		AssetTag:     md.Hardware.SerialNumber,
 		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 		Source:       source,
-		Profile: &devicepb.DeviceProfile{
+		Profile: devicepb.DeviceProfile_builder{
 			ModelIdentifier: md.Hardware.ModelIdentifier,
 			ExternalId:      md.MobileDeviceID,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 func listAllDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClient) []*devicepb.Device {
@@ -1516,18 +1516,18 @@ func listAllDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClien
 	var devs []*devicepb.Device
 	var pageToken string
 	for {
-		resp, err := devicesClient.ListDevices(ctx, &devicepb.ListDevicesRequest{
+		resp, err := devicesClient.ListDevices(ctx, devicepb.ListDevicesRequest_builder{
 			PageToken: pageToken,
 			View:      devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
-		})
+		}.Build())
 		if err != nil {
 			t.Fatalf("ListDevices failed: %v", err)
 		}
-		devs = append(devs, resp.Devices...)
-		if resp.NextPageToken == "" {
+		devs = append(devs, resp.GetDevices()...)
+		if resp.GetNextPageToken() == "" {
 			return devs
 		}
-		pageToken = resp.NextPageToken
+		pageToken = resp.GetNextPageToken()
 	}
 }
 
@@ -1578,9 +1578,9 @@ func (s *failingSyncStream) CloseSend() error { return nil }
 func (s *failingSyncStream) Recv() (*devicepb.SyncInventoryResponse, error) {
 	s.recvCount++
 	if s.recvCount == 1 {
-		return &devicepb.SyncInventoryResponse{
-			Payload: &devicepb.SyncInventoryResponse_Ack{Ack: &devicepb.SyncInventoryAck{}},
-		}, nil
+		return devicepb.SyncInventoryResponse_builder{
+			Ack: &devicepb.SyncInventoryAck{},
+		}.Build(), nil
 	}
 	return nil, errors.New("simulated stream failure")
 }

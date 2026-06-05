@@ -73,7 +73,7 @@ func (a awsICPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 		return nil, trace.Wrap(err)
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
 				Name: types.PluginTypeAWSIdentityCenter,
@@ -111,7 +111,7 @@ func (a awsICPluginDescriptor) HandleInstallRequest(ctx context.Context, sessCtx
 				},
 			},
 		},
-	}
+	}.Build()
 
 	_, err = authClient.PluginsClient().CreatePlugin(ctx, req)
 	if err != nil {

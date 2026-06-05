@@ -71,15 +71,15 @@ func (s *Service) CreateLoginRule(ctx context.Context, req *loginrulepb.CreateLo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := loginrule.Validate(req.LoginRule); err != nil {
+	if err := loginrule.Validate(req.GetLoginRule()); err != nil {
 		return nil, trace.Wrap(err, "failed to validate login rule")
 	}
 
-	if err := s.emitCreateEvent(ctx, req.LoginRule); err != nil {
+	if err := s.emitCreateEvent(ctx, req.GetLoginRule()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rule, err := s.storage.CreateLoginRule(ctx, req.LoginRule)
+	rule, err := s.storage.CreateLoginRule(ctx, req.GetLoginRule())
 	return rule, trace.Wrap(err)
 }
 
@@ -99,15 +99,15 @@ func (s *Service) UpsertLoginRule(ctx context.Context, req *loginrulepb.UpsertLo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := loginrule.Validate(req.LoginRule); err != nil {
+	if err := loginrule.Validate(req.GetLoginRule()); err != nil {
 		return nil, trace.Wrap(err, "failed to validate login rule")
 	}
 
-	if err := s.emitCreateEvent(ctx, req.LoginRule); err != nil {
+	if err := s.emitCreateEvent(ctx, req.GetLoginRule()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rule, err := s.storage.UpsertLoginRule(ctx, req.LoginRule)
+	rule, err := s.storage.UpsertLoginRule(ctx, req.GetLoginRule())
 	return rule, trace.Wrap(err)
 }
 
@@ -122,7 +122,7 @@ func (s *Service) GetLoginRule(ctx context.Context, req *loginrulepb.GetLoginRul
 		return nil, trace.Wrap(err)
 	}
 
-	rule, err := s.storage.GetLoginRule(ctx, req.Name)
+	rule, err := s.storage.GetLoginRule(ctx, req.GetName())
 	return rule, trace.Wrap(err)
 }
 
@@ -137,15 +137,15 @@ func (s *Service) ListLoginRules(ctx context.Context, req *loginrulepb.ListLogin
 		return nil, trace.Wrap(err)
 	}
 
-	rules, nextPageToken, err := s.storage.ListLoginRules(ctx, int(req.PageSize), req.PageToken)
+	rules, nextPageToken, err := s.storage.ListLoginRules(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &loginrulepb.ListLoginRulesResponse{
+	return loginrulepb.ListLoginRulesResponse_builder{
 		LoginRules:    rules,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // DeleteLoginRule deletes an existing login rule.
@@ -163,11 +163,11 @@ func (s *Service) DeleteLoginRule(ctx context.Context, req *loginrulepb.DeleteLo
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.emitDeleteEvent(ctx, req.Name); err != nil {
+	if err := s.emitDeleteEvent(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.storage.DeleteLoginRule(ctx, req.Name)
+	err = s.storage.DeleteLoginRule(ctx, req.GetName())
 	return &emptypb.Empty{}, trace.Wrap(err)
 }
 
@@ -184,12 +184,12 @@ func (s *Service) TestLoginRule(ctx context.Context, req *loginrulepb.TestLoginR
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.Traits) == 0 {
+	if len(req.GetTraits()) == 0 {
 		return nil, trace.BadParameter("at least one trait must be provided")
 	}
 
-	rules := req.LoginRules
-	if req.LoadFromCluster {
+	rules := req.GetLoginRules()
+	if req.GetLoadFromCluster() {
 		for next := ""; ; {
 			retrieved, token, err := s.storage.ListLoginRules(ctx, 100, next)
 			if err != nil {
@@ -205,8 +205,8 @@ func (s *Service) TestLoginRule(ctx context.Context, req *loginrulepb.TestLoginR
 		}
 	}
 
-	traits := make(map[string][]string, len(req.Traits))
-	for key, values := range req.Traits {
+	traits := make(map[string][]string, len(req.GetTraits()))
+	for key, values := range req.GetTraits() {
 		traits[key] = values.Values
 	}
 
@@ -222,7 +222,7 @@ func (s *Service) TestLoginRule(ctx context.Context, req *loginrulepb.TestLoginR
 		}
 	}
 
-	return &loginrulepb.TestLoginRuleResponse{Traits: out}, nil
+	return loginrulepb.TestLoginRuleResponse_builder{Traits: out}.Build(), nil
 }
 
 func (s *Service) emitCreateEvent(ctx context.Context, rule *loginrulepb.LoginRule) error {
@@ -232,11 +232,11 @@ func (s *Service) emitCreateEvent(ctx context.Context, rule *loginrulepb.LoginRu
 			Code: events.LoginRuleCreateCode,
 		},
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: rule.Metadata.Name,
+			Name: rule.GetMetadata().Name,
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 	}
-	if expires := rule.Metadata.Expires; expires != nil {
+	if expires := rule.GetMetadata().Expires; expires != nil {
 		e.ResourceMetadata.Expires = *expires
 	}
 	return trace.Wrap(s.emitAuditEvent(ctx, e))

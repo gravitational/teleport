@@ -34,8 +34,8 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 			name:          "user-create",
 			principalType: ssoadmintypes.PrincipalTypeUser,
 			calculatedAssignments: []*pb.AccountAssignmentRef{
-				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
-				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654321:permissionSet/Admin"},
+				pb.AccountAssignmentRef_builder{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"}.Build(),
+				pb.AccountAssignmentRef_builder{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654321:permissionSet/Admin"}.Build(),
 			},
 			expectedAssignments: []*icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeUser},
@@ -48,7 +48,7 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 			name:          "user-delete",
 			principalType: ssoadmintypes.PrincipalTypeUser,
 			calculatedAssignments: []*pb.AccountAssignmentRef{
-				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654323:permissionSet/NetworkAdmin"},
+				pb.AccountAssignmentRef_builder{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654323:permissionSet/NetworkAdmin"}.Build(),
 			},
 			initialAssignments: []*icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeUser},
@@ -65,8 +65,8 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 			name:          "group-create",
 			principalType: ssoadmintypes.PrincipalTypeGroup,
 			calculatedAssignments: []*pb.AccountAssignmentRef{
-				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
-				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654321:permissionSet/Admin"},
+				pb.AccountAssignmentRef_builder{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"}.Build(),
+				pb.AccountAssignmentRef_builder{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654321:permissionSet/Admin"}.Build(),
 			},
 			expectedAssignments: []*icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
@@ -79,7 +79,7 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 			name:          "group-delete",
 			principalType: ssoadmintypes.PrincipalTypeGroup,
 			calculatedAssignments: []*pb.AccountAssignmentRef{
-				{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654323:permissionSet/NetworkAdmin"},
+				pb.AccountAssignmentRef_builder{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::0987654323:permissionSet/NetworkAdmin"}.Build(),
 			},
 			initialAssignments: []*icsdk.Assignment{
 				{AccountID: "1111111111", PermissionSetARN: "arn:aws:iam::1234567890:permissionSet/ReadOnly", PrincipalType: ssoadmintypes.PrincipalTypeGroup},
@@ -153,7 +153,7 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 
 			assignmentService := &mockAssignmentService{
 				UpdatePrincipalAssignmentFunc: func(ctx context.Context, assignment *pb.PrincipalAssignment) (*pb.PrincipalAssignment, error) {
-					assignment.Status.ProvisioningState = pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED
+					assignment.GetStatus().SetProvisioningState(pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED)
 					return assignment, nil
 				},
 			}
@@ -169,21 +169,21 @@ func TestAssignmentProvisioner_Provision_CreateAndDeleteAssignments(t *testing.T
 			// GIVEN an existing principal with pre-calculated account assignments
 			principalID := "test-" + test.name
 			externalID := "ext-" + test.name
-			principal := &pb.PrincipalAssignment{
+			principal := pb.PrincipalAssignment_builder{
 				Kind:    types.KindIdentityCenterPrincipalAssignment,
 				Version: types.V1,
-				Metadata: &headerpb.Metadata{
+				Metadata: headerpb.Metadata_builder{
 					Name: principalID,
-				},
-				Spec: &pb.PrincipalAssignmentSpec{
+				}.Build(),
+				Spec: pb.PrincipalAssignmentSpec_builder{
 					ExternalId:    externalID,
 					PrincipalType: toPrincipalType(test.principalType),
-				},
-				Status: &pb.PrincipalAssignmentStatus{
+				}.Build(),
+				Status: pb.PrincipalAssignmentStatus_builder{
 					Assignments:       test.calculatedAssignments,
 					ProvisioningState: pb.ProvisioningState_PROVISIONING_STATE_STALE,
-				},
-			}
+				}.Build(),
+			}.Build()
 
 			// GIVEN a mock remote account with a known set of existing account
 			// assignments
@@ -298,7 +298,7 @@ func TestFetchAWSAssignments_UserType(t *testing.T) {
 
 	assignmentService := &mockAssignmentService{
 		UpdatePrincipalAssignmentFunc: func(ctx context.Context, assignment *pb.PrincipalAssignment) (*pb.PrincipalAssignment, error) {
-			assignment.Status.ProvisioningState = pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED
+			assignment.GetStatus().SetProvisioningState(pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED)
 			return assignment, nil
 		},
 	}
@@ -310,19 +310,19 @@ func TestFetchAWSAssignments_UserType(t *testing.T) {
 	require.NoError(t, err)
 
 	var assignees = []*pb.AccountAssignmentRef{
-		{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"},
+		pb.AccountAssignmentRef_builder{AccountId: "1111111111", PermissionSetArn: "arn:aws:iam::1234567890:permissionSet/ReadOnly"}.Build(),
 	}
 
-	principal := &pb.PrincipalAssignment{
-		Spec: &pb.PrincipalAssignmentSpec{
+	principal := pb.PrincipalAssignment_builder{
+		Spec: pb.PrincipalAssignmentSpec_builder{
 			ExternalId:    "user2",
 			PrincipalType: pb.PrincipalType_PRINCIPAL_TYPE_USER,
-		},
-		Status: &pb.PrincipalAssignmentStatus{
+		}.Build(),
+		Status: pb.PrincipalAssignmentStatus_builder{
 			Assignments:       assignees,
 			ProvisioningState: pb.ProvisioningState_PROVISIONING_STATE_STALE,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	_, err = provisioner.Provision(context.Background(), principal)
 	require.NoError(t, err)

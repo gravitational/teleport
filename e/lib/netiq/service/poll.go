@@ -148,12 +148,12 @@ func (s *Service) collectRoleMemberships(ctx context.Context, role netiqclient.R
 func convertUsers(users []netiqclient.User) []*accessgraphv1alpha.NetIQUser {
 	out := make([]*accessgraphv1alpha.NetIQUser, 0, len(users))
 	for _, user := range users {
-		out = append(out, &accessgraphv1alpha.NetIQUser{
+		out = append(out, accessgraphv1alpha.NetIQUser_builder{
 			Id:         user.DN,
 			Email:      user.Email,
 			Name:       user.FullName,
 			IsDisabled: user.IsDisabled,
-		})
+		}.Build())
 	}
 	return out
 }
@@ -162,12 +162,12 @@ func convertUsers(users []netiqclient.User) []*accessgraphv1alpha.NetIQUser {
 func convertResources(resources []netiqclient.Resource) []*accessgraphv1alpha.NetIQResource {
 	out := make([]*accessgraphv1alpha.NetIQResource, 0, len(resources))
 	for _, resource := range resources {
-		out = append(out, &accessgraphv1alpha.NetIQResource{
+		out = append(out, accessgraphv1alpha.NetIQResource_builder{
 			Id:          resource.ID,
 			Name:        resource.Name,
 			Description: resource.Description,
 			Categories:  convertCategories(resource.Categories),
-		})
+		}.Build())
 	}
 	return out
 }
@@ -176,10 +176,10 @@ func convertResources(resources []netiqclient.Resource) []*accessgraphv1alpha.Ne
 func convertCategories(categories []netiqclient.Category) []*accessgraphv1alpha.NetIQCategory {
 	out := make([]*accessgraphv1alpha.NetIQCategory, 0, len(categories))
 	for _, category := range categories {
-		out = append(out, &accessgraphv1alpha.NetIQCategory{
+		out = append(out, accessgraphv1alpha.NetIQCategory_builder{
 			Id:   category.ID,
 			Name: category.Name,
-		})
+		}.Build())
 	}
 	return out
 }
@@ -188,11 +188,11 @@ func convertCategories(categories []netiqclient.Category) []*accessgraphv1alpha.
 func convertGroups(groups []netiqclient.Group) []*accessgraphv1alpha.NetIQGroup {
 	out := make([]*accessgraphv1alpha.NetIQGroup, 0, len(groups))
 	for _, group := range groups {
-		out = append(out, &accessgraphv1alpha.NetIQGroup{
+		out = append(out, accessgraphv1alpha.NetIQGroup_builder{
 			Id:          group.ID,
 			Name:        group.Name,
 			Description: group.Description,
-		})
+		}.Build())
 	}
 	return out
 }
@@ -201,17 +201,17 @@ func convertGroups(groups []netiqclient.Group) []*accessgraphv1alpha.NetIQGroup 
 func convertRoles(roles []netiqclient.Role) []*accessgraphv1alpha.NetIQRole {
 	out := make([]*accessgraphv1alpha.NetIQRole, 0, len(roles))
 	for _, role := range roles {
-		out = append(out, &accessgraphv1alpha.NetIQRole{
+		out = append(out, accessgraphv1alpha.NetIQRole_builder{
 			Id:          role.ID,
 			Name:        role.Name,
 			Description: role.Description,
 			Categories:  convertCategories(role.Categories),
-			Level: &accessgraphv1alpha.NetIQRole_RoleLevel{
+			Level: accessgraphv1alpha.NetIQRole_RoleLevel_builder{
 				Name:  role.RoleLevel.Name,
 				Level: int32(role.RoleLevel.Level),
 				Cn:    role.RoleLevel.Cn,
-			},
-		})
+			}.Build(),
+		}.Build())
 	}
 	return out
 }
@@ -221,11 +221,11 @@ func convertRoles(roles []netiqclient.Role) []*accessgraphv1alpha.NetIQRole {
 func convertGroupMembers(groupID string, groupMembers []netiqclient.GroupMember) []*accessgraphv1alpha.NetIQGroupMember {
 	out := make([]*accessgraphv1alpha.NetIQGroupMember, 0, len(groupMembers))
 	for _, member := range groupMembers {
-		out = append(out, &accessgraphv1alpha.NetIQGroupMember{
+		out = append(out, accessgraphv1alpha.NetIQGroupMember_builder{
 			GroupId:           groupID,
 			UserId:            member.Dn,
 			IsGroupAssignment: member.IsGroupAssignment,
-		})
+		}.Build())
 	}
 
 	return out
@@ -237,7 +237,7 @@ func convertRoleMembers(roleID string, roleMembers []netiqclient.RoleAssignmentS
 	out := make([]*accessgraphv1alpha.NetIQMemberAssignmentRef, 0)
 	for _, member := range roleMembers {
 		statusCode, _ := strconv.Atoi(member.StatusCode)
-		out = append(out, &accessgraphv1alpha.NetIQMemberAssignmentRef{
+		out = append(out, accessgraphv1alpha.NetIQMemberAssignmentRef_builder{
 			RoleId:                    roleID,
 			Dn:                        member.RecipientDn,
 			RecipientType:             recipientTypeToEnum(member.RecipientType),
@@ -248,7 +248,7 @@ func convertRoleMembers(roleID string, roleMembers []netiqclient.RoleAssignmentS
 			ExpiryDate:                dateToTime(member.ExpiryDate),
 			Description:               member.Description,
 			Grant:                     member.Grant,
-		})
+		}.Build())
 
 	}
 	return out
@@ -291,19 +291,19 @@ func convertRoleMappedResources(roleID string, roleMappedResources []netiqclient
 	for _, resource := range roleMappedResources {
 		entitlements := make([]*accessgraphv1alpha.Entitlement, len(resource.Entitlements))
 		for i, entitlement := range resource.Entitlements {
-			entitlements[i] = &accessgraphv1alpha.Entitlement{
+			entitlements[i] = accessgraphv1alpha.Entitlement_builder{
 				Id:    entitlement.ID,
 				Name:  entitlement.Name,
 				Value: entitlement.Value,
-			}
+			}.Build()
 		}
-		out = append(out, &accessgraphv1alpha.NetIQResourceAssignmentRef{
+		out = append(out, accessgraphv1alpha.NetIQResourceAssignmentRef_builder{
 			RoleId:             roleID,
 			ResourceId:         resource.ID,
 			MappingDescription: resource.MappingDescription,
 			StatusCode:         uint32(resource.Status),
 			Entitlements:       entitlements,
-		})
+		}.Build())
 	}
 	return out
 }
@@ -313,12 +313,12 @@ func convertRoleMappedResources(roleID string, roleMappedResources []netiqclient
 func convertRoleParentRoles(roleID string, roleParentRoles []netiqclient.RoleRef) []*accessgraphv1alpha.NetIQRoleRef {
 	out := make([]*accessgraphv1alpha.NetIQRoleRef, 0)
 	for _, role := range roleParentRoles {
-		out = append(out, &accessgraphv1alpha.NetIQRoleRef{
+		out = append(out, accessgraphv1alpha.NetIQRoleRef_builder{
 			ChildRoleId:        roleID,
 			ParentRoleId:       role.ID,
 			Level:              int32(role.Level),
 			RequestDescription: role.RequestDescription,
-		})
+		}.Build())
 	}
 	return out
 }

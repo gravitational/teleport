@@ -41,7 +41,7 @@ func (s *Service) CreateRetrievalModel(
 	}
 
 	s.emitCreateRetrievalModelEvent(ctx, authCtx, model)
-	return &pb.CreateRetrievalModelResponse{Model: model}, nil
+	return pb.CreateRetrievalModelResponse_builder{Model: model}.Build(), nil
 }
 
 // GetRetrievalModel retrieves the existing RetrievalModel.
@@ -65,7 +65,7 @@ func (s *Service) GetRetrievalModel(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.GetRetrievalModelResponse{Model: model}, nil
+	return pb.GetRetrievalModelResponse_builder{Model: model}.Build(), nil
 }
 
 // UpdateRetrievalModel updates the existing RetrievalModel.
@@ -95,7 +95,7 @@ func (s *Service) UpdateRetrievalModel(
 	}
 
 	s.emitUpdateRetrievalModelEvent(ctx, authCtx, model)
-	return &pb.UpdateRetrievalModelResponse{Model: model}, nil
+	return pb.UpdateRetrievalModelResponse_builder{Model: model}.Build(), nil
 }
 
 // UpsertRetrievalModel creates the RetrievalModel or updates an existing one.
@@ -135,7 +135,7 @@ func (s *Service) UpsertRetrievalModel(
 		s.emitCreateRetrievalModelEvent(ctx, authCtx, model)
 	}
 
-	return &pb.UpsertRetrievalModelResponse{Model: model}, nil
+	return pb.UpsertRetrievalModelResponse_builder{Model: model}.Build(), nil
 }
 
 // DeleteRetrievalModel deletes the existing RetrievalModel.
@@ -254,47 +254,47 @@ func (s *Service) TestRetrievalModel(
 
 	provider, err := s.newTestEmbeddingsProvider(ctx, req)
 	if err != nil {
-		return &pb.TestRetrievalModelResponse{
+		return pb.TestRetrievalModelResponse_builder{
 			Success: false,
 			Message: err.Error(),
-		}, nil
+		}.Build(), nil
 	}
 
 	if _, _, err = provider.GenerateEmbeddings(ctx, "test"); err != nil {
-		return &pb.TestRetrievalModelResponse{
+		return pb.TestRetrievalModelResponse_builder{
 			Success: false,
 			Message: summarizererrors.FormatRetrievalError(err, req.GetModel()),
-		}, nil
+		}.Build(), nil
 	}
 
-	return &pb.TestRetrievalModelResponse{
+	return pb.TestRetrievalModelResponse_builder{
 		Success: true,
 		Message: "Successfully connected to the inference provider and received a response",
-	}, nil
+	}.Build(), nil
 }
 
 func validateRetrievalTestResources(req *pb.TestRetrievalModelRequest) *pb.TestRetrievalModelResponse {
 	if req.GetModel() == nil {
-		return &pb.TestRetrievalModelResponse{
+		return pb.TestRetrievalModelResponse_builder{
 			Success: false,
 			Message: "model spec is required",
-		}
+		}.Build()
 	}
 	testRetrievalModel := apisummarizer.NewRetrievalModel(req.GetModel())
 	if err := apisummarizer.ValidateRetrievalModel(testRetrievalModel); err != nil {
-		return &pb.TestRetrievalModelResponse{
+		return pb.TestRetrievalModelResponse_builder{
 			Success: false,
 			Message: "invalid model spec: " + err.Error(),
-		}
+		}.Build()
 	}
 
 	if secret := req.GetSecret(); secret != nil {
 		testInferenceSecret := apisummarizer.NewInferenceSecret("test-secret", secret)
 		if err := apisummarizer.ValidateInferenceSecret(testInferenceSecret); err != nil {
-			return &pb.TestRetrievalModelResponse{
+			return pb.TestRetrievalModelResponse_builder{
 				Success: false,
 				Message: "invalid secret spec: " + err.Error(),
-			}
+			}.Build()
 		}
 	}
 	return nil

@@ -170,25 +170,25 @@ func (svc *Service) preProcessExternalData(ctx context.Context, data *externalDa
 	roles := make(accountAssignmentRolesMap, assignmentCount)
 	accountAssignments := make(accountAssignmentMap, assignmentCount)
 	for _, acct := range data.accounts {
-		for _, ps := range acct.Spec.PermissionSetInfo {
+		for _, ps := range acct.GetSpec().GetPermissionSetInfo() {
 			if svc.rolesSyncMode == RolesSyncModeAll {
 				role, err := NewAccountAssignmentRole(acct, ps)
 				if err != nil {
 					return nil, trace.Wrap(err, "creating account assignment role")
 				}
-				roles[mkRoleKey(getAccountID(acct), ps.Arn, acct.GetSpec().GetId())] = role
+				roles[mkRoleKey(getAccountID(acct), ps.GetArn(), acct.GetSpec().GetId())] = role
 			}
 
 			asmt := newAccountAssignment(acct, ps)
 			accountAssignments[getAccountAssignmentID(asmt)] = asmt
-			ps.AssignmentId = asmt.GetMetadata().GetName()
+			ps.SetAssignmentId(asmt.GetMetadata().GetName())
 		}
 	}
 
 	// mark the owning account
 	ownerID := services.IdentityCenterAccountID(data.icInstance.OwnerAccountID)
 	if acct, ok := data.accounts[ownerID]; ok {
-		acct.GetSpec().IsOrganizationOwner = true
+		acct.GetSpec().SetIsOrganizationOwner(true)
 	}
 
 	return &preProcessedExternalData{

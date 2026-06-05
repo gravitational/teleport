@@ -27,10 +27,10 @@ import (
 func createAndEnroll(
 	ctx context.Context,
 	devices devicepb.DeviceTrustServiceClient, dev *devicepb.Device) (*devicepb.Device, *fakeEnclaveKey, error) {
-	dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+	dev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
 		Device:            dev,
 		CreateEnrollToken: true,
-	})
+	}.Build())
 	if err != nil {
 		return nil, nil, fmt.Errorf("method CreateDevice: %w", err)
 	}
@@ -42,16 +42,16 @@ func enrollDevice(
 	ctx context.Context,
 	devices devicepb.DeviceTrustServiceClient, dev *devicepb.Device, collectDataFn collectDataFunc,
 ) (*devicepb.Device, *fakeEnclaveKey, error) {
-	if dev.EnrollToken.GetToken() == "" {
-		token, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
-			DeviceId: dev.Id,
-		})
+	if dev.GetEnrollToken().GetToken() == "" {
+		token, err := devices.CreateDeviceEnrollToken(ctx, devicepb.CreateDeviceEnrollTokenRequest_builder{
+			DeviceId: dev.GetId(),
+		}.Build())
 		if err != nil {
 			return nil, nil, err
 		}
 		// Clear token after execution, if we assigned it.
-		defer func() { dev.EnrollToken = nil }()
-		dev.EnrollToken = token
+		defer func() { dev.ClearEnrollToken() }()
+		dev.SetEnrollToken(token)
 	}
 
 	key, err := newFakeEnclaveKey()
@@ -79,7 +79,7 @@ func enrollSimulator(
 		return nil, fmt.Errorf("method EnrollDevice: %w", err)
 	}
 
-	req := sim.enrollRequest(dev, dev.EnrollToken.Token)
+	req := sim.enrollRequest(dev, dev.GetEnrollToken().GetToken())
 	if err := stream.Send(req); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("init Send: %w", err)
 	}
@@ -109,9 +109,9 @@ func authenticateSimulator(
 	if initCerts == nil {
 		initCerts = &devicepb.UserCertificates{}
 	}
-	resp, err := sim.authenticate(ctx, dev, stream, &devicepb.AuthenticateDeviceInit{
+	resp, err := sim.authenticate(ctx, dev, stream, devicepb.AuthenticateDeviceInit_builder{
 		UserCertificates: initCerts,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err, "simulator authenticate") // Keep the trace error.
 	}
@@ -128,20 +128,20 @@ type collectDataFunc func(*devicepb.Device) *devicepb.DeviceCollectedData
 // defaultCollectData attempts to create a devicepb.DeviceCollectedData that
 // correctly matches the device and its profile.
 func defaultCollectData(dev *devicepb.Device) *devicepb.DeviceCollectedData {
-	cd := &devicepb.DeviceCollectedData{
+	cd := devicepb.DeviceCollectedData_builder{
 		CollectTime:  timestamppb.Now(),
-		OsType:       dev.OsType,
-		SerialNumber: dev.AssetTag,
-	}
-	if dev.Profile != nil {
-		cd.ModelIdentifier = dev.Profile.ModelIdentifier
-		cd.OsVersion = dev.Profile.OsVersion
-		cd.OsBuild = dev.Profile.OsBuild
-		if len(dev.Profile.OsUsernames) > 0 {
-			cd.OsUsername = dev.Profile.OsUsernames[0]
-			cd.OsLoginUser = dev.Profile.OsUsernames[0]
+		OsType:       dev.GetOsType(),
+		SerialNumber: dev.GetAssetTag(),
+	}.Build()
+	if dev.HasProfile() {
+		cd.SetModelIdentifier(dev.GetProfile().GetModelIdentifier())
+		cd.SetOsVersion(dev.GetProfile().GetOsVersion())
+		cd.SetOsBuild(dev.GetProfile().GetOsBuild())
+		if len(dev.GetProfile().GetOsUsernames()) > 0 {
+			cd.SetOsUsername(dev.GetProfile().GetOsUsernames()[0])
+			cd.SetOsLoginUser(dev.GetProfile().GetOsUsernames()[0])
 		}
-		cd.JamfBinaryVersion = dev.Profile.JamfBinaryVersion
+		cd.SetJamfBinaryVersion(dev.GetProfile().GetJamfBinaryVersion())
 	}
 	return cd
 }
@@ -209,10 +209,10 @@ func (k *fakeEnclaveKey) signChallenge(c []byte) (sig []byte, err error) {
 }
 
 func (k *fakeEnclaveKey) deviceCredential() *devicepb.DeviceCredential {
-	return &devicepb.DeviceCredential{
+	return devicepb.DeviceCredential_builder{
 		Id:           k.id,
 		PublicKeyDer: k.pubKeyDER,
-	}
+	}.Build()
 }
 
 type fakeEnclaveKeySimOpt func(b *macOSBehavior)
@@ -225,13 +225,13 @@ func withCollectFn(dev *devicepb.Device, fn collectDataFunc) fakeEnclaveKeySimOp
 			if prevEnroll != nil {
 				prevEnroll(init)
 			}
-			init.DeviceData = fn(dev)
+			init.SetDeviceData(fn(dev))
 		}
 		b.modifyAuthenticateDeviceInit = func(init *devicepb.AuthenticateDeviceInit) {
 			if prevAuthn != nil {
 				prevAuthn(init)
 			}
-			init.DeviceData = fn(dev)
+			init.SetDeviceData(fn(dev))
 		}
 	}
 }

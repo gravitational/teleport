@@ -30,21 +30,21 @@ type PermissionSet struct {
 }
 
 func (ps PermissionSet) Build() *identitycenterv1.PermissionSet {
-	return &identitycenterv1.PermissionSet{
+	return identitycenterv1.PermissionSet_builder{
 		Kind:    types.KindIdentityCenterPermissionSet,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: ps.ID,
 			Labels: map[string]string{
 				common.OriginLabel: common.OriginAWSIdentityCenter,
 			},
-		},
-		Spec: &identitycenterv1.PermissionSetSpec{
+		}.Build(),
+		Spec: identitycenterv1.PermissionSetSpec_builder{
 			Arn:         ps.ARN,
 			Name:        ps.Name,
 			Description: ps.Description,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // Account is a builder for IdentityCenterAccount instances used in tests
@@ -67,10 +67,10 @@ func (a Account) Build() *identitycenterv1.Account {
 		a.PermissionSets = slices.Values(([]*identitycenterv1.PermissionSet)(nil))
 	}
 
-	account := &identitycenterv1.Account{
+	account := identitycenterv1.Account_builder{
 		Kind:    types.KindIdentityCenterAccount,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        string(a.ID),
 			Description: a.Name,
 			Labels: map[string]string{
@@ -79,16 +79,16 @@ func (a Account) Build() *identitycenterv1.Account {
 				types.AWSAccountNameLabel: a.Name,
 				types.AWSSSORegionLabel:   a.SSORegion,
 			},
-		},
-		Spec: &identitycenterv1.AccountSpec{
+		}.Build(),
+		Spec: identitycenterv1.AccountSpec_builder{
 			Id:                  string(a.ID),
 			Name:                a.Name,
 			Arn:                 a.ARN,
 			IsOrganizationOwner: a.IsOwner,
 			StartUrl:            a.StartURL,
-		},
+		}.Build(),
 		Status: &identitycenterv1.AccountStatus{},
-	}
+	}.Build()
 
 	sortedPSs := slices.Collect(a.PermissionSets)
 	slices.SortFunc(sortedPSs, func(a, b *identitycenterv1.PermissionSet) int {
@@ -96,12 +96,12 @@ func (a Account) Build() *identitycenterv1.Account {
 	})
 
 	for _, ps := range sortedPSs {
-		account.GetSpec().PermissionSetInfo = append(
-			account.GetSpec().PermissionSetInfo,
-			&identitycenterv1.PermissionSetInfo{
+		account.GetSpec().SetPermissionSetInfo(append(
+			account.GetSpec().GetPermissionSetInfo(),
+			identitycenterv1.PermissionSetInfo_builder{
 				Name: ps.GetSpec().GetName(),
 				Arn:  ps.GetSpec().GetArn(),
-			})
+			}.Build()))
 	}
 
 	return account
@@ -163,27 +163,27 @@ type AccountAssignment struct {
 }
 
 func (a AccountAssignment) Build() *identitycenterv1.AccountAssignment {
-	return &identitycenterv1.AccountAssignment{
+	return identitycenterv1.AccountAssignment_builder{
 		Kind:    types.KindIdentityCenterAccountAssignment,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: a.ID,
 			Labels: map[string]string{
 				types.OriginLabel:         common.OriginAWSIdentityCenter,
 				types.AWSAccountIDLabel:   string(a.AccountID),
 				types.AWSAccountNameLabel: a.AccountName,
 			},
-		},
-		Spec: &identitycenterv1.AccountAssignmentSpec{
+		}.Build(),
+		Spec: identitycenterv1.AccountAssignmentSpec_builder{
 			Display: a.DisplayName,
-			PermissionSet: &identitycenterv1.PermissionSetInfo{
+			PermissionSet: identitycenterv1.PermissionSetInfo_builder{
 				Arn:  a.PermissionSetARN,
 				Name: a.PermissionSetName,
-			},
+			}.Build(),
 			AccountName: a.AccountName,
 			AccountId:   string(a.AccountID),
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 type AccessList struct {

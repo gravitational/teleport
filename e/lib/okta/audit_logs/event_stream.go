@@ -72,18 +72,18 @@ func (s *Service) fetchOktaState(ctx context.Context) (*pollResults, error) {
 					if !adminRoles[role.Type] {
 						continue
 					}
-					roleAssignments = append(roleAssignments, &accessgraphv1alpha.OktaRoleAssignmentV1{
+					roleAssignments = append(roleAssignments, accessgraphv1alpha.OktaRoleAssignmentV1_builder{
 						RoleId:       role.Type,
 						UserId:       userID,
 						Organization: s.orgURL,
-					})
+					}.Build())
 					_, ok := rolesMap[role.Type]
 					if !ok {
-						oktaRole := &accessgraphv1alpha.OktaRoleV1{
+						oktaRole := accessgraphv1alpha.OktaRoleV1_builder{
 							RoleId:       role.Type,
 							Type:         role.Type,
 							Organization: s.orgURL,
-						}
+						}.Build()
 						rolesMap[role.Type] = oktaRole
 					}
 				}
@@ -105,24 +105,24 @@ func (s *Service) fetchOktaState(ctx context.Context) (*pollResults, error) {
 }
 
 func normalizeApiToken(apiToken *oktaapi.ApiToken, organization string) *accessgraphv1alpha.OktaTokenV1 {
-	token := &accessgraphv1alpha.OktaTokenV1{
+	token := accessgraphv1alpha.OktaTokenV1_builder{
 		Name:         apiToken.Name,
 		Organization: organization,
-	}
+	}.Build()
 	if apiToken.Id != nil {
-		token.Id = *apiToken.Id
+		token.SetId(*apiToken.Id)
 	}
 	if apiToken.UserId != nil {
-		token.Owner = *apiToken.UserId
+		token.SetOwner(*apiToken.UserId)
 	}
 	if apiToken.Created != nil {
-		token.Created = timestamppb.New(*apiToken.Created)
+		token.SetCreated(timestamppb.New(*apiToken.Created))
 	}
 	if apiToken.LastUpdated != nil {
-		token.Updated = timestamppb.New(*apiToken.LastUpdated)
+		token.SetUpdated(timestamppb.New(*apiToken.LastUpdated))
 	}
 	if apiToken.ExpiresAt != nil {
-		token.Expires = timestamppb.New(*apiToken.ExpiresAt)
+		token.SetExpires(timestamppb.New(*apiToken.ExpiresAt))
 	}
 	return token
 }

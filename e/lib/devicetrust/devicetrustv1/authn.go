@@ -107,11 +107,11 @@ func (c *authnCeremony) authenticateDevice(
 	switch {
 	case initReq == nil:
 		err = trace.BadParameter("bad payload, expected AuthenticateDeviceInit")
-	case initReq.DeviceData == nil:
+	case !initReq.HasDeviceData():
 		err = trace.BadParameter("device data required")
-	case initReq.DeviceData.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED:
+	case initReq.GetDeviceData().GetOsType() == devicepb.OSType_OS_TYPE_UNSPECIFIED:
 		err = trace.BadParameter("device OS type required")
-	case initReq.DeviceData.SerialNumber == "":
+	case initReq.GetDeviceData().GetSerialNumber() == "":
 		err = trace.BadParameter("device serial number required")
 	}
 	if err != nil {
@@ -122,7 +122,7 @@ func (c *authnCeremony) authenticateDevice(
 	}
 
 	// ...fetch the device...
-	dev, err := findDeviceBySerial(ctx, c.storage, initReq.DeviceData.OsType, initReq.DeviceData.SerialNumber)
+	dev, err := findDeviceBySerial(ctx, c.storage, initReq.GetDeviceData().GetOsType(), initReq.GetDeviceData().GetSerialNumber())
 	if err != nil {
 		return nil, nil, auditStatusError{
 			Err:         trace.Wrap(err),
@@ -146,39 +146,39 @@ func (c *authnCeremony) authenticate(
 	// Note that we let auth validate the user certificates.
 	// Additionally, we don't require UserCertificates.SshAuthorizedKey to be
 	// present.
-	if err := protectReadOnlyDeviceDataFields(initReq.DeviceData); err != nil {
+	if err := protectReadOnlyDeviceDataFields(initReq.GetDeviceData()); err != nil {
 		return nil, auditStatusError{
 			Err:         trace.Wrap(err),
 			UserMessage: invalidInitMessage,
 		}
 	}
-	if err := storage.ValidateCollectedData(initReq.DeviceData); err != nil {
+	if err := storage.ValidateCollectedData(initReq.GetDeviceData()); err != nil {
 		return nil, auditStatusError{
 			Err:         trace.Wrap(err),
 			UserMessage: "invalid device collected data",
 		}
 	}
 	switch {
-	case initReq.CredentialId == "":
+	case initReq.GetCredentialId() == "":
 		return nil, auditStatusError{
 			Err:         trace.BadParameter("credential ID required"),
 			UserMessage: invalidInitMessage,
 		}
-	case dev.EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED:
+	case dev.GetEnrollStatus() != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED:
 		const deviceNotEnrolled = "device not enrolled"
 		return nil, auditStatusError{
 			Err:         trace.BadParameter("%s", deviceNotEnrolled),
 			UserMessage: deviceNotEnrolled,
 		}
 	// Sanity check, this shouldn't happen for an enrolled device.
-	case dev.Credential == nil:
+	case !dev.HasCredential():
 		c.logger.ErrorContext(ctx,
 			"Internal: Enrolled device has nil credential",
-			"device_id", dev.Id,
-			"asset_tag", dev.AssetTag,
+			"device_id", dev.GetId(),
+			"asset_tag", dev.GetAssetTag(),
 		)
 		return nil, trace.Wrap(errors.New("device has no registered credential"))
-	case dev.Credential.Id != initReq.CredentialId:
+	case dev.GetCredential().GetId() != initReq.GetCredentialId():
 		const unknownCredential = "unknown device credential"
 		return nil, auditStatusError{
 			Err:         trace.BadParameter("%s", unknownCredential),
@@ -188,12 +188,12 @@ func (c *authnCeremony) authenticate(
 
 	// Always ignore user-supplied X.509 certs, we get those either from the
 	// user's TLS cert (regular authn) or from the WebSession (web authn).
-	if initReq.UserCertificates != nil {
-		initReq.UserCertificates.X509Der = nil
+	if initReq.HasUserCertificates() {
+		initReq.GetUserCertificates().SetX509Der(nil)
 	}
 
 	// Device Web Authentication related logic.
-	confirmToken, err := c.processDeviceWebToken(ctx, initReq.DeviceWebToken, dev, user)
+	confirmToken, err := c.processDeviceWebToken(ctx, initReq.GetDeviceWebToken(), dev, user)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -217,9 +217,9 @@ func (c *authnCeremony) authenticate(
 		var err error
 		resp, err = c.augmentEndUserCerts(ctx, &auth.AugmentUserCertificateOpts{
 			DeviceExtensions: &auth.DeviceExtensions{
-				DeviceID:     dev.Id,
-				AssetTag:     dev.AssetTag,
-				CredentialID: dev.Credential.Id,
+				DeviceID:     dev.GetId(),
+				AssetTag:     dev.GetAssetTag(),
+				CredentialID: dev.GetCredential().GetId(),
 			},
 			SSHAuthorizedKey:         sshAuthorizedKey,
 			SSHKeySatisfiedChallenge: sshKeySatisfiedChallenge,
@@ -236,7 +236,7 @@ func (c *authnCeremony) authenticate(
 	}
 
 	// Record collected data.
-	if err := c.storage.RecordDeviceAuthnData(ctx, dev.Id, initReq.DeviceData); err != nil {
+	if err := c.storage.RecordDeviceAuthnData(ctx, dev.GetId(), initReq.GetDeviceData()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -260,12 +260,12 @@ func (c *authnCeremony) processDeviceWebToken(
 
 	// Validate Web Token.
 	switch {
-	case webToken.Id == "":
+	case webToken.GetId() == "":
 		return nil, auditStatusError{
 			Err:         trace.BadParameter("device web token ID required"),
 			UserMessage: invalidInitMessage,
 		}
-	case webToken.Token == "":
+	case webToken.GetToken() == "":
 		return nil, auditStatusError{
 			Err:         trace.BadParameter("device web token plaintext token required"),
 			UserMessage: invalidInitMessage,
@@ -273,7 +273,7 @@ func (c *authnCeremony) processDeviceWebToken(
 	}
 
 	// Spend the token immediately, regardless of outcome.
-	storedToken, confirmToken, err := c.storage.SpendDeviceWebToken(ctx, webToken, dev.Id)
+	storedToken, confirmToken, err := c.storage.SpendDeviceWebToken(ctx, webToken, dev.GetId())
 	if err != nil {
 		c.logger.DebugContext(ctx,
 			"AuthenticateDevice: device web authentication attempt failed",
@@ -302,7 +302,7 @@ func (c *authnCeremony) validateDeviceWebToken(
 ) error {
 	switch {
 	// User must match token.
-	case storedToken.User != user:
+	case storedToken.GetUser() != user:
 		return auditStatusError{
 			// Use a nicer message than errInvalidDeviceWebToken here, this can happen
 			// in certain legitimate situations (like Connect using the wrong user).
@@ -310,7 +310,7 @@ func (c *authnCeremony) validateDeviceWebToken(
 			UserMessage: "device web token user mismatch",
 		}
 	// User must match device owner.
-	case dev.Owner != user:
+	case dev.GetOwner() != user:
 		return auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),
 			UserMessage: "device web authentication owner mismatch",
@@ -318,7 +318,7 @@ func (c *authnCeremony) validateDeviceWebToken(
 	}
 
 	// Verify expected device IDs.
-	deviceFound := slices.Contains(storedToken.ExpectedDeviceIds, dev.Id)
+	deviceFound := slices.Contains(storedToken.GetExpectedDeviceIds(), dev.GetId())
 	if !deviceFound {
 		return auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),
@@ -335,14 +335,14 @@ func (c *authnCeremony) validateDeviceWebToken(
 		)
 		return trace.Wrap(errInvalidDeviceWebToken)
 	}
-	if sourceIP != storedToken.BrowserIp {
+	if sourceIP != storedToken.GetBrowserIp() {
 		c.logger.DebugContext(ctx,
 			"Device web authentication IP mismatch",
 			"source_ip", sourceIP,
-			"token_ip", storedToken.BrowserIp,
+			"token_ip", storedToken.GetBrowserIp(),
 		)
 
-		message := fmt.Sprintf("device web authentication IP mismatch (want %s, got %s)", storedToken.BrowserIp, sourceIP)
+		message := fmt.Sprintf("device web authentication IP mismatch (want %s, got %s)", storedToken.GetBrowserIp(), sourceIP)
 		return auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceWebToken),
 			UserMessage: message,
@@ -358,7 +358,7 @@ func (c *authnCeremony) deleteConfirmToken(ctx context.Context, confirmToken *de
 	}
 
 	ctx = context.WithoutCancel(ctx) // Delete always happens
-	if err := c.storage.DeleteDeviceWebAuthenticationAttempt(ctx, confirmToken.Id); err != nil {
+	if err := c.storage.DeleteDeviceWebAuthenticationAttempt(ctx, confirmToken.GetId()); err != nil {
 		c.logger.DebugContext(ctx,
 			"Failed to delete device authentication attempt on error",
 			"error", err,
@@ -373,11 +373,9 @@ func (c *authnCeremony) augmentEndUserCerts(
 	// This is allowed for assertion ceremonies.
 	// Return an empty UserCertificates struct.
 	if c.augmentCertsFunc == nil {
-		return &devicepb.AuthenticateDeviceResponse{
-			Payload: &devicepb.AuthenticateDeviceResponse_UserCertificates{
-				UserCertificates: &devicepb.UserCertificates{},
-			},
-		}, nil
+		return devicepb.AuthenticateDeviceResponse_builder{
+			UserCertificates: &devicepb.UserCertificates{},
+		}.Build(), nil
 	}
 
 	newCerts, err := c.augmentCertsFunc(ctx, opts)
@@ -394,14 +392,12 @@ func (c *authnCeremony) augmentEndUserCerts(
 	}
 	x509DER := block.Bytes
 
-	return &devicepb.AuthenticateDeviceResponse{
-		Payload: &devicepb.AuthenticateDeviceResponse_UserCertificates{
-			UserCertificates: &devicepb.UserCertificates{
-				X509Der:          x509DER,
-				SshAuthorizedKey: newCerts.SSH,
-			},
-		},
-	}, nil
+	return devicepb.AuthenticateDeviceResponse_builder{
+		UserCertificates: devicepb.UserCertificates_builder{
+			X509Der:          x509DER,
+			SshAuthorizedKey: newCerts.SSH,
+		}.Build(),
+	}.Build(), nil
 }
 
 func (c *authnCeremony) authenticateDevicePlatform(
@@ -410,13 +406,13 @@ func (c *authnCeremony) authenticateDevicePlatform(
 	stream authenticateDeviceStream,
 	initReq *devicepb.AuthenticateDeviceInit,
 ) (*sshChallenge, error) {
-	switch dev.OsType {
+	switch dev.GetOsType() {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		return c.authenticateDeviceMacOS(ctx, dev, stream)
 	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
 		return c.authenticateDeviceTPM(ctx, dev, stream, initReq)
 	default:
-		return nil, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.OsType))
+		return nil, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.GetOsType()))
 	}
 }
 
@@ -425,7 +421,7 @@ func (c *authnCeremony) authenticateDeviceMacOS(
 	dev *devicepb.Device,
 	stream authenticateDeviceStream,
 ) (*sshChallenge, error) {
-	pubKey, err := x509.ParsePKIXPublicKey(dev.Credential.PublicKeyDer)
+	pubKey, err := x509.ParsePKIXPublicKey(dev.GetCredential().GetPublicKeyDer())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -435,13 +431,11 @@ func (c *authnCeremony) authenticateDeviceMacOS(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := stream.Send(&devicepb.AuthenticateDeviceResponse{
-		Payload: &devicepb.AuthenticateDeviceResponse_Challenge{
-			Challenge: &devicepb.AuthenticateDeviceChallenge{
-				Challenge: chal,
-			},
-		},
-	}); err != nil {
+	if err := stream.Send(devicepb.AuthenticateDeviceResponse_builder{
+		Challenge: devicepb.AuthenticateDeviceChallenge_builder{
+			Challenge: chal,
+		}.Build(),
+	}.Build()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -454,10 +448,10 @@ func (c *authnCeremony) authenticateDeviceMacOS(
 	switch {
 	case chalResp == nil:
 		return nil, trace.BadParameter("bad payload, expected AuthenticateDeviceChallengeResponse")
-	case len(chalResp.Signature) == 0:
+	case len(chalResp.GetSignature()) == 0:
 		return nil, trace.BadParameter("signature required")
 	}
-	if err := challenge.Verify(chal, chalResp.Signature, pubKey); err != nil {
+	if err := challenge.Verify(chal, chalResp.GetSignature(), pubKey); err != nil {
 		c.logger.DebugContext(ctx,
 			"AuthenticateDevice: signature verification failed",
 			"error", err,
@@ -487,20 +481,18 @@ func (c *authnCeremony) authenticateDeviceTPM(
 ) (*sshChallenge, error) {
 	// 2. Issue challenge
 	nonce, finishPlatformAttestation, err := platformAttestationChallenge(
-		dev.OsType,
-		dev.Credential.TpmAkPublic,
+		dev.GetOsType(),
+		dev.GetCredential().GetTpmAkPublic(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	c.logger.DebugContext(ctx, "AuthenticateDevice : Sending TPM authentication challenge")
-	if err := stream.Send(&devicepb.AuthenticateDeviceResponse{
-		Payload: &devicepb.AuthenticateDeviceResponse_TpmChallenge{
-			TpmChallenge: &devicepb.TPMAuthenticateDeviceChallenge{
-				AttestationNonce: nonce,
-			},
-		},
-	}); err != nil {
+	if err := stream.Send(devicepb.AuthenticateDeviceResponse_builder{
+		TpmChallenge: devicepb.TPMAuthenticateDeviceChallenge_builder{
+			AttestationNonce: nonce,
+		}.Build(),
+	}.Build()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -515,7 +507,7 @@ func (c *authnCeremony) authenticateDeviceTPM(
 		return nil, trace.BadParameter("bad payload, expected TPMAuthenticateDeviceChallengeResponse")
 	}
 	platformAttestation, err := finishPlatformAttestation(
-		dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
+		dtoss.PlatformParametersFromProto(chalResp.GetPlatformParameters()),
 	)
 	if err != nil {
 		c.logger.DebugContext(ctx,
@@ -529,7 +521,7 @@ func (c *authnCeremony) authenticateDeviceTPM(
 	}
 
 	// Persist platform attestation record in collected data.
-	initReq.DeviceData.TpmPlatformAttestation = platformAttestation
+	initReq.GetDeviceData().SetTpmPlatformAttestation(platformAttestation)
 
 	return &sshChallenge{
 		challenge: nonce,
@@ -586,7 +578,7 @@ func (c *authnCeremony) backfillDeviceOwner(ctx context.Context, dev *devicepb.D
 		return
 	}
 
-	owner := dev.Owner
+	owner := dev.GetOwner()
 	backfill := false
 
 	// Is the owner empty? Backfill.
@@ -599,13 +591,13 @@ func (c *authnCeremony) backfillDeviceOwner(ctx context.Context, dev *devicepb.D
 	// Local users only, SSO users are ephemeral.
 	if !backfill {
 		u, err := c.cachedUsers.GetUser(ctx, owner, false /* withSecrets */)
-		backfill = err == nil && u.GetUserType() == types.UserTypeLocal && !slices.Contains(u.GetTrustedDeviceIDs(), dev.Id)
+		backfill = err == nil && u.GetUserType() == types.UserTypeLocal && !slices.Contains(u.GetTrustedDeviceIDs(), dev.GetId())
 	}
 
 	// Is the user->device index up-to-date?
 	if !backfill {
 		deviceIDs, err := c.storage.GetUserTrustedDeviceIDs(ctx, owner)
-		backfill = err != nil || !slices.Contains(deviceIDs, dev.Id)
+		backfill = err != nil || !slices.Contains(deviceIDs, dev.GetId())
 	}
 
 	if !backfill {
@@ -614,16 +606,16 @@ func (c *authnCeremony) backfillDeviceOwner(ctx context.Context, dev *devicepb.D
 
 	c.logger.DebugContext(ctx,
 		"Backfilling device owner",
-		"device_id", dev.Id,
-		"asset_tag", dev.AssetTag,
+		"device_id", dev.GetId(),
+		"asset_tag", dev.GetAssetTag(),
 		"owner", owner,
 	)
-	if _, err := c.storage.AssignDeviceOwner(ctx, dev.Id, owner); err != nil {
+	if _, err := c.storage.AssignDeviceOwner(ctx, dev.GetId(), owner); err != nil {
 		c.logger.WarnContext(ctx,
 			"Failed to backfill device owner or user trusted device IDs",
 			"error", err,
-			"device_id", dev.Id,
-			"asset_tag", dev.AssetTag,
+			"device_id", dev.GetId(),
+			"asset_tag", dev.GetAssetTag(),
 			"owner", owner,
 		)
 	}

@@ -29,7 +29,7 @@ func (svc *Service) loadAccountResources(ctx context.Context) (accountResourceMa
 		if err != nil {
 			return nil, trace.Wrap(err, "loading Teleport Identity Center account resources")
 		}
-		accounts[services.IdentityCenterAccountID(acct.Spec.Id)] = acct
+		accounts[services.IdentityCenterAccountID(acct.GetSpec().GetId())] = acct
 	}
 	return accounts, nil
 }
@@ -50,7 +50,7 @@ func (svc *Service) reconcileAccounts(ctx context.Context, oldAccounts, newAccou
 	updateAccount := func(ctx context.Context, newAcct, oldAcct *identitycenterv1.Account) error {
 		// Copy the revision from the old record to the new so as not to upset
 		// the conditional update in the Identity Center data service
-		newAcct.Metadata.Revision = oldAcct.Metadata.Revision
+		newAcct.GetMetadata().SetRevision(oldAcct.GetMetadata().GetRevision())
 
 		updatedAcct, err := svc.icSvc.UpdateIdentityCenterAccount(ctx, newAcct)
 		if err != nil {
@@ -102,10 +102,10 @@ func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, 
 	// not handled above, mainly because lack of access to the AWS China
 	// test instance.
 
-	return &identitycenterv1.Account{
+	return identitycenterv1.Account_builder{
 		Kind:    types.KindIdentityCenterAccount,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        string(id),
 			Description: name,
 			Labels: map[string]string{
@@ -114,16 +114,16 @@ func newIdentityCenterAccount(name string, id services.IdentityCenterAccountID, 
 				types.AWSAccountNameLabel: name,
 				types.AWSSSORegionLabel:   ssoRegion,
 			},
-		},
-		Spec: &identitycenterv1.AccountSpec{
+		}.Build(),
+		Spec: identitycenterv1.AccountSpec_builder{
 			Id:   string(id),
 			Arn:  arn.String(),
 			Name: name,
 			// Web UI appends role_name query when launching users with specific permission set.
 			StartUrl: fmt.Sprintf(startURL, idSource, id),
-		},
+		}.Build(),
 		Status: &identitycenterv1.AccountStatus{},
-	}
+	}.Build()
 }
 
 func compareAccounts(a, b *identitycenterv1.Account) int {

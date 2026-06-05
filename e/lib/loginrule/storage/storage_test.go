@@ -70,17 +70,17 @@ func TestCreateAndUpsertLoginRule(t *testing.T) {
 	}{
 		{
 			desc: "expression",
-			rule: &loginrulepb.LoginRule{
+			rule: loginrulepb.LoginRule_builder{
 				Metadata: &types.Metadata{
 					Name: "expression_rule",
 				},
 				Version:          "v1",
 				TraitsExpression: "external",
-			},
+			}.Build(),
 		},
 		{
 			desc: "map",
-			rule: &loginrulepb.LoginRule{
+			rule: loginrulepb.LoginRule_builder{
 				Metadata: &types.Metadata{
 					Name: "map_rule",
 				},
@@ -90,11 +90,11 @@ func TestCreateAndUpsertLoginRule(t *testing.T) {
 						Values: []string{"external.groups"},
 					},
 				},
-			},
+			}.Build(),
 		},
 		{
 			desc: "duplicate",
-			rule: &loginrulepb.LoginRule{
+			rule: loginrulepb.LoginRule_builder{
 				Metadata: &types.Metadata{
 					Name: "map_rule",
 				},
@@ -104,7 +104,7 @@ func TestCreateAndUpsertLoginRule(t *testing.T) {
 						Values: []string{"external.groups"},
 					},
 				},
-			},
+			}.Build(),
 			errorContains: `login rule "map_rule" already exists`,
 			noUpsertError: true,
 		},
@@ -148,15 +148,15 @@ func TestGetLoginRule(t *testing.T) {
 	expiry := p.clock.Now().Add(time.Minute)
 
 	seededRules := map[string]*loginrulepb.LoginRule{
-		"expression_rule": &loginrulepb.LoginRule{
+		"expression_rule": loginrulepb.LoginRule_builder{
 			Metadata: &types.Metadata{
 				Name: "expression_rule",
 			},
 			Priority:         0,
 			Version:          "v1",
 			TraitsExpression: "external",
-		},
-		"map_rule": &loginrulepb.LoginRule{
+		}.Build(),
+		"map_rule": loginrulepb.LoginRule_builder{
 			Metadata: &types.Metadata{
 				Name:    "map_rule",
 				Expires: &expiry,
@@ -168,7 +168,7 @@ func TestGetLoginRule(t *testing.T) {
 					Values: []string{"external.groups"},
 				},
 			},
-		},
+		}.Build(),
 	}
 	for _, rule := range seededRules {
 		_, err := p.s.CreateLoginRule(ctx, rule)
@@ -280,14 +280,14 @@ func TestListLoginRules(t *testing.T) {
 			var seededRules []*loginrulepb.LoginRule
 			for i := range tc.totalRules {
 				ruleName := fmt.Sprintf("rule%d", i)
-				rule := &loginrulepb.LoginRule{
+				rule := loginrulepb.LoginRule_builder{
 					Metadata: &types.Metadata{
 						Name: ruleName,
 					},
 					Version:          types.V1,
 					Priority:         int32(i),
 					TraitsExpression: "external",
-				}
+				}.Build()
 				outRule, err := p.s.CreateLoginRule(ctx, rule)
 				require.NoError(t, err)
 				seededRules = append(seededRules, outRule)
@@ -305,7 +305,7 @@ func TestListLoginRules(t *testing.T) {
 
 				if tc.deleteLastRuleBetweenCalls && len(rules) > 0 {
 					lastRule := rules[len(rules)-1]
-					err := p.s.DeleteLoginRule(ctx, lastRule.Metadata.Name)
+					err := p.s.DeleteLoginRule(ctx, lastRule.GetMetadata().Name)
 					require.NoError(t, err)
 				}
 			}
@@ -320,10 +320,10 @@ func TestListLoginRules(t *testing.T) {
 				return
 			}
 			sort.SliceStable(allRules, func(i, j int) bool {
-				return allRules[i].Metadata.Name < allRules[j].Metadata.Name
+				return allRules[i].GetMetadata().Name < allRules[j].GetMetadata().Name
 			})
 			sort.SliceStable(seededRules, func(i, j int) bool {
-				return seededRules[i].Metadata.Name < seededRules[j].Metadata.Name
+				return seededRules[i].GetMetadata().Name < seededRules[j].GetMetadata().Name
 			})
 			require.Empty(t, cmp.Diff(seededRules, allRules, cmpOpts...), "listed login rules do not match the expected")
 		})
@@ -339,14 +339,14 @@ func TestDeleteLoginRule(t *testing.T) {
 	seededRules := make(map[string]*loginrulepb.LoginRule)
 	for i := range 3 {
 		ruleName := fmt.Sprintf("rule%d", i)
-		rule := &loginrulepb.LoginRule{
+		rule := loginrulepb.LoginRule_builder{
 			Metadata: &types.Metadata{
 				Name: ruleName,
 			},
 			Version:          types.V1,
 			Priority:         int32(i),
 			TraitsExpression: "external",
-		}
+		}.Build()
 		_, err := p.s.CreateLoginRule(ctx, rule)
 		require.NoError(t, err)
 		seededRules[ruleName] = rule
@@ -389,35 +389,35 @@ func TestLoginRuleIDs(t *testing.T) {
 	ctx := context.Background()
 	p := newTestPack(t)
 
-	ruleSpec := &loginrulepb.LoginRule{
+	ruleSpec := loginrulepb.LoginRule_builder{
 		Metadata: &types.Metadata{
 			Name: "rule",
 		},
 		Version:          types.V1,
 		Priority:         1,
 		TraitsExpression: "external",
-	}
+	}.Build()
 
 	_, err := p.s.CreateLoginRule(ctx, ruleSpec)
 	require.NoError(t, err)
 
-	ruleBefore, err := p.s.GetLoginRule(ctx, ruleSpec.Metadata.Name)
+	ruleBefore, err := p.s.GetLoginRule(ctx, ruleSpec.GetMetadata().Name)
 	require.NoError(t, err)
 
-	ruleSpec.Priority = 2
+	ruleSpec.SetPriority(2)
 
 	_, err = p.s.UpsertLoginRule(ctx, ruleSpec)
 	require.NoError(t, err)
 
-	ruleAfter, err := p.s.GetLoginRule(ctx, ruleSpec.Metadata.Name)
+	ruleAfter, err := p.s.GetLoginRule(ctx, ruleSpec.GetMetadata().Name)
 	require.NoError(t, err)
 
-	require.NotEqual(t, ruleBefore.Metadata.Revision, ruleAfter.Metadata.Revision, "expected updated revision not to match original revision")
+	require.NotEqual(t, ruleBefore.GetMetadata().Revision, ruleAfter.GetMetadata().Revision, "expected updated revision not to match original revision")
 
 	rulesAfter, _, err := p.s.ListLoginRules(ctx, 0 /* pageSize */, "" /* pageToken */)
 	require.NoError(t, err)
 	require.Len(t, rulesAfter, 1)
 	ruleAfter = rulesAfter[0]
 
-	require.NotEqual(t, ruleBefore.Metadata.Revision, ruleAfter.Metadata.Revision, "expected updated revision not to match original revision")
+	require.NotEqual(t, ruleBefore.GetMetadata().Revision, ruleAfter.GetMetadata().Revision, "expected updated revision not to match original revision")
 }

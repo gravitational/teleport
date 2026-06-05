@@ -155,13 +155,13 @@ func TestListReportStates(t *testing.T) {
 			var states []*pb.ReportState
 			var startKey string
 			for {
-				resp, err := svc.ListReportStates(ctx, &pb.ListReportStatesRequest{PageSize: 2, PageToken: startKey})
+				resp, err := svc.ListReportStates(ctx, pb.ListReportStatesRequest_builder{PageSize: 2, PageToken: startKey}.Build())
 				if err != nil {
 					test.assertion(t, states, err)
 					return
 				}
 
-				states = append(states, resp.ReportStates...)
+				states = append(states, resp.GetReportStates()...)
 				if resp.GetNextPageToken() == "" {
 					break
 				}
@@ -237,40 +237,40 @@ func TestService(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("get security report ", func(t *testing.T) {
-		report, err := svc.GetReport(ctx, &pb.GetReportRequest{Name: reports.PrivilegeAccessReport.Name})
+		report, err := svc.GetReport(ctx, pb.GetReportRequest_builder{Name: reports.PrivilegeAccessReport.Name}.Build())
 		require.NoError(t, err)
-		require.Equal(t, reports.PrivilegeAccessReport.Name, report.Spec.Name)
-		require.Len(t, report.Spec.GetAuditQueries(), len(reports.PrivilegeAccessReport.Queries))
+		require.Equal(t, reports.PrivilegeAccessReport.Name, report.GetSpec().GetName())
+		require.Len(t, report.GetSpec().GetAuditQueries(), len(reports.PrivilegeAccessReport.Queries))
 	})
 
 	t.Run("get security report ", func(t *testing.T) {
 		resp, err := svc.ListReports(ctx, &pb.ListReportsRequest{})
 		require.NoError(t, err)
-		require.Len(t, resp.Reports, 1)
+		require.Len(t, resp.GetReports(), 1)
 	})
 
 	t.Run("run security report", func(t *testing.T) {
 		clock.Advance(time.Hour)
-		_, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
+		_, err := svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 			Name: reports.PrivilegeAccessReport.Name,
 			Days: 7,
-		})
+		}.Build())
 		require.True(t, trace.IsNotFound(err))
 
-		_, err = svc.RunReport(ctx, &pb.RunReportRequest{
+		_, err = svc.RunReport(ctx, pb.RunReportRequest_builder{
 			Name: reports.PrivilegeAccessReport.Name,
 			Days: 7,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			statusResp, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			statusResp, err := svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
-			})
+			}.Build())
 			require.NoError(t, err)
-			require.Equal(t, string(secreports.Ready), statusResp.Spec.State)
-			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
+			require.Equal(t, string(secreports.Ready), statusResp.GetSpec().GetState())
+			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.GetSpec().GetUpdatedAt())
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -282,12 +282,12 @@ func TestService(t *testing.T) {
 		mustRunReportAndWaitForAllQueries(t, mockAthena, &svc, queryFunc)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			statusResp, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			statusResp, err := svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
-			})
+			}.Build())
 			require.NoError(t, err)
-			require.Equal(t, string(secreports.Failed), statusResp.Spec.State)
+			require.Equal(t, string(secreports.Failed), statusResp.GetSpec().GetState())
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -301,10 +301,10 @@ func TestService(t *testing.T) {
 		mustRunReportAndWaitForAllQueries(t, mockAthena, &svc, queryFunc)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			_, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			_, err := svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: uint32(overLimit),
-			})
+			}.Build())
 			require.Error(t, err)
 			require.True(t, trace.IsAccessDenied(err), "expected access denied, got: %v", err)
 		}, time.Second*2, time.Millisecond*100)
@@ -320,20 +320,20 @@ func TestService(t *testing.T) {
 
 	t.Run("run security report without max limit error", func(t *testing.T) {
 		clock.Advance(time.Hour)
-		_, err = svc.RunReport(ctx, &pb.RunReportRequest{
+		_, err = svc.RunReport(ctx, pb.RunReportRequest_builder{
 			Name: reports.PrivilegeAccessReport.Name,
 			Days: uint32(overLimit),
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			statusResp, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			statusResp, err := svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: uint32(overLimit),
-			})
+			}.Build())
 			require.NoError(t, err)
-			require.Equal(t, string(secreports.Ready), statusResp.Spec.State)
-			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
+			require.Equal(t, string(secreports.Ready), statusResp.GetSpec().GetState())
+			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.GetSpec().GetUpdatedAt())
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -348,30 +348,30 @@ func TestService(t *testing.T) {
 
 		timeFirstRun := clock.Now().UTC().Format(time.RFC3339)
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			statusResp, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			statusResp, err := svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
-			})
+			}.Build())
 			require.NoError(t, err)
-			require.Equal(t, string(secreports.Ready), statusResp.Spec.State)
-			require.Equal(t, timeFirstRun, statusResp.Spec.UpdatedAt)
+			require.Equal(t, string(secreports.Ready), statusResp.GetSpec().GetState())
+			require.Equal(t, timeFirstRun, statusResp.GetSpec().GetUpdatedAt())
 
 		}, time.Second*2, time.Millisecond*100)
 
 		clock.Advance(time.Second * 10)
 
-		mustRunReportAndWaitForResult(t, ctx, svc, &pb.RunReportRequest{
+		mustRunReportAndWaitForResult(t, ctx, svc, pb.RunReportRequest_builder{
 			Name: reports.PrivilegeAccessReport.Name,
 			Days: 7,
-		})
+		}.Build())
 
-		statusResp, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
+		statusResp, err := svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 			Name: reports.PrivilegeAccessReport.Name,
 			Days: 7,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Equal(t, string(secreports.Ready), statusResp.Spec.State)
-		require.Equal(t, timeFirstRun, statusResp.Spec.UpdatedAt)
+		require.Equal(t, string(secreports.Ready), statusResp.GetSpec().GetState())
+		require.Equal(t, timeFirstRun, statusResp.GetSpec().GetUpdatedAt())
 
 	})
 
@@ -390,34 +390,34 @@ func TestService(t *testing.T) {
 		}
 
 		go func() {
-			_, err := svc.RunReport(ctx, &pb.RunReportRequest{
+			_, err := svc.RunReport(ctx, pb.RunReportRequest_builder{
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
-			})
+			}.Build())
 			require.NoError(t, err)
 		}()
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			statusResp, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			statusResp, err := svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
-			})
+			}.Build())
 			require.NoError(t, err)
-			require.Equal(t, string(secreports.Running), statusResp.Spec.State)
-			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
+			require.Equal(t, string(secreports.Running), statusResp.GetSpec().GetState())
+			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.GetSpec().GetUpdatedAt())
 		}, time.Second*2, time.Millisecond*100)
 
 		clock.Advance(time.Second * 10)
 		close(done)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			statusResp, err := svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			statusResp, err := svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 				Name: reports.PrivilegeAccessReport.Name,
 				Days: 7,
-			})
+			}.Build())
 			require.NoError(t, err)
-			require.Equal(t, string(secreports.Ready), statusResp.Spec.State)
-			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.Spec.UpdatedAt)
+			require.Equal(t, string(secreports.Ready), statusResp.GetSpec().GetState())
+			require.Equal(t, clock.Now().UTC().Format(time.RFC3339), statusResp.GetSpec().GetUpdatedAt())
 		}, time.Second*2, time.Millisecond*100)
 	})
 
@@ -440,30 +440,30 @@ func TestService(t *testing.T) {
 
 		for range defaultMaxParallelUserQueries {
 			go func() {
-				_, err := svc.RunAuditQuery(ctx, &pb.RunAuditQueryRequest{
+				_, err := svc.RunAuditQuery(ctx, pb.RunAuditQueryRequest_builder{
 					Query: "SELECT * FROM table",
 					Days:  7,
-				})
+				}.Build())
 				require.NoError(t, err)
 			}()
 		}
 
 		// wait for all queries to start and reach the limit before running the next user audit query.
 		queryWg.Wait()
-		_, err := svc.RunAuditQuery(ctx, &pb.RunAuditQueryRequest{
+		_, err := svc.RunAuditQuery(ctx, pb.RunAuditQueryRequest_builder{
 			Query: "SELECT * FROM table",
 			Days:  7,
-		})
+		}.Build())
 		require.True(t, trace.IsLimitExceeded(err))
 
 		close(ongoingQueriesC)
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			queryWg.Add(1)
-			_, err := svc.RunAuditQuery(ctx, &pb.RunAuditQueryRequest{
+			_, err := svc.RunAuditQuery(ctx, pb.RunAuditQueryRequest_builder{
 				Query: "SELECT * FROM table",
 				Days:  7,
-			})
+			}.Build())
 			require.NoError(t, err)
 		}, time.Second*5, time.Millisecond*100)
 	})
@@ -606,25 +606,25 @@ func TestReportUpdateThreshold(t *testing.T) {
 	t.Run("Enabled & Unlimited Access Monitoring", func(t *testing.T) {
 		err := s.svc.schedulesReportsUpdate(ctx)
 		require.NoError(t, err)
-		state, err := s.svc.GetReportState(ctx, &pb.GetReportStateRequest{
+		state, err := s.svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 			Name: "test_report",
 			Days: 7,
-		})
+		}.Build())
 		require.NoError(t, err)
 		wantUpdatedAt := s.clock.Now().Format(time.RFC3339)
-		require.Equal(t, wantUpdatedAt, state.Spec.UpdatedAt)
+		require.Equal(t, wantUpdatedAt, state.GetSpec().GetUpdatedAt())
 
 		t.Run("1h threshold not reached report should not be executed", func(t *testing.T) {
 			s.clock.Advance(defaultReportUpdateThreshold / 2)
 			s.updateCurrentLimiterUsage(t, 0)
 			err = s.svc.schedulesReportsUpdate(ctx)
 			require.NoError(t, err)
-			state, err = s.svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			state, err = s.svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 				Name: "test_report",
 				Days: 7,
-			})
+			}.Build())
 			require.NoError(t, err)
-			require.Equal(t, wantUpdatedAt, state.Spec.UpdatedAt)
+			require.Equal(t, wantUpdatedAt, state.GetSpec().GetUpdatedAt())
 		})
 
 		t.Run("1h threshold reached report should be executed", func(t *testing.T) {
@@ -632,13 +632,13 @@ func TestReportUpdateThreshold(t *testing.T) {
 			s.updateCurrentLimiterUsage(t, 0)
 			err = s.svc.schedulesReportsUpdate(ctx)
 			require.NoError(t, err)
-			state, err = s.svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			state, err = s.svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 				Name: "test_report",
 				Days: 7,
-			})
+			}.Build())
 			require.NoError(t, err)
 			wantUpdatedAt = s.clock.Now().Format(time.RFC3339)
-			require.Equal(t, wantUpdatedAt, state.Spec.UpdatedAt)
+			require.Equal(t, wantUpdatedAt, state.GetSpec().GetUpdatedAt())
 		})
 
 	})
@@ -654,12 +654,12 @@ func TestReportUpdateThreshold(t *testing.T) {
 			s.updateCurrentLimiterUsage(t, 0)
 			err := s.svc.schedulesReportsUpdate(ctx)
 			require.NoError(t, err)
-			state, err := s.svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			state, err := s.svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 				Name: "test_report",
 				Days: 7,
-			})
+			}.Build())
 			require.NoError(t, err)
-			require.Equal(t, wantUpdatedAt, state.Spec.UpdatedAt)
+			require.Equal(t, wantUpdatedAt, state.GetSpec().GetUpdatedAt())
 		})
 
 		t.Run("24h threshold reached, report should be executed", func(t *testing.T) {
@@ -667,13 +667,13 @@ func TestReportUpdateThreshold(t *testing.T) {
 			s.updateCurrentLimiterUsage(t, 0)
 			err := s.svc.schedulesReportsUpdate(ctx)
 			require.NoError(t, err)
-			state, err := s.svc.GetReportState(ctx, &pb.GetReportStateRequest{
+			state, err := s.svc.GetReportState(ctx, pb.GetReportStateRequest_builder{
 				Name: "test_report",
 				Days: 7,
-			})
+			}.Build())
 			require.NoError(t, err)
 			wantUpdatedAt := s.clock.Now().Format(time.RFC3339)
-			require.Equal(t, wantUpdatedAt, state.Spec.UpdatedAt)
+			require.Equal(t, wantUpdatedAt, state.GetSpec().GetUpdatedAt())
 		})
 	})
 }
@@ -832,10 +832,10 @@ func mustRunReportAndWaitForAllQueries(t *testing.T, mockAthena *athenaMock, svc
 		return queryFn(ctx, queryText, days)
 
 	}
-	_, err := svc.RunReport(ctx, &pb.RunReportRequest{
+	_, err := svc.RunReport(ctx, pb.RunReportRequest_builder{
 		Name: reports.PrivilegeAccessReport.Name,
 		Days: 7,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {

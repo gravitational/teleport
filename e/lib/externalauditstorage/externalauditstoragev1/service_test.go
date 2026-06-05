@@ -105,13 +105,13 @@ func TestRBAC(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	draftAuditConfig := &pb.ExternalAuditStorage{
-		Header: &headerv1.ResourceHeader{
-			Metadata: &headerv1.Metadata{
+	draftAuditConfig := pb.ExternalAuditStorage_builder{
+		Header: headerv1.ResourceHeader_builder{
+			Metadata: headerv1.Metadata_builder{
 				Name: types.MetaNameExternalAuditStorageDraft,
-			},
-		},
-		Spec: &pb.ExternalAuditStorageSpec{
+			}.Build(),
+		}.Build(),
+		Spec: pb.ExternalAuditStorageSpec_builder{
 			IntegrationName:        "aws-integration-1",
 			Region:                 "us-west-2",
 			PolicyName:             "test-policy",
@@ -121,8 +121,8 @@ func TestRBAC(t *testing.T) {
 			GlueTable:              "teleport_table",
 			AuditEventsLongTermUri: "s3://bucket/events",
 			AthenaResultsUri:       "s3://bucket/results",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	for _, tc := range []struct {
 		desc         string
@@ -134,9 +134,9 @@ func TestRBAC(t *testing.T) {
 		{
 			desc: "create draft",
 			f: func(service *Service) error {
-				_, err := service.CreateDraftExternalAuditStorage(ctx, &pb.CreateDraftExternalAuditStorageRequest{
+				_, err := service.CreateDraftExternalAuditStorage(ctx, pb.CreateDraftExternalAuditStorageRequest_builder{
 					ExternalAuditStorage: draftAuditConfig,
-				})
+				}.Build())
 				return err
 			},
 			allow: map[check]bool{
@@ -149,9 +149,9 @@ func TestRBAC(t *testing.T) {
 		{
 			desc: "upsert draft",
 			f: func(service *Service) error {
-				_, err := service.UpsertDraftExternalAuditStorage(ctx, &pb.UpsertDraftExternalAuditStorageRequest{
+				_, err := service.UpsertDraftExternalAuditStorage(ctx, pb.UpsertDraftExternalAuditStorageRequest_builder{
 					ExternalAuditStorage: draftAuditConfig,
-				})
+				}.Build())
 				return err
 			},
 			allow: map[check]bool{
@@ -224,10 +224,10 @@ func TestRBAC(t *testing.T) {
 		{
 			desc: "generate draft",
 			f: func(service *Service) error {
-				_, err := service.GenerateDraftExternalAuditStorage(ctx, &pb.GenerateDraftExternalAuditStorageRequest{
+				_, err := service.GenerateDraftExternalAuditStorage(ctx, pb.GenerateDraftExternalAuditStorageRequest_builder{
 					IntegrationName: "aws-integration-1",
 					Region:          "us-west-2",
-				})
+				}.Build())
 				return err
 			},
 			allow: map[check]bool{
@@ -352,10 +352,10 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 			service, err := NewService(cfg)
 			require.NoError(t, err)
 
-			_, err = service.GenerateDraftExternalAuditStorage(ctx, &pb.GenerateDraftExternalAuditStorageRequest{
+			_, err = service.GenerateDraftExternalAuditStorage(ctx, pb.GenerateDraftExternalAuditStorageRequest_builder{
 				Region:          tc.easRegion,
 				IntegrationName: "aws-integration-1",
-			})
+			}.Build())
 			assert.ErrorIs(t, err, tc.expectErr)
 
 			// Clean up for Create test.
@@ -367,14 +367,14 @@ func TestClusterAuditConfigCheck(t *testing.T) {
 			draft, err := externalauditstorage.GenerateDraftExternalAuditStorage("aws-integration-1", tc.easRegion)
 			require.NoError(t, err)
 
-			_, err = service.CreateDraftExternalAuditStorage(ctx, &pb.CreateDraftExternalAuditStorageRequest{
+			_, err = service.CreateDraftExternalAuditStorage(ctx, pb.CreateDraftExternalAuditStorageRequest_builder{
 				ExternalAuditStorage: conv.ToProto(draft),
-			})
+			}.Build())
 			assert.ErrorIs(t, err, tc.expectErr)
 
-			_, err = service.UpsertDraftExternalAuditStorage(ctx, &pb.UpsertDraftExternalAuditStorageRequest{
+			_, err = service.UpsertDraftExternalAuditStorage(ctx, pb.UpsertDraftExternalAuditStorageRequest_builder{
 				ExternalAuditStorage: conv.ToProto(draft),
-			})
+			}.Build())
 			assert.ErrorIs(t, err, tc.expectErr)
 
 			// Nothing to promote if we can't write the draft in the first place.

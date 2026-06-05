@@ -19,19 +19,19 @@ func (s *BeamsService) GetBeam(ctx context.Context, req *beamsv1.GetBeamRequest)
 	}
 
 	var beam *beamsv1.Beam
-	switch v := req.GetId().(type) {
-	case *beamsv1.GetBeamRequest_Name:
-		if v.Name == "" {
+	switch req.WhichId() {
+	case beamsv1.GetBeamRequest_Name_case:
+		if req.GetName() == "" {
 			return nil, trace.BadParameter("name is required")
 		}
-		if beam, err = s.beamReader.GetBeam(ctx, v.Name); err != nil {
+		if beam, err = s.beamReader.GetBeam(ctx, req.GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
-	case *beamsv1.GetBeamRequest_Alias:
-		if v.Alias == "" {
+	case beamsv1.GetBeamRequest_Alias_case:
+		if req.GetAlias() == "" {
 			return nil, trace.BadParameter("alias is required")
 		}
-		if beam, err = s.beamReader.GetBeamByAlias(ctx, v.Alias); err != nil {
+		if beam, err = s.beamReader.GetBeamByAlias(ctx, req.GetAlias()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
@@ -42,7 +42,7 @@ func (s *BeamsService) GetBeam(ctx context.Context, req *beamsv1.GetBeamRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	return &beamsv1.GetBeamResponse{
+	return beamsv1.GetBeamResponse_builder{
 		Beam: beam,
-	}, nil
+	}.Build(), nil
 }

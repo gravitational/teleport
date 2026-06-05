@@ -350,16 +350,14 @@ func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_GitlabEventsStreamClient,
 	upsert *accessgraphv1alpha.GitlabResourceList,
 ) error {
-	for i := 0; i < len(upsert.Resources); i += batchSize {
-		end := min(i+batchSize, len(upsert.Resources))
+	for i := 0; i < len(upsert.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(upsert.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.GitlabEventsStreamRequest{
-				Operation: &accessgraphv1alpha.GitlabEventsStreamRequest_Upsert{
-					Upsert: &accessgraphv1alpha.GitlabResourceList{
-						Resources: upsert.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.GitlabEventsStreamRequest_builder{
+				Upsert: accessgraphv1alpha.GitlabResourceList_builder{
+					Resources: upsert.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -372,16 +370,14 @@ func pushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_GitlabEventsStreamClient,
 	toDel *accessgraphv1alpha.GitlabResourceList,
 ) error {
-	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := min(i+batchSize, len(toDel.Resources))
+	for i := 0; i < len(toDel.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(toDel.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.GitlabEventsStreamRequest{
-				Operation: &accessgraphv1alpha.GitlabEventsStreamRequest_Delete{
-					Delete: &accessgraphv1alpha.GitlabResourceList{
-						Resources: toDel.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.GitlabEventsStreamRequest_builder{
+				Delete: accessgraphv1alpha.GitlabResourceList_builder{
+					Resources: toDel.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)

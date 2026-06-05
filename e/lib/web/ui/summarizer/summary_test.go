@@ -10,26 +10,24 @@ import (
 )
 
 func TestMakeEnhancedSummary_NewFieldsOnly(t *testing.T) {
-	es := &summarizerv1.EnhancedSummary{
+	es := summarizerv1.EnhancedSummary_builder{
 		ShortDescription: "did stuff",
-		SessionEvents: []*summarizerv1.SessionEvent{{
+		SessionEvents: []*summarizerv1.SessionEvent{summarizerv1.SessionEvent_builder{
 			Category:  summarizerv1.CommandCategory_COMMAND_CATEGORY_FILE_OPERATION,
 			RiskLevel: summarizerv1.RiskLevel_RISK_LEVEL_HIGH,
 			RiskScore: 9,
-			Details: &summarizerv1.SessionEvent_CommandEventDetails{
-				CommandEventDetails: &summarizerv1.CommandEventDetails{
-					Command: "rm -rf /",
-				},
-			},
-		}},
+			CommandEventDetails: summarizerv1.CommandEventDetails_builder{
+				Command: "rm -rf /",
+			}.Build(),
+		}.Build()},
 		NeedsFurtherReviewReasons: []summarizerv1.NeedsReviewReason{
 			summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
 		},
-		RiskScoreReasons: []*summarizerv1.RiskScoreReason{{
+		RiskScoreReasons: []*summarizerv1.RiskScoreReason{summarizerv1.RiskScoreReason_builder{
 			Reason:      "destructive command",
 			ScoreImpact: 50,
-		}},
-	}
+		}.Build()},
+	}.Build()
 
 	got := makeEnhancedSummary(es)
 	require.Len(t, got.SessionEvents, 1)
@@ -44,10 +42,10 @@ func TestMakeEnhancedSummary_NewFieldsOnly(t *testing.T) {
 
 func TestMakeEnhancedSummary_OldFieldsOnly_RollingUpgradeFallback(t *testing.T) {
 	tooLarge := summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE
-	es := &summarizerv1.EnhancedSummary{
+	es := summarizerv1.EnhancedSummary_builder{
 		ShortDescription: "did stuff",
 		//nolint:staticcheck // testing rolling-upgrade fallback path
-		Commands: []*summarizerv1.CommandAnalysis{{
+		Commands: []*summarizerv1.CommandAnalysis{summarizerv1.CommandAnalysis_builder{
 			Command:     "ls -la",
 			Success:     true,
 			Category:    summarizerv1.CommandCategory_COMMAND_CATEGORY_FILE_OPERATION,
@@ -55,10 +53,10 @@ func TestMakeEnhancedSummary_OldFieldsOnly_RollingUpgradeFallback(t *testing.T) 
 			RiskScore:   1,
 			StartOffset: durationpb.New(0),
 			EndOffset:   durationpb.New(0),
-		}},
+		}.Build()},
 		//nolint:staticcheck // testing rolling-upgrade fallback path
 		NeedsFurtherReview: &tooLarge,
-	}
+	}.Build()
 
 	got := makeEnhancedSummary(es)
 	require.Len(t, got.SessionEvents, 1, "fallback should derive sessionEvents from proto.commands")
@@ -73,18 +71,16 @@ func TestMakeEnhancedSummary_OldFieldsOnly_RollingUpgradeFallback(t *testing.T) 
 func TestMakeEnhancedSummary_BothFields_PrefersNew(t *testing.T) {
 	tooLarge := summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE
 	cmdAnalysisFailed := summarizerv1.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED
-	es := &summarizerv1.EnhancedSummary{
-		SessionEvents: []*summarizerv1.SessionEvent{{
-			Details: &summarizerv1.SessionEvent_CommandEventDetails{
-				CommandEventDetails: &summarizerv1.CommandEventDetails{Command: "from sessionEvents"},
-			},
-		}},
+	es := summarizerv1.EnhancedSummary_builder{
+		SessionEvents: []*summarizerv1.SessionEvent{summarizerv1.SessionEvent_builder{
+			CommandEventDetails: summarizerv1.CommandEventDetails_builder{Command: "from sessionEvents"}.Build(),
+		}.Build()},
 		//nolint:staticcheck // testing precedence
-		Commands:                  []*summarizerv1.CommandAnalysis{{Command: "from commands"}},
+		Commands:                  []*summarizerv1.CommandAnalysis{summarizerv1.CommandAnalysis_builder{Command: "from commands"}.Build()},
 		NeedsFurtherReviewReasons: []summarizerv1.NeedsReviewReason{cmdAnalysisFailed},
 		//nolint:staticcheck // testing precedence
 		NeedsFurtherReview: &tooLarge,
-	}
+	}.Build()
 
 	got := makeEnhancedSummary(es)
 	require.Len(t, got.SessionEvents, 1)
@@ -95,16 +91,14 @@ func TestMakeEnhancedSummary_BothFields_PrefersNew(t *testing.T) {
 }
 
 func TestMakeEnhancedSummary_DesktopEvent_Preserved(t *testing.T) {
-	es := &summarizerv1.EnhancedSummary{
-		SessionEvents: []*summarizerv1.SessionEvent{{
-			Details: &summarizerv1.SessionEvent_DesktopEventDetails{
-				DesktopEventDetails: &summarizerv1.DesktopEventDetails{
-					Applications:      []string{"chrome"},
-					ActiveWindowTitle: "Gmail",
-				},
-			},
-		}},
-	}
+	es := summarizerv1.EnhancedSummary_builder{
+		SessionEvents: []*summarizerv1.SessionEvent{summarizerv1.SessionEvent_builder{
+			DesktopEventDetails: summarizerv1.DesktopEventDetails_builder{
+				Applications:      []string{"chrome"},
+				ActiveWindowTitle: "Gmail",
+			}.Build(),
+		}.Build()},
+	}.Build()
 
 	got := makeEnhancedSummary(es)
 	require.Len(t, got.SessionEvents, 1)
@@ -120,12 +114,12 @@ func TestMakeEnhancedSummary_Nil(t *testing.T) {
 }
 
 func TestMakeSummary_PassthroughTopLevelFields(t *testing.T) {
-	in := &summarizerv1.Summary{
+	in := summarizerv1.Summary_builder{
 		SessionId:    "abc",
 		State:        summarizerv1.SummaryState_SUMMARY_STATE_SUCCESS,
 		Content:      "free-form text",
 		ErrorMessage: "",
-	}
+	}.Build()
 	got := MakeSummary(in)
 	require.Equal(t, "abc", got.SessionID)
 	require.Equal(t, "SUMMARY_STATE_SUCCESS", got.State)

@@ -79,20 +79,20 @@ func MakeInferenceModel(model *summarizerv1.InferenceModel) InferenceModel {
 
 	spec := model.GetSpec()
 	if spec != nil {
-		switch provider := spec.GetProvider().(type) {
-		case *summarizerv1.InferenceModelSpec_Openai:
+		switch spec.WhichProvider() {
+		case summarizerv1.InferenceModelSpec_Openai_case:
 			ui.OpenAI = &OpenAIModelConfig{
-				ModelID:         provider.Openai.GetOpenaiModelId(),
-				Temperature:     provider.Openai.GetTemperature(),
-				APIKeySecretRef: provider.Openai.GetApiKeySecretRef(),
-				BaseURL:         provider.Openai.GetBaseUrl(),
+				ModelID:         spec.GetOpenai().GetOpenaiModelId(),
+				Temperature:     spec.GetOpenai().GetTemperature(),
+				APIKeySecretRef: spec.GetOpenai().GetApiKeySecretRef(),
+				BaseURL:         spec.GetOpenai().GetBaseUrl(),
 			}
-		case *summarizerv1.InferenceModelSpec_Bedrock:
+		case summarizerv1.InferenceModelSpec_Bedrock_case:
 			ui.Bedrock = &BedrockModelConfig{
-				ModelID:     provider.Bedrock.GetBedrockModelId(),
-				Region:      provider.Bedrock.GetRegion(),
-				Temperature: provider.Bedrock.GetTemperature(),
-				Integration: provider.Bedrock.GetIntegration(),
+				ModelID:     spec.GetBedrock().GetBedrockModelId(),
+				Region:      spec.GetBedrock().GetRegion(),
+				Temperature: spec.GetBedrock().GetTemperature(),
+				Integration: spec.GetBedrock().GetIntegration(),
 			}
 		}
 	}
@@ -107,36 +107,32 @@ func MakeInferenceModels(models []*summarizerv1.InferenceModel) []InferenceModel
 
 // ToProto converts a UI InferenceModel to protobuf representation.
 func (m *InferenceModel) ToProto() *summarizerv1.InferenceModel {
-	model := &summarizerv1.InferenceModel{
+	model := summarizerv1.InferenceModel_builder{
 		Kind:    types.KindInferenceModel,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        m.Name,
 			Description: m.Description,
 			Labels:      m.Labels,
-		},
+		}.Build(),
 		Spec: &summarizerv1.InferenceModelSpec{},
-	}
+	}.Build()
 
 	switch {
 	case m.OpenAI != nil:
-		model.Spec.Provider = &summarizerv1.InferenceModelSpec_Openai{
-			Openai: &summarizerv1.OpenAIProvider{
-				OpenaiModelId:   m.OpenAI.ModelID,
-				Temperature:     m.OpenAI.Temperature,
-				ApiKeySecretRef: m.OpenAI.APIKeySecretRef,
-				BaseUrl:         m.OpenAI.BaseURL,
-			},
-		}
+		model.GetSpec().SetOpenai(summarizerv1.OpenAIProvider_builder{
+			OpenaiModelId:   m.OpenAI.ModelID,
+			Temperature:     m.OpenAI.Temperature,
+			ApiKeySecretRef: m.OpenAI.APIKeySecretRef,
+			BaseUrl:         m.OpenAI.BaseURL,
+		}.Build())
 	case m.Bedrock != nil:
-		model.Spec.Provider = &summarizerv1.InferenceModelSpec_Bedrock{
-			Bedrock: &summarizerv1.BedrockProvider{
-				BedrockModelId: m.Bedrock.ModelID,
-				Region:         m.Bedrock.Region,
-				Temperature:    m.Bedrock.Temperature,
-				Integration:    m.Bedrock.Integration,
-			},
-		}
+		model.GetSpec().SetBedrock(summarizerv1.BedrockProvider_builder{
+			BedrockModelId: m.Bedrock.ModelID,
+			Region:         m.Bedrock.Region,
+			Temperature:    m.Bedrock.Temperature,
+			Integration:    m.Bedrock.Integration,
+		}.Build())
 	}
 
 	return model
@@ -160,18 +156,18 @@ func MakeInferenceSecrets(secrets []*summarizerv1.InferenceSecret) []InferenceSe
 
 // ToProto converts a UI InferenceSecret to protobuf representation.
 func (s *InferenceSecret) ToProto() *summarizerv1.InferenceSecret {
-	return &summarizerv1.InferenceSecret{
+	return summarizerv1.InferenceSecret_builder{
 		Kind:    types.KindInferenceSecret,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        s.Name,
 			Description: s.Description,
 			Labels:      s.Labels,
-		},
-		Spec: &summarizerv1.InferenceSecretSpec{
+		}.Build(),
+		Spec: summarizerv1.InferenceSecretSpec_builder{
 			Value: s.Value,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // MakeInferencePolicy converts a protobuf InferencePolicy to UI representation.
@@ -193,20 +189,20 @@ func MakeInferencePolicies(policies []*summarizerv1.InferencePolicy) []Inference
 
 // ToProto converts a UI InferencePolicy to protobuf representation.
 func (p *InferencePolicy) ToProto() *summarizerv1.InferencePolicy {
-	return &summarizerv1.InferencePolicy{
+	return summarizerv1.InferencePolicy_builder{
 		Kind:    types.KindInferencePolicy,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        p.Name,
 			Description: p.Description,
 			Labels:      p.Labels,
-		},
-		Spec: &summarizerv1.InferencePolicySpec{
+		}.Build(),
+		Spec: summarizerv1.InferencePolicySpec_builder{
 			Model:  p.Model,
 			Kinds:  p.Kinds,
 			Filter: p.Filter,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // ListInferenceModelsResponse is the response for listing inference models.
@@ -253,35 +249,31 @@ type TestInferenceModelResponse struct {
 
 // ToProto converts a UI TestInferenceModelRequest to protobuf representation.
 func (r *TestInferenceModelRequest) ToProto() *summarizerv1.TestInferenceModelRequest {
-	req := &summarizerv1.TestInferenceModelRequest{
+	req := summarizerv1.TestInferenceModelRequest_builder{
 		Model: &summarizerv1.InferenceModelSpec{},
-	}
+	}.Build()
 
 	switch {
 	case r.OpenAI != nil:
-		req.Model.Provider = &summarizerv1.InferenceModelSpec_Openai{
-			Openai: &summarizerv1.OpenAIProvider{
-				OpenaiModelId:   r.OpenAI.ModelID,
-				Temperature:     r.OpenAI.Temperature,
-				ApiKeySecretRef: r.OpenAI.APIKeySecretRef,
-				BaseUrl:         r.OpenAI.BaseURL,
-			},
-		}
+		req.GetModel().SetOpenai(summarizerv1.OpenAIProvider_builder{
+			OpenaiModelId:   r.OpenAI.ModelID,
+			Temperature:     r.OpenAI.Temperature,
+			ApiKeySecretRef: r.OpenAI.APIKeySecretRef,
+			BaseUrl:         r.OpenAI.BaseURL,
+		}.Build())
 	case r.Bedrock != nil:
-		req.Model.Provider = &summarizerv1.InferenceModelSpec_Bedrock{
-			Bedrock: &summarizerv1.BedrockProvider{
-				BedrockModelId: r.Bedrock.ModelID,
-				Region:         r.Bedrock.Region,
-				Temperature:    r.Bedrock.Temperature,
-				Integration:    r.Bedrock.Integration,
-			},
-		}
+		req.GetModel().SetBedrock(summarizerv1.BedrockProvider_builder{
+			BedrockModelId: r.Bedrock.ModelID,
+			Region:         r.Bedrock.Region,
+			Temperature:    r.Bedrock.Temperature,
+			Integration:    r.Bedrock.Integration,
+		}.Build())
 	}
 
 	if r.Secret != "" {
-		req.Secret = &summarizerv1.InferenceSecretSpec{
+		req.SetSecret(summarizerv1.InferenceSecretSpec_builder{
 			Value: r.Secret,
-		}
+		}.Build())
 	}
 
 	return req

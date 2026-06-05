@@ -493,7 +493,7 @@ func pushCA(ctx context.Context, hostCA types.CertAuthority, client accessgraphv
 	if len(caPEMs) < 1 {
 		return trace.BadParameter("no TLS certs in host CA")
 	}
-	if _, err := client.ReplaceCAs(ctx, &accessgraphv1.ReplaceCAsRequest{HostCaPem: caPEMs}); err != nil {
+	if _, err := client.ReplaceCAs(ctx, accessgraphv1.ReplaceCAsRequest_builder{HostCaPem: caPEMs}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil

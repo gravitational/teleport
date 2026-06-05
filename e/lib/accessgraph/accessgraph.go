@@ -279,9 +279,9 @@ type eventSender interface {
 }
 
 func processTAGMessage(ctx context.Context, obj *accessgraphv1.EventsStreamV2Response, authServer eventSender, log *slog.Logger) {
-	switch o := obj.GetAction().(type) {
-	case *accessgraphv1.EventsStreamV2Response_Event:
-		event := convertEvent(o.Event)
+	switch obj.WhichAction() {
+	case accessgraphv1.EventsStreamV2Response_Event_case:
+		event := convertEvent(obj.GetEvent())
 		if event == nil {
 			log.WarnContext(ctx, "Received unknown event type from access graph service", "event", obj)
 			return
@@ -290,8 +290,8 @@ func processTAGMessage(ctx context.Context, obj *accessgraphv1.EventsStreamV2Res
 		if err := authServer.EmitAuditEvent(ctx, event); err != nil {
 			log.ErrorContext(ctx, "Failed to emit Crown Jewel update event")
 		}
-	case *accessgraphv1.EventsStreamV2Response_UsageEvent:
-		event := convertUsageEvent(o.UsageEvent)
+	case accessgraphv1.EventsStreamV2Response_UsageEvent_case:
+		event := convertUsageEvent(obj.GetUsageEvent())
 		if event == nil {
 			log.WarnContext(ctx, "Received unknown usage event type from access graph service", "event", obj)
 			return
@@ -306,18 +306,18 @@ func processTAGMessage(ctx context.Context, obj *accessgraphv1.EventsStreamV2Res
 func convertEvent(event *accessgraphv1.AuditEvent) apievents.AuditEvent {
 	var tEvent apievents.AuditEvent
 
-	switch e := event.Event.(type) {
-	case *accessgraphv1.AuditEvent_AccessPathChanged:
-		data := e.AccessPathChanged
+	switch event.WhichEvent() {
+	case accessgraphv1.AuditEvent_AccessPathChanged_case:
+		data := event.GetAccessPathChanged()
 		tEvent = &apievents.AccessPathChanged{
 			Metadata: apievents.Metadata{
 				Type: events.AccessGraphAccessPathChangedEvent,
 				Code: events.AccessGraphAccessPathChangedCode,
 			},
-			ChangeID:               data.ChangeId,
-			AffectedResourceName:   data.AffectedResourceName,
-			AffectedResourceSource: data.AffectedResourceSource,
-			AffectedResourceType:   data.AffectedResourceKind,
+			ChangeID:               data.GetChangeId(),
+			AffectedResourceName:   data.GetAffectedResourceName(),
+			AffectedResourceSource: data.GetAffectedResourceSource(),
+			AffectedResourceType:   data.GetAffectedResourceKind(),
 		}
 	default:
 		return nil
@@ -327,17 +327,17 @@ func convertEvent(event *accessgraphv1.AuditEvent) apievents.AuditEvent {
 }
 
 func convertUsageEvent(event *accessgraphv1.UsageEvent) usagereporter.Anonymizable {
-	switch e := event.GetEvent().(type) {
-	case *accessgraphv1.UsageEvent_GraphSize:
-		if e.GraphSize == nil {
+	switch event.WhichEvent() {
+	case accessgraphv1.UsageEvent_GraphSize_case:
+		if event.GetGraphSize() == nil {
 			return nil
 		}
-		return (*usagereporter.IdentitySecurityGraphSizeEvent)(e.GraphSize)
-	case *accessgraphv1.UsageEvent_AuditLogsIngested:
-		if e.AuditLogsIngested == nil {
+		return (*usagereporter.IdentitySecurityGraphSizeEvent)(event.GetGraphSize())
+	case accessgraphv1.UsageEvent_AuditLogsIngested_case:
+		if event.GetAuditLogsIngested() == nil {
 			return nil
 		}
-		return (*usagereporter.IdentitySecurityAuditLogsIngestedEvent)(e.AuditLogsIngested)
+		return (*usagereporter.IdentitySecurityAuditLogsIngestedEvent)(event.GetAuditLogsIngested())
 	}
 	return nil
 }
@@ -498,11 +498,9 @@ func sendTeleportResources(ctx context.Context, stream accessgraphv1.AccessGraph
 
 	// Send end event to indicate that initialization is done.
 	err := stream.Send(
-		&accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_Sync{
-				Sync: &accessgraphv1.SyncOperation{},
-			},
-		},
+		accessgraphv1.EventsStreamV2Request_builder{
+			Sync: &accessgraphv1.SyncOperation{},
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -533,11 +531,11 @@ func sendUsers(ctx context.Context, authServer interface {
 ) error {
 	return sendPaginatedResources(ctx, stream,
 		func(ctx context.Context, size int, token string) ([]*types.UserV2, string, error) {
-			rsp, err := authServer.ListUsers(ctx, &userspb.ListUsersRequest{
+			rsp, err := authServer.ListUsers(ctx, userspb.ListUsersRequest_builder{
 				PageSize:    int32(size),
 				PageToken:   token,
 				WithSecrets: true,
-			})
+			}.Build())
 			if err != nil {
 				return nil, "", err
 			}
@@ -623,11 +621,9 @@ func sendAccessListMembers(ctx context.Context, authServer interface {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := stream.Send(&accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_AccessListsMembers{
-				AccessListsMembers: &accessgraphv1.AccessListsMembers{Members: []*accesslistv1.Member{accesslistv1conv.ToMemberProto(m)}},
-			},
-		}); err != nil {
+		if err := stream.Send(accessgraphv1.EventsStreamV2Request_builder{
+			AccessListsMembers: accessgraphv1.AccessListsMembers_builder{Members: []*accesslistv1.Member{accesslistv1conv.ToMemberProto(m)}}.Build(),
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -645,11 +641,9 @@ func sendPaginatedResources[T any](
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		if err := stream.Send(&accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-				Upsert: &accessgraphv1.ResourceList{Resources: []*accessgraphv1.ResourceEntry{toEntry(item)}},
-			},
-		}); err != nil {
+		if err := stream.Send(accessgraphv1.EventsStreamV2Request_builder{
+			Upsert: accessgraphv1.ResourceList_builder{Resources: []*accessgraphv1.ResourceEntry{toEntry(item)}}.Build(),
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -675,7 +669,7 @@ func sendDevices(ctx context.Context, authServer services.DevicesGetter, stream 
 			return authServer.ListDevices(ctx, size, token, devicepb.DeviceView_DEVICE_VIEW_RESOURCE)
 		},
 		func(d *devicepb.Device) *accessgraphv1.ResourceEntry {
-			d.Credential = nil
+			d.ClearCredential()
 			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_Device{Device: d}}
 		},
 	)
@@ -808,15 +802,13 @@ func (t *tagEventWatcher) markReady() error {
 
 func (t *tagEventWatcher) sendDelete(event types.Event) error {
 	deleteEventStreamRequest := func(header *types.ResourceHeader) *accessgraphv1.EventsStreamV2Request {
-		return &accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_Delete{
-				Delete: &accessgraphv1.ResourceHeaderList{
-					Resources: []*types.ResourceHeader{
-						header,
-					},
+		return accessgraphv1.EventsStreamV2Request_builder{
+			Delete: accessgraphv1.ResourceHeaderList_builder{
+				Resources: []*types.ResourceHeader{
+					header,
 				},
-			},
-		}
+			}.Build(),
+		}.Build()
 	}
 
 	deleteEventStreamRequestResource153 := func(resource types.Resource153) *accessgraphv1.EventsStreamV2Request {
@@ -909,19 +901,17 @@ func (t *tagEventWatcher) sendDelete(event types.Event) error {
 		if resource.Kind == types.KindAccessListMember {
 			// Access list member uses a different object format
 			// when it is sent to the access graph service.
-			req = &accessgraphv1.EventsStreamV2Request{
-				Operation: &accessgraphv1.EventsStreamV2Request_ExcludeAccessListMembers{
-					ExcludeAccessListMembers: &accessgraphv1.ExcludeAccessListsMembers{
-						Members: []*accessgraphv1.ExcludeAccessListMember{
-							{
-								// access list name comes from the resource header description
-								AccessList: resource.GetMetadata().Description,
-								Username:   resource.GetName(),
-							},
-						},
+			req = accessgraphv1.EventsStreamV2Request_builder{
+				ExcludeAccessListMembers: accessgraphv1.ExcludeAccessListsMembers_builder{
+					Members: []*accessgraphv1.ExcludeAccessListMember{
+						accessgraphv1.ExcludeAccessListMember_builder{
+							// access list name comes from the resource header description
+							AccessList: resource.GetMetadata().Description,
+							Username:   resource.GetName(),
+						}.Build(),
 					},
-				},
-			}
+				}.Build(),
+			}.Build()
 			break
 		}
 		req = deleteEventStreamRequest(resource)
@@ -938,25 +928,23 @@ func (t *tagEventWatcher) sendDelete(event types.Event) error {
 		)
 	case *accesslist.AccessListMember:
 		// Access list member uses a different header format.
-		req = &accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_ExcludeAccessListMembers{
-				ExcludeAccessListMembers: &accessgraphv1.ExcludeAccessListsMembers{
-					Members: []*accessgraphv1.ExcludeAccessListMember{
-						{
-							AccessList: resource.Spec.AccessList,
-							Username:   resource.Spec.Name,
-						},
-					},
+		req = accessgraphv1.EventsStreamV2Request_builder{
+			ExcludeAccessListMembers: accessgraphv1.ExcludeAccessListsMembers_builder{
+				Members: []*accessgraphv1.ExcludeAccessListMember{
+					accessgraphv1.ExcludeAccessListMember_builder{
+						AccessList: resource.Spec.AccessList,
+						Username:   resource.Spec.Name,
+					}.Build(),
 				},
-			},
-		}
+			}.Build(),
+		}.Build()
 	case types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]:
 		cj := resource.UnwrapT()
 		req = deleteEventStreamRequest(
 			&types.ResourceHeader{
-				Kind:     cj.Kind,
-				Version:  cj.Version,
-				Metadata: fromProtoMetadataToTypes(cj.Metadata),
+				Kind:     cj.GetKind(),
+				Version:  cj.GetVersion(),
+				Metadata: fromProtoMetadataToTypes(cj.GetMetadata()),
 			},
 		)
 	case types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]:
@@ -1015,13 +1003,11 @@ func timePtr(asTime time.Time) *time.Time {
 
 func (t *tagEventWatcher) sendPut(event types.Event) (err error) {
 	putResourceEventStreamRequest := func(resources ...*accessgraphv1.ResourceEntry) *accessgraphv1.EventsStreamV2Request {
-		return &accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-				Upsert: &accessgraphv1.ResourceList{
-					Resources: resources,
-				},
-			},
-		}
+		return accessgraphv1.EventsStreamV2Request_builder{
+			Upsert: accessgraphv1.ResourceList_builder{
+				Resources: resources,
+			}.Build(),
+		}.Build()
 	}
 
 	var req *accessgraphv1.EventsStreamV2Request
@@ -1100,20 +1086,18 @@ func (t *tagEventWatcher) sendPut(event types.Event) (err error) {
 			},
 		)
 	case *accesslist.AccessListMember:
-		req = &accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_AccessListsMembers{
-				AccessListsMembers: &accessgraphv1.AccessListsMembers{
-					Members: []*accesslistv1.Member{accesslistv1conv.ToMemberProto(resource)},
-				},
-			},
-		}
+		req = accessgraphv1.EventsStreamV2Request_builder{
+			AccessListsMembers: accessgraphv1.AccessListsMembers_builder{
+				Members: []*accesslistv1.Member{accesslistv1conv.ToMemberProto(resource)},
+			}.Build(),
+		}.Build()
 	case *types.DeviceV1:
 		device, err := types.DeviceFromResource(resource)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		// reset device credentials before sending to access graph
-		device.Credential = nil
+		device.ClearCredential()
 		req = putResourceEventStreamRequest(
 			&accessgraphv1.ResourceEntry{
 				Resource: &accessgraphv1.ResourceEntry_Device{
@@ -1202,11 +1186,9 @@ func pushResourcesViaUnifiedResourcesCache(ctx context.Context, authServer *auth
 			return trace.Wrap(err)
 		}
 
-		if err := stream.Send(&accessgraphv1.EventsStreamV2Request{
-			Operation: &accessgraphv1.EventsStreamV2Request_Upsert{
-				Upsert: &accessgraphv1.ResourceList{Resources: []*accessgraphv1.ResourceEntry{entry}},
-			},
-		}); err != nil {
+		if err := stream.Send(accessgraphv1.EventsStreamV2Request_builder{
+			Upsert: accessgraphv1.ResourceList_builder{Resources: []*accessgraphv1.ResourceEntry{entry}}.Build(),
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	}

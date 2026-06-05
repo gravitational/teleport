@@ -39,7 +39,7 @@ func TestCondenseForEmbedding(t *testing.T) {
 	}{
 		{
 			name:  "happy path",
-			input: &summarizerv1pb.Summary{SessionId: "test-session-123"},
+			input: summarizerv1pb.Summary_builder{SessionId: "test-session-123"}.Build(),
 			assert: func(t *testing.T, result string, err error) {
 				require.NoError(t, err)
 				assert.Equal(t, "A condensed description of the session for embedding generation.", result)
@@ -47,7 +47,7 @@ func TestCondenseForEmbedding(t *testing.T) {
 		},
 		{
 			name:  "API error is propagated",
-			input: &summarizerv1pb.Summary{SessionId: "trigger-api-error"},
+			input: summarizerv1pb.Summary_builder{SessionId: "trigger-api-error"}.Build(),
 			assert: func(t *testing.T, result string, err error) {
 				assert.Error(t, err)
 				assert.Empty(t, result)
@@ -55,7 +55,7 @@ func TestCondenseForEmbedding(t *testing.T) {
 		},
 		{
 			name:  "bad JSON response returns BadResponseError",
-			input: &summarizerv1pb.Summary{SessionId: "trigger-bad-json"},
+			input: summarizerv1pb.Summary_builder{SessionId: "trigger-bad-json"}.Build(),
 			assert: func(t *testing.T, result string, err error) {
 				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
 					Message: "failed to unmarshal model response: invalid character 'o' in literal null (expecting 'u')",

@@ -194,36 +194,32 @@ func newTestResources(t *testing.T, suffix string) (
 	*summarizerv1pb.InferenceModel,
 	*summarizerv1pb.InferencePolicy,
 ) {
-	secret := summarizer.NewInferenceSecret("secret"+suffix, &summarizerv1pb.InferenceSecretSpec{
+	secret := summarizer.NewInferenceSecret("secret"+suffix, summarizerv1pb.InferenceSecretSpec_builder{
 		Value: "my-secret-value",
-	})
+	}.Build())
 
-	model := summarizer.NewInferenceModel("model"+suffix, &summarizerv1pb.InferenceModelSpec{
-		Provider: &summarizerv1pb.InferenceModelSpec_Openai{
-			Openai: &summarizerv1pb.OpenAIProvider{
-				OpenaiModelId:   "gpt-4o",
-				ApiKeySecretRef: "secret" + suffix,
-			},
-		},
-	})
+	model := summarizer.NewInferenceModel("model"+suffix, summarizerv1pb.InferenceModelSpec_builder{
+		Openai: summarizerv1pb.OpenAIProvider_builder{
+			OpenaiModelId:   "gpt-4o",
+			ApiKeySecretRef: "secret" + suffix,
+		}.Build(),
+	}.Build())
 
-	policy := summarizer.NewInferencePolicy("policy"+suffix, &summarizerv1pb.InferencePolicySpec{
+	policy := summarizer.NewInferencePolicy("policy"+suffix, summarizerv1pb.InferencePolicySpec_builder{
 		Kinds: []string{string(types.SSHSessionKind)},
 		Model: "model" + suffix,
-	})
+	}.Build())
 
 	return secret, model, policy
 }
 
 func newBedrockModel(name string) *summarizerv1pb.InferenceModel {
-	return summarizer.NewInferenceModel(name, &summarizerv1pb.InferenceModelSpec{
-		Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
-			Bedrock: &summarizerv1pb.BedrockProvider{
-				Region:         "us-west-2",
-				BedrockModelId: "anthropic.claude-3-5-sonnet-20240620-v1:0",
-			},
-		},
-	})
+	return summarizer.NewInferenceModel(name, summarizerv1pb.InferenceModelSpec_builder{
+		Bedrock: summarizerv1pb.BedrockProvider_builder{
+			Region:         "us-west-2",
+			BedrockModelId: "anthropic.claude-3-5-sonnet-20240620-v1:0",
+		}.Build(),
+	}.Build())
 }
 
 // assertResourceEquals asserts that two resources are equal, ignoring the
@@ -269,11 +265,11 @@ func TestService_CreateAndGet(t *testing.T) {
 	secret, expectedModel, expectedPolicy := newTestResources(t, "1")
 
 	// Test creating resources.
-	createdSecret, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	createdSecret, err := sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, secret, createdSecret.Secret)
+	assertResourceEquals(t, secret, createdSecret.GetSecret())
 
 	// The secret value should have been written to the backend (we later test
 	// retrieving through gRPC, but there we don't expect the secret value to be
@@ -282,64 +278,64 @@ func TestService_CreateAndGet(t *testing.T) {
 	require.NoError(t, err)
 	assertResourceEquals(t, secret, backendSecret)
 
-	createdModel, err := sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+	createdModel, err := sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 		Model: expectedModel,
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, expectedModel, createdModel.Model)
+	assertResourceEquals(t, expectedModel, createdModel.GetModel())
 
-	createdPolicy, err := sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+	createdPolicy, err := sclt.CreateInferencePolicy(ctx, summarizerv1pb.CreateInferencePolicyRequest_builder{
 		Policy: expectedPolicy,
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, expectedPolicy, createdPolicy.Policy)
+	assertResourceEquals(t, expectedPolicy, createdPolicy.GetPolicy())
 
 	// Test retrieving resources.
-	gotSecret, err := sclt.GetInferenceSecret(ctx, &summarizerv1pb.GetInferenceSecretRequest{
+	gotSecret, err := sclt.GetInferenceSecret(ctx, summarizerv1pb.GetInferenceSecretRequest_builder{
 		Name: "secret1",
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// The returned secret should not contain the spec, as it is sensitive
 	// information.
 	expectedSecret := proto.CloneOf(secret)
-	expectedSecret.Spec = nil
-	assertResourceEquals(t, expectedSecret, gotSecret.Secret)
+	expectedSecret.ClearSpec()
+	assertResourceEquals(t, expectedSecret, gotSecret.GetSecret())
 
-	gotModel, err := sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+	gotModel, err := sclt.GetInferenceModel(ctx, summarizerv1pb.GetInferenceModelRequest_builder{
 		Name: "model1",
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, expectedModel, gotModel.Model)
+	assertResourceEquals(t, expectedModel, gotModel.GetModel())
 
 	// Test a valid Bedrock model. This one should be accepted.
 	validBedrockModel := newBedrockModel("valid-bedrock-model")
-	createdModel, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+	createdModel, err = sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 		Model: validBedrockModel,
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, validBedrockModel, createdModel.Model)
+	assertResourceEquals(t, validBedrockModel, createdModel.GetModel())
 
-	gotModel, err = sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+	gotModel, err = sclt.GetInferenceModel(ctx, summarizerv1pb.GetInferenceModelRequest_builder{
 		Name: "valid-bedrock-model",
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, validBedrockModel, gotModel.Model)
+	assertResourceEquals(t, validBedrockModel, gotModel.GetModel())
 
 	// Test a Bedrock model that has a reserved name. This one should be
 	// rejected.
 	invalidBedrockModel := newBedrockModel(summarizer.CloudDefaultInferenceModelName)
-	createdModel, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+	createdModel, err = sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 		Model: invalidBedrockModel,
-	})
+	}.Build())
 	assert.ErrorIs(t, err, &trace.BadParameterError{
 		Message: `metadata.name "teleport-cloud-default" is reserved`,
 	})
 	assert.Nil(t, createdModel)
 
-	gotModel, err = sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+	gotModel, err = sclt.GetInferenceModel(ctx, summarizerv1pb.GetInferenceModelRequest_builder{
 		Name: summarizer.CloudDefaultInferenceModelName,
-	})
+	}.Build())
 	assert.ErrorAs(t, err, new(*trace.NotFoundError))
 	assert.Nil(t, gotModel)
 }
@@ -359,19 +355,19 @@ func TestService_Update(t *testing.T) {
 	cloudDefaultModel := newBedrockModel("teleport-cloud-default")
 
 	// Create the resources.
-	createdSecret, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	createdSecret, err := sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	createdModel, err := sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+	createdModel, err := sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 		Model: expectedModel,
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	createdPolicy, err := sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+	createdPolicy, err := sclt.CreateInferencePolicy(ctx, summarizerv1pb.CreateInferencePolicyRequest_builder{
 		Policy: expectedPolicy,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the cloud default model directly in the backend, as it can't be
@@ -380,70 +376,70 @@ func TestService_Update(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test updating the secret.
-	createdSecret.Secret.Spec.Value = "updated-secret-value"
-	updatedSecret, err := sclt.UpdateInferenceSecret(ctx, &summarizerv1pb.UpdateInferenceSecretRequest{
-		Secret: proto.CloneOf(createdSecret.Secret),
-	})
+	createdSecret.GetSecret().GetSpec().SetValue("updated-secret-value")
+	updatedSecret, err := sclt.UpdateInferenceSecret(ctx, summarizerv1pb.UpdateInferenceSecretRequest_builder{
+		Secret: proto.CloneOf(createdSecret.GetSecret()),
+	}.Build())
 	require.NoError(t, err)
 
 	// The secret should be updated in the backend.
-	expectedSecret := proto.CloneOf(createdSecret.Secret)
+	expectedSecret := proto.CloneOf(createdSecret.GetSecret())
 	backendSecret, err := srv.AuthServer.AuthServer.GetInferenceSecret(ctx, "secret1")
 	require.NoError(t, err)
 	assertResourceEquals(t, expectedSecret, backendSecret)
 
 	// The secret returned from the RPC should not contain the spec, as it is
 	// sensitive information.
-	expectedSecret.Spec = nil
-	assertResourceEquals(t, expectedSecret, updatedSecret.Secret)
+	expectedSecret.ClearSpec()
+	assertResourceEquals(t, expectedSecret, updatedSecret.GetSecret())
 
-	gotSecret, err := sclt.GetInferenceSecret(ctx, &summarizerv1pb.GetInferenceSecretRequest{
+	gotSecret, err := sclt.GetInferenceSecret(ctx, summarizerv1pb.GetInferenceSecretRequest_builder{
 		Name: "secret1",
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, expectedSecret, gotSecret.Secret)
+	assertResourceEquals(t, expectedSecret, gotSecret.GetSecret())
 
 	// Test updating the model.
-	createdModel.Model.Spec.GetOpenai().Temperature = 1.5
-	updatedModel, err := sclt.UpdateInferenceModel(ctx, &summarizerv1pb.UpdateInferenceModelRequest{
-		Model: proto.CloneOf(createdModel.Model),
-	})
+	createdModel.GetModel().GetSpec().GetOpenai().SetTemperature(1.5)
+	updatedModel, err := sclt.UpdateInferenceModel(ctx, summarizerv1pb.UpdateInferenceModelRequest_builder{
+		Model: proto.CloneOf(createdModel.GetModel()),
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, createdModel.Model, updatedModel.Model)
+	assertResourceEquals(t, createdModel.GetModel(), updatedModel.GetModel())
 
-	gotModel, err := sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+	gotModel, err := sclt.GetInferenceModel(ctx, summarizerv1pb.GetInferenceModelRequest_builder{
 		Name: "model1",
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, createdModel.Model, gotModel.Model)
+	assertResourceEquals(t, createdModel.GetModel(), gotModel.GetModel())
 
 	// Test attempting to update the cloud default model (should fail).
 	modifiedCloudDefaultModel := proto.CloneOf(cloudDefaultModel)
-	modifiedCloudDefaultModel.Spec.GetBedrock().Temperature = 0.2
-	_, err = sclt.UpdateInferenceModel(ctx, &summarizerv1pb.UpdateInferenceModelRequest{
+	modifiedCloudDefaultModel.GetSpec().GetBedrock().SetTemperature(0.2)
+	_, err = sclt.UpdateInferenceModel(ctx, summarizerv1pb.UpdateInferenceModelRequest_builder{
 		Model: modifiedCloudDefaultModel,
-	})
+	}.Build())
 	assert.ErrorAs(t, err, new(*trace.BadParameterError))
 
-	gotModel, err = sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+	gotModel, err = sclt.GetInferenceModel(ctx, summarizerv1pb.GetInferenceModelRequest_builder{
 		Name: "teleport-cloud-default",
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, cloudDefaultModel, gotModel.Model)
+	assertResourceEquals(t, cloudDefaultModel, gotModel.GetModel())
 
 	// Test updating the policy.
-	createdPolicy.Policy.Spec.Filter = `equals(resource.metadata.labels["env"], "dev")`
-	updatedPolicy, err := sclt.UpdateInferencePolicy(ctx, &summarizerv1pb.UpdateInferencePolicyRequest{
-		Policy: proto.CloneOf(createdPolicy.Policy),
-	})
+	createdPolicy.GetPolicy().GetSpec().SetFilter(`equals(resource.metadata.labels["env"], "dev")`)
+	updatedPolicy, err := sclt.UpdateInferencePolicy(ctx, summarizerv1pb.UpdateInferencePolicyRequest_builder{
+		Policy: proto.CloneOf(createdPolicy.GetPolicy()),
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, createdPolicy.Policy, updatedPolicy.Policy)
+	assertResourceEquals(t, createdPolicy.GetPolicy(), updatedPolicy.GetPolicy())
 
-	gotPolicy, err := sclt.GetInferencePolicy(ctx, &summarizerv1pb.GetInferencePolicyRequest{
+	gotPolicy, err := sclt.GetInferencePolicy(ctx, summarizerv1pb.GetInferencePolicyRequest_builder{
 		Name: "policy1",
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, createdPolicy.Policy, gotPolicy.Policy)
+	assertResourceEquals(t, createdPolicy.GetPolicy(), gotPolicy.GetPolicy())
 }
 
 func TestService_Upsert(t *testing.T) {
@@ -466,89 +462,89 @@ func TestService_Upsert(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test creating by upserting resources.
-	createdSecret, err := sclt.UpsertInferenceSecret(ctx, &summarizerv1pb.UpsertInferenceSecretRequest{
+	createdSecret, err := sclt.UpsertInferenceSecret(ctx, summarizerv1pb.UpsertInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// The secret returned from the RPC should not contain the spec, as it is
 	// sensitive information.
 	expectedSecret := proto.CloneOf(secret)
-	expectedSecret.Spec = nil
-	assertResourceEquals(t, expectedSecret, createdSecret.Secret)
+	expectedSecret.ClearSpec()
+	assertResourceEquals(t, expectedSecret, createdSecret.GetSecret())
 
-	createdModel, err := sclt.UpsertInferenceModel(ctx, &summarizerv1pb.UpsertInferenceModelRequest{
+	createdModel, err := sclt.UpsertInferenceModel(ctx, summarizerv1pb.UpsertInferenceModelRequest_builder{
 		Model: expectedModel,
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	createdPolicy, err := sclt.UpsertInferencePolicy(ctx, &summarizerv1pb.UpsertInferencePolicyRequest{
+	createdPolicy, err := sclt.UpsertInferencePolicy(ctx, summarizerv1pb.UpsertInferencePolicyRequest_builder{
 		Policy: expectedPolicy,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Test updating the secret.
-	secret.Spec.Value = "updated-secret-value"
-	updatedSecret, err := sclt.UpsertInferenceSecret(ctx, &summarizerv1pb.UpsertInferenceSecretRequest{
+	secret.GetSpec().SetValue("updated-secret-value")
+	updatedSecret, err := sclt.UpsertInferenceSecret(ctx, summarizerv1pb.UpsertInferenceSecretRequest_builder{
 		Secret: proto.CloneOf(secret),
-	})
+	}.Build())
 	require.NoError(t, err)
 	expectedSecret = proto.CloneOf(secret)
-	expectedSecret.Spec = nil
-	assertResourceEquals(t, expectedSecret, updatedSecret.Secret)
+	expectedSecret.ClearSpec()
+	assertResourceEquals(t, expectedSecret, updatedSecret.GetSecret())
 
 	// The secret should be updated in the backend.
 	backendSecret, err := srv.AuthServer.AuthServer.GetInferenceSecret(ctx, "secret1")
 	require.NoError(t, err)
 	assertResourceEquals(t, secret, backendSecret)
 
-	gotSecret, err := sclt.GetInferenceSecret(ctx, &summarizerv1pb.GetInferenceSecretRequest{
+	gotSecret, err := sclt.GetInferenceSecret(ctx, summarizerv1pb.GetInferenceSecretRequest_builder{
 		Name: "secret1",
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, expectedSecret, gotSecret.Secret)
+	assertResourceEquals(t, expectedSecret, gotSecret.GetSecret())
 
 	// Test updating the model.
-	createdModel.Model.Spec.GetOpenai().Temperature = 1.5
-	updatedModel, err := sclt.UpsertInferenceModel(ctx, &summarizerv1pb.UpsertInferenceModelRequest{
-		Model: proto.CloneOf(createdModel.Model),
-	})
+	createdModel.GetModel().GetSpec().GetOpenai().SetTemperature(1.5)
+	updatedModel, err := sclt.UpsertInferenceModel(ctx, summarizerv1pb.UpsertInferenceModelRequest_builder{
+		Model: proto.CloneOf(createdModel.GetModel()),
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, createdModel.Model, updatedModel.Model)
+	assertResourceEquals(t, createdModel.GetModel(), updatedModel.GetModel())
 
-	gotModel, err := sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+	gotModel, err := sclt.GetInferenceModel(ctx, summarizerv1pb.GetInferenceModelRequest_builder{
 		Name: "model1",
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, createdModel.Model, gotModel.Model)
+	assertResourceEquals(t, createdModel.GetModel(), gotModel.GetModel())
 
 	// Test attempting to update the cloud default model (should fail).
 	modifiedCloudDefaultModel := proto.CloneOf(cloudDefaultModel)
-	modifiedCloudDefaultModel.Spec.GetBedrock().Temperature = 0.2
-	_, err = sclt.UpsertInferenceModel(ctx, &summarizerv1pb.UpsertInferenceModelRequest{
+	modifiedCloudDefaultModel.GetSpec().GetBedrock().SetTemperature(0.2)
+	_, err = sclt.UpsertInferenceModel(ctx, summarizerv1pb.UpsertInferenceModelRequest_builder{
 		Model: modifiedCloudDefaultModel,
-	})
+	}.Build())
 	assert.ErrorAs(t, err, new(*trace.BadParameterError))
 
-	gotModel, err = sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+	gotModel, err = sclt.GetInferenceModel(ctx, summarizerv1pb.GetInferenceModelRequest_builder{
 		Name: "teleport-cloud-default",
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, cloudDefaultModel, gotModel.Model)
+	assertResourceEquals(t, cloudDefaultModel, gotModel.GetModel())
 
 	// Test updating the policy.
-	createdPolicy.Policy.Spec.Filter = `equals(resource.metadata.labels["env"], "dev")`
-	updatedPolicy, err := sclt.UpsertInferencePolicy(ctx, &summarizerv1pb.UpsertInferencePolicyRequest{
-		Policy: proto.CloneOf(createdPolicy.Policy),
-	})
+	createdPolicy.GetPolicy().GetSpec().SetFilter(`equals(resource.metadata.labels["env"], "dev")`)
+	updatedPolicy, err := sclt.UpsertInferencePolicy(ctx, summarizerv1pb.UpsertInferencePolicyRequest_builder{
+		Policy: proto.CloneOf(createdPolicy.GetPolicy()),
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, createdPolicy.Policy, updatedPolicy.Policy)
+	assertResourceEquals(t, createdPolicy.GetPolicy(), updatedPolicy.GetPolicy())
 
-	gotPolicy, err := sclt.GetInferencePolicy(ctx, &summarizerv1pb.GetInferencePolicyRequest{
+	gotPolicy, err := sclt.GetInferencePolicy(ctx, summarizerv1pb.GetInferencePolicyRequest_builder{
 		Name: "policy1",
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, createdPolicy.Policy, gotPolicy.Policy)
+	assertResourceEquals(t, createdPolicy.GetPolicy(), gotPolicy.GetPolicy())
 }
 
 func TestService_Delete(t *testing.T) {
@@ -566,19 +562,19 @@ func TestService_Delete(t *testing.T) {
 	cloudDefaultModel := newBedrockModel("teleport-cloud-default")
 
 	// Create the resources.
-	_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+	_, err = sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 		Model: expectedModel,
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+	_, err = sclt.CreateInferencePolicy(ctx, summarizerv1pb.CreateInferencePolicyRequest_builder{
 		Policy: expectedPolicy,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the cloud default model directly in the backend, as it can't be
@@ -587,51 +583,51 @@ func TestService_Delete(t *testing.T) {
 	require.NoError(t, err)
 
 	// Delete the resources.
-	_, err = sclt.DeleteInferencePolicy(ctx, &summarizerv1pb.DeleteInferencePolicyRequest{
+	_, err = sclt.DeleteInferencePolicy(ctx, summarizerv1pb.DeleteInferencePolicyRequest_builder{
 		Name: "policy1",
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = sclt.DeleteInferenceModel(ctx, &summarizerv1pb.DeleteInferenceModelRequest{
+	_, err = sclt.DeleteInferenceModel(ctx, summarizerv1pb.DeleteInferenceModelRequest_builder{
 		Name: "model1",
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = sclt.DeleteInferenceSecret(ctx, &summarizerv1pb.DeleteInferenceSecretRequest{
+	_, err = sclt.DeleteInferenceSecret(ctx, summarizerv1pb.DeleteInferenceSecretRequest_builder{
 		Name: "secret1",
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Verify that the resources are deleted.
-	_, err = sclt.GetInferencePolicy(ctx, &summarizerv1pb.GetInferencePolicyRequest{
+	_, err = sclt.GetInferencePolicy(ctx, summarizerv1pb.GetInferencePolicyRequest_builder{
 		Name: "policy1",
-	})
+	}.Build())
 	require.Error(t, err)
 
 	assert.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
-	_, err = sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+	_, err = sclt.GetInferenceModel(ctx, summarizerv1pb.GetInferenceModelRequest_builder{
 		Name: "model1",
-	})
+	}.Build())
 	require.Error(t, err)
 
 	assert.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
-	_, err = sclt.GetInferenceSecret(ctx, &summarizerv1pb.GetInferenceSecretRequest{
+	_, err = sclt.GetInferenceSecret(ctx, summarizerv1pb.GetInferenceSecretRequest_builder{
 		Name: "secret1",
-	})
+	}.Build())
 	require.Error(t, err)
 	assert.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 	// Test attempting to delete the cloud default model (should fail).
-	_, err = sclt.DeleteInferenceModel(ctx, &summarizerv1pb.DeleteInferenceModelRequest{
+	_, err = sclt.DeleteInferenceModel(ctx, summarizerv1pb.DeleteInferenceModelRequest_builder{
 		Name: "teleport-cloud-default",
-	})
+	}.Build())
 	assert.ErrorAs(t, err, new(*trace.BadParameterError))
 
-	gotModel, err := sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+	gotModel, err := sclt.GetInferenceModel(ctx, summarizerv1pb.GetInferenceModelRequest_builder{
 		Name: "teleport-cloud-default",
-	})
+	}.Build())
 	require.NoError(t, err)
-	assertResourceEquals(t, cloudDefaultModel, gotModel.Model)
+	assertResourceEquals(t, cloudDefaultModel, gotModel.GetModel())
 }
 
 func TestService_List(t *testing.T) {
@@ -652,80 +648,80 @@ func TestService_List(t *testing.T) {
 	for i := range 3 {
 		secret, expectedModel, expectedPolicy := newTestResources(t, strconv.Itoa(i+1))
 
-		_, err = sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+		_, err = sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 			Secret: secret,
-		})
+		}.Build())
 		require.NoError(t, err)
-		secret.Spec = nil // The secret spec is sensitive and should not be returned in the list.
+		secret.ClearSpec() // The secret spec is sensitive and should not be returned in the list.
 		expectedSecrets = append(expectedSecrets, secret)
 
-		_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+		_, err = sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 			Model: expectedModel,
-		})
+		}.Build())
 		require.NoError(t, err)
 		expectedModels = append(expectedModels, expectedModel)
 
-		_, err = sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+		_, err = sclt.CreateInferencePolicy(ctx, summarizerv1pb.CreateInferencePolicyRequest_builder{
 			Policy: expectedPolicy,
-		})
+		}.Build())
 		require.NoError(t, err)
 		expectedPolicies = append(expectedPolicies, expectedPolicy)
 	}
 
 	// List secrets.
 	allSecrets := []*summarizerv1pb.InferenceSecret{}
-	secretsPage, err := sclt.ListInferenceSecrets(ctx, &summarizerv1pb.ListInferenceSecretsRequest{
+	secretsPage, err := sclt.ListInferenceSecrets(ctx, summarizerv1pb.ListInferenceSecretsRequest_builder{
 		PageSize: 2,
-	})
+	}.Build())
 	require.NoError(t, err)
-	assert.Len(t, secretsPage.Secrets, 2)
-	allSecrets = append(allSecrets, secretsPage.Secrets...)
+	assert.Len(t, secretsPage.GetSecrets(), 2)
+	allSecrets = append(allSecrets, secretsPage.GetSecrets()...)
 
-	secretsPage, err = sclt.ListInferenceSecrets(ctx, &summarizerv1pb.ListInferenceSecretsRequest{
+	secretsPage, err = sclt.ListInferenceSecrets(ctx, summarizerv1pb.ListInferenceSecretsRequest_builder{
 		PageSize:  2,
-		PageToken: secretsPage.NextPageToken,
-	})
+		PageToken: secretsPage.GetNextPageToken(),
+	}.Build())
 	require.NoError(t, err)
-	assert.Len(t, secretsPage.Secrets, 1)
-	allSecrets = append(allSecrets, secretsPage.Secrets...)
+	assert.Len(t, secretsPage.GetSecrets(), 1)
+	allSecrets = append(allSecrets, secretsPage.GetSecrets()...)
 
 	assertResourceListEqualsIgnoringOrder(t, expectedSecrets, allSecrets)
 
 	// List models.
 	allModels := []*summarizerv1pb.InferenceModel{}
-	modelsPage, err := sclt.ListInferenceModels(ctx, &summarizerv1pb.ListInferenceModelsRequest{
+	modelsPage, err := sclt.ListInferenceModels(ctx, summarizerv1pb.ListInferenceModelsRequest_builder{
 		PageSize: 2,
-	})
+	}.Build())
 	require.NoError(t, err)
-	assert.Len(t, modelsPage.Models, 2)
-	allModels = append(allModels, modelsPage.Models...)
+	assert.Len(t, modelsPage.GetModels(), 2)
+	allModels = append(allModels, modelsPage.GetModels()...)
 
-	modelsPage, err = sclt.ListInferenceModels(ctx, &summarizerv1pb.ListInferenceModelsRequest{
+	modelsPage, err = sclt.ListInferenceModels(ctx, summarizerv1pb.ListInferenceModelsRequest_builder{
 		PageSize:  2,
-		PageToken: modelsPage.NextPageToken,
-	})
+		PageToken: modelsPage.GetNextPageToken(),
+	}.Build())
 	require.NoError(t, err)
-	assert.Len(t, modelsPage.Models, 1)
-	allModels = append(allModels, modelsPage.Models...)
+	assert.Len(t, modelsPage.GetModels(), 1)
+	allModels = append(allModels, modelsPage.GetModels()...)
 
 	assertResourceListEqualsIgnoringOrder(t, expectedModels, allModels)
 
 	// List policies.
 	allPolicies := []*summarizerv1pb.InferencePolicy{}
-	policiesPage, err := sclt.ListInferencePolicies(ctx, &summarizerv1pb.ListInferencePoliciesRequest{
+	policiesPage, err := sclt.ListInferencePolicies(ctx, summarizerv1pb.ListInferencePoliciesRequest_builder{
 		PageSize: 2,
-	})
+	}.Build())
 	require.NoError(t, err)
-	assert.Len(t, policiesPage.Policies, 2)
-	allPolicies = append(allPolicies, policiesPage.Policies...)
+	assert.Len(t, policiesPage.GetPolicies(), 2)
+	allPolicies = append(allPolicies, policiesPage.GetPolicies()...)
 
-	policiesPage, err = sclt.ListInferencePolicies(ctx, &summarizerv1pb.ListInferencePoliciesRequest{
+	policiesPage, err = sclt.ListInferencePolicies(ctx, summarizerv1pb.ListInferencePoliciesRequest_builder{
 		PageSize:  2,
-		PageToken: policiesPage.NextPageToken,
-	})
+		PageToken: policiesPage.GetNextPageToken(),
+	}.Build())
 	require.NoError(t, err)
-	assert.Len(t, policiesPage.Policies, 1)
-	allPolicies = append(allPolicies, policiesPage.Policies...)
+	assert.Len(t, policiesPage.GetPolicies(), 1)
+	allPolicies = append(allPolicies, policiesPage.GetPolicies()...)
 
 	assertResourceListEqualsIgnoringOrder(t, expectedPolicies, allPolicies)
 }
@@ -742,17 +738,17 @@ func TestService_RBAC(t *testing.T) {
 	sclt := clt.SummarizerServiceClient()
 	// Resources that are created upfront.
 	secret, model, policy := newTestResources(t, "1")
-	createdSecret, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+	createdSecret, err := sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 		Secret: secret,
-	})
+	}.Build())
 	require.NoError(t, err)
-	createdModel, err := sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+	createdModel, err := sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 		Model: model,
-	})
+	}.Build())
 	require.NoError(t, err)
-	createdPolicy, err := sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+	createdPolicy, err := sclt.CreateInferencePolicy(ctx, summarizerv1pb.CreateInferencePolicyRequest_builder{
 		Policy: policy,
-	})
+	}.Build())
 	require.NoError(t, err)
 	// Resources for further creation attempts.
 	secret2, model2, policy2 := newTestResources(t, "2")
@@ -773,9 +769,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferenceSecret,
 			verbs:    []string{types.VerbCreate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+				_, err := sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 					Secret: secret2,
-				})
+				}.Build())
 				return err
 			},
 		},
@@ -784,9 +780,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferenceModel,
 			verbs:    []string{types.VerbCreate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+				_, err := sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 					Model: model2,
-				})
+				}.Build())
 				return err
 			},
 		},
@@ -795,9 +791,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferencePolicy,
 			verbs:    []string{types.VerbCreate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+				_, err := sclt.CreateInferencePolicy(ctx, summarizerv1pb.CreateInferencePolicyRequest_builder{
 					Policy: policy2,
-				})
+				}.Build())
 				return err
 			},
 		},
@@ -806,9 +802,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferenceSecret,
 			verbs:    []string{types.VerbRead},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.GetInferenceSecret(ctx, &summarizerv1pb.GetInferenceSecretRequest{
+				_, err := sclt.GetInferenceSecret(ctx, summarizerv1pb.GetInferenceSecretRequest_builder{
 					Name: "secret1",
-				})
+				}.Build())
 				return err
 			},
 		},
@@ -817,9 +813,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferenceModel,
 			verbs:    []string{types.VerbRead},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.GetInferenceModel(ctx, &summarizerv1pb.GetInferenceModelRequest{
+				_, err := sclt.GetInferenceModel(ctx, summarizerv1pb.GetInferenceModelRequest_builder{
 					Name: "model1",
-				})
+				}.Build())
 				return err
 			},
 		},
@@ -828,9 +824,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferencePolicy,
 			verbs:    []string{types.VerbRead},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.GetInferencePolicy(ctx, &summarizerv1pb.GetInferencePolicyRequest{
+				_, err := sclt.GetInferencePolicy(ctx, summarizerv1pb.GetInferencePolicyRequest_builder{
 					Name: "policy1",
-				})
+				}.Build())
 				return err
 			},
 		},
@@ -839,9 +835,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferenceSecret,
 			verbs:    []string{types.VerbUpdate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.UpdateInferenceSecret(ctx, &summarizerv1pb.UpdateInferenceSecretRequest{
-					Secret: createdSecret.Secret,
-				})
+				_, err := sclt.UpdateInferenceSecret(ctx, summarizerv1pb.UpdateInferenceSecretRequest_builder{
+					Secret: createdSecret.GetSecret(),
+				}.Build())
 				return err
 			},
 		},
@@ -850,9 +846,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferenceModel,
 			verbs:    []string{types.VerbUpdate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.UpdateInferenceModel(ctx, &summarizerv1pb.UpdateInferenceModelRequest{
-					Model: createdModel.Model,
-				})
+				_, err := sclt.UpdateInferenceModel(ctx, summarizerv1pb.UpdateInferenceModelRequest_builder{
+					Model: createdModel.GetModel(),
+				}.Build())
 				return err
 			},
 		},
@@ -861,9 +857,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferencePolicy,
 			verbs:    []string{types.VerbUpdate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.UpdateInferencePolicy(ctx, &summarizerv1pb.UpdateInferencePolicyRequest{
-					Policy: createdPolicy.Policy,
-				})
+				_, err := sclt.UpdateInferencePolicy(ctx, summarizerv1pb.UpdateInferencePolicyRequest_builder{
+					Policy: createdPolicy.GetPolicy(),
+				}.Build())
 				return err
 			},
 		},
@@ -872,9 +868,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferenceSecret,
 			verbs:    []string{types.VerbCreate, types.VerbUpdate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.UpsertInferenceSecret(ctx, &summarizerv1pb.UpsertInferenceSecretRequest{
-					Secret: createdSecret.Secret,
-				})
+				_, err := sclt.UpsertInferenceSecret(ctx, summarizerv1pb.UpsertInferenceSecretRequest_builder{
+					Secret: createdSecret.GetSecret(),
+				}.Build())
 				return err
 			},
 		},
@@ -883,9 +879,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferenceModel,
 			verbs:    []string{types.VerbCreate, types.VerbUpdate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.UpsertInferenceModel(ctx, &summarizerv1pb.UpsertInferenceModelRequest{
-					Model: createdModel.Model,
-				})
+				_, err := sclt.UpsertInferenceModel(ctx, summarizerv1pb.UpsertInferenceModelRequest_builder{
+					Model: createdModel.GetModel(),
+				}.Build())
 				return err
 			},
 		},
@@ -894,9 +890,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferencePolicy,
 			verbs:    []string{types.VerbCreate, types.VerbUpdate},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.UpsertInferencePolicy(ctx, &summarizerv1pb.UpsertInferencePolicyRequest{
-					Policy: createdPolicy.Policy,
-				})
+				_, err := sclt.UpsertInferencePolicy(ctx, summarizerv1pb.UpsertInferencePolicyRequest_builder{
+					Policy: createdPolicy.GetPolicy(),
+				}.Build())
 				return err
 			},
 		},
@@ -905,9 +901,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferenceSecret,
 			verbs:    []string{types.VerbDelete},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.DeleteInferenceSecret(ctx, &summarizerv1pb.DeleteInferenceSecretRequest{
+				_, err := sclt.DeleteInferenceSecret(ctx, summarizerv1pb.DeleteInferenceSecretRequest_builder{
 					Name: "secret1",
-				})
+				}.Build())
 				return err
 			},
 		},
@@ -916,9 +912,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferenceModel,
 			verbs:    []string{types.VerbDelete},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.DeleteInferenceModel(ctx, &summarizerv1pb.DeleteInferenceModelRequest{
+				_, err := sclt.DeleteInferenceModel(ctx, summarizerv1pb.DeleteInferenceModelRequest_builder{
 					Name: "model1",
-				})
+				}.Build())
 				return err
 			},
 		},
@@ -927,9 +923,9 @@ func TestService_RBAC(t *testing.T) {
 			resource: types.KindInferencePolicy,
 			verbs:    []string{types.VerbDelete},
 			fn: func(ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) error {
-				_, err := sclt.DeleteInferencePolicy(ctx, &summarizerv1pb.DeleteInferencePolicyRequest{
+				_, err := sclt.DeleteInferencePolicy(ctx, summarizerv1pb.DeleteInferencePolicyRequest_builder{
 					Name: "policy1",
-				})
+				}.Build())
 				return err
 			},
 		},
@@ -1011,7 +1007,7 @@ func newTestSummary(t *testing.T, sessionEnd *apievents.SessionEnd) *summarizerv
 	endEventStruct, err := structpb.NewStruct(endEventFields)
 	require.NoError(t, err)
 
-	return &summarizerv1pb.Summary{
+	return summarizerv1pb.Summary_builder{
 		SessionId:           sessionEnd.SessionID,
 		State:               summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
 		InferenceStartedAt:  timestamppb.New(inferenceStartTime),
@@ -1019,7 +1015,7 @@ func newTestSummary(t *testing.T, sessionEnd *apievents.SessionEnd) *summarizerv
 		Content:             "This is a test summary content.",
 		ModelName:           "some-model",
 		SessionEndEvent:     endEventStruct,
-	}
+	}.Build()
 }
 
 func TestService_GetSummary(t *testing.T) {
@@ -1037,57 +1033,57 @@ func TestService_GetSummary(t *testing.T) {
 		// Summary 1 is in a pending state.
 		session1End := newSessionEndEvent()
 		summary1 := newTestSummary(t, session1End)
-		summary1.Content = ""
-		summary1.InferenceFinishedAt = nil
-		summary1.State = summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING
+		summary1.SetContent("")
+		summary1.ClearInferenceFinishedAt()
+		summary1.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING)
 		b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary1)
 		require.NoError(t, err)
-		srv.AuthServer.AuthServer.UploadPendingSummary(ctx, session.ID(summary1.SessionId), bytes.NewReader(b))
+		srv.AuthServer.AuthServer.UploadPendingSummary(ctx, session.ID(summary1.GetSessionId()), bytes.NewReader(b))
 
 		// Summary 2 is in a final state.
 		session2End := newSessionEndEvent()
 		summary2 := newTestSummary(t, session2End)
 		summary2Pending := proto.CloneOf(summary2)
-		summary2Pending.Content = ""
-		summary2Pending.InferenceFinishedAt = nil
-		summary2Pending.State = summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING
+		summary2Pending.SetContent("")
+		summary2Pending.ClearInferenceFinishedAt()
+		summary2Pending.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING)
 
 		// Upload the pending state of summary 2.
 		b, err = protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary2Pending)
 		require.NoError(t, err)
-		_, err = srv.AuthServer.AuthServer.UploadPendingSummary(ctx, session.ID(summary2Pending.SessionId), bytes.NewReader(b))
+		_, err = srv.AuthServer.AuthServer.UploadPendingSummary(ctx, session.ID(summary2Pending.GetSessionId()), bytes.NewReader(b))
 		require.NoError(t, err)
 
 		// Upload the final state of summary 2.
 		b, err = protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary2)
 		require.NoError(t, err)
-		_, err = srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary2.SessionId), bytes.NewReader(b))
+		_, err = srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary2.GetSessionId()), bytes.NewReader(b))
 		require.NoError(t, err)
 
 		// Test fetching a pending summary.
-		got, err := sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-			SessionId: summary1.SessionId,
-		})
+		got, err := sclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+			SessionId: summary1.GetSessionId(),
+		}.Build())
 		require.NoError(t, err)
-		assert.Empty(t, cmp.Diff(summary1, got.Summary, protocmp.Transform()))
+		assert.Empty(t, cmp.Diff(summary1, got.GetSummary(), protocmp.Transform()))
 
 		// Test fetching a final summary.
-		got, err = sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-			SessionId: summary2.SessionId,
-		})
+		got, err = sclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+			SessionId: summary2.GetSessionId(),
+		}.Build())
 		require.NoError(t, err)
-		assert.Empty(t, cmp.Diff(summary2, got.Summary, protocmp.Transform()))
+		assert.Empty(t, cmp.Diff(summary2, got.GetSummary(), protocmp.Transform()))
 
 		// Make sure that the session end event can be fully recovered from the
 		// unstructured representation.
-		gotSessionEnd, err := events.FromEventFields(got.Summary.SessionEndEvent.AsMap())
+		gotSessionEnd, err := events.FromEventFields(got.GetSummary().GetSessionEndEvent().AsMap())
 		require.NoError(t, err)
 		assert.Empty(t, cmp.Diff(session2End, gotSessionEnd, protocmp.Transform()))
 
 		// Test fetching a summary that doesn't exist.
-		_, err = sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		_, err = sclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
 			SessionId: uuid.NewString(),
-		})
+		}.Build())
 		require.Error(t, err)
 		assert.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 	})
@@ -1100,13 +1096,13 @@ func TestService_GetSummary(t *testing.T) {
 		b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(expectedSummary)
 		require.NoError(t, err)
 
-		srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(expectedSummary.SessionId), bytes.NewReader(encrypt(b)))
+		srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(expectedSummary.GetSessionId()), bytes.NewReader(encrypt(b)))
 		// Test fetching an existing encrypted summary.
-		got, err := sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-			SessionId: expectedSummary.SessionId,
-		})
+		got, err := sclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+			SessionId: expectedSummary.GetSessionId(),
+		}.Build())
 		require.NoError(t, err)
-		assert.Empty(t, cmp.Diff(expectedSummary, got.Summary, protocmp.Transform()))
+		assert.Empty(t, cmp.Diff(expectedSummary, got.GetSummary(), protocmp.Transform()))
 	})
 
 	// Validate that usage events were emitted for both GetSummary calls.
@@ -1135,7 +1131,7 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 	summary1 := newTestSummary(t, sessionEnd1)
 	b, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary1)
 	require.NoError(t, err)
-	srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary1.SessionId), bytes.NewReader(b))
+	srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary1.GetSessionId()), bytes.NewReader(b))
 
 	// Session of Bob and Mary
 	sessionEnd2 := newSessionEndEvent()
@@ -1145,7 +1141,7 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 	summary2 := newTestSummary(t, sessionEnd2)
 	b, err = protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary2)
 	require.NoError(t, err)
-	srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary2.SessionId), bytes.NewReader(b))
+	srv.AuthServer.AuthServer.UploadSummary(ctx, session.ID(summary2.GetSessionId()), bytes.NewReader(b))
 
 	// Add Alice.
 	createTestUser(t, srv, "alice")
@@ -1155,13 +1151,13 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 
 	// Alice should only see the first session (see the "where" condition in
 	// user's role).
-	_, err = aliceSclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-		SessionId: summary1.SessionId,
-	})
+	_, err = aliceSclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+		SessionId: summary1.GetSessionId(),
+	}.Build())
 	require.NoError(t, err)
-	_, err = aliceSclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-		SessionId: summary2.SessionId,
-	})
+	_, err = aliceSclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+		SessionId: summary2.GetSessionId(),
+	}.Build())
 	require.Error(t, err)
 	assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
 
@@ -1172,13 +1168,13 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 	bobSclt := bobClt.SummarizerServiceClient()
 
 	// Bob should be able to see both sessions, as he participated in both.
-	_, err = bobSclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-		SessionId: summary1.SessionId,
-	})
+	_, err = bobSclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+		SessionId: summary1.GetSessionId(),
+	}.Build())
 	require.NoError(t, err)
-	_, err = bobSclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-		SessionId: summary2.SessionId,
-	})
+	_, err = bobSclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+		SessionId: summary2.GetSessionId(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Add Mary.
@@ -1189,14 +1185,14 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 
 	// Mary should only see the second session (see the "where" condition in
 	// user's role).
-	_, err = marySclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-		SessionId: summary1.SessionId,
-	})
+	_, err = marySclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+		SessionId: summary1.GetSessionId(),
+	}.Build())
 	require.Error(t, err)
 	assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
-	_, err = marySclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-		SessionId: summary2.SessionId,
-	})
+	_, err = marySclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+		SessionId: summary2.GetSessionId(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Add an account that doesn't have any access to session recordings (there's
@@ -1207,9 +1203,9 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 	require.NoError(t, err)
 	internSclt := internClt.SummarizerServiceClient()
 
-	_, err = internSclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-		SessionId: summary1.SessionId,
-	})
+	_, err = internSclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+		SessionId: summary1.GetSessionId(),
+	}.Build())
 	require.Error(t, err)
 	assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
 
@@ -1226,9 +1222,9 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 	canViewUser, err := srv.NewClient(authtest.TestUser("can_view_user"))
 	require.NoError(t, err)
 
-	_, err = canViewUser.SummarizerServiceClient().GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-		SessionId: summary1.SessionId,
-	})
+	_, err = canViewUser.SummarizerServiceClient().GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+		SessionId: summary1.GetSessionId(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Remove the node_labels condition from the role, which should make the
@@ -1237,9 +1233,9 @@ func TestService_GetSummary_RBAC(t *testing.T) {
 	_, err = srv.Auth().UpdateRole(ctx, canViewUserRole)
 	require.NoError(t, err)
 
-	_, err = canViewUser.SummarizerServiceClient().GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
-		SessionId: summary1.SessionId,
-	})
+	_, err = canViewUser.SummarizerServiceClient().GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
+		SessionId: summary1.GetSessionId(),
+	}.Build())
 	require.Error(t, err)
 	assert.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %v", err)
 }
@@ -1299,14 +1295,14 @@ func TestService_AuditEvents(t *testing.T) {
 	t.Run("InferenceModel events", func(t *testing.T) {
 		secret, model, _ := newTestResources(t, "audit1")
 
-		_, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+		_, err := sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 			Secret: secret,
-		})
+		}.Build())
 		require.NoError(t, err)
 
-		createdModel, err := sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+		createdModel, err := sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 			Model: model,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		evts := getRecentEvents(events.InferenceModelCreateEvent)
@@ -1317,10 +1313,10 @@ func TestService_AuditEvents(t *testing.T) {
 		assert.Equal(t, "modelaudit1", createEvt.ResourceMetadata.Name)
 		assert.Equal(t, user.GetName(), createEvt.User)
 
-		createdModel.Model.Spec.GetOpenai().Temperature = 1.5
-		_, err = sclt.UpdateInferenceModel(ctx, &summarizerv1pb.UpdateInferenceModelRequest{
-			Model: createdModel.Model,
-		})
+		createdModel.GetModel().GetSpec().GetOpenai().SetTemperature(1.5)
+		_, err = sclt.UpdateInferenceModel(ctx, summarizerv1pb.UpdateInferenceModelRequest_builder{
+			Model: createdModel.GetModel(),
+		}.Build())
 		require.NoError(t, err)
 
 		evts = getRecentEvents(events.InferenceModelUpdateEvent)
@@ -1331,9 +1327,9 @@ func TestService_AuditEvents(t *testing.T) {
 		assert.Equal(t, "modelaudit1", updateEvt.ResourceMetadata.Name)
 		assert.Equal(t, user.GetName(), updateEvt.User)
 
-		_, err = sclt.DeleteInferenceModel(ctx, &summarizerv1pb.DeleteInferenceModelRequest{
+		_, err = sclt.DeleteInferenceModel(ctx, summarizerv1pb.DeleteInferenceModelRequest_builder{
 			Name: "modelaudit1",
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		evts = getRecentEvents(events.InferenceModelDeleteEvent)
@@ -1348,9 +1344,9 @@ func TestService_AuditEvents(t *testing.T) {
 	t.Run("InferenceSecret events", func(t *testing.T) {
 		secret, _, _ := newTestResources(t, "audit2")
 
-		_, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+		_, err := sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 			Secret: secret,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		evts := getRecentEvents(events.InferenceSecretCreateEvent)
@@ -1363,10 +1359,10 @@ func TestService_AuditEvents(t *testing.T) {
 
 		backendSecret, err := srv.AuthServer.AuthServer.GetInferenceSecret(ctx, "secretaudit2")
 		require.NoError(t, err)
-		backendSecret.Spec.Value = "updated-value"
-		_, err = sclt.UpdateInferenceSecret(ctx, &summarizerv1pb.UpdateInferenceSecretRequest{
+		backendSecret.GetSpec().SetValue("updated-value")
+		_, err = sclt.UpdateInferenceSecret(ctx, summarizerv1pb.UpdateInferenceSecretRequest_builder{
 			Secret: backendSecret,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		evts = getRecentEvents(events.InferenceSecretUpdateEvent)
@@ -1377,9 +1373,9 @@ func TestService_AuditEvents(t *testing.T) {
 		assert.Equal(t, "secretaudit2", updateEvt.ResourceMetadata.Name)
 		assert.Equal(t, user.GetName(), updateEvt.User)
 
-		_, err = sclt.DeleteInferenceSecret(ctx, &summarizerv1pb.DeleteInferenceSecretRequest{
+		_, err = sclt.DeleteInferenceSecret(ctx, summarizerv1pb.DeleteInferenceSecretRequest_builder{
 			Name: "secretaudit2",
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		evts = getRecentEvents(events.InferenceSecretDeleteEvent)
@@ -1394,18 +1390,18 @@ func TestService_AuditEvents(t *testing.T) {
 	t.Run("InferencePolicy events", func(t *testing.T) {
 		secret, model, policy := newTestResources(t, "audit3")
 
-		_, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+		_, err := sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 			Secret: secret,
-		})
+		}.Build())
 		require.NoError(t, err)
-		_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+		_, err = sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 			Model: model,
-		})
+		}.Build())
 		require.NoError(t, err)
 
-		createdPolicy, err := sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+		createdPolicy, err := sclt.CreateInferencePolicy(ctx, summarizerv1pb.CreateInferencePolicyRequest_builder{
 			Policy: policy,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		evts := getRecentEvents(events.InferencePolicyCreateEvent)
@@ -1416,10 +1412,10 @@ func TestService_AuditEvents(t *testing.T) {
 		assert.Equal(t, "policyaudit3", createEvt.ResourceMetadata.Name)
 		assert.Equal(t, user.GetName(), createEvt.User)
 
-		createdPolicy.Policy.Spec.Filter = `equals(resource.metadata.labels["env"], "dev")`
-		_, err = sclt.UpdateInferencePolicy(ctx, &summarizerv1pb.UpdateInferencePolicyRequest{
-			Policy: createdPolicy.Policy,
-		})
+		createdPolicy.GetPolicy().GetSpec().SetFilter(`equals(resource.metadata.labels["env"], "dev")`)
+		_, err = sclt.UpdateInferencePolicy(ctx, summarizerv1pb.UpdateInferencePolicyRequest_builder{
+			Policy: createdPolicy.GetPolicy(),
+		}.Build())
 		require.NoError(t, err)
 
 		evts = getRecentEvents(events.InferencePolicyUpdateEvent)
@@ -1430,9 +1426,9 @@ func TestService_AuditEvents(t *testing.T) {
 		assert.Equal(t, "policyaudit3", updateEvt.ResourceMetadata.Name)
 		assert.Equal(t, user.GetName(), updateEvt.User)
 
-		_, err = sclt.DeleteInferencePolicy(ctx, &summarizerv1pb.DeleteInferencePolicyRequest{
+		_, err = sclt.DeleteInferencePolicy(ctx, summarizerv1pb.DeleteInferencePolicyRequest_builder{
 			Name: "policyaudit3",
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		evts = getRecentEvents(events.InferencePolicyDeleteEvent)
@@ -1445,24 +1441,24 @@ func TestService_AuditEvents(t *testing.T) {
 	})
 
 	t.Run("RetrievalModel events", func(t *testing.T) {
-		secret := summarizer.NewInferenceSecret("secret1", &summarizerv1pb.InferenceSecretSpec{
+		secret := summarizer.NewInferenceSecret("secret1", summarizerv1pb.InferenceSecretSpec_builder{
 			Value: "my-secret-value",
-		})
+		}.Build())
 		model := newBedrockModel("test-inference-model")
 		retrievalModel := newTestRetrievalModel()
 
-		_, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
+		_, err := sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
 			Secret: secret,
-		})
+		}.Build())
 		require.NoError(t, err)
-		_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+		_, err = sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 			Model: model,
-		})
+		}.Build())
 		require.NoError(t, err)
 
-		createdRetrievalModel, err := sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
+		createdRetrievalModel, err := sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
 			Model: retrievalModel,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		evts := getRecentEvents(events.RetrievalModelCreateEvent)
@@ -1473,10 +1469,10 @@ func TestService_AuditEvents(t *testing.T) {
 		assert.Equal(t, types.MetaNameRetrievalModel, createEvt.ResourceMetadata.Name)
 		assert.Equal(t, user.GetName(), createEvt.User)
 
-		createdRetrievalModel.Model.Spec.GetOpenai().Temperature = 0.5
-		_, err = sclt.UpdateRetrievalModel(ctx, &summarizerv1pb.UpdateRetrievalModelRequest{
-			Model: createdRetrievalModel.Model,
-		})
+		createdRetrievalModel.GetModel().GetSpec().GetOpenai().SetTemperature(0.5)
+		_, err = sclt.UpdateRetrievalModel(ctx, summarizerv1pb.UpdateRetrievalModelRequest_builder{
+			Model: createdRetrievalModel.GetModel(),
+		}.Build())
 		require.NoError(t, err)
 
 		evts = getRecentEvents(events.RetrievalModelUpdateEvent)
@@ -1526,41 +1522,37 @@ func TestService_TestInferenceModel(t *testing.T) {
 	}{
 		{
 			name: "missing model spec",
-			req: &summarizerv1pb.TestInferenceModelRequest{
+			req: summarizerv1pb.TestInferenceModelRequest_builder{
 				Model: nil,
-			},
+			}.Build(),
 			expectSuccess:   false,
 			messageContains: "model spec is required",
 		},
 		{
 			name: "OpenAI without secret",
-			req: &summarizerv1pb.TestInferenceModelRequest{
-				Model: &summarizerv1pb.InferenceModelSpec{
-					Provider: &summarizerv1pb.InferenceModelSpec_Openai{
-						Openai: &summarizerv1pb.OpenAIProvider{
-							OpenaiModelId: "gpt-4o",
-						},
-					},
-				},
-			},
+			req: summarizerv1pb.TestInferenceModelRequest_builder{
+				Model: summarizerv1pb.InferenceModelSpec_builder{
+					Openai: summarizerv1pb.OpenAIProvider_builder{
+						OpenaiModelId: "gpt-4o",
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			expectSuccess:   false,
 			messageContains: "api_key_secret_ref is required for OpenAI models when no secret is provided in the request",
 		},
 		{
 			name: "OpenAI with invalid API key",
-			req: &summarizerv1pb.TestInferenceModelRequest{
-				Model: &summarizerv1pb.InferenceModelSpec{
-					Provider: &summarizerv1pb.InferenceModelSpec_Openai{
-						Openai: &summarizerv1pb.OpenAIProvider{
-							OpenaiModelId: "gpt-4o",
-							BaseUrl:       mockOpenAI.URL,
-						},
-					},
-				},
-				Secret: &summarizerv1pb.InferenceSecretSpec{
+			req: summarizerv1pb.TestInferenceModelRequest_builder{
+				Model: summarizerv1pb.InferenceModelSpec_builder{
+					Openai: summarizerv1pb.OpenAIProvider_builder{
+						OpenaiModelId: "gpt-4o",
+						BaseUrl:       mockOpenAI.URL,
+					}.Build(),
+				}.Build(),
+				Secret: summarizerv1pb.InferenceSecretSpec_builder{
 					Value: "test-api-key",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expectSuccess: false,
 			// When no client factory is configured, OpenAI provider uses default client
 			// which makes a real API call to the mock server, so we expect an authentication error
@@ -1568,11 +1560,11 @@ func TestService_TestInferenceModel(t *testing.T) {
 		},
 		{
 			name: "unsupported provider type",
-			req: &summarizerv1pb.TestInferenceModelRequest{
+			req: summarizerv1pb.TestInferenceModelRequest_builder{
 				Model: &summarizerv1pb.InferenceModelSpec{
 					Provider: nil,
 				},
-			},
+			}.Build(),
 			expectSuccess:   false,
 			messageContains: "invalid model spec: missing or unsupported inference provider in spec, supported providers",
 		},
@@ -1593,9 +1585,9 @@ func TestService_TestInferenceModel(t *testing.T) {
 
 			require.NoError(t, err)
 			require.NotNil(t, resp)
-			assert.Equal(t, tt.expectSuccess, resp.Success)
+			assert.Equal(t, tt.expectSuccess, resp.GetSuccess())
 			if tt.messageContains != "" {
-				assert.Contains(t, resp.Message, tt.messageContains)
+				assert.Contains(t, resp.GetMessage(), tt.messageContains)
 			}
 		})
 	}

@@ -182,17 +182,17 @@ func (s *Service) GenerateDraftExternalAuditStorage(ctx context.Context, req *pb
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.checkClusterAuditConfig(ctx, req.Region); err != nil {
+	if err := s.checkClusterAuditConfig(ctx, req.GetRegion()); err != nil {
 		return nil, trace.Wrap(err, "unable to configure External Audit Storage")
 	}
 
-	resp, err := s.externalAuditStorage.GenerateDraftExternalAuditStorage(ctx, req.IntegrationName, req.Region)
+	resp, err := s.externalAuditStorage.GenerateDraftExternalAuditStorage(ctx, req.GetIntegrationName(), req.GetRegion())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.GenerateDraftExternalAuditStorageResponse{
+	return pb.GenerateDraftExternalAuditStorageResponse_builder{
 		ExternalAuditStorage: conv.ToProto(resp),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) CreateDraftExternalAuditStorage(ctx context.Context, req *pb.CreateDraftExternalAuditStorageRequest) (*pb.CreateDraftExternalAuditStorageResponse, error) {
@@ -219,9 +219,9 @@ func (s *Service) CreateDraftExternalAuditStorage(ctx context.Context, req *pb.C
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.CreateDraftExternalAuditStorageResponse{
+	return pb.CreateDraftExternalAuditStorageResponse_builder{
 		ExternalAuditStorage: conv.ToProto(resp),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) UpsertDraftExternalAuditStorage(ctx context.Context, req *pb.UpsertDraftExternalAuditStorageRequest) (*pb.UpsertDraftExternalAuditStorageResponse, error) {
@@ -247,9 +247,9 @@ func (s *Service) UpsertDraftExternalAuditStorage(ctx context.Context, req *pb.U
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.UpsertDraftExternalAuditStorageResponse{
+	return pb.UpsertDraftExternalAuditStorageResponse_builder{
 		ExternalAuditStorage: conv.ToProto(resp),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) GetDraftExternalAuditStorage(ctx context.Context, req *pb.GetDraftExternalAuditStorageRequest) (*pb.GetDraftExternalAuditStorageResponse, error) {
@@ -266,9 +266,9 @@ func (s *Service) GetDraftExternalAuditStorage(ctx context.Context, req *pb.GetD
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.GetDraftExternalAuditStorageResponse{
+	return pb.GetDraftExternalAuditStorageResponse_builder{
 		ExternalAuditStorage: conv.ToProto(externalAudit),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) DeleteDraftExternalAuditStorage(ctx context.Context, req *pb.DeleteDraftExternalAuditStorageRequest) (*emptypb.Empty, error) {
@@ -340,9 +340,9 @@ func (s *Service) GetClusterExternalAuditStorage(ctx context.Context, req *pb.Ge
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.GetClusterExternalAuditStorageResponse{
+	return pb.GetClusterExternalAuditStorageResponse_builder{
 		ClusterExternalAuditStorage: conv.ToProto(externalAudit),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) DisableClusterExternalAuditStorage(ctx context.Context, req *pb.DisableClusterExternalAuditStorageRequest) (*emptypb.Empty, error) {

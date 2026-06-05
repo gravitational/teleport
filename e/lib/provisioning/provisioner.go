@@ -192,14 +192,14 @@ func newProvisioner(cfg provisionerConfig) (*provisioner, error) {
 // service. Takes care of updating the resource records and suchlike internally.
 func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.PrincipalState) error {
 	log := p.log.With(principalStateAttr(state))
-	log.DebugContext(ctx, "Provisioning", "state", state.Status.ProvisioningState)
+	log.DebugContext(ctx, "Provisioning", "state", state.GetStatus().GetProvisioningState())
 
-	switch state.Status.ProvisioningState {
+	switch state.GetStatus().GetProvisioningState() {
 	case provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE:
 		var principalState *provisioningv1.PrincipalState
 		var provisioningErr error
 
-		switch state.Spec.PrincipalType {
+		switch state.GetSpec().GetPrincipalType() {
 		case provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER:
 			principalState, provisioningErr = p.provisionUser(ctx, state)
 
@@ -207,7 +207,7 @@ func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.Princ
 			principalState, provisioningErr = p.provisionAccessList(ctx, state)
 
 		default:
-			return trace.BadParameter("Unsupported principal type %v", state.Spec.PrincipalType)
+			return trace.BadParameter("Unsupported principal type %v", state.GetSpec().GetPrincipalType())
 		}
 
 		if provisioningErr != nil {
@@ -239,7 +239,7 @@ func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.Princ
 		// an external IdP.
 		deProvisionPrincipal := true
 		if p.userProvisioningMode == UserProvisioningModeExternal {
-			deProvisionPrincipal = state.GetSpec().PrincipalType != provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER
+			deProvisionPrincipal = state.GetSpec().GetPrincipalType() != provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER
 		}
 
 		if deProvisionPrincipal {
@@ -258,7 +258,7 @@ func (p *provisioner) Provision(ctx context.Context, state *provisioningv1.Princ
 		return nil
 
 	default:
-		return trace.BadParameter("unexpected provisioning status: %v", state.Status.ProvisioningState)
+		return trace.BadParameter("unexpected provisioning status: %v", state.GetStatus().GetProvisioningState())
 	}
 }
 
@@ -274,8 +274,8 @@ func (p *provisioner) ProvisionAll(ctx context.Context, states iter.Seq[*provisi
 			if err := p.Provision(groupCtx, s); err != nil {
 				if !errors.Is(err, breaker.ErrStateTripped) {
 					p.log.WarnContext(groupCtx, "Failed provisioning resource",
-						"principal_type", s.Spec.PrincipalType,
-						"principal_id", s.Spec.PrincipalId,
+						"principal_type", s.GetSpec().GetPrincipalType(),
+						"principal_id", s.GetSpec().GetPrincipalId(),
 						"error", err)
 				}
 			}
@@ -309,7 +309,7 @@ func (p *provisioner) deprovisionPrincipal(ctx context.Context, state *provision
 	log.DebugContext(ctx, "Deprovisioning principal")
 
 	// If the record was never actually provisioned...
-	if state.Status.ExternalId == "" {
+	if state.GetStatus().GetExternalId() == "" {
 		log.DebugContext(ctx, "Principal was never provisioned")
 		return nil
 	}
@@ -320,15 +320,15 @@ func (p *provisioner) deprovisionPrincipal(ctx context.Context, state *provision
 	}
 
 	var err error
-	switch state.Spec.PrincipalType {
+	switch state.GetSpec().GetPrincipalType() {
 	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER:
-		err = p.scimClient.DeleteUser(ctx, state.Status.ExternalId)
+		err = p.scimClient.DeleteUser(ctx, state.GetStatus().GetExternalId())
 
 	case provisioningv1.PrincipalType_PRINCIPAL_TYPE_ACCESS_LIST:
-		err = p.scimClient.DeleteGroup(ctx, state.Status.ExternalId)
+		err = p.scimClient.DeleteGroup(ctx, state.GetStatus().GetExternalId())
 
 	default:
-		return trace.BadParameter("unsupported principal type: %s", state.Spec.PrincipalType)
+		return trace.BadParameter("unsupported principal type: %s", state.GetSpec().GetPrincipalType())
 	}
 
 	if trace.IsNotFound(err) {

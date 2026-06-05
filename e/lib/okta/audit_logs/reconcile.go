@@ -23,8 +23,8 @@ func reconcileResults(old *pollResults, new *pollResults) (upsert, delete *acces
 		reconcileRoleAssignment(old.roleAssignments, new.roleAssignments),
 		reconcileRoles(old.roles, new.roles),
 	} {
-		upsert.Resources = append(upsert.Resources, results.upsert.Resources...)
-		delete.Resources = append(delete.Resources, results.delete.Resources...)
+		upsert.SetResources(append(upsert.GetResources(), results.upsert.GetResources()...))
+		delete.SetResources(append(delete.GetResources(), results.delete.GetResources()...))
 	}
 
 	return upsert, delete
@@ -42,18 +42,18 @@ func reconcileRoles(old, new []*accessgraphv1alpha.OktaRoleV1) *reconcileInterme
 	})
 
 	for _, group := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.OktaResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.OktaResource{
 			Resource: &accessgraphv1alpha.OktaResource_Role{
 				Role: group,
 			},
-		})
+		}))
 	}
 	for _, group := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.OktaResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.OktaResource{
 			Resource: &accessgraphv1alpha.OktaResource_Role{
 				Role: group,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -67,18 +67,18 @@ func reconcileTokens(
 		return token.GetId()
 	})
 	for _, token := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.OktaResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.OktaResource{
 			Resource: &accessgraphv1alpha.OktaResource_Token{
 				Token: token,
 			},
-		})
+		}))
 	}
 	for _, token := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.OktaResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.OktaResource{
 			Resource: &accessgraphv1alpha.OktaResource_Token{
 				Token: token,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -92,18 +92,18 @@ func reconcileRoleAssignment(
 		return fmt.Sprintf("%x;%x;%v", policy.GetRoleId(), policy.GetUserId(), policy.GetOrganization())
 	})
 	for _, member := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.OktaResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.OktaResource{
 			Resource: &accessgraphv1alpha.OktaResource_RoleAssignment{
 				RoleAssignment: member,
 			},
-		})
+		}))
 	}
 	for _, member := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.OktaResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.OktaResource{
 			Resource: &accessgraphv1alpha.OktaResource_RoleAssignment{
 				RoleAssignment: member,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }

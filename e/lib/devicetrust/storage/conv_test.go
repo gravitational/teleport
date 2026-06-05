@@ -28,41 +28,41 @@ func TestDeviceFromBackendItem(t *testing.T) {
 
 	_, pubKeyDER := newKeyPair(t)
 
-	resource1Dev := &devicepb.Device{
+	resource1Dev := devicepb.Device_builder{
 		ApiVersion: "v1",
 		Id:         "a6f76866-a9eb-4a23-9bb1-7980347a1bee",
 		OsType:     devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag:   resource1Tag,
 		CreateTime: timestamppb.New(time.Date(2023, 2, 24, 19, 0, 0, 0, time.UTC)),
 		UpdateTime: timestamppb.New(time.Date(2023, 2, 24, 19, 15, 0, 500, time.UTC)),
-		EnrollToken: &devicepb.DeviceEnrollToken{
+		EnrollToken: devicepb.DeviceEnrollToken_builder{
 			Token: "i-am-ignored",
-		},
+		}.Build(),
 		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
-		Credential: &devicepb.DeviceCredential{
+		Credential: devicepb.DeviceCredential_builder{
 			Id:           "ae2d978c-fee8-419d-a2e6-a5dd0a00c4b8",
 			PublicKeyDer: pubKeyDER,
-		},
+		}.Build(),
 		// CollectedData is ignored on Create.
 		CollectedData: []*devicepb.DeviceCollectedData{
-			{
+			devicepb.DeviceCollectedData_builder{
 				CollectTime:  timestamppb.New(time.Date(2023, 2, 24, 19, 0, 5, 0, time.UTC)),
 				RecordTime:   timestamppb.New(time.Date(2023, 2, 24, 19, 0, 5, 500, time.UTC)),
 				OsType:       devicepb.OSType_OS_TYPE_MACOS,
 				SerialNumber: resource1Tag,
-			},
-			{
+			}.Build(),
+			devicepb.DeviceCollectedData_builder{
 				CollectTime:  nil,                           // invalid
 				RecordTime:   nil,                           // invalid for a resource
 				OsType:       devicepb.OSType_OS_TYPE_LINUX, // invalid
 				SerialNumber: "ignored",                     // invalid
-			},
+			}.Build(),
 		},
-		Source: &devicepb.DeviceSource{
+		Source: devicepb.DeviceSource_builder{
 			Name:   "myscript",
 			Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
-		},
-		Profile: &devicepb.DeviceProfile{
+		}.Build(),
+		Profile: devicepb.DeviceProfile_builder{
 			UpdateTime:          timestamppb.Now(),
 			ModelIdentifier:     "MacBookPro9,2",
 			OsVersion:           "13.4.1",
@@ -71,9 +71,9 @@ func TestDeviceFromBackendItem(t *testing.T) {
 			OsUsernames:         []string{"admin", "codingllama", "alpaca"},
 			JamfBinaryVersion:   "10.44.1-t1677509507",
 			ExternalId:          "99",
-		},
+		}.Build(),
 		Owner: "llama",
-	}
+	}.Build()
 
 	// Create a device without collected data as a resource.
 	createResp, err := s.CreateDevice(ctx, resource1Dev, true /* createAsResource */)
@@ -82,7 +82,7 @@ func TestDeviceFromBackendItem(t *testing.T) {
 	}
 
 	// Get the device from the backend.
-	key := backend.NewKey(append(devicetrust.DevicesIDPrefix, resource1Dev.Id)...)
+	key := backend.NewKey(append(devicetrust.DevicesIDPrefix, resource1Dev.GetId())...)
 	item, err := env.mem.Get(ctx, key)
 	if err != nil {
 		t.Fatalf("backend.Get failed: %v", err)

@@ -256,9 +256,9 @@ type userMock struct {
 }
 
 func (u *userMock) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	return &userspb.ListUsersResponse{
+	return userspb.ListUsersResponse_builder{
 		Users: u.users,
-	}, nil
+	}.Build(), nil
 }
 
 type credMock struct {
@@ -386,46 +386,46 @@ func TestListSCIMResourcesUserPredicate(t *testing.T) {
 	require.NoError(t, err)
 
 	cmpResourceID := cmp.Comparer(func(x, y *scimpb.Resource) bool {
-		return x.Id == y.Id
+		return x.GetId() == y.GetId()
 	})
 
 	t.Run("list user by filter should return SAML originated user", func(t *testing.T) {
 		// alice user is SAML ephemeral users SCIM List call should  also list SAML users
 		// if SAML from the user object and okta SCIM settings are the same.
-		resp, err := sut.ListSCIMResources(ctx, &scimpb.ListSCIMResourcesRequest{
-			Target: &scimpb.RequestTarget{
+		resp, err := sut.ListSCIMResources(ctx, scimpb.ListSCIMResourcesRequest_builder{
+			Target: scimpb.RequestTarget_builder{
 				Authorization: testAuthHeader,
 				PluginId:      "okta",
 				ResourceType:  "Users",
-			},
-			Page:   &scimpb.Page{StartIndex: 1, Count: 100},
+			}.Build(),
+			Page:   scimpb.Page_builder{StartIndex: 1, Count: 100}.Build(),
 			Filter: `userName eq "alice@example.com"`,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Resources, 1)
+		require.Len(t, resp.GetResources(), 1)
 
 		want := []*scimpb.Resource{
-			{Id: aliceUserCreateByOktaConnector.GetName()},
+			scimpb.Resource_builder{Id: aliceUserCreateByOktaConnector.GetName()}.Build(),
 		}
-		require.Empty(t, cmp.Diff(want, resp.Resources, cmpResourceID))
+		require.Empty(t, cmp.Diff(want, resp.GetResources(), cmpResourceID))
 	})
 
 	t.Run("list SCIM resource should return SCIM and SAML originated users", func(t *testing.T) {
-		resp, err := sut.ListSCIMResources(ctx, &scimpb.ListSCIMResourcesRequest{
-			Target: &scimpb.RequestTarget{
+		resp, err := sut.ListSCIMResources(ctx, scimpb.ListSCIMResourcesRequest_builder{
+			Target: scimpb.RequestTarget_builder{
 				Authorization: testAuthHeader,
 				PluginId:      "okta",
 				ResourceType:  "Users",
-			},
-			Page: &scimpb.Page{StartIndex: 1, Count: 100},
-		})
+			}.Build(),
+			Page: scimpb.Page_builder{StartIndex: 1, Count: 100}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Resources, 2)
+		require.Len(t, resp.GetResources(), 2)
 
 		want := []*scimpb.Resource{
-			{Id: aliceUserCreateByOktaConnector.GetName()},
-			{Id: richardUserProvidedBySCIM.GetName()},
+			scimpb.Resource_builder{Id: aliceUserCreateByOktaConnector.GetName()}.Build(),
+			scimpb.Resource_builder{Id: richardUserProvidedBySCIM.GetName()}.Build(),
 		}
-		require.Empty(t, cmp.Diff(want, resp.Resources, cmpResourceID))
+		require.Empty(t, cmp.Diff(want, resp.GetResources(), cmpResourceID))
 	})
 }

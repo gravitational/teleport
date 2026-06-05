@@ -143,11 +143,11 @@ retry:
 		return nil, trace.Errorf("failed to create node for beam")
 	}
 
-	beam.Status.ComputeStatus = beamsv1.ComputeStatus_COMPUTE_STATUS_PROVISION_COMPLETE
-	beam.Status.SshAddr = provisionRsp.GetSshAddr()
-	beam.Status.AppAddrHttp = provisionRsp.GetAppAddrHttp()
-	beam.Status.AppAddrTcp = provisionRsp.GetAppAddrTcp()
-	beam.Status.NodeId = node.GetName()
+	beam.GetStatus().SetComputeStatus(beamsv1.ComputeStatus_COMPUTE_STATUS_PROVISION_COMPLETE)
+	beam.GetStatus().SetSshAddr(provisionRsp.GetSshAddr())
+	beam.GetStatus().SetAppAddrHttp(provisionRsp.GetAppAddrHttp())
+	beam.GetStatus().SetAppAddrTcp(provisionRsp.GetAppAddrTcp())
+	beam.GetStatus().SetNodeId(node.GetName())
 
 	actions, err := s.nodeWriter.AppendPutNodeActions(
 		nil, /* actions */
@@ -172,11 +172,11 @@ retry:
 		logger.ErrorContext(ctx, "Failed to create node and update beam", "error", err)
 		return nil, trace.Wrap(err)
 	}
-	beam.Metadata.Revision = revision
+	beam.GetMetadata().SetRevision(revision)
 
-	return &beamsv1.CreateBeamResponse{
+	return beamsv1.CreateBeamResponse_builder{
 		Beam: beam,
-	}, nil
+	}.Build(), nil
 }
 
 func (s *BeamsService) createBeam(ctx context.Context, user string, req *beamsv1.CreateBeamRequest) (*beamsv1.Beam, string, error) {
@@ -188,31 +188,31 @@ func (s *BeamsService) createBeam(ctx context.Context, user string, req *beamsv1
 		return nil, "", trace.Wrap(err)
 	}
 
-	beam := &beamsv1.Beam{
+	beam := beamsv1.Beam_builder{
 		Kind:    types.KindBeam,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: id,
-		},
-		Spec: &beamsv1.BeamSpec{
+		}.Build(),
+		Spec: beamsv1.BeamSpec_builder{
 			Egress:         req.GetEgress(),
 			AllowedDomains: req.GetAllowedDomains(),
 			Expires:        timestamppb.New(expires),
-		},
-		Status: &beamsv1.BeamStatus{
+		}.Build(),
+		Status: beamsv1.BeamStatus_builder{
 			User:          user,
 			Alias:         alias,
 			ComputeStatus: beamsv1.ComputeStatus_COMPUTE_STATUS_PROVISION_PENDING,
-		},
-	}
-	beam.Metadata.Labels = beamResourceLabels(beam)
+		}.Build(),
+	}.Build()
+	beam.GetMetadata().SetLabels(beamResourceLabels(beam))
 
 	// Create bot user and role.
 	bot, botUser, botRole, err := beamBotUserAndRole(beam)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	beam.Status.BotName = bot.GetMetadata().GetName()
+	beam.GetStatus().SetBotName(bot.GetMetadata().GetName())
 
 	actions, err := s.userWriter.AppendPutUserParamsActions(
 		nil, /* actions */
@@ -236,7 +236,7 @@ func (s *BeamsService) createBeam(ctx context.Context, user string, req *beamsv1
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	beam.Status.JoinTokenName = token.GetName()
+	beam.GetStatus().SetJoinTokenName(token.GetName())
 
 	actions, err = s.provisionTokenWriter.AppendPutProvisionTokenActions(
 		actions,
@@ -252,7 +252,7 @@ func (s *BeamsService) createBeam(ctx context.Context, user string, req *beamsv1
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	beam.Status.WorkloadIdentityName = workloadIdentity.GetMetadata().GetName()
+	beam.GetStatus().SetWorkloadIdentityName(workloadIdentity.GetMetadata().GetName())
 
 	actions, err = s.workloadIdentityWriter.AppendPutWorkloadIdentityActions(
 		actions,
@@ -268,7 +268,7 @@ func (s *BeamsService) createBeam(ctx context.Context, user string, req *beamsv1
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	beam.Status.DelegationSessionId = delegationSession.GetMetadata().GetName()
+	beam.GetStatus().SetDelegationSessionId(delegationSession.GetMetadata().GetName())
 
 	actions, err = s.delegationSessionWriter.AppendPutDelegationSessionActions(
 		actions,
@@ -296,31 +296,31 @@ func (s *BeamsService) createBeam(ctx context.Context, user string, req *beamsv1
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	beam.Metadata.Revision = revision
+	beam.GetMetadata().SetRevision(revision)
 
 	return beam, secret, nil
 }
 
 func beamBotUserAndRole(beam *beamsv1.Beam) (*machineidv1pb.Bot, types.User, types.Role, error) {
-	bot := &machineidv1pb.Bot{
+	bot := machineidv1pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:    beamResourceName(beam),
 			Labels:  beamResourceLabels(beam),
 			Expires: proto.CloneOf(beam.GetSpec().GetExpires()),
-		},
-		Spec: &machineidv1pb.BotSpec{
+		}.Build(),
+		Spec: machineidv1pb.BotSpec_builder{
 			Roles: []string{beamBotRoleName},
 			Traits: []*machineidv1pb.Trait{
 				// Add the beam's ID as a trait so we can use it in bot role template.
-				{
+				machineidv1pb.Trait_builder{
 					Name:   types.BeamIDLabel,
 					Values: []string{beam.GetMetadata().GetName()},
-				},
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 	user, role, err := machineidv1.BotToUserAndRole(
 		bot,
 		beam.GetStatus().GetUser(),
@@ -364,51 +364,49 @@ func beamJoinTokenAndSecret(beam *beamsv1.Beam) (types.ProvisionToken, string, e
 }
 
 func beamWorkloadIdentity(beam *beamsv1.Beam) (*workloadidentityv1.WorkloadIdentity, error) {
-	return &workloadidentityv1.WorkloadIdentity{
+	return workloadidentityv1.WorkloadIdentity_builder{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:    beamResourceName(beam),
 			Labels:  beamResourceLabels(beam),
 			Expires: proto.CloneOf(beam.GetSpec().GetExpires()),
-		},
-		Spec: &workloadidentityv1.WorkloadIdentitySpec{
-			Rules: &workloadidentityv1.WorkloadIdentityRules{
+		}.Build(),
+		Spec: workloadidentityv1.WorkloadIdentitySpec_builder{
+			Rules: workloadidentityv1.WorkloadIdentityRules_builder{
 				Allow: []*workloadidentityv1.WorkloadIdentityRule{
-					{Expression: fmt.Sprintf("user.bot_name == %q", beam.GetStatus().GetBotName())},
+					workloadidentityv1.WorkloadIdentityRule_builder{Expression: fmt.Sprintf("user.bot_name == %q", beam.GetStatus().GetBotName())}.Build(),
 				},
-			},
-			Spiffe: &workloadidentityv1.WorkloadIdentitySPIFFE{
+			}.Build(),
+			Spiffe: workloadidentityv1.WorkloadIdentitySPIFFE_builder{
 				Id: beamSPIFFEPath(beam),
-			},
-		},
-	}, nil
+			}.Build(),
+		}.Build(),
+	}.Build(), nil
 }
 
 func beamDelegationSession(beam *beamsv1.Beam) (*delegationv1.DelegationSession, error) {
-	return &delegationv1.DelegationSession{
+	return delegationv1.DelegationSession_builder{
 		Kind:    types.KindDelegationSession,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:    uuid.NewString(),
 			Labels:  beamResourceLabels(beam),
 			Expires: proto.CloneOf(beam.GetSpec().GetExpires()),
-		},
-		Spec: &delegationv1.DelegationSessionSpec{
+		}.Build(),
+		Spec: delegationv1.DelegationSessionSpec_builder{
 			User: beam.GetStatus().GetUser(),
 			Resources: []*delegationv1.DelegationResourceSpec{
-				{Kind: types.Wildcard, Name: types.Wildcard},
+				delegationv1.DelegationResourceSpec_builder{Kind: types.Wildcard, Name: types.Wildcard}.Build(),
 			},
 			AuthorizedUsers: []*delegationv1.DelegationUserSpec{
-				{
-					Kind: types.KindBot,
-					Matcher: &delegationv1.DelegationUserSpec_BotName{
-						BotName: beam.GetStatus().GetBotName(),
-					},
-				},
+				delegationv1.DelegationUserSpec_builder{
+					Kind:    types.KindBot,
+					BotName: proto.String(beam.GetStatus().GetBotName()),
+				}.Build(),
 			},
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 func beamResourceLabels(beam *beamsv1.Beam) map[string]string {

@@ -100,24 +100,24 @@ func newDefaultPluginSpec(t *testing.T) *types.PluginV1 {
 }
 
 func createEntraIDPlugin(ctx context.Context, authClient authclient.ClientI, plugin *types.PluginV1) error {
-	_, err := authClient.PluginsClient().CreatePlugin(ctx, &pluginspb.CreatePluginRequest{Plugin: plugin})
+	_, err := authClient.PluginsClient().CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{Plugin: plugin}.Build())
 	return trace.Wrap(err)
 }
 
 func listEntraIDUsers(ctx context.Context, authClient authclient.ClientI) ([]string, error) {
-	resp, err := authClient.ListUsers(ctx, &usersv1.ListUsersRequest{
+	resp, err := authClient.ListUsers(ctx, usersv1.ListUsersRequest_builder{
 		WithSecrets: false,
 		Filter: &types.UserFilter{
 			SearchKeywords:  []string{types.OriginEntraID}, // searches entra id origin label.
 			SkipSystemUsers: true,
 		},
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	out := make([]string, 0, len(resp.Users))
-	for _, u := range resp.Users {
+	out := make([]string, 0, len(resp.GetUsers()))
+	for _, u := range resp.GetUsers() {
 		out = append(out, u.GetName())
 	}
 
@@ -256,9 +256,9 @@ func newDefaultStorage() *msgraphtest.Storage {
 func expectPluginStatusUpdated(t *testing.T, ctx context.Context, authClt authclient.ClientI, name string, clock *clockwork.FakeClock) {
 	t.Helper()
 
-	plugin, err := authClt.PluginsClient().GetPlugin(ctx, &pluginspb.GetPluginRequest{
+	plugin, err := authClt.PluginsClient().GetPlugin(ctx, pluginspb.GetPluginRequest_builder{
 		Name: name,
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("failed to get entra id plugin %q", name)
 	}
@@ -270,9 +270,9 @@ func expectPluginStatusUpdated(t *testing.T, ctx context.Context, authClt authcl
 
 	before := plugin.GetStatus().GetLastSyncTime()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		plugin, err := authClt.PluginsClient().GetPlugin(ctx, &pluginspb.GetPluginRequest{
+		plugin, err := authClt.PluginsClient().GetPlugin(ctx, pluginspb.GetPluginRequest_builder{
 			Name: name,
-		})
+		}.Build())
 		require.NoError(t, err)
 		after := plugin.GetStatus().GetLastSyncTime()
 		require.True(t, after.After(before), "expected a new Entra ID sync to complete with new last sync time")

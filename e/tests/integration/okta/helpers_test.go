@@ -278,7 +278,7 @@ func mustCreateIntegration(t *testing.T, sut *common.SUT, oktaAuthClient oktav1.
 	t.Helper()
 	ctx := t.Context()
 
-	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaAuthClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ApiCredentials:          settings.apiCredentials,
 		ReuseConnector:          settings.reuseConnector,
 		EnableUserSync:          settings.enableUserSync,
@@ -286,7 +286,7 @@ func mustCreateIntegration(t *testing.T, sut *common.SUT, oktaAuthClient oktav1.
 		EnableAccessListSync:    settings.enableAccessListSync,
 		EnableBidirectionalSync: settings.enableBidirectionalSync,
 		AccessListSettings:      settings.accessListSettings,
-	})
+	}.Build())
 	require.NoError(t, err)
 	updateOktaDelays(t, sut, delays{
 		timeBetweenImports:                1 * time.Second,
@@ -298,12 +298,12 @@ func mustUpdateIntegration(t *testing.T, sut *common.SUT, oktaAuthClient oktav1.
 	t.Helper()
 	ctx := t.Context()
 
-	mustUpdateOktaIntegration(ctx, t, oktaAuthClient, &oktav1.UpdateIntegrationRequest{
+	mustUpdateOktaIntegration(ctx, t, oktaAuthClient, oktav1.UpdateIntegrationRequest_builder{
 		EnableUserSync:          settings.enableUserSync,
 		EnableAppGroupSync:      settings.enableAppGroupSync,
 		EnableAccessListSync:    settings.enableAccessListSync,
 		EnableBidirectionalSync: settings.enableBidirectionalSync,
-	})
+	}.Build())
 	updateOktaDelays(t, sut, delays{
 		timeBetweenImports:                1 * time.Second,
 		timeBetweenAssignmentProcessLoops: 1 * time.Second,

@@ -88,18 +88,16 @@ func TestCredentialUpdateTriggersPluginRestart(t *testing.T) {
 
 	_, err := alice.AuthClient.PluginsClient().UpdatePluginStaticCredentials(
 		context.Background(),
-		&pluginsv1.UpdatePluginStaticCredentialsRequest{
-			Target: &pluginsv1.UpdatePluginStaticCredentialsRequest_Query{
-				Query: &pluginsv1.CredentialQuery{
-					Labels: credRef.Labels,
-				},
-			},
+		pluginsv1.UpdatePluginStaticCredentialsRequest_builder{
+			Query: pluginsv1.CredentialQuery_builder{
+				Labels: credRef.Labels,
+			}.Build(),
 			Credential: &types.PluginStaticCredentialsSpecV1{
 				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
 					APIToken: updatedSCIMBearerToken,
 				},
 			},
-		})
+		}.Build())
 	require.NoError(t, err, "Updating SCIM token")
 
 	// EXPECT that the plugin will restart to pick up the new credential

@@ -14,11 +14,11 @@ func FormatInferenceError(err error, modelSpec *summarizerv1pb.InferenceModelSpe
 		return ""
 	}
 
-	switch providerCfg := modelSpec.Provider.(type) {
-	case *summarizerv1pb.InferenceModelSpec_Openai:
-		return openai.FormatError(err, providerCfg.Openai)
-	case *summarizerv1pb.InferenceModelSpec_Bedrock:
-		return bedrock.FormatError(err, providerCfg.Bedrock)
+	switch modelSpec.WhichProvider() {
+	case summarizerv1pb.InferenceModelSpec_Openai_case:
+		return openai.FormatError(err, modelSpec.GetOpenai())
+	case summarizerv1pb.InferenceModelSpec_Bedrock_case:
+		return bedrock.FormatError(err, modelSpec.GetBedrock())
 	default:
 		return fmt.Sprintf("inference request failed: %v", err)
 	}
@@ -30,11 +30,11 @@ func FormatRetrievalError(err error, modelSpec *summarizerv1pb.RetrievalModelSpe
 		return ""
 	}
 
-	switch providerCfg := modelSpec.EmbeddingsProvider.(type) {
-	case *summarizerv1pb.RetrievalModelSpec_Openai:
-		return openai.FormatError(err, providerCfg.Openai)
-	case *summarizerv1pb.RetrievalModelSpec_Bedrock:
-		return bedrock.FormatError(err, providerCfg.Bedrock)
+	switch modelSpec.WhichEmbeddingsProvider() {
+	case summarizerv1pb.RetrievalModelSpec_Openai_case:
+		return openai.FormatError(err, modelSpec.GetOpenai())
+	case summarizerv1pb.RetrievalModelSpec_Bedrock_case:
+		return bedrock.FormatError(err, modelSpec.GetBedrock())
 	default:
 		return fmt.Sprintf("inference request failed: %v", err)
 	}

@@ -183,9 +183,9 @@ func (e *PolicyEvaluator) buildVerifier(policy *workloadidentityv1.SigstorePolic
 		identityOpts    []verify.PolicyOption
 		err             error
 	)
-	switch t := policy.GetSpec().GetAuthority().(type) {
-	case *workloadidentityv1.SigstorePolicySpec_Key:
-		if trustedMaterial, err = e.trustedPublicKeyMaterial(t.Key); err != nil {
+	switch policy.GetSpec().WhichAuthority() {
+	case workloadidentityv1.SigstorePolicySpec_Key_case:
+		if trustedMaterial, err = e.trustedPublicKeyMaterial(policy.GetSpec().GetKey()); err != nil {
 			return nil, nil, trace.Wrap(err, "loading trusted public key material")
 		}
 
@@ -198,12 +198,12 @@ func (e *PolicyEvaluator) buildVerifier(policy *workloadidentityv1.SigstorePolic
 		// When validating against a known public key (rather than a short-lived
 		// Fulcio certificate) there is no certificate identity to verify.
 		identityOpts = append(identityOpts, verify.WithoutIdentitiesUnsafe())
-	case *workloadidentityv1.SigstorePolicySpec_Keyless:
-		if trustedMaterial, err = e.keylessTrustedRoots(t.Keyless); err != nil {
+	case workloadidentityv1.SigstorePolicySpec_Keyless_case:
+		if trustedMaterial, err = e.keylessTrustedRoots(policy.GetSpec().GetKeyless()); err != nil {
 			return nil, nil, trace.Wrap(err, "loading trusted public key material")
 		}
 
-		for _, id := range t.Keyless.Identities {
+		for _, id := range policy.GetSpec().GetKeyless().GetIdentities() {
 			matcher, err := verify.NewShortCertificateIdentity(
 				id.GetIssuer(),
 				id.GetIssuerRegex(),

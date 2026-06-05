@@ -9,6 +9,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -646,7 +647,7 @@ func TestSCIMOnlyAPICredentials(t *testing.T) {
 
 	authServer := sut.Teleport.Process.GetAuthServer()
 
-	oktaCreds := &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_SswsBearerToken{SswsBearerToken: "12345"}}
+	oktaCreds := oktav1.OktaAPICredentials_builder{SswsBearerToken: proto.String("12345")}.Build()
 	scimToken := createAndWaitForOktaIntegration(t, sut, fakeOkta, withAPICredentials(oktaCreds), withAccessListDisabled())
 	scimClient := createSCIMClient(t, sut, scimToken)
 

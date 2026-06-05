@@ -628,13 +628,13 @@ func setupDeviceTrust(t *testing.T, process *service.TeleportProcess) tshcommon.
 	require.NoError(t, err, "NewFakeMacOSDevice failed")
 
 	// Create device and enroll token
-	device, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	device, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   macOSDev1.GetDeviceOSType(),
 			AssetTag: macOSDev1.SerialNumber,
-		},
+		}.Build(),
 		CreateEnrollToken: true,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Enroll device
@@ -644,7 +644,7 @@ func setupDeviceTrust(t *testing.T, process *service.TeleportProcess) tshcommon.
 	// 1. Init.
 	initReq, err := macOSDev1.EnrollDeviceInit()
 	require.NoError(t, err)
-	initReq.Token = device.EnrollToken.Token
+	initReq.SetToken(device.GetEnrollToken().GetToken())
 	err = stream.Send(&devicepb.EnrollDeviceRequest{
 		Payload: &devicepb.EnrollDeviceRequest_Init{
 			Init: initReq,
@@ -656,16 +656,14 @@ func setupDeviceTrust(t *testing.T, process *service.TeleportProcess) tshcommon.
 	resp, err := stream.Recv()
 	require.NoError(t, err)
 
-	sig, err := macOSDev1.SignChallenge(resp.GetMacosChallenge().Challenge)
+	sig, err := macOSDev1.SignChallenge(resp.GetMacosChallenge().GetChallenge())
 	require.NoError(t, err)
 
-	err = stream.Send(&devicepb.EnrollDeviceRequest{
-		Payload: &devicepb.EnrollDeviceRequest_MacosChallengeResponse{
-			MacosChallengeResponse: &devicepb.MacOSEnrollChallengeResponse{
-				Signature: sig,
-			},
-		},
-	})
+	err = stream.Send(devicepb.EnrollDeviceRequest_builder{
+		MacosChallengeResponse: devicepb.MacOSEnrollChallengeResponse_builder{
+			Signature: sig,
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// 3. Success.

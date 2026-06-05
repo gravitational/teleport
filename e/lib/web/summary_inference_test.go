@@ -527,63 +527,61 @@ func unmarshalListResponse(t *testing.T, data []byte, resourceType string) []any
 
 func createInferenceModel(t *testing.T, ctx context.Context, authClient authclient.ClientI, name string) {
 	t.Helper()
-	_, err := authClient.SummarizerServiceClient().CreateInferenceModel(ctx, &summarizerv1.CreateInferenceModelRequest{
-		Model: &summarizerv1.InferenceModel{
+	_, err := authClient.SummarizerServiceClient().CreateInferenceModel(ctx, summarizerv1.CreateInferenceModelRequest_builder{
+		Model: summarizerv1.InferenceModel_builder{
 			Kind:    types.KindInferenceModel,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name:        name,
 				Description: "Test model",
-			},
-			Spec: &summarizerv1.InferenceModelSpec{
-				Provider: &summarizerv1.InferenceModelSpec_Openai{
-					Openai: &summarizerv1.OpenAIProvider{
-						OpenaiModelId:   "gpt-4",
-						Temperature:     0.7,
-						ApiKeySecretRef: "test-secret",
-					},
-				},
-			},
-		},
-	})
+			}.Build(),
+			Spec: summarizerv1.InferenceModelSpec_builder{
+				Openai: summarizerv1.OpenAIProvider_builder{
+					OpenaiModelId:   "gpt-4",
+					Temperature:     0.7,
+					ApiKeySecretRef: "test-secret",
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 }
 
 func createInferenceSecret(t *testing.T, ctx context.Context, authClient authclient.ClientI, name string) {
 	t.Helper()
-	_, err := authClient.SummarizerServiceClient().CreateInferenceSecret(ctx, &summarizerv1.CreateInferenceSecretRequest{
-		Secret: &summarizerv1.InferenceSecret{
+	_, err := authClient.SummarizerServiceClient().CreateInferenceSecret(ctx, summarizerv1.CreateInferenceSecretRequest_builder{
+		Secret: summarizerv1.InferenceSecret_builder{
 			Kind:    types.KindInferenceSecret,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name:        name,
 				Description: "Test secret",
-			},
-			Spec: &summarizerv1.InferenceSecretSpec{
+			}.Build(),
+			Spec: summarizerv1.InferenceSecretSpec_builder{
 				Value: "test-secret-value",
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 }
 
 func createInferencePolicy(t *testing.T, ctx context.Context, authClient authclient.ClientI, name string) {
 	t.Helper()
-	_, err := authClient.SummarizerServiceClient().CreateInferencePolicy(ctx, &summarizerv1.CreateInferencePolicyRequest{
-		Policy: &summarizerv1.InferencePolicy{
+	_, err := authClient.SummarizerServiceClient().CreateInferencePolicy(ctx, summarizerv1.CreateInferencePolicyRequest_builder{
+		Policy: summarizerv1.InferencePolicy_builder{
 			Kind:    types.KindInferencePolicy,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name:        name,
 				Description: "Test policy",
-			},
-			Spec: &summarizerv1.InferencePolicySpec{
+			}.Build(),
+			Spec: summarizerv1.InferencePolicySpec_builder{
 				Model:  "test-model",
 				Kinds:  []string{"ssh"},
 				Filter: "",
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 }
 

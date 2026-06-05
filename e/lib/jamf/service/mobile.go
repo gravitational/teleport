@@ -64,14 +64,14 @@ func (s *S) getMobilePage(
 // device is found and matches.
 func (s *S) confirmMobile(ctx context.Context, dev *devicepb.Device) (matches bool, jamfDevForLogging any, err error) {
 	md, err := s.jamf.GetMobileDeviceByID(ctx, &jamf.GetMobileDeviceByIDRequest{
-		ID: dev.Profile.GetExternalId(),
+		ID: dev.GetProfile().GetExternalId(),
 	})
 	if err != nil {
 		return false, nil, err
 	}
-	matches = md.SerialNumber == dev.AssetTag &&
+	matches = md.SerialNumber == dev.GetAssetTag() &&
 		md.IOS != nil &&
-		mobileToOSType(md.Type, md.IOS.ModelIdentifier) == dev.OsType
+		mobileToOSType(md.Type, md.IOS.ModelIdentifier) == dev.GetOsType()
 	return matches, md, nil
 }
 
@@ -92,21 +92,21 @@ func mobileToDevice(d *jamf.MobileDevice) (*devicepb.Device, error) {
 		return nil, trace.BadParameter("unexpected deviceType=%q, hardware.modelIdentifier=%q", d.DeviceType, d.Hardware.ModelIdentifier)
 	}
 
-	profile := &devicepb.DeviceProfile{
+	profile := devicepb.DeviceProfile_builder{
 		ModelIdentifier: d.Hardware.ModelIdentifier,
 		ExternalId:      d.MobileDeviceID,
-	}
+	}.Build()
 	if d.General != nil {
-		profile.OsVersion = d.General.OSVersion
-		profile.OsBuild = d.General.OSBuild
-		profile.OsBuildSupplemental = d.General.OSSupplementalBuildVersion
+		profile.SetOsVersion(d.General.OSVersion)
+		profile.SetOsBuild(d.General.OSBuild)
+		profile.SetOsBuildSupplemental(d.General.OSSupplementalBuildVersion)
 	}
 
-	return &devicepb.Device{
+	return devicepb.Device_builder{
 		OsType:   osType,
 		AssetTag: d.Hardware.SerialNumber,
 		Profile:  profile,
-	}, nil
+	}.Build(), nil
 }
 
 // mobileToOSType maps a Jamf mobile device's deviceType and modelIdentifier to
@@ -169,6 +169,6 @@ func (a mobileAdapter) logSync(ctx context.Context, log logFunc, dev *devicepb.D
 		"hardware.serialNumber", serialNumber,
 		"mobileDeviceId", a.md.MobileDeviceID,
 		"lastInventoryUpdateDate", lastInventoryUpdateDate,
-		"profile", dev.Profile,
+		"profile", dev.GetProfile(),
 	)
 }

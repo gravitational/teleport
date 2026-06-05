@@ -151,9 +151,9 @@ func (p *Plugin) getAvailablePluginTypesHandle(w http.ResponseWriter, r *http.Re
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	availableTypes := make([]types.PluginType, 0, len(resp.PluginTypes))
-	for _, typ := range resp.PluginTypes {
-		availableTypes = append(availableTypes, types.PluginType(typ.Type))
+	availableTypes := make([]types.PluginType, 0, len(resp.GetPluginTypes()))
+	for _, typ := range resp.GetPluginTypes() {
+		availableTypes = append(availableTypes, types.PluginType(typ.GetType()))
 	}
 
 	return availableTypes, nil
@@ -226,7 +226,7 @@ func (p *Plugin) getPluginsHandle(w http.ResponseWriter, r *http.Request, params
 	}
 
 	// TODO(justinas): actually paginate
-	results, err := pluginsClt.ListPlugins(r.Context(), &pluginspb.ListPluginsRequest{PageSize: pageSize})
+	results, err := pluginsClt.ListPlugins(r.Context(), pluginspb.ListPluginsRequest_builder{PageSize: pageSize}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -234,7 +234,7 @@ func (p *Plugin) getPluginsHandle(w http.ResponseWriter, r *http.Request, params
 	// Avoid returning nil/null to the UI when there are no plugins, make an empty slice.
 	plugins := make([]*ui.Plugin, 0)
 
-	for _, p := range results.Plugins {
+	for _, p := range results.GetPlugins() {
 		plugin, err := ui.NewPlugin(p)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -255,7 +255,7 @@ func (p *Plugin) deletePluginHandle(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = authClient.PluginsClient().DeletePlugin(r.Context(), &pluginspb.DeletePluginRequest{Name: pluginName})
+	_, err = authClient.PluginsClient().DeletePlugin(r.Context(), pluginspb.DeletePluginRequest_builder{Name: pluginName}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -303,7 +303,7 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.AccessDenied("bad state")
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
 				Name: cookie.Name,
@@ -322,9 +322,9 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 				},
 			},
 		},
-	}
+	}.Build()
 
-	if err = pd.TranslateCallbackCookie(&req.Plugin.Spec, cookie); err != nil {
+	if err = pd.TranslateCallbackCookie(&req.GetPlugin().Spec, cookie); err != nil {
 		if trace.IsNotImplemented(err) {
 			// preserves old behavior
 			return nil, trace.BadParameter("unknown plugin type")
@@ -360,10 +360,10 @@ func (p *Plugin) getPluginStatus(w http.ResponseWriter, r *http.Request, params 
 		return nil, trace.Wrap(err)
 	}
 
-	req := &pluginspb.GetPluginRequest{
+	req := pluginspb.GetPluginRequest_builder{
 		Name:        params.ByName("name"),
 		WithSecrets: false,
-	}
+	}.Build()
 
 	plugin, err := pluginsClt.GetPlugin(r.Context(), req)
 	if err != nil {
@@ -391,11 +391,11 @@ func (p *Plugin) getOktaGroups(w http.ResponseWriter, r *http.Request, params ht
 	}
 
 	authOktaClient := oktav1.NewOktaServiceClient(ctx.GetClientConnection())
-	resp, err := authOktaClient.GetGroups(r.Context(), &oktav1.GetGroupsRequest{
+	resp, err := authOktaClient.GetGroups(r.Context(), oktav1.GetGroupsRequest_builder{
 		OktaOrganizationUrl: orgURL,
 		ApiCredentials:      oktaAPICreds,
 		Filters:             filters,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -423,11 +423,11 @@ func (p *Plugin) getOktaApps(w http.ResponseWriter, r *http.Request, params http
 	}
 
 	authOktaClient := oktav1.NewOktaServiceClient(ctx.GetClientConnection())
-	resp, err := authOktaClient.GetApps(r.Context(), &oktav1.GetAppsRequest{
+	resp, err := authOktaClient.GetApps(r.Context(), oktav1.GetAppsRequest_builder{
 		OktaOrganizationUrl: orgURL,
 		ApiCredentials:      oktaAPICreds,
 		Filters:             filters,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -450,11 +450,11 @@ func (p *Plugin) getPluginTypeMeta(ctx context.Context, sctx *web.SessionContext
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	foundTypeIdx := slices.IndexFunc(resp.PluginTypes, func(t *pluginspb.PluginType) bool { return t.Type == typ })
+	foundTypeIdx := slices.IndexFunc(resp.GetPluginTypes(), func(t *pluginspb.PluginType) bool { return t.GetType() == typ })
 	if foundTypeIdx == -1 {
 		return nil, trace.NotFound("plugin type %q not supported by the server", typ)
 	}
-	return resp.PluginTypes[foundTypeIdx], nil
+	return resp.GetPluginTypes()[foundTypeIdx], nil
 }
 
 // getPluginCallbackURL returns the URL to use as OAuth `redirect_uri` .
@@ -506,7 +506,7 @@ func installPlugin(ctx context.Context, sessCtx *web.SessionContext, req *plugin
 		return nil, trace.Wrap(err)
 	}
 
-	uiPlugin, err := ui.NewPlugin(req.Plugin)
+	uiPlugin, err := ui.NewPlugin(req.GetPlugin())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -526,14 +526,14 @@ func (p *Plugin) pluginNeedsCleanup(w http.ResponseWriter, r *http.Request, para
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := pluginsClt.NeedsCleanup(r.Context(), &pluginspb.NeedsCleanupRequest{
+	resp, err := pluginsClt.NeedsCleanup(r.Context(), pluginspb.NeedsCleanupRequest_builder{
 		Type: pluginType,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if resp.NeedsCleanup {
+	if resp.GetNeedsCleanup() {
 		return &ui.PluginNeedsCleanup{NeedsCleanup: true}, nil
 	}
 
@@ -553,9 +553,9 @@ func (p *Plugin) pluginCleanup(w http.ResponseWriter, r *http.Request, params ht
 		return nil, trace.Wrap(err)
 	}
 
-	_, err = pluginsClt.Cleanup(r.Context(), &pluginspb.CleanupRequest{
+	_, err = pluginsClt.Cleanup(r.Context(), pluginspb.CleanupRequest_builder{
 		Type: pluginType,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

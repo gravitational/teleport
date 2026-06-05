@@ -165,7 +165,7 @@ func (s *Service) CreateInferenceModel(
 		return nil, errNotLicensed
 	}
 
-	if err := rejectReservedInferenceModelName(req.Model); err != nil {
+	if err := rejectReservedInferenceModelName(req.GetModel()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -175,7 +175,7 @@ func (s *Service) CreateInferenceModel(
 		}
 	}
 
-	model, err := s.backend.CreateInferenceModel(ctx, req.Model)
+	model, err := s.backend.CreateInferenceModel(ctx, req.GetModel())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -199,7 +199,7 @@ func (s *Service) CreateInferenceModel(
 		s.logger.WarnContext(ctx, "Failed to emit inference model create event", "error", err)
 	}
 
-	return &pb.CreateInferenceModelResponse{Model: model}, nil
+	return pb.CreateInferenceModelResponse_builder{Model: model}.Build(), nil
 }
 
 // GetInferenceModel retrieves an existing InferenceModel by name.
@@ -219,8 +219,8 @@ func (s *Service) GetInferenceModel(
 		return nil, errNotLicensed
 	}
 
-	model, err := s.backend.GetInferenceModel(ctx, req.Name)
-	return &pb.GetInferenceModelResponse{Model: model}, trace.Wrap(err)
+	model, err := s.backend.GetInferenceModel(ctx, req.GetName())
+	return pb.GetInferenceModelResponse_builder{Model: model}.Build(), trace.Wrap(err)
 }
 
 // UpdateInferenceModel updates an existing InferenceModel.
@@ -240,7 +240,7 @@ func (s *Service) UpdateInferenceModel(
 		return nil, errNotLicensed
 	}
 
-	if err := rejectReservedInferenceModelName(req.Model); err != nil {
+	if err := rejectReservedInferenceModelName(req.GetModel()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -250,7 +250,7 @@ func (s *Service) UpdateInferenceModel(
 		}
 	}
 
-	model, err := s.backend.UpdateInferenceModel(ctx, req.Model)
+	model, err := s.backend.UpdateInferenceModel(ctx, req.GetModel())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -274,7 +274,7 @@ func (s *Service) UpdateInferenceModel(
 		s.logger.WarnContext(ctx, "Failed to emit inference model update event", "error", err)
 	}
 
-	return &pb.UpdateInferenceModelResponse{Model: model}, nil
+	return pb.UpdateInferenceModelResponse_builder{Model: model}.Build(), nil
 }
 
 // UpsertInferenceModel creates a new InferenceModel or updates an existing one.
@@ -294,7 +294,7 @@ func (s *Service) UpsertInferenceModel(
 		return nil, errNotLicensed
 	}
 
-	if err := rejectReservedInferenceModelName(req.Model); err != nil {
+	if err := rejectReservedInferenceModelName(req.GetModel()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -304,7 +304,7 @@ func (s *Service) UpsertInferenceModel(
 		}
 	}
 
-	model, err := s.backend.UpsertInferenceModel(ctx, req.Model)
+	model, err := s.backend.UpsertInferenceModel(ctx, req.GetModel())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -329,7 +329,7 @@ func (s *Service) UpsertInferenceModel(
 		s.logger.WarnContext(ctx, "Failed to emit inference model upsert event", "error", err)
 	}
 
-	return &pb.UpsertInferenceModelResponse{Model: model}, nil
+	return pb.UpsertInferenceModelResponse_builder{Model: model}.Build(), nil
 }
 
 // DeleteInferenceModel deletes an existing InferenceModel by name.
@@ -349,7 +349,7 @@ func (s *Service) DeleteInferenceModel(
 		return nil, errNotLicensed
 	}
 
-	if req.Name == apisummarizer.CloudDefaultInferenceModelName {
+	if req.GetName() == apisummarizer.CloudDefaultInferenceModelName {
 		// TODO(bl-nero): Add a link to the documentation on default Bedrock model
 		// once it's released.
 		return nil, trace.BadParameter(
@@ -357,7 +357,7 @@ func (s *Service) DeleteInferenceModel(
 		)
 	}
 
-	err = s.backend.DeleteInferenceModel(ctx, req.Name)
+	err = s.backend.DeleteInferenceModel(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -369,7 +369,7 @@ func (s *Service) DeleteInferenceModel(
 		},
 		UserMetadata: authCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Name,
+			Name: req.GetName(),
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status: apievents.Status{
@@ -399,15 +399,15 @@ func (s *Service) ListInferenceModels(
 		return nil, errNotLicensed
 	}
 
-	models, nextPageToken, err := s.backend.ListInferenceModels(ctx, int(req.PageSize), req.PageToken)
+	models, nextPageToken, err := s.backend.ListInferenceModels(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &pb.ListInferenceModelsResponse{
+	return pb.ListInferenceModelsResponse_builder{
 		Models:        models,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // CRUD operations for secrets
@@ -429,7 +429,7 @@ func (s *Service) CreateInferenceSecret(
 		return nil, errNotLicensed
 	}
 
-	secret, err := s.backend.CreateInferenceSecret(ctx, req.Secret)
+	secret, err := s.backend.CreateInferenceSecret(ctx, req.GetSecret())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -452,7 +452,7 @@ func (s *Service) CreateInferenceSecret(
 		s.logger.WarnContext(ctx, "Failed to emit inference secret create event", "error", err)
 	}
 
-	return &pb.CreateInferenceSecretResponse{Secret: secret}, nil
+	return pb.CreateInferenceSecretResponse_builder{Secret: secret}.Build(), nil
 }
 
 // GetInferenceSecret retrieves an existing InferenceSecret by name.
@@ -472,12 +472,12 @@ func (s *Service) GetInferenceSecret(
 		return nil, errNotLicensed
 	}
 
-	secret, err := s.backend.GetInferenceSecret(ctx, req.Name)
+	secret, err := s.backend.GetInferenceSecret(ctx, req.GetName())
 	// Don't leak the secret.
 	if secret != nil {
-		secret.Spec = nil
+		secret.ClearSpec()
 	}
-	return &pb.GetInferenceSecretResponse{Secret: secret}, trace.Wrap(err)
+	return pb.GetInferenceSecretResponse_builder{Secret: secret}.Build(), trace.Wrap(err)
 }
 
 // UpdateInferenceSecret updates an existing InferenceSecret.
@@ -497,7 +497,7 @@ func (s *Service) UpdateInferenceSecret(
 		return nil, errNotLicensed
 	}
 
-	secret, err := s.backend.UpdateInferenceSecret(ctx, req.Secret)
+	secret, err := s.backend.UpdateInferenceSecret(ctx, req.GetSecret())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -522,9 +522,9 @@ func (s *Service) UpdateInferenceSecret(
 
 	// Don't leak the secret.
 	if secret != nil {
-		secret.Spec = nil
+		secret.ClearSpec()
 	}
-	return &pb.UpdateInferenceSecretResponse{Secret: secret}, nil
+	return pb.UpdateInferenceSecretResponse_builder{Secret: secret}.Build(), nil
 }
 
 // UpsertInferenceSecret creates a new InferenceSecret or updates an existing one.
@@ -544,7 +544,7 @@ func (s *Service) UpsertInferenceSecret(
 		return nil, errNotLicensed
 	}
 
-	secret, err := s.backend.UpsertInferenceSecret(ctx, req.Secret)
+	secret, err := s.backend.UpsertInferenceSecret(ctx, req.GetSecret())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -570,9 +570,9 @@ func (s *Service) UpsertInferenceSecret(
 
 	// Don't leak the secret.
 	if secret != nil {
-		secret.Spec = nil
+		secret.ClearSpec()
 	}
-	return &pb.UpsertInferenceSecretResponse{Secret: secret}, nil
+	return pb.UpsertInferenceSecretResponse_builder{Secret: secret}.Build(), nil
 }
 
 // DeleteInferenceSecret deletes an existing InferenceSecret by name.
@@ -592,7 +592,7 @@ func (s *Service) DeleteInferenceSecret(
 		return nil, errNotLicensed
 	}
 
-	err = s.backend.DeleteInferenceSecret(ctx, req.Name)
+	err = s.backend.DeleteInferenceSecret(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -604,7 +604,7 @@ func (s *Service) DeleteInferenceSecret(
 		},
 		UserMetadata: authCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Name,
+			Name: req.GetName(),
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status: apievents.Status{
@@ -634,19 +634,19 @@ func (s *Service) ListInferenceSecrets(
 		return nil, errNotLicensed
 	}
 
-	secrets, nextPageToken, err := s.backend.ListInferenceSecrets(ctx, int(req.PageSize), req.PageToken)
+	secrets, nextPageToken, err := s.backend.ListInferenceSecrets(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	for _, secret := range secrets {
 		// Don't leak the secret.
-		secret.Spec = nil
+		secret.ClearSpec()
 	}
 
-	return &pb.ListInferenceSecretsResponse{
+	return pb.ListInferenceSecretsResponse_builder{
 		Secrets:       secrets,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // CRUD operations for policies
@@ -672,7 +672,7 @@ func (s *Service) CreateInferencePolicy(
 		return nil, trace.Wrap(err)
 	}
 
-	policy, err := s.backend.CreateInferencePolicy(ctx, req.Policy)
+	policy, err := s.backend.CreateInferencePolicy(ctx, req.GetPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -696,7 +696,7 @@ func (s *Service) CreateInferencePolicy(
 		s.logger.WarnContext(ctx, "Failed to emit inference policy create event", "error", err)
 	}
 
-	return &pb.CreateInferencePolicyResponse{Policy: policy}, nil
+	return pb.CreateInferencePolicyResponse_builder{Policy: policy}.Build(), nil
 }
 
 // GetInferencePolicy retrieves an existing InferencePolicy by name.
@@ -716,8 +716,8 @@ func (s *Service) GetInferencePolicy(
 		return nil, errNotLicensed
 	}
 
-	policy, err := s.backend.GetInferencePolicy(ctx, req.Name)
-	return &pb.GetInferencePolicyResponse{Policy: policy}, trace.Wrap(err)
+	policy, err := s.backend.GetInferencePolicy(ctx, req.GetName())
+	return pb.GetInferencePolicyResponse_builder{Policy: policy}.Build(), trace.Wrap(err)
 }
 
 // UpdateInferencePolicy updates an existing InferencePolicy.
@@ -741,7 +741,7 @@ func (s *Service) UpdateInferencePolicy(
 		return nil, trace.Wrap(err)
 	}
 
-	policy, err := s.backend.UpdateInferencePolicy(ctx, req.Policy)
+	policy, err := s.backend.UpdateInferencePolicy(ctx, req.GetPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -765,7 +765,7 @@ func (s *Service) UpdateInferencePolicy(
 		s.logger.WarnContext(ctx, "Failed to emit inference policy update event", "error", err)
 	}
 
-	return &pb.UpdateInferencePolicyResponse{Policy: policy}, nil
+	return pb.UpdateInferencePolicyResponse_builder{Policy: policy}.Build(), nil
 }
 
 // UpsertInferencePolicy creates a new InferencePolicy or updates an existing one.
@@ -789,7 +789,7 @@ func (s *Service) UpsertInferencePolicy(
 		return nil, trace.Wrap(err)
 	}
 
-	policy, err := s.backend.UpsertInferencePolicy(ctx, req.Policy)
+	policy, err := s.backend.UpsertInferencePolicy(ctx, req.GetPolicy())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -814,7 +814,7 @@ func (s *Service) UpsertInferencePolicy(
 		s.logger.WarnContext(ctx, "Failed to emit inference policy upsert event", "error", err)
 	}
 
-	return &pb.UpsertInferencePolicyResponse{Policy: policy}, nil
+	return pb.UpsertInferencePolicyResponse_builder{Policy: policy}.Build(), nil
 }
 
 // DeleteInferencePolicy deletes an existing InferencePolicy by name.
@@ -834,7 +834,7 @@ func (s *Service) DeleteInferencePolicy(
 		return nil, errNotLicensed
 	}
 
-	err = s.backend.DeleteInferencePolicy(ctx, req.Name)
+	err = s.backend.DeleteInferencePolicy(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -846,7 +846,7 @@ func (s *Service) DeleteInferencePolicy(
 		},
 		UserMetadata: authCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Name,
+			Name: req.GetName(),
 		},
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status: apievents.Status{
@@ -876,15 +876,15 @@ func (s *Service) ListInferencePolicies(
 		return nil, errNotLicensed
 	}
 
-	policies, nextPageToken, err := s.backend.ListInferencePolicies(ctx, int(req.PageSize), req.PageToken)
+	policies, nextPageToken, err := s.backend.ListInferencePolicies(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &pb.ListInferencePoliciesResponse{
+	return pb.ListInferencePoliciesResponse_builder{
 		Policies:      policies,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // GetSummary retrieves the inference result for a session, which contains the session summary.
@@ -953,7 +953,7 @@ func (s *Service) GetSummary(
 		return nil, trace.Wrap(err)
 	}
 
-	return &pb.GetSummaryResponse{Summary: summary}, nil
+	return pb.GetSummaryResponse_builder{Summary: summary}.Build(), nil
 }
 
 // insecureGetSummary retrieves session summary and associated end event,
@@ -978,7 +978,7 @@ func (s *Service) insecureGetSummary(
 		return nil, nil, trace.Wrap(err)
 	}
 
-	sessionAuditEvent, err := events.FromEventFields(summary.SessionEndEvent.AsMap())
+	sessionAuditEvent, err := events.FromEventFields(summary.GetSessionEndEvent().AsMap())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1005,7 +1005,7 @@ func (s *Service) IsEnabled(
 		return nil, trace.AccessDenied("access denied")
 	}
 	if !s.isLicensed() {
-		return &pb.IsEnabledResponse{Enabled: false}, nil
+		return pb.IsEnabledResponse_builder{Enabled: false}.Build(), nil
 	}
 
 	models, _, err := s.backend.ListInferenceModels(ctx, 1, "")
@@ -1018,9 +1018,9 @@ func (s *Service) IsEnabled(
 		return nil, trace.Wrap(err)
 	}
 
-	return &pb.IsEnabledResponse{
+	return pb.IsEnabledResponse_builder{
 		Enabled: len(models) > 0 && len(policies) > 0,
-	}, nil
+	}.Build(), nil
 }
 
 // decryptIfNeeded decrypts the reader if it is encrypted.
@@ -1057,10 +1057,10 @@ func (s *Service) TestInferenceModel(
 	// Create a test provider based on the model spec
 	provider, err := s.newTestProvider(ctx, req)
 	if err != nil {
-		return &pb.TestInferenceModelResponse{
+		return pb.TestInferenceModelResponse_builder{
 			Success: false,
 			Message: err.Error(),
-		}, nil
+		}.Build(), nil
 	}
 
 	// Make a simple test request with minimal input
@@ -1071,40 +1071,40 @@ func (s *Service) TestInferenceModel(
 	reader := io.NopCloser(strings.NewReader(testInput))
 	_, err = provider.Summarize(ctx, testSessionID, testPrompt, reader)
 	if err != nil {
-		return &pb.TestInferenceModelResponse{
+		return pb.TestInferenceModelResponse_builder{
 			Success: false,
 			Message: summarizererrors.FormatInferenceError(err, req.GetModel()),
-		}, nil
+		}.Build(), nil
 	}
 
-	return &pb.TestInferenceModelResponse{
+	return pb.TestInferenceModelResponse_builder{
 		Success: true,
 		Message: "Successfully connected to the inference provider and received a response",
-	}, nil
+	}.Build(), nil
 }
 
 func validateTestResources(req *pb.TestInferenceModelRequest) *pb.TestInferenceModelResponse {
 	if req.GetModel() == nil {
-		return &pb.TestInferenceModelResponse{
+		return pb.TestInferenceModelResponse_builder{
 			Success: false,
 			Message: "model spec is required",
-		}
+		}.Build()
 	}
 	testInferenceModel := apisummarizer.NewInferenceModel("test-model", req.GetModel())
 	if err := apisummarizer.ValidateInferenceModel(testInferenceModel); err != nil {
-		return &pb.TestInferenceModelResponse{
+		return pb.TestInferenceModelResponse_builder{
 			Success: false,
 			Message: "invalid model spec: " + err.Error(),
-		}
+		}.Build()
 	}
 
 	if secret := req.GetSecret(); secret != nil {
 		testInferenceSecret := apisummarizer.NewInferenceSecret("test-secret", secret)
 		if err := apisummarizer.ValidateInferenceSecret(testInferenceSecret); err != nil {
-			return &pb.TestInferenceModelResponse{
+			return pb.TestInferenceModelResponse_builder{
 				Success: false,
 				Message: "invalid secret spec: " + err.Error(),
-			}
+			}.Build()
 		}
 	}
 	return nil

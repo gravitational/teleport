@@ -100,15 +100,15 @@ func UserToResource(user types.User, opts ...UserResourceOption) (*scimpb.Resour
 	if options.externalIDFn != nil {
 		externalID = options.externalIDFn(user)
 	}
-	resource := &scimpb.Resource{
+	resource := scimpb.Resource_builder{
 		Id:         user.GetName(),
 		ExternalId: externalID,
-		Meta: &scimpb.Meta{
+		Meta: scimpb.Meta_builder{
 			Created:      timestamppb.New(user.GetCreatedBy().Time),
 			Version:      VersionAsETag(user.GetRevision()),
 			ResourceType: common.ResourceTypeUser,
-		},
-	}
+		}.Build(),
+	}.Build()
 	if err := setSCIMAttrsInResource(resource, user, options.groupsVal); err != nil {
 		return nil, trace.Wrap(err, "setting SCIM resource attributes from user label")
 	}
@@ -176,7 +176,7 @@ func setSCIMAttrsInResource(r *scimpb.Resource, u types.User, groupsVal *groupsV
 	if err != nil {
 		return trace.Wrap(err, "creating new protobuf struct")
 	}
-	r.Attributes = attrsProto
+	r.SetAttributes(attrsProto)
 	return nil
 }
 

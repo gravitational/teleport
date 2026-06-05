@@ -22,21 +22,21 @@ func getPermissionSetID(ps *identitycenterv1.PermissionSet) services.PermissionS
 type psResourceMap map[services.PermissionSetID]*identitycenterv1.PermissionSet
 
 func newPermissionSet(arn arn.ARN, name, description string) *identitycenterv1.PermissionSet {
-	return &identitycenterv1.PermissionSet{
+	return identitycenterv1.PermissionSet_builder{
 		Kind:    types.KindIdentityCenterPermissionSet,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: normalizeResourceName(arn.Resource),
 			Labels: map[string]string{
 				common.OriginLabel: common.OriginAWSIdentityCenter,
 			},
-		},
-		Spec: &identitycenterv1.PermissionSetSpec{
+		}.Build(),
+		Spec: identitycenterv1.PermissionSetSpec_builder{
 			Arn:         arn.String(),
 			Name:        name,
 			Description: description,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 func (svc *Service) loadPermissionSets(ctx context.Context) (psResourceMap, error) {
@@ -55,7 +55,7 @@ func (svc *Service) reconcilePermissionSets(ctx context.Context, oldPermissionSe
 
 	for k, old := range oldPermissionSets {
 		if new, present := newPermissionSets[k]; present {
-			new.Metadata.Revision = old.Metadata.Revision
+			new.GetMetadata().SetRevision(old.GetMetadata().GetRevision())
 		}
 	}
 

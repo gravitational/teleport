@@ -94,7 +94,7 @@ func commandAnalysisToSessionEvent(cmd *CommandAnalysis) *summarizerv1pb.Session
 		return nil
 	}
 
-	return &summarizerv1pb.SessionEvent{
+	return summarizerv1pb.SessionEvent_builder{
 		Category:              commandCategoryToProto(cmd.Category),
 		RiskLevel:             riskLevelToProto(cmd.RiskLevel),
 		RiskScore:             int32(cmd.RiskScore),
@@ -115,14 +115,12 @@ func commandAnalysisToSessionEvent(cmd *CommandAnalysis) *summarizerv1pb.Session
 		StartOffset:           durationpb.New(cmd.StartOffset),
 		EndOffset:             durationpb.New(cmd.EndOffset),
 		InferenceErrorMessage: cmd.InferenceErrorMessage,
-		Details: &summarizerv1pb.SessionEvent_CommandEventDetails{
-			CommandEventDetails: &summarizerv1pb.CommandEventDetails{
-				Command:       cmd.Command,
-				Success:       cmd.Success,
-				ErrorMessages: cmd.ErrorMessages,
-			},
-		},
-	}
+		CommandEventDetails: summarizerv1pb.CommandEventDetails_builder{
+			Command:       cmd.Command,
+			Success:       cmd.Success,
+			ErrorMessages: cmd.ErrorMessages,
+		}.Build(),
+	}.Build()
 }
 
 func commandAnalysesListToSessionEvents(commands []*CommandAnalysis) []*summarizerv1pb.SessionEvent {
@@ -147,7 +145,7 @@ func commandAnalysisToProto(cmd *CommandAnalysis) *summarizerv1pb.CommandAnalysi
 		return nil
 	}
 
-	return &summarizerv1pb.CommandAnalysis{
+	return summarizerv1pb.CommandAnalysis_builder{
 		Command:               cmd.Command,
 		Category:              commandCategoryToProto(cmd.Category),
 		Success:               cmd.Success,
@@ -171,7 +169,7 @@ func commandAnalysisToProto(cmd *CommandAnalysis) *summarizerv1pb.CommandAnalysi
 		StartOffset:           durationpb.New(cmd.StartOffset),
 		EndOffset:             durationpb.New(cmd.EndOffset),
 		InferenceErrorMessage: cmd.InferenceErrorMessage,
-	}
+	}.Build()
 }
 
 func commandAnalysesListToProto(commands []*CommandAnalysis) []*summarizerv1pb.CommandAnalysis {
@@ -198,7 +196,7 @@ func notableCommandIndexesToProto(indexes []int) []int32 {
 }
 
 func SessionAnalysisToProto(analysis *SessionAnalysis, commands []*CommandAnalysis) *summarizerv1pb.EnhancedSummary {
-	es := &summarizerv1pb.EnhancedSummary{
+	es := summarizerv1pb.EnhancedSummary_builder{
 		ShortDescription:      analysis.ShortDescription,
 		DetailedDescription:   analysis.SessionDescription,
 		RiskLevel:             riskLevelToProto(analysis.RiskLevel),
@@ -210,25 +208,25 @@ func SessionAnalysisToProto(analysis *SessionAnalysis, commands []*CommandAnalys
 		// written by a v19+ auth (rolling upgrade or rollback) still has data to
 		// return. TODO(ryanclark): DELETE IN v21.0.0.
 		Commands: commandAnalysesListToProto(commands),
-	}
+	}.Build()
 
 	if analysis.TooLarge {
-		es.NeedsFurtherReviewReasons = append(es.NeedsFurtherReviewReasons,
-			summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE)
+		es.SetNeedsFurtherReviewReasons(append(es.GetNeedsFurtherReviewReasons(),
+			summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE))
 	}
 
 	if analysis.CommandAnalysisFailed {
-		es.NeedsFurtherReviewReasons = append(es.NeedsFurtherReviewReasons,
-			summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED)
+		es.SetNeedsFurtherReviewReasons(append(es.GetNeedsFurtherReviewReasons(),
+			summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED))
 	}
 
 	// Mirror the first reason into the deprecated NeedsFurtherReview field so a
 	// pre-v19 auth serving a recording written by a v19+ auth still has data to
 	// return. TODO(ryanclark): DELETE IN v21.0.0.
-	if len(es.NeedsFurtherReviewReasons) > 0 {
-		first := es.NeedsFurtherReviewReasons[0]
+	if len(es.GetNeedsFurtherReviewReasons()) > 0 {
+		first := es.GetNeedsFurtherReviewReasons()[0]
 		//nolint:staticcheck // deprecated field populated for cross-version compatibility
-		es.NeedsFurtherReview = &first
+		es.SetNeedsFurtherReview(first)
 	}
 
 	return es

@@ -10,6 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -32,9 +33,9 @@ func Test_PolicyResourceService_CreateSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.deny(types.VerbCreate)
 
-		_, err := service.CreateSigstorePolicy(ctx, &workloadidentityv1.CreateSigstorePolicyRequest{
+		_, err := service.CreateSigstorePolicy(ctx, workloadidentityv1.CreateSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
@@ -43,9 +44,9 @@ func Test_PolicyResourceService_CreateSigstorePolicy(t *testing.T) {
 		pack.authz.allow(types.VerbCreate)
 		pack.adminActionAuthState = authz.AdminActionAuthUnauthorized
 
-		_, err := service.CreateSigstorePolicy(ctx, &workloadidentityv1.CreateSigstorePolicyRequest{
+		_, err := service.CreateSigstorePolicy(ctx, workloadidentityv1.CreateSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
@@ -54,9 +55,9 @@ func Test_PolicyResourceService_CreateSigstorePolicy(t *testing.T) {
 		pack.authz.allow(types.VerbCreate)
 
 		policy := testPolicy()
-		created, err := service.CreateSigstorePolicy(ctx, &workloadidentityv1.CreateSigstorePolicyRequest{
+		created, err := service.CreateSigstorePolicy(ctx, workloadidentityv1.CreateSigstorePolicyRequest_builder{
 			SigstorePolicy: policy,
-		})
+		}.Build())
 		require.NoError(t, err)
 		assert.Empty(t, cmp.Diff(policy, created, protocmp.Transform()))
 
@@ -66,9 +67,9 @@ func Test_PolicyResourceService_CreateSigstorePolicy(t *testing.T) {
 		assert.Equal(t, events.SigstorePolicyCreateCode, event.GetCode())
 
 		pack.authz.allow(types.VerbRead)
-		read, err := service.GetSigstorePolicy(ctx, &workloadidentityv1.GetSigstorePolicyRequest{
-			Name: policy.Metadata.Name,
-		})
+		read, err := service.GetSigstorePolicy(ctx, workloadidentityv1.GetSigstorePolicyRequest_builder{
+			Name: policy.GetMetadata().GetName(),
+		}.Build())
 		require.NoError(t, err)
 		assert.Empty(t, cmp.Diff(policy, read, protocmp.Transform()))
 	})
@@ -81,9 +82,9 @@ func Test_PolicyResourceService_GetSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.deny(types.VerbRead)
 
-		_, err := service.GetSigstorePolicy(ctx, &workloadidentityv1.GetSigstorePolicyRequest{
+		_, err := service.GetSigstorePolicy(ctx, workloadidentityv1.GetSigstorePolicyRequest_builder{
 			Name: "my-sigstore-policy",
-		})
+		}.Build())
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
@@ -91,9 +92,9 @@ func Test_PolicyResourceService_GetSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.allow(types.VerbRead)
 
-		_, err := service.GetSigstorePolicy(ctx, &workloadidentityv1.GetSigstorePolicyRequest{
+		_, err := service.GetSigstorePolicy(ctx, workloadidentityv1.GetSigstorePolicyRequest_builder{
 			Name: "",
-		})
+		}.Build())
 		require.True(t, trace.IsBadParameter(err))
 		require.ErrorContains(t, err, "name: must be non-empty")
 	})
@@ -102,9 +103,9 @@ func Test_PolicyResourceService_GetSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.allow(types.VerbRead)
 
-		_, err := service.GetSigstorePolicy(ctx, &workloadidentityv1.GetSigstorePolicyRequest{
+		_, err := service.GetSigstorePolicy(ctx, workloadidentityv1.GetSigstorePolicyRequest_builder{
 			Name: "my-sigstore-policy",
-		})
+		}.Build())
 		require.True(t, trace.IsNotFound(err))
 	})
 }
@@ -116,9 +117,9 @@ func Test_PolicyResourceService_DeleteSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.allow(types.VerbDelete)
 
-		_, err := service.DeleteSigstorePolicy(ctx, &workloadidentityv1.DeleteSigstorePolicyRequest{
+		_, err := service.DeleteSigstorePolicy(ctx, workloadidentityv1.DeleteSigstorePolicyRequest_builder{
 			Name: "",
-		})
+		}.Build())
 		require.True(t, trace.IsBadParameter(err))
 		require.ErrorContains(t, err, "name: must be non-empty")
 	})
@@ -127,9 +128,9 @@ func Test_PolicyResourceService_DeleteSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.allow(types.VerbDelete)
 
-		_, err := service.DeleteSigstorePolicy(ctx, &workloadidentityv1.DeleteSigstorePolicyRequest{
+		_, err := service.DeleteSigstorePolicy(ctx, workloadidentityv1.DeleteSigstorePolicyRequest_builder{
 			Name: "does-not-exist",
-		})
+		}.Build())
 		require.True(t, trace.IsNotFound(err))
 	})
 
@@ -137,9 +138,9 @@ func Test_PolicyResourceService_DeleteSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.deny(types.VerbDelete)
 
-		_, err := service.DeleteSigstorePolicy(ctx, &workloadidentityv1.DeleteSigstorePolicyRequest{
+		_, err := service.DeleteSigstorePolicy(ctx, workloadidentityv1.DeleteSigstorePolicyRequest_builder{
 			Name: "my-sigstore-policy",
-		})
+		}.Build())
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
@@ -148,9 +149,9 @@ func Test_PolicyResourceService_DeleteSigstorePolicy(t *testing.T) {
 		pack.authz.allow(types.VerbDelete)
 		pack.adminActionAuthState = authz.AdminActionAuthUnauthorized
 
-		_, err := service.DeleteSigstorePolicy(ctx, &workloadidentityv1.DeleteSigstorePolicyRequest{
+		_, err := service.DeleteSigstorePolicy(ctx, workloadidentityv1.DeleteSigstorePolicyRequest_builder{
 			Name: "my-sigstore-policy",
-		})
+		}.Build())
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
@@ -158,16 +159,16 @@ func Test_PolicyResourceService_DeleteSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.allow(types.VerbCreate)
 
-		policy, err := service.CreateSigstorePolicy(ctx, &workloadidentityv1.CreateSigstorePolicyRequest{
+		policy, err := service.CreateSigstorePolicy(ctx, workloadidentityv1.CreateSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.NoError(t, err)
 		pack.emitter.Reset()
 
 		pack.authz.allow(types.VerbDelete)
-		_, err = service.DeleteSigstorePolicy(ctx, &workloadidentityv1.DeleteSigstorePolicyRequest{
-			Name: policy.Metadata.Name,
-		})
+		_, err = service.DeleteSigstorePolicy(ctx, workloadidentityv1.DeleteSigstorePolicyRequest_builder{
+			Name: policy.GetMetadata().GetName(),
+		}.Build())
 		require.NoError(t, err)
 
 		require.Len(t, pack.emitter.Events(), 1)
@@ -176,9 +177,9 @@ func Test_PolicyResourceService_DeleteSigstorePolicy(t *testing.T) {
 		assert.Equal(t, events.SigstorePolicyDeleteCode, event.GetCode())
 
 		pack.authz.allow(types.VerbRead)
-		_, err = service.GetSigstorePolicy(ctx, &workloadidentityv1.GetSigstorePolicyRequest{
-			Name: policy.Metadata.Name,
-		})
+		_, err = service.GetSigstorePolicy(ctx, workloadidentityv1.GetSigstorePolicyRequest_builder{
+			Name: policy.GetMetadata().GetName(),
+		}.Build())
 		require.True(t, trace.IsNotFound(err))
 	})
 }
@@ -190,9 +191,9 @@ func Test_PolicyResourceService_UpdateSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.allow(types.VerbUpdate)
 
-		_, err := service.UpdateSigstorePolicy(ctx, &workloadidentityv1.UpdateSigstorePolicyRequest{
+		_, err := service.UpdateSigstorePolicy(ctx, workloadidentityv1.UpdateSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.True(t, trace.IsCompareFailed(err))
 	})
 
@@ -200,17 +201,17 @@ func Test_PolicyResourceService_UpdateSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.allow(types.VerbCreate)
 
-		policy, err := service.CreateSigstorePolicy(ctx, &workloadidentityv1.CreateSigstorePolicyRequest{
+		policy, err := service.CreateSigstorePolicy(ctx, workloadidentityv1.CreateSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.NoError(t, err)
 
-		policy.Metadata.Revision = "something old"
+		policy.GetMetadata().SetRevision("something old")
 
 		pack.authz.allow(types.VerbUpdate)
-		_, err = service.UpdateSigstorePolicy(ctx, &workloadidentityv1.UpdateSigstorePolicyRequest{
+		_, err = service.UpdateSigstorePolicy(ctx, workloadidentityv1.UpdateSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.True(t, trace.IsCompareFailed(err))
 	})
 
@@ -218,9 +219,9 @@ func Test_PolicyResourceService_UpdateSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.deny(types.VerbUpdate)
 
-		_, err := service.UpdateSigstorePolicy(ctx, &workloadidentityv1.UpdateSigstorePolicyRequest{
+		_, err := service.UpdateSigstorePolicy(ctx, workloadidentityv1.UpdateSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
@@ -229,9 +230,9 @@ func Test_PolicyResourceService_UpdateSigstorePolicy(t *testing.T) {
 		pack.authz.allow(types.VerbUpdate)
 		pack.adminActionAuthState = authz.AdminActionAuthUnauthorized
 
-		_, err := service.UpdateSigstorePolicy(ctx, &workloadidentityv1.UpdateSigstorePolicyRequest{
+		_, err := service.UpdateSigstorePolicy(ctx, workloadidentityv1.UpdateSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
@@ -239,20 +240,18 @@ func Test_PolicyResourceService_UpdateSigstorePolicy(t *testing.T) {
 		service, pack := testService(t)
 		pack.authz.allow(types.VerbCreate)
 
-		policy, err := service.CreateSigstorePolicy(ctx, &workloadidentityv1.CreateSigstorePolicyRequest{
+		policy, err := service.CreateSigstorePolicy(ctx, workloadidentityv1.CreateSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.NoError(t, err)
 		pack.emitter.Reset()
 
-		policy.GetSpec().GetKeyless().GetIdentities()[0].SubjectMatcher = &workloadidentityv1.SigstoreKeylessSigningIdentity_Subject{
-			Subject: "new-subject",
-		}
+		policy.GetSpec().GetKeyless().GetIdentities()[0].SetSubject("new-subject")
 
 		pack.authz.allow(types.VerbUpdate)
-		_, err = service.UpdateSigstorePolicy(ctx, &workloadidentityv1.UpdateSigstorePolicyRequest{
+		_, err = service.UpdateSigstorePolicy(ctx, workloadidentityv1.UpdateSigstorePolicyRequest_builder{
 			SigstorePolicy: policy,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		require.Len(t, pack.emitter.Events(), 1)
@@ -270,9 +269,9 @@ func Test_PolicyResourceService_UpsertSigstorePolicy(t *testing.T) {
 		pack.authz.deny(types.VerbCreate)
 		pack.authz.deny(types.VerbUpdate)
 
-		_, err := service.UpsertSigstorePolicy(ctx, &workloadidentityv1.UpsertSigstorePolicyRequest{
+		_, err := service.UpsertSigstorePolicy(ctx, workloadidentityv1.UpsertSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
@@ -282,9 +281,9 @@ func Test_PolicyResourceService_UpsertSigstorePolicy(t *testing.T) {
 		pack.authz.allow(types.VerbUpdate)
 		pack.adminActionAuthState = authz.AdminActionAuthUnauthorized
 
-		_, err := service.UpsertSigstorePolicy(ctx, &workloadidentityv1.UpsertSigstorePolicyRequest{
+		_, err := service.UpsertSigstorePolicy(ctx, workloadidentityv1.UpsertSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.True(t, trace.IsAccessDenied(err))
 	})
 
@@ -293,21 +292,19 @@ func Test_PolicyResourceService_UpsertSigstorePolicy(t *testing.T) {
 		pack.authz.allow(types.VerbCreate)
 		pack.authz.allow(types.VerbUpdate)
 
-		created, err := service.UpsertSigstorePolicy(ctx, &workloadidentityv1.UpsertSigstorePolicyRequest{
+		created, err := service.UpsertSigstorePolicy(ctx, workloadidentityv1.UpsertSigstorePolicyRequest_builder{
 			SigstorePolicy: testPolicy(),
-		})
+		}.Build())
 		require.NoError(t, err)
 
-		created.GetSpec().GetKeyless().GetIdentities()[0].SubjectMatcher = &workloadidentityv1.SigstoreKeylessSigningIdentity_Subject{
-			Subject: "new-subject",
-		}
-		created.Metadata.Revision = "something old"
+		created.GetSpec().GetKeyless().GetIdentities()[0].SetSubject("new-subject")
+		created.GetMetadata().SetRevision("something old")
 
-		updated, err := service.UpsertSigstorePolicy(ctx, &workloadidentityv1.UpsertSigstorePolicyRequest{
+		updated, err := service.UpsertSigstorePolicy(ctx, workloadidentityv1.UpsertSigstorePolicyRequest_builder{
 			SigstorePolicy: created,
-		})
+		}.Build())
 		require.NoError(t, err)
-		assert.Empty(t, cmp.Diff(updated.Spec, created.Spec, protocmp.Transform()))
+		assert.Empty(t, cmp.Diff(updated.GetSpec(), created.GetSpec(), protocmp.Transform()))
 
 		require.Len(t, pack.emitter.Events(), 2)
 		for _, event := range pack.emitter.Events() {
@@ -335,64 +332,58 @@ func Test_PolicyResourceService_ListSigstorePolicies(t *testing.T) {
 
 		for i := range 2 {
 			policy := testPolicy()
-			policy.Metadata.Name = fmt.Sprintf("policy-%d", i)
+			policy.GetMetadata().SetName(fmt.Sprintf("policy-%d", i))
 
-			_, err := service.CreateSigstorePolicy(ctx, &workloadidentityv1.CreateSigstorePolicyRequest{
+			_, err := service.CreateSigstorePolicy(ctx, workloadidentityv1.CreateSigstorePolicyRequest_builder{
 				SigstorePolicy: policy,
-			})
+			}.Build())
 			require.NoError(t, err)
 		}
 
 		pack.authz.allow(types.VerbRead)
 		pack.authz.allow(types.VerbList)
-		rsp, err := service.ListSigstorePolicies(ctx, &workloadidentityv1.ListSigstorePoliciesRequest{
+		rsp, err := service.ListSigstorePolicies(ctx, workloadidentityv1.ListSigstorePoliciesRequest_builder{
 			PageSize: 1,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, rsp.SigstorePolicies, 1)
-		assert.Equal(t, "policy-0", rsp.SigstorePolicies[0].Metadata.Name)
-		require.NotEmpty(t, rsp.NextPageToken)
+		require.Len(t, rsp.GetSigstorePolicies(), 1)
+		assert.Equal(t, "policy-0", rsp.GetSigstorePolicies()[0].GetMetadata().GetName())
+		require.NotEmpty(t, rsp.GetNextPageToken())
 
-		rsp, err = service.ListSigstorePolicies(ctx, &workloadidentityv1.ListSigstorePoliciesRequest{
+		rsp, err = service.ListSigstorePolicies(ctx, workloadidentityv1.ListSigstorePoliciesRequest_builder{
 			PageSize:  1,
-			PageToken: rsp.NextPageToken,
-		})
+			PageToken: rsp.GetNextPageToken(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, rsp.SigstorePolicies, 1)
-		assert.Equal(t, "policy-1", rsp.SigstorePolicies[0].Metadata.Name)
-		assert.Empty(t, rsp.NextPageToken)
+		require.Len(t, rsp.GetSigstorePolicies(), 1)
+		assert.Equal(t, "policy-1", rsp.GetSigstorePolicies()[0].GetMetadata().GetName())
+		assert.Empty(t, rsp.GetNextPageToken())
 	})
 }
 
 func testPolicy() *workloadidentityv1.SigstorePolicy {
-	return &workloadidentityv1.SigstorePolicy{
+	return workloadidentityv1.SigstorePolicy_builder{
 		Kind:    types.KindSigstorePolicy,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "github-provenance",
-		},
-		Spec: &workloadidentityv1.SigstorePolicySpec{
-			Authority: &workloadidentityv1.SigstorePolicySpec_Keyless{
-				Keyless: &workloadidentityv1.SigstoreKeylessAuthority{
-					Identities: []*workloadidentityv1.SigstoreKeylessSigningIdentity{
-						{
-							IssuerMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_Issuer{
-								Issuer: "https://token.actions.githubusercontent.com",
-							},
-							SubjectMatcher: &workloadidentityv1.SigstoreKeylessSigningIdentity_SubjectRegex{
-								SubjectRegex: `https://github.com/mycompany/.*/\.github/workflows/.*@.*`,
-							},
-						},
-					},
+		}.Build(),
+		Spec: workloadidentityv1.SigstorePolicySpec_builder{
+			Keyless: workloadidentityv1.SigstoreKeylessAuthority_builder{
+				Identities: []*workloadidentityv1.SigstoreKeylessSigningIdentity{
+					workloadidentityv1.SigstoreKeylessSigningIdentity_builder{
+						Issuer:       proto.String("https://token.actions.githubusercontent.com"),
+						SubjectRegex: proto.String(`https://github.com/mycompany/.*/\.github/workflows/.*@.*`),
+					}.Build(),
 				},
-			},
-			Requirements: &workloadidentityv1.SigstorePolicyRequirements{
+			}.Build(),
+			Requirements: workloadidentityv1.SigstorePolicyRequirements_builder{
 				Attestations: []*workloadidentityv1.InTotoAttestationMatcher{
-					{PredicateType: "https://slsa.dev/provenance/v1"},
+					workloadidentityv1.InTotoAttestationMatcher_builder{PredicateType: "https://slsa.dev/provenance/v1"}.Build(),
 				},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 func testService(t *testing.T) (*sigstore.PolicyResourceService, *testPack) {

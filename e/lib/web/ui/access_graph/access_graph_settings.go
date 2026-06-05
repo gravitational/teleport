@@ -47,17 +47,17 @@ func (a AccessGraphSettings) UpdateProto(msg *clusterconfigpb.AccessGraphSetting
 
 	proto := protobuf.Clone(msg).(*clusterconfigpb.AccessGraphSettings)
 	if proto.GetSpec() == nil {
-		proto.Spec = &clusterconfigpb.AccessGraphSettingsSpec{}
+		proto.SetSpec(&clusterconfigpb.AccessGraphSettingsSpec{})
 	}
 
-	proto.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED
+	proto.GetSpec().SetSecretsScanConfig(clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED)
 	if a.EnableSecretsScan {
-		proto.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
+		proto.GetSpec().SetSecretsScanConfig(clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED)
 	}
 
-	proto.Spec.DemoMode = clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_DISABLED
+	proto.GetSpec().SetDemoMode(clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_DISABLED)
 	if a.EnableDemoMode {
-		proto.Spec.DemoMode = clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED
+		proto.GetSpec().SetDemoMode(clusterconfigpb.AccessGraphDemoMode_ACCESS_GRAPH_DEMO_MODE_ENABLED)
 	}
 
 	return proto

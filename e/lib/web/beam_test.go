@@ -249,22 +249,22 @@ func testListBeamsWithSorting(t *testing.T) {
 	expires := time.Now().Add(24 * time.Hour)
 
 	b1 := createBeam(t, s, "1", func(beam *beamsv1.Beam) {
-		beam.Metadata.Name = "222"
-		beam.Status.Alias = "beam-alpha"
-		beam.Status.User = "user-3@example.com"
-		beam.Spec.Expires = timestamppb.New(expires.Add(3 * time.Millisecond))
+		beam.GetMetadata().SetName("222")
+		beam.GetStatus().SetAlias("beam-alpha")
+		beam.GetStatus().SetUser("user-3@example.com")
+		beam.GetSpec().SetExpires(timestamppb.New(expires.Add(3 * time.Millisecond)))
 	})
 	b2 := createBeam(t, s, "2", func(beam *beamsv1.Beam) {
-		beam.Metadata.Name = "333"
-		beam.Status.Alias = "beam-charlie"
-		beam.Status.User = "user-2@example.com"
-		beam.Spec.Expires = timestamppb.New(expires.Add(1 * time.Millisecond))
+		beam.GetMetadata().SetName("333")
+		beam.GetStatus().SetAlias("beam-charlie")
+		beam.GetStatus().SetUser("user-2@example.com")
+		beam.GetSpec().SetExpires(timestamppb.New(expires.Add(1 * time.Millisecond)))
 	})
 	b3 := createBeam(t, s, "3", func(beam *beamsv1.Beam) {
-		beam.Metadata.Name = "111"
-		beam.Status.Alias = "beam-beta"
-		beam.Status.User = "user-1@example.com"
-		beam.Spec.Expires = timestamppb.New(expires.Add(2 * time.Millisecond))
+		beam.GetMetadata().SetName("111")
+		beam.GetStatus().SetAlias("beam-beta")
+		beam.GetStatus().SetUser("user-1@example.com")
+		beam.GetSpec().SetExpires(timestamppb.New(expires.Add(2 * time.Millisecond)))
 	})
 
 	testCases := []struct {
@@ -315,9 +315,9 @@ func testListBeamsWithSorting(t *testing.T) {
 			field: "expires",
 			dir:   "asc",
 			ordered: []any{
-				b2.Spec.Expires.AsTime(),
-				b3.Spec.Expires.AsTime(),
-				b1.Spec.Expires.AsTime(),
+				b2.GetSpec().GetExpires().AsTime(),
+				b3.GetSpec().GetExpires().AsTime(),
+				b1.GetSpec().GetExpires().AsTime(),
 			},
 		},
 		{
@@ -325,9 +325,9 @@ func testListBeamsWithSorting(t *testing.T) {
 			field: "expires",
 			dir:   "desc",
 			ordered: []any{
-				b1.Spec.Expires.AsTime(),
-				b3.Spec.Expires.AsTime(),
-				b2.Spec.Expires.AsTime(),
+				b1.GetSpec().GetExpires().AsTime(),
+				b3.GetSpec().GetExpires().AsTime(),
+				b2.GetSpec().GetExpires().AsTime(),
 			},
 		},
 		{
@@ -459,10 +459,10 @@ func createBeam(t *testing.T, s *webSuite, id string, options ...func(beam *beam
 	user := fmt.Sprintf("user-%s@example.com", id)
 	alias := aliasForId(id)
 
-	pre := &beamsv1.Beam{
+	pre := beamsv1.Beam_builder{
 		Kind:    "beam",
 		Version: "v1",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:    name,
 			Expires: timestamppb.New(expiresMeta),
 			Labels: map[string]string{
@@ -470,19 +470,19 @@ func createBeam(t *testing.T, s *webSuite, id string, options ...func(beam *beam
 				types.BeamOwnerLabel: user,
 				types.BeamAliasLabel: alias,
 			},
-		},
-		Spec: &beamsv1.BeamSpec{
+		}.Build(),
+		Spec: beamsv1.BeamSpec_builder{
 			AllowedDomains: []string{},
 			Expires:        timestamppb.New(expiresSpec),
 			Egress:         beamsv1.EgressMode_EGRESS_MODE_UNRESTRICTED,
-		},
-		Status: &beamsv1.BeamStatus{
+		}.Build(),
+		Status: beamsv1.BeamStatus_builder{
 			User:    user,
 			Alias:   alias,
 			NodeId:  fmt.Sprintf("beam-%s-node", id),
 			AppName: fmt.Sprintf("beam-%s-app", id),
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	for _, opt := range options {
 		opt(pre)
@@ -496,11 +496,11 @@ func createBeam(t *testing.T, s *webSuite, id string, options ...func(beam *beam
 
 	// Wait for changes to propagate to the cache
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
-		_, err := s.testAuthServer.AuthServer.AuthServer.GetBeam(ctx, pre.Metadata.Name)
+		_, err := s.testAuthServer.AuthServer.AuthServer.GetBeam(ctx, pre.GetMetadata().GetName())
 		require.NoError(collect, err)
 	}, 10*time.Second, 100*time.Millisecond)
 
-	beam, err := s.testAuthServer.AuthServer.AuthServer.GetBeam(ctx, pre.Metadata.Name)
+	beam, err := s.testAuthServer.AuthServer.AuthServer.GetBeam(ctx, pre.GetMetadata().GetName())
 	require.NoError(t, err)
 	return beam
 }

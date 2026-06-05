@@ -79,81 +79,81 @@ func TestCreateWorkloadCluster(t *testing.T) {
 		},
 		{
 			description: "missing regions",
-			request: &workloadclusterv1.CreateWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.CreateWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name: "test",
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			expectedError: "regions is required",
 		},
 		{
 			description: "metadata.expires provided",
-			request: &workloadclusterv1.CreateWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.CreateWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name:    "test",
 						Expires: timestamppb.Now(),
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			expectedError: "only name and revision fields are supported on metadata for workload_cluster resources",
 		},
 		{
 			description: "metadata.description provided",
-			request: &workloadclusterv1.CreateWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.CreateWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name:        "test",
 						Description: "description",
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			expectedError: "only name and revision fields are supported on metadata for workload_cluster resources",
 		},
 		{
 			description: "metadata.namespace provided",
-			request: &workloadclusterv1.CreateWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.CreateWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name:      "test",
 						Namespace: "namespace",
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			expectedError: "only name and revision fields are supported on metadata for workload_cluster resources",
 		},
 		{
 			description: "metadata.labels provided",
-			request: &workloadclusterv1.CreateWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.CreateWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name: "test",
 						Labels: map[string]string{
 							"test": "test",
 						},
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			expectedError: "only name and revision fields are supported on metadata for workload_cluster resources",
 		},
 		{
 			description: "error response from ChildCluster RPC",
-			request: &workloadclusterv1.CreateWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.CreateWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name: "test",
-					},
-					Spec: &workloadclusterv1.WorkloadClusterSpec{
+					}.Build(),
+					Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 						Regions: []*workloadclusterv1.Region{
-							{
+							workloadclusterv1.Region_builder{
 								Name: "auth_region",
-							},
+							}.Build(),
 						},
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			mockResponseError: errors.New("unable to create"),
 			expectedCloudRequest: &cloudv1.CreateChildClusterRequest{
 				Name: "test",
@@ -167,20 +167,20 @@ func TestCreateWorkloadCluster(t *testing.T) {
 		},
 		{
 			description: "successful response from CreateChildCluster RPC",
-			request: &workloadclusterv1.CreateWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.CreateWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name: "test",
-					},
-					Spec: &workloadclusterv1.WorkloadClusterSpec{
+					}.Build(),
+					Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 						Regions: []*workloadclusterv1.Region{
-							{
+							workloadclusterv1.Region_builder{
 								Name: "auth_region",
-							},
+							}.Build(),
 						},
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			mockResponse: &cloudv1.CreateChildClusterResponse{
 				Cluster: &cloudv1.ChildCluster{
 					Name:     "test",
@@ -206,54 +206,54 @@ func TestCreateWorkloadCluster(t *testing.T) {
 					},
 				},
 			},
-			expectedWorkloadCluster: &workloadclusterv1.WorkloadCluster{
+			expectedWorkloadCluster: workloadclusterv1.WorkloadCluster_builder{
 				Version: types.V1,
 				Kind:    types.KindWorkloadCluster,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:     "test",
 					Revision: "revision",
-				},
-				Spec: &workloadclusterv1.WorkloadClusterSpec{
+				}.Build(),
+				Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 					Regions: []*workloadclusterv1.Region{
-						{
+						workloadclusterv1.Region_builder{
 							Name: "auth_region",
-						},
+						}.Build(),
 					},
-				},
-				Status: &workloadclusterv1.WorkloadClusterStatus{
+				}.Build(),
+				Status: workloadclusterv1.WorkloadClusterStatus_builder{
 					State:  "creating",
 					Domain: "test.teleport.sh",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			description: "successful response from ChildCluster RPC with all fields set",
-			request: &workloadclusterv1.CreateWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.CreateWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name: "test",
-					},
-					Spec: &workloadclusterv1.WorkloadClusterSpec{
+					}.Build(),
+					Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 						Regions: []*workloadclusterv1.Region{
-							{
+							workloadclusterv1.Region_builder{
 								Name: "auth_region",
-							},
+							}.Build(),
 						},
-						Bot: &workloadclusterv1.Bot{
+						Bot: workloadclusterv1.Bot_builder{
 							Name: "bot-name",
-						},
-						Token: &workloadclusterv1.Token{
+						}.Build(),
+						Token: workloadclusterv1.Token_builder{
 							JoinMethod: "iam",
 							Allow: []*workloadclusterv1.Allow{
-								{
+								workloadclusterv1.Allow_builder{
 									AwsAccount: "aws-account",
 									AwsArn:     "aws-arn",
-								},
+								}.Build(),
 							},
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			mockResponse: &cloudv1.CreateChildClusterResponse{
 				Cluster: &cloudv1.ChildCluster{
 					Name:     "test",
@@ -295,37 +295,37 @@ func TestCreateWorkloadCluster(t *testing.T) {
 					},
 				},
 			},
-			expectedWorkloadCluster: &workloadclusterv1.WorkloadCluster{
+			expectedWorkloadCluster: workloadclusterv1.WorkloadCluster_builder{
 				Version: types.V1,
 				Kind:    types.KindWorkloadCluster,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:     "test",
 					Revision: "revision",
-				},
-				Spec: &workloadclusterv1.WorkloadClusterSpec{
+				}.Build(),
+				Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 					Regions: []*workloadclusterv1.Region{
-						{
+						workloadclusterv1.Region_builder{
 							Name: "auth_region",
-						},
+						}.Build(),
 					},
-					Bot: &workloadclusterv1.Bot{
+					Bot: workloadclusterv1.Bot_builder{
 						Name: "bot-name",
-					},
-					Token: &workloadclusterv1.Token{
+					}.Build(),
+					Token: workloadclusterv1.Token_builder{
 						JoinMethod: "iam",
 						Allow: []*workloadclusterv1.Allow{
-							{
+							workloadclusterv1.Allow_builder{
 								AwsAccount: "aws-account",
 								AwsArn:     "aws-arn",
-							},
+							}.Build(),
 						},
-					},
-				},
-				Status: &workloadclusterv1.WorkloadClusterStatus{
+					}.Build(),
+				}.Build(),
+				Status: workloadclusterv1.WorkloadClusterStatus_builder{
 					State:  "active",
 					Domain: "test.teleport.sh",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	}
 
@@ -357,7 +357,7 @@ func TestCreateWorkloadCluster(t *testing.T) {
 					t.Errorf("expected error to be %q, but got %q", tc.expectedError, err.Error())
 				}
 
-				if tc.request == nil || tc.request.Cluster == nil || tc.request.Cluster.Metadata == nil {
+				if tc.request == nil || !tc.request.HasCluster() || !tc.request.GetCluster().HasMetadata() {
 					return
 				}
 
@@ -424,9 +424,9 @@ func TestGetWorkloadCluster(t *testing.T) {
 	}{
 		{
 			description: "workload cluster doesn't exist",
-			request: &workloadclusterv1.GetWorkloadClusterRequest{
+			request: workloadclusterv1.GetWorkloadClusterRequest_builder{
 				Name: "example",
-			},
+			}.Build(),
 			mockResponseError: errors.New(`workload_cluster "example" doesn't exist`),
 			expectedCloudRequest: &cloudv1.GetChildClusterRequest{
 				Name: "example",
@@ -435,9 +435,9 @@ func TestGetWorkloadCluster(t *testing.T) {
 		},
 		{
 			description: "workload cluster exists",
-			request: &workloadclusterv1.GetWorkloadClusterRequest{
+			request: workloadclusterv1.GetWorkloadClusterRequest_builder{
 				Name: "test",
-			},
+			}.Build(),
 			mockResponse: &cloudv1.GetChildClusterResponse{
 				Cluster: &cloudv1.ChildCluster{
 					Name:     "test",
@@ -458,25 +458,25 @@ func TestGetWorkloadCluster(t *testing.T) {
 			expectedCloudRequest: &cloudv1.GetChildClusterRequest{
 				Name: "test",
 			},
-			expectedWorkloadCluster: &workloadclusterv1.WorkloadCluster{
+			expectedWorkloadCluster: workloadclusterv1.WorkloadCluster_builder{
 				Version: types.V1,
 				Kind:    types.KindWorkloadCluster,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:     "test",
 					Revision: "revision",
-				},
-				Spec: &workloadclusterv1.WorkloadClusterSpec{
+				}.Build(),
+				Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 					Regions: []*workloadclusterv1.Region{
-						{
+						workloadclusterv1.Region_builder{
 							Name: "auth_region",
-						},
+						}.Build(),
 					},
-				},
-				Status: &workloadclusterv1.WorkloadClusterStatus{
+				}.Build(),
+				Status: workloadclusterv1.WorkloadClusterStatus_builder{
 					State:  "creating",
 					Domain: "test.teleport.sh",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	}
 
@@ -576,20 +576,20 @@ func TestUpdateWorkloadCluster(t *testing.T) {
 		},
 		{
 			description: "handles error from Cloud API",
-			request: &workloadclusterv1.UpdateWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.UpdateWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name: "example",
-					},
-					Spec: &workloadclusterv1.WorkloadClusterSpec{
+					}.Build(),
+					Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 						Regions: []*workloadclusterv1.Region{
-							{
+							workloadclusterv1.Region_builder{
 								Name: "us-east-1",
-							},
+							}.Build(),
 						},
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			mockResponseError: errors.New("invalid configuration"),
 			expectedCloudRequest: &cloudv1.UpdateChildClusterRequest{
 				Name: "example",
@@ -603,25 +603,25 @@ func TestUpdateWorkloadCluster(t *testing.T) {
 		},
 		{
 			description: "handles success from Cloud API",
-			request: &workloadclusterv1.UpdateWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.UpdateWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name:     "test",
 						Revision: "old-revision",
-					},
-					Spec: &workloadclusterv1.WorkloadClusterSpec{
+					}.Build(),
+					Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 						Regions: []*workloadclusterv1.Region{
-							{
+							workloadclusterv1.Region_builder{
 								Name: "auth_region",
-							},
+							}.Build(),
 						},
-					},
-					Status: &workloadclusterv1.WorkloadClusterStatus{
+					}.Build(),
+					Status: workloadclusterv1.WorkloadClusterStatus_builder{
 						State:  "creating",
 						Domain: "test.teleport.sh",
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			mockResponse: &cloudv1.UpdateChildClusterResponse{
 				Cluster: &cloudv1.ChildCluster{
 					Name:     "test",
@@ -648,25 +648,25 @@ func TestUpdateWorkloadCluster(t *testing.T) {
 					},
 				},
 			},
-			expectedWorkloadCluster: &workloadclusterv1.WorkloadCluster{
+			expectedWorkloadCluster: workloadclusterv1.WorkloadCluster_builder{
 				Version: types.V1,
 				Kind:    types.KindWorkloadCluster,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:     "test",
 					Revision: "new-revision",
-				},
-				Spec: &workloadclusterv1.WorkloadClusterSpec{
+				}.Build(),
+				Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 					Regions: []*workloadclusterv1.Region{
-						{
+						workloadclusterv1.Region_builder{
 							Name: "auth_region",
-						},
+						}.Build(),
 					},
-				},
-				Status: &workloadclusterv1.WorkloadClusterStatus{
+				}.Build(),
+				Status: workloadclusterv1.WorkloadClusterStatus_builder{
 					State:  "creating",
 					Domain: "test.teleport.sh",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	}
 
@@ -766,21 +766,21 @@ func TestUpsertWorkloadCluster(t *testing.T) {
 		},
 		{
 			description: "handles error from Cloud API",
-			request: &workloadclusterv1.UpsertWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.UpsertWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name:     "example",
 						Revision: "revision",
-					},
-					Spec: &workloadclusterv1.WorkloadClusterSpec{
+					}.Build(),
+					Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 						Regions: []*workloadclusterv1.Region{
-							{
+							workloadclusterv1.Region_builder{
 								Name: "us-west-2",
-							},
+							}.Build(),
 						},
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			mockResponseError: errors.New("invalid configuration"),
 			expectedCloudRequest: &cloudv1.UpsertChildClusterRequest{
 				Name: "example",
@@ -794,24 +794,24 @@ func TestUpsertWorkloadCluster(t *testing.T) {
 		},
 		{
 			description: "handles success from Cloud API",
-			request: &workloadclusterv1.UpsertWorkloadClusterRequest{
-				Cluster: &workloadclusterv1.WorkloadCluster{
-					Metadata: &headerv1.Metadata{
+			request: workloadclusterv1.UpsertWorkloadClusterRequest_builder{
+				Cluster: workloadclusterv1.WorkloadCluster_builder{
+					Metadata: headerv1.Metadata_builder{
 						Name: "test",
-					},
-					Spec: &workloadclusterv1.WorkloadClusterSpec{
+					}.Build(),
+					Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 						Regions: []*workloadclusterv1.Region{
-							{
+							workloadclusterv1.Region_builder{
 								Name: "auth_region",
-							},
+							}.Build(),
 						},
-					},
-					Status: &workloadclusterv1.WorkloadClusterStatus{
+					}.Build(),
+					Status: workloadclusterv1.WorkloadClusterStatus_builder{
 						State:  "creating",
 						Domain: "test.teleport.sh",
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			mockResponse: &cloudv1.UpsertChildClusterResponse{
 				Cluster: &cloudv1.ChildCluster{
 					Name:     "test",
@@ -837,25 +837,25 @@ func TestUpsertWorkloadCluster(t *testing.T) {
 					},
 				},
 			},
-			expectedWorkloadCluster: &workloadclusterv1.WorkloadCluster{
+			expectedWorkloadCluster: workloadclusterv1.WorkloadCluster_builder{
 				Version: types.V1,
 				Kind:    types.KindWorkloadCluster,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:     "test",
 					Revision: "revision",
-				},
-				Spec: &workloadclusterv1.WorkloadClusterSpec{
+				}.Build(),
+				Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 					Regions: []*workloadclusterv1.Region{
-						{
+						workloadclusterv1.Region_builder{
 							Name: "auth_region",
-						},
+						}.Build(),
 					},
-				},
-				Status: &workloadclusterv1.WorkloadClusterStatus{
+				}.Build(),
+				Status: workloadclusterv1.WorkloadClusterStatus_builder{
 					State:  "creating",
 					Domain: "test.teleport.sh",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	}
 
@@ -951,9 +951,9 @@ func TestListWorkloadClusters(t *testing.T) {
 	}{
 		{
 			description: "handles error from Cloud API",
-			request: &workloadclusterv1.ListWorkloadClustersRequest{
+			request: workloadclusterv1.ListWorkloadClustersRequest_builder{
 				PageSize: 10,
-			},
+			}.Build(),
 			mockResponseError: errors.New("error"),
 			expectedCloudRequest: &cloudv1.ListChildClustersRequest{
 				PageSize: 10,
@@ -962,10 +962,10 @@ func TestListWorkloadClusters(t *testing.T) {
 		},
 		{
 			description: "list workload clusters",
-			request: &workloadclusterv1.ListWorkloadClustersRequest{
+			request: workloadclusterv1.ListWorkloadClustersRequest_builder{
 				PageSize:  3,
 				PageToken: "test-token",
-			},
+			}.Build(),
 			expectedCloudRequest: &cloudv1.ListChildClustersRequest{
 				PageSize:  3,
 				PageToken: "test-token",
@@ -1005,49 +1005,49 @@ func TestListWorkloadClusters(t *testing.T) {
 				},
 				NextPageToken: "next-token",
 			},
-			expectedWorkloadClusters: &workloadclusterv1.ListWorkloadClustersResponse{
+			expectedWorkloadClusters: workloadclusterv1.ListWorkloadClustersResponse_builder{
 				NextPageToken: "next-token",
 				Clusters: []*workloadclusterv1.WorkloadCluster{
-					{
+					workloadclusterv1.WorkloadCluster_builder{
 						Version: types.V1,
 						Kind:    types.KindWorkloadCluster,
-						Metadata: &headerv1.Metadata{
+						Metadata: headerv1.Metadata_builder{
 							Name:     "example",
 							Revision: "revision",
-						},
-						Spec: &workloadclusterv1.WorkloadClusterSpec{
+						}.Build(),
+						Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 							Regions: []*workloadclusterv1.Region{
-								{
+								workloadclusterv1.Region_builder{
 									Name: "auth_region",
-								},
+								}.Build(),
 							},
-						},
-						Status: &workloadclusterv1.WorkloadClusterStatus{
+						}.Build(),
+						Status: workloadclusterv1.WorkloadClusterStatus_builder{
 							Domain: "example.teleport.sh",
 							State:  "active",
-						},
-					},
-					{
+						}.Build(),
+					}.Build(),
+					workloadclusterv1.WorkloadCluster_builder{
 						Version: types.V1,
 						Kind:    types.KindWorkloadCluster,
-						Metadata: &headerv1.Metadata{
+						Metadata: headerv1.Metadata_builder{
 							Name:     "test",
 							Revision: "revision",
-						},
-						Spec: &workloadclusterv1.WorkloadClusterSpec{
+						}.Build(),
+						Spec: workloadclusterv1.WorkloadClusterSpec_builder{
 							Regions: []*workloadclusterv1.Region{
-								{
+								workloadclusterv1.Region_builder{
 									Name: "auth_region",
-								},
+								}.Build(),
 							},
-						},
-						Status: &workloadclusterv1.WorkloadClusterStatus{
+						}.Build(),
+						Status: workloadclusterv1.WorkloadClusterStatus_builder{
 							Domain: "test.teleport.sh",
 							State:  "creating",
-						},
-					},
+						}.Build(),
+					}.Build(),
 				},
-			},
+			}.Build(),
 		},
 	}
 
@@ -1138,9 +1138,9 @@ func TestDeleteWorkloadCluster(t *testing.T) {
 	}{
 		{
 			description: "handles error from Cloud API",
-			request: &workloadclusterv1.DeleteWorkloadClusterRequest{
+			request: workloadclusterv1.DeleteWorkloadClusterRequest_builder{
 				Name: "test",
-			},
+			}.Build(),
 			mockResponseError: errors.New("error suspending in cloud"),
 			expectedChildClusterRequest: &cloudv1.SuspendChildClusterRequest{
 				Name: "test",
@@ -1149,9 +1149,9 @@ func TestDeleteWorkloadCluster(t *testing.T) {
 		},
 		{
 			description: "handles success from Cloud API",
-			request: &workloadclusterv1.DeleteWorkloadClusterRequest{
+			request: workloadclusterv1.DeleteWorkloadClusterRequest_builder{
 				Name: "test",
-			},
+			}.Build(),
 			mockResponse: &cloudv1.SuspendChildClusterResponse{
 				Cluster: &cloudv1.ChildCluster{
 					Revision: "revision",

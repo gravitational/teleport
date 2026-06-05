@@ -42,13 +42,13 @@ func TestService_EnrollDevice(t *testing.T) {
 	ctx := context.Background()
 
 	// macOSFailDev is used for failure test scenarios.
-	macOSFailDev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	macOSFailDev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "fail",
-		},
+		}.Build(),
 		CreateEnrollToken: true,
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
@@ -118,7 +118,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.Token = "invalid"
+					r.SetToken("invalid")
 				},
 			}),
 			assertInitErr:   trace.IsAccessDenied,
@@ -129,7 +129,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.CredentialId = ""
+					r.SetCredentialId("")
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -140,7 +140,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.DeviceData = nil
+					r.ClearDeviceData()
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -151,7 +151,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.DeviceData.CollectTime = nil
+					r.GetDeviceData().ClearCollectTime()
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -162,7 +162,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.DeviceData.OsType = devicepb.OSType_OS_TYPE_UNSPECIFIED
+					r.GetDeviceData().SetOsType(devicepb.OSType_OS_TYPE_UNSPECIFIED)
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -173,7 +173,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.DeviceData.OsType = devicepb.OSType_OS_TYPE_LINUX
+					r.GetDeviceData().SetOsType(devicepb.OSType_OS_TYPE_LINUX)
 				},
 			}),
 			assertInitErr:   trace.IsNotFound,
@@ -184,7 +184,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.DeviceData.SerialNumber = ""
+					r.GetDeviceData().SetSerialNumber("")
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -195,7 +195,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.DeviceData.SerialNumber = "unknown"
+					r.GetDeviceData().SetSerialNumber("unknown")
 				},
 			}),
 			assertInitErr:   trace.IsNotFound,
@@ -206,9 +206,9 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.DeviceData.TpmPlatformAttestation = &devicepb.TPMPlatformAttestation{
+					r.GetDeviceData().SetTpmPlatformAttestation(devicepb.TPMPlatformAttestation_builder{
 						Nonce: []byte("a-nonce"),
-					}
+					}.Build())
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -218,10 +218,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "windows: success with EKPub",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "llama",
-			},
+			}.Build(),
 			simulator:                     newTPMSimulator(tpmBehavior{}),
 			wantAuditEvents:               wantEnrollSuccess,
 			wantDCDTPMPlatformAttestation: true,
@@ -230,10 +230,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "windows: success with EKCert",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "llama-ekcert",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				ekCertGenerator: ekCertCA,
 			}),
@@ -244,10 +244,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "windows: success with EKCert trusted",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "llama-ekcert-trusted",
-			},
+			}.Build(),
 			deviceTrustConfig: &types.DeviceTrust{
 				EKCertAllowedCAs: []string{
 					string(ekCertCAPEM),
@@ -264,10 +264,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "linux: success with EKPub",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_LINUX,
 				AssetTag: "linux-tpm-success",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				emptyEventLog: true,
 			}),
@@ -279,13 +279,13 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "tpm: missing TPM payload in init",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-fail-no-payload",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.Tpm = nil
+					r.ClearTpm()
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -294,13 +294,13 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "tpm: no attest params in TPM payload",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-fail-no-attest-params",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.Tpm.AttestationParameters = nil
+					r.GetTpm().ClearAttestationParameters()
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -309,13 +309,13 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "tpm: no EK in TPM payload",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-fail-no-ek",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.Tpm.Ek = nil
+					r.GetTpm().ClearEk()
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -324,10 +324,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "tpm: incorrect platform attestation AK",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-fail-incorrect-attest-ak",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestAK: true,
 			}),
@@ -337,10 +337,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "tpm: incorrect platform attestation nonce",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-fail-incorrect-attest-nonce",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestNonce: true,
 			}),
@@ -350,10 +350,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "tpm: incorrect credential activation solution",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-fail-incorrect-activation-solution",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectCredActivateSolution: true,
 			}),
@@ -363,10 +363,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "tpm: incorrect platform attestation pcr",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-fail-incorrect-attest-pcr",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestPCR: true,
 			}),
@@ -376,10 +376,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "tpm: incorrect platform attestation event",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-fail-incorrect-attest-event",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestEvent: true,
 			}),
@@ -389,10 +389,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "tpm: ekpub provided when allowed_ekcert_cas configured",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-fail-ekpub-allowed-ekcert-cas",
-			},
+			}.Build(),
 			deviceTrustConfig: &types.DeviceTrust{
 				EKCertAllowedCAs: []string{
 					string(ekCertCAPEM),
@@ -405,10 +405,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		{
 			name:       "tpm: ekcert from unrecognized CA",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-fail-ekcert-unrecognized-ca",
-			},
+			}.Build(),
 			deviceTrustConfig: &types.DeviceTrust{
 				EKCertAllowedCAs: []string{
 					string(ekCertCAPEM),
@@ -423,10 +423,10 @@ func TestService_EnrollDevice(t *testing.T) {
 		// macOS enrollment and edge cases.
 		{
 			name: "macOS success",
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "llama",
-			},
+			}.Build(),
 			simulator:       newMacOSSimulator(macOSBehavior{}),
 			wantAuditEvents: wantEnrollSuccess,
 		},
@@ -435,7 +435,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.Macos = nil
+					r.ClearMacos()
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -446,7 +446,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.Macos.PublicKeyDer = []byte{}
+					r.GetMacos().SetPublicKeyDer([]byte{})
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -457,7 +457,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.Macos.PublicKeyDer = []byte("not a public key")
+					r.GetMacos().SetPublicKeyDer([]byte("not a public key"))
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -468,7 +468,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.Macos.PublicKeyDer = rsaKeyDER // Enclave keys are ECDSA.
+					r.GetMacos().SetPublicKeyDer(rsaKeyDER) // Enclave keys are ECDSA.
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -479,7 +479,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			deviceTemplate: macOSFailDev,
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
-					r.Macos.PublicKeyDer = p224KeyDER // Enclave keys are P-256.
+					r.GetMacos().SetPublicKeyDer(p224KeyDER) // Enclave keys are P-256.
 				},
 			}),
 			assertInitErr:   trace.IsBadParameter,
@@ -529,25 +529,25 @@ func TestService_EnrollDevice(t *testing.T) {
 			switch dev := test.deviceTemplate; {
 			case dev == nil:
 				t.Fatal("No device template provided. This is likely a test setup mistake.")
-			case dev.Id == "": // Create new device
+			case dev.GetId() == "": // Create new device
 				var err error
-				created, err = devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+				created, err = devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
 					Device:            dev,
 					CreateEnrollToken: true,
-				})
+				}.Build())
 				if err != nil {
 					t.Fatalf("CreateDevice failed: %v", err)
 				}
-				enrollToken = created.EnrollToken.Token
+				enrollToken = created.GetEnrollToken().GetToken()
 			default: // Create new enrollment token
-				token, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
-					DeviceId: dev.Id,
-				})
+				token, err := devices.CreateDeviceEnrollToken(ctx, devicepb.CreateDeviceEnrollTokenRequest_builder{
+					DeviceId: dev.GetId(),
+				}.Build())
 				if err != nil {
 					t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
 				}
 				created = dev
-				enrollToken = token.Token
+				enrollToken = token.GetToken()
 			}
 			emitter.Reset()
 
@@ -600,39 +600,39 @@ func TestService_EnrollDevice(t *testing.T) {
 			}
 
 			// Verify that basic device fields are updated.
-			if got, want := gotDev.UpdateTime.AsTime(), created.UpdateTime.AsTime(); !got.After(want) {
+			if got, want := gotDev.GetUpdateTime().AsTime(), created.GetUpdateTime().AsTime(); !got.After(want) {
 				t.Errorf("gotDev.UpdateTime=%v, want >%v", got, want)
 			}
 
 			wantDev := created
-			wantDev.UpdateTime = gotDev.UpdateTime
-			wantDev.EnrollToken = nil // token spent, also not expected here
-			wantDev.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED
-			wantDev.Credential = test.simulator.wantCredential()
-			wantDev.Credential.DeviceAttestationType = test.wantAttestationType
-			wantDev.CollectedData = nil // not expected here
-			wantDev.Owner = testenv.DefaultUser
+			wantDev.SetUpdateTime(gotDev.GetUpdateTime())
+			wantDev.ClearEnrollToken() // token spent, also not expected here
+			wantDev.SetEnrollStatus(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED)
+			wantDev.SetCredential(test.simulator.wantCredential())
+			wantDev.GetCredential().SetDeviceAttestationType(test.wantAttestationType)
+			wantDev.SetCollectedData(nil) // not expected here
+			wantDev.SetOwner(testenv.DefaultUser)
 			if diff := cmp.Diff(wantDev, gotDev, protocmp.Transform()); diff != "" {
 				t.Errorf("EnrollDevice mismatch (-want +got):\n%s", diff)
 			}
 
-			storedDev, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
-				DeviceId: gotDev.Id,
-			})
+			storedDev, err := devices.GetDevice(ctx, devicepb.GetDeviceRequest_builder{
+				DeviceId: gotDev.GetId(),
+			}.Build())
 			if err != nil {
 				t.Fatalf("GetDevice failed: %v", err)
 			}
 			// TODO(noah): Assert collected data more thoroughly in tests.
-			if collectedDataLen := len(storedDev.CollectedData); collectedDataLen != 1 {
+			if collectedDataLen := len(storedDev.GetCollectedData()); collectedDataLen != 1 {
 				t.Errorf("len(storedDev.CollectedData)=%d, want %d", collectedDataLen, 1)
 			}
-			storedCollectedData := storedDev.CollectedData[0]
-			if test.wantDCDTPMPlatformAttestation && storedCollectedData.TpmPlatformAttestation == nil {
+			storedCollectedData := storedDev.GetCollectedData()[0]
+			if test.wantDCDTPMPlatformAttestation && !storedCollectedData.HasTpmPlatformAttestation() {
 				t.Error("storedDev.CollectedData.TpmPlatformAttestation=nil, want non-nil")
-			} else if !test.wantDCDTPMPlatformAttestation && storedCollectedData.TpmPlatformAttestation != nil {
-				t.Errorf("storedDev.CollectedData.TpmPlatformAttestation=%v, want nil", storedCollectedData.TpmPlatformAttestation)
+			} else if !test.wantDCDTPMPlatformAttestation && storedCollectedData.HasTpmPlatformAttestation() {
+				t.Errorf("storedDev.CollectedData.TpmPlatformAttestation=%v, want nil", storedCollectedData.GetTpmPlatformAttestation())
 			}
-			storedDev.CollectedData = nil
+			storedDev.SetCollectedData(nil)
 			if diff := cmp.Diff(gotDev, storedDev, protocmp.Transform()); diff != "" {
 				t.Errorf("GetDevice mismatch (-want +got):\n%s", diff)
 			}
@@ -664,12 +664,12 @@ func TestService_EnrollDevice_ignoreUsageBasedLimits(t *testing.T) {
 	// 1. Register limit+2 devices. This is allowed.
 	var allDevs []*devicepb.Device
 	for i := range devicesLimit + 2 {
-		dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-			Device: &devicepb.Device{
+		dev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+			Device: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: fmt.Sprintf("dev-%v", i),
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err, "CreateDevice failed")
 		allDevs = append(allDevs, dev)
 	}
@@ -682,8 +682,8 @@ func TestService_EnrollDevice_ignoreUsageBasedLimits(t *testing.T) {
 
 	// 3. Verify all devices are enrolled.
 	for _, dev := range allDevs {
-		got, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{DeviceId: dev.Id})
+		got, err := devices.GetDevice(ctx, devicepb.GetDeviceRequest_builder{DeviceId: dev.GetId()}.Build())
 		require.NoError(t, err)
-		require.Equal(t, devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED, got.EnrollStatus)
+		require.Equal(t, devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED, got.GetEnrollStatus())
 	}
 }

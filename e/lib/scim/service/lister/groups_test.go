@@ -41,20 +41,20 @@ func TestGroupLister_ListResources(t *testing.T) {
 	}
 
 	// Test with no filter, get first 2 items
-	req := &scimpb.ListSCIMResourcesRequest{
+	req := scimpb.ListSCIMResourcesRequest_builder{
 		Filter: "",
-		Page: &scimpb.Page{
+		Page: scimpb.Page_builder{
 			StartIndex: 1,
 			Count:      2,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	resp, err := lister.ListResources(ctx, req)
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, 2)
-	require.Equal(t, "engineering", resp.Resources[0].Id)
-	require.Equal(t, "hr", resp.Resources[1].Id)
-	require.Equal(t, int32(3), resp.TotalResults)
+	require.Len(t, resp.GetResources(), 2)
+	require.Equal(t, "engineering", resp.GetResources()[0].GetId())
+	require.Equal(t, "hr", resp.GetResources()[1].GetId())
+	require.Equal(t, int32(3), resp.GetTotalResults())
 }
 
 // TestGroupLister_PredicateExcludes ensures Predicate properly excludes items.
@@ -77,14 +77,14 @@ func TestGroupLister_PredicateExcludes(t *testing.T) {
 		},
 	}
 
-	req := &scimpb.ListSCIMResourcesRequest{
-		Page: &scimpb.Page{StartIndex: 1, Count: 10},
-	}
+	req := scimpb.ListSCIMResourcesRequest_builder{
+		Page: scimpb.Page_builder{StartIndex: 1, Count: 10}.Build(),
+	}.Build()
 
 	resp, err := lister.ListResources(ctx, req)
 	require.NoError(t, err)
-	require.Empty(t, resp.Resources)
-	require.Equal(t, int32(0), resp.TotalResults)
+	require.Empty(t, resp.GetResources())
+	require.Equal(t, int32(0), resp.GetTotalResults())
 }
 
 // TestGroupLister_FilterMatches verifies SCIM filter is respected.
@@ -106,15 +106,15 @@ func TestGroupLister_FilterMatches(t *testing.T) {
 	}
 
 	// Filter only groups with title "Team One"
-	req := &scimpb.ListSCIMResourcesRequest{
+	req := scimpb.ListSCIMResourcesRequest_builder{
 		Filter: `displayName eq "Team One"`,
-		Page:   &scimpb.Page{StartIndex: 1, Count: 1},
-	}
+		Page:   scimpb.Page_builder{StartIndex: 1, Count: 1}.Build(),
+	}.Build()
 
 	resp, err := lister.ListResources(ctx, req)
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Equal(t, "team1", resp.Resources[0].Id)
+	require.Len(t, resp.GetResources(), 1)
+	require.Equal(t, "team1", resp.GetResources()[0].GetId())
 }
 
 // TestGroupLister_FilterNoMatch ensures no match from filter returns empty.
@@ -135,14 +135,14 @@ func TestGroupLister_FilterNoMatch(t *testing.T) {
 		},
 	}
 
-	req := &scimpb.ListSCIMResourcesRequest{
+	req := scimpb.ListSCIMResourcesRequest_builder{
 		Filter: `displayName eq "Nonexistent"`,
-		Page:   &scimpb.Page{StartIndex: 1, Count: 5},
-	}
+		Page:   scimpb.Page_builder{StartIndex: 1, Count: 5}.Build(),
+	}.Build()
 
 	resp, err := lister.ListResources(ctx, req)
 	require.NoError(t, err)
-	require.Empty(t, resp.Resources)
+	require.Empty(t, resp.GetResources())
 }
 
 // fakeAccessListService mocks AccessLists for group lister tests.

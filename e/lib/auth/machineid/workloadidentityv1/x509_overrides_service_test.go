@@ -87,10 +87,10 @@ func TestSignX509IssuerCSR(t *testing.T) {
 
 		resp, err := client.
 			WorkloadIdentityX509OverridesClient().
-			SignX509IssuerCSR(ctx, &workloadidentityv1.SignX509IssuerCSRRequest{
+			SignX509IssuerCSR(ctx, workloadidentityv1.SignX509IssuerCSRRequest_builder{
 				Issuer:          caCert.Raw,
 				CsrCreationMode: workloadidentityv1.CSRCreationMode_CSR_CREATION_MODE_SAME,
-			})
+			}.Build())
 		require.NoError(t, err)
 		csr, err := x509.ParseCertificateRequest(resp.GetCsr())
 		require.NoError(t, err)
@@ -99,10 +99,10 @@ func TestSignX509IssuerCSR(t *testing.T) {
 
 		resp, err = client.
 			WorkloadIdentityX509OverridesClient().
-			SignX509IssuerCSR(ctx, &workloadidentityv1.SignX509IssuerCSRRequest{
+			SignX509IssuerCSR(ctx, workloadidentityv1.SignX509IssuerCSRRequest_builder{
 				Issuer:          caCert.Raw,
 				CsrCreationMode: workloadidentityv1.CSRCreationMode_CSR_CREATION_MODE_EMPTY,
-			})
+			}.Build())
 		require.NoError(t, err)
 		csr, err = x509.ParseCertificateRequest(resp.GetCsr())
 		require.NoError(t, err)

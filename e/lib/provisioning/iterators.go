@@ -26,25 +26,25 @@ func allUsers(ctx context.Context, users UsersService) iter.Seq2[*types.UserV2, 
 	return func(yield func(*types.UserV2, error) bool) {
 		pageToken := ""
 		for {
-			response, err := users.ListUsers(ctx, &usersv1.ListUsersRequest{
+			response, err := users.ListUsers(ctx, usersv1.ListUsersRequest_builder{
 				PageSize:  pageSize,
 				PageToken: pageToken,
-			})
+			}.Build())
 			if err != nil {
 				yield(nil, trace.Wrap(err, "listing users"))
 				return
 			}
 
-			for _, u := range response.Users {
+			for _, u := range response.GetUsers() {
 				if !yield(u, nil) {
 					return
 				}
 			}
 
-			if response.NextPageToken == "" {
+			if response.GetNextPageToken() == "" {
 				break
 			}
-			pageToken = response.NextPageToken
+			pageToken = response.GetNextPageToken()
 		}
 	}
 }

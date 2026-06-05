@@ -49,14 +49,14 @@ func (e *macOSSimulator) enrollRequest(
 	dev *devicepb.Device,
 	enrollToken string,
 ) *devicepb.EnrollDeviceRequest {
-	init := &devicepb.EnrollDeviceInit{
+	init := devicepb.EnrollDeviceInit_builder{
 		Token:        enrollToken,
 		CredentialId: e.key.id,
 		DeviceData:   defaultCollectData(dev),
-		Macos: &devicepb.MacOSEnrollPayload{
+		Macos: devicepb.MacOSEnrollPayload_builder{
 			PublicKeyDer: e.key.pubKeyDER,
-		},
-	}
+		}.Build(),
+	}.Build()
 	if e.behavior.modifyEnrollDeviceInit != nil {
 		e.behavior.modifyEnrollDeviceInit(init)
 	}
@@ -72,19 +72,17 @@ func (e *macOSSimulator) handleEnrollStream(
 	stream devicepb.DeviceTrustService_EnrollDeviceClient,
 	testBehavior bool,
 ) (*devicepb.Device, error) {
-	sig, err := e.signChallenge(resp.GetMacosChallenge().Challenge, testBehavior)
+	sig, err := e.signChallenge(resp.GetMacosChallenge().GetChallenge(), testBehavior)
 	if err != nil {
 		return nil, fmt.Errorf("signing challenge: %w", err)
 	}
 
 	// 2. Challenge.
-	if err := stream.Send(&devicepb.EnrollDeviceRequest{
-		Payload: &devicepb.EnrollDeviceRequest_MacosChallengeResponse{
-			MacosChallengeResponse: &devicepb.MacOSEnrollChallengeResponse{
-				Signature: sig,
-			},
-		},
-	}); err != nil && !errors.Is(err, io.EOF) {
+	if err := stream.Send(devicepb.EnrollDeviceRequest_builder{
+		MacosChallengeResponse: devicepb.MacOSEnrollChallengeResponse_builder{
+			Signature: sig,
+		}.Build(),
+	}.Build()); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("challenge Send: %w", err)
 	}
 	resp, err = stream.Recv()
@@ -132,12 +130,12 @@ func (e *macOSSimulator) authenticate(
 	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
 	initTemplate *devicepb.AuthenticateDeviceInit,
 ) (*devicepb.AuthenticateDeviceResponse, error) {
-	init := &devicepb.AuthenticateDeviceInit{
+	init := devicepb.AuthenticateDeviceInit_builder{
 		UserCertificates: initTemplate.GetUserCertificates(),
 		CredentialId:     e.key.id,
 		DeviceData:       defaultCollectData(dev),
 		DeviceWebToken:   initTemplate.GetDeviceWebToken(),
-	}
+	}.Build()
 	if e.behavior.modifyAuthenticateDeviceInit != nil {
 		e.behavior.modifyAuthenticateDeviceInit(init)
 	}
@@ -157,22 +155,20 @@ func (e *macOSSimulator) authenticate(
 	if chalResp == nil {
 		return nil, fmt.Errorf("init Recv: unexpected payload=%T, want AuthenticateDeviceChallenge ", resp.Payload)
 	}
-	sig, err := e.signChallenge(chalResp.Challenge, true)
+	sig, err := e.signChallenge(chalResp.GetChallenge(), true)
 	if err != nil {
 		return nil, fmt.Errorf("signing challenge: %w", err)
 	}
-	sshSig, err := e.signSSHChallenge(chalResp.Challenge)
+	sshSig, err := e.signSSHChallenge(chalResp.GetChallenge())
 	if err != nil {
 		return nil, fmt.Errorf("signing challenge with SSH key: %w", err)
 	}
-	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
-			ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
-				Signature:    sig,
-				SshSignature: sshSig,
-			},
-		},
-	}); err != nil && !errors.Is(err, io.EOF) {
+	if err := stream.Send(devicepb.AuthenticateDeviceRequest_builder{
+		ChallengeResponse: devicepb.AuthenticateDeviceChallengeResponse_builder{
+			Signature:    sig,
+			SshSignature: sshSig,
+		}.Build(),
+	}.Build()); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("challend Send: %w", err)
 	}
 	resp, err = stream.Recv()

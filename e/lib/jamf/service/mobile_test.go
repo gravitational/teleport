@@ -97,17 +97,17 @@ func TestMobileToDevice(t *testing.T) {
 					ModelIdentifier: "iPad15,7",
 				},
 			},
-			want: &devicepb.Device{
+			want: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_IPADOS,
 				AssetTag: "CXXXXXXXXXX1",
-				Profile: &devicepb.DeviceProfile{
+				Profile: devicepb.DeviceProfile_builder{
 					ModelIdentifier:     "iPad15,7",
 					ExternalId:          "1",
 					OsVersion:           "26.3.1",
 					OsBuild:             "23D8133",
 					OsBuildSupplemental: "23D771330a",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "iPhone without general section",
@@ -119,14 +119,14 @@ func TestMobileToDevice(t *testing.T) {
 					ModelIdentifier: "iPhone15,2",
 				},
 			},
-			want: &devicepb.Device{
+			want: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_IOS,
 				AssetTag: "CXXXXXXXXXX2",
-				Profile: &devicepb.DeviceProfile{
+				Profile: devicepb.DeviceProfile_builder{
 					ModelIdentifier: "iPhone15,2",
 					ExternalId:      "2",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name:    "nil device",

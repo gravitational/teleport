@@ -328,16 +328,14 @@ func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_NetIQEventsStreamClient,
 	upsert *accessgraphv1alpha.NetIQResourceList,
 ) error {
-	for i := 0; i < len(upsert.Resources); i += batchSize {
-		end := min(i+batchSize, len(upsert.Resources))
+	for i := 0; i < len(upsert.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(upsert.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.NetIQEventsStreamRequest{
-				Operation: &accessgraphv1alpha.NetIQEventsStreamRequest_Upsert{
-					Upsert: &accessgraphv1alpha.NetIQResourceList{
-						Resources: upsert.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.NetIQEventsStreamRequest_builder{
+				Upsert: accessgraphv1alpha.NetIQResourceList_builder{
+					Resources: upsert.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -350,16 +348,14 @@ func pushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_NetIQEventsStreamClient,
 	toDel *accessgraphv1alpha.NetIQResourceList,
 ) error {
-	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := min(i+batchSize, len(toDel.Resources))
+	for i := 0; i < len(toDel.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(toDel.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.NetIQEventsStreamRequest{
-				Operation: &accessgraphv1alpha.NetIQEventsStreamRequest_Delete{
-					Delete: &accessgraphv1alpha.NetIQResourceList{
-						Resources: toDel.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.NetIQEventsStreamRequest_builder{
+				Delete: accessgraphv1alpha.NetIQResourceList_builder{
+					Resources: toDel.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)

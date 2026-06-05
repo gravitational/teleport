@@ -108,9 +108,9 @@ func TestService_authz(t *testing.T) {
 				},
 			},
 			rpc: func() error {
-				_, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+				_, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
 					CreateEnrollToken: true, // requires create_enroll_token
-				})
+				}.Build())
 				return err
 			},
 			assertErr: trace.IsBadParameter,
@@ -123,9 +123,9 @@ func TestService_authz(t *testing.T) {
 				},
 			},
 			rpc: func() error {
-				_, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+				_, err := devices.CreateDeviceEnrollToken(ctx, devicepb.CreateDeviceEnrollTokenRequest_builder{
 					DeviceId: "unknown",
-				})
+				}.Build())
 				return err
 			},
 			assertErr: trace.IsNotFound,
@@ -138,9 +138,9 @@ func TestService_authz(t *testing.T) {
 				},
 			},
 			rpc: func() error {
-				_, err := devices.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+				_, err := devices.DeleteDevice(ctx, devicepb.DeleteDeviceRequest_builder{
 					DeviceId: "unknown",
-				})
+				}.Build())
 				return err
 			},
 			assertErr: trace.IsNotFound,
@@ -176,9 +176,9 @@ func TestService_authz(t *testing.T) {
 				},
 			},
 			rpc: func() error {
-				_, err := devices.FindDevices(ctx, &devicepb.FindDevicesRequest{
+				_, err := devices.FindDevices(ctx, devicepb.FindDevicesRequest_builder{
 					IdOrTag: "unknown",
-				})
+				}.Build())
 				return err
 			},
 			assertErr: func(err error) bool { return err == nil },
@@ -191,9 +191,9 @@ func TestService_authz(t *testing.T) {
 				},
 			},
 			rpc: func() error {
-				_, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
+				_, err := devices.GetDevice(ctx, devicepb.GetDeviceRequest_builder{
 					DeviceId: "unknown",
-				})
+				}.Build())
 				return err
 			},
 			assertErr: trace.IsNotFound,
@@ -400,19 +400,19 @@ func TestService_rateLimiting(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a couple of test devices.
-	createdDev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	createdDev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "llama",
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
-	enrolledDev, enrolledKey, err := createAndEnroll(ctx, devices, &devicepb.Device{
+	enrolledDev, enrolledKey, err := createAndEnroll(ctx, devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "alpaca",
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -424,9 +424,9 @@ func TestService_rateLimiting(t *testing.T) {
 		{
 			name: "CreateDeviceEnrollToken auto-enroll",
 			rpc: func() error {
-				_, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+				_, err := devices.CreateDeviceEnrollToken(ctx, devicepb.CreateDeviceEnrollTokenRequest_builder{
 					DeviceData: defaultCollectData(createdDev),
-				})
+				}.Build())
 				return err
 			},
 		},
@@ -478,66 +478,66 @@ func TestService_CreateDevice(t *testing.T) {
 	}{
 		{
 			name: "ok",
-			req: &devicepb.CreateDeviceRequest{
-				Device: &devicepb.Device{
+			req: devicepb.CreateDeviceRequest_builder{
+				Device: devicepb.Device_builder{
 					OsType:   devicepb.OSType_OS_TYPE_MACOS,
 					AssetTag: "llama",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "device and enroll token",
-			req: &devicepb.CreateDeviceRequest{
-				Device: &devicepb.Device{
+			req: devicepb.CreateDeviceRequest_builder{
+				Device: devicepb.Device_builder{
 					OsType:   devicepb.OSType_OS_TYPE_MACOS,
 					AssetTag: "alpaca",
-				},
+				}.Build(),
 				CreateEnrollToken: true,
-			},
+			}.Build(),
 		},
 		{
 			name: "resource-like write",
-			req: &devicepb.CreateDeviceRequest{
-				Device: &devicepb.Device{
+			req: devicepb.CreateDeviceRequest_builder{
+				Device: devicepb.Device_builder{
 					ApiVersion: "v1",
 					Id:         "a6f76866-a9eb-4a23-9bb1-7980347a1bee",
 					OsType:     devicepb.OSType_OS_TYPE_MACOS,
 					AssetTag:   resourceDeviceTag,
 					CreateTime: timestamppb.New(time.Date(2023, 2, 15, 15, 28, 21, 0, time.UTC)),
 					UpdateTime: timestamppb.New(time.Date(2023, 2, 23, 22, 9, 36, 0, time.UTC)),
-					EnrollToken: &devicepb.DeviceEnrollToken{
+					EnrollToken: devicepb.DeviceEnrollToken_builder{
 						Token: "i-am-ignored",
-					},
+					}.Build(),
 					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
-					Credential: &devicepb.DeviceCredential{
+					Credential: devicepb.DeviceCredential_builder{
 						Id:           "ae2d978c-fee8-419d-a2e6-a5dd0a00c4b8",
 						PublicKeyDer: pubKeyDER,
-					},
+					}.Build(),
 					// CollectedData is ignored by CreateDevice - it's only written in
 					// paths where a device challenge is cleared.
 					CollectedData: []*devicepb.DeviceCollectedData{
-						{
+						devicepb.DeviceCollectedData_builder{
 							CollectTime:  timestamppb.New(time.Date(2023, 2, 15, 15, 28, 35, 402554, time.UTC)),
 							RecordTime:   timestamppb.New(time.Date(2023, 2, 15, 15, 28, 35, 438274, time.UTC)),
 							OsType:       devicepb.OSType_OS_TYPE_MACOS,
 							SerialNumber: resourceDeviceTag,
-						},
-						{
+						}.Build(),
+						devicepb.DeviceCollectedData_builder{
 							CollectTime:  timestamppb.New(time.Date(2023, 2, 23, 22, 9, 12, 9985, time.UTC)),
 							RecordTime:   timestamppb.New(time.Date(2023, 2, 23, 22, 9, 12, 136163, time.UTC)),
 							OsType:       devicepb.OSType_OS_TYPE_MACOS,
 							SerialNumber: resourceDeviceTag,
-						},
-						{
+						}.Build(),
+						devicepb.DeviceCollectedData_builder{
 							CollectTime:  timestamppb.New(time.Date(2023, 2, 23, 22, 9, 36, 904036, time.UTC)),
 							RecordTime:   timestamppb.New(time.Date(2023, 2, 23, 22, 9, 36, 984874, time.UTC)),
 							OsType:       devicepb.OSType_OS_TYPE_MACOS,
 							SerialNumber: resourceDeviceTag,
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				CreateAsResource: true,
-			},
+			}.Build(),
 		},
 	}
 	for _, test := range tests {
@@ -550,49 +550,49 @@ func TestService_CreateDevice(t *testing.T) {
 			}
 
 			// Assert that expected fields are present.
-			if got.Id == "" {
+			if got.GetId() == "" {
 				t.Fatal("CreateDevice returned device without ID")
 			}
-			if got.ApiVersion == "" {
+			if got.GetApiVersion() == "" {
 				t.Error("CreateDevice returned device without ApiVersion")
 			}
-			if got.CreateTime == nil {
+			if !got.HasCreateTime() {
 				t.Error("CreateDevice returned device without CreateTime")
 			}
-			if got.UpdateTime == nil {
+			if !got.HasUpdateTime() {
 				t.Error("CreateDevice returned device without CreateTime")
 			}
 
 			// Verify CreateDevice response.
-			want := proto.Clone(test.req.Device).(*devicepb.Device)
-			want.ApiVersion = got.ApiVersion
-			want.Id = got.Id
-			want.CreateTime = got.CreateTime
-			want.UpdateTime = got.UpdateTime
-			want.EnrollToken = got.EnrollToken
-			want.EnrollStatus = got.EnrollStatus
-			want.CollectedData = nil // ignored by CreateDevice
+			want := proto.Clone(test.req.GetDevice()).(*devicepb.Device)
+			want.SetApiVersion(got.GetApiVersion())
+			want.SetId(got.GetId())
+			want.SetCreateTime(got.GetCreateTime())
+			want.SetUpdateTime(got.GetUpdateTime())
+			want.SetEnrollToken(got.GetEnrollToken())
+			want.SetEnrollStatus(got.GetEnrollStatus())
+			want.SetCollectedData(nil) // ignored by CreateDevice
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Fatalf("CreateDevice mismatch (-want +got):\n%s", diff)
 			}
 
 			// Verify enrollment token.
 			switch {
-			case test.req.CreateEnrollToken:
-				if got.EnrollToken.GetToken() == "" {
+			case test.req.GetCreateEnrollToken():
+				if got.GetEnrollToken().GetToken() == "" {
 					t.Error("CreateDevice returned nil or empty enroll token, expected a non-empty token present")
 				}
-			case got.EnrollToken != nil:
-				t.Errorf("CreateDevice returned an unexpected enroll token: %#v", got.EnrollToken)
+			case got.HasEnrollToken():
+				t.Errorf("CreateDevice returned an unexpected enroll token: %#v", got.GetEnrollToken())
 			}
 			// No other endpoints return the token, so blank it to make subsequent
 			// comparisons easier.
-			got.EnrollToken = nil
+			got.ClearEnrollToken()
 
 			// Verify that device is stored.
-			stored, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
-				DeviceId: got.Id,
-			})
+			stored, err := devices.GetDevice(ctx, devicepb.GetDeviceRequest_builder{
+				DeviceId: got.GetId(),
+			}.Build())
 			if err != nil {
 				t.Fatalf("GetDevice failed: %v", err)
 			}
@@ -607,7 +607,7 @@ func TestService_CreateDevice(t *testing.T) {
 					Code: events.DeviceCreateCode,
 				},
 			}
-			if test.req.CreateEnrollToken {
+			if test.req.GetCreateEnrollToken() {
 				wantEvents = append(wantEvents, wantEvent{
 					Type: events.DeviceEnrollTokenCreateEvent,
 					Code: events.DeviceEnrollTokenCreateCode,
@@ -633,12 +633,12 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 	// Create a couple of registered-only devices.
 	var allDevices []*devicepb.Device
 	for _, tag := range []string{"dev1", "dev2"} {
-		dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-			Device: &devicepb.Device{
+		dev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+			Device: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: tag,
-			},
-		})
+			}.Build(),
+		}.Build())
 		if err != nil {
 			t.Fatalf("CreateDevice(%q) failed: %v", tag, err)
 		}
@@ -646,19 +646,19 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 	}
 
 	// Create a couple of enrolled devices.
-	llamaDev, llamaKey, err := createAndEnroll(ctx, devices, &devicepb.Device{
+	llamaDev, llamaKey, err := createAndEnroll(ctx, devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama",
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
 	allDevices = append(allDevices, llamaDev)
 
-	alpacaDev, alpacaKey, err := createAndEnroll(ctx, devices, &devicepb.Device{
+	alpacaDev, alpacaKey, err := createAndEnroll(ctx, devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "alpaca",
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -682,9 +682,9 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 
 	// Read fresh, complete copies of all devices.
 	for i, dev := range allDevices {
-		stored, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
-			DeviceId: dev.Id,
-		})
+		stored, err := devices.GetDevice(ctx, devicepb.GetDeviceRequest_builder{
+			DeviceId: dev.GetId(),
+		}.Build())
 		if err != nil {
 			t.Fatalf("GetDevices failed: %v", err)
 		}
@@ -693,30 +693,30 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 
 	// Sanity checks: make sure state is as we expect.
 	switch {
-	case allDevices[0].EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED: // dev1
-		t.Fatalf("dev1 has unexpected enrollment status: %v", allDevices[0].EnrollStatus)
-	case allDevices[1].EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED: // dev2
-		t.Fatalf("dev2 has unexpected enrollment status: %v", allDevices[1].EnrollStatus)
-	case allDevices[2].EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED: // llama
-		t.Fatalf("llama has unexpected enrollment status: %v", allDevices[2].EnrollStatus)
-	case allDevices[2].Credential == nil:
+	case allDevices[0].GetEnrollStatus() != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED: // dev1
+		t.Fatalf("dev1 has unexpected enrollment status: %v", allDevices[0].GetEnrollStatus())
+	case allDevices[1].GetEnrollStatus() != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED: // dev2
+		t.Fatalf("dev2 has unexpected enrollment status: %v", allDevices[1].GetEnrollStatus())
+	case allDevices[2].GetEnrollStatus() != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED: // llama
+		t.Fatalf("llama has unexpected enrollment status: %v", allDevices[2].GetEnrollStatus())
+	case !allDevices[2].HasCredential():
 		t.Fatal("llama has nil credential")
-	case len(allDevices[2].CollectedData) < 3: // 1 enroll + 2 authn
-		t.Fatalf("llama has unexpected number of collected data: %v", len(allDevices[2].CollectedData))
-	case allDevices[3].EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED: // alpaca
-		t.Fatalf("alpaca has unexpected enrollment status: %v", allDevices[3].EnrollStatus)
-	case allDevices[3].Credential == nil:
+	case len(allDevices[2].GetCollectedData()) < 3: // 1 enroll + 2 authn
+		t.Fatalf("llama has unexpected number of collected data: %v", len(allDevices[2].GetCollectedData()))
+	case allDevices[3].GetEnrollStatus() != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED: // alpaca
+		t.Fatalf("alpaca has unexpected enrollment status: %v", allDevices[3].GetEnrollStatus())
+	case !allDevices[3].HasCredential():
 		t.Fatal("alpaca has nil credential")
-	case len(allDevices[3].CollectedData) < 2: // 1 enroll + 1 authn
-		t.Fatalf("alpaca has unexpected number of collected data: %v", len(allDevices[3].CollectedData))
+	case len(allDevices[3].GetCollectedData()) < 2: // 1 enroll + 1 authn
+		t.Fatalf("alpaca has unexpected number of collected data: %v", len(allDevices[3].GetCollectedData()))
 	}
 
 	assertDevices := func(t *testing.T, allDevices []*devicepb.Device) {
 		t.Helper()
 
-		listReq := &devicepb.ListDevicesRequest{
+		listReq := devicepb.ListDevicesRequest_builder{
 			View: devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
-		}
+		}.Build()
 
 		var got []*devicepb.Device
 		for {
@@ -724,11 +724,11 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 			if err != nil {
 				t.Fatalf("ListDevices failed: %v", err)
 			}
-			got = append(got, listResp.Devices...)
-			if listResp.NextPageToken == "" {
+			got = append(got, listResp.GetDevices()...)
+			if listResp.GetNextPageToken() == "" {
 				break
 			}
-			listReq.PageToken = listResp.NextPageToken
+			listReq.SetPageToken(listResp.GetNextPageToken())
 		}
 
 		// Preserve the order of `allDevices`, it's best if we avoid writing
@@ -737,10 +737,10 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 		copy(want, allDevices)
 
 		slices.SortFunc(want, func(a, b *devicepb.Device) int {
-			return strings.Compare(a.AssetTag, b.AssetTag)
+			return strings.Compare(a.GetAssetTag(), b.GetAssetTag())
 		})
 		slices.SortFunc(got, func(a, b *devicepb.Device) int {
-			return strings.Compare(a.AssetTag, b.AssetTag)
+			return strings.Compare(a.GetAssetTag(), b.GetAssetTag())
 		})
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Fatalf("ListDevices mismatch (-want +got):\n%s", diff)
@@ -760,20 +760,20 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 				t.Fatalf("ListDevices failed: %v", err)
 			}
 
-			for _, dev := range listResp.Devices {
-				deviceIDs = append(deviceIDs, dev.Id)
+			for _, dev := range listResp.GetDevices() {
+				deviceIDs = append(deviceIDs, dev.GetId())
 			}
 
-			if listResp.NextPageToken == "" {
+			if listResp.GetNextPageToken() == "" {
 				break
 			}
-			listReq.PageToken = listResp.NextPageToken
+			listReq.SetPageToken(listResp.GetNextPageToken())
 		}
 
 		for _, id := range deviceIDs {
-			_, err := devices.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+			_, err := devices.DeleteDevice(ctx, devicepb.DeleteDeviceRequest_builder{
 				DeviceId: id,
-			})
+			}.Build())
 			if err != nil {
 				t.Fatalf("DeleteDevice(%q) failed: %v", id, err)
 			}
@@ -783,8 +783,8 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 		switch listResp, err := devices.ListDevices(ctx, &devicepb.ListDevicesRequest{}); {
 		case err != nil:
 			t.Fatalf("ListDevices failed: %v", err)
-		case len(listResp.Devices) > 0:
-			t.Fatalf("ListDevices returned devices, wanted none: %v", listResp.Devices)
+		case len(listResp.GetDevices()) > 0:
+			t.Fatalf("ListDevices returned devices, wanted none: %v", listResp.GetDevices())
 		}
 	}
 
@@ -793,16 +793,16 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 
 		wantAll := make([]*devicepb.Device, 0, len(allDevices))
 		for _, dev := range allDevices {
-			created, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			created, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
 				Device:           dev,
 				CreateAsResource: true,
-			})
+			}.Build())
 			if err != nil {
-				t.Fatalf("CreateDevice(%q, createAsResource=true) failed: %v", dev.AssetTag, err)
+				t.Fatalf("CreateDevice(%q, createAsResource=true) failed: %v", dev.GetAssetTag(), err)
 			}
 
 			want := proto.Clone(dev).(*devicepb.Device)
-			want.CollectedData = nil // ignored by CreateDevice
+			want.SetCollectedData(nil) // ignored by CreateDevice
 			wantAll = append(wantAll, want)
 
 			// Assert CreateDevice's response.
@@ -818,10 +818,10 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 	t.Run("BulkCreateDevices", func(t *testing.T) {
 		deleteAll(t)
 
-		resp, err := devices.BulkCreateDevices(ctx, &devicepb.BulkCreateDevicesRequest{
+		resp, err := devices.BulkCreateDevices(ctx, devicepb.BulkCreateDevicesRequest_builder{
 			Devices:          allDevices,
 			CreateAsResource: true,
-		})
+		}.Build())
 		if err != nil {
 			t.Fatalf("BulkCreateDevices failed: %v", err)
 		}
@@ -829,18 +829,18 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 		// Assert BulkCreateDevices' response.
 		want := make([]*devicepb.DeviceOrStatus, len(allDevices))
 		for i, dev := range allDevices {
-			want[i] = &devicepb.DeviceOrStatus{
-				Id: dev.Id,
-			}
+			want[i] = devicepb.DeviceOrStatus_builder{
+				Id: dev.GetId(),
+			}.Build()
 		}
-		if diff := cmp.Diff(want, resp.Devices, protocmp.Transform()); diff != "" {
+		if diff := cmp.Diff(want, resp.GetDevices(), protocmp.Transform()); diff != "" {
 			t.Errorf("BulkCreateDevices mismatch (-want +got):\n%s", diff)
 		}
 
 		wantAll := make([]*devicepb.Device, len(allDevices))
 		for i, dev := range allDevices {
 			wantAll[i] = proto.Clone(dev).(*devicepb.Device)
-			wantAll[i].CollectedData = nil // ignored by BulkCreateDevices
+			wantAll[i].SetCollectedData(nil) // ignored by BulkCreateDevices
 		}
 
 		// Assert storage.
@@ -855,32 +855,32 @@ func TestService_UpdateDevice(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	enrolled, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
+	enrolled, _, err := createAndEnroll(ctx, devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama",
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
 
-	profileBase, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	profileBase, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "profile1",
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
-	profileSource := &devicepb.DeviceSource{
+	profileSource := devicepb.DeviceSource_builder{
 		Name:   "myscript",
 		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
-	}
-	profileProfile := &devicepb.DeviceProfile{
+	}.Build()
+	profileProfile := devicepb.DeviceProfile_builder{
 		ModelIdentifier: "MacBookPro9,2",
 		OsVersion:       "13.2.1",
 		OsUsernames:     []string{"admin", "llama"},
-	}
+	}.Build()
 
 	tests := []struct {
 		name      string
@@ -889,21 +889,21 @@ func TestService_UpdateDevice(t *testing.T) {
 	}{
 		{
 			name: "unenroll",
-			req: &devicepb.UpdateDeviceRequest{
-				Device: &devicepb.Device{
-					Id:           enrolled.Id,
+			req: devicepb.UpdateDeviceRequest_builder{
+				Device: devicepb.Device_builder{
+					Id:           enrolled.GetId(),
 					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-				},
+				}.Build(),
 				UpdateMask: &fieldmaskpb.FieldMask{
 					Paths: []string{"enroll_status"},
 				},
-			},
+			}.Build(),
 			assertDev: func(t *testing.T, updated *devicepb.Device) {
 				want := proto.Clone(enrolled).(*devicepb.Device)
-				want.UpdateTime = updated.UpdateTime
-				want.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
-				want.Credential = nil // Automatically cleared.
-				want.Owner = ""       // Automatically cleared.
+				want.SetUpdateTime(updated.GetUpdateTime())
+				want.SetEnrollStatus(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED)
+				want.ClearCredential() // Automatically cleared.
+				want.SetOwner("")      // Automatically cleared.
 				if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
 					t.Errorf("UpdateDevice mismatch (-want +got)\n%s", diff)
 				}
@@ -911,29 +911,29 @@ func TestService_UpdateDevice(t *testing.T) {
 		},
 		{
 			name: "source and profile",
-			req: &devicepb.UpdateDeviceRequest{
-				Device: &devicepb.Device{
-					Id:      profileBase.Id,
+			req: devicepb.UpdateDeviceRequest_builder{
+				Device: devicepb.Device_builder{
+					Id:      profileBase.GetId(),
 					Source:  profileSource,
 					Profile: profileProfile,
-				},
+				}.Build(),
 				UpdateMask: &fieldmaskpb.FieldMask{
 					Paths: []string{"source", "profile"},
 				},
-			},
+			}.Build(),
 			assertDev: func(t *testing.T, updated *devicepb.Device) {
 				// want the base device with source and profile set, plus new
 				// timestamps.
 				want := proto.Clone(profileBase).(*devicepb.Device)
-				want.UpdateTime = updated.UpdateTime
-				want.Source = profileSource
-				want.Profile = profileProfile
+				want.SetUpdateTime(updated.GetUpdateTime())
+				want.SetSource(profileSource)
+				want.SetProfile(profileProfile)
 
 				// Sanity check, then copy the UpdateTime to `want`.
-				if updated.Profile == nil || updated.Profile.UpdateTime == nil {
+				if !updated.HasProfile() || !updated.GetProfile().HasUpdateTime() {
 					t.Errorf("UpdateDevice returned nil Profile.UpdateTime: %v", updated)
 				} else {
-					want.Profile.UpdateTime = updated.Profile.UpdateTime
+					want.GetProfile().SetUpdateTime(updated.GetProfile().GetUpdateTime())
 				}
 
 				if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
@@ -953,13 +953,13 @@ func TestService_UpdateDevice(t *testing.T) {
 			test.assertDev(t, updated)
 
 			// Verify stored device.
-			stored, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
-				DeviceId: updated.Id,
-			})
+			stored, err := devices.GetDevice(ctx, devicepb.GetDeviceRequest_builder{
+				DeviceId: updated.GetId(),
+			}.Build())
 			if err != nil {
 				t.Fatalf("GetDevice failed: %v", err)
 			}
-			stored.CollectedData = nil // not returned by UpdateDevice
+			stored.SetCollectedData(nil) // not returned by UpdateDevice
 			if diff := cmp.Diff(updated, stored, protocmp.Transform()); diff != "" {
 				t.Errorf("GetDevice mismatch (-want +got)\n%s", diff)
 			}
@@ -981,18 +981,18 @@ func TestService_UpdateDevice_errors(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	enrolled, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
+	enrolled, _, err := createAndEnroll(ctx, devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama",
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
 
-	validUpdateDev := &devicepb.Device{
-		Id:           enrolled.Id,
+	validUpdateDev := devicepb.Device_builder{
+		Id:           enrolled.GetId(),
 		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-	}
+	}.Build()
 
 	validUpdateMask := &fieldmaskpb.FieldMask{
 		Paths: []string{"enroll_status"},
@@ -1006,24 +1006,24 @@ func TestService_UpdateDevice_errors(t *testing.T) {
 	}{
 		{
 			name: "UpdateMask nil",
-			req: &devicepb.UpdateDeviceRequest{
+			req: devicepb.UpdateDeviceRequest_builder{
 				Device: validUpdateDev,
-			},
+			}.Build(),
 			assertErr: trace.IsBadParameter,
 			wantErr:   "update mask required",
 		},
 		{
 			name: "UpdateMask empty",
-			req: &devicepb.UpdateDeviceRequest{
+			req: devicepb.UpdateDeviceRequest_builder{
 				Device:     validUpdateDev,
 				UpdateMask: &fieldmaskpb.FieldMask{},
-			},
+			}.Build(),
 			assertErr: trace.IsBadParameter,
 			wantErr:   "update mask path",
 		},
 		{
 			name: "UpdateMask invalid",
-			req: &devicepb.UpdateDeviceRequest{
+			req: devicepb.UpdateDeviceRequest_builder{
 				Device: validUpdateDev,
 				UpdateMask: &fieldmaskpb.FieldMask{
 					Paths: []string{
@@ -1031,51 +1031,51 @@ func TestService_UpdateDevice_errors(t *testing.T) {
 						"id",            // NOK
 					},
 				},
-			},
+			}.Build(),
 			assertErr: trace.IsBadParameter,
 			wantErr:   "unsupported update mask",
 		},
 		{
 			name: "Device nil",
-			req: &devicepb.UpdateDeviceRequest{
+			req: devicepb.UpdateDeviceRequest_builder{
 				UpdateMask: validUpdateMask,
-			},
+			}.Build(),
 			assertErr: trace.IsBadParameter,
 			wantErr:   "device required",
 		},
 		{
 			name: "Device.Id empty",
-			req: &devicepb.UpdateDeviceRequest{
-				Device: &devicepb.Device{
+			req: devicepb.UpdateDeviceRequest_builder{
+				Device: devicepb.Device_builder{
 					Id:           "",
 					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-				},
+				}.Build(),
 				UpdateMask: validUpdateMask,
-			},
+			}.Build(),
 			assertErr: trace.IsBadParameter,
 			wantErr:   "ID required",
 		},
 		{
 			name: "unknown device",
-			req: &devicepb.UpdateDeviceRequest{
-				Device: &devicepb.Device{
+			req: devicepb.UpdateDeviceRequest_builder{
+				Device: devicepb.Device_builder{
 					Id:           "unknown",
 					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-				},
+				}.Build(),
 				UpdateMask: validUpdateMask,
-			},
+			}.Build(),
 			assertErr: trace.IsNotFound,
 			wantErr:   "not found",
 		},
 		{
 			name: "invalid update",
-			req: &devicepb.UpdateDeviceRequest{
-				Device: &devicepb.Device{
-					Id:           enrolled.Id,
+			req: devicepb.UpdateDeviceRequest_builder{
+				Device: devicepb.Device_builder{
+					Id:           enrolled.GetId(),
 					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED, // invalid
-				},
+				}.Build(),
 				UpdateMask: validUpdateMask,
-			},
+			}.Build(),
 			assertErr: trace.IsBadParameter,
 			wantErr:   "enroll_status",
 		},
@@ -1103,22 +1103,22 @@ func TestService_UpsertDevice(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	enrolled, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
+	enrolled, _, err := createAndEnroll(ctx, devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama",
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
 
 	// enrolledUpdate is to used to unenroll `enrolled`.
 	enrolledUpdate := proto.Clone(enrolled).(*devicepb.Device)
-	enrolledUpdate.EnrollStatus = devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED
+	enrolledUpdate.SetEnrollStatus(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED)
 
-	terraformDev, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
+	terraformDev, _, err := createAndEnroll(ctx, devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "terraform1",
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("terraformDev createAndEnroll failed: %v", err)
 	}
@@ -1131,17 +1131,17 @@ func TestService_UpsertDevice(t *testing.T) {
 	}{
 		{
 			name: "create",
-			req: &devicepb.UpsertDeviceRequest{
-				Device: &devicepb.Device{
+			req: devicepb.UpsertDeviceRequest_builder{
+				Device: devicepb.Device_builder{
 					OsType:   devicepb.OSType_OS_TYPE_MACOS,
 					AssetTag: "llama1",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			assertDev: func(t *testing.T, base, upserted *devicepb.Device) {
 				// Only the request parameters have to match.
 				want := proto.Clone(upserted).(*devicepb.Device)
-				want.OsType = base.OsType
-				want.AssetTag = base.AssetTag
+				want.SetOsType(base.GetOsType())
+				want.SetAssetTag(base.GetAssetTag())
 				if diff := cmp.Diff(want, upserted, protocmp.Transform()); diff != "" {
 					t.Errorf("UpsertDevice mismatch (-want +got)\n%s", diff)
 				}
@@ -1152,8 +1152,8 @@ func TestService_UpsertDevice(t *testing.T) {
 		},
 		{
 			name: "create as resource",
-			req: &devicepb.UpsertDeviceRequest{
-				Device: &devicepb.Device{
+			req: devicepb.UpsertDeviceRequest_builder{
+				Device: devicepb.Device_builder{
 					ApiVersion:   "v1",
 					Id:           "71c51595-dfbc-4cae-b511-bce96a632a7e",
 					OsType:       devicepb.OSType_OS_TYPE_MACOS,
@@ -1161,9 +1161,9 @@ func TestService_UpsertDevice(t *testing.T) {
 					CreateTime:   timestamppb.New(time.UnixMilli(1680038979000)), // Tue, 28 Mar 2023 21:29:25 GMT
 					UpdateTime:   timestamppb.New(time.UnixMilli(1680038979000)),
 					EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-				},
+				}.Build(),
 				CreateAsResource: true,
-			},
+			}.Build(),
 			assertDev: func(t *testing.T, base, upserted *devicepb.Device) {
 				// Devices are exactly the same in this case.
 				if diff := cmp.Diff(base, upserted, protocmp.Transform()); diff != "" {
@@ -1176,14 +1176,14 @@ func TestService_UpsertDevice(t *testing.T) {
 		},
 		{
 			name: "update",
-			req: &devicepb.UpsertDeviceRequest{
+			req: devicepb.UpsertDeviceRequest_builder{
 				Device: enrolledUpdate,
-			},
+			}.Build(),
 			assertDev: func(t *testing.T, base *devicepb.Device, upserted *devicepb.Device) {
 				want := base
-				want.UpdateTime = upserted.UpdateTime // updated
-				want.Credential = nil                 // removed on unenroll
-				want.Owner = ""                       // removed on unenroll
+				want.SetUpdateTime(upserted.GetUpdateTime()) // updated
+				want.ClearCredential()                       // removed on unenroll
+				want.SetOwner("")                            // removed on unenroll
 				if diff := cmp.Diff(want, upserted, protocmp.Transform()); diff != "" {
 					t.Errorf("UpsertDevice mismatch (-want +got)\n%s", diff)
 				}
@@ -1194,17 +1194,17 @@ func TestService_UpsertDevice(t *testing.T) {
 		},
 		{
 			name: "upsert with altered CreateTime, UpdateTime and Credential(device from terraform)",
-			req: &devicepb.UpsertDeviceRequest{
+			req: devicepb.UpsertDeviceRequest_builder{
 				Device: deviceFromTerraform(t, proto.Clone(terraformDev).(*devicepb.Device)),
-			},
+			}.Build(),
 			assertDev: func(t *testing.T, base, upserted *devicepb.Device) {
 				// verify modified credential did not end up in the storage
-				assert.NotEqual(t, base.Credential, upserted.Credential)
+				assert.NotEqual(t, base.GetCredential(), upserted.GetCredential())
 
 				// revert modified timestamps and credential to original value
-				base.CreateTime = terraformDev.CreateTime
-				base.UpdateTime = terraformDev.UpdateTime
-				base.Credential = terraformDev.Credential
+				base.SetCreateTime(terraformDev.GetCreateTime())
+				base.SetUpdateTime(terraformDev.GetUpdateTime())
+				base.SetCredential(terraformDev.GetCredential())
 
 				if diff := cmp.Diff(base, upserted, protocmp.Transform()); diff != "" {
 					t.Errorf("UpsertDevice mismatch (-want +got)\n%s", diff)
@@ -1223,16 +1223,16 @@ func TestService_UpsertDevice(t *testing.T) {
 			if err != nil {
 				t.Fatalf("UpsertDevice failed: %v", err)
 			}
-			test.assertDev(t, test.req.Device, upserted)
+			test.assertDev(t, test.req.GetDevice(), upserted)
 
 			// Verify stored device.
-			stored, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
-				DeviceId: upserted.Id,
-			})
+			stored, err := devices.GetDevice(ctx, devicepb.GetDeviceRequest_builder{
+				DeviceId: upserted.GetId(),
+			}.Build())
 			if err != nil {
 				t.Fatalf("GetDevice failed: %v", err)
 			}
-			stored.CollectedData = nil // not returned by UpsertDevice
+			stored.SetCollectedData(nil) // not returned by UpsertDevice
 			if diff := cmp.Diff(upserted, stored, protocmp.Transform()); diff != "" {
 				t.Errorf("GetDevice mismatch (-want +got)\n%s", diff)
 			}
@@ -1247,14 +1247,14 @@ func deviceFromTerraform(t *testing.T, dev *devicepb.Device) *devicepb.Device {
 	// Altered CreateTime and UpdateTime should be ignored.
 	// Terraform represents dates using RFC3999 and, as a result, loses sub-second
 	// precision on the timestamps. This simulates that, but in a simpler way.
-	dev.CreateTime = timestamppb.New(dev.CreateTime.AsTime().Add(1 * time.Second))
-	dev.UpdateTime = timestamppb.New(dev.UpdateTime.AsTime().Add(1 * time.Second))
+	dev.SetCreateTime(timestamppb.New(dev.GetCreateTime().AsTime().Add(1 * time.Second)))
+	dev.SetUpdateTime(timestamppb.New(dev.GetUpdateTime().AsTime().Add(1 * time.Second)))
 
 	// Altered Credential should be ignored. Credential is not managed in terraform.
-	dev.Credential = &devicepb.DeviceCredential{
+	dev.SetCredential(devicepb.DeviceCredential_builder{
 		Id:           "deviceFromTerraform",
 		PublicKeyDer: []byte("deviceFromTerraform test public key"),
-	}
+	}.Build())
 
 	return dev
 }
@@ -1265,18 +1265,18 @@ func TestService_UpsertDevice_errors(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	created, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	created, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "llama",
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
 
 	invalidUpdate := proto.Clone(created).(*devicepb.Device)
-	invalidUpdate.AssetTag = "invalid" // cannot change
+	invalidUpdate.SetAssetTag("invalid") // cannot change
 
 	tests := []struct {
 		name      string
@@ -1292,20 +1292,20 @@ func TestService_UpsertDevice_errors(t *testing.T) {
 		},
 		{
 			name: "create invalid device",
-			req: &devicepb.UpsertDeviceRequest{
-				Device: &devicepb.Device{
+			req: devicepb.UpsertDeviceRequest_builder{
+				Device: devicepb.Device_builder{
 					OsType:   devicepb.OSType_OS_TYPE_MACOS,
 					AssetTag: "", // required
-				},
-			},
+				}.Build(),
+			}.Build(),
 			assertErr: trace.IsBadParameter,
 			wantErr:   "asset_tag required",
 		},
 		{
 			name: "update invalid device",
-			req: &devicepb.UpsertDeviceRequest{
+			req: devicepb.UpsertDeviceRequest_builder{
 				Device: invalidUpdate,
-			},
+			}.Build(),
 			assertErr: trace.IsBadParameter,
 			wantErr:   "asset_tag is readonly",
 		},
@@ -1334,12 +1334,12 @@ func TestService_DeleteDevice(t *testing.T) {
 	ctx := context.Background()
 
 	// Create a device so we can delete it below.
-	dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	dev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "llama",
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
@@ -1361,12 +1361,12 @@ func TestService_DeleteDevice(t *testing.T) {
 		},
 		{
 			name:      "ok",
-			deviceID:  dev.Id,
+			deviceID:  dev.GetId(),
 			assertErr: func(err error) bool { return err == nil },
 		},
 		{
 			name:      "double deletion fails",
-			deviceID:  dev.Id,
+			deviceID:  dev.GetId(),
 			assertErr: trace.IsNotFound,
 		},
 	}
@@ -1374,9 +1374,9 @@ func TestService_DeleteDevice(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			emitter.Reset()
 
-			_, err := devices.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
+			_, err := devices.DeleteDevice(ctx, devicepb.DeleteDeviceRequest_builder{
 				DeviceId: test.deviceID,
-			})
+			}.Build())
 			if !test.assertErr(err) {
 				t.Fatalf("DeleteDevice: assertErr failed, err=%v", err)
 			}
@@ -1385,9 +1385,9 @@ func TestService_DeleteDevice(t *testing.T) {
 			}
 
 			// Verify deletion via read.
-			if _, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
+			if _, err := devices.GetDevice(ctx, devicepb.GetDeviceRequest_builder{
 				DeviceId: test.deviceID,
-			}); !trace.IsNotFound(err) {
+			}.Build()); !trace.IsNotFound(err) {
 				t.Errorf("GetDevice returned an unexpected error (want not found): %v", err)
 			}
 
@@ -1411,34 +1411,34 @@ func TestService_ListDevicesByUser(t *testing.T) {
 	ctx := context.Background()
 
 	// create some device and don't enroll
-	_, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	_, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "cool-laptop",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	var wantDevs []*devicepb.Device
 	// create another device and enroll
-	dev, _, err := createAndEnroll(ctx, devices, &devicepb.Device{
+	dev, _, err := createAndEnroll(ctx, devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: tag,
-	})
+	}.Build())
 	require.NoError(t, err)
 	wantDevs = append(wantDevs, dev)
 
 	resp, err := devices.ListDevicesByUser(ctx, &devicepb.ListDevicesByUserRequest{})
 	require.NoError(t, err)
-	require.NotNil(t, resp.Devices)
+	require.NotNil(t, resp.GetDevices())
 
 	// make sure collected data exists, but don't check specifics
-	for i, dev := range resp.Devices {
-		require.NotNil(t, dev.CollectedData, "resp.Devices[%d].CollectedData is nil", i)
-		dev.CollectedData = nil
+	for i, dev := range resp.GetDevices() {
+		require.NotNil(t, dev.GetCollectedData(), "resp.Devices[%d].CollectedData is nil", i)
+		dev.SetCollectedData(nil)
 	}
 
-	require.Equal(t, wantDevs, resp.Devices)
+	require.Equal(t, wantDevs, resp.GetDevices())
 }
 
 func TestService_ListDevices(t *testing.T) {
@@ -1452,10 +1452,10 @@ func TestService_ListDevices(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ListDevices failed: %v", err)
 		}
-		if devs := resp.Devices; len(devs) > 0 {
+		if devs := resp.GetDevices(); len(devs) > 0 {
 			t.Errorf("ListDevices returned %v devices, wanted zero: %v", len(devs), devs)
 		}
-		if resp.NextPageToken != "" {
+		if resp.GetNextPageToken() != "" {
 			t.Error("ListDevices returned a non-empty nextPageToken")
 		}
 	})
@@ -1463,12 +1463,12 @@ func TestService_ListDevices(t *testing.T) {
 	// Add a few devices to test with.
 	var fullDevs []*devicepb.Device
 	for _, assetTag := range []string{"llama", "alpaca", "camel"} {
-		dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-			Device: &devicepb.Device{
+		dev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+			Device: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: assetTag,
-			},
-		})
+			}.Build(),
+		}.Build())
 		if err != nil {
 			t.Fatalf("CreateDevice failed: %v", err)
 		}
@@ -1478,15 +1478,15 @@ func TestService_ListDevices(t *testing.T) {
 	// Transform "fullDevs" into its "list" view equivalent.
 	listDevs := make([]*devicepb.Device, len(fullDevs))
 	for i, dev := range fullDevs {
-		listDevs[i] = &devicepb.Device{
-			ApiVersion:   dev.ApiVersion,
-			Id:           dev.Id,
-			OsType:       dev.OsType,
-			AssetTag:     dev.AssetTag,
-			CreateTime:   dev.CreateTime,
-			UpdateTime:   dev.UpdateTime,
-			EnrollStatus: dev.EnrollStatus,
-		}
+		listDevs[i] = devicepb.Device_builder{
+			ApiVersion:   dev.GetApiVersion(),
+			Id:           dev.GetId(),
+			OsType:       dev.GetOsType(),
+			AssetTag:     dev.GetAssetTag(),
+			CreateTime:   dev.GetCreateTime(),
+			UpdateTime:   dev.GetUpdateTime(),
+			EnrollStatus: dev.GetEnrollStatus(),
+		}.Build()
 	}
 
 	tests := []struct {
@@ -1501,16 +1501,16 @@ func TestService_ListDevices(t *testing.T) {
 		},
 		{
 			name: "list view",
-			initialReq: &devicepb.ListDevicesRequest{
+			initialReq: devicepb.ListDevicesRequest_builder{
 				View: devicepb.DeviceView_DEVICE_VIEW_LIST,
-			},
+			}.Build(),
 			wantDevices: listDevs,
 		},
 		{
 			name: "resource view",
-			initialReq: &devicepb.ListDevicesRequest{
+			initialReq: devicepb.ListDevicesRequest_builder{
 				View: devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
-			},
+			}.Build(),
 			wantDevices: fullDevs,
 		},
 	}
@@ -1524,20 +1524,20 @@ func TestService_ListDevices(t *testing.T) {
 					t.Fatalf("ListDevices failed: %v", err)
 				}
 
-				got = append(got, resp.Devices...)
+				got = append(got, resp.GetDevices()...)
 
-				if resp.NextPageToken == "" {
+				if resp.GetNextPageToken() == "" {
 					break
 				}
-				req.PageToken = resp.NextPageToken
+				req.SetPageToken(resp.GetNextPageToken())
 			}
 
 			want := test.wantDevices
 			slices.SortFunc(want, func(a, b *devicepb.Device) int {
-				return strings.Compare(a.Id, b.Id)
+				return strings.Compare(a.GetId(), b.GetId())
 			})
 			slices.SortFunc(got, func(a, b *devicepb.Device) int {
-				return strings.Compare(a.Id, b.Id)
+				return strings.Compare(a.GetId(), b.GetId())
 			})
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("ListDevices mismatch (-want +got)\n%s", diff)
@@ -1552,42 +1552,42 @@ func TestService_FindDevices(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	llamaDev := &devicepb.Device{
+	llamaDev := devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama",
-	}
-	alpacaDev := &devicepb.Device{
+	}.Build()
+	alpacaDev := devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "alpaca",
-	}
-	camelDev := &devicepb.Device{
+	}.Build()
+	camelDev := devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "camel",
-	}
+	}.Build()
 	llamaLinux := proto.Clone(llamaDev).(*devicepb.Device)
-	llamaLinux.OsType = devicepb.OSType_OS_TYPE_LINUX
+	llamaLinux.SetOsType(devicepb.OSType_OS_TYPE_LINUX)
 	llamaWin := proto.Clone(llamaDev).(*devicepb.Device)
-	llamaWin.OsType = devicepb.OSType_OS_TYPE_WINDOWS
+	llamaWin.SetOsType(devicepb.OSType_OS_TYPE_WINDOWS)
 
 	// Create test devices.
 	for _, dev := range []**devicepb.Device{&llamaDev, &alpacaDev, &camelDev, &llamaLinux, &llamaWin} {
-		created, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		created, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
 			Device: *dev,
-		})
+		}.Build())
 		if err != nil {
-			t.Fatalf("CreateDevice(%q) failed: %v", (*dev).AssetTag, err)
+			t.Fatalf("CreateDevice(%q) failed: %v", (*dev).GetAssetTag(), err)
 		}
 		*dev = created
 	}
 
 	// Create a device whose asset tag matches another's ID.
 	// Incredibly unlikely, but let's test anyway.
-	camelAssetTag, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	camelAssetTag, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
-			AssetTag: camelDev.Id,
-		},
-	})
+			AssetTag: camelDev.GetId(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
@@ -1609,30 +1609,30 @@ func TestService_FindDevices(t *testing.T) {
 		},
 		{
 			name:        "match by ID",
-			idOrTag:     llamaDev.Id,
+			idOrTag:     llamaDev.GetId(),
 			wantDevices: []*devicepb.Device{llamaDev},
 		},
 		{
 			name:        "match by asset tag (single)",
-			idOrTag:     alpacaDev.AssetTag,
+			idOrTag:     alpacaDev.GetAssetTag(),
 			wantDevices: []*devicepb.Device{alpacaDev},
 		},
 		{
 			name:        "match by asset tag (multiple)",
-			idOrTag:     llamaDev.AssetTag,
+			idOrTag:     llamaDev.GetAssetTag(),
 			wantDevices: []*devicepb.Device{llamaDev, llamaLinux, llamaWin},
 		},
 		{
 			name:        "match by ID and asset tag",
-			idOrTag:     camelDev.Id, // matches the asset_tag of camelAssetTag
+			idOrTag:     camelDev.GetId(), // matches the asset_tag of camelAssetTag
 			wantDevices: []*devicepb.Device{camelDev, camelAssetTag},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			resp, err := devices.FindDevices(ctx, &devicepb.FindDevicesRequest{
+			resp, err := devices.FindDevices(ctx, devicepb.FindDevicesRequest_builder{
 				IdOrTag: test.idOrTag,
-			})
+			}.Build())
 			switch {
 			case test.assertErr == nil && err == nil: // OK
 			case test.assertErr == nil && err != nil:
@@ -1644,13 +1644,13 @@ func TestService_FindDevices(t *testing.T) {
 				return
 			}
 
-			got := resp.Devices
+			got := resp.GetDevices()
 			want := test.wantDevices
 			slices.SortFunc(got, func(a, b *devicepb.Device) int {
-				return strings.Compare(a.Id, b.Id)
+				return strings.Compare(a.GetId(), b.GetId())
 			})
 			slices.SortFunc(want, func(a, b *devicepb.Device) int {
-				return strings.Compare(a.Id, b.Id)
+				return strings.Compare(a.GetId(), b.GetId())
 			})
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("FindDevices mismatch (-want +got)\n%s", diff)
@@ -1666,37 +1666,37 @@ func TestService_BulkCreateDevices(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	resp, err := devices.BulkCreateDevices(ctx, &devicepb.BulkCreateDevicesRequest{
+	resp, err := devices.BulkCreateDevices(ctx, devicepb.BulkCreateDevicesRequest_builder{
 		Devices: []*devicepb.Device{
 			// Valid.
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "llama",
-			},
+			}.Build(),
 			// Valid.
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "alpaca",
-			},
+			}.Build(),
 			// Invalid: missing asset tag.
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "",
-			},
+			}.Build(),
 			// Invalid: duplicate asset tag for macOS.
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "llama",
-			},
+			}.Build(),
 			// Valid.
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "camel",
-			},
+			}.Build(),
 			// Invalid: nil.
 			nil,
 		},
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("BulkCreateDevice failed: %v", err)
 	}
@@ -1711,16 +1711,16 @@ func TestService_BulkCreateDevices(t *testing.T) {
 		codes.InvalidArgument, // nil
 	}
 	var gotCodes []codes.Code
-	for i, dev := range resp.Devices {
+	for i, dev := range resp.GetDevices() {
 		// Using GetCode() because Status can be nil for successes.
-		code := codes.Code(dev.Status.GetCode())
+		code := codes.Code(dev.GetStatus().GetCode())
 		gotCodes = append(gotCodes, code)
 
 		// Sanity check details about the responses.
 		switch {
-		case code == codes.OK && dev.Id == "":
+		case code == codes.OK && dev.GetId() == "":
 			t.Errorf("BulkCreateDevice: resp.Devices[%v].Id is empty, want non-empty", i)
-		case code != codes.OK && dev.Status.GetMessage() == "":
+		case code != codes.OK && dev.GetStatus().GetMessage() == "":
 			t.Errorf("BulkCreateDevice: resp.Devices[%v].Message is empty, want non-empty for code %s", i, code)
 		}
 	}
@@ -1731,20 +1731,20 @@ func TestService_BulkCreateDevices(t *testing.T) {
 	// Verify that IDs match the expected asset tags.
 	// BulkCreate response order matches the request order.
 	wantDevices := map[string]string{
-		resp.Devices[0].Id: "llama",
-		resp.Devices[1].Id: "alpaca",
-		resp.Devices[4].Id: "camel",
+		resp.GetDevices()[0].GetId(): "llama",
+		resp.GetDevices()[1].GetId(): "alpaca",
+		resp.GetDevices()[4].GetId(): "camel",
 	}
 	listResp, err := devices.ListDevices(ctx, &devicepb.ListDevicesRequest{})
 	switch {
 	case err != nil:
 		t.Fatalf("ListDevices failed: %v", err)
-	case listResp.NextPageToken != "":
+	case listResp.GetNextPageToken() != "":
 		t.Fatal("ListDevices returned a non-empty nextPageToken")
 	}
 	gotDevices := make(map[string]string)
-	for _, got := range listResp.Devices {
-		gotDevices[got.Id] = got.AssetTag
+	for _, got := range listResp.GetDevices() {
+		gotDevices[got.GetId()] = got.GetAssetTag()
 	}
 	if diff := cmp.Diff(wantDevices, gotDevices); diff != "" {
 		t.Errorf("Created devices mismatch (-want +got)\n%s", diff)
@@ -1778,12 +1778,12 @@ func TestService_CreateDeviceEnrollToken(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	dev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "llama",
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
@@ -1795,12 +1795,12 @@ func TestService_CreateDeviceEnrollToken(t *testing.T) {
 	}{
 		{
 			name:      "ok",
-			deviceID:  dev.Id,
+			deviceID:  dev.GetId(),
 			assertErr: func(err error) bool { return err == nil },
 		},
 		{
 			name:      "override ok",
-			deviceID:  dev.Id,
+			deviceID:  dev.GetId(),
 			assertErr: func(err error) bool { return err == nil },
 		},
 		{
@@ -1818,9 +1818,9 @@ func TestService_CreateDeviceEnrollToken(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			emitter.Reset()
 
-			token, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+			token, err := devices.CreateDeviceEnrollToken(ctx, devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceId: test.deviceID,
-			})
+			}.Build())
 			if !test.assertErr(err) {
 				t.Fatalf("CreateDeviceEnrollToken: assertErr failed, err=%v", err)
 			}
@@ -1875,30 +1875,30 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 	ctx := context.Background()
 
 	// Register a device for testing.
-	dev, err := devices.CreateDevice(contextWithUser(ctx, adminUser), &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	dev, err := devices.CreateDevice(contextWithUser(ctx, adminUser), devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "llama1",
 			// Have a profile so we can check that validation happens, but we don't
 			// need an extensive profile here.
-			Profile: &devicepb.DeviceProfile{
+			Profile: devicepb.DeviceProfile_builder{
 				ModelIdentifier: "MacBookPro9,2",
 				OsVersion:       "13.3.1",
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
 
 	cdValid := defaultCollectData(dev)
 	cdBad := proto.Clone(cdValid).(*devicepb.DeviceCollectedData)
-	cdBad.ModelIdentifier = "MacBookPro9,3" // doesn't match
-	cdUnknown := &devicepb.DeviceCollectedData{
+	cdBad.SetModelIdentifier("MacBookPro9,3") // doesn't match
+	cdUnknown := devicepb.DeviceCollectedData_builder{
 		CollectTime:  timestamppb.Now(),
 		OsType:       devicepb.OSType_OS_TYPE_MACOS,
 		SerialNumber: "unknown",
-	}
+	}.Build()
 
 	type testCase struct {
 		name      string
@@ -1948,19 +1948,19 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 		{
 			name: "admin auto-enroll not allowed",
 			user: adminUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceData: cdValid,
-			},
+			}.Build(),
 			assertErr: trace.IsBadParameter,
 			wantErr:   "device ID",
 		},
 		{
 			name: "admin with both DeviceId and cd favors DeviceId",
 			user: adminUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
-				DeviceId:   dev.Id,
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
+				DeviceId:   dev.GetId(),
 				DeviceData: cdUnknown,
-			},
+			}.Build(),
 			assertErr: assertNoErr,
 		},
 		{
@@ -1973,17 +1973,17 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 		{
 			name: "user auto-enroll not allowed",
 			user: endUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceData: cdValid,
-			},
+			}.Build(),
 			assertErr: trace.IsAccessDenied,
 		},
 		{
 			name: "user device ID not allowed",
 			user: endUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
-				DeviceId: dev.Id,
-			},
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
+				DeviceId: dev.GetId(),
+			}.Build(),
 			assertErr: trace.IsAccessDenied,
 		},
 		{
@@ -1995,17 +1995,17 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 		{
 			name: "unknown user auto-enroll not allowed",
 			user: unknownUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceData: cdValid,
-			},
+			}.Build(),
 			assertErr: trace.IsAccessDenied,
 		},
 		{
 			name: "unknown user device ID not allowed",
 			user: unknownUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
-				DeviceId: dev.Id,
-			},
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
+				DeviceId: dev.GetId(),
+			}.Build(),
 			assertErr: trace.IsAccessDenied,
 		},
 	})
@@ -2022,38 +2022,38 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 		{
 			name: "admin auto-enroll",
 			user: adminUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceData: cdValid,
-			},
+			}.Build(),
 			assertErr: assertNoErr,
 		},
 		{
 			name: "admin with both DeviceId and cd favors DeviceId",
 			user: adminUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				// This is a tad unrealistic, but should still work without issue.
 				// The DeviceId is favored if both are present.
-				DeviceId: dev.Id,
+				DeviceId: dev.GetId(),
 				// DeviceData ignored.
 				DeviceData: cdBad,
-			},
+			}.Build(),
 			assertErr: assertNoErr,
 		},
 		{
 			name: "admin invalid cd fails",
 			user: adminUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceData: cdBad,
-			},
+			}.Build(),
 			assertErr: trace.IsBadParameter,
 			wantErr:   "model drift",
 		},
 		{
 			name: "admin unknown device fails",
 			user: adminUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceData: cdUnknown,
-			},
+			}.Build(),
 			assertErr: trace.IsNotFound,
 		},
 		{
@@ -2066,18 +2066,18 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 		{
 			name: "user auto-enroll",
 			user: endUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceId:   "unknown", // ignored
 				DeviceData: cdValid,
-			},
+			}.Build(),
 			assertErr: assertNoErr,
 		},
 		{
 			name: "user device ID not allowed",
 			user: endUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
-				DeviceId: dev.Id,
-			},
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
+				DeviceId: dev.GetId(),
+			}.Build(),
 			assertErr: assertAutoEnrollError, // redacted
 		},
 		{
@@ -2089,33 +2089,33 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 		{
 			name: "user invalid cd fails",
 			user: endUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceData: cdBad,
-			},
+			}.Build(),
 			assertErr: assertAutoEnrollError, // redacted
 		},
 		{
 			name: "user unknown device fails",
 			user: endUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceData: cdUnknown,
-			},
+			}.Build(),
 			assertErr: assertAutoEnrollError, // redacted
 		},
 		{
 			name: "unknown user auto-enroll not allowed",
 			user: unknownUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceData: cdValid,
-			},
+			}.Build(),
 			assertErr: trace.IsAccessDenied,
 		},
 		{
 			name: "unknown user device ID not allowed",
 			user: unknownUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
-				DeviceId: dev.Id,
-			},
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
+				DeviceId: dev.GetId(),
+			}.Build(),
 			assertErr: trace.IsAccessDenied,
 		},
 	})
@@ -2151,10 +2151,10 @@ func TestService_CreateDeviceEnrollToken_autoEnrollAudit(t *testing.T) {
 
 	// Enroll device for "adminUser". This stops other users from auto-enrolling
 	// the device.
-	dev, _, err := createAndEnroll(contextWithUser(ctx, adminUser), devices, &devicepb.Device{
+	dev, _, err := createAndEnroll(contextWithUser(ctx, adminUser), devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "device1",
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -2165,9 +2165,9 @@ func TestService_CreateDeviceEnrollToken_autoEnrollAudit(t *testing.T) {
 
 		// Attempt to enroll an already-enrolled device. This should cause the
 		// ceremony to fail and a success=false audit event.
-		_, err := devices.CreateDeviceEnrollToken(endUserCtx, &devicepb.CreateDeviceEnrollTokenRequest{
+		_, err := devices.CreateDeviceEnrollToken(endUserCtx, devicepb.CreateDeviceEnrollTokenRequest_builder{
 			DeviceData: defaultCollectData(dev),
-		})
+		}.Build())
 		require.ErrorContains(t, err, "auto-enroll verifications", "CreateDeviceEnrollToken error mismatch")
 
 		// Assert audit events.
@@ -2222,12 +2222,12 @@ func TestService_EnrollDevice_autoEnrollE2E(t *testing.T) {
 	ctx := context.Background()
 
 	// Register device.
-	dev, err := devices.CreateDevice(contextWithUser(ctx, adminUser), &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	dev, err := devices.CreateDevice(contextWithUser(ctx, adminUser), devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "alpaca-dev-1",
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
@@ -2240,18 +2240,18 @@ func TestService_EnrollDevice_autoEnrollE2E(t *testing.T) {
 	autoEnrollToken := func() createTokenParams {
 		return createTokenParams{
 			user: endUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
 				DeviceData: defaultCollectData(dev), // Auto-enroll token
-			},
+			}.Build(),
 		}
 	}
 
 	adminToken := func() createTokenParams {
 		return createTokenParams{
 			user: adminUser,
-			req: &devicepb.CreateDeviceEnrollTokenRequest{
-				DeviceId: dev.Id, // "Regular" token.
-			},
+			req: devicepb.CreateDeviceEnrollTokenRequest_builder{
+				DeviceId: dev.GetId(), // "Regular" token.
+			}.Build(),
 		}
 	}
 
@@ -2298,7 +2298,7 @@ func TestService_EnrollDevice_autoEnrollE2E(t *testing.T) {
 			if err != nil {
 				t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
 			}
-			dev.EnrollToken = enrollToken
+			dev.SetEnrollToken(enrollToken)
 
 			// Run the before EnrollDevice hook.
 			if test.beforeEnroll != nil {
@@ -2333,12 +2333,12 @@ func TestService_DeviceEnrollToken_expireTime(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	createdDev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	createdDev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:   devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag: "llama",
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
@@ -2354,14 +2354,14 @@ func TestService_DeviceEnrollToken_expireTime(t *testing.T) {
 		{
 			name: "CreateDevice",
 			rpc: func() (*devicepb.DeviceEnrollToken, error) {
-				dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-					Device: &devicepb.Device{
+				dev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+					Device: devicepb.Device_builder{
 						OsType:   devicepb.OSType_OS_TYPE_MACOS,
 						AssetTag: "create-device-test",
-					},
+					}.Build(),
 					CreateEnrollToken:     true,
 					EnrollTokenExpireTime: expirePB,
-				})
+				}.Build())
 				return dev.GetEnrollToken(), err
 			},
 			wantExpireTime: expireTime,
@@ -2369,10 +2369,10 @@ func TestService_DeviceEnrollToken_expireTime(t *testing.T) {
 		{
 			name: "CreateDeviceEnrollToken",
 			rpc: func() (*devicepb.DeviceEnrollToken, error) {
-				return devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
-					DeviceId:   createdDev.Id,
+				return devices.CreateDeviceEnrollToken(ctx, devicepb.CreateDeviceEnrollTokenRequest_builder{
+					DeviceId:   createdDev.GetId(),
 					ExpireTime: expirePB,
-				})
+				}.Build())
 			},
 			wantExpireTime: expireTime,
 		},
@@ -2383,22 +2383,22 @@ func TestService_DeviceEnrollToken_expireTime(t *testing.T) {
 			if err != nil {
 				t.Fatalf("rpc failed: %v", err)
 			}
-			if token.ExpireTime.AsTime().Unix() != test.wantExpireTime.Unix() {
-				t.Errorf("rpc returned ExpireTime=%v, want %v", token.ExpireTime, test.wantExpireTime)
+			if token.GetExpireTime().AsTime().Unix() != test.wantExpireTime.Unix() {
+				t.Errorf("rpc returned ExpireTime=%v, want %v", token.GetExpireTime(), test.wantExpireTime)
 			}
 		})
 	}
 
 	t.Run("CreateDeviceEnrollToken: auto-enroll ignores custom expire time", func(t *testing.T) {
-		token, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+		token, err := devices.CreateDeviceEnrollToken(ctx, devicepb.CreateDeviceEnrollTokenRequest_builder{
 			DeviceData: defaultCollectData(createdDev),
 			ExpireTime: expirePB,
-		})
+		}.Build())
 		if err != nil {
 			t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
 		}
 
-		if token.ExpireTime.AsTime().Unix() == expireTime.Unix() {
+		if token.GetExpireTime().AsTime().Unix() == expireTime.Unix() {
 			t.Error("CreateDeviceEnrollToken: auto-enroll should ignore custom ExpireTime")
 		}
 	})
@@ -2413,13 +2413,13 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 
 	// Create a device with a profile for testing.
 	// This raises the bar that collected data has to meet.
-	dev, key, err := createAndEnroll(ctx, devices, &devicepb.Device{
+	dev, key, err := createAndEnroll(ctx, devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama1",
-		Profile: &devicepb.DeviceProfile{
+		Profile: devicepb.DeviceProfile_builder{
 			ModelIdentifier: "MacBookPro9,2",
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -2429,10 +2429,10 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 	organicCollectData := func(dev *devicepb.Device) *devicepb.DeviceCollectedData {
 		cd := defaultCollectData(dev)
 		// Add some organic data, beyond the profile
-		cd.OsVersion = "13.2.1"
-		cd.OsBuild = "22D68"
-		cd.OsUsername = "llama"
-		cd.OsLoginUser = "llama"
+		cd.SetOsVersion("13.2.1")
+		cd.SetOsBuild("22D68")
+		cd.SetOsUsername("llama")
+		cd.SetOsLoginUser("llama")
 		return cd
 	}
 
@@ -2448,7 +2448,7 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 
 	badCollectData := func(dev *devicepb.Device) *devicepb.DeviceCollectedData {
 		cd := organicCollectData(dev)
-		cd.ModelIdentifier = "MacBookPro9,3" // model can't change
+		cd.SetModelIdentifier("MacBookPro9,3") // model can't change
 		return cd
 	}
 
@@ -2573,10 +2573,10 @@ func TestService_deviceModeOff(t *testing.T) {
 
 	// Create and enroll a device for the user.
 	userCtx := contextWithUser(ctx, user)
-	dev, key, err := createAndEnroll(userCtx, devicesClient, &devicepb.Device{
+	dev, key, err := createAndEnroll(userCtx, devicesClient, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama-mac1",
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -2591,12 +2591,12 @@ func TestService_deviceModeOff(t *testing.T) {
 	t.Run("CreateDeviceWebToken", func(t *testing.T) {
 		t.Parallel()
 
-		token, err := service.CreateDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+		token, err := service.CreateDeviceWebToken(ctx, devicepb.DeviceWebToken_builder{
 			WebSessionId:     "my-web-session-id",
 			BrowserUserAgent: sampleUserAgentMacOS,
 			BrowserIp:        sampleIP,
 			User:             user,
-		})
+		}.Build())
 		if err != nil {
 			t.Fatalf("CreateDeviceWebToken failed unexpectedly: %v", err)
 		}
@@ -2646,24 +2646,24 @@ func TestService_CreateDeviceWebToken(t *testing.T) {
 	}
 
 	// Llama has 2 macOS trusted devices:
-	_, _ = createAndEnrollForUser(t, userLlama, &devicepb.Device{
+	_, _ = createAndEnrollForUser(t, userLlama, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama-mac1",
-	})
-	_, _ = createAndEnrollForUser(t, userLlama, &devicepb.Device{
+	}.Build())
+	_, _ = createAndEnrollForUser(t, userLlama, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "llama-mac2",
-	})
+	}.Build())
 
 	// Alpaca has no trusted devices.
 
 	makeToken := func(owner, ua string) *devicepb.DeviceWebToken {
-		return &devicepb.DeviceWebToken{
+		return devicepb.DeviceWebToken_builder{
 			WebSessionId:     "my-web-session-id", // OK to fake, not looked up at this stage.
 			BrowserUserAgent: ua,
 			BrowserIp:        sampleIP,
 			User:             owner,
-		}
+		}.Build()
 	}
 
 	tests := []struct {
@@ -2725,7 +2725,7 @@ func TestService_CreateDeviceWebToken(t *testing.T) {
 			name: "token is validated",
 			token: func() *devicepb.DeviceWebToken {
 				token := makeToken(userLlama, sampleUserAgentMacOS)
-				token.BrowserIp = "" // Not used directly, validated by storage.
+				token.SetBrowserIp("") // Not used directly, validated by storage.
 				return token
 			}(),
 			assertErr: trace.IsBadParameter,
@@ -2761,10 +2761,10 @@ func TestService_CreateDeviceWebToken(t *testing.T) {
 
 			// Do some light assertions in the returned token.
 			// We trust storage to assert it in depth.
-			if got.Id == "" {
+			if got.GetId() == "" {
 				t.Errorf("CreateDeviceWebToken returned token without ID: %#v", got)
 			}
-			if got.Token == "" {
+			if got.GetToken() == "" {
 				t.Errorf("CreateDeviceWebToken returned token without the token itself: %#v", got)
 			}
 
@@ -2783,8 +2783,8 @@ func TestService_CreateDeviceWebToken(t *testing.T) {
 			// on the assertEvents call above to verify the number and type of events.
 			if len(allEvents) == 1 {
 				if event, ok := allEvents[0].(*apievents.DeviceEvent2); ok {
-					if event.User != test.token.User {
-						t.Errorf("Audit event user mismatch: got=%q, want %q", event.User, test.token.User)
+					if event.User != test.token.GetUser() {
+						t.Errorf("Audit event user mismatch: got=%q, want %q", event.User, test.token.GetUser())
 					}
 				}
 			}
@@ -2818,10 +2818,10 @@ func TestService_CreateDeviceWebToken_unknownDevices(t *testing.T) {
 	setupUserForDeviceWebAuthn(t, env, setupUserWebAuthnOpts{
 		user: userTrustedDevices,
 		devices: []*devicepb.Device{
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "llama-1",
-			},
+			}.Build(),
 		},
 	})
 	const unknownDeviceID = "unknown-device-ID"
@@ -2838,20 +2838,20 @@ func TestService_CreateDeviceWebToken_unknownDevices(t *testing.T) {
 	userDevicesIndexData := setupUserForDeviceWebAuthn(t, env, setupUserWebAuthnOpts{
 		user: userDevicesIndex,
 		devices: []*devicepb.Device{
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "alpaca-1",
-			},
-			{
+			}.Build(),
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "alpaca-2",
-			},
+			}.Build(),
 		},
 	})
 	// A direct delete doesn't update the "/devices/by_user" index.
 	// High-level operations are well behaved, so we must resort to direct backend
 	// access.
-	key := backend.NewKey("devices", "id", userDevicesIndexData.devices[1].dev.Id)
+	key := backend.NewKey("devices", "id", userDevicesIndexData.devices[1].dev.GetId())
 	be := identityService.Backend
 	if err := be.Delete(ctx, key); err != nil {
 		t.Fatalf("be.Delete(%q) failed: %v", key, err)
@@ -2874,13 +2874,13 @@ func TestService_CreateDeviceWebToken_unknownDevices(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
 
-			if _, err := devicesService.CreateDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+			if _, err := devicesService.CreateDeviceWebToken(ctx, devicepb.DeviceWebToken_builder{
 				Id:               unknownDeviceID,
 				WebSessionId:     "mysessionid", // unimportant
 				BrowserUserAgent: sampleUserAgentMacOS,
 				BrowserIp:        sampleIP,
 				User:             test.user,
-			}); err != nil {
+			}.Build()); err != nil {
 				t.Fatalf("CreateDeviceWebToken failed, want success: %v", err)
 			}
 		})
@@ -2912,10 +2912,10 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 	userData := setupUserForDeviceWebAuthn(t, env, setupUserWebAuthnOpts{
 		user: userLlama,
 		devices: []*devicepb.Device{
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "llama-1",
-			},
+			}.Build(),
 		},
 	})
 
@@ -2940,10 +2940,10 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 			EmitterKey: params.webSessionID,
 		})
 
-		if _, err := devicesClient.ConfirmDeviceWebAuthentication(outCtx, &devicepb.ConfirmDeviceWebAuthenticationRequest{
+		if _, err := devicesClient.ConfirmDeviceWebAuthentication(outCtx, devicepb.ConfirmDeviceWebAuthenticationRequest_builder{
 			ConfirmationToken:   confirmToken,
 			CurrentWebSessionId: params.webSessionID,
-		}); err != nil {
+		}.Build()); err != nil {
 			t.Errorf("ConfirmDeviceWebAuthentication failed: %v", err)
 		}
 
@@ -2964,10 +2964,10 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 	makeSuccessRequest := func(t *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
 		p := makeConfirmParams()
 		confirmToken := createConfirmationToken(t, env, p)
-		return &devicepb.ConfirmDeviceWebAuthenticationRequest{
+		return devicepb.ConfirmDeviceWebAuthenticationRequest_builder{
 			ConfirmationToken:   confirmToken,
 			CurrentWebSessionId: p.webSessionID,
-		}
+		}.Build()
 	}
 
 	// Failure scenarios.
@@ -2985,9 +2985,9 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 		{
 			name: "nil token",
 			makeRequest: func(_ *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
-				return &devicepb.ConfirmDeviceWebAuthenticationRequest{
+				return devicepb.ConfirmDeviceWebAuthenticationRequest_builder{
 					CurrentWebSessionId: uuid.NewString(),
-				}
+				}.Build()
 			},
 			assertErr: trace.IsBadParameter,
 			wantErr:   "token required",
@@ -2996,12 +2996,12 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 		{
 			name: "empty session ID",
 			makeRequest: func(_ *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
-				return &devicepb.ConfirmDeviceWebAuthenticationRequest{
-					ConfirmationToken: &devicepb.DeviceConfirmationToken{
+				return devicepb.ConfirmDeviceWebAuthenticationRequest_builder{
+					ConfirmationToken: devicepb.DeviceConfirmationToken_builder{
 						Id:    "real-looking-id",
 						Token: "base64token",
-					},
-				}
+					}.Build(),
+				}.Build()
 			},
 			assertErr: trace.IsBadParameter,
 			wantErr:   "session ID required",
@@ -3011,13 +3011,13 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 			name:        "non-proxy caller",
 			currentUser: userLlama,
 			makeRequest: func(t *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
-				return &devicepb.ConfirmDeviceWebAuthenticationRequest{
-					ConfirmationToken: &devicepb.DeviceConfirmationToken{
+				return devicepb.ConfirmDeviceWebAuthenticationRequest_builder{
+					ConfirmationToken: devicepb.DeviceConfirmationToken_builder{
 						Id:    "real-looking-id-2",
 						Token: "base64token2",
-					},
+					}.Build(),
 					CurrentWebSessionId: uuid.NewString(),
-				}
+				}.Build()
 			},
 			assertErr: trace.IsAccessDenied,
 			wantErr:   "access denied",
@@ -3027,7 +3027,7 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 			name: "invalid token",
 			makeRequest: func(t *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
 				req := makeSuccessRequest(t)
-				req.ConfirmationToken.Token += "invalid"
+				req.GetConfirmationToken().Token += "invalid"
 				return req
 			},
 			assertErr:    trace.IsAccessDenied,
@@ -3038,7 +3038,7 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 			name: "invalid session ID",
 			makeRequest: func(t *testing.T) *devicepb.ConfirmDeviceWebAuthenticationRequest {
 				req := makeSuccessRequest(t)
-				req.CurrentWebSessionId = "bad-session-id"
+				req.SetCurrentWebSessionId("bad-session-id")
 				return req
 			},
 			assertErr:    trace.IsAccessDenied,
@@ -3066,7 +3066,7 @@ func TestService_ConfirmDeviceWebAuthentication(t *testing.T) {
 			req := test.makeRequest(t)
 
 			// Use an unique emitter key for every test.
-			emitterKey := req.CurrentWebSessionId
+			emitterKey := req.GetCurrentWebSessionId()
 			if emitterKey == "" {
 				emitterKey = uuid.NewString()
 			}
@@ -3139,15 +3139,15 @@ func createConfirmationToken(t *testing.T, env *testenv.E, p createConfirmationT
 	ctx := context.Background()
 
 	service := env.DevicesService
-	webToken, err := service.CreateDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+	webToken, err := service.CreateDeviceWebToken(ctx, devicepb.DeviceWebToken_builder{
 		WebSessionId:     p.webSessionID,
 		BrowserUserAgent: sampleUserAgentMacOS,
 		BrowserIp:        p.sourceIP,
 		User:             p.user,
 		ExpectedDeviceIds: []string{
-			p.device.Id,
+			p.device.GetId(),
 		},
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDeviceWebToken failed: %v", err)
 	}

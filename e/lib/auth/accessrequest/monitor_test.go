@@ -231,20 +231,20 @@ func newDeniedRule(name, condition string) *accessmonitoringrulesv1.AccessMonito
 }
 
 func newReviewRule(name, condition, decision string) *accessmonitoringrulesv1.AccessMonitoringRule {
-	return &accessmonitoringrulesv1.AccessMonitoringRule{
+	return accessmonitoringrulesv1.AccessMonitoringRule_builder{
 		Kind:    types.KindAccessMonitoringRule,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+		}.Build(),
+		Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 			Subjects:     []string{types.KindAccessRequest},
 			Condition:    condition,
 			DesiredState: types.AccessMonitoringRuleStateReviewed,
-			AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+			AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
 				Integration: types.BuiltInAutomaticReview,
 				Decision:    decision,
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 }

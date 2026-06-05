@@ -128,7 +128,7 @@ func TestAssignmentCalculation(t *testing.T) {
 
 		userPrincipal, err = calc.calcUserAssignments(ctx, user.(*types.UserV2), userPrincipal)
 		require.NoError(t, err)
-		require.Equal(t, "EXTERNAL-ID", userPrincipal.Spec.ExternalId)
+		require.Equal(t, "EXTERNAL-ID", userPrincipal.GetSpec().GetExternalId())
 	})
 
 	t.Run("User with no External ID is an error", func(t *testing.T) {
@@ -207,7 +207,7 @@ func TestAssignmentCalculation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t,
 			identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-			aclPrincipal.Status.ProvisioningState)
+			aclPrincipal.GetStatus().GetProvisioningState())
 
 		// EXPECT that the assignments reflected in the principal state are what
 		// we expect.
@@ -270,7 +270,7 @@ func TestAssignmentCalculation(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t,
 					identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-					aclPrincipal.Status.ProvisioningState)
+					aclPrincipal.GetStatus().GetProvisioningState())
 
 				requireAssignmentsMatch(t, resources.getAssignments(testCase.expectedAssignments...), aclPrincipal)
 			})
@@ -293,7 +293,7 @@ func TestAssignmentCalculation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t,
 			identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-			userPrincipal.Status.ProvisioningState)
+			userPrincipal.GetStatus().GetProvisioningState())
 
 		expectedAssignments := resources.getAssignments(assignments...)
 		requireAssignmentsMatch(t, expectedAssignments, userPrincipal)
@@ -305,7 +305,7 @@ func TestAssignmentCalculation(t *testing.T) {
 			Allow: types.RoleConditions{
 				AccountAssignments: []types.IdentityCenterAccountAssignment{
 					{
-						Account:       resources.accounts[1].Metadata.Name,
+						Account:       resources.accounts[1].GetMetadata().GetName(),
 						PermissionSet: "*",
 					},
 				},
@@ -323,13 +323,13 @@ func TestAssignmentCalculation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t,
 			identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-			userPrincipal.Status.ProvisioningState)
+			userPrincipal.GetStatus().GetProvisioningState())
 
 		// EXPECT the calculated assignments to include all of the permission
 		// sets in Account #01, and nothing else
 		expected := slices.Collect(maps.Keys(resources.accountAssignments))
 		expected = slices.DeleteFunc(expected, func(a assignment) bool {
-			return a.accountID != resources.accounts[1].Metadata.Name
+			return a.accountID != resources.accounts[1].GetMetadata().GetName()
 		})
 		requireAssignmentsMatch(t, expected, userPrincipal)
 	})
@@ -340,7 +340,7 @@ func TestAssignmentCalculation(t *testing.T) {
 			Deny: types.RoleConditions{
 				AccountAssignments: []types.IdentityCenterAccountAssignment{
 					{
-						Account:       resources.accounts[2].Metadata.Name,
+						Account:       resources.accounts[2].GetMetadata().GetName(),
 						PermissionSet: "*",
 					},
 				},
@@ -363,7 +363,7 @@ func TestAssignmentCalculation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t,
 			identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-			userPrincipal.Status.ProvisioningState)
+			userPrincipal.GetStatus().GetProvisioningState())
 
 		// EXPECT that the calculated permission set contains only the assignments
 		// NOT for Account #2
@@ -372,7 +372,7 @@ func TestAssignmentCalculation(t *testing.T) {
 		// for Account #2
 		expected := slices.Collect(maps.Keys(resources.accountAssignments))
 		expected = slices.DeleteFunc(expected, func(a assignment) bool {
-			return a.accountID == resources.accounts[2].Metadata.Name
+			return a.accountID == resources.accounts[2].GetMetadata().GetName()
 		})
 		requireAssignmentsMatch(t, expected, userPrincipal)
 	})
@@ -442,7 +442,7 @@ func TestAssignmentCalculation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t,
 			identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-			userPrincipal.Status.ProvisioningState)
+			userPrincipal.GetStatus().GetProvisioningState())
 
 		// EXPECT that the user has only the assignments granted by the approved,
 		// in-window access request.
@@ -520,7 +520,7 @@ func TestAssignmentCalculation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t,
 			identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-			userPrincipal.Status.ProvisioningState)
+			userPrincipal.GetStatus().GetProvisioningState())
 
 		// EXPECT that the user has only the assignments granted by the approved,
 		// in-window access request.
@@ -536,7 +536,7 @@ func TestAssignmentCalculation(t *testing.T) {
 			Deny: types.RoleConditions{
 				AccountAssignments: []types.IdentityCenterAccountAssignment{
 					{
-						Account:       resources.accounts[0].Metadata.Name,
+						Account:       resources.accounts[0].GetMetadata().GetName(),
 						PermissionSet: "*",
 					},
 				},
@@ -569,7 +569,7 @@ func TestAssignmentCalculation(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t,
 			identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-			userPrincipal.Status.ProvisioningState)
+			userPrincipal.GetStatus().GetProvisioningState())
 
 		// EXPECT that the user has only the assignment granted by the access
 		// request MINUS those denied by the `denied` role
@@ -627,7 +627,7 @@ func TestAssignmentCalculation(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t,
 					identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-					userPrincipal.Status.ProvisioningState)
+					userPrincipal.GetStatus().GetProvisioningState())
 
 				requireAssignmentsMatch(t, resources.getAssignments(testCase.expectedAssignments...), userPrincipal)
 			})
@@ -802,7 +802,7 @@ func TestRoleAccessRequestsAreHonoured(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t,
 				identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-				userPrincipal.Status.ProvisioningState)
+				userPrincipal.GetStatus().GetProvisioningState())
 
 			// EXPECT that the user has only the assignments granted by the
 			// unlocked access requests
@@ -967,7 +967,7 @@ func TestResourceAccessRequestsAreHonored(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t,
 				identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
-				userPrincipal.Status.ProvisioningState)
+				userPrincipal.GetStatus().GetProvisioningState())
 
 			// EXPECT that the user has only the assignments granted by the
 			// unlocked access requests
@@ -985,10 +985,10 @@ func requireAssignmentsMatch(t *testing.T, expected []assignment, principalAssig
 
 	// Step 1: Pack the calculated assignment list into an easy-to-compare form
 	var actualAssignments []assignment
-	for _, asmt := range principalAssignment.Status.Assignments {
+	for _, asmt := range principalAssignment.GetStatus().GetAssignments() {
 		actualAssignments = append(actualAssignments, assignment{
-			accountID:        asmt.AccountId,
-			permissionSetARN: asmt.PermissionSetArn,
+			accountID:        asmt.GetAccountId(),
+			permissionSetARN: asmt.GetPermissionSetArn(),
 		})
 	}
 
@@ -1021,7 +1021,7 @@ func makeTestAccessList(t *testing.T,
 
 	aclPrincipal, err := principal.NewFor(acl)
 	require.NoError(t, err)
-	aclPrincipal.Spec.ExternalId = string(externalID)
+	aclPrincipal.GetSpec().SetExternalId(string(externalID))
 	aclPrincipal, err = fixture.Auth.CreatePrincipalAssignment(fixture.Ctx, aclPrincipal)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1051,7 +1051,7 @@ func makeTestUser(
 
 	userPrincipal, err := principal.NewFor(user)
 	require.NoError(t, err)
-	userPrincipal.Spec.ExternalId = string(externalID)
+	userPrincipal.GetSpec().SetExternalId(string(externalID))
 	userPrincipal, err = fixture.Auth.CreatePrincipalAssignment(fixture.Ctx, userPrincipal)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -1196,15 +1196,15 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 		accounts[i] = ceated
 
 		for _, ps := range permissionSets {
-			key := assignment{accountID: accountID, permissionSetARN: ps.Spec.Arn}
+			key := assignment{accountID: accountID, permissionSetARN: ps.GetSpec().GetArn()}
 			assignments = append(assignments, key)
 
 			assignment := ictest.AccountAssignment{
-				ID:                fmt.Sprintf("%s--%s", accountID, ps.Metadata.Name),
-				DisplayName:       fmt.Sprintf("%s on %s", ps.Spec.Name, account.Spec.Name),
+				ID:                fmt.Sprintf("%s--%s", accountID, ps.GetMetadata().GetName()),
+				DisplayName:       fmt.Sprintf("%s on %s", ps.GetSpec().GetName(), account.GetSpec().GetName()),
 				AccountID:         services.IdentityCenterAccountID(accountID),
-				PermissionSetName: ps.Spec.Name,
-				PermissionSetARN:  ps.Spec.Arn,
+				PermissionSetName: ps.GetSpec().GetName(),
+				PermissionSetARN:  ps.GetSpec().GetArn(),
 			}.Build()
 			created, err := fixture.Auth.CreateIdentityCenterAccountAssignment(ctx, assignment)
 			require.NoError(t, err)
@@ -1212,9 +1212,9 @@ func makeTestResources(t *testing.T, ctx context.Context, fixture *ictest.Fixtur
 
 			role, err := fixture.Auth.Services.CreateRole(ctx,
 				ictest.AccountAssignmentRole{
-					Name:             fmt.Sprintf("%s-on-%s", ps.Spec.Name, account.Spec.Name),
+					Name:             fmt.Sprintf("%s-on-%s", ps.GetSpec().GetName(), account.GetSpec().GetName()),
 					AccountID:        services.IdentityCenterAccountID(accountID),
-					PermissionSetARN: ps.Spec.Arn,
+					PermissionSetARN: ps.GetSpec().GetArn(),
 				}.Build(t))
 			require.NoError(t, err)
 			accountAssignmentRoles[key] = role

@@ -45,48 +45,48 @@ func TestOktaImportRules(t *testing.T) {
 
 	listResp, err := svc.ListOktaImportRules(ctx, &oktapb.ListOktaImportRulesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, listResp.NextPageToken)
-	require.Empty(t, listResp.ImportRules)
+	require.Empty(t, listResp.GetNextPageToken())
+	require.Empty(t, listResp.GetImportRules())
 
 	r1 := newOktaImportRule(t, "1")
 	r2 := newOktaImportRule(t, "2")
 	r3 := newOktaImportRule(t, "3")
 
-	createResp, err := svc.CreateOktaImportRule(ctx, &oktapb.CreateOktaImportRuleRequest{ImportRule: r1})
+	createResp, err := svc.CreateOktaImportRule(ctx, oktapb.CreateOktaImportRuleRequest_builder{ImportRule: r1}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r1, createResp))
 
-	createResp, err = svc.CreateOktaImportRule(ctx, &oktapb.CreateOktaImportRuleRequest{ImportRule: r2})
+	createResp, err = svc.CreateOktaImportRule(ctx, oktapb.CreateOktaImportRuleRequest_builder{ImportRule: r2}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r2, createResp))
 
-	createResp, err = svc.CreateOktaImportRule(ctx, &oktapb.CreateOktaImportRuleRequest{ImportRule: r3})
+	createResp, err = svc.CreateOktaImportRule(ctx, oktapb.CreateOktaImportRuleRequest_builder{ImportRule: r3}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r3, createResp))
 
 	listResp, err = svc.ListOktaImportRules(ctx, &oktapb.ListOktaImportRulesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, listResp.NextPageToken)
-	require.Empty(t, cmp.Diff([]*types.OktaImportRuleV1{r1, r2, r3}, listResp.ImportRules,
+	require.Empty(t, listResp.GetNextPageToken())
+	require.Empty(t, cmp.Diff([]*types.OktaImportRuleV1{r1, r2, r3}, listResp.GetImportRules(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	r1.SetExpiry(time.Now().Add(30 * time.Minute))
-	updateResp, err := svc.UpdateOktaImportRule(ctx, &oktapb.UpdateOktaImportRuleRequest{ImportRule: r1})
+	updateResp, err := svc.UpdateOktaImportRule(ctx, oktapb.UpdateOktaImportRuleRequest_builder{ImportRule: r1}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r1, updateResp))
 
-	r, err := svc.GetOktaImportRule(ctx, &oktapb.GetOktaImportRuleRequest{Name: r1.GetName()})
+	r, err := svc.GetOktaImportRule(ctx, oktapb.GetOktaImportRuleRequest_builder{Name: r1.GetName()}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(r1, r,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	_, err = svc.DeleteOktaImportRule(ctx, &oktapb.DeleteOktaImportRuleRequest{Name: r1.GetName()})
+	_, err = svc.DeleteOktaImportRule(ctx, oktapb.DeleteOktaImportRuleRequest_builder{Name: r1.GetName()}.Build())
 	require.NoError(t, err)
 
 	listResp, err = svc.ListOktaImportRules(ctx, &oktapb.ListOktaImportRulesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, listResp.NextPageToken)
-	require.Empty(t, cmp.Diff([]*types.OktaImportRuleV1{r2, r3}, listResp.ImportRules,
+	require.Empty(t, listResp.GetNextPageToken())
+	require.Empty(t, cmp.Diff([]*types.OktaImportRuleV1{r2, r3}, listResp.GetImportRules(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	_, err = svc.DeleteAllOktaImportRules(ctx, &oktapb.DeleteAllOktaImportRulesRequest{})
@@ -94,8 +94,8 @@ func TestOktaImportRules(t *testing.T) {
 
 	listResp, err = svc.ListOktaImportRules(ctx, &oktapb.ListOktaImportRulesRequest{})
 	require.NoError(t, err)
-	require.Empty(t, listResp.NextPageToken)
-	require.Empty(t, listResp.ImportRules)
+	require.Empty(t, listResp.GetNextPageToken())
+	require.Empty(t, listResp.GetImportRules())
 }
 
 func TestOktaAssignments(t *testing.T) {
@@ -103,61 +103,61 @@ func TestOktaAssignments(t *testing.T) {
 
 	listResp, err := svc.ListOktaAssignments(ctx, &oktapb.ListOktaAssignmentsRequest{})
 	require.NoError(t, err)
-	require.Empty(t, listResp.NextPageToken)
-	require.Empty(t, listResp.Assignments)
+	require.Empty(t, listResp.GetNextPageToken())
+	require.Empty(t, listResp.GetAssignments())
 
 	a1 := newOktaAssignment(t, "1")
 	a2 := newOktaAssignment(t, "2")
 	a3 := newOktaAssignment(t, "3")
 
-	createResp, err := svc.CreateOktaAssignment(ctx, &oktapb.CreateOktaAssignmentRequest{Assignment: a1})
+	createResp, err := svc.CreateOktaAssignment(ctx, oktapb.CreateOktaAssignmentRequest_builder{Assignment: a1}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a1, createResp))
 
-	createResp, err = svc.CreateOktaAssignment(ctx, &oktapb.CreateOktaAssignmentRequest{Assignment: a2})
+	createResp, err = svc.CreateOktaAssignment(ctx, oktapb.CreateOktaAssignmentRequest_builder{Assignment: a2}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a2, createResp))
 
-	createResp, err = svc.CreateOktaAssignment(ctx, &oktapb.CreateOktaAssignmentRequest{Assignment: a3})
+	createResp, err = svc.CreateOktaAssignment(ctx, oktapb.CreateOktaAssignmentRequest_builder{Assignment: a3}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a3, createResp))
 
 	listResp, err = svc.ListOktaAssignments(ctx, &oktapb.ListOktaAssignmentsRequest{})
 	require.NoError(t, err)
-	require.Empty(t, listResp.NextPageToken)
-	require.Empty(t, cmp.Diff([]*types.OktaAssignmentV1{a1, a2, a3}, listResp.Assignments,
+	require.Empty(t, listResp.GetNextPageToken())
+	require.Empty(t, cmp.Diff([]*types.OktaAssignmentV1{a1, a2, a3}, listResp.GetAssignments(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	a1.SetExpiry(time.Now().Add(30 * time.Minute))
-	updateResp, err := svc.UpdateOktaAssignment(ctx, &oktapb.UpdateOktaAssignmentRequest{Assignment: a1})
+	updateResp, err := svc.UpdateOktaAssignment(ctx, oktapb.UpdateOktaAssignmentRequest_builder{Assignment: a1}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a1, updateResp))
 
-	a, err := svc.GetOktaAssignment(ctx, &oktapb.GetOktaAssignmentRequest{Name: a1.GetName()})
+	a, err := svc.GetOktaAssignment(ctx, oktapb.GetOktaAssignmentRequest_builder{Name: a1.GetName()}.Build())
 	require.NoError(t, err)
 	require.Empty(t, cmp.Diff(a1, a,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	_, err = svc.UpdateOktaAssignmentStatus(ctx, &oktapb.UpdateOktaAssignmentStatusRequest{
+	_, err = svc.UpdateOktaAssignmentStatus(ctx, oktapb.UpdateOktaAssignmentStatusRequest_builder{
 		Name:   a1.GetName(),
 		Status: types.OktaAssignmentSpecV1_PROCESSING,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	require.NoError(t, a1.SetStatus(constants.OktaAssignmentStatusProcessing))
-	a, err = svc.GetOktaAssignment(ctx, &oktapb.GetOktaAssignmentRequest{Name: a1.GetName()})
+	a, err = svc.GetOktaAssignment(ctx, oktapb.GetOktaAssignmentRequest_builder{Name: a1.GetName()}.Build())
 	require.NoError(t, err)
 	a1.SetLastTransition(a.GetLastTransition())
 	require.Empty(t, cmp.Diff(a1, a,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	_, err = svc.DeleteOktaAssignment(ctx, &oktapb.DeleteOktaAssignmentRequest{Name: a1.GetName()})
+	_, err = svc.DeleteOktaAssignment(ctx, oktapb.DeleteOktaAssignmentRequest_builder{Name: a1.GetName()}.Build())
 	require.NoError(t, err)
 
 	listResp, err = svc.ListOktaAssignments(ctx, &oktapb.ListOktaAssignmentsRequest{})
 	require.NoError(t, err)
-	require.Empty(t, listResp.NextPageToken)
-	require.Empty(t, cmp.Diff([]*types.OktaAssignmentV1{a2, a3}, listResp.Assignments,
+	require.Empty(t, listResp.GetNextPageToken())
+	require.Empty(t, cmp.Diff([]*types.OktaAssignmentV1{a2, a3}, listResp.GetAssignments(),
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
 	_, err = svc.DeleteAllOktaAssignments(ctx, &oktapb.DeleteAllOktaAssignmentsRequest{})
@@ -165,8 +165,8 @@ func TestOktaAssignments(t *testing.T) {
 
 	listResp, err = svc.ListOktaAssignments(ctx, &oktapb.ListOktaAssignmentsRequest{})
 	require.NoError(t, err)
-	require.Empty(t, listResp.NextPageToken)
-	require.Empty(t, listResp.Assignments)
+	require.Empty(t, listResp.GetNextPageToken())
+	require.Empty(t, listResp.GetAssignments())
 }
 
 func TestUpsertOktaAssignment(t *testing.T) {
@@ -219,7 +219,7 @@ func TestUpsertOktaAssignment(t *testing.T) {
 				authorizer:      &fakeAuthorizer{checker: &fakeChecker{allow: tt.allow}},
 				oktaAssignments: mock,
 			}
-			_, err := svc.UpsertOktaAssignment(t.Context(), &oktapb.UpsertOktaAssignmentRequest{Assignment: assignment})
+			_, err := svc.UpsertOktaAssignment(t.Context(), oktapb.UpsertOktaAssignmentRequest_builder{Assignment: assignment}.Build())
 			tt.assertErr(t, err)
 		})
 	}
@@ -267,7 +267,7 @@ func TestConditionalUpdateOktaAssignment(t *testing.T) {
 				authorizer:      &fakeAuthorizer{checker: &fakeChecker{allow: tt.allow}},
 				oktaAssignments: mock,
 			}
-			_, err := svc.ConditionalUpdateOktaAssignment(t.Context(), &oktapb.ConditionalUpdateOktaAssignmentRequest{Assignment: assignment})
+			_, err := svc.ConditionalUpdateOktaAssignment(t.Context(), oktapb.ConditionalUpdateOktaAssignmentRequest_builder{Assignment: assignment}.Build())
 			tt.assertErr(t, err)
 		})
 	}

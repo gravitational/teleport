@@ -20,10 +20,10 @@ func TestAssertCeremony(t *testing.T) {
 	createAssertCeremony := env.DevicesService.CreateAssertCeremony
 	ctx := context.Background()
 
-	dev, key, err := createAndEnroll(ctx, devices, &devicepb.Device{
+	dev, key, err := createAndEnroll(ctx, devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "alpaca-dev-1",
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
@@ -52,7 +52,7 @@ func TestAssertCeremony(t *testing.T) {
 		if got == nil {
 			t.Fatal("AssertDevice returned nil device")
 		} else {
-			got.CollectedData = nil // CollectedData not relevant for the test.
+			got.SetCollectedData(nil) // CollectedData not relevant for the test.
 		}
 		if diff := cmp.Diff(dev, got, protocmp.Transform()); diff != "" {
 			t.Errorf("AssertDevice device mismatch (-want +got)\n%s", diff)
@@ -90,29 +90,25 @@ func (s *fakeAssertStream) Recv() (*devicepb.AssertDeviceRequest, error) {
 	case assertStateStart:
 		s.state = assertStateInit
 
-		return &devicepb.AssertDeviceRequest{
-			Payload: &devicepb.AssertDeviceRequest_Init{
-				Init: &devicepb.AssertDeviceInit{
-					CredentialId: s.key.id,
-					DeviceData:   defaultCollectData(s.dev),
-				},
-			},
-		}, nil
+		return devicepb.AssertDeviceRequest_builder{
+			Init: devicepb.AssertDeviceInit_builder{
+				CredentialId: s.key.id,
+				DeviceData:   defaultCollectData(s.dev),
+			}.Build(),
+		}.Build(), nil
 
 	case assertStateChallengeReceived:
 		s.state = assertStateChallengeSolved
 
-		sig, err := s.key.signChallenge(s.challenge.Challenge)
+		sig, err := s.key.signChallenge(s.challenge.GetChallenge())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &devicepb.AssertDeviceRequest{
-			Payload: &devicepb.AssertDeviceRequest_ChallengeResponse{
-				ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
-					Signature: sig,
-				},
-			},
-		}, nil
+		return devicepb.AssertDeviceRequest_builder{
+			ChallengeResponse: devicepb.AuthenticateDeviceChallengeResponse_builder{
+				Signature: sig,
+			}.Build(),
+		}.Build(), nil
 
 	default:
 		s.state = assertStateFailed

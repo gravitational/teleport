@@ -30,9 +30,9 @@ func TestGarbageCollectorDeletesExpiredBeam(t *testing.T) {
 		go gc.Run(t.Context())
 
 		service := pack.service(t, pack.user(t, "alice"))
-		createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+		createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 			Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		time.Sleep(timeToFirstCollection)
@@ -51,9 +51,9 @@ func TestGarbageCollectorDoesNotDeleteNonExpiredBeam(t *testing.T) {
 		pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
 
 		service := pack.service(t, pack.user(t, "alice"))
-		createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+		createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 			Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		gc := pack.newGarbageCollector(t)
@@ -78,22 +78,22 @@ func TestGarbageCollectorRetriesDeleteAfterCompareFailure(t *testing.T) {
 		go gc.Run(t.Context())
 
 		service := pack.service(t, pack.user(t, "alice"))
-		createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+		createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 			Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		staleBeam, err := pack.beam.GetBeam(t.Context(), createResp.GetBeam().GetMetadata().GetName())
 		require.NoError(t, err)
 
 		freshBeam := proto.CloneOf(staleBeam)
-		freshBeam.Spec.Publish = &beamsv1pb.PublishSpec{
+		freshBeam.GetSpec().SetPublish(beamsv1pb.PublishSpec_builder{
 			Port:     8080,
 			Protocol: beamsv1pb.Protocol_PROTOCOL_HTTP,
-		}
-		updateResp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+		}.Build())
+		updateResp, err := service.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 			Beam: freshBeam,
-		})
+		}.Build())
 		require.NoError(t, err)
 		require.NotEmpty(t, updateResp.GetBeam().GetStatus().GetAppName())
 
@@ -130,9 +130,9 @@ func TestGarbageCollectorLeavesBeamOnComputeFailure(t *testing.T) {
 		go gc.Run(t.Context())
 
 		service := pack.service(t, pack.user(t, "alice"))
-		createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+		createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 			Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		time.Sleep(timeToFirstCollection)

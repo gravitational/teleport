@@ -70,10 +70,10 @@ func (s *Service) GetUsage(ctx context.Context, in *resourceusagepb.GetUsageRequ
 
 	f := s.modules.Features()
 	if !f.IsUsageBasedBilling {
-		return &resourceusagepb.GetUsageResponse{
+		return resourceusagepb.GetUsageResponse_builder{
 			AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_UNLIMITED,
 			AccessRequests:   &resourceusagepb.AccessRequestsUsage{},
-		}, nil // unlimited
+		}.Build(), nil // unlimited
 	}
 
 	accessRequests, err := s.getAccessRequestsUsage(ctx, &f)
@@ -81,10 +81,10 @@ func (s *Service) GetUsage(ctx context.Context, in *resourceusagepb.GetUsageRequ
 		return nil, trace.Wrap(err)
 	}
 
-	return &resourceusagepb.GetUsageResponse{
+	return resourceusagepb.GetUsageResponse_builder{
 		AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_USAGE_BASED,
 		AccessRequests:   accessRequests,
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) getAccessRequestsUsage(ctx context.Context, f *modules.Features) (*resourceusagepb.AccessRequestsUsage, error) {
@@ -93,8 +93,8 @@ func (s *Service) getAccessRequestsUsage(ctx context.Context, f *modules.Feature
 		return nil, trace.Wrap(err)
 	}
 
-	return &resourceusagepb.AccessRequestsUsage{
+	return resourceusagepb.AccessRequestsUsage_builder{
 		MonthlyLimit: f.GetEntitlement(entitlements.AccessRequests).Limit,
 		MonthlyUsed:  int32(monthlyUsed),
-	}, nil
+	}.Build(), nil
 }

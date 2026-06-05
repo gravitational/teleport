@@ -79,16 +79,16 @@ func (p *Plugin) listAccessLists(_ http.ResponseWriter, r *http.Request, _ httpr
 		sortBy = types.GetSortByFromString(values.Get("sort"))
 	}
 
-	req := &accesslistv1.ListAccessListsV2Request{
+	req := accesslistv1.ListAccessListsV2Request_builder{
 		PageToken: startKey,
 		SortBy:    &sortBy,
 		PageSize:  limit,
-		Filter: &accesslistv1.AccessListsFilter{
+		Filter: accesslistv1.AccessListsFilter_builder{
 			Search: searchFilter,
 			Owners: owners,
 			Origin: values.Get("origin"),
-		},
-	}
+		}.Build(),
+	}.Build()
 	accessListClient := clt.AccessListClient()
 
 	page, nextKey, err := accessListClient.ListAccessListsV2(r.Context(), req)
@@ -500,17 +500,17 @@ func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, par
 
 	aclClient := getAccessListServiceClient(sctx)
 
-	resp, err := aclClient.ListUserAccessLists(r.Context(), &accesslistv1.ListUserAccessListsRequest{
+	resp, err := aclClient.ListUserAccessLists(r.Context(), accesslistv1.ListUserAccessListsRequest_builder{
 		Username:  username,
 		PageSize:  limit,
 		PageToken: startKey,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	accessLists := make([]*ui.AccessList, 0, len(resp.AccessLists))
-	for _, protoAcl := range resp.AccessLists {
+	accessLists := make([]*ui.AccessList, 0, len(resp.GetAccessLists()))
+	for _, protoAcl := range resp.GetAccessLists() {
 		accessList, err := conv.FromProto(protoAcl, conv.WithOwnersIneligibleStatusField(protoAcl.GetSpec().GetOwners()))
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -528,8 +528,8 @@ func (p *Plugin) listUserAccessLists(_ http.ResponseWriter, r *http.Request, par
 
 	return ui.AccessListsResponse{
 		AccessLists: accessLists,
-		StartKey:    resp.NextPageToken,
-		TotalCount:  resp.TotalCount,
+		StartKey:    resp.GetNextPageToken(),
+		TotalCount:  resp.GetTotalCount(),
 	}, nil
 }
 

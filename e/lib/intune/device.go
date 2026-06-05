@@ -34,17 +34,17 @@ func managedDeviceToDevice(md *msgraph.ManagedDevice) (*devicepb.Device, error) 
 		return nil, trace.Wrap(err)
 	}
 
-	return &devicepb.Device{
+	return devicepb.Device_builder{
 		OsType:   osType,
 		AssetTag: md.SerialNumber,
-		Profile: &devicepb.DeviceProfile{
+		Profile: devicepb.DeviceProfile_builder{
 			ExternalId: md.ID,
 			OsVersion:  osVersion,
 			OsBuild:    osBuild,
 			// ModelIdentifier is not synced because of a mismatch between Intune's "model" field and the
 			// model identifier reported by tsh. https://github.com/gravitational/teleport.e/pull/7581
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 func operatingSystemToOSType(os string, model string) devicepb.OSType {

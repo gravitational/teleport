@@ -94,9 +94,9 @@ func TestSyncErrorStatusReport(t *testing.T) {
 
 	require.EventuallyWithT(t,
 		func(t *assert.CollectT) {
-			updatedPlugin, err := env.authClient.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+			updatedPlugin, err := env.authClient.PluginsClient().GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 				Name: plugin.GetName(),
-			})
+			}.Build())
 			require.NoError(t, err)
 
 			status := updatedPlugin.GetStatus()

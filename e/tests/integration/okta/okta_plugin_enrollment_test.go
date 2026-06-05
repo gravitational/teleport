@@ -15,6 +15,7 @@ import (
 	"github.com/okta/okta-sdk-golang/v2/okta"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
@@ -53,11 +54,11 @@ func TestPluginEnrollmentFullIntegration(t *testing.T) {
 	pluginClient := pluginsv1.NewPluginServiceClient(sut.GetAuthServiceGRPCConn(t, "alice-admin"))
 
 	t.Run("filter apps", func(t *testing.T) {
-		var resp, err = oktaClient.GetApps(ctx, &oktav1.GetAppsRequest{
+		var resp, err = oktaClient.GetApps(ctx, oktav1.GetAppsRequest_builder{
 			OktaOrganizationUrl: fakeOkta1.URL(),
 			ApiCredentials:      apiCredentials,
 			Filters:             nil,
-		})
+		}.Build())
 		require.NoError(t, err)
 		require.Len(t, resp.GetApps(), len(fakeOkta1.provisionedApps))
 	})
@@ -81,7 +82,7 @@ func TestPluginEnrollmentFullIntegration(t *testing.T) {
 
 	app := fakeOkta2.CreateBasicApp("example_test-okta-app-name") // matches the app name from the idp.EntityDescriptor
 
-	resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	resp, err := oktaClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		OktaOrganizationUrl:       fakeOkta2.URL(),
 		ApiCredentials:            apiCredentials,
 		EnableAccessListSync:      true,
@@ -89,16 +90,16 @@ func TestPluginEnrollmentFullIntegration(t *testing.T) {
 		EnableBidirectionalSync:   true,
 		EnableUserSync:            true,
 		DisableAssignDefaultRoles: false,
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			DefaultOwner: []string{"alice-admin"},
-		},
+		}.Build(),
 		SsoMetadataUrl: fakeOkta2.URL() + "/sso/saml/metadata",
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+	oktaPlugin, err := pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 		Name: types.PluginTypeOkta,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	expectedOktaPluginSettings := &types.PluginOktaSettings{
@@ -144,11 +145,11 @@ func TestPluginEnrollmentSSOMetadataURLOnly(t *testing.T) {
 	)
 
 	oktaClient := sut.GetOktaAuthClient(t, "alice-admin")
-	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ScimToken:                 "12345",
 		SsoMetadataUrl:            fakeOkta.URL() + "/sso/saml/metadata",
 		DisableAssignDefaultRoles: false,
-	})
+	}.Build())
 	require.NoError(t, err)
 	resp, err := sut.Teleport.Process.GetAuthServer().GetSAMLConnector(ctx, "okta", false)
 	require.NoError(t, err)
@@ -252,7 +253,7 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 
 	scimToken := uuid.NewString()
 	t.Run("enroll okta integration with SCIM only", func(t *testing.T) {
-		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		_, err := oktaClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 			ScimToken:                 scimToken,
 			EnableAccessListSync:      false,
 			EnableAppGroupSync:        false,
@@ -260,12 +261,12 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 			EnableUserSync:            false,
 			DisableAssignDefaultRoles: false,
 			ReuseConnector:            "okta-pre-created-test",
-		})
+		}.Build())
 		require.NoError(t, err)
 
-		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 			Name: types.PluginTypeOkta,
-		})
+		}.Build())
 		require.NoError(t, err)
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: fakeOkta.URL(),
@@ -282,9 +283,9 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+			oktaPlugin, err := pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 				Name: types.PluginTypeOkta,
-			})
+			}.Build())
 			require.NoError(t, err)
 			require.Equal(t, types.PluginStatusCode_RUNNING, oktaPlugin.GetStatus().GetCode())
 		}, time.Second*2, time.Millisecond*100)
@@ -294,15 +295,15 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 
 	t.Run("extend okta integration and enable user sync", func(t *testing.T) {
 		from := time.Now()
-		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaClient, oktav1.UpdateIntegrationRequest_builder{
 			ApiCredentials:            apiCredentials,
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
-		})
+		}.Build())
 
-		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 			Name: types.PluginTypeOkta,
-		})
+		}.Build())
 		require.NoError(t, err)
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: fakeOkta.URL(),
@@ -342,21 +343,21 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 
 	t.Run("update integration setting and enable user sync and app groups sync", func(t *testing.T) {
 		from := time.Now()
-		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaClient, oktav1.UpdateIntegrationRequest_builder{
 			ApiCredentials:            apiCredentials,
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
 			EnableAppGroupSync:        true,
 			EnableAccessListSync:      false,
 			EnableBidirectionalSync:   true,
-			AccessListSettings: &oktav1.AccessListSettings{
+			AccessListSettings: oktav1.AccessListSettings_builder{
 				DefaultOwner: []string{"alice-admin"},
-			},
-		})
+			}.Build(),
+		}.Build())
 
-		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 			Name: types.PluginTypeOkta,
-		})
+		}.Build())
 		require.NoError(t, err)
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: fakeOkta.URL(),
@@ -393,21 +394,21 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 
 	t.Run("enabled full integration by turning on access list sync", func(t *testing.T) {
 		from := time.Now()
-		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaClient, oktav1.UpdateIntegrationRequest_builder{
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
 			EnableAppGroupSync:        true,
 			EnableAccessListSync:      true,
 			EnableBidirectionalSync:   true,
-			AccessListSettings: &oktav1.AccessListSettings{
+			AccessListSettings: oktav1.AccessListSettings_builder{
 				DefaultOwner: []string{"alice-admin"},
-			},
-		})
+			}.Build(),
+		}.Build())
 		mustWaitForEvent(t, sut, events.OktaAccessListSyncEvent, withTimePoint(from))
 
-		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 			Name: types.PluginTypeOkta,
-		})
+		}.Build())
 		require.NoError(t, err)
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: fakeOkta.URL(),
@@ -437,22 +438,22 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 	})
 
 	t.Run("update integration setting and enable user sync and app groups sync", func(t *testing.T) {
-		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaClient, oktav1.UpdateIntegrationRequest_builder{
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
 			EnableAppGroupSync:        true,
 			EnableAccessListSync:      true,
 			EnableBidirectionalSync:   true,
-			AccessListSettings: &oktav1.AccessListSettings{
+			AccessListSettings: oktav1.AccessListSettings_builder{
 				DefaultOwner: []string{"alice-admin"},
 				GroupFilters: []string{fakeOkta.provisionedGroups[0].Profile.Name},
 				AppFilters:   []string{"__none__"},
-			},
-		})
+			}.Build(),
+		}.Build())
 
-		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 			Name: types.PluginTypeOkta,
-		})
+		}.Build())
 		require.NoError(t, err)
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: fakeOkta.URL(),
@@ -511,23 +512,23 @@ func TestPluginEnrollment_OktaRequester_Role(t *testing.T) {
 	oktaAuthClient := sut.GetOktaAuthClient(t, "alice-admin")
 
 	t.Run("New integration with okta-requester role assignment disabled and non-existing SAML connector fails", func(t *testing.T) {
-		_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		_, err := oktaAuthClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 			ReuseConnector:            "test-connector-does-not-exist",
 			SsoMetadataUrl:            fakeOkta.URL() + "/sso/saml/metadata",
 			ApiCredentials:            apiCredentials,
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: true,
-		})
+		}.Build())
 		require.ErrorIs(t, err, oktaservice.DefaultRolesAssignmentDisabledError)
 	})
 
 	t.Run("New integration with okta-requester role assignment disabled", func(t *testing.T) {
-		_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		_, err := oktaAuthClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 			ReuseConnector:            "okta-pre-created-test",
 			ApiCredentials:            apiCredentials,
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: true,
-		})
+		}.Build())
 		require.NoError(t, err)
 		updateOktaDelays(t, sut, delays{
 			timeBetweenImports:                1 * time.Second,
@@ -545,10 +546,10 @@ func TestPluginEnrollment_OktaRequester_Role(t *testing.T) {
 	})
 
 	t.Run("Enable okta-requester role assignment", func(t *testing.T) {
-		mustUpdateOktaIntegration(ctx, t, oktaAuthClient, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaAuthClient, oktav1.UpdateIntegrationRequest_builder{
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
-		})
+		}.Build())
 
 		mustWaitForEvent(t, sut, events.OktaUserSyncEvent)
 
@@ -561,10 +562,10 @@ func TestPluginEnrollment_OktaRequester_Role(t *testing.T) {
 	})
 
 	t.Run("Disable okta-requester role assignment again", func(t *testing.T) {
-		mustUpdateOktaIntegration(ctx, t, oktaAuthClient, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaAuthClient, oktav1.UpdateIntegrationRequest_builder{
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: true,
-		})
+		}.Build())
 
 		mustWaitForEvent(t, sut, events.OktaUserSyncEvent)
 
@@ -629,38 +630,38 @@ func TestPluginEnrollmentErrors(t *testing.T) {
 	}
 
 	t.Run("try to configure scim integration without any okta connector", func(t *testing.T) {
-		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+		_, err := oktaClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 			OktaOrganizationUrl:     fakeOkta.URL(),
 			ScimToken:               scimToken,
 			EnableAccessListSync:    false,
 			EnableAppGroupSync:      false,
 			EnableUserSync:          false,
 			EnableBidirectionalSync: false,
-		})
+		}.Build())
 		require.True(t, trace.IsBadParameter(err))
 	})
 
 	t.Run("okta client is missing permission to create okta SAML application", func(t *testing.T) {
 		fakeOkta.SetScopes([]string{oktaapi.ScopeAppsRead, oktaapi.ScopeGroupsRead, oktaapi.ScopeUserRead})
-		_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			ApiCredentials:          &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_OauthId{OauthId: "12345"}},
+		_, err := oktaClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
+			ApiCredentials:          oktav1.OktaAPICredentials_builder{OauthId: proto.String("12345")}.Build(),
 			OktaOrganizationUrl:     fakeOkta.URL(),
 			ScimToken:               scimToken,
 			EnableAccessListSync:    false,
 			EnableAppGroupSync:      false,
 			EnableUserSync:          false,
 			EnableBidirectionalSync: false,
-		})
+		}.Build())
 		require.Error(t, err)
 	})
 }
 
 func mustFilterGroups(t *testing.T, oktaClient oktav1.OktaServiceClient, orgURL string, filters ...string) *oktav1.GetGroupsResponse {
-	resp, err := oktaClient.GetGroups(t.Context(), &oktav1.GetGroupsRequest{
+	resp, err := oktaClient.GetGroups(t.Context(), oktav1.GetGroupsRequest_builder{
 		OktaOrganizationUrl: orgURL,
 		ApiCredentials:      apiCredentials,
 		Filters:             filters,
-	})
+	}.Build())
 	require.NoError(t, err)
 	return resp
 }
@@ -698,16 +699,16 @@ func TestEnrollmentPartialStepsFromLegacyConnector(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("enroll okta integration with user sync and legacy credentials", func(t *testing.T) {
-		resp, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
-			ApiCredentials:            &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_SswsBearerToken{SswsBearerToken: "token"}},
+		resp, err := oktaClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
+			ApiCredentials:            oktav1.OktaAPICredentials_builder{SswsBearerToken: proto.String("token")}.Build(),
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
 			ReuseConnector:            legacyConnectorName,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Equal(t, resp.ConnectorInfo.OktaAppId, fakeOkta.provisionedSAMLApp.Id)
+		require.Equal(t, resp.GetConnectorInfo().GetOktaAppId(), fakeOkta.provisionedSAMLApp.Id)
 
-		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: types.PluginTypeOkta})
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{Name: types.PluginTypeOkta}.Build())
 		require.NoError(t, err)
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: fakeOkta.URL(),
@@ -735,13 +736,13 @@ func TestEnrollmentPartialStepsFromLegacyConnector(t *testing.T) {
 	})
 
 	t.Run("update credentials", func(t *testing.T) {
-		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
-			ApiCredentials:            &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_OauthId{OauthId: "test_client_id_vSHak23"}},
+		mustUpdateOktaIntegration(ctx, t, oktaClient, oktav1.UpdateIntegrationRequest_builder{
+			ApiCredentials:            oktav1.OktaAPICredentials_builder{OauthId: proto.String("test_client_id_vSHak23")}.Build(),
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
-		})
+		}.Build())
 
-		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: types.PluginTypeOkta})
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{Name: types.PluginTypeOkta}.Build())
 		require.NoError(t, err)
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: fakeOkta.URL(),
@@ -771,12 +772,12 @@ func TestEnrollmentPartialStepsFromLegacyConnector(t *testing.T) {
 
 	t.Run("fall back to org user source while updating legacy plugins", func(t *testing.T) {
 		// Now let's pretend this is a legacy plugin by unsetting and app ID.
-		oktaPlugin, err := pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: types.PluginTypeOkta})
+		oktaPlugin, err := pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{Name: types.PluginTypeOkta}.Build())
 		require.NoError(t, err)
 		oktaPlugin.Spec.GetOkta().GetSyncSettings().UserSyncSource = ""
 		oktaPlugin.Spec.GetOkta().GetSyncSettings().AppId = ""
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
-			oktaPlugin, err = pluginClient.UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: oktaPlugin})
+			oktaPlugin, err = pluginClient.UpdatePlugin(ctx, pluginsv1.UpdatePluginRequest_builder{Plugin: oktaPlugin}.Build())
 			require.NoError(t, err)
 		}, time.Second*5, time.Millisecond*60)
 		require.Equal(t, "unknown", oktaPlugin.Spec.GetOkta().GetSyncSettings().UserSyncSource)
@@ -784,12 +785,12 @@ func TestEnrollmentPartialStepsFromLegacyConnector(t *testing.T) {
 
 		// Now updating integration should populate back the app ID and set user sync source to
 		// "org" (because app ID was not set).
-		mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
+		mustUpdateOktaIntegration(ctx, t, oktaClient, oktav1.UpdateIntegrationRequest_builder{
 			EnableUserSync:            true,
 			DisableAssignDefaultRoles: false,
-		})
+		}.Build())
 
-		oktaPlugin, err = pluginClient.GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: types.PluginTypeOkta})
+		oktaPlugin, err = pluginClient.GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{Name: types.PluginTypeOkta}.Build())
 		require.NoError(t, err)
 		expectedOktaPluginSettings := &types.PluginOktaSettings{
 			OrgUrl: fakeOkta.URL(),
@@ -831,13 +832,13 @@ func Test_PluginEnrollment_OAuthScopes(t *testing.T) {
 	// Try (and fail) creating an integration with insufficient OAuth scopes
 	fakeOkta.SetScopes([]string{oktaapi.ScopeUserRead})
 
-	_, err := oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ReuseConnector:      "okta-pre-created-test",
 		OktaOrganizationUrl: fakeOkta.URL(),
 		ApiCredentials:      apiCredentials,
 		EnableUserSync:      true,
 		EnableAppGroupSync:  true,
-	})
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, `Okta OAuth scopes verification failed: scope "okta.apps.read" missing, scope "okta.groups.read" missing`)
@@ -849,13 +850,13 @@ func Test_PluginEnrollment_OAuthScopes(t *testing.T) {
 		oktaapi.ScopeGroupsRead,
 	})
 
-	_, err = oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err = oktaClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ReuseConnector:      "okta-pre-created-test",
 		OktaOrganizationUrl: fakeOkta.URL(),
 		ApiCredentials:      apiCredentials,
 		EnableUserSync:      true,
 		EnableAppGroupSync:  true,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Try (and fail) updating the integration with insufficient OAuth scopes
@@ -864,14 +865,14 @@ func Test_PluginEnrollment_OAuthScopes(t *testing.T) {
 		oktaapi.ScopeAppsRead,
 	})
 
-	_, err = oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+	_, err = oktaClient.UpdateIntegration(ctx, oktav1.UpdateIntegrationRequest_builder{
 		EnableUserSync:       true,
 		EnableAppGroupSync:   true,
 		EnableAccessListSync: true,
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			DefaultOwner: []string{"alice-admin"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, `Okta OAuth scopes verification failed: scope "okta.groups.read" missing`)
@@ -884,15 +885,15 @@ func Test_PluginEnrollment_OAuthScopes(t *testing.T) {
 		oktaapi.ScopeGroupsRead,
 	})
 
-	_, err = oktaClient.UpdateIntegration(ctx, &oktav1.UpdateIntegrationRequest{
+	_, err = oktaClient.UpdateIntegration(ctx, oktav1.UpdateIntegrationRequest_builder{
 		EnableUserSync:       true,
 		EnableAppGroupSync:   true,
 		EnableAccessListSync: true,
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			DefaultOwner: []string{"alice-admin"},
-		},
+		}.Build(),
 		EnableBidirectionalSync: true,
-	})
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, "Okta OAuth scopes verification failed: scope \"okta.apps.manage\" missing, scope \"okta.groups.manage\" missing")
@@ -900,11 +901,11 @@ func Test_PluginEnrollment_OAuthScopes(t *testing.T) {
 	// Disabling whole sync and credentials with no scopes is ok.
 	fakeOkta.SetScopes([]string{})
 
-	mustUpdateOktaIntegration(ctx, t, oktaClient, &oktav1.UpdateIntegrationRequest{
+	mustUpdateOktaIntegration(ctx, t, oktaClient, oktav1.UpdateIntegrationRequest_builder{
 		EnableUserSync:       false,
 		EnableAppGroupSync:   false,
 		EnableAccessListSync: false,
-	})
+	}.Build())
 }
 
 func mustUnmarshalSAMLConnector(t *testing.T, input string) types.SAMLConnector {

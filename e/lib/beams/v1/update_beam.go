@@ -49,7 +49,7 @@ func (s *BeamsService) UpdateBeam(ctx context.Context, req *beamsv1.UpdateBeamRe
 	}
 
 	// These fields are currently immutable.
-	if oldBeam.GetSpec().Egress != newBeam.GetSpec().GetEgress() {
+	if oldBeam.GetSpec().GetEgress() != newBeam.GetSpec().GetEgress() {
 		return nil, trace.BadParameter("spec.egress: cannot be modified")
 	}
 	if !oldBeam.GetSpec().GetExpires().AsTime().Equal(newBeam.GetSpec().GetExpires().AsTime()) {
@@ -64,7 +64,7 @@ func (s *BeamsService) UpdateBeam(ctx context.Context, req *beamsv1.UpdateBeamRe
 	}
 
 	// Prevent user from changing status.
-	newBeam.Status = proto.CloneOf(oldBeam.GetStatus())
+	newBeam.SetStatus(proto.CloneOf(oldBeam.GetStatus()))
 
 	var actions []backend.ConditionalAction
 
@@ -74,7 +74,7 @@ func (s *BeamsService) UpdateBeam(ctx context.Context, req *beamsv1.UpdateBeamRe
 
 	if publishChanged(oldPublish, newPublish) {
 		if newPublish == nil {
-			newBeam.Status.AppName = ""
+			newBeam.GetStatus().SetAppName("")
 
 			actions, err = s.appWriter.AppendDeleteAppActions(
 				actions,
@@ -89,7 +89,7 @@ func (s *BeamsService) UpdateBeam(ctx context.Context, req *beamsv1.UpdateBeamRe
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			newBeam.Status.AppName = app.GetName()
+			newBeam.GetStatus().SetAppName(app.GetName())
 
 			actions, err = s.appWriter.AppendPutAppActions(
 				actions,
@@ -105,7 +105,7 @@ func (s *BeamsService) UpdateBeam(ctx context.Context, req *beamsv1.UpdateBeamRe
 	actions, err = s.beamWriter.AppendPutBeamActions(
 		actions,
 		newBeam,
-		backend.Revision(newBeam.Metadata.GetRevision()),
+		backend.Revision(newBeam.GetMetadata().GetRevision()),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -115,11 +115,11 @@ func (s *BeamsService) UpdateBeam(ctx context.Context, req *beamsv1.UpdateBeamRe
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	newBeam.Metadata.Revision = revision
+	newBeam.GetMetadata().SetRevision(revision)
 
-	return &beamsv1.UpdateBeamResponse{
+	return beamsv1.UpdateBeamResponse_builder{
 		Beam: newBeam,
-	}, nil
+	}.Build(), nil
 }
 
 func publishChanged(before, after *beamsv1.PublishSpec) bool {

@@ -23,9 +23,9 @@ func Test_setSCIMAttrsInUserLabel(t *testing.T) {
 		"password": "pa$$word", // should be omitted
 	})
 	require.NoError(t, err)
-	r := &scimpb.Resource{
+	r := scimpb.Resource_builder{
 		Attributes: attrs,
-	}
+	}.Build()
 
 	const expectedJSON = `{"active":true,"emails":{"primary":true,"type":"work","value":"alice@email.test"},"name":{"givenName":"Alice","familyName":"Okta"},"userName":"alice@example.com","extra":"stuff"}`
 

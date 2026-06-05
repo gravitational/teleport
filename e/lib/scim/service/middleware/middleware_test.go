@@ -18,7 +18,7 @@ type mockHandler struct {
 }
 
 func (m *mockHandler) GetResource(ctx context.Context, req *pb.GetSCIMResourceRequest) (*pb.Resource, error) {
-	return &pb.Resource{Id: "get-resource"}, nil
+	return pb.Resource_builder{Id: "get-resource"}.Build(), nil
 }
 
 type testMiddlewareHandler struct {
@@ -51,9 +51,9 @@ func TestMiddleware(t *testing.T) {
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))
 
-		res, err := handler.GetResource(t.Context(), &pb.GetSCIMResourceRequest{Target: &pb.RequestTarget{ResourceId: "123"}})
+		res, err := handler.GetResource(t.Context(), pb.GetSCIMResourceRequest_builder{Target: pb.RequestTarget_builder{ResourceId: "123"}.Build()}.Build())
 		require.NoError(t, err)
-		require.Equal(t, "get-resource", res.Id)
+		require.Equal(t, "get-resource", res.GetId())
 	})
 
 	t.Run("test response modification in middleware", func(t *testing.T) {
@@ -64,7 +64,7 @@ func TestMiddleware(t *testing.T) {
 					return nil, err
 				}
 				// Modify the response
-				res.Id = "modified-" + res.Id
+				res.SetId("modified-" + res.GetId())
 				return res, nil
 			},
 		}
@@ -74,7 +74,7 @@ func TestMiddleware(t *testing.T) {
 
 		res, err := handler.GetResource(t.Context(), &pb.GetSCIMResourceRequest{})
 		require.NoError(t, err)
-		require.Equal(t, "modified-get-resource", res.Id)
+		require.Equal(t, "modified-get-resource", res.GetId())
 	})
 
 	t.Run("test middleware execution order", func(t *testing.T) {
@@ -119,7 +119,7 @@ func TestMiddleware(t *testing.T) {
 
 		res, err := handler.GetResource(t.Context(), &pb.GetSCIMResourceRequest{})
 		require.NoError(t, err)
-		require.Equal(t, "get-resource", res.Id)
+		require.Equal(t, "get-resource", res.GetId())
 	})
 
 	t.Run("test empty middleware chain passes through to handler", func(t *testing.T) {
@@ -128,6 +128,6 @@ func TestMiddleware(t *testing.T) {
 
 		res, err := handler.GetResource(t.Context(), &pb.GetSCIMResourceRequest{})
 		require.NoError(t, err)
-		require.Equal(t, "get-resource", res.Id)
+		require.Equal(t, "get-resource", res.GetId())
 	})
 }

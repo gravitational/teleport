@@ -223,7 +223,7 @@ func hasAccountAssignment(ps, accountID string) principalAssignmentAssertion {
 		idx := slices.IndexFunc(
 			pa.GetStatus().GetAssignments(),
 			func(asmt *identitycenterv1.AccountAssignmentRef) bool {
-				return asmt.AccountId == accountID && asmt.PermissionSetArn == ps
+				return asmt.GetAccountId() == accountID && asmt.GetPermissionSetArn() == ps
 			})
 		return assert.NotEqual(t, -1, idx, "No such account assignment found")
 	}

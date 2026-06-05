@@ -93,7 +93,7 @@ func (s *Service) ListSCIMResources(ctx context.Context, req *pb.ListSCIMResourc
 		return nil, trace.Wrap(err)
 	}
 	if req.GetPage() == nil {
-		req.Page = &pb.Page{StartIndex: 1, Count: 100}
+		req.SetPage(pb.Page_builder{StartIndex: 1, Count: 100}.Build())
 	}
 	resp, err := handler.ListResources(ctx, req)
 	if err != nil {
@@ -211,7 +211,7 @@ func (s *Service) PatchSCIMResource(ctx context.Context, req *pb.PatchSCIMResour
 }
 
 func ensureMetadata(resource *pb.Resource, rt string) error {
-	if len(resource.Schemas) == 0 {
+	if len(resource.GetSchemas()) == 0 {
 		var schemaID string
 		switch rt {
 		case "Users":
@@ -221,11 +221,11 @@ func ensureMetadata(resource *pb.Resource, rt string) error {
 		default:
 			return trace.BadParameter("unsupported resource type %q", rt)
 		}
-		resource.Schemas = append(resource.Schemas, schemaID)
+		resource.SetSchemas(append(resource.GetSchemas(), schemaID))
 	}
 
 	if resource.GetMeta().GetLocation() == "" {
-		resource.Meta.Location = fmt.Sprintf("/%s/%s", rt, resource.GetId())
+		resource.GetMeta().SetLocation(fmt.Sprintf("/%s/%s", rt, resource.GetId()))
 	}
 	return nil
 }

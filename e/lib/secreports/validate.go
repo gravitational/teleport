@@ -13,63 +13,63 @@ import (
 func validateRequest(req any, f modules.Features) error {
 	switch t := req.(type) {
 	case *pb.RunAuditQueryRequest:
-		if t.Query == "" {
+		if t.GetQuery() == "" {
 			return trace.BadParameter("missing query")
 		}
-		if ok := slices.Contains(reportValidDaysRange, t.Days); !ok {
+		if ok := slices.Contains(reportValidDaysRange, t.GetDays()); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
 		}
-		if err := verifyAccessMonitoringMaxReportRangeLimit(t.Days, f); err != nil {
+		if err := verifyAccessMonitoringMaxReportRangeLimit(t.GetDays(), f); err != nil {
 			return trace.Wrap(err)
 		}
 
 	case *pb.GetAuditQueryResultRequest:
-		if t.ResultId == "" {
+		if t.GetResultId() == "" {
 			return trace.BadParameter("missing result id")
 		}
 	case *pb.GetReportStateRequest:
-		if t.Name == "" {
+		if t.GetName() == "" {
 			return trace.BadParameter("missing name")
 		}
-		if ok := slices.Contains(reportValidDaysRange, int32(t.Days)); !ok {
+		if ok := slices.Contains(reportValidDaysRange, int32(t.GetDays())); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
 		}
-		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days), f); err != nil {
+		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.GetDays()), f); err != nil {
 			return trace.Wrap(err)
 		}
 	case *pb.GetReportResultRequest:
-		if t.Name == "" {
+		if t.GetName() == "" {
 			return trace.BadParameter("missing name")
 		}
-		if t.Days == 0 {
+		if t.GetDays() == 0 {
 			return trace.BadParameter("days must be greater than 0")
 		}
-		if ok := slices.Contains(reportValidDaysRange, int32(t.Days)); !ok {
+		if ok := slices.Contains(reportValidDaysRange, int32(t.GetDays())); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
 		}
-		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days), f); err != nil {
+		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.GetDays()), f); err != nil {
 			return trace.Wrap(err)
 		}
 	case *pb.RunReportRequest:
-		if t.Name == "" {
+		if t.GetName() == "" {
 			return trace.BadParameter("missing name")
 		}
-		if ok := slices.Contains(reportValidDaysRange, int32(t.Days)); !ok {
+		if ok := slices.Contains(reportValidDaysRange, int32(t.GetDays())); !ok {
 			return trace.BadParameter("days must be one of %v", reportValidDaysRange)
 		}
-		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.Days), f); err != nil {
+		if err := verifyAccessMonitoringMaxReportRangeLimit(int32(t.GetDays()), f); err != nil {
 			return trace.Wrap(err)
 		}
 	case *pb.DeleteReportRequest:
-		if t.Name == "" {
+		if t.GetName() == "" {
 			return trace.BadParameter("missing name")
 		}
 	case *pb.GetReportRequest:
-		if t.Name == "" {
+		if t.GetName() == "" {
 			return trace.BadParameter("missing name")
 		}
 	case *pb.DeleteAuditQueryRequest:
-		if t.Name == "" {
+		if t.GetName() == "" {
 			return trace.BadParameter("missing name")
 		}
 	default:

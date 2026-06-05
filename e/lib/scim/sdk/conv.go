@@ -72,13 +72,13 @@ func DecodeResource(attributes AttributeSet) (*scimpb.Resource, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	dst := &scimpb.Resource{
+	dst := scimpb.Resource_builder{
 		Schemas:    header.Schemas,
 		Id:         header.ID,
 		ExternalId: header.ExternalID,
 		Meta:       convertMetadata(header.Meta),
 		Attributes: dstAttribs,
-	}
+	}.Build()
 
 	return dst, nil
 }
@@ -105,13 +105,13 @@ func convertMetadata(src *Metadata) *scimpb.Meta {
 	if src == nil {
 		return nil
 	}
-	return &scimpb.Meta{
+	return scimpb.Meta_builder{
 		ResourceType: src.ResourceType,
 		Location:     src.Location,
 		Version:      src.Version,
 		Created:      maybeTimestamp(src.Created),
 		Modified:     maybeTimestamp(src.LastModified),
-	}
+	}.Build()
 }
 
 // MarshalResourceList flattens and formats a collection of resources, wrapping
@@ -121,20 +121,20 @@ func MarshalResourceList(list *scimpb.ResourceList) ([]byte, error) {
 		listResponseSchema = "urn:ietf:params:scim:api:messages:2.0:ListResponse"
 	)
 
-	resources := make([]AttributeSet, len(list.Resources))
-	for i, r := range list.Resources {
+	resources := make([]AttributeSet, len(list.GetResources()))
+	for i, r := range list.GetResources() {
 		attribs, err := FlattenResource(r)
 		if err != nil {
-			return nil, trace.Wrap(err, "flattening %s resource %s", r.Meta.ResourceType, r.Id)
+			return nil, trace.Wrap(err, "flattening %s resource %s", r.GetMeta().GetResourceType(), r.GetId())
 		}
 		resources[i] = attribs
 	}
 
 	body, err := json.Marshal(ListResponse{
 		Schemas:      []string{listResponseSchema},
-		TotalResults: list.TotalResults,
-		ItemsPerPage: list.ItemsPerPage,
-		StartIndex:   list.StartIndex,
+		TotalResults: list.GetTotalResults(),
+		ItemsPerPage: list.GetItemsPerPage(),
+		StartIndex:   list.GetStartIndex(),
 		Resources:    resources,
 	})
 	if err != nil {
@@ -208,15 +208,15 @@ func DecodeResourceHeader(attribs AttributeSet) (*Resource, error) {
 // before being serialized to JSON.
 func FlattenResource(res *scimpb.Resource) (AttributeSet, error) {
 	headerFmt := Resource{
-		Schemas:    res.Schemas,
-		ID:         res.Id,
-		ExternalID: res.ExternalId,
+		Schemas:    res.GetSchemas(),
+		ID:         res.GetId(),
+		ExternalID: res.GetExternalId(),
 		Meta: &Metadata{
-			ResourceType: res.Meta.ResourceType,
-			Location:     res.Meta.Location,
-			Version:      res.Meta.Version,
-			Created:      maybeTime(res.Meta.Created),
-			LastModified: maybeTime(res.Meta.Modified),
+			ResourceType: res.GetMeta().GetResourceType(),
+			Location:     res.GetMeta().GetLocation(),
+			Version:      res.GetMeta().GetVersion(),
+			Created:      maybeTime(res.GetMeta().GetCreated()),
+			LastModified: maybeTime(res.GetMeta().GetModified()),
 		},
 	}
 
@@ -228,11 +228,11 @@ func FlattenResource(res *scimpb.Resource) (AttributeSet, error) {
 
 	// Copy the resource-specific resources into the toplevel of the
 	// JSON struct, minus anything that would break the SCIM schema
-	resourceAttribs := res.Attributes.AsMap()
+	resourceAttribs := res.GetAttributes().AsMap()
 	for _, k := range reservedAttributeNames {
 		delete(resourceAttribs, k)
 	}
-	maps.Copy(dst, res.Attributes.AsMap())
+	maps.Copy(dst, res.GetAttributes().AsMap())
 
 	return dst, nil
 }

@@ -63,19 +63,19 @@ func TestService_authz(t *testing.T) {
 
 	const caType = string(types.WindowsCA)
 	clusterName := env.ClusterName
-	validLookingCAOverride := &subcapb.CertAuthorityOverride{
+	validLookingCAOverride := subcapb.CertAuthorityOverride_builder{
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: caType,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: clusterName,
-		},
-		Spec: &subcapb.CertAuthorityOverrideSpec{
+		}.Build(),
+		Spec: subcapb.CertAuthorityOverrideSpec_builder{
 			CertificateOverrides: []*subcapb.CertificateOverride{
 				nil, // Passes initial checks, but fails validation.
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	tests := []struct {
 		name                   string
@@ -87,9 +87,9 @@ func TestService_authz(t *testing.T) {
 			name: "CreateCSR",
 			doRPC: func(t *testing.T) error {
 				_, err := subCA.CreateCSR(
-					t.Context(), &subcapb.CreateCSRRequest{
+					t.Context(), subcapb.CreateCSRRequest_builder{
 						CaType: caType,
-					})
+					}.Build())
 				return err
 			},
 			want: []*authorizeAttempt{
@@ -103,9 +103,9 @@ func TestService_authz(t *testing.T) {
 			name: "CreateCertAuthorityOverride",
 			doRPC: func(t *testing.T) error {
 				_, err := subCA.CreateCertAuthorityOverride(
-					t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+					t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
 						CaOverride: validLookingCAOverride,
-					})
+					}.Build())
 				return err
 			},
 			want: []*authorizeAttempt{
@@ -116,9 +116,9 @@ func TestService_authz(t *testing.T) {
 			name: "UpdateCertAuthorityOverride",
 			doRPC: func(t *testing.T) error {
 				_, err := subCA.UpdateCertAuthorityOverride(
-					t.Context(), &subcapb.UpdateCertAuthorityOverrideRequest{
+					t.Context(), subcapb.UpdateCertAuthorityOverrideRequest_builder{
 						CaOverride: validLookingCAOverride,
-					})
+					}.Build())
 				return err
 			},
 			want: []*authorizeAttempt{
@@ -129,9 +129,9 @@ func TestService_authz(t *testing.T) {
 			name: "UpsertCertAuthorityOverride",
 			doRPC: func(t *testing.T) error {
 				_, err := subCA.UpsertCertAuthorityOverride(
-					t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+					t.Context(), subcapb.UpsertCertAuthorityOverrideRequest_builder{
 						CaOverride: validLookingCAOverride,
-					})
+					}.Build())
 				return err
 			},
 			want: []*authorizeAttempt{
@@ -143,11 +143,11 @@ func TestService_authz(t *testing.T) {
 		{
 			name: "GetCertAuthorityOverride",
 			doRPC: func(t *testing.T) error {
-				_, err := subCA.GetCertAuthorityOverride(t.Context(), &subcapb.GetCertAuthorityOverrideRequest{
-					CaId: &subcapb.CertAuthorityOverrideID{
+				_, err := subCA.GetCertAuthorityOverride(t.Context(), subcapb.GetCertAuthorityOverrideRequest_builder{
+					CaId: subcapb.CertAuthorityOverrideID_builder{
 						CaType: caType,
-					},
-				})
+					}.Build(),
+				}.Build())
 				return err
 			},
 			want: []*authorizeAttempt{
@@ -173,11 +173,11 @@ func TestService_authz(t *testing.T) {
 			name: "DeleteCertAuthorityOverride",
 			doRPC: func(t *testing.T) error {
 				_, err := subCA.DeleteCertAuthorityOverride(
-					t.Context(), &subcapb.DeleteCertAuthorityOverrideRequest{
-						CaId: &subcapb.CertAuthorityOverrideID{
+					t.Context(), subcapb.DeleteCertAuthorityOverrideRequest_builder{
+						CaId: subcapb.CertAuthorityOverrideID_builder{
 							CaType: caType, // Not found.
-						},
-					})
+						}.Build(),
+					}.Build())
 				return err
 			},
 			want: []*authorizeAttempt{
@@ -349,13 +349,13 @@ func TestService_CreateCSR(t *testing.T) {
 			{Type: tlsca.CAClusterNameExtensionOID, Value: env.ClusterName},
 		},
 	}
-	customDN := &subcapb.DistinguishedName{
+	customDN := subcapb.DistinguishedName_builder{
 		Names: []*subcapb.AttributeTypeAndValue{
-			{Oid: []int32{2, 5, 4, 10}, Value: &customSubjectO},
-			{Oid: []int32{2, 5, 4, 11}, Value: &customSubjectOU},
-			{Oid: []int32{2, 5, 4, 3}, Value: &customSubjectCN},
+			subcapb.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 10}, Value: &customSubjectO}.Build(),
+			subcapb.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 11}, Value: &customSubjectOU}.Build(),
+			subcapb.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 3}, Value: &customSubjectCN}.Build(),
 		},
-	}
+	}.Build()
 
 	// Similar to wantCustomSubject, but the cluster name is represented in "O=".
 	wantCustomSubjectClusterO := pkix.Name{
@@ -366,20 +366,20 @@ func TestService_CreateCSR(t *testing.T) {
 		},
 	}
 	// "O=$clusterName".
-	customDNClusterInO := &subcapb.DistinguishedName{
+	customDNClusterInO := subcapb.DistinguishedName_builder{
 		Names: []*subcapb.AttributeTypeAndValue{
-			{Oid: []int32{2, 5, 4, 11}, Value: &customSubjectOU},
-			{Oid: []int32{2, 5, 4, 3}, Value: &customSubjectCN},
-			{Oid: []int32{2, 5, 4, 10}, Value: &env.ClusterName},
+			subcapb.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 11}, Value: &customSubjectOU}.Build(),
+			subcapb.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 3}, Value: &customSubjectCN}.Build(),
+			subcapb.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 10}, Value: &env.ClusterName}.Build(),
 		},
-	}
+	}.Build()
 	// No "O=".
-	customDNWithoutO := &subcapb.DistinguishedName{
+	customDNWithoutO := subcapb.DistinguishedName_builder{
 		Names: []*subcapb.AttributeTypeAndValue{
-			{Oid: []int32{2, 5, 4, 11}, Value: &customSubjectOU},
-			{Oid: []int32{2, 5, 4, 3}, Value: &customSubjectCN},
+			subcapb.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 11}, Value: &customSubjectOU}.Build(),
+			subcapb.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 3}, Value: &customSubjectCN}.Build(),
 		},
-	}
+	}.Build()
 
 	tests := []struct {
 		name     string
@@ -388,9 +388,9 @@ func TestService_CreateCSR(t *testing.T) {
 	}{
 		{
 			name: "ok",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(caType1),
-			},
+			}.Build(),
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
 					newExpectedCSR(ca1Cert, nil),
@@ -399,9 +399,9 @@ func TestService_CreateCSR(t *testing.T) {
 		},
 		{
 			name: "multiple CSRs",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(caType2),
-			},
+			}.Build(),
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
 					newExpectedCSR(ca2Cert1, nil),
@@ -413,12 +413,12 @@ func TestService_CreateCSR(t *testing.T) {
 		},
 		{
 			name: "public_key_hash active cert",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(caType2),
-				PublicKeyHash: &subcapb.PublicKeyHash{
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
 					Value: subca.HashCertificatePublicKey(ca2Cert2),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
 					newExpectedCSR(ca2Cert2, nil),
@@ -427,12 +427,12 @@ func TestService_CreateCSR(t *testing.T) {
 		},
 		{
 			name: "public_key_hash additional cert",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(caType2),
-				PublicKeyHash: &subcapb.PublicKeyHash{
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
 					Value: subca.HashCertificatePublicKey(ca2Cert3),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
 					newExpectedCSR(ca2Cert3, nil),
@@ -441,14 +441,14 @@ func TestService_CreateCSR(t *testing.T) {
 		},
 		{
 			name: "public_key_hash case insensitive",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(caType2),
-				PublicKeyHash: &subcapb.PublicKeyHash{
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
 					// subca.HashCertificatePublicKey/HashPublicKey returns a lowercase
 					// string.
 					Value: strings.ToUpper(subca.HashCertificatePublicKey(ca2Cert2)),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
 					newExpectedCSR(ca2Cert2, nil),
@@ -457,10 +457,10 @@ func TestService_CreateCSR(t *testing.T) {
 		},
 		{
 			name: "custom subject targets single cert",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType:        string(caType1), // only one active cert.
 				CustomSubject: customDN,
-			},
+			}.Build(),
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
 					newExpectedCSR(ca1Cert, &wantCustomSubject),
@@ -469,13 +469,13 @@ func TestService_CreateCSR(t *testing.T) {
 		},
 		{
 			name: "custom subject and public_key_hash",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(caType2),
-				PublicKeyHash: &subcapb.PublicKeyHash{
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
 					Value: subca.HashCertificatePublicKey(ca2Cert3),
-				},
+				}.Build(),
 				CustomSubject: customDN,
-			},
+			}.Build(),
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
 					newExpectedCSR(ca2Cert3, &wantCustomSubject),
@@ -484,13 +484,13 @@ func TestService_CreateCSR(t *testing.T) {
 		},
 		{
 			name: "custom subject respects O=",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(caType2),
-				PublicKeyHash: &subcapb.PublicKeyHash{
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
 					Value: subca.HashCertificatePublicKey(ca2Cert3),
-				},
+				}.Build(),
 				CustomSubject: customDNClusterInO, // O=clusterName
-			},
+			}.Build(),
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
 					newExpectedCSR(ca2Cert3, &wantCustomSubjectClusterO),
@@ -499,13 +499,13 @@ func TestService_CreateCSR(t *testing.T) {
 		},
 		{
 			name: "custom subject favors O=",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(caType2),
-				PublicKeyHash: &subcapb.PublicKeyHash{
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
 					Value: subca.HashCertificatePublicKey(ca2Cert3),
-				},
+				}.Build(),
 				CustomSubject: customDNWithoutO, // O= not present, added in the response
-			},
+			}.Build(),
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				return []*x509.CertificateRequest{
 					newExpectedCSR(ca2Cert3, &wantCustomSubjectClusterO),
@@ -514,19 +514,19 @@ func TestService_CreateCSR(t *testing.T) {
 		},
 		{
 			name: "custom subject multiple O=",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(caType2),
-				PublicKeyHash: &subcapb.PublicKeyHash{
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
 					Value: subca.HashCertificatePublicKey(ca2Cert3),
-				},
-				CustomSubject: &subcapb.DistinguishedName{
+				}.Build(),
+				CustomSubject: subcapb.DistinguishedName_builder{
 					Names: []*subcapb.AttributeTypeAndValue{
-						{Oid: []int32{2, 5, 4, 10}, Value: &customSubjectO},
+						subcapb.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 10}, Value: &customSubjectO}.Build(),
 						// Doesn't count. Cluster name must be the first.
-						{Oid: []int32{2, 5, 4, 10}, Value: &env.ClusterName},
+						subcapb.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 10}, Value: &env.ClusterName}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantCSRs: func(t *testing.T) []*x509.CertificateRequest {
 				wantSubj := &pkix.Name{
 					Names: []pkix.AttributeTypeAndValue{
@@ -736,10 +736,10 @@ func TestService_CreateCSR_errors(t *testing.T) {
 	})
 
 	customCN := "Llama CA"
-	validATV := &subcapb.AttributeTypeAndValue{
+	validATV := subcapb.AttributeTypeAndValue_builder{
 		Oid:   []int32{2, 5, 4, 3},
 		Value: &customCN,
-	}
+	}.Build()
 
 	badClusterName := env.ClusterName + "BAD"
 	// Convert []int to []int32.
@@ -760,69 +760,69 @@ func TestService_CreateCSR_errors(t *testing.T) {
 		},
 		{
 			name: "ca_type not allowed",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(types.UserCA),
-			},
+			}.Build(),
 			wantErr: "ca_type not allowed",
 		},
 		{
 			name: "ca_type invalid",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: "banana",
-			},
+			}.Build(),
 			wantErr: "ca_type not allowed",
 		},
 		{
 			name: "public_key_hash empty",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(validCAType),
-				PublicKeyHash: &subcapb.PublicKeyHash{
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
 					Value: "", // invalid
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: "public_key_hash",
 		},
 		{
 			name: "public_key_hash not found",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(validCAType),
-				PublicKeyHash: &subcapb.PublicKeyHash{
+				PublicKeyHash: subcapb.PublicKeyHash_builder{
 					Value: "0000000000000000000000000000000000000000000000000000000000000000",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: "matches no CA certificate",
 		},
 		{
 			name: "custom_subject invalid",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType:        string(validCAType),
 				CustomSubject: &subcapb.DistinguishedName{},
-			},
+			}.Build(),
 			wantErr: "empty distinguished name",
 		},
 		{
 			name: "custom_subject targets multiple certificates",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(validCAType),
-				CustomSubject: &subcapb.DistinguishedName{
+				CustomSubject: subcapb.DistinguishedName_builder{
 					Names: []*subcapb.AttributeTypeAndValue{
 						validATV,
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: "cannot match more than one certificate",
 		},
 		{
 			name: "custom_subject invalid cluster name OID",
-			req: &subcapb.CreateCSRRequest{
+			req: subcapb.CreateCSRRequest_builder{
 				CaType: string(validCAType),
-				CustomSubject: &subcapb.DistinguishedName{
+				CustomSubject: subcapb.DistinguishedName_builder{
 					Names: []*subcapb.AttributeTypeAndValue{
 						// "clusterNameOID" doesn't match the cluster name.
-						{Oid: clusterNameOID, Value: &badClusterName},
+						subcapb.AttributeTypeAndValue_builder{Oid: clusterNameOID, Value: &badClusterName}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: "cluster name invalid",
 		},
 	}
@@ -858,16 +858,16 @@ func TestService_Create(t *testing.T) {
 		caOverride := env.NewOverrideForCAType(t, caType2)
 
 		// Create resource.
-		createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+		createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
 			CaOverride: caOverride,
-		})
+		}.Build())
 		require.NoError(t, err, "CreateCertAuthorityOverride errored")
 
 		// Assert resource.
-		got := createResp.CaOverride
+		got := createResp.GetCaOverride()
 		want := caOverride
-		want.Metadata.Revision = got.GetMetadata().GetRevision()
-		want.Status = got.Status
+		want.GetMetadata().SetRevision(got.GetMetadata().GetRevision())
+		want.SetStatus(got.GetStatus())
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Fatalf("Create mismatch (-want +got)\n%s", diff)
 		}
@@ -883,14 +883,14 @@ func TestService_Create(t *testing.T) {
 		})
 
 		// Assert storage.
-		getResp, err := subCA.GetCertAuthorityOverride(t.Context(), &subcapb.GetCertAuthorityOverrideRequest{
-			CaId: &subcapb.CertAuthorityOverrideID{
-				CaType: got.SubKind,
-			},
-		})
+		getResp, err := subCA.GetCertAuthorityOverride(t.Context(), subcapb.GetCertAuthorityOverrideRequest_builder{
+			CaId: subcapb.CertAuthorityOverrideID_builder{
+				CaType: got.GetSubKind(),
+			}.Build(),
+		}.Build())
 		require.NoError(t, err, "GetCertAuthorityOverride errored")
 		want = got
-		got = getResp.CaOverride
+		got = getResp.GetCaOverride()
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("Get mismatch (-want +got)\n%s", diff)
 		}
@@ -917,7 +917,7 @@ func assertCRLs(
 		// Fetch and parse CRL.
 		crlPB, ok := parsed.CAOverride.GetStatus().GetPublicKeyHashToCrl()[co.PublicKey]
 		require.True(t, ok, "CRL not on Status (i=%d)", i)
-		block, _ := pem.Decode([]byte(crlPB.Pem))
+		block, _ := pem.Decode([]byte(crlPB.GetPem()))
 		require.NotNil(t, block, "Failed to decode CRL PEM")
 		crl, err := x509.ParseRevocationList(block.Bytes)
 		require.NoError(t, err, "Parse CRL")
@@ -950,9 +950,9 @@ func TestService_Create_fromCSR(t *testing.T) {
 	subCA := env.SubCAClient
 
 	// Request CSR.
-	csrResp, err := subCA.CreateCSR(t.Context(), &subcapb.CreateCSRRequest{
+	csrResp, err := subCA.CreateCSR(t.Context(), subcapb.CreateCSRRequest_builder{
 		CaType: string(caType),
-	})
+	}.Build())
 	require.NoError(t, err, "CreateCSR errored")
 	require.Len(t, csrResp.GetCsrs(), 1, "CreateCSR returned an unexpected number of CSRs")
 
@@ -975,27 +975,27 @@ func TestService_Create_fromCSR(t *testing.T) {
 	})
 
 	// Prepare override.
-	caOverride := &subcapb.CertAuthorityOverride{
+	caOverride := subcapb.CertAuthorityOverride_builder{
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(caType),
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: env.ClusterName,
-		},
-		Spec: &subcapb.CertAuthorityOverrideSpec{
+		}.Build(),
+		Spec: subcapb.CertAuthorityOverrideSpec_builder{
 			CertificateOverrides: []*subcapb.CertificateOverride{
-				{
+				subcapb.CertificateOverride_builder{
 					Certificate: string(certPEM),
-				},
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	// Create override.
 	_, err = subCA.CreateCertAuthorityOverride(
-		t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+		t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
 			CaOverride: caOverride,
-		})
+		}.Build())
 	require.NoError(t, err, "Create errored")
 }
 
@@ -1012,11 +1012,11 @@ func TestService_Update(t *testing.T) {
 	emitter := env.MockEmitter
 
 	// Prepare CA override to update.
-	createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+	createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
 		CaOverride: env.NewOverrideForCAType(t, caType),
-	})
+	}.Build())
 	require.NoError(t, err, "CreateCertAuthorityOverride errored")
-	created := createResp.CaOverride
+	created := createResp.GetCaOverride()
 
 	t.Run("ok", func(t *testing.T) {
 		ctx := t.Context()
@@ -1024,33 +1024,33 @@ func TestService_Update(t *testing.T) {
 
 		// Enable all overrides.
 		require.NotEmpty(t,
-			created.Spec.CertificateOverrides, "Expected at least one certificate override")
-		for _, override := range caOverride.Spec.CertificateOverrides {
-			override.Disabled = false
+			created.GetSpec().GetCertificateOverrides(), "Expected at least one certificate override")
+		for _, override := range caOverride.GetSpec().GetCertificateOverrides() {
+			override.SetDisabled(false)
 		}
 
 		emitter.Reset()
-		updateResp, err := subCA.UpdateCertAuthorityOverride(ctx, &subcapb.UpdateCertAuthorityOverrideRequest{
+		updateResp, err := subCA.UpdateCertAuthorityOverride(ctx, subcapb.UpdateCertAuthorityOverrideRequest_builder{
 			CaOverride: caOverride,
-		})
+		}.Build())
 		require.NoError(t, err, "UpdateCertAuthorityOverride errored")
-		updated := updateResp.CaOverride
+		updated := updateResp.GetCaOverride()
 
 		// Verify response.
 		want := caOverride
-		want.Metadata.Revision = updated.GetMetadata().GetRevision()
+		want.GetMetadata().SetRevision(updated.GetMetadata().GetRevision())
 		if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
 			t.Fatalf("Update mismatch (-want +got)\n%s", diff)
 		}
 
 		// Verify stored override.
-		getResp, err := subCA.GetCertAuthorityOverride(ctx, &subcapb.GetCertAuthorityOverrideRequest{
-			CaId: &subcapb.CertAuthorityOverrideID{
+		getResp, err := subCA.GetCertAuthorityOverride(ctx, subcapb.GetCertAuthorityOverrideRequest_builder{
+			CaId: subcapb.CertAuthorityOverrideID_builder{
 				CaType: string(caType),
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err, "GetCertAuthorityOverride errored")
-		if diff := cmp.Diff(want, getResp.CaOverride, protocmp.Transform()); diff != "" {
+		if diff := cmp.Diff(want, getResp.GetCaOverride(), protocmp.Transform()); diff != "" {
 			t.Errorf("Get mismatch (-want +got)\n%s", diff)
 		}
 
@@ -1079,13 +1079,13 @@ func TestService_Update_errors(t *testing.T) {
 	subCA := env.SubCAClient
 
 	// Prepare CA override to update.
-	createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+	createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
 		CaOverride: env.NewOverrideForCAType(t, caType),
-	})
+	}.Build())
 	require.NoError(t, err, "CreateCertAuthorityOverride errored")
 
 	// Cloned by tests.
-	baseCAOverride := createResp.CaOverride
+	baseCAOverride := createResp.GetCaOverride()
 
 	tests := []struct {
 		name      string
@@ -1096,11 +1096,11 @@ func TestService_Update_errors(t *testing.T) {
 		{
 			name: "not found",
 			makeReq: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.UpdateCertAuthorityOverrideRequest {
-				caOverride.SubKind = string(caTypeOther)
-				caOverride.Spec.CertificateOverrides = nil // Valid, it can be empty.
-				return &subcapb.UpdateCertAuthorityOverrideRequest{
+				caOverride.SetSubKind(string(caTypeOther))
+				caOverride.GetSpec().SetCertificateOverrides(nil) // Valid, it can be empty.
+				return subcapb.UpdateCertAuthorityOverrideRequest_builder{
 					CaOverride: caOverride,
-				}
+				}.Build()
 			},
 			assertErr: func(t *testing.T, err error) {
 				// This differs from a pure backend Update, which returns
@@ -1111,10 +1111,10 @@ func TestService_Update_errors(t *testing.T) {
 		{
 			name: "wrong revision",
 			makeReq: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.UpdateCertAuthorityOverrideRequest {
-				caOverride.Metadata.Revision = "llamabanana"
-				return &subcapb.UpdateCertAuthorityOverrideRequest{
+				caOverride.GetMetadata().SetRevision("llamabanana")
+				return subcapb.UpdateCertAuthorityOverrideRequest_builder{
 					CaOverride: caOverride,
-				}
+				}.Build()
 			},
 			assertErr: func(t *testing.T, err error) {
 				assert.ErrorIs(t, err, backend.ErrIncorrectRevision, "revision error mismatch")
@@ -1159,11 +1159,11 @@ func TestService_Update_enableInvalidOverride(t *testing.T) {
 
 	// Prepare a CA override.
 	caOverride := env.NewOverrideForCA(t, ca, nil /* externalRoot */)
-	createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+	createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
 		CaOverride: caOverride,
-	})
+	}.Build())
 	require.NoError(t, err, "CreateCertAuthorityOverride errored")
-	caOverride = createResp.CaOverride
+	caOverride = createResp.GetCaOverride()
 
 	// Simulate a rotation, so now the override has no target.
 	keyPEM, certPEM, err := tlscatest.GenerateSelfSignedCA(tlscatest.GenerateCAConfig{
@@ -1183,27 +1183,27 @@ func TestService_Update_enableInvalidOverride(t *testing.T) {
 	require.NoError(t, err, "UpdateCertAuthority errored")
 
 	// Attempt to enable the poorly-targeted override. This should fail.
-	caOverride.Spec.CertificateOverrides[0].Disabled = false
+	caOverride.GetSpec().GetCertificateOverrides()[0].SetDisabled(false)
 	const wantErr = "targets unknown CA certificate"
 	t.Run("Update", func(t *testing.T) {
-		_, err := subCA.UpdateCertAuthorityOverride(t.Context(), &subcapb.UpdateCertAuthorityOverrideRequest{
+		_, err := subCA.UpdateCertAuthorityOverride(t.Context(), subcapb.UpdateCertAuthorityOverrideRequest_builder{
 			CaOverride: caOverride,
-		})
+		}.Build())
 		assert.ErrorContains(t, err, wantErr)
 	})
 	t.Run("Upsert", func(t *testing.T) {
-		_, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+		_, err := subCA.UpsertCertAuthorityOverride(t.Context(), subcapb.UpsertCertAuthorityOverrideRequest_builder{
 			CaOverride: caOverride,
-		})
+		}.Build())
 		assert.ErrorContains(t, err, wantErr)
 	})
 
 	t.Run("remove override", func(t *testing.T) {
 		// This should work, the override isn't valid anymore.
-		caOverride.Spec.CertificateOverrides = nil
-		_, err = subCA.UpdateCertAuthorityOverride(t.Context(), &subcapb.UpdateCertAuthorityOverrideRequest{
+		caOverride.GetSpec().SetCertificateOverrides(nil)
+		_, err = subCA.UpdateCertAuthorityOverride(t.Context(), subcapb.UpdateCertAuthorityOverrideRequest_builder{
 			CaOverride: caOverride,
-		})
+		}.Build())
 		assert.NoError(t, err, "Update failed to remove invalid override")
 	})
 }
@@ -1221,13 +1221,13 @@ func TestService_Upsert(t *testing.T) {
 	emitter := env.MockEmitter
 
 	assertStored := func(t *testing.T, want *subcapb.CertAuthorityOverride) {
-		getResp, err := subCA.GetCertAuthorityOverride(t.Context(), &subcapb.GetCertAuthorityOverrideRequest{
-			CaId: &subcapb.CertAuthorityOverrideID{
-				CaType: want.SubKind,
-			},
-		})
+		getResp, err := subCA.GetCertAuthorityOverride(t.Context(), subcapb.GetCertAuthorityOverrideRequest_builder{
+			CaId: subcapb.CertAuthorityOverrideID_builder{
+				CaType: want.GetSubKind(),
+			}.Build(),
+		}.Build())
 		require.NoError(t, err, "GetCertAuthorityOverride errored")
-		if diff := cmp.Diff(want, getResp.CaOverride, protocmp.Transform()); diff != "" {
+		if diff := cmp.Diff(want, getResp.GetCaOverride(), protocmp.Transform()); diff != "" {
 			t.Errorf("Get mismatch (-want +got)\n%s", diff)
 		}
 	}
@@ -1244,16 +1244,16 @@ func TestService_Upsert(t *testing.T) {
 		caOverride := env.NewOverrideForCAType(t, caType)
 
 		// Create via Upsert.
-		upsertResp, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+		upsertResp, err := subCA.UpsertCertAuthorityOverride(t.Context(), subcapb.UpsertCertAuthorityOverrideRequest_builder{
 			CaOverride: caOverride,
-		})
+		}.Build())
 		require.NoError(t, err, "UpsertCertAuthorityOverride errored")
-		created := upsertResp.CaOverride
+		created := upsertResp.GetCaOverride()
 
 		// Verify response.
 		want := caOverride
-		want.Metadata.Revision = created.GetMetadata().GetRevision()
-		want.Status = created.Status
+		want.GetMetadata().SetRevision(created.GetMetadata().GetRevision())
+		want.SetStatus(created.GetStatus())
 		if diff := cmp.Diff(want, created, protocmp.Transform()); diff != "" {
 			t.Fatalf("Upsert mismatch (-want +got)\n%s", diff)
 		}
@@ -1269,22 +1269,22 @@ func TestService_Upsert(t *testing.T) {
 
 			// Enable all overrides.
 			require.NotEmpty(t,
-				caOverride.Spec.CertificateOverrides, "Expected at least one certificate override")
-			for _, override := range caOverride.Spec.CertificateOverrides {
-				override.Disabled = false
+				caOverride.GetSpec().GetCertificateOverrides(), "Expected at least one certificate override")
+			for _, override := range caOverride.GetSpec().GetCertificateOverrides() {
+				override.SetDisabled(false)
 			}
 
 			// Update via Upsert.
 			emitter.Reset()
-			upsertResp, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+			upsertResp, err := subCA.UpsertCertAuthorityOverride(t.Context(), subcapb.UpsertCertAuthorityOverrideRequest_builder{
 				CaOverride: caOverride,
-			})
+			}.Build())
 			require.NoError(t, err, "UpsertCertAuthorityOverride errored")
-			updated := upsertResp.CaOverride
+			updated := upsertResp.GetCaOverride()
 
 			// Verify response.
 			want := caOverride
-			want.Metadata.Revision = updated.GetMetadata().GetRevision()
+			want.GetMetadata().SetRevision(updated.GetMetadata().GetRevision())
 			if diff := cmp.Diff(want, updated, protocmp.Transform()); diff != "" {
 				t.Fatalf("Upsert mismatch (-want +got)\n%s", diff)
 			}
@@ -1310,21 +1310,21 @@ func TestService_Upsert_reusesStatusCRLs(t *testing.T) {
 	mustUpsert := func(t *testing.T, caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
 		t.Helper()
 
-		resp, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+		resp, err := subCA.UpsertCertAuthorityOverride(t.Context(), subcapb.UpsertCertAuthorityOverrideRequest_builder{
 			CaOverride: caOverride,
-		})
+		}.Build())
 		require.NoError(t, err, "UpsertCertAuthorityOverride errored")
-		return resp.CaOverride
+		return resp.GetCaOverride()
 	}
 
 	mustDelete := func(t *testing.T) {
 		t.Helper()
 
-		_, err := subCA.DeleteCertAuthorityOverride(t.Context(), &subcapb.DeleteCertAuthorityOverrideRequest{
-			CaId: &subcapb.CertAuthorityOverrideID{
+		_, err := subCA.DeleteCertAuthorityOverride(t.Context(), subcapb.DeleteCertAuthorityOverrideRequest_builder{
+			CaId: subcapb.CertAuthorityOverrideID_builder{
 				CaType: string(caType),
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err, "DeleteCertAuthorityOverride errored")
 	}
 
@@ -1334,11 +1334,11 @@ func TestService_Upsert_reusesStatusCRLs(t *testing.T) {
 
 	// Update using a different certificate. CRLs should differ.
 	template2 := env.NewOverrideForCAType(t, caType)
-	template2.Status = ca1.Status // ineffective, certificate changed.
+	template2.SetStatus(ca1.GetStatus()) // ineffective, certificate changed.
 	ca2 := mustUpsert(t, template2)
 	require.NotEqual(t,
-		makeCRLMap(ca1.Status),
-		makeCRLMap(ca2.Status),
+		makeCRLMap(ca1.GetStatus()),
+		makeCRLMap(ca2.GetStatus()),
 		"CRL map not expected to match",
 	)
 
@@ -1346,21 +1346,21 @@ func TestService_Upsert_reusesStatusCRLs(t *testing.T) {
 	mustDelete(t)
 	ca3 := mustUpsert(t, template1)
 	require.NotEqual(t,
-		makeCRLMap(ca1.Status),
-		makeCRLMap(ca3.Status),
+		makeCRLMap(ca1.GetStatus()),
+		makeCRLMap(ca3.GetStatus()),
 		"CRL map not expected to match",
 	)
 
 	// Update to the initial version, including Status. CRLs should match.
 	// PublicKeyHashToCrl keys are normalized to lowercase by the backend.
 	ca1Upper := proto.Clone(ca1).(*subcapb.CertAuthorityOverride)
-	ca1Upper.Status.PublicKeyHashToCrl = make(map[string]*subcapb.CertificateRevocationList, len(ca1.Status.PublicKeyHashToCrl))
-	for k, v := range ca1.Status.PublicKeyHashToCrl {
-		ca1Upper.Status.PublicKeyHashToCrl[strings.ToUpper(k)] = v
+	ca1Upper.GetStatus().SetPublicKeyHashToCrl(make(map[string]*subcapb.CertificateRevocationList, len(ca1.GetStatus().GetPublicKeyHashToCrl())))
+	for k, v := range ca1.GetStatus().GetPublicKeyHashToCrl() {
+		ca1Upper.GetStatus().GetPublicKeyHashToCrl()[strings.ToUpper(k)] = v
 	}
 	ca4 := mustUpsert(t, ca1Upper)
-	want := makeCRLMap(ca1.Status)
-	got := makeCRLMap(ca4.Status)
+	want := makeCRLMap(ca1.GetStatus())
+	got := makeCRLMap(ca4.GetStatus())
 	if diff := cmp.Diff(want, got); diff != "" {
 		t.Errorf("CRL map mismatch (-want +got)\n%s", diff)
 	}
@@ -1380,24 +1380,24 @@ func TestService_Upsert_inputCRLInvalid(t *testing.T) {
 
 	const unusedKey = "unused"
 	template := env.NewOverrideForCAType(t, caType)
-	template.Status = &subcapb.CertAuthorityOverrideStatus{
+	template.SetStatus(subcapb.CertAuthorityOverrideStatus_builder{
 		PublicKeyHashToCrl: map[string]*subcapb.CertificateRevocationList{
 			unusedKey: nil,
 		},
-	}
-	resp, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+	}.Build())
+	resp, err := subCA.UpsertCertAuthorityOverride(t.Context(), subcapb.UpsertCertAuthorityOverrideRequest_builder{
 		CaOverride: template,
-	})
+	}.Build())
 	require.NoError(t, err, "UpsertCertAuthorityOverride errored")
 
 	// Assert that unusedKey is deleted.
-	caOverride := resp.CaOverride
-	_, ok := caOverride.Status.PublicKeyHashToCrl[unusedKey]
+	caOverride := resp.GetCaOverride()
+	_, ok := caOverride.GetStatus().GetPublicKeyHashToCrl()[unusedKey]
 	assert.False(t, ok, "ca1.Status has unexpected key %q", unusedKey)
 
 	// Find the key for the server-created CRL.
 	var crlKey string
-	for k := range caOverride.Status.PublicKeyHashToCrl {
+	for k := range caOverride.GetStatus().GetPublicKeyHashToCrl() {
 		crlKey = k
 		break
 	}
@@ -1459,7 +1459,7 @@ func TestService_Upsert_inputCRLInvalid(t *testing.T) {
 		require.NoError(t, err)
 
 		// Fetch the certificate from the override.
-		overrideCert, err := tlsutils.ParseCertificatePEM([]byte(caOverride.Spec.CertificateOverrides[0].Certificate))
+		overrideCert, err := tlsutils.ParseCertificatePEM([]byte(caOverride.GetSpec().GetCertificateOverrides()[0].GetCertificate()))
 		require.NoError(t, err)
 
 		// Start from a valid CRL, then let the caller modify it.
@@ -1497,21 +1497,21 @@ func TestService_Upsert_inputCRLInvalid(t *testing.T) {
 		{
 			name: "CRLPB nil",
 			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
-				status.PublicKeyHashToCrl[crlKey] = nil
+				status.GetPublicKeyHashToCrl()[crlKey] = nil
 			},
 		},
 		{
 			name: "CRLPB empty",
 			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
-				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{}
+				status.GetPublicKeyHashToCrl()[crlKey] = &subcapb.CertificateRevocationList{}
 			},
 		},
 		{
 			name: "CRLPB PEM invalid",
 			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
-				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+				status.GetPublicKeyHashToCrl()[crlKey] = subcapb.CertificateRevocationList_builder{
 					Pem: "not a PEM",
-				}
+				}.Build()
 			},
 		},
 		{
@@ -1521,64 +1521,64 @@ func TestService_Upsert_inputCRLInvalid(t *testing.T) {
 					Type:  "X509 CRL",
 					Bytes: []byte("not a CRL"),
 				})
-				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+				status.GetPublicKeyHashToCrl()[crlKey] = subcapb.CertificateRevocationList_builder{
 					Pem: string(val),
-				}
+				}.Build()
 			},
 		},
 		{
 			name: "CRLPB CRL Issuer-Subject mismatch",
 			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
-				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+				status.GetPublicKeyHashToCrl()[crlKey] = subcapb.CertificateRevocationList_builder{
 					Pem: string(unrelatedCRLPEM),
-				}
+				}.Build()
 			},
 		},
 		{
 			name: "CRLPB CRL signature mismatch",
 			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
-				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+				status.GetPublicKeyHashToCrl()[crlKey] = subcapb.CertificateRevocationList_builder{
 					Pem: string(similarCRLPEM),
-				}
+				}.Build()
 			},
 		},
 		{
 			name: "CRLPB CRL ThisUpdate invalid",
 			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
-				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+				status.GetPublicKeyHashToCrl()[crlKey] = subcapb.CertificateRevocationList_builder{
 					Pem: string(invalidThisUpdatePEM),
-				}
+				}.Build()
 			},
 		},
 		{
 			name: "CRLPB CRL NextUpdate invalid",
 			modifyStatus: func(status *subcapb.CertAuthorityOverrideStatus) {
-				status.PublicKeyHashToCrl[crlKey] = &subcapb.CertificateRevocationList{
+				status.GetPublicKeyHashToCrl()[crlKey] = subcapb.CertificateRevocationList_builder{
 					Pem: string(invalidNextUpdatePEM),
-				}
+				}.Build()
 			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			caOverride := proto.Clone(caOverride).(*subcapb.CertAuthorityOverride)
-			test.modifyStatus(caOverride.Status)
+			test.modifyStatus(caOverride.GetStatus())
 
 			// Upsert. It should not fail.
-			resp, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+			resp, err := subCA.UpsertCertAuthorityOverride(t.Context(), subcapb.UpsertCertAuthorityOverrideRequest_builder{
 				CaOverride: caOverride,
-			})
+			}.Build())
 			require.NoError(t, err, "UpsertCertAuthorityOverride errored")
 
 			// Assert that the CRLs changed.
 			assert.NotEqual(t,
-				makeCRLMap(caOverride.Status),
-				makeCRLMap(resp.CaOverride.Status),
+				makeCRLMap(caOverride.GetStatus()),
+				makeCRLMap(resp.GetCaOverride().GetStatus()),
 				"CA override CRLs did not change",
 			)
 
 			// Assert that the new CRLs are valid.
-			assertCRLs(t, resp.CaOverride, env.Clock.Now())
+			assertCRLs(t, resp.GetCaOverride(), env.Clock.Now())
 		})
 	}
 }
@@ -1632,23 +1632,23 @@ func TestService_Write_errors(t *testing.T) {
 		}
 
 		t.Run("create", func(t *testing.T) {
-			_, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+			_, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
 				CaOverride: caOverride,
-			})
+			}.Build())
 			assertTestCae(t, tc, err)
 		})
 		if !tc.skipUpdate {
 			t.Run("update", func(t *testing.T) {
-				_, err := subCA.UpdateCertAuthorityOverride(t.Context(), &subcapb.UpdateCertAuthorityOverrideRequest{
+				_, err := subCA.UpdateCertAuthorityOverride(t.Context(), subcapb.UpdateCertAuthorityOverrideRequest_builder{
 					CaOverride: caOverride,
-				})
+				}.Build())
 				assertTestCae(t, tc, err)
 			})
 		}
 		t.Run("upsert", func(t *testing.T) {
-			_, err := subCA.UpsertCertAuthorityOverride(t.Context(), &subcapb.UpsertCertAuthorityOverrideRequest{
+			_, err := subCA.UpsertCertAuthorityOverride(t.Context(), subcapb.UpsertCertAuthorityOverrideRequest_builder{
 				CaOverride: caOverride,
-			})
+			}.Build())
 			assertTestCae(t, tc, err)
 		})
 	}
@@ -1675,10 +1675,10 @@ func TestService_Write_errors(t *testing.T) {
 		// Create the badly-named override.
 		ca.SetActiveKeys(types.CAKeySet{}) // No keyset = no overrides.
 		caOverride := env.NewOverrideForCA(t, ca, nil /* externalRoot */)
-		caOverride.Metadata.Name = badClusterName
-		caOverride.Spec.CertificateOverrides = []*subcapb.CertificateOverride{
+		caOverride.GetMetadata().SetName(badClusterName)
+		caOverride.GetSpec().SetCertificateOverrides([]*subcapb.CertificateOverride{
 			env.NewDisabledCertificateOverride(t, caCert, nil /* externalRoot */),
-		}
+		})
 
 		runTestCase(t, &testCase{
 			wantErr: `only "` + env.ClusterName + `" is allowed`,
@@ -1718,11 +1718,11 @@ func TestService_Write_errors(t *testing.T) {
 		ca.SetAdditionalTrustedKeys(types.CAKeySet{})
 		caOverride := env.NewOverrideForCA(t, ca, nil /* externalRoot */)
 		// ...then add our override certificate to it.
-		caOverride.Spec.CertificateOverrides = []*subcapb.CertificateOverride{
-			{
+		caOverride.GetSpec().SetCertificateOverrides([]*subcapb.CertificateOverride{
+			subcapb.CertificateOverride_builder{
 				Certificate: string(overrideCA.CertPEM),
-			},
-		}
+			}.Build(),
+		})
 
 		runTestCase(t, &testCase{
 			skipUpdate: true, // Update wants an existing resource
@@ -1741,7 +1741,7 @@ func TestService_Write_errors(t *testing.T) {
 		{
 			name: "ca_override.metadata.name empty",
 			makeCAOverride: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
-				caOverride.Metadata.Name = ""
+				caOverride.GetMetadata().SetName("")
 				return caOverride
 			},
 			wantErr: "name required",
@@ -1749,7 +1749,7 @@ func TestService_Write_errors(t *testing.T) {
 		{
 			name: "ca_override.sub_kind empty",
 			makeCAOverride: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
-				caOverride.SubKind = ""
+				caOverride.SetSubKind("")
 				return caOverride
 			},
 			wantErr: "sub_kind required",
@@ -1757,7 +1757,7 @@ func TestService_Write_errors(t *testing.T) {
 		{
 			name: "ca_override.sub_kind not allowed",
 			makeCAOverride: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
-				caOverride.SubKind = string(types.UserCA)
+				caOverride.SetSubKind(string(types.UserCA))
 				return caOverride
 			},
 			wantErr: "unsupported sub_kind/caType",
@@ -1765,7 +1765,7 @@ func TestService_Write_errors(t *testing.T) {
 		{
 			name: "ca_override.sub_kind unknown",
 			makeCAOverride: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
-				caOverride.SubKind = "banana"
+				caOverride.SetSubKind("banana")
 				return caOverride
 			},
 			wantErr: "unsupported sub_kind/caType",
@@ -1773,12 +1773,12 @@ func TestService_Write_errors(t *testing.T) {
 		{
 			name: "new override targets unknown certificate",
 			makeCAOverride: func(caOverride *subcapb.CertAuthorityOverride) *subcapb.CertAuthorityOverride {
-				caOverride.Spec.CertificateOverrides = append(caOverride.Spec.CertificateOverrides,
-					&subcapb.CertificateOverride{
+				caOverride.GetSpec().SetCertificateOverrides(append(caOverride.GetSpec().GetCertificateOverrides(),
+					subcapb.CertificateOverride_builder{
 						PublicKey: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
 						Disabled:  true,
-					},
-				)
+					}.Build(),
+				))
 				return caOverride
 			},
 			skipUpdate: true, // Update wants an existing resource
@@ -1806,32 +1806,32 @@ func TestService_ForcedWrites(t *testing.T) {
 		{
 			name: "Update",
 			makeRPC: func(ctx context.Context, subCA subcapb.SubCAServiceClient, cao *subcapb.CertAuthorityOverride, force bool) error {
-				_, err := subCA.UpdateCertAuthorityOverride(ctx, &subcapb.UpdateCertAuthorityOverrideRequest{
+				_, err := subCA.UpdateCertAuthorityOverride(ctx, subcapb.UpdateCertAuthorityOverrideRequest_builder{
 					CaOverride:            cao,
 					ForceImmediateDisable: force,
-				})
+				}.Build())
 				return err
 			},
 		},
 		{
 			name: "Upsert",
 			makeRPC: func(ctx context.Context, subCA subcapb.SubCAServiceClient, cao *subcapb.CertAuthorityOverride, force bool) error {
-				_, err := subCA.UpsertCertAuthorityOverride(ctx, &subcapb.UpsertCertAuthorityOverrideRequest{
+				_, err := subCA.UpsertCertAuthorityOverride(ctx, subcapb.UpsertCertAuthorityOverrideRequest_builder{
 					CaOverride:            cao,
 					ForceImmediateDisable: force,
-				})
+				}.Build())
 				return err
 			},
 		},
 		{
 			name: "Delete",
 			makeRPC: func(ctx context.Context, subCA subcapb.SubCAServiceClient, cao *subcapb.CertAuthorityOverride, force bool) error {
-				_, err := subCA.DeleteCertAuthorityOverride(ctx, &subcapb.DeleteCertAuthorityOverrideRequest{
-					CaId: &subcapb.CertAuthorityOverrideID{
-						CaType: cao.SubKind,
-					},
+				_, err := subCA.DeleteCertAuthorityOverride(ctx, subcapb.DeleteCertAuthorityOverrideRequest_builder{
+					CaId: subcapb.CertAuthorityOverrideID_builder{
+						CaType: cao.GetSubKind(),
+					}.Build(),
 					ForceImmediateDelete: force,
-				})
+				}.Build())
 				return err
 			},
 			isDelete: true,
@@ -1891,21 +1891,21 @@ func TestService_ForcedWrites(t *testing.T) {
 
 			// Prepare an all-enabled CA override.
 			caOverride := env.NewOverrideForCAType(t, caType)
-			caOverride.Spec.CertificateOverrides = append(caOverride.Spec.CertificateOverrides,
+			caOverride.GetSpec().SetCertificateOverrides(append(caOverride.GetSpec().GetCertificateOverrides(),
 				env.NewDisabledCertificateOverride(t, cert1, nil /* externalRoot */),
 				env.NewDisabledCertificateOverride(t, cert2, nil /* externalRoot */),
-			)
-			for _, co := range caOverride.Spec.CertificateOverrides {
-				co.Disabled = false
+			))
+			for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+				co.SetDisabled(false)
 			}
-			createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+			createResp, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
 				CaOverride: caOverride,
-			})
+			}.Build())
 			require.NoError(t, err, "Create errored")
 
 			// Change override so it disables an enabled, active override.
-			caOverride = createResp.CaOverride
-			caOverride.Spec.CertificateOverrides[0].Disabled = true
+			caOverride = createResp.GetCaOverride()
+			caOverride.GetSpec().GetCertificateOverrides()[0].SetDisabled(true)
 
 			// Attempt to write. It should fail because we are changing an enabled,
 			// active override.
@@ -1925,21 +1925,21 @@ func TestService_ForcedWrites(t *testing.T) {
 				)
 
 				// Assert modification (Update/Upsert) or deletion.
-				id := &subcapb.CertAuthorityOverrideID{
+				id := subcapb.CertAuthorityOverrideID_builder{
 					CaType: string(caType),
-				}
-				getResp, err := subCA.GetCertAuthorityOverride(t.Context(), &subcapb.GetCertAuthorityOverrideRequest{
+				}.Build()
+				getResp, err := subCA.GetCertAuthorityOverride(t.Context(), subcapb.GetCertAuthorityOverrideRequest_builder{
 					CaId: id,
-				})
+				}.Build())
 				if test.isDelete {
 					assert.ErrorAs(t, err, new(*trace.NotFoundError), "Get error mismatch")
 					return
 				}
 				require.NoError(t, err, "Get errored")
 
-				got := getResp.CaOverride
+				got := getResp.GetCaOverride()
 				want := caOverride
-				want.Metadata.Revision = got.GetMetadata().GetRevision()
+				want.GetMetadata().SetRevision(got.GetMetadata().GetRevision())
 				if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 					t.Errorf("CA override mismatch (-want +got)\n%s", diff)
 				}
@@ -1947,8 +1947,8 @@ func TestService_ForcedWrites(t *testing.T) {
 				// Show that additional keys can be disabled without forcing.
 				t.Run("additional keys disable", func(t *testing.T) {
 					caOverride := got
-					for _, co := range caOverride.Spec.CertificateOverrides {
-						co.Disabled = true
+					for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+						co.SetDisabled(true)
 					}
 
 					// Update.
@@ -1958,13 +1958,13 @@ func TestService_ForcedWrites(t *testing.T) {
 					)
 
 					// Verify update.
-					getResp, err := subCA.GetCertAuthorityOverride(t.Context(), &subcapb.GetCertAuthorityOverrideRequest{
+					getResp, err := subCA.GetCertAuthorityOverride(t.Context(), subcapb.GetCertAuthorityOverrideRequest_builder{
 						CaId: id,
-					})
+					}.Build())
 					require.NoError(t, err)
-					got := getResp.CaOverride
+					got := getResp.GetCaOverride()
 					want := caOverride
-					want.Metadata.Revision = got.GetMetadata().GetRevision()
+					want.GetMetadata().SetRevision(got.GetMetadata().GetRevision())
 					if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 						t.Errorf("CA override mismatch (-want +got)\n%s", diff)
 					}
@@ -2005,18 +2005,18 @@ func TestService_List(t *testing.T) {
 
 	// Prepare overrides for testing.
 	o1 := env.NewOverrideForCAType(t, caType1)
-	resp, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+	resp, err := subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
 		CaOverride: o1,
-	})
+	}.Build())
 	require.NoError(t, err, "Create errored")
-	o1 = resp.CaOverride
+	o1 = resp.GetCaOverride()
 
 	o2 := env.NewOverrideForCAType(t, caType2)
-	resp, err = subCA.CreateCertAuthorityOverride(t.Context(), &subcapb.CreateCertAuthorityOverrideRequest{
+	resp, err = subCA.CreateCertAuthorityOverride(t.Context(), subcapb.CreateCertAuthorityOverrideRequest_builder{
 		CaOverride: o2,
-	})
+	}.Build())
 	require.NoError(t, err, "Create errored")
-	o2 = resp.CaOverride
+	o2 = resp.GetCaOverride()
 
 	t.Run("ok", func(t *testing.T) {
 		t.Parallel()
@@ -2024,9 +2024,9 @@ func TestService_List(t *testing.T) {
 		resp, err := subCA.ListCertAuthorityOverride(
 			t.Context(), &subcapb.ListCertAuthorityOverrideRequest{})
 		require.NoError(t, err, "List")
-		assert.Empty(t, resp.NextPageToken, "got non-empty nextPageToken")
+		assert.Empty(t, resp.GetNextPageToken(), "got non-empty nextPageToken")
 
-		got := resp.CaOverrides
+		got := resp.GetCaOverrides()
 		want := []*subcapb.CertAuthorityOverride{o1, o2}
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("List mismatch (-want +got)\n%s", diff)
@@ -2052,11 +2052,11 @@ func TestService_Delete(t *testing.T) {
 	t.Run("not found", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := subCA.DeleteCertAuthorityOverride(t.Context(), &subcapb.DeleteCertAuthorityOverrideRequest{
-			CaId: &subcapb.CertAuthorityOverrideID{
+		_, err := subCA.DeleteCertAuthorityOverride(t.Context(), subcapb.DeleteCertAuthorityOverrideRequest_builder{
+			CaId: subcapb.CertAuthorityOverrideID_builder{
 				CaType: string(caTypeOther),
-			},
-		})
+			}.Build(),
+		}.Build())
 		assert.ErrorAs(t, err, new(*trace.NotFoundError), "Delete error mismatch")
 	})
 
@@ -2067,21 +2067,21 @@ func TestService_Delete(t *testing.T) {
 
 		// Prepare override to delete.
 		o := env.NewOverrideForCAType(t, caType)
-		created, err := subCA.CreateCertAuthorityOverride(ctx, &subcapb.CreateCertAuthorityOverrideRequest{
+		created, err := subCA.CreateCertAuthorityOverride(ctx, subcapb.CreateCertAuthorityOverrideRequest_builder{
 			CaOverride: o,
-		})
+		}.Build())
 		require.NoError(t, err, "Create errored")
 
 		emitter := env.MockEmitter
 		emitter.Reset()
 
 		// Delete.
-		id := &subcapb.CertAuthorityOverrideID{
-			CaType: created.CaOverride.GetSubKind(),
-		}
-		_, err = subCA.DeleteCertAuthorityOverride(ctx, &subcapb.DeleteCertAuthorityOverrideRequest{
+		id := subcapb.CertAuthorityOverrideID_builder{
+			CaType: created.GetCaOverride().GetSubKind(),
+		}.Build()
+		_, err = subCA.DeleteCertAuthorityOverride(ctx, subcapb.DeleteCertAuthorityOverrideRequest_builder{
 			CaId: id,
-		})
+		}.Build())
 		require.NoError(t, err, "Delete errored")
 
 		// Assert audit.
@@ -2094,18 +2094,18 @@ func TestService_Delete(t *testing.T) {
 		t.Run("Get returns not found", func(t *testing.T) {
 			t.Parallel()
 
-			_, err := subCA.GetCertAuthorityOverride(ctx, &subcapb.GetCertAuthorityOverrideRequest{
+			_, err := subCA.GetCertAuthorityOverride(ctx, subcapb.GetCertAuthorityOverrideRequest_builder{
 				CaId: id,
-			})
+			}.Build())
 			assert.ErrorAs(t, err, new(*trace.NotFoundError), "Get error mismatch")
 		})
 
 		t.Run("double-Delete returns not found", func(t *testing.T) {
 			t.Parallel()
 
-			_, err := subCA.DeleteCertAuthorityOverride(ctx, &subcapb.DeleteCertAuthorityOverrideRequest{
+			_, err := subCA.DeleteCertAuthorityOverride(ctx, subcapb.DeleteCertAuthorityOverrideRequest_builder{
 				CaId: id,
-			})
+			}.Build())
 			assert.ErrorAs(t, err, new(*trace.NotFoundError), "Delete error mismatch")
 		})
 	})

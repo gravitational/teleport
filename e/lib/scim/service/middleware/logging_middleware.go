@@ -107,7 +107,7 @@ func (l *LoggingMiddleware) ListResourcesMiddleware(ctx context.Context, req *pb
 
 	log.InfoContext(ctx, "SCIM Request processing started",
 		slog.Group("request",
-			slog.String("filter", req.Filter),
+			slog.String("filter", req.GetFilter()),
 			slog.Uint64("start_index", req.GetPage().GetStartIndex()),
 			slog.Uint64("count", req.GetPage().GetCount()),
 		),

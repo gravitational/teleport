@@ -98,7 +98,7 @@ func newFailingAWSICClient(err error) *icsdk.ClientMock {
 }
 
 func newAWSICCreateRequest(credentials *types.AWSICCredentials) *pluginspb.CreatePluginRequest {
-	return &pluginspb.CreatePluginRequest{
+	return pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
 				Name: types.PluginTypeAWSIdentityCenter,
@@ -136,7 +136,7 @@ func newAWSICCreateRequest(credentials *types.AWSICCredentials) *pluginspb.Creat
 				},
 			},
 		},
-	}
+	}.Build()
 }
 
 func newSystemAWSICCredentials(assumeRoleARN string) *types.AWSICCredentials {

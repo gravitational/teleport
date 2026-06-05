@@ -64,11 +64,11 @@ func TestFilteredAppAndGroupSync(t *testing.T) {
 		enableAppGroupSync:      true,
 		enableAccessListSync:    true,
 		enableBidirectionalSync: true,
-		accessListSettings: &oktav1.AccessListSettings{
+		accessListSettings: oktav1.AccessListSettings_builder{
 			GroupFilters: []string{"group-*"},
 			AppFilters:   []string{"app-*"},
 			DefaultOwner: []string{"alice-admin"},
-		},
+		}.Build(),
 	}
 
 	mustCreateIntegration(t, sut, oktaAuthClient, createIntegrationSettings{

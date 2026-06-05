@@ -210,24 +210,20 @@ func (f *fakeAGServer) SearchSessionSummaries(
 			f.receivedParams = p
 		}
 		for _, s := range page.summaries {
-			if err := stream.Send(&accessgraphv1.SearchSessionSummariesResponse{
-				Payload: &accessgraphv1.SearchSessionSummariesResponse_Summary{
-					Summary: &accessgraphv1.SummaryAndCheckpoint{
-						Summary:         s,
-						CheckpointToken: page.nextToken,
-					},
-				},
-			}); err != nil {
+			if err := stream.Send(accessgraphv1.SearchSessionSummariesResponse_builder{
+				Summary: accessgraphv1.SummaryAndCheckpoint_builder{
+					Summary:         s,
+					CheckpointToken: page.nextToken,
+				}.Build(),
+			}.Build()); err != nil {
 				return err
 			}
 		}
-		if err := stream.Send(&accessgraphv1.SearchSessionSummariesResponse{
-			Payload: &accessgraphv1.SearchSessionSummariesResponse_BatchComplete_{
-				BatchComplete: &accessgraphv1.SearchSessionSummariesResponse_BatchComplete{
-					HasMore: page.hasMore,
-				},
-			},
-		}); err != nil {
+		if err := stream.Send(accessgraphv1.SearchSessionSummariesResponse_builder{
+			BatchComplete: accessgraphv1.SearchSessionSummariesResponse_BatchComplete_builder{
+				HasMore: page.hasMore,
+			}.Build(),
+		}.Build()); err != nil {
 			return err
 		}
 	}
@@ -269,12 +265,12 @@ func makeSessionSummary(t *testing.T, id, login string) *accessgraphv1.SessionSu
 		"namespace":        "default",
 	})
 	require.NoError(t, err)
-	return &accessgraphv1.SessionSummary{
+	return accessgraphv1.SessionSummary_builder{
 		SessionId:       id,
 		Kind:            "ssh",
 		Username:        login,
 		SessionEndEvent: endEvent,
-	}
+	}.Build()
 }
 
 // makeAuthCtx creates an authz.Context for user "testuser" using the
@@ -298,10 +294,10 @@ func makeAuthCtx(t *testing.T, checker services.AccessChecker) *authz.Context {
 func baseRequest() *pb.SearchSessionSummariesRequest {
 	from := time.Now().Add(-time.Hour)
 	to := time.Now()
-	return &pb.SearchSessionSummariesRequest{
+	return pb.SearchSessionSummariesRequest_builder{
 		StartTime: timestamppb.New(from),
 		EndTime:   timestamppb.New(to),
-	}
+	}.Build()
 }
 
 // newService builds a Service backed by srv, using startAGServer to spin up
@@ -425,69 +421,69 @@ func TestValidateRequest(t *testing.T) {
 	}{
 		{
 			name:    "missing start_time",
-			req:     &pb.SearchSessionSummariesRequest{EndTime: timestamppb.New(to)},
+			req:     pb.SearchSessionSummariesRequest_builder{EndTime: timestamppb.New(to)}.Build(),
 			wantErr: "start_time is required",
 		},
 		{
 			name:    "zero start_time",
-			req:     &pb.SearchSessionSummariesRequest{StartTime: timestamppb.New(time.Time{}), EndTime: timestamppb.New(to)},
+			req:     pb.SearchSessionSummariesRequest_builder{StartTime: timestamppb.New(time.Time{}), EndTime: timestamppb.New(to)}.Build(),
 			wantErr: "start_time is required",
 		},
 		{
 			name:    "missing end_time",
-			req:     &pb.SearchSessionSummariesRequest{StartTime: timestamppb.New(from)},
+			req:     pb.SearchSessionSummariesRequest_builder{StartTime: timestamppb.New(from)}.Build(),
 			wantErr: "end_time is required",
 		},
 		{
 			name:    "zero end_time",
-			req:     &pb.SearchSessionSummariesRequest{StartTime: timestamppb.New(from), EndTime: timestamppb.New(time.Time{})},
+			req:     pb.SearchSessionSummariesRequest_builder{StartTime: timestamppb.New(from), EndTime: timestamppb.New(time.Time{})}.Build(),
 			wantErr: "end_time is required",
 		},
 		{
 			name: "start after end",
-			req: &pb.SearchSessionSummariesRequest{
+			req: pb.SearchSessionSummariesRequest_builder{
 				StartTime: timestamppb.New(to),
 				EndTime:   timestamppb.New(from),
-			},
+			}.Build(),
 			wantErr: "must not be after",
 		},
 		{
 			name: "max_results above limit",
-			req: &pb.SearchSessionSummariesRequest{
+			req: pb.SearchSessionSummariesRequest_builder{
 				StartTime:  timestamppb.New(from),
 				EndTime:    timestamppb.New(to),
 				MaxResults: maxPageSize + 1,
-			},
+			}.Build(),
 			wantErr: "exceeds maximum",
 		},
 		{
 			name: "search_queries above limit",
-			req: &pb.SearchSessionSummariesRequest{
+			req: pb.SearchSessionSummariesRequest_builder{
 				StartTime:     timestamppb.New(from),
 				EndTime:       timestamppb.New(to),
 				SearchQueries: make([]string, maxSearchQueries+1),
-			},
+			}.Build(),
 			wantErr: "search_queries count",
 		},
 		{
 			name: "valid minimal request",
-			req:  &pb.SearchSessionSummariesRequest{StartTime: timestamppb.New(from), EndTime: timestamppb.New(to)},
+			req:  pb.SearchSessionSummariesRequest_builder{StartTime: timestamppb.New(from), EndTime: timestamppb.New(to)}.Build(),
 		},
 		{
 			name: "valid with max_results at boundary",
-			req: &pb.SearchSessionSummariesRequest{
+			req: pb.SearchSessionSummariesRequest_builder{
 				StartTime:  timestamppb.New(from),
 				EndTime:    timestamppb.New(to),
 				MaxResults: maxPageSize,
-			},
+			}.Build(),
 		},
 		{
 			name: "valid with search_queries at boundary",
-			req: &pb.SearchSessionSummariesRequest{
+			req: pb.SearchSessionSummariesRequest_builder{
 				StartTime:     timestamppb.New(from),
 				EndTime:       timestamppb.New(to),
 				SearchQueries: make([]string, maxSearchQueries),
-			},
+			}.Build(),
 		},
 	}
 	for _, tc := range tests {
@@ -614,7 +610,7 @@ func TestSearchSessionSummaries(t *testing.T) {
 		{
 			name:    "no session end event filtered",
 			auth:    &fakeAuthorizer{ctx: makeAuthCtx(t, allowAll())},
-			pages:   []agPage{{summaries: []*accessgraphv1.SessionSummary{{SessionId: "no-event", Kind: "ssh"}, makeSessionSummary(t, "with-event", "alice")}}},
+			pages:   []agPage{{summaries: []*accessgraphv1.SessionSummary{accessgraphv1.SessionSummary_builder{SessionId: "no-event", Kind: "ssh"}.Build(), makeSessionSummary(t, "with-event", "alice")}}},
 			wantIDs: []string{"with-event"},
 		},
 		{
@@ -630,7 +626,7 @@ func TestSearchSessionSummaries(t *testing.T) {
 				{summaries: []*accessgraphv1.SessionSummary{makeSessionSummary(t, "s1", "alice"), makeSessionSummary(t, "s2", "alice")}, hasMore: true},
 				{summaries: []*accessgraphv1.SessionSummary{makeSessionSummary(t, "s3", "alice")}},
 			},
-			req:     func() *pb.SearchSessionSummariesRequest { r := baseRequest(); r.MaxResults = 10; return r }(),
+			req:     func() *pb.SearchSessionSummariesRequest { r := baseRequest(); r.SetMaxResults(10); return r }(),
 			wantIDs: []string{"s1", "s2", "s3"},
 		},
 		{
@@ -641,7 +637,7 @@ func TestSearchSessionSummaries(t *testing.T) {
 				hasMore:   true,
 				nextToken: "resume-cursor",
 			}},
-			req:     func() *pb.SearchSessionSummariesRequest { r := baseRequest(); r.MaxResults = 2; return r }(),
+			req:     func() *pb.SearchSessionSummariesRequest { r := baseRequest(); r.SetMaxResults(2); return r }(),
 			wantIDs: []string{"s1", "s2"},
 			checkStream: func(t *testing.T, sent []*pb.SearchSessionSummariesResponse) {
 				assert.Equal(t, "resume-cursor", sent[len(sent)-1].GetBatchComplete().GetNextBatchToken())
@@ -671,7 +667,7 @@ func TestSearchSessionSummaries(t *testing.T) {
 				{summaries: []*accessgraphv1.SessionSummary{makeSessionSummary(t, "s1", "bob")}, hasMore: true},
 				{summaries: []*accessgraphv1.SessionSummary{makeSessionSummary(t, "s2", "bob")}},
 			},
-			req: func() *pb.SearchSessionSummariesRequest { r := baseRequest(); r.MaxResults = 10; return r }(),
+			req: func() *pb.SearchSessionSummariesRequest { r := baseRequest(); r.SetMaxResults(10); return r }(),
 		},
 	}
 
@@ -721,58 +717,46 @@ func TestConvertResourceProperties(t *testing.T) {
 		},
 		{
 			name: "SSH",
-			src: &pb.ResourceProperties{
-				Type: &pb.ResourceProperties_Ssh{
-					Ssh: &pb.SSHProperties{
-						ServerHostname: &hostname,
-						ServerAddr:     &addr,
-					},
-				},
-			},
-			want: &accessgraphv1.ResourceProperties{
-				Type: &accessgraphv1.ResourceProperties_Ssh{
-					Ssh: &accessgraphv1.SSHProperties{
-						ServerHostname: &hostname,
-						ServerAddr:     &addr,
-					},
-				},
-			},
+			src: pb.ResourceProperties_builder{
+				Ssh: pb.SSHProperties_builder{
+					ServerHostname: &hostname,
+					ServerAddr:     &addr,
+				}.Build(),
+			}.Build(),
+			want: accessgraphv1.ResourceProperties_builder{
+				Ssh: accessgraphv1.SSHProperties_builder{
+					ServerHostname: &hostname,
+					ServerAddr:     &addr,
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "Kubernetes",
-			src: &pb.ResourceProperties{
-				Type: &pb.ResourceProperties_Kubernetes{
-					Kubernetes: &pb.KubernetesProperties{
-						PodNamespace: &ns,
-						PodName:      &podName,
-					},
-				},
-			},
-			want: &accessgraphv1.ResourceProperties{
-				Type: &accessgraphv1.ResourceProperties_Kubernetes{
-					Kubernetes: &accessgraphv1.KubernetesProperties{
-						PodNamespace: &ns,
-						PodName:      &podName,
-					},
-				},
-			},
+			src: pb.ResourceProperties_builder{
+				Kubernetes: pb.KubernetesProperties_builder{
+					PodNamespace: &ns,
+					PodName:      &podName,
+				}.Build(),
+			}.Build(),
+			want: accessgraphv1.ResourceProperties_builder{
+				Kubernetes: accessgraphv1.KubernetesProperties_builder{
+					PodNamespace: &ns,
+					PodName:      &podName,
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "Database",
-			src: &pb.ResourceProperties{
-				Type: &pb.ResourceProperties_Database{
-					Database: &pb.DatabaseProperties{
-						DatabaseName: &dbName,
-					},
-				},
-			},
-			want: &accessgraphv1.ResourceProperties{
-				Type: &accessgraphv1.ResourceProperties_Database{
-					Database: &accessgraphv1.DatabaseProperties{
-						DatabaseName: &dbName,
-					},
-				},
-			},
+			src: pb.ResourceProperties_builder{
+				Database: pb.DatabaseProperties_builder{
+					DatabaseName: &dbName,
+				}.Build(),
+			}.Build(),
+			want: accessgraphv1.ResourceProperties_builder{
+				Database: accessgraphv1.DatabaseProperties_builder{
+					DatabaseName: &dbName,
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "unknown variant returns nil",
@@ -803,7 +787,7 @@ func TestConvertSummary(t *testing.T) {
 	sessionEndEvent, err := structpb.NewStruct(map[string]any{"event": "session.end"})
 	require.NoError(t, err)
 
-	src := &accessgraphv1.SessionSummary{
+	src := accessgraphv1.SessionSummary_builder{
 		SessionId:        "abc-123",
 		Kind:             "ssh",
 		Username:         "alice",
@@ -813,15 +797,13 @@ func TestConvertSummary(t *testing.T) {
 		ResourceId:       "node-id",
 		ResourceName:     "web-01",
 		ResourceLabels:   labels,
-		ResourceProperties: &accessgraphv1.ResourceProperties{
-			Type: &accessgraphv1.ResourceProperties_Ssh{
-				Ssh: &accessgraphv1.SSHProperties{},
-			},
-		},
+		ResourceProperties: accessgraphv1.ResourceProperties_builder{
+			Ssh: &accessgraphv1.SSHProperties{},
+		}.Build(),
 		UserTraits: traits,
 		// SessionEndEvent must NOT appear in the output.
 		SessionEndEvent: sessionEndEvent,
-	}
+	}.Build()
 
 	got := convertSummary(src)
 
@@ -883,20 +865,18 @@ func (*fakeOpenAIEmbeddingClient) NewChatCompletion(
 // standard OpenAI retrieval model and a fake API key, used by embedding tests.
 func newEmbeddingsCache() *fakeCacheWithEmbeddings {
 	return &fakeCacheWithEmbeddings{
-		model: &summarizerpb.RetrievalModel{
-			Metadata: &headerv1.Metadata{Name: "my-model"},
-			Spec: &summarizerpb.RetrievalModelSpec{
-				EmbeddingsProvider: &summarizerpb.RetrievalModelSpec_Openai{
-					Openai: &summarizerpb.OpenAIProvider{
-						OpenaiModelId:   "text-embedding-ada-002",
-						ApiKeySecretRef: "my-secret",
-					},
-				},
-			},
-		},
-		secret: &summarizerpb.InferenceSecret{
-			Spec: &summarizerpb.InferenceSecretSpec{Value: "fake-api-key"},
-		},
+		model: summarizerpb.RetrievalModel_builder{
+			Metadata: headerv1.Metadata_builder{Name: "my-model"}.Build(),
+			Spec: summarizerpb.RetrievalModelSpec_builder{
+				Openai: summarizerpb.OpenAIProvider_builder{
+					OpenaiModelId:   "text-embedding-ada-002",
+					ApiKeySecretRef: "my-secret",
+				}.Build(),
+			}.Build(),
+		}.Build(),
+		secret: summarizerpb.InferenceSecret_builder{
+			Spec: summarizerpb.InferenceSecretSpec_builder{Value: "fake-api-key"}.Build(),
+		}.Build(),
 	}
 }
 
@@ -922,14 +902,14 @@ func TestSearchSessionSummaries_EmbeddingsGenerated(t *testing.T) {
 	require.NoError(t, err)
 
 	req := baseRequest()
-	req.SearchQueries = []string{"find ssh sessions"}
+	req.SetSearchQueries([]string{"find ssh sessions"})
 	stream := &fakeStream[pb.SearchSessionSummariesResponse]{ctx: ctx}
 	require.NoError(t, svc.SearchSessionSummaries(req, stream))
 
 	// Verify the AG server received search params with the embedded query.
 	require.NotNil(t, agSrv.receivedParams, "access graph should have received search params")
-	require.Len(t, agSrv.receivedParams.SearchQueries, 1)
-	q := agSrv.receivedParams.SearchQueries[0]
+	require.Len(t, agSrv.receivedParams.GetSearchQueries(), 1)
+	q := agSrv.receivedParams.GetSearchQueries()[0]
 	assert.Equal(t, "find ssh sessions", q.GetText())
 	assert.Equal(t, []float32{0.1, 0.2, 0.3}, q.GetEmbeddings())
 	assert.Equal(t, "my-model", q.GetModelName())
@@ -995,17 +975,17 @@ func TestSearchSessionSummaries_KeywordOnlySkipsEmbeddings(t *testing.T) {
 	svc := newServiceWithTracking(t, agSrv, factory)
 
 	req := baseRequest()
-	req.SearchQueries = []string{"find ssh sessions"}
-	req.SearchMode = pb.SearchMode_SEARCH_MODE_KEYWORD_ONLY
+	req.SetSearchQueries([]string{"find ssh sessions"})
+	req.SetSearchMode(pb.SearchMode_SEARCH_MODE_KEYWORD_ONLY)
 	stream := &fakeStream[pb.SearchSessionSummariesResponse]{ctx: ctx}
 	require.NoError(t, svc.SearchSessionSummaries(req, stream))
 
 	assert.Equal(t, int64(0), factory.calls.Load(), "KEYWORD_ONLY should not call the embedding provider")
 
 	require.NotNil(t, agSrv.receivedParams)
-	require.Len(t, agSrv.receivedParams.SearchQueries, 1)
-	assert.Equal(t, "find ssh sessions", agSrv.receivedParams.SearchQueries[0].GetText())
-	assert.Empty(t, agSrv.receivedParams.SearchQueries[0].GetEmbeddings(), "KEYWORD_ONLY should send no embeddings")
+	require.Len(t, agSrv.receivedParams.GetSearchQueries(), 1)
+	assert.Equal(t, "find ssh sessions", agSrv.receivedParams.GetSearchQueries()[0].GetText())
+	assert.Empty(t, agSrv.receivedParams.GetSearchQueries()[0].GetEmbeddings(), "KEYWORD_ONLY should send no embeddings")
 	assert.Equal(t, accessgraphv1.SearchMode_SEARCH_MODE_KEYWORD_ONLY, agSrv.receivedParams.GetSearchMode())
 }
 
@@ -1057,15 +1037,15 @@ func TestSearchSessionSummaries_SearchModeForwarded(t *testing.T) {
 			svc := newServiceWithTracking(t, agSrv, factory)
 
 			req := baseRequest()
-			req.SearchQueries = []string{"lateral movement"}
-			req.SearchMode = tc.mode
+			req.SetSearchQueries([]string{"lateral movement"})
+			req.SetSearchMode(tc.mode)
 			stream := &fakeStream[pb.SearchSessionSummariesResponse]{ctx: ctx}
 			require.NoError(t, svc.SearchSessionSummaries(req, stream))
 
 			require.NotNil(t, agSrv.receivedParams)
 			assert.Equal(t, tc.expectedMode, agSrv.receivedParams.GetSearchMode())
-			require.Len(t, agSrv.receivedParams.SearchQueries, 1)
-			assert.Equal(t, "lateral movement", agSrv.receivedParams.SearchQueries[0].GetText())
+			require.Len(t, agSrv.receivedParams.GetSearchQueries(), 1)
+			assert.Equal(t, "lateral movement", agSrv.receivedParams.GetSearchQueries()[0].GetText())
 			if tc.wantEmbeds {
 				assert.Greater(t, factory.calls.Load(), int64(0), "mode %v should generate embeddings", tc.mode)
 			} else {
@@ -1106,10 +1086,10 @@ func TestServiceUnlicensed(t *testing.T) {
 	// SearchSessionSummaries validates the request before checking the license,
 	// so supply a valid but minimal request to ensure the license guard is reached.
 	now := time.Now()
-	validSearchReq := &pb.SearchSessionSummariesRequest{
+	validSearchReq := pb.SearchSessionSummariesRequest_builder{
 		StartTime: timestamppb.New(now.Add(-time.Hour)),
 		EndTime:   timestamppb.New(now),
-	}
+	}.Build()
 
 	tested := 0
 	for i := range svcType.NumMethod() {

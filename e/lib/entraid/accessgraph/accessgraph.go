@@ -17,8 +17,8 @@ func reconcileResults(old *resources, new *resources) (upsert, delete *accessgra
 	for _, results := range []*reconcileIntermediateResult{
 		reconcileApplications(old.Applications, new.Applications),
 	} {
-		upsert.Resources = append(upsert.Resources, results.upsert.Resources...)
-		delete.Resources = append(delete.Resources, results.delete.Resources...)
+		upsert.SetResources(append(upsert.GetResources(), results.upsert.GetResources()...))
+		delete.SetResources(append(delete.GetResources(), results.delete.GetResources()...))
 	}
 
 	return upsert, delete
@@ -32,22 +32,22 @@ func reconcileApplications(old []*accessgraphv1alpha.EntraApplication, new []*ac
 	upsert, delete := &accessgraphv1alpha.EntraResourceList{}, &accessgraphv1alpha.EntraResourceList{}
 
 	toAdd, toRemove := reconcile(old, new, func(app *accessgraphv1alpha.EntraApplication) string {
-		return app.AppId
+		return app.GetAppId()
 	})
 
 	for _, app := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.EntraResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.EntraResource{
 			Resource: &accessgraphv1alpha.EntraResource_Application{
 				Application: app,
 			},
-		})
+		}))
 	}
 	for _, app := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.EntraResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.EntraResource{
 			Resource: &accessgraphv1alpha.EntraResource_Application{
 				Application: app,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }

@@ -30,8 +30,8 @@ func reconcileResults(old *resources, new *resources) (upsert, delete *accessgra
 		reconcileProjectMembers(old.ProjectMembers, new.ProjectMembers),
 		reconcileGroupMembers(old.GroupMembers, new.GroupMembers),
 	} {
-		upsert.Resources = append(upsert.Resources, results.upsert.Resources...)
-		delete.Resources = append(delete.Resources, results.delete.Resources...)
+		upsert.SetResources(append(upsert.GetResources(), results.upsert.GetResources()...))
+		delete.SetResources(append(delete.GetResources(), results.delete.GetResources()...))
 	}
 
 	return upsert, delete
@@ -45,22 +45,22 @@ func reconcileGroups(old []*accessgraphv1alpha.GitlabGroup, new []*accessgraphv1
 	upsert, delete := &accessgraphv1alpha.GitlabResourceList{}, &accessgraphv1alpha.GitlabResourceList{}
 
 	toAdd, toRemove := reconcile(old, new, func(group *accessgraphv1alpha.GitlabGroup) string {
-		return group.Path
+		return group.GetPath()
 	})
 
 	for _, group := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GitlabResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GitlabResource{
 			Resource: &accessgraphv1alpha.GitlabResource_Group{
 				Group: group,
 			},
-		})
+		}))
 	}
 	for _, group := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GitlabResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GitlabResource{
 			Resource: &accessgraphv1alpha.GitlabResource_Group{
 				Group: group,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -72,21 +72,21 @@ func reconcileUsers(
 	upsert, delete := &accessgraphv1alpha.GitlabResourceList{}, &accessgraphv1alpha.GitlabResourceList{}
 
 	toAdd, toRemove := reconcile(old, new, func(user *accessgraphv1alpha.GitlabUser) string {
-		return user.Username
+		return user.GetUsername()
 	})
 	for _, user := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GitlabResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GitlabResource{
 			Resource: &accessgraphv1alpha.GitlabResource_User{
 				User: user,
 			},
-		})
+		}))
 	}
 	for _, user := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GitlabResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GitlabResource{
 			Resource: &accessgraphv1alpha.GitlabResource_User{
 				User: user,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -98,21 +98,21 @@ func reconcileProjects(
 	upsert, delete := &accessgraphv1alpha.GitlabResourceList{}, &accessgraphv1alpha.GitlabResourceList{}
 
 	toAdd, toRemove := reconcile(old, new, func(project *accessgraphv1alpha.GitlabProject) string {
-		return project.Path
+		return project.GetPath()
 	})
 	for _, project := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GitlabResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GitlabResource{
 			Resource: &accessgraphv1alpha.GitlabResource_Project{
 				Project: project,
 			},
-		})
+		}))
 	}
 	for _, project := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GitlabResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GitlabResource{
 			Resource: &accessgraphv1alpha.GitlabResource_Project{
 				Project: project,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -124,21 +124,21 @@ func reconcileProjectMembers(
 	upsert, delete := &accessgraphv1alpha.GitlabResourceList{}, &accessgraphv1alpha.GitlabResourceList{}
 
 	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.GitlabProjectMember) string {
-		return fmt.Sprintf("%x;%x", policy.Username, policy.GetProject().GetPath())
+		return fmt.Sprintf("%x;%x", policy.GetUsername(), policy.GetProject().GetPath())
 	})
 	for _, projectMember := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GitlabResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GitlabResource{
 			Resource: &accessgraphv1alpha.GitlabResource_ProjectMember{
 				ProjectMember: projectMember,
 			},
-		})
+		}))
 	}
 	for _, projectMember := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GitlabResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GitlabResource{
 			Resource: &accessgraphv1alpha.GitlabResource_ProjectMember{
 				ProjectMember: projectMember,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -150,21 +150,21 @@ func reconcileGroupMembers(
 	upsert, delete := &accessgraphv1alpha.GitlabResourceList{}, &accessgraphv1alpha.GitlabResourceList{}
 
 	toAdd, toRemove := reconcile(old, new, func(policy *accessgraphv1alpha.GitlabGroupMember) string {
-		return fmt.Sprintf("%x;%x", policy.Username, policy.GetGroup().GetPath())
+		return fmt.Sprintf("%x;%x", policy.GetUsername(), policy.GetGroup().GetPath())
 	})
 	for _, member := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GitlabResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GitlabResource{
 			Resource: &accessgraphv1alpha.GitlabResource_GroupMember{
 				GroupMember: member,
 			},
-		})
+		}))
 	}
 	for _, member := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GitlabResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GitlabResource{
 			Resource: &accessgraphv1alpha.GitlabResource_GroupMember{
 				GroupMember: member,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }

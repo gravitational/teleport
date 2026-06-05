@@ -128,16 +128,16 @@ func (p *Plugin) markCrownJewel(_ http.ResponseWriter, r *http.Request, _ httpro
 
 	resourceID := uuid.New().String()
 
-	spec := &crownjewelv1.CrownJewelSpec{
+	spec := crownjewelv1.CrownJewelSpec_builder{
 		Query: req.Query,
-	}
+	}.Build()
 
 	if req.TeleportMatcher != nil {
-		spec.TeleportMatchers = append(spec.TeleportMatchers, req.TeleportMatcher)
+		spec.SetTeleportMatchers(append(spec.GetTeleportMatchers(), req.TeleportMatcher))
 	}
 
 	if req.AwsMatcher != nil {
-		spec.AwsMatchers = append(spec.AwsMatchers, req.AwsMatcher)
+		spec.SetAwsMatchers(append(spec.GetAwsMatchers(), req.AwsMatcher))
 	}
 
 	resource, err := crownjewel.NewCrownJewel(resourceID, spec)
@@ -146,7 +146,7 @@ func (p *Plugin) markCrownJewel(_ http.ResponseWriter, r *http.Request, _ httpro
 	}
 
 	if req.Description != "" {
-		resource.Metadata.Description = req.Description
+		resource.GetMetadata().SetDescription(req.Description)
 	}
 
 	ctx := r.Context()

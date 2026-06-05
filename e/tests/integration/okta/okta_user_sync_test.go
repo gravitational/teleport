@@ -60,9 +60,9 @@ func Test_UserSync_preserves_SCIMAttrLabel(t *testing.T) {
 
 	// Enable Okta user sync and wait for the sync to happen.
 	start := time.Now()
-	mustUpdateOktaIntegration(ctx, t, sut.GetOktaAuthClient(t, "alice-admin"), &oktav1.UpdateIntegrationRequest{
+	mustUpdateOktaIntegration(ctx, t, sut.GetOktaAuthClient(t, "alice-admin"), oktav1.UpdateIntegrationRequest_builder{
 		EnableUserSync: true,
-	})
+	}.Build())
 	mustWaitForEvent(t, sut, events.OktaUserSyncEvent, withTimePoint(start))
 
 	// Check if the user has preserved SCIM attributes.

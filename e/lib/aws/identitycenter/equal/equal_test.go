@@ -10,32 +10,32 @@ import (
 )
 
 func TestPermissionSetEqual(t *testing.T) {
-	a := &identitycenterv1.PermissionSet{
-		Metadata: &headerv1.Metadata{
+	a := identitycenterv1.PermissionSet_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name:        "PermissionSetA",
 			Namespace:   "namespaceA",
 			Description: "Test description A",
 			Revision:    "1",
-		},
-		Spec: &identitycenterv1.PermissionSetSpec{
+		}.Build(),
+		Spec: identitycenterv1.PermissionSetSpec_builder{
 			Arn:         "arn:aws:iam::123456789012:role/ExampleRole",
 			Name:        "ExampleRole",
 			Description: "A test permission set",
-		},
-	}
-	b := &identitycenterv1.PermissionSet{
-		Metadata: &headerv1.Metadata{
+		}.Build(),
+	}.Build()
+	b := identitycenterv1.PermissionSet_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name:        "PermissionSetA",
 			Namespace:   "namespaceA",
 			Description: "Test description A",
 			Revision:    "2",
-		},
-		Spec: &identitycenterv1.PermissionSetSpec{
+		}.Build(),
+		Spec: identitycenterv1.PermissionSetSpec_builder{
 			Arn:         "arn:aws:iam::123456789012:role/ExampleRole",
 			Name:        "ExampleRole",
 			Description: "A test permission set",
-		},
-	}
+		}.Build(),
+	}.Build()
 	assert.True(t, PermissionSetEqual(a, b))
 	assert.False(t, PermissionSetEqual(a, nil))
 	assert.False(t, PermissionSetEqual(nil, b))
@@ -55,36 +55,36 @@ func TestCompareStringSlices(t *testing.T) {
 }
 
 func TestPrincipalAssignmentEqual(t *testing.T) {
-	a := &identitycenterv1.PrincipalAssignment{
-		Metadata: &headerv1.Metadata{
+	a := identitycenterv1.PrincipalAssignment_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: "AssignmentA",
-		},
-		Spec: &identitycenterv1.PrincipalAssignmentSpec{
+		}.Build(),
+		Spec: identitycenterv1.PrincipalAssignmentSpec_builder{
 			PrincipalId:      "12345",
 			PrincipalType:    identitycenterv1.PrincipalType_PRINCIPAL_TYPE_USER,
 			ExternalId:       "ext123",
 			ExternalIdSource: "sourceA",
-		},
-		Status: &identitycenterv1.PrincipalAssignmentStatus{
+		}.Build(),
+		Status: identitycenterv1.PrincipalAssignmentStatus_builder{
 			ProvisioningState: identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
 			Applications:      []string{"appA", "appB"},
-		},
-	}
-	b := &identitycenterv1.PrincipalAssignment{
-		Metadata: &headerv1.Metadata{
+		}.Build(),
+	}.Build()
+	b := identitycenterv1.PrincipalAssignment_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: "AssignmentA",
-		},
-		Spec: &identitycenterv1.PrincipalAssignmentSpec{
+		}.Build(),
+		Spec: identitycenterv1.PrincipalAssignmentSpec_builder{
 			PrincipalId:      "12345",
 			PrincipalType:    identitycenterv1.PrincipalType_PRINCIPAL_TYPE_USER,
 			ExternalId:       "ext123",
 			ExternalIdSource: "sourceA",
-		},
-		Status: &identitycenterv1.PrincipalAssignmentStatus{
+		}.Build(),
+		Status: identitycenterv1.PrincipalAssignmentStatus_builder{
 			ProvisioningState: identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE,
 			Applications:      []string{"appB", "appA"},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	assert.True(t, PrincipalAssignmentEqual(nil, nil))
 	assert.True(t, PrincipalAssignmentEqual(a, b))
@@ -93,36 +93,36 @@ func TestPrincipalAssignmentEqual(t *testing.T) {
 }
 
 func TestAccountAssignmentEqual(t *testing.T) {
-	a := &identitycenterv1.AccountAssignment{
-		Metadata: &headerv1.Metadata{
+	a := identitycenterv1.AccountAssignment_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: "AssignmentA",
-		},
-		Spec: &identitycenterv1.AccountAssignmentSpec{
+		}.Build(),
+		Spec: identitycenterv1.AccountAssignmentSpec_builder{
 			Display:     "DisplayA",
 			AccountName: "AccountA",
 			AccountId:   "123456789012",
-			PermissionSet: &identitycenterv1.PermissionSetInfo{
+			PermissionSet: identitycenterv1.PermissionSetInfo_builder{
 				Arn:  "arn:aws:iam::123456789012:role/ExampleRole",
 				Name: "ExampleRole",
 				Role: "roleA",
-			},
-		},
-	}
-	b := &identitycenterv1.AccountAssignment{
-		Metadata: &headerv1.Metadata{
+			}.Build(),
+		}.Build(),
+	}.Build()
+	b := identitycenterv1.AccountAssignment_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: "AssignmentA",
-		},
-		Spec: &identitycenterv1.AccountAssignmentSpec{
+		}.Build(),
+		Spec: identitycenterv1.AccountAssignmentSpec_builder{
 			Display:     "DisplayA",
 			AccountName: "AccountA",
 			AccountId:   "123456789012",
-			PermissionSet: &identitycenterv1.PermissionSetInfo{
+			PermissionSet: identitycenterv1.PermissionSetInfo_builder{
 				Arn:  "arn:aws:iam::123456789012:role/ExampleRole",
 				Name: "ExampleRole",
 				Role: "roleA",
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	assert.True(t, AccountAssignmentEqual(nil, nil))
 	assert.True(t, AccountAssignmentEqual(a, b))
@@ -131,13 +131,13 @@ func TestAccountAssignmentEqual(t *testing.T) {
 }
 
 func TestAccountEqual(t *testing.T) {
-	a := &identitycenterv1.Account{
-		Metadata: &headerv1.Metadata{
+	a := identitycenterv1.Account_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name:        "AccountA",
 			Namespace:   "namespaceA",
 			Description: "Test account",
-		},
-		Spec: &identitycenterv1.AccountSpec{
+		}.Build(),
+		Spec: identitycenterv1.AccountSpec_builder{
 			Id:                  "123456789012",
 			Arn:                 "arn:aws:iam::123456789012:account/ExampleAccount",
 			Name:                "ExampleAccount",
@@ -145,18 +145,18 @@ func TestAccountEqual(t *testing.T) {
 			StartUrl:            "https://example.com/start",
 			IsOrganizationOwner: true,
 			PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-				{Arn: "arn:aws:iam::123456789012:role/ExampleRole1", Name: "ExampleRole1"},
-				{Arn: "arn:aws:iam::123456789012:role/ExampleRole2", Name: "ExampleRole2"},
+				identitycenterv1.PermissionSetInfo_builder{Arn: "arn:aws:iam::123456789012:role/ExampleRole1", Name: "ExampleRole1"}.Build(),
+				identitycenterv1.PermissionSetInfo_builder{Arn: "arn:aws:iam::123456789012:role/ExampleRole2", Name: "ExampleRole2"}.Build(),
 			},
-		},
-	}
-	b := &identitycenterv1.Account{
-		Metadata: &headerv1.Metadata{
+		}.Build(),
+	}.Build()
+	b := identitycenterv1.Account_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name:        "AccountA",
 			Namespace:   "namespaceA",
 			Description: "Test account",
-		},
-		Spec: &identitycenterv1.AccountSpec{
+		}.Build(),
+		Spec: identitycenterv1.AccountSpec_builder{
 			Id:                  "123456789012",
 			Arn:                 "arn:aws:iam::123456789012:account/ExampleAccount",
 			Name:                "ExampleAccount",
@@ -164,11 +164,11 @@ func TestAccountEqual(t *testing.T) {
 			StartUrl:            "https://example.com/start",
 			IsOrganizationOwner: true,
 			PermissionSetInfo: []*identitycenterv1.PermissionSetInfo{
-				{Arn: "arn:aws:iam::123456789012:role/ExampleRole2", Name: "ExampleRole2"},
-				{Arn: "arn:aws:iam::123456789012:role/ExampleRole1", Name: "ExampleRole1"},
+				identitycenterv1.PermissionSetInfo_builder{Arn: "arn:aws:iam::123456789012:role/ExampleRole2", Name: "ExampleRole2"}.Build(),
+				identitycenterv1.PermissionSetInfo_builder{Arn: "arn:aws:iam::123456789012:role/ExampleRole1", Name: "ExampleRole1"}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	assert.True(t, AccountEqual(a, b))
 
@@ -177,8 +177,8 @@ func TestAccountEqual(t *testing.T) {
 	assert.False(t, AccountEqual(a, nil))
 	assert.False(t, AccountEqual(nil, b))
 
-	b.Spec.PermissionSetInfo = []*identitycenterv1.PermissionSetInfo{
-		{Arn: "arn:aws:iam::123456789012:role/ExampleRole2", Name: "ExampleRole2"},
-	}
+	b.GetSpec().SetPermissionSetInfo([]*identitycenterv1.PermissionSetInfo{
+		identitycenterv1.PermissionSetInfo_builder{Arn: "arn:aws:iam::123456789012:role/ExampleRole2", Name: "ExampleRole2"}.Build(),
+	})
 	assert.False(t, AccountEqual(a, b))
 }

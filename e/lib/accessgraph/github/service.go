@@ -357,14 +357,12 @@ func (s *Service) auditLogsLoop(ctx context.Context, client accessgraphv1alpha.A
 	defer stream.CloseSend()
 
 	err = stream.Send(
-		&accessgraphv1alpha.GitHubAuditLogStreamRequest{
-			Operation: &accessgraphv1alpha.GitHubAuditLogStreamRequest_Config{
-				Config: &accessgraphv1alpha.GitHubConfigV1{
-					StartDate:    timestamppb.New(s.startDate),
-					Organization: s.fetcher.organizationName,
-				},
-			},
-		},
+		accessgraphv1alpha.GitHubAuditLogStreamRequest_builder{
+			Config: accessgraphv1alpha.GitHubConfigV1_builder{
+				StartDate:    timestamppb.New(s.startDate),
+				Organization: s.fetcher.organizationName,
+			}.Build(),
+		}.Build(),
 	)
 	if err != nil {
 		err = consumeTillErr(stream)
@@ -405,7 +403,7 @@ func (s *Service) auditLogsLoop(ctx context.Context, client accessgraphv1alpha.A
 	)
 	for {
 		evts, cursor, isLastPage, err = s.fetcher.pollAuditLogs(ctx,
-			githubConfig.GetGithubConfig().StartDate.AsTime(),
+			githubConfig.GetGithubConfig().GetStartDate().AsTime(),
 			cursor,
 		)
 		if err != nil {
@@ -414,18 +412,16 @@ func (s *Service) auditLogsLoop(ctx context.Context, client accessgraphv1alpha.A
 
 		if len(evts) > 0 {
 			sendErr := stream.Send(
-				&accessgraphv1alpha.GitHubAuditLogStreamRequest{
-					Operation: &accessgraphv1alpha.GitHubAuditLogStreamRequest_AuditLog{
-						AuditLog: &accessgraphv1alpha.GitHubAuditLogV1{
-							Events: evts,
-							Cursor: &accessgraphv1alpha.GitHubAuditLogV1Cursor{
-								Token:         cursor.token,
-								LastEventId:   cursor.lastID,
-								LastEventTime: timestamppb.New(cursor.lastTimestamp),
-							},
-						},
-					},
-				},
+				accessgraphv1alpha.GitHubAuditLogStreamRequest_builder{
+					AuditLog: accessgraphv1alpha.GitHubAuditLogV1_builder{
+						Events: evts,
+						Cursor: accessgraphv1alpha.GitHubAuditLogV1Cursor_builder{
+							Token:         cursor.token,
+							LastEventId:   cursor.lastID,
+							LastEventTime: timestamppb.New(cursor.lastTimestamp),
+						}.Build(),
+					}.Build(),
+				}.Build(),
 			)
 			if sendErr != nil {
 				sendErr = consumeTillErr(stream)
@@ -519,15 +515,13 @@ func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_GitHubEventsStreamClient,
 	upsert *accessgraphv1alpha.GithubResourceList,
 ) error {
-	for send := range slices.Chunk(upsert.Resources, batchSize) {
+	for send := range slices.Chunk(upsert.GetResources(), batchSize) {
 		err := client.Send(
-			&accessgraphv1alpha.GitHubEventsStreamRequest{
-				Operation: &accessgraphv1alpha.GitHubEventsStreamRequest_Upsert{
-					Upsert: &accessgraphv1alpha.GithubResourceList{
-						Resources: send,
-					},
-				},
-			},
+			accessgraphv1alpha.GitHubEventsStreamRequest_builder{
+				Upsert: accessgraphv1alpha.GithubResourceList_builder{
+					Resources: send,
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -540,15 +534,13 @@ func pushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_GitHubEventsStreamClient,
 	toDel *accessgraphv1alpha.GithubResourceList,
 ) error {
-	for send := range slices.Chunk(toDel.Resources, batchSize) {
+	for send := range slices.Chunk(toDel.GetResources(), batchSize) {
 		err := client.Send(
-			&accessgraphv1alpha.GitHubEventsStreamRequest{
-				Operation: &accessgraphv1alpha.GitHubEventsStreamRequest_Delete{
-					Delete: &accessgraphv1alpha.GithubResourceList{
-						Resources: send,
-					},
-				},
-			},
+			accessgraphv1alpha.GitHubEventsStreamRequest_builder{
+				Delete: accessgraphv1alpha.GithubResourceList_builder{
+					Resources: send,
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -577,11 +569,9 @@ func push(
 	}
 
 	err = client.Send(
-		&accessgraphv1alpha.GitHubEventsStreamRequest{
-			Operation: &accessgraphv1alpha.GitHubEventsStreamRequest_Sync{
-				Sync: &accessgraphv1alpha.GithubSync{},
-			},
-		},
+		accessgraphv1alpha.GitHubEventsStreamRequest_builder{
+			Sync: &accessgraphv1alpha.GithubSync{},
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }

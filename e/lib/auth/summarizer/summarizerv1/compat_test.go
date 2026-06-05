@@ -16,8 +16,8 @@ func TestAdjustEnhancedSummaryForClient_OldClient_NewData(t *testing.T) {
 	require.NoError(t, err)
 
 	es := summary.GetEnhancedSummary()
-	require.Empty(t, es.SessionEvents, "new field should be stripped for old client")
-	require.Empty(t, es.NeedsFurtherReviewReasons, "new field should be stripped for old client")
+	require.Empty(t, es.GetSessionEvents(), "new field should be stripped for old client")
+	require.Empty(t, es.GetNeedsFurtherReviewReasons(), "new field should be stripped for old client")
 
 	//nolint:staticcheck // verifying downgrade populated deprecated field
 	cmds := es.GetCommands()
@@ -33,7 +33,7 @@ func TestAdjustEnhancedSummaryForClient_OldClient_NewData(t *testing.T) {
 	//nolint:staticcheck // verifying downgrade populated deprecated field
 	require.NotNil(t, es.NeedsFurtherReview)
 	//nolint:staticcheck // verifying downgrade populated deprecated field
-	require.Equal(t, pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE, *es.NeedsFurtherReview)
+	require.Equal(t, pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE, es.GetNeedsFurtherReview())
 }
 
 func TestAdjustEnhancedSummaryForClient_OldClient_OldData(t *testing.T) {
@@ -42,8 +42,8 @@ func TestAdjustEnhancedSummaryForClient_OldClient_OldData(t *testing.T) {
 	require.NoError(t, err)
 
 	es := summary.GetEnhancedSummary()
-	require.Empty(t, es.SessionEvents)
-	require.Empty(t, es.NeedsFurtherReviewReasons)
+	require.Empty(t, es.GetSessionEvents())
+	require.Empty(t, es.GetNeedsFurtherReviewReasons())
 
 	//nolint:staticcheck // deprecated field is what old clients consume
 	require.Len(t, es.GetCommands(), 1)
@@ -59,8 +59,8 @@ func TestAdjustEnhancedSummaryForClient_NewClient_OldData(t *testing.T) {
 	require.NoError(t, err)
 
 	es := summary.GetEnhancedSummary()
-	require.Len(t, es.SessionEvents, 1)
-	ev := es.SessionEvents[0]
+	require.Len(t, es.GetSessionEvents(), 1)
+	ev := es.GetSessionEvents()[0]
 	require.Equal(t, "ls -la", ev.GetCommandEventDetails().GetCommand())
 	require.True(t, ev.GetCommandEventDetails().GetSuccess())
 	require.Equal(t, []string{"x"}, ev.GetCommandEventDetails().GetErrorMessages())
@@ -70,7 +70,7 @@ func TestAdjustEnhancedSummaryForClient_NewClient_OldData(t *testing.T) {
 
 	require.Equal(t,
 		[]pb.NeedsReviewReason{pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE},
-		es.NeedsFurtherReviewReasons,
+		es.GetNeedsFurtherReviewReasons(),
 	)
 }
 
@@ -80,8 +80,8 @@ func TestAdjustEnhancedSummaryForClient_PrereleaseClient_TreatedAsRelease(t *tes
 	require.NoError(t, err)
 
 	es := summary.GetEnhancedSummary()
-	require.Len(t, es.SessionEvents, 1, "prerelease of release threshold must not trigger downgrade")
-	require.NotEmpty(t, es.NeedsFurtherReviewReasons)
+	require.Len(t, es.GetSessionEvents(), 1, "prerelease of release threshold must not trigger downgrade")
+	require.NotEmpty(t, es.GetNeedsFurtherReviewReasons())
 }
 
 func TestAdjustEnhancedSummaryForClient_NewClient_NewData(t *testing.T) {
@@ -90,14 +90,14 @@ func TestAdjustEnhancedSummaryForClient_NewClient_NewData(t *testing.T) {
 	require.NoError(t, err)
 
 	es := summary.GetEnhancedSummary()
-	require.Len(t, es.SessionEvents, 1)
-	require.Equal(t, "rm -rf /", es.SessionEvents[0].GetCommandEventDetails().GetCommand())
+	require.Len(t, es.GetSessionEvents(), 1)
+	require.Equal(t, "rm -rf /", es.GetSessionEvents()[0].GetCommandEventDetails().GetCommand())
 	require.Equal(t,
 		[]pb.NeedsReviewReason{
 			pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
 			pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED,
 		},
-		es.NeedsFurtherReviewReasons,
+		es.GetNeedsFurtherReviewReasons(),
 	)
 }
 
@@ -107,8 +107,8 @@ func TestAdjustEnhancedSummaryForClient_NoClientVersion_TreatedAsNew(t *testing.
 	require.NoError(t, err)
 
 	es := summary.GetEnhancedSummary()
-	require.Len(t, es.SessionEvents, 1)
-	require.Equal(t, "ls -la", es.SessionEvents[0].GetCommandEventDetails().GetCommand())
+	require.Len(t, es.GetSessionEvents(), 1)
+	require.Equal(t, "ls -la", es.GetSessionEvents()[0].GetCommandEventDetails().GetCommand())
 }
 
 func TestAdjustEnhancedSummaryForClient_InvalidClientVersion_Errors(t *testing.T) {
@@ -124,24 +124,20 @@ func TestAdjustEnhancedSummaryForClient_NilEnhancedSummary_NoOp(t *testing.T) {
 }
 
 func TestAdjustEnhancedSummaryForClient_OldClient_DesktopEvent_Skipped(t *testing.T) {
-	summary := &pb.Summary{
-		EnhancedSummary: &pb.EnhancedSummary{
+	summary := pb.Summary_builder{
+		EnhancedSummary: pb.EnhancedSummary_builder{
 			SessionEvents: []*pb.SessionEvent{
-				{
-					Category: pb.CommandCategory_COMMAND_CATEGORY_FILE_OPERATION,
-					Details: &pb.SessionEvent_CommandEventDetails{
-						CommandEventDetails: &pb.CommandEventDetails{Command: "whoami"},
-					},
-				},
-				{
-					Category: pb.CommandCategory_COMMAND_CATEGORY_OTHER,
-					Details: &pb.SessionEvent_DesktopEventDetails{
-						DesktopEventDetails: &pb.DesktopEventDetails{Applications: []string{"chrome"}},
-					},
-				},
+				pb.SessionEvent_builder{
+					Category:            pb.CommandCategory_COMMAND_CATEGORY_FILE_OPERATION,
+					CommandEventDetails: pb.CommandEventDetails_builder{Command: "whoami"}.Build(),
+				}.Build(),
+				pb.SessionEvent_builder{
+					Category:            pb.CommandCategory_COMMAND_CATEGORY_OTHER,
+					DesktopEventDetails: pb.DesktopEventDetails_builder{Applications: []string{"chrome"}}.Build(),
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 	require.NoError(t, adjustEnhancedSummaryForClient(ctxWithClientVersion(t, "18.5.0"), summary))
 
 	es := summary.GetEnhancedSummary()
@@ -163,35 +159,33 @@ func ctxWithClientVersion(t *testing.T, version string) context.Context {
 }
 
 func newDataSummary() *pb.Summary {
-	return &pb.Summary{
-		EnhancedSummary: &pb.EnhancedSummary{
-			SessionEvents: []*pb.SessionEvent{{
+	return pb.Summary_builder{
+		EnhancedSummary: pb.EnhancedSummary_builder{
+			SessionEvents: []*pb.SessionEvent{pb.SessionEvent_builder{
 				Category:       pb.CommandCategory_COMMAND_CATEGORY_FILE_OPERATION,
 				RiskLevel:      pb.RiskLevel_RISK_LEVEL_HIGH,
 				RiskScore:      9,
 				MitreAttackIds: []string{"T1059"},
-				Details: &pb.SessionEvent_CommandEventDetails{
-					CommandEventDetails: &pb.CommandEventDetails{
-						Command:       "rm -rf /",
-						Success:       false,
-						ErrorMessages: []string{"permission denied"},
-					},
-				},
-			}},
+				CommandEventDetails: pb.CommandEventDetails_builder{
+					Command:       "rm -rf /",
+					Success:       false,
+					ErrorMessages: []string{"permission denied"},
+				}.Build(),
+			}.Build()},
 			NeedsFurtherReviewReasons: []pb.NeedsReviewReason{
 				pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE,
 				pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED,
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 func oldDataSummary() *pb.Summary {
 	tooLarge := pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE
-	return &pb.Summary{
-		EnhancedSummary: &pb.EnhancedSummary{
+	return pb.Summary_builder{
+		EnhancedSummary: pb.EnhancedSummary_builder{
 			//nolint:staticcheck // testing deprecated field upgrade path
-			Commands: []*pb.CommandAnalysis{{
+			Commands: []*pb.CommandAnalysis{pb.CommandAnalysis_builder{
 				Command:        "ls -la",
 				Success:        true,
 				Category:       pb.CommandCategory_COMMAND_CATEGORY_FILE_OPERATION,
@@ -199,9 +193,9 @@ func oldDataSummary() *pb.Summary {
 				RiskScore:      1,
 				MitreAttackIds: []string{"T1083"},
 				ErrorMessages:  []string{"x"},
-			}},
+			}.Build()},
 			//nolint:staticcheck // testing deprecated field upgrade path
 			NeedsFurtherReview: &tooLarge,
-		},
-	}
+		}.Build(),
+	}.Build()
 }

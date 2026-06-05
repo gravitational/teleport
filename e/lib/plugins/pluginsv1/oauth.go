@@ -162,9 +162,9 @@ func (s *Service) generatePluginOAuthToken(ctx context.Context, plugin types.Plu
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pluginspb.CreatePluginOauthTokenResponse{
+	return pluginspb.CreatePluginOauthTokenResponse_builder{
 		AccessToken: signedToken,
 		ExpiresIn:   int64(expiresAt.Sub(now) / time.Second),
 		TokenType:   "Bearer",
-	}, nil
+	}.Build(), nil
 }

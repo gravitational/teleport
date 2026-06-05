@@ -179,7 +179,7 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Plugin == nil {
+	if !req.HasPlugin() {
 		return nil, trace.BadParameter("missing plugin")
 	}
 
@@ -199,7 +199,7 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		// If the plugin doesn't exist, we'll continue.
 	}
 
-	plugin := req.Plugin
+	plugin := req.GetPlugin()
 	if plugin == nil {
 		return nil, trace.BadParameter("Plugin must be set")
 	}
@@ -239,7 +239,7 @@ This may cause issues with the current installation`,
 		return nil, trace.BadParameter("plugin needs to be cleaned up first, please run the plugin cleanup command")
 	}
 
-	if err := s.updatePluginWithLiveCredentials(ctx, plugin, req.BootstrapCredentials); err != nil {
+	if err := s.updatePluginWithLiveCredentials(ctx, plugin, req.GetBootstrapCredentials()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -247,14 +247,14 @@ This may cause issues with the current installation`,
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.pluginService.CreatePlugin(ctx, req.Plugin); err != nil {
+	if err := s.pluginService.CreatePlugin(ctx, req.GetPlugin()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	resource := req.GetPlugin().WithoutSecrets()
 	out, ok := resource.(*types.PluginV1)
 	if !ok {
-		return nil, trace.BadParameter("unsupported plugin type %T, expected %T", req.Plugin, out)
+		return nil, trace.BadParameter("unsupported plugin type %T, expected %T", req.GetPlugin(), out)
 	}
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.PluginCreate{
@@ -430,12 +430,12 @@ func (s *Service) UpdatePlugin(ctx context.Context, req *pluginspb.UpdatePluginR
 
 	inPlugin, ok := req.GetPlugin().Clone().(*types.PluginV1)
 	if !ok {
-		return nil, trace.BadParameter("unsupported plugin type %T", req.Plugin)
+		return nil, trace.BadParameter("unsupported plugin type %T", req.GetPlugin())
 	}
 
 	oldPluginV1, ok := oldPlugin.(*types.PluginV1)
 	if !ok {
-		return nil, trace.BadParameter("unsupported old plugin type %T", req.Plugin)
+		return nil, trace.BadParameter("unsupported old plugin type %T", req.GetPlugin())
 	}
 
 	handler, ok := s.handlers[inPlugin.GetType()]
@@ -702,17 +702,17 @@ func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, pl
 }
 
 func normalizeCreatePluginStaticCredentials(req *pluginspb.CreatePluginRequest) ([]*types.PluginStaticCredentialsV1, map[string]string) {
-	staticCreds := req.StaticCredentialsList
-	staticCredLabels := req.CredentialLabels
-	if req.StaticCredentials != nil {
+	staticCreds := req.GetStaticCredentialsList()
+	staticCredLabels := req.GetCredentialLabels()
+	if req.HasStaticCredentials() {
 		// For backwards compatibility, if the single StaticCredential value is
 		// set then we override the supplied credential list with that single
 		// credential.
-		staticCreds = []*types.PluginStaticCredentialsV1{req.StaticCredentials}
+		staticCreds = []*types.PluginStaticCredentialsV1{req.GetStaticCredentials()}
 
 		// Similarly, we need to generate the identifying label set from the
 		// single credential, rather than use the supplied label set.
-		staticCredLabels = req.StaticCredentials.GetStaticLabels()
+		staticCredLabels = req.GetStaticCredentials().GetStaticLabels()
 		if staticCredLabels == nil {
 			staticCredLabels = map[string]string{}
 		}
@@ -736,7 +736,7 @@ func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest
 
 	readVerb := types.VerbReadNoSecrets
 
-	if req.WithSecrets {
+	if req.GetWithSecrets() {
 		readVerb = types.VerbRead
 	}
 
@@ -748,7 +748,7 @@ func (s *Service) GetPlugin(ctx context.Context, req *pluginspb.GetPluginRequest
 		return nil, trace.Wrap(err)
 	}
 
-	plugin, err := s.pluginService.GetPlugin(ctx, req.Name, req.WithSecrets)
+	plugin, err := s.pluginService.GetPlugin(ctx, req.GetName(), req.GetWithSecrets())
 	if err != nil {
 		// If the user has no RBAC to list the plugins,
 		// avoid leaking the information on whether the resource exists,
@@ -791,7 +791,7 @@ func (s *Service) ListPlugins(ctx context.Context, req *pluginspb.ListPluginsReq
 	}
 
 	const withSecrets = false
-	results, nextKey, err := s.pluginService.ListPlugins(ctx, int(req.PageSize), req.StartKey, withSecrets)
+	results, nextKey, err := s.pluginService.ListPlugins(ctx, int(req.GetPageSize()), req.GetStartKey(), withSecrets)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -804,10 +804,10 @@ func (s *Service) ListPlugins(ctx context.Context, req *pluginspb.ListPluginsReq
 		}
 		resultsV1 = append(resultsV1, v1)
 	}
-	return &pluginspb.ListPluginsResponse{
+	return pluginspb.ListPluginsResponse_builder{
 		Plugins: resultsV1,
 		NextKey: nextKey,
-	}, nil
+	}.Build(), nil
 }
 
 // DeletePlugin removes the specified plugin instance and any associated static credentials.
@@ -822,7 +822,7 @@ func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginR
 	}
 
 	// Get the plugin so that we can find any static credentials references and delete them.
-	plugin, err := s.pluginService.GetPlugin(ctx, req.Name, true)
+	plugin, err := s.pluginService.GetPlugin(ctx, req.GetName(), true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -844,7 +844,7 @@ func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginR
 		}
 	}
 
-	if err := s.pluginService.DeletePlugin(ctx, req.Name); err != nil {
+	if err := s.pluginService.DeletePlugin(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -860,7 +860,7 @@ func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginR
 		},
 		UserMetadata: authCtx.GetUserMetadata(),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Name,
+			Name: req.GetName(),
 		},
 		PluginMetadata: apievents.PluginMetadata{
 			PluginType:     string(plugin.GetType()),
@@ -871,11 +871,11 @@ func (s *Service) DeletePlugin(ctx context.Context, req *pluginspb.DeletePluginR
 	}); err != nil {
 		s.logger.WarnContext(ctx, "Failed to emit plugin delete event", "error", err)
 	}
-	s.logger.InfoContext(ctx, "Plugin deleted", "name", req.Name)
+	s.logger.InfoContext(ctx, "Plugin deleted", "name", req.GetName())
 
 	// Plugin such as Okta does not currently cleanup resource on Delete. So we just pick
 	// PluginTypeAWSIdentityCenter plugin.
-	if req.Name == types.PluginTypeAWSIdentityCenter {
+	if req.GetName() == types.PluginTypeAWSIdentityCenter {
 		if err := s.cleanupAWSIdentityCenter(ctx, out); err != nil {
 			s.logger.WarnContext(ctx, "failed to cleanup resources created by the Identity Center plugin.", "error", err)
 			return nil, trace.Wrap(err)
@@ -895,7 +895,7 @@ func (s *Service) SetPluginCredentials(ctx context.Context, req *pluginspb.SetPl
 	if err := authCtx.CheckAccessToKind(types.KindPlugin, types.VerbRead, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.pluginService.SetPluginCredentials(ctx, req.Name, req.Credentials); err != nil {
+	if err := s.pluginService.SetPluginCredentials(ctx, req.GetName(), req.GetCredentials()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -905,15 +905,15 @@ func (s *Service) findStaticCredentialUpdateTarget(ctx context.Context, req *plu
 	var targetCred types.PluginStaticCredentials
 	var err error
 
-	switch targetSpec := req.Target.(type) {
-	case *pluginspb.UpdatePluginStaticCredentialsRequest_Name:
-		targetCred, err = s.pluginStaticCredentialsService.GetPluginStaticCredentials(ctx, targetSpec.Name)
+	switch req.WhichTarget() {
+	case pluginspb.UpdatePluginStaticCredentialsRequest_Name_case:
+		targetCred, err = s.pluginStaticCredentialsService.GetPluginStaticCredentials(ctx, req.GetName())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-	case *pluginspb.UpdatePluginStaticCredentialsRequest_Query:
-		labels := targetSpec.Query.GetLabels()
+	case pluginspb.UpdatePluginStaticCredentialsRequest_Query_case:
+		labels := req.GetQuery().GetLabels()
 		if len(labels) == 0 {
 			return nil, trace.BadParameter("caller must supply labels to match")
 		}
@@ -933,7 +933,7 @@ func (s *Service) findStaticCredentialUpdateTarget(ctx context.Context, req *plu
 		}
 
 	default:
-		return nil, trace.BadParameter("unexpected credential target type: %T", req.Target)
+		return nil, trace.BadParameter("unexpected credential target type: %v", req.WhichTarget())
 	}
 
 	result, ok := targetCred.(*types.PluginStaticCredentialsV1)
@@ -957,7 +957,7 @@ func (s *Service) UpdatePluginStaticCredentials(ctx context.Context, req *plugin
 		return nil, trace.Wrap(err)
 	}
 
-	if err := req.Credential.CheckAndSetDefaults(); err != nil {
+	if err := req.GetCredential().CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -966,7 +966,7 @@ func (s *Service) UpdatePluginStaticCredentials(ctx context.Context, req *plugin
 		return nil, trace.Wrap(err)
 	}
 
-	targetCred.Spec = req.Credential
+	targetCred.Spec = req.GetCredential()
 
 	updated, err := s.pluginStaticCredentialsService.UpdatePluginStaticCredentials(ctx, targetCred)
 	if err != nil {
@@ -978,9 +978,9 @@ func (s *Service) UpdatePluginStaticCredentials(ctx context.Context, req *plugin
 		return nil, trace.BadParameter("unexpected static credential type %T", updated)
 	}
 
-	response := &pluginspb.UpdatePluginStaticCredentialsResponse{
+	response := pluginspb.UpdatePluginStaticCredentialsResponse_builder{
 		Credential: unwrapped,
-	}
+	}.Build()
 	return response, nil
 }
 
@@ -995,18 +995,18 @@ func (s *Service) SetPluginStatus(ctx context.Context, req *pluginspb.SetPluginS
 		return nil, trace.Wrap(err)
 	}
 
-	plugin, err := s.pluginService.GetPlugin(ctx, req.Name, true)
+	plugin, err := s.pluginService.GetPlugin(ctx, req.GetName(), true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	plugin.SetStatus(req.Status)
+	plugin.SetStatus(req.GetStatus())
 	pluginV1, ok := plugin.(*types.PluginV1)
 	if !ok {
 		return nil, trace.BadParameter("plugin.(%T) is not of type PluginV1", plugin)
 	}
 
 	out := trimToMaxSize(pluginV1, maxDynamoDBItemSize)
-	if err := s.pluginService.SetPluginStatus(ctx, req.Name, out.GetStatus()); err != nil {
+	if err := s.pluginService.SetPluginStatus(ctx, req.GetName(), out.GetStatus()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1027,16 +1027,16 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 
 	staticPlugins := getStaticPlugins()
 
-	resp := &pluginspb.GetAvailablePluginTypesResponse{
+	resp := pluginspb.GetAvailablePluginTypesResponse_builder{
 		PluginTypes: make([]*pluginspb.PluginType, 0,
 			len(staticPlugins)+1),
-	}
+	}.Build()
 
 	for _, typ := range staticPlugins {
 		if slices.Contains(s.disabledPlugins, typ) {
 			continue
 		}
-		resp.PluginTypes = append(resp.PluginTypes, &pluginspb.PluginType{Type: string(typ)})
+		resp.SetPluginTypes(append(resp.GetPluginTypes(), pluginspb.PluginType_builder{Type: string(typ)}.Build()))
 	}
 
 	// Slack is a special case and is given Oauth credentials from the teleportyaml auth config.
@@ -1044,10 +1044,10 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 	// This might be subject to change in the future.
 	if !slices.Contains(s.disabledPlugins, types.PluginTypeSlack) {
 		if oauthCreds := s.hostedPluginConfig.OAuthProviders.GetStaticCredentialsForPlugin(types.PluginTypeSlack); oauthCreds != nil {
-			resp.PluginTypes = append(resp.PluginTypes, &pluginspb.PluginType{
+			resp.SetPluginTypes(append(resp.GetPluginTypes(), pluginspb.PluginType_builder{
 				Type:          types.PluginTypeSlack,
 				OauthClientId: oauthCreds.GetOAuthClientID(),
-			})
+			}.Build()))
 		}
 	}
 
@@ -1065,7 +1065,7 @@ func (s *Service) SearchPluginStaticCredentials(ctx context.Context, req *plugin
 	switch {
 	case authz.HasBuiltinRole(*authCtx, string(types.RoleAdmin)):
 		// RoleAdmin is allowed to retrieve plugin static credentials.
-		credentials, err := s.pluginStaticCredentialsService.GetPluginStaticCredentialsByLabels(ctx, req.Labels)
+		credentials, err := s.pluginStaticCredentialsService.GetPluginStaticCredentialsByLabels(ctx, req.GetLabels())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1080,12 +1080,12 @@ func (s *Service) SearchPluginStaticCredentials(ctx context.Context, req *plugin
 			credentialsV1[i] = credentialV1
 		}
 
-		return &pluginspb.SearchPluginStaticCredentialsResponse{
+		return pluginspb.SearchPluginStaticCredentialsResponse_builder{
 			Credentials: credentialsV1,
-		}, nil
+		}.Build(), nil
 	}
 
-	s.logger.WarnContext(ctx, "Plugin static credential retrieval denied", "labels", req.Labels, "user", authCtx.Identity.GetIdentity().Username)
+	s.logger.WarnContext(ctx, "Plugin static credential retrieval denied", "labels", req.GetLabels(), "user", authCtx.Identity.GetIdentity().Username)
 
 	// This has some other role, so deny access.
 	return nil, trace.AccessDenied("access denied")
@@ -1109,11 +1109,11 @@ func (s *Service) NeedsCleanup(ctx context.Context, req *pluginspb.NeedsCleanupR
 		return nil, trace.Wrap(err)
 	}
 
-	return &pluginspb.NeedsCleanupResponse{
+	return pluginspb.NeedsCleanupResponse_builder{
 		NeedsCleanup:       len(needsCleanup) > 0,
 		ResourcesToCleanup: needsCleanup,
 		PluginActive:       active,
-	}, nil
+	}.Build(), nil
 }
 
 // Cleanup will clean up the artifactes from a previous instance of the given plugin.
@@ -1128,8 +1128,8 @@ func (s *Service) Cleanup(ctx context.Context, req *pluginspb.CleanupRequest) (*
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.cleanup(ctx, types.PluginType(req.Type), nil /* plugin */); err != nil {
-		return nil, trace.Wrap(err, "cleanup of plugin %s failed", req.Type)
+	if err := s.cleanup(ctx, types.PluginType(req.GetType()), nil /* plugin */); err != nil {
+		return nil, trace.Wrap(err, "cleanup of plugin %s failed", req.GetType())
 	}
 
 	return &emptypb.Empty{}, nil

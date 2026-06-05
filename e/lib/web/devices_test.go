@@ -31,20 +31,20 @@ func TestListDevices_byAssetTag(t *testing.T) {
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
 	// create test devices
-	_, err := authClient.DevicesClient().BulkCreateDevices(s.ctx, &devicepb.BulkCreateDevicesRequest{
+	_, err := authClient.DevicesClient().BulkCreateDevices(s.ctx, devicepb.BulkCreateDevicesRequest_builder{
 		Devices: []*devicepb.Device{
-			{
+			devicepb.Device_builder{
 				OsType:       devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag:     "device2",
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-			},
-			{
+			}.Build(),
+			devicepb.Device_builder{
 				OsType:       devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag:     "device4",
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-			},
+			}.Build(),
 		},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	var testCases = []struct {
@@ -108,33 +108,33 @@ func TestListDevices_paginated(t *testing.T) {
 	authClient := s.newAdminAuthClient(s.ctx, t)
 
 	testDevices := []*devicepb.Device{
-		{
+		devicepb.Device_builder{
 			OsType:       devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag:     "device1",
 			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-		},
-		{
+		}.Build(),
+		devicepb.Device_builder{
 			OsType:       devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag:     "device2",
 			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-		},
-		{
+		}.Build(),
+		devicepb.Device_builder{
 			OsType:       devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag:     "device3",
 			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-		},
+		}.Build(),
 
-		{
+		devicepb.Device_builder{
 			OsType:       devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag:     "device4",
 			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
-		},
+		}.Build(),
 	}
 
 	// create test devices
-	_, err := authClient.DevicesClient().BulkCreateDevices(s.ctx, &devicepb.BulkCreateDevicesRequest{
+	_, err := authClient.DevicesClient().BulkCreateDevices(s.ctx, devicepb.BulkCreateDevicesRequest_builder{
 		Devices: testDevices,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	t.Run("paginated query", func(t *testing.T) {

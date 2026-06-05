@@ -48,24 +48,22 @@ func (s *assertStreamAdapter) Recv() (*devicepb.AuthenticateDeviceRequest, error
 	}
 
 	// Convert AssertDeviceRequest to AuthenticateDeviceRequest.
-	if req == nil || req.Payload == nil {
+	if req == nil || !req.HasPayload() {
 		return nil, trace.BadParameter("assert request payload required")
 	}
 	authnReq := &devicepb.AuthenticateDeviceRequest{}
-	switch req.Payload.(type) {
-	case *devicepb.AssertDeviceRequest_Init:
+	switch req.WhichPayload() {
+	case devicepb.AssertDeviceRequest_Init_case:
 		init := req.GetInit()
-		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_Init{
-			Init: &devicepb.AuthenticateDeviceInit{
-				CredentialId: init.GetCredentialId(),
-				DeviceData:   init.GetDeviceData(),
-			},
-		}
-	case *devicepb.AssertDeviceRequest_ChallengeResponse:
+		authnReq.SetInit(devicepb.AuthenticateDeviceInit_builder{
+			CredentialId: init.GetCredentialId(),
+			DeviceData:   init.GetDeviceData(),
+		}.Build())
+	case devicepb.AssertDeviceRequest_ChallengeResponse_case:
 		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
 			ChallengeResponse: req.GetChallengeResponse(),
 		}
-	case *devicepb.AssertDeviceRequest_TpmChallengeResponse:
+	case devicepb.AssertDeviceRequest_TpmChallengeResponse_case:
 		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
 			TpmChallengeResponse: req.GetTpmChallengeResponse(),
 		}
@@ -77,22 +75,22 @@ func (s *assertStreamAdapter) Recv() (*devicepb.AuthenticateDeviceRequest, error
 }
 
 func (s *assertStreamAdapter) Send(authnResp *devicepb.AuthenticateDeviceResponse) error {
-	if authnResp == nil || authnResp.Payload == nil {
+	if authnResp == nil || !authnResp.HasPayload() {
 		return trace.BadParameter("authenticate response payload required")
 	}
 
 	// Convert AuthenticateDeviceResponse to AssertDeviceResponse.
 	resp := &devicepb.AssertDeviceResponse{}
-	switch authnResp.Payload.(type) {
-	case *devicepb.AuthenticateDeviceResponse_Challenge:
+	switch authnResp.WhichPayload() {
+	case devicepb.AuthenticateDeviceResponse_Challenge_case:
 		resp.Payload = &devicepb.AssertDeviceResponse_Challenge{
 			Challenge: authnResp.GetChallenge(),
 		}
-	case *devicepb.AuthenticateDeviceResponse_TpmChallenge:
+	case devicepb.AuthenticateDeviceResponse_TpmChallenge_case:
 		resp.Payload = &devicepb.AssertDeviceResponse_TpmChallenge{
 			TpmChallenge: authnResp.GetTpmChallenge(),
 		}
-	case *devicepb.AuthenticateDeviceResponse_UserCertificates:
+	case devicepb.AuthenticateDeviceResponse_UserCertificates_case:
 		// An empty UserCertificates signifies success for assertion.
 		certs := authnResp.GetUserCertificates()
 		if len(certs.GetX509Der()) > 0 || len(certs.GetSshAuthorizedKey()) > 0 {
@@ -101,13 +99,11 @@ func (s *assertStreamAdapter) Send(authnResp *devicepb.AuthenticateDeviceRespons
 			s.logger.WarnContext(s.ctx,
 				"AssertCeremony received non-empty UserCertificates",
 				"has_x509", len(certs.GetX509Der()) > 0,
-				"has_ssh_authorized_key", len(certs.SshAuthorizedKey) > 0,
+				"has_ssh_authorized_key", len(certs.GetSshAuthorizedKey()) > 0,
 			)
 		}
-		resp.Payload = &devicepb.AssertDeviceResponse_DeviceAsserted{
-			DeviceAsserted: &devicepb.DeviceAsserted{},
-		}
-	case *devicepb.AuthenticateDeviceResponse_ConfirmationToken:
+		resp.SetDeviceAsserted(&devicepb.DeviceAsserted{})
+	case devicepb.AuthenticateDeviceResponse_ConfirmationToken_case:
 		// This shouldn't be possible, there's no way to pass a DeviceWebToken via
 		// assertion requests.
 		return trace.BadParameter("unallowed ConfirmationToken payload received from authentication ceremony")

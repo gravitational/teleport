@@ -26,8 +26,8 @@ func reconcileResults(old *pollResults, new *pollResults) (upsert, delete *acces
 		reconcileRepositories(old.repos, new.repos),
 		reconcileRoles(old.roles, new.roles),
 	} {
-		upsert.Resources = append(upsert.Resources, results.upsert.Resources...)
-		delete.Resources = append(delete.Resources, results.delete.Resources...)
+		upsert.SetResources(append(upsert.GetResources(), results.upsert.GetResources()...))
+		delete.SetResources(append(delete.GetResources(), results.delete.GetResources()...))
 	}
 
 	return upsert, delete
@@ -45,18 +45,18 @@ func reconcileRoles(old []*accessgraphv1alpha.GithubRoleV1, new []*accessgraphv1
 	})
 
 	for _, group := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GithubResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GithubResource{
 			Resource: &accessgraphv1alpha.GithubResource_Role{
 				Role: group,
 			},
-		})
+		}))
 	}
 	for _, group := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GithubResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GithubResource{
 			Resource: &accessgraphv1alpha.GithubResource_Role{
 				Role: group,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -71,18 +71,18 @@ func reconcileTokens(
 		return strconv.FormatInt(token.GetId(), 10)
 	})
 	for _, token := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GithubResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GithubResource{
 			Resource: &accessgraphv1alpha.GithubResource_Token{
 				Token: token,
 			},
-		})
+		}))
 	}
 	for _, token := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GithubResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GithubResource{
 			Resource: &accessgraphv1alpha.GithubResource_Token{
 				Token: token,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -97,18 +97,18 @@ func reconcileRepositories(
 		return project.GetName()
 	})
 	for _, project := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GithubResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GithubResource{
 			Resource: &accessgraphv1alpha.GithubResource_Repository{
 				Repository: project,
 			},
-		})
+		}))
 	}
 	for _, project := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GithubResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GithubResource{
 			Resource: &accessgraphv1alpha.GithubResource_Repository{
 				Repository: project,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -123,18 +123,18 @@ func reconcileRoleAssignment(
 		return fmt.Sprintf("%x;%x;%v", policy.GetUser(), policy.GetRoleId(), policy.GetOwner())
 	})
 	for _, member := range toAdd {
-		upsert.Resources = append(upsert.Resources, &accessgraphv1alpha.GithubResource{
+		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GithubResource{
 			Resource: &accessgraphv1alpha.GithubResource_RoleAssignment{
 				RoleAssignment: member,
 			},
-		})
+		}))
 	}
 	for _, member := range toRemove {
-		delete.Resources = append(delete.Resources, &accessgraphv1alpha.GithubResource{
+		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GithubResource{
 			Resource: &accessgraphv1alpha.GithubResource_RoleAssignment{
 				RoleAssignment: member,
 			},
-		})
+		}))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }

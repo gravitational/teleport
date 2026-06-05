@@ -38,8 +38,8 @@ func (s *Service) emitCAOverrideEvent(
 	// parsed override.
 	if parsed == nil ||
 		parsed.CAOverride == nil ||
-		parsed.CAOverride.SubKind == "" ||
-		parsed.CAOverride.Metadata.GetName() == "" {
+		parsed.CAOverride.GetSubKind() == "" ||
+		parsed.CAOverride.GetMetadata().GetName() == "" {
 		s.logger.ErrorContext(ctx,
 			"CA override required to issue audit event",
 			"error", trace.BadParameter("parsed CA override required"), // capture trace
@@ -57,7 +57,7 @@ func (s *Service) emitCAOverrideEvent(
 		errorMessage = err.Error()
 	}
 
-	auditName := parsed.CAOverride.SubKind + "/" + parsed.CAOverride.Metadata.Name
+	auditName := parsed.CAOverride.GetSubKind() + "/" + parsed.CAOverride.GetMetadata().GetName()
 
 	e := &apievents.CertAuthorityOverrideEvent{
 		Metadata: apievents.Metadata{

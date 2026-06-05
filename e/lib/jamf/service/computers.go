@@ -69,7 +69,7 @@ func (s *S) getComputersPage(
 // device is found and matches.
 func (s *S) confirmComputer(ctx context.Context, dev *devicepb.Device) (matches bool, jamfDevForLogging any, err error) {
 	computer, err := s.jamf.GetComputersInventoryByID(ctx, &jamf.GetComputersInventoryByIDRequest{
-		ID: dev.Profile.GetExternalId(),
+		ID: dev.GetProfile().GetExternalId(),
 		Section: []string{
 			jamf.SectionGeneral,  // for Platform
 			jamf.SectionHardware, // for SerialNumber
@@ -79,9 +79,9 @@ func (s *S) confirmComputer(ctx context.Context, dev *devicepb.Device) (matches 
 		return false, nil, err
 	}
 	matches = computer.General != nil &&
-		platformToOSType(computer.General.Platform) == dev.OsType &&
+		platformToOSType(computer.General.Platform) == dev.GetOsType() &&
 		computer.Hardware != nil &&
-		computer.Hardware.SerialNumber == dev.AssetTag
+		computer.Hardware.SerialNumber == dev.GetAssetTag()
 	return matches, computer, nil
 }
 
@@ -110,23 +110,23 @@ func computerInventoryToDevice(c *jamf.ComputerInventory) (*devicepb.Device, err
 		}
 	}
 
-	profile := &devicepb.DeviceProfile{
+	profile := devicepb.DeviceProfile_builder{
 		ModelIdentifier:   c.Hardware.ModelIdentifier,
 		OsUsernames:       usernames,
 		JamfBinaryVersion: c.General.JamfBinaryVersion,
 		ExternalId:        c.ID,
-	}
+	}.Build()
 	if c.OperatingSystem != nil {
-		profile.OsVersion = c.OperatingSystem.Version
-		profile.OsBuild = c.OperatingSystem.Build
-		profile.OsBuildSupplemental = c.OperatingSystem.SupplementalBuildVersion
+		profile.SetOsVersion(c.OperatingSystem.Version)
+		profile.SetOsBuild(c.OperatingSystem.Build)
+		profile.SetOsBuildSupplemental(c.OperatingSystem.SupplementalBuildVersion)
 	}
 
-	return &devicepb.Device{
+	return devicepb.Device_builder{
 		OsType:   osType,
 		AssetTag: c.Hardware.SerialNumber,
 		Profile:  profile,
-	}, nil
+	}.Build(), nil
 }
 
 func platformToOSType(platform string) devicepb.OSType {
@@ -166,8 +166,8 @@ func (a computerAdapter) serialNumber() string {
 }
 
 func (a computerAdapter) logSync(ctx context.Context, log logFunc, dev *devicepb.Device) {
-	osUsernames := dev.Profile.OsUsernames
-	dev.Profile.OsUsernames = []string{"<REDACTED>"}
+	osUsernames := dev.GetProfile().GetOsUsernames()
+	dev.GetProfile().SetOsUsernames([]string{"<REDACTED>"})
 	general := cmp.Or(a.inv.General, &jamf.ComputerGeneralSection{})
 	hardware := cmp.Or(a.inv.Hardware, &jamf.ComputerHardwareSection{})
 	log(ctx,
@@ -178,7 +178,7 @@ func (a computerAdapter) logSync(ctx context.Context, log logFunc, dev *devicepb
 		"general.reportDate", general.ReportDate,
 		"general.lastContactTime", general.LastContactTime,
 		"general.lastEnrolledDate", general.LastEnrolledDate,
-		"profile", dev.Profile,
+		"profile", dev.GetProfile(),
 	)
-	dev.Profile.OsUsernames = osUsernames
+	dev.GetProfile().SetOsUsernames(osUsernames)
 }

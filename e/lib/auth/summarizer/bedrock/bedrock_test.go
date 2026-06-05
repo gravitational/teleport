@@ -80,11 +80,11 @@ func TestInferenceProvider(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			provider, err := NewProvider(ctx, ProviderConfig{
-				Spec: &summarizerv1pb.BedrockProvider{
+				Spec: summarizerv1pb.BedrockProvider_builder{
 					Region:         "us-east-1",
 					BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
 					Integration:    tc.integration,
-				},
+				}.Build(),
 				ModelResourceName: "claude",
 				ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
 				AWSConfigCache:    cache,
@@ -108,10 +108,10 @@ func TestSummarizeCommand(t *testing.T) {
 	require.NoError(t, err)
 
 	provider, err := NewProvider(ctx, ProviderConfig{
-		Spec: &summarizerv1pb.BedrockProvider{
+		Spec: summarizerv1pb.BedrockProvider_builder{
 			Region:         "us-east-1",
 			BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
-		},
+		}.Build(),
 		ModelResourceName: "claude",
 		ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
 		AWSConfigCache:    cache,
@@ -178,10 +178,10 @@ func TestSummarizeMultipleImages(t *testing.T) {
 	require.NoError(t, err)
 
 	provider, err := NewProvider(ctx, ProviderConfig{
-		Spec: &summarizerv1pb.BedrockProvider{
+		Spec: summarizerv1pb.BedrockProvider_builder{
 			Region:         "us-east-1",
 			BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
-		},
+		}.Build(),
 		ModelResourceName: "claude",
 		ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
 		AWSConfigCache:    cache,
@@ -212,10 +212,10 @@ func TestSummarizeDesktopSession(t *testing.T) {
 	require.NoError(t, err)
 
 	provider, err := NewProvider(ctx, ProviderConfig{
-		Spec: &summarizerv1pb.BedrockProvider{
+		Spec: summarizerv1pb.BedrockProvider_builder{
 			Region:         "us-east-1",
 			BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
-		},
+		}.Build(),
 		ModelResourceName: "claude",
 		ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
 		AWSConfigCache:    cache,
@@ -242,10 +242,10 @@ func TestCondenseForEmbedding(t *testing.T) {
 	require.NoError(t, err)
 
 	provider, err := NewProvider(ctx, ProviderConfig{
-		Spec: &summarizerv1pb.BedrockProvider{
+		Spec: summarizerv1pb.BedrockProvider_builder{
 			Region:         "us-east-1",
 			BedrockModelId: "anthropic.claude-3-haiku-20240307-v1:0",
-		},
+		}.Build(),
 		ModelResourceName: "claude",
 		ClientFactory:     &FakeClientFactory{Clock: clockwork.NewFakeClock()},
 		AWSConfigCache:    cache,
@@ -259,7 +259,7 @@ func TestCondenseForEmbedding(t *testing.T) {
 	}{
 		{
 			name:  "happy path",
-			input: &summarizerv1pb.Summary{SessionId: "test-session-123"},
+			input: summarizerv1pb.Summary_builder{SessionId: "test-session-123"}.Build(),
 			assert: func(t *testing.T, result string, err error) {
 				require.NoError(t, err)
 				assert.Equal(t, "A condensed description of the session for embedding generation.", result)
@@ -267,7 +267,7 @@ func TestCondenseForEmbedding(t *testing.T) {
 		},
 		{
 			name:  "API error is propagated",
-			input: &summarizerv1pb.Summary{SessionId: "trigger-api-error"},
+			input: summarizerv1pb.Summary_builder{SessionId: "trigger-api-error"}.Build(),
 			assert: func(t *testing.T, result string, err error) {
 				assert.Error(t, err)
 				assert.Empty(t, result)
@@ -275,7 +275,7 @@ func TestCondenseForEmbedding(t *testing.T) {
 		},
 		{
 			name:  "bad JSON response returns BadResponseError",
-			input: &summarizerv1pb.Summary{SessionId: "trigger-bad-json"},
+			input: summarizerv1pb.Summary_builder{SessionId: "trigger-bad-json"}.Build(),
 			assert: func(t *testing.T, result string, err error) {
 				assert.ErrorIs(t, err, summarizererrorstypes.BadResponseError{
 					Message: "failed to unmarshal model response: invalid character 'o' in literal null (expecting 'u')",

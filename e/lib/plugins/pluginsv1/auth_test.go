@@ -83,11 +83,11 @@ func TestGetPluginWithSecrets(t *testing.T) {
 			suite.setRules(tc.Rules)
 
 			t.Run("without secrets", func(t *testing.T) {
-				_, err := suite.svc.GetPlugin(ctx, &pluginspb.GetPluginRequest{Name: pluginName})
+				_, err := suite.svc.GetPlugin(ctx, pluginspb.GetPluginRequest_builder{Name: pluginName}.Build())
 				tc.ErrAssertionRead(t, err)
 			})
 			t.Run("with secrets", func(t *testing.T) {
-				_, err := suite.svc.GetPlugin(ctx, &pluginspb.GetPluginRequest{Name: pluginName, WithSecrets: true})
+				_, err := suite.svc.GetPlugin(ctx, pluginspb.GetPluginRequest_builder{Name: pluginName, WithSecrets: true}.Build())
 				tc.ErrAssertionReadWithSecrets(t, err)
 			})
 		})
@@ -100,7 +100,7 @@ func TestGetPluginWithSecrets(t *testing.T) {
 				Verbs:     []string{types.VerbReadNoSecrets, types.VerbList},
 			},
 		})
-		_, err := suite.svc.GetPlugin(ctx, &pluginspb.GetPluginRequest{Name: "non-existent", WithSecrets: false})
+		_, err := suite.svc.GetPlugin(ctx, pluginspb.GetPluginRequest_builder{Name: "non-existent", WithSecrets: false}.Build())
 		assertNotFound(t, err)
 	})
 
@@ -111,7 +111,7 @@ func TestGetPluginWithSecrets(t *testing.T) {
 				Verbs:     []string{types.VerbRead},
 			},
 		})
-		_, err := suite.svc.GetPlugin(ctx, &pluginspb.GetPluginRequest{Name: "non-existent", WithSecrets: true})
+		_, err := suite.svc.GetPlugin(ctx, pluginspb.GetPluginRequest_builder{Name: "non-existent", WithSecrets: true}.Build())
 		assertAccessDenied(t, err)
 	})
 
@@ -122,7 +122,7 @@ func TestGetPluginWithSecrets(t *testing.T) {
 				Verbs:     []string{},
 			},
 		})
-		_, err := suite.svc.GetPlugin(ctx, &pluginspb.GetPluginRequest{Name: "non-existent", WithSecrets: true})
+		_, err := suite.svc.GetPlugin(ctx, pluginspb.GetPluginRequest_builder{Name: "non-existent", WithSecrets: true}.Build())
 		assertAccessDenied(t, err)
 	})
 }
@@ -182,7 +182,7 @@ func TestSetPluginCredentials(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			suite.setRules(tc.Rules)
 
-			_, err := suite.svc.SetPluginCredentials(ctx, &pluginspb.SetPluginCredentialsRequest{
+			_, err := suite.svc.SetPluginCredentials(ctx, pluginspb.SetPluginCredentialsRequest_builder{
 				Name: pluginName,
 				Credentials: &types.PluginCredentialsV1{
 					Credentials: &types.PluginCredentialsV1_Oauth2AccessToken{
@@ -193,7 +193,7 @@ func TestSetPluginCredentials(t *testing.T) {
 						},
 					},
 				},
-			})
+			}.Build())
 			tc.ErrAssertion(t, err)
 		})
 	}
@@ -299,14 +299,14 @@ func TestSearchPluginStaticCredentials(t *testing.T) {
 			ctx := authz.ContextWithUser(ctx, tc.identity)
 			suite.setRoles(tc.roles)
 
-			resp, err := suite.svc.SearchPluginStaticCredentials(ctx, &pluginspb.SearchPluginStaticCredentialsRequest{Labels: tc.labels})
+			resp, err := suite.svc.SearchPluginStaticCredentials(ctx, pluginspb.SearchPluginStaticCredentialsRequest_builder{Labels: tc.labels}.Build())
 			tc.errAssertion(t, err)
 
 			if tc.expected == nil {
 				require.Nil(t, resp)
 			} else if tc.expected != nil {
 				require.NotNil(t, resp)
-				require.Empty(t, cmp.Diff(tc.expected, resp.Credentials, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
+				require.Empty(t, cmp.Diff(tc.expected, resp.GetCredentials(), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 			}
 		})
 	}
@@ -325,60 +325,60 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 	require.NoError(t, err)
 
 	require.ElementsMatch(t, []*pluginspb.PluginType{
-		{
+		pluginspb.PluginType_builder{
 			Type:          types.PluginTypeSlack,
 			OauthClientId: "123456",
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeOkta,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeJamf,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeIntune,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeJira,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeServiceNow,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeOpsgenie,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypePagerDuty,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeMattermost,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeDiscord,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeGitlab,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeEntraID,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeDatadog,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeAWSIdentityCenter,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeMSTeams,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeEmail,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeGithub,
-		},
-		{
+		}.Build(),
+		pluginspb.PluginType_builder{
 			Type: types.PluginTypeSCIM,
-		},
-	}, resp.PluginTypes)
+		}.Build(),
+	}, resp.GetPluginTypes())
 }

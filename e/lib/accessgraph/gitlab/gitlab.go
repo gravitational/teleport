@@ -90,11 +90,11 @@ func (g *gitlabFetcher) getProjects() (
 	var out []*accessgraphv1alpha.GitlabProject
 	var outMembers []*accessgraphv1alpha.GitlabProjectMember
 	for _, project := range projects {
-		prj := &accessgraphv1alpha.GitlabProject{
+		prj := accessgraphv1alpha.GitlabProject_builder{
 			Name:        project.Name,
 			Path:        project.PathWithNamespace,
 			Description: project.Description,
-		}
+		}.Build()
 		out = append(out, prj)
 
 		members, err := g.client.getProjectMembers(project.ID)
@@ -103,11 +103,11 @@ func (g *gitlabFetcher) getProjects() (
 		}
 
 		for _, member := range members {
-			outMembers = append(outMembers, &accessgraphv1alpha.GitlabProjectMember{
+			outMembers = append(outMembers, accessgraphv1alpha.GitlabProjectMember_builder{
 				Project:     prj,
 				Username:    member.Username,
 				AccessLevel: accessLevelToStr(member.AccessLevel),
-			})
+			}.Build())
 		}
 
 	}
@@ -126,12 +126,12 @@ func (g *gitlabFetcher) getGroups() (
 	var out []*accessgraphv1alpha.GitlabGroup
 	var outMembers []*accessgraphv1alpha.GitlabGroupMember
 	for _, group := range groups {
-		grp := &accessgraphv1alpha.GitlabGroup{
+		grp := accessgraphv1alpha.GitlabGroup_builder{
 			Name:        group.Name,
 			Path:        group.FullPath,
 			FullName:    group.FullName,
 			Description: group.Description,
-		}
+		}.Build()
 		out = append(out, grp)
 
 		members, err := g.client.getGroupMembers(group.ID)
@@ -140,11 +140,11 @@ func (g *gitlabFetcher) getGroups() (
 		}
 
 		for _, member := range members {
-			outMembers = append(outMembers, &accessgraphv1alpha.GitlabGroupMember{
+			outMembers = append(outMembers, accessgraphv1alpha.GitlabGroupMember_builder{
 				Group:       grp,
 				Username:    member.Username,
 				AccessLevel: accessLevelToStr(member.AccessLevel),
-			})
+			}.Build())
 		}
 
 	}
@@ -167,12 +167,12 @@ func (g *gitlabFetcher) getUsers(usernames []string) (
 		}
 		var identities []*accessgraphv1alpha.GitlabUserIdentity
 		for _, identity := range user.Identities {
-			identities = append(identities, &accessgraphv1alpha.GitlabUserIdentity{
+			identities = append(identities, accessgraphv1alpha.GitlabUserIdentity_builder{
 				Provider:  identity.Provider,
 				ExternUid: identity.ExternUID,
-			})
+			}.Build())
 		}
-		user := &accessgraphv1alpha.GitlabUser{
+		user := accessgraphv1alpha.GitlabUser_builder{
 			Username:         user.Username,
 			Email:            user.Email,
 			Name:             user.Name,
@@ -183,7 +183,7 @@ func (g *gitlabFetcher) getUsers(usernames []string) (
 			CanCreateProject: user.CanCreateProject,
 			TwoFactorEnabled: user.TwoFactorEnabled,
 			Identities:       identities,
-		}
+		}.Build()
 		out = append(out, user)
 
 	}
@@ -298,10 +298,10 @@ func handleGitlabError(gitlabErr *gitlab.ErrorResponse) string {
 func uniqueUsernames(projectMembers []*accessgraphv1alpha.GitlabProjectMember, groupMembers []*accessgraphv1alpha.GitlabGroupMember) []string {
 	seen := make(map[string]struct{})
 	for _, member := range projectMembers {
-		seen[member.Username] = struct{}{}
+		seen[member.GetUsername()] = struct{}{}
 	}
 	for _, member := range groupMembers {
-		seen[member.Username] = struct{}{}
+		seen[member.GetUsername()] = struct{}{}
 	}
 	var keys []string
 	for k := range maps.Keys(seen) {

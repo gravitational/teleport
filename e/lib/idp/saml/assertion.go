@@ -184,7 +184,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	// Make the SAML IdP response on the auth server.
 	ctx := req.HTTPRequest.Context()
 
-	resp, err := s.client.SAMLIdPClient().ProcessSAMLIdPRequest(ctx, &samlidppb.ProcessSAMLIdPRequestRequest{
+	resp, err := s.client.SAMLIdPClient().ProcessSAMLIdPRequest(ctx, samlidppb.ProcessSAMLIdPRequestRequest_builder{
 		Assertion:                    assertionBytes,
 		Destination:                  req.ACSEndpoint.Location,
 		RequestId:                    req.Request.ID,
@@ -193,7 +193,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 		SignatureMethod:              s.signatureMethod,
 		ServiceProviderSsoDescriptor: spssoDescriptor,
 		MfaResponse:                  mfaProtoResponse,
-	})
+	}.Build())
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
@@ -201,7 +201,7 @@ func (s *Service) MakeAssertion(req *saml.IdpAuthnRequest, session *saml.Session
 	// Parse out the SAML response from the response and assign it to the
 	// request.
 	respDoc := etree.NewDocument()
-	if err := respDoc.ReadFromBytes(resp.Response); err != nil {
+	if err := respDoc.ReadFromBytes(resp.GetResponse()); err != nil {
 		return trace.Wrap(err)
 	}
 

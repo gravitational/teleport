@@ -65,8 +65,8 @@ func (s *BeamsService) ListBeams(ctx context.Context, req *beamsv1.ListBeamsRequ
 		results = append(results, beam)
 	}
 
-	return &beamsv1.ListBeamsResponse{
+	return beamsv1.ListBeamsResponse_builder{
 		Beams:         results,
 		NextPageToken: nextToken,
-	}, nil
+	}.Build(), nil
 }

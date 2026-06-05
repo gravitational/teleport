@@ -326,14 +326,12 @@ func (s *Service) exportAuditLogs(ctx context.Context, client accessgraphv1alpha
 	// state available, the access graph service will send that state to the
 	// Okta Audit Log service.
 	err = stream.Send(
-		&accessgraphv1alpha.OktaAuditLogStreamRequest{
-			Operation: &accessgraphv1alpha.OktaAuditLogStreamRequest_Config{
-				Config: &accessgraphv1alpha.OktaConfigV1{
-					StartDate:    timestamppb.New(s.startDate),
-					Organization: s.orgURL,
-				},
-			},
-		},
+		accessgraphv1alpha.OktaAuditLogStreamRequest_builder{
+			Config: accessgraphv1alpha.OktaConfigV1_builder{
+				StartDate:    timestamppb.New(s.startDate),
+				Organization: s.orgURL,
+			}.Build(),
+		}.Build(),
 	)
 	if err != nil {
 		err = consumeTillErr(stream)
@@ -388,18 +386,16 @@ func (s *Service) exportAuditLogs(ctx context.Context, client accessgraphv1alpha
 
 		if len(evts) > 0 {
 			sendErr := stream.Send(
-				&accessgraphv1alpha.OktaAuditLogStreamRequest{
-					Operation: &accessgraphv1alpha.OktaAuditLogStreamRequest_AuditLog{
-						AuditLog: &accessgraphv1alpha.OktaAuditLogV1{
-							Events: evts,
-							Cursor: &accessgraphv1alpha.OktaAuditLogV1Cursor{
-								Token:         cursor.after,
-								LastEventId:   cursor.lastEventID,
-								LastEventTime: timestamppb.New(cursor.lastEventTime),
-							},
-						},
-					},
-				},
+				accessgraphv1alpha.OktaAuditLogStreamRequest_builder{
+					AuditLog: accessgraphv1alpha.OktaAuditLogV1_builder{
+						Events: evts,
+						Cursor: accessgraphv1alpha.OktaAuditLogV1Cursor_builder{
+							Token:         cursor.after,
+							LastEventId:   cursor.lastEventID,
+							LastEventTime: timestamppb.New(cursor.lastEventTime),
+						}.Build(),
+					}.Build(),
+				}.Build(),
 			)
 			if sendErr != nil {
 				sendErr = consumeTillErr(stream)
@@ -478,15 +474,13 @@ func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_OktaEventsStreamClient,
 	upsert *accessgraphv1alpha.OktaResourceList,
 ) error {
-	for send := range slices.Chunk(upsert.Resources, batchSize) {
+	for send := range slices.Chunk(upsert.GetResources(), batchSize) {
 		err := client.Send(
-			&accessgraphv1alpha.OktaEventsStreamRequest{
-				Operation: &accessgraphv1alpha.OktaEventsStreamRequest_Upsert{
-					Upsert: &accessgraphv1alpha.OktaResourceList{
-						Resources: send,
-					},
-				},
-			},
+			accessgraphv1alpha.OktaEventsStreamRequest_builder{
+				Upsert: accessgraphv1alpha.OktaResourceList_builder{
+					Resources: send,
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -499,15 +493,13 @@ func pushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_OktaEventsStreamClient,
 	toDel *accessgraphv1alpha.OktaResourceList,
 ) error {
-	for send := range slices.Chunk(toDel.Resources, batchSize) {
+	for send := range slices.Chunk(toDel.GetResources(), batchSize) {
 		err := client.Send(
-			&accessgraphv1alpha.OktaEventsStreamRequest{
-				Operation: &accessgraphv1alpha.OktaEventsStreamRequest_Delete{
-					Delete: &accessgraphv1alpha.OktaResourceList{
-						Resources: send,
-					},
-				},
-			},
+			accessgraphv1alpha.OktaEventsStreamRequest_builder{
+				Delete: accessgraphv1alpha.OktaResourceList_builder{
+					Resources: send,
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -536,11 +528,9 @@ func push(
 	}
 
 	err = client.Send(
-		&accessgraphv1alpha.OktaEventsStreamRequest{
-			Operation: &accessgraphv1alpha.OktaEventsStreamRequest_Sync{
-				Sync: &accessgraphv1alpha.OktaSync{},
-			},
-		},
+		accessgraphv1alpha.OktaEventsStreamRequest_builder{
+			Sync: &accessgraphv1alpha.OktaSync{},
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }

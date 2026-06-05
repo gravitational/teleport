@@ -63,7 +63,7 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 	appliedRules := make([]string, 0, len(rules))
 	traits := expression.DictFromStringSliceMap(input.Traits)
 	for _, rule := range rules {
-		appliedRules = append(appliedRules, rule.Metadata.Name)
+		appliedRules = append(appliedRules, rule.GetMetadata().Name)
 		// Every rule gets the output of the previous rule as input.
 		env := evaluationEnv{
 			external: traits,
@@ -72,11 +72,11 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 		// Each rule should only have one of TraitsMap or TraitsExpression set,
 		// this should be checked when the rule is parsed from a file or from
 		// storage, no need to check again here.
-		if len(rule.TraitsMap) > 0 {
+		if len(rule.GetTraitsMap()) > 0 {
 			var err error
 			traits, err = expression.EvaluateTraitsMap(
 				env,
-				wrapperStringValuesMapToStringSliceMap(rule.TraitsMap),
+				wrapperStringValuesMapToStringSliceMap(rule.GetTraitsMap()),
 				func(input string) (typical.Expression[evaluationEnv, any], error) {
 					return parseExpr(input)
 				},
@@ -85,9 +85,9 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 				return nil, trace.Wrap(err)
 			}
 		}
-		if len(rule.TraitsExpression) > 0 {
+		if len(rule.GetTraitsExpression()) > 0 {
 			var err error
-			traits, err = evaluateTraitsExpression(env, rule.TraitsExpression)
+			traits, err = evaluateTraitsExpression(env, rule.GetTraitsExpression())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -103,10 +103,10 @@ func Evaluate(rules []*loginrulepb.LoginRule, input *oss.EvaluationInput) (*oss.
 // with ties broken by sorting in increasing string order by Name.
 func sortLoginRules(rules []*loginrulepb.LoginRule) {
 	slices.SortFunc(rules, func(a, b *loginrulepb.LoginRule) int {
-		if a.Priority != b.Priority {
-			return cmp.Compare(a.Priority, b.Priority)
+		if a.GetPriority() != b.GetPriority() {
+			return cmp.Compare(a.GetPriority(), b.GetPriority())
 		}
-		return strings.Compare(a.Metadata.Name, b.Metadata.Name)
+		return strings.Compare(a.GetMetadata().Name, b.GetMetadata().Name)
 	})
 }
 

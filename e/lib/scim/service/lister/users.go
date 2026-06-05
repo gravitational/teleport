@@ -66,12 +66,12 @@ func (l *UserLister) ListResources(ctx context.Context, req *scimpb.ListSCIMReso
 		return nil, trace.Wrap(err)
 	}
 
-	return &scimpb.ResourceList{
+	return scimpb.ResourceList_builder{
 		TotalResults: int32(currentIndex),
 		StartIndex:   int32(startIndex),
 		ItemsPerPage: int32(len(scimUserResults)),
 		Resources:    scimUserResults,
-	}, nil
+	}.Build(), nil
 }
 
 // forEachUser iterates through all Teleport users in a paginated manner
@@ -85,15 +85,15 @@ func (l *UserLister) forEachUser(ctx context.Context, fn func(user types.User) e
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		for _, user := range resp.Users {
+		for _, user := range resp.GetUsers() {
 			if err := fn(user); err != nil {
 				return trace.Wrap(err)
 			}
 		}
-		if resp.NextPageToken == "" {
+		if resp.GetNextPageToken() == "" {
 			break
 		}
-		req.PageToken = resp.NextPageToken
+		req.SetPageToken(resp.GetNextPageToken())
 	}
 	return nil
 }

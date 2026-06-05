@@ -15,6 +15,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
@@ -86,8 +87,8 @@ func withEnableFullSync() oktaIntegrationOption {
 func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, fakeOkta *fakeOktaServer, options ...oktaIntegrationOption) string {
 	t.Helper()
 	opts := scimIntegrationOptions{
-		ApiCredentials:     &oktav1.OktaAPICredentials{Auth: &oktav1.OktaAPICredentials_SswsBearerToken{SswsBearerToken: "12345"}},
-		AccessListSettings: &oktav1.AccessListSettings{DefaultOwner: []string{"alice"}},
+		ApiCredentials:     oktav1.OktaAPICredentials_builder{SswsBearerToken: proto.String("12345")}.Build(),
+		AccessListSettings: oktav1.AccessListSettings_builder{DefaultOwner: []string{"alice"}}.Build(),
 	}
 	for _, v := range options {
 		v(&opts)
@@ -99,19 +100,19 @@ func createAndWaitForOktaIntegration(t *testing.T, sut *common.SUT, fakeOkta *fa
 		require.NoError(t, fakeOkta.AssignUserToApplication(fakeOkta.provisionedSAMLApp.Id, u.Id))
 	}
 
-	req := &oktav1.CreateIntegrationRequest{
+	req := oktav1.CreateIntegrationRequest_builder{
 		OktaOrganizationUrl: fakeOkta.URL(),
 		ScimToken:           scimToken,
 		ApiCredentials:      opts.ApiCredentials,
 		AccessListSettings:  opts.AccessListSettings,
 		ReuseConnector:      "okta-pre-created-test",
-	}
+	}.Build()
 	if opts.EnableFullSync {
-		req.EnableBidirectionalSync = true
-		req.EnableAppGroupSync = true
-		req.EnableUserSync = true
-		req.DisableAssignDefaultRoles = false
-		req.EnableAccessListSync = true
+		req.SetEnableBidirectionalSync(true)
+		req.SetEnableAppGroupSync(true)
+		req.SetEnableUserSync(true)
+		req.SetDisableAssignDefaultRoles(false)
+		req.SetEnableAccessListSync(true)
 	}
 
 	_, err := oktaClient.CreateIntegration(t.Context(), req)
@@ -212,7 +213,7 @@ func mustListOktaUsers(t *testing.T, identity services.Identity) []types.User {
 
 	var res []types.User
 	listFn := func(ctx context.Context, limit int, pageToken string) ([]*types.UserV2, string, error) {
-		resp, err := identity.ListUsers(ctx, &usersv1.ListUsersRequest{PageSize: int32(limit), PageToken: pageToken})
+		resp, err := identity.ListUsers(ctx, usersv1.ListUsersRequest_builder{PageSize: int32(limit), PageToken: pageToken}.Build())
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

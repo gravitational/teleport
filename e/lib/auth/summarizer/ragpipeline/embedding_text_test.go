@@ -61,21 +61,21 @@ func TestProcessSession(t *testing.T) {
 		},
 		{
 			name:     "proser error is propagated",
-			summary:  &summarizerv1pb.Summary{SessionId: "sess-1"},
+			summary:  summarizerv1pb.Summary_builder{SessionId: "sess-1"}.Build(),
 			proser:   &fakeProser{err: errors.New("prose generation failed")},
 			embedder: &fakeEmbedder{embedding: embedding},
 			wantErr:  "prose generation failed",
 		},
 		{
 			name:     "embedder error is propagated",
-			summary:  &summarizerv1pb.Summary{SessionId: "sess-1"},
+			summary:  summarizerv1pb.Summary_builder{SessionId: "sess-1"}.Build(),
 			proser:   &fakeProser{prose: "some text"},
 			embedder: &fakeEmbedder{err: errors.New("embedding failed")},
 			wantErr:  "embedding failed",
 		},
 		{
 			name:     "empty prose produces no documents",
-			summary:  &summarizerv1pb.Summary{SessionId: "sess-1"},
+			summary:  summarizerv1pb.Summary_builder{SessionId: "sess-1"}.Build(),
 			proser:   &fakeProser{prose: ""},
 			embedder: &fakeEmbedder{embedding: embedding},
 			check: func(t *testing.T, docs []Document) {
@@ -84,7 +84,7 @@ func TestProcessSession(t *testing.T) {
 		},
 		{
 			name:     "prose within token limit produces one document",
-			summary:  &summarizerv1pb.Summary{SessionId: "sess-1"},
+			summary:  summarizerv1pb.Summary_builder{SessionId: "sess-1"}.Build(),
 			proser:   &fakeProser{prose: "Short summary text."},
 			embedder: &fakeEmbedder{embedding: embedding},
 			check: func(t *testing.T, docs []Document) {
@@ -102,7 +102,7 @@ func TestProcessSession(t *testing.T) {
 				MaxTokensPerChunk: 10,
 				OverlapTokens:     2,
 			}},
-			summary:  &summarizerv1pb.Summary{SessionId: "sess-1"},
+			summary:  summarizerv1pb.Summary_builder{SessionId: "sess-1"}.Build(),
 			proser:   &fakeProser{prose: teleportSentence},
 			embedder: &fakeEmbedder{embedding: embedding},
 			check: func(t *testing.T, docs []Document) {

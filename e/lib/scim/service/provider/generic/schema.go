@@ -101,15 +101,15 @@ func buildResourceType(name, endpoint, schema, location string) (*scimpb.Resourc
 		return nil, trace.Wrap(err)
 	}
 
-	return &scimpb.Resource{
+	return scimpb.Resource_builder{
 		Schemas: []string{common.SchemaResourceTypeCore},
 		Id:      name,
-		Meta: &scimpb.Meta{
+		Meta: scimpb.Meta_builder{
 			ResourceType: "ResourceType",
 			Location:     location,
-		},
+		}.Build(),
 		Attributes: structAttrs,
-	}, nil
+	}.Build(), nil
 }
 
 // serviceProviderConfigHandler returns static configuration describing SCIM provider capabilities.
@@ -136,14 +136,14 @@ func (serviceProviderConfigHandler) GetResource(ctx context.Context, req *scimpb
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &scimpb.Resource{
+	return scimpb.Resource_builder{
 		Schemas: []string{common.SchemaServiceProviderConfigCore},
-		Meta: &scimpb.Meta{
+		Meta: scimpb.Meta_builder{
 			ResourceType: "ServiceProviderConfig",
 			Location:     "/ServiceProviderConfig",
-		},
+		}.Build(),
 		Attributes: resource,
-	}, nil
+	}.Build(), nil
 }
 
 // schemaHandler provides SCIM schema definitions for User and Group resources.
@@ -171,12 +171,12 @@ func (h schemaHandler) ListResources(ctx context.Context, req *scimpb.ListSCIMRe
 		buildUserSchemaResource(),
 		buildGroupSchemaResource(),
 	}
-	return &scimpb.ResourceList{
+	return scimpb.ResourceList_builder{
 		TotalResults: int32(len(resources)),
 		ItemsPerPage: int32(len(resources)),
 		StartIndex:   1,
 		Resources:    resources,
-	}, nil
+	}.Build(), nil
 }
 
 // commonSchema defines the schema attributes common to all SCIM resource schemata.
@@ -254,15 +254,15 @@ func buildGroupSchemaResource() *scimpb.Resource {
 	if err != nil {
 		return nil
 	}
-	return &scimpb.Resource{
+	return scimpb.Resource_builder{
 		Id:      common.SchemaGroupCore,
 		Schemas: []string{common.SchemaGroupCore},
-		Meta: &scimpb.Meta{
+		Meta: scimpb.Meta_builder{
 			ResourceType: "Schema",
 			Location:     "/Schemas/" + common.SchemaGroupCore,
-		},
+		}.Build(),
 		Attributes: groupAttrs,
-	}
+	}.Build()
 }
 
 // UserSchema is SCIM user resource schema definition.
@@ -322,15 +322,15 @@ func buildUserSchemaResource() *scimpb.Resource {
 	if err != nil {
 		return nil
 	}
-	return &scimpb.Resource{
+	return scimpb.Resource_builder{
 		Id:      common.SchemaUserCore,
 		Schemas: []string{common.SchemaUserCore},
-		Meta: &scimpb.Meta{
+		Meta: scimpb.Meta_builder{
 			ResourceType: "Schema",
 			Location:     "/Schemas/" + common.SchemaUserCore,
-		},
+		}.Build(),
 		Attributes: userAttrs,
-	}
+	}.Build()
 }
 
 // resourceTypesHandler provides a list of SCIM resource types (User, Group).
@@ -356,12 +356,12 @@ func (h resourceTypesHandler) ListResources(ctx context.Context, req *scimpb.Lis
 		resources = append(resources, res)
 	}
 
-	return &scimpb.ResourceList{
+	return scimpb.ResourceList_builder{
 		TotalResults: int32(len(resources)),
 		ItemsPerPage: int32(len(resources)),
 		StartIndex:   1,
 		Resources:    resources,
-	}, nil
+	}.Build(), nil
 }
 
 // structToPB converts a Go struct to a Protocol Buffers Struct.

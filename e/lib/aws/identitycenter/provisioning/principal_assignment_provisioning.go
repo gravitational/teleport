@@ -307,8 +307,8 @@ func convertToICSDKAssignments(in []*pb.AccountAssignmentRef, principalType ssoa
 
 func markAssignmentAsProvisioned(principal *pb.PrincipalAssignment) *pb.PrincipalAssignment {
 	cpy := proto.Clone(principal).(*pb.PrincipalAssignment)
-	cpy.GetStatus().ProvisioningState = pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED
-	cpy.GetStatus().Error = ""
+	cpy.GetStatus().SetProvisioningState(pb.ProvisioningState_PROVISIONING_STATE_PROVISIONED)
+	cpy.GetStatus().SetError("")
 	return cpy
 }
 

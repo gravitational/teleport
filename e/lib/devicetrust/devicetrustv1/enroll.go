@@ -46,13 +46,11 @@ func (c *enrollCeremony) EnrollDevice(
 	}
 
 	// Success (only send after audit).
-	err = stream.Send(&devicepb.EnrollDeviceResponse{
-		Payload: &devicepb.EnrollDeviceResponse_Success{
-			Success: &devicepb.EnrollDeviceSuccess{
-				Device: dev,
-			},
-		},
-	})
+	err = stream.Send(devicepb.EnrollDeviceResponse_builder{
+		Success: devicepb.EnrollDeviceSuccess_builder{
+			Device: dev,
+		}.Build(),
+	}.Build())
 	return dev, trace.Wrap(err)
 }
 
@@ -72,19 +70,19 @@ func (c *enrollCeremony) enrollDevice(
 	switch {
 	case initReq == nil:
 		return nil, trace.BadParameter("bad payload, expected EnrollDeviceInit")
-	case initReq.Token == "":
+	case initReq.GetToken() == "":
 		return nil, trace.BadParameter("enrollment token required")
-	case initReq.DeviceData == nil:
+	case !initReq.HasDeviceData():
 		return nil, trace.BadParameter("device data required")
-	case initReq.DeviceData.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED:
+	case initReq.GetDeviceData().GetOsType() == devicepb.OSType_OS_TYPE_UNSPECIFIED:
 		return nil, trace.BadParameter("device OS type required")
-	case initReq.DeviceData.SerialNumber == "":
+	case initReq.GetDeviceData().GetSerialNumber() == "":
 		return nil, trace.BadParameter("device serial number required")
 	}
 
 	// ...fetch the device...
 	ctx := stream.Context()
-	dev, err := findDeviceBySerial(ctx, c.storage, initReq.DeviceData.OsType, initReq.DeviceData.SerialNumber)
+	dev, err := findDeviceBySerial(ctx, c.storage, initReq.GetDeviceData().GetOsType(), initReq.GetDeviceData().GetSerialNumber())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -92,7 +90,7 @@ func (c *enrollCeremony) enrollDevice(
 	// against it.
 
 	// ...then immediately spend the enrollment token.
-	tokenData, err := c.storage.SpendDeviceEnrollToken(ctx, dev.Id, initReq.Token)
+	tokenData, err := c.storage.SpendDeviceEnrollToken(ctx, dev.GetId(), initReq.GetToken())
 	if err != nil {
 		// err swallowed/obscured on purpose.
 		return dev, trace.AccessDenied("invalid device enrollment token")
@@ -102,38 +100,38 @@ func (c *enrollCeremony) enrollDevice(
 	}
 
 	// Perform remaining init validation.
-	if initReq.CredentialId == "" {
+	if initReq.GetCredentialId() == "" {
 		return dev, trace.BadParameter("credential ID required")
 	}
 
 	// Run a few storage validations manually, so we catch errors and mismatches
 	// before continuing the ceremony.
-	if err := protectReadOnlyDeviceDataFields(initReq.DeviceData); err != nil {
+	if err := protectReadOnlyDeviceDataFields(initReq.GetDeviceData()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := storage.ValidateCollectedData(initReq.DeviceData); err != nil {
+	if err := storage.ValidateCollectedData(initReq.GetDeviceData()); err != nil {
 		return dev, trace.Wrap(err)
 	}
-	if err := storage.ValidateCollectedDataAgainstDevice(initReq.DeviceData, dev); err != nil {
+	if err := storage.ValidateCollectedDataAgainstDevice(initReq.GetDeviceData(), dev); err != nil {
 		return dev, trace.Wrap(err)
 	}
 
 	// Fan out according to the OS type.
 	var cred *devicepb.DeviceCredential
-	switch dev.OsType {
+	switch dev.GetOsType() {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		cred, err = c.enrollDeviceMacOS(initReq, dev, stream)
 	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
 		cred, err = c.enrollDeviceTPM(initReq, dev, stream)
 	default:
-		return dev, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.OsType))
+		return dev, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.GetOsType()))
 	}
 	if err != nil {
 		return dev, trace.Wrap(err)
 	}
 
 	// Update stored device.
-	enrolled, err := c.storage.EnrollDevice(ctx, dev.Id, cred, initReq.DeviceData, user)
+	enrolled, err := c.storage.EnrollDevice(ctx, dev.GetId(), cred, initReq.GetDeviceData(), user)
 	if err != nil {
 		return dev, trace.Wrap(err)
 	}
@@ -146,14 +144,14 @@ func (c *enrollCeremony) enrollDeviceMacOS(
 	dev *devicepb.Device,
 	stream devicepb.DeviceTrustService_EnrollDeviceServer) (*devicepb.DeviceCredential, error) {
 	// Verify macOS data.
-	if initReq.Macos == nil {
+	if !initReq.HasMacos() {
 		return nil, trace.BadParameter("macOS enrollment payload required")
 	}
-	cred := &devicepb.DeviceCredential{
-		Id:           initReq.CredentialId,
-		PublicKeyDer: initReq.Macos.GetPublicKeyDer(),
-	}
-	pubKey, err := storage.ValidateDeviceCredential(cred, dev.OsType)
+	cred := devicepb.DeviceCredential_builder{
+		Id:           initReq.GetCredentialId(),
+		PublicKeyDer: initReq.GetMacos().GetPublicKeyDer(),
+	}.Build()
+	pubKey, err := storage.ValidateDeviceCredential(cred, dev.GetOsType())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,9 +168,9 @@ func (c *enrollCeremony) enrollDeviceMacOS(
 	case ecKey.Curve != elliptic.P256():
 		c.logger.WarnContext(ctx,
 			"Unexpected macOS public key curve found, is the device genuine?",
-			"device_id", dev.Id,
-			"asset_tag", dev.AssetTag,
-			"credential_id", cred.Id,
+			"device_id", dev.GetId(),
+			"asset_tag", dev.GetAssetTag(),
+			"credential_id", cred.GetId(),
 			"curve", ecKey.Curve,
 		)
 		// TODO(codingllama): Forbid unexpected macOS key curve?
@@ -183,13 +181,11 @@ func (c *enrollCeremony) enrollDeviceMacOS(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := stream.Send(&devicepb.EnrollDeviceResponse{
-		Payload: &devicepb.EnrollDeviceResponse_MacosChallenge{
-			MacosChallenge: &devicepb.MacOSEnrollChallenge{
-				Challenge: chal,
-			},
-		},
-	}); err != nil {
+	if err := stream.Send(devicepb.EnrollDeviceResponse_builder{
+		MacosChallenge: devicepb.MacOSEnrollChallenge_builder{
+			Challenge: chal,
+		}.Build(),
+	}.Build()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	resp, err := stream.Recv()
@@ -202,10 +198,10 @@ func (c *enrollCeremony) enrollDeviceMacOS(
 	switch {
 	case chalResp == nil:
 		return nil, trace.BadParameter("bad payload, expected MacOSEnrollChallengeResponse")
-	case len(chalResp.Signature) == 0:
+	case len(chalResp.GetSignature()) == 0:
 		return nil, trace.BadParameter("signature required")
 	}
-	if err := challenge.Verify(chal, chalResp.Signature, pubKey); err != nil {
+	if err := challenge.Verify(chal, chalResp.GetSignature(), pubKey); err != nil {
 		c.logger.DebugContext(ctx,
 			"EnrollDevice: signature verification failed",
 			"error", err,

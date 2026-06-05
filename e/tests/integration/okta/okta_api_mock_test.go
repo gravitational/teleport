@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/okta/okta-sdk-golang/v2/okta"
+	"google.golang.org/protobuf/proto"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
@@ -22,11 +23,9 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 )
 
-var apiCredentials = &oktav1.OktaAPICredentials{
-	Auth: &oktav1.OktaAPICredentials_OauthId{
-		OauthId: "test-oauth-client-id-12345",
-	},
-}
+var apiCredentials = oktav1.OktaAPICredentials_builder{
+	OauthId: proto.String("test-oauth-client-id-12345"),
+}.Build()
 
 type fakeOktaServerOptions struct {
 	appCount    int

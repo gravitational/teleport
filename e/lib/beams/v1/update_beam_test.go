@@ -50,20 +50,20 @@ func TestUpdateBeamPublish(t *testing.T) {
 			pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
 
 			service := pack.service(t, pack.user(t, "alice"))
-			createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+			createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 				Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-			})
+			}.Build())
 			require.NoError(t, err)
 
 			beam := proto.CloneOf(createResp.GetBeam())
-			beam.Spec.Publish = &beamsv1pb.PublishSpec{
+			beam.GetSpec().SetPublish(beamsv1pb.PublishSpec_builder{
 				Port:     8080,
 				Protocol: tt.protocol,
-			}
+			}.Build())
 
-			resp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+			resp, err := service.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 				Beam: beam,
-			})
+			}.Build())
 			require.NoError(t, err)
 			require.NotEmpty(t, resp.GetBeam().GetStatus().GetAppName())
 
@@ -81,11 +81,11 @@ func TestUpdateBeamPublish(t *testing.T) {
 			}
 
 			updatedBeam := proto.CloneOf(resp.GetBeam())
-			updatedBeam.Spec.Publish.Protocol = tt.updateProtocol
+			updatedBeam.GetSpec().GetPublish().SetProtocol(tt.updateProtocol)
 
-			updateResp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+			updateResp, err := service.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 				Beam: updatedBeam,
-			})
+			}.Build())
 			require.NoError(t, err)
 			require.Equal(t, tt.updateProtocol, updateResp.GetBeam().GetSpec().GetPublish().GetProtocol())
 			require.Equal(t, resp.GetBeam().GetStatus().GetAppName(), updateResp.GetBeam().GetStatus().GetAppName())
@@ -122,30 +122,30 @@ func TestUpdateBeamUnpublish(t *testing.T) {
 	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	published := proto.CloneOf(createResp.GetBeam())
-	published.Spec.Publish = &beamsv1pb.PublishSpec{
+	published.GetSpec().SetPublish(beamsv1pb.PublishSpec_builder{
 		Port:     8080,
 		Protocol: beamsv1pb.Protocol_PROTOCOL_HTTP,
-	}
+	}.Build())
 
-	publishResp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+	publishResp, err := service.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 		Beam: published,
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.NotEmpty(t, publishResp.GetBeam().GetStatus().GetAppName())
 
 	appName := publishResp.GetBeam().GetStatus().GetAppName()
 	unpublished := proto.CloneOf(publishResp.GetBeam())
-	unpublished.Spec.Publish = nil
+	unpublished.GetSpec().ClearPublish()
 
-	resp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+	resp, err := service.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 		Beam: unpublished,
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Nil(t, resp.GetBeam().GetSpec().GetPublish())
 	require.Empty(t, resp.GetBeam().GetStatus().GetAppName())
@@ -168,19 +168,19 @@ func TestUpdateBeamRejectsLabelChange(t *testing.T) {
 		{
 			name: "modify label",
 			mutate: func(beam *beamsv1pb.Beam) {
-				beam.Metadata.Labels[types.BeamAliasLabel] = "modified"
+				beam.GetMetadata().GetLabels()[types.BeamAliasLabel] = "modified"
 			},
 		},
 		{
 			name: "add user label",
 			mutate: func(beam *beamsv1pb.Beam) {
-				beam.Metadata.Labels["user-controlled"] = "label"
+				beam.GetMetadata().GetLabels()["user-controlled"] = "label"
 			},
 		},
 		{
 			name: "remove label",
 			mutate: func(beam *beamsv1pb.Beam) {
-				delete(beam.Metadata.Labels, types.BeamAliasLabel)
+				delete(beam.GetMetadata().GetLabels(), types.BeamAliasLabel)
 			},
 		},
 	}
@@ -192,17 +192,17 @@ func TestUpdateBeamRejectsLabelChange(t *testing.T) {
 			pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
 
 			service := pack.service(t, pack.user(t, "alice"))
-			createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+			createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 				Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-			})
+			}.Build())
 			require.NoError(t, err)
 
 			beam := proto.CloneOf(createResp.GetBeam())
 			tt.mutate(beam)
 
-			_, err = service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+			_, err = service.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 				Beam: beam,
-			})
+			}.Build())
 			require.True(t, trace.IsBadParameter(err))
 			require.ErrorContains(t, err, "metadata.labels: cannot be modified")
 
@@ -219,17 +219,17 @@ func TestUpdateBeamRejectsMetadataExpiryChange(t *testing.T) {
 	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	beam := proto.CloneOf(createResp.GetBeam())
-	beam.Metadata.Expires = createResp.GetBeam().GetSpec().GetExpires()
+	beam.GetMetadata().SetExpires(createResp.GetBeam().GetSpec().GetExpires())
 
-	_, err = service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+	_, err = service.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 		Beam: beam,
-	})
+	}.Build())
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, "metadata.expires: must not be set")
 
@@ -244,17 +244,17 @@ func TestUpdateBeamRejectsEgressChange(t *testing.T) {
 	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	beam := proto.CloneOf(createResp.GetBeam())
-	beam.Spec.Egress = beamsv1pb.EgressMode_EGRESS_MODE_RESTRICTED
+	beam.GetSpec().SetEgress(beamsv1pb.EgressMode_EGRESS_MODE_RESTRICTED)
 
-	_, err = service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+	_, err = service.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 		Beam: beam,
-	})
+	}.Build())
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, "spec.egress: cannot be modified")
 
@@ -269,17 +269,17 @@ func TestUpdateBeamRejectsSpecExpiryChange(t *testing.T) {
 	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	beam := proto.CloneOf(createResp.GetBeam())
-	beam.Spec.Expires.Seconds++
+	beam.GetSpec().GetExpires().Seconds++
 
-	_, err = service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+	_, err = service.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 		Beam: beam,
-	})
+	}.Build())
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, "spec.expires: cannot be modified")
 
@@ -294,21 +294,21 @@ func TestUpdateBeamAccessDenied(t *testing.T) {
 	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
 
 	aliceService := pack.service(t, pack.user(t, "alice"))
-	createResp, err := aliceService.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	createResp, err := aliceService.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	beam := proto.CloneOf(createResp.GetBeam())
-	beam.Spec.Publish = &beamsv1pb.PublishSpec{
+	beam.GetSpec().SetPublish(beamsv1pb.PublishSpec_builder{
 		Port:     8080,
 		Protocol: beamsv1pb.Protocol_PROTOCOL_HTTP,
-	}
+	}.Build())
 
 	bobService := pack.service(t, pack.user(t, "bob"))
-	_, err = bobService.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+	_, err = bobService.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 		Beam: beam,
-	})
+	}.Build())
 	require.True(t, trace.IsAccessDenied(err))
 }
 
@@ -318,16 +318,16 @@ func TestUpdateBeamNoPublishChange(t *testing.T) {
 	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	beam := proto.CloneOf(createResp.GetBeam())
 
-	resp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+	resp, err := service.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 		Beam: beam,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(

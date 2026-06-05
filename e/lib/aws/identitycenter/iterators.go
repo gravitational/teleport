@@ -39,22 +39,22 @@ func allAccounts(ctx context.Context, src services.IdentityCenterAccounts) iter.
 func listTeleportUsers(ctx context.Context, service UsersService) (map[string]struct{}, error) {
 	var users []types.User
 
-	req := &usersv1.ListUsersRequest{
+	req := usersv1.ListUsersRequest_builder{
 		PageSize:    apidefaults.DefaultChunkSize,
 		WithSecrets: false,
-	}
+	}.Build()
 	for {
 		resp, err := service.ListUsers(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		for _, user := range resp.Users {
+		for _, user := range resp.GetUsers() {
 			users = append(users, user)
 		}
 
-		req.PageToken = resp.NextPageToken
-		if req.PageToken == "" {
+		req.SetPageToken(resp.GetNextPageToken())
+		if req.GetPageToken() == "" {
 			break
 		}
 	}

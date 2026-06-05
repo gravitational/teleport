@@ -276,7 +276,7 @@ func (svc *Service) onExternalIDUpdated(ctx context.Context, state *provisioning
 	_, err = principal.Update(ctx, svc.icSvc, principalAssignment,
 		func(asmt *identitycenterv1.PrincipalAssignment) error {
 			// Abort the update if the new external ID has written to the record.
-			if asmt.Spec.ExternalId == externalID {
+			if asmt.GetSpec().GetExternalId() == externalID {
 				return principal.ErrNoUpdateRequired
 			}
 			// Set the new ExternalID and reset the principal's assignment set.
@@ -287,8 +287,8 @@ func (svc *Service) onExternalIDUpdated(ctx context.Context, state *provisioning
 			// Without this difference the provisioner would see no change in
 			// the principal's assignment set and not provision the assignments
 			// to the principal's new ID.
-			asmt.GetSpec().ExternalId = externalID
-			asmt.GetStatus().Assignments = nil
+			asmt.GetSpec().SetExternalId(externalID)
+			asmt.GetStatus().SetAssignments(nil)
 			return nil
 		})
 	if err != nil {
@@ -375,16 +375,16 @@ func (svc *Service) onPrincipalProvisioned(ctx context.Context, principal *provi
 }
 
 func (svc *Service) onPrincipalProvisioning(ctx context.Context, state *provisioningv1.PrincipalState) error {
-	svc.log.DebugContext(ctx, "onPrincipalProvisioning invoked", "principal", state.Metadata.GetName())
-	if state.Metadata.Labels[principalDeleteLabel] == principalDeleteModeTeleportOnly {
+	svc.log.DebugContext(ctx, "onPrincipalProvisioning invoked", "principal", state.GetMetadata().GetName())
+	if state.GetMetadata().GetLabels()[principalDeleteLabel] == principalDeleteModeTeleportOnly {
 		return trace.Wrap(provisioning.ErrDoNotProvision)
 	}
 	return nil
 }
 
 func (svc *Service) onPrincipalDeprovisioning(ctx context.Context, state *provisioningv1.PrincipalState) error {
-	svc.log.DebugContext(ctx, "onPrincipalDeprovisioning invoked", "principal", state.Metadata.GetName())
-	if state.Metadata.Labels[principalDeleteLabel] == principalDeleteModeTeleportOnly {
+	svc.log.DebugContext(ctx, "onPrincipalDeprovisioning invoked", "principal", state.GetMetadata().GetName())
+	if state.GetMetadata().GetLabels()[principalDeleteLabel] == principalDeleteModeTeleportOnly {
 		return trace.Wrap(provisioning.ErrDoNotProvision)
 	}
 	return nil

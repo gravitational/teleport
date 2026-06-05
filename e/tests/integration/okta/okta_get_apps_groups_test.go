@@ -37,14 +37,14 @@ func Test_GetApps_GetGroups_withPluginCredentials(t *testing.T) {
 	createPluginStaticCredentials(t, sut, "unlabelled", nil)
 	createPluginStaticCredentials(t, sut, "okta-unrelated", map[string]string{"test-unrelated": "to-okta"})
 
-	getAppsReqNoCreds := &oktav1.GetAppsRequest{
+	getAppsReqNoCreds := oktav1.GetAppsRequest_builder{
 		OktaOrganizationUrl: fakeOkta.URL(),
 		ApiCredentials:      nil,
-	}
-	getGroupsReqNoCreds := &oktav1.GetGroupsRequest{
+	}.Build()
+	getGroupsReqNoCreds := oktav1.GetGroupsRequest_builder{
 		OktaOrganizationUrl: fakeOkta.URL(),
 		ApiCredentials:      nil,
-	}
+	}.Build()
 
 	// Before plugin with credentials exists, both return error if API credentials are not
 	// passed with the request.
@@ -57,12 +57,12 @@ func Test_GetApps_GetGroups_withPluginCredentials(t *testing.T) {
 
 	// Create an integration and the plugin with credentials as a result.
 
-	_, err = oktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err = oktaClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ReuseConnector:      "okta-pre-created-test",
 		OktaOrganizationUrl: fakeOkta.URL(),
 		ApiCredentials:      apiCredentials,
 		EnableUserSync:      true,
-	})
+	}.Build())
 	updateOktaDelays(t, sut, delays{
 		timeBetweenImports:                1 * time.Second,
 		timeBetweenAssignmentProcessLoops: 1 * time.Second,

@@ -56,18 +56,18 @@ func (h *Plugin) listInferenceModels(
 
 	response, err := clt.SummarizerServiceClient().ListInferenceModels(
 		r.Context(),
-		&summarizerv1.ListInferenceModelsRequest{
+		summarizerv1.ListInferenceModelsRequest_builder{
 			PageSize:  pageSize,
 			PageToken: query.Get("startKey"),
-		},
+		}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &ui.ListInferenceModelsResponse{
-		Items:   ui.MakeInferenceModels(response.Models),
-		NextKey: response.NextPageToken,
+		Items:   ui.MakeInferenceModels(response.GetModels()),
+		NextKey: response.GetNextPageToken(),
 	}, nil
 }
 
@@ -87,13 +87,13 @@ func (h *Plugin) getInferenceModel(
 
 	response, err := clt.SummarizerServiceClient().GetInferenceModel(
 		r.Context(),
-		&summarizerv1.GetInferenceModelRequest{Name: name},
+		summarizerv1.GetInferenceModelRequest_builder{Name: name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeInferenceModel(response.Model), nil
+	return ui.MakeInferenceModel(response.GetModel()), nil
 }
 
 // createInferenceModel creates a new inference model.
@@ -112,13 +112,13 @@ func (h *Plugin) createInferenceModel(
 
 	response, err := clt.SummarizerServiceClient().CreateInferenceModel(
 		r.Context(),
-		&summarizerv1.CreateInferenceModelRequest{Model: uiModel.ToProto()},
+		summarizerv1.CreateInferenceModelRequest_builder{Model: uiModel.ToProto()}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeInferenceModel(response.Model), nil
+	return ui.MakeInferenceModel(response.GetModel()), nil
 }
 
 // updateInferenceModel updates an existing inference model.
@@ -148,13 +148,13 @@ func (h *Plugin) updateInferenceModel(
 
 	response, err := clt.SummarizerServiceClient().UpsertInferenceModel(
 		r.Context(),
-		&summarizerv1.UpsertInferenceModelRequest{Model: uiModel.ToProto()},
+		summarizerv1.UpsertInferenceModelRequest_builder{Model: uiModel.ToProto()}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeInferenceModel(response.Model), nil
+	return ui.MakeInferenceModel(response.GetModel()), nil
 }
 
 // deleteInferenceModel deletes an inference model.
@@ -173,7 +173,7 @@ func (h *Plugin) deleteInferenceModel(
 
 	_, err = clt.SummarizerServiceClient().DeleteInferenceModel(
 		r.Context(),
-		&summarizerv1.DeleteInferenceModelRequest{Name: name},
+		summarizerv1.DeleteInferenceModelRequest_builder{Name: name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -199,18 +199,18 @@ func (h *Plugin) listInferenceSecrets(
 
 	response, err := clt.SummarizerServiceClient().ListInferenceSecrets(
 		r.Context(),
-		&summarizerv1.ListInferenceSecretsRequest{
+		summarizerv1.ListInferenceSecretsRequest_builder{
 			PageSize:  pageSize,
 			PageToken: query.Get("startKey"),
-		},
+		}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &ui.ListInferenceSecretsResponse{
-		Items:   ui.MakeInferenceSecrets(response.Secrets),
-		NextKey: response.NextPageToken,
+		Items:   ui.MakeInferenceSecrets(response.GetSecrets()),
+		NextKey: response.GetNextPageToken(),
 	}, nil
 }
 
@@ -230,13 +230,13 @@ func (h *Plugin) getInferenceSecret(
 
 	response, err := clt.SummarizerServiceClient().GetInferenceSecret(
 		r.Context(),
-		&summarizerv1.GetInferenceSecretRequest{Name: name},
+		summarizerv1.GetInferenceSecretRequest_builder{Name: name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeInferenceSecret(response.Secret), nil
+	return ui.MakeInferenceSecret(response.GetSecret()), nil
 }
 
 // createInferenceSecret creates a new inference secret.
@@ -255,13 +255,13 @@ func (h *Plugin) createInferenceSecret(
 
 	response, err := clt.SummarizerServiceClient().CreateInferenceSecret(
 		r.Context(),
-		&summarizerv1.CreateInferenceSecretRequest{Secret: uiSecret.ToProto()},
+		summarizerv1.CreateInferenceSecretRequest_builder{Secret: uiSecret.ToProto()}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeInferenceSecret(response.Secret), nil
+	return ui.MakeInferenceSecret(response.GetSecret()), nil
 }
 
 // updateInferenceSecret updates an existing inference secret.
@@ -291,13 +291,13 @@ func (h *Plugin) updateInferenceSecret(
 
 	response, err := clt.SummarizerServiceClient().UpsertInferenceSecret(
 		r.Context(),
-		&summarizerv1.UpsertInferenceSecretRequest{Secret: uiSecret.ToProto()},
+		summarizerv1.UpsertInferenceSecretRequest_builder{Secret: uiSecret.ToProto()}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeInferenceSecret(response.Secret), nil
+	return ui.MakeInferenceSecret(response.GetSecret()), nil
 }
 
 // deleteInferenceSecret deletes an inference secret.
@@ -316,7 +316,7 @@ func (h *Plugin) deleteInferenceSecret(
 
 	_, err = clt.SummarizerServiceClient().DeleteInferenceSecret(
 		r.Context(),
-		&summarizerv1.DeleteInferenceSecretRequest{Name: name},
+		summarizerv1.DeleteInferenceSecretRequest_builder{Name: name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -342,18 +342,18 @@ func (h *Plugin) listInferencePolicies(
 
 	response, err := clt.SummarizerServiceClient().ListInferencePolicies(
 		r.Context(),
-		&summarizerv1.ListInferencePoliciesRequest{
+		summarizerv1.ListInferencePoliciesRequest_builder{
 			PageSize:  pageSize,
 			PageToken: query.Get("startKey"),
-		},
+		}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &ui.ListInferencePoliciesResponse{
-		Items:   ui.MakeInferencePolicies(response.Policies),
-		NextKey: response.NextPageToken,
+		Items:   ui.MakeInferencePolicies(response.GetPolicies()),
+		NextKey: response.GetNextPageToken(),
 	}, nil
 }
 
@@ -373,13 +373,13 @@ func (h *Plugin) getInferencePolicy(
 
 	response, err := clt.SummarizerServiceClient().GetInferencePolicy(
 		r.Context(),
-		&summarizerv1.GetInferencePolicyRequest{Name: name},
+		summarizerv1.GetInferencePolicyRequest_builder{Name: name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeInferencePolicy(response.Policy), nil
+	return ui.MakeInferencePolicy(response.GetPolicy()), nil
 }
 
 // createInferencePolicy creates a new inference policy.
@@ -398,13 +398,13 @@ func (h *Plugin) createInferencePolicy(
 
 	response, err := clt.SummarizerServiceClient().CreateInferencePolicy(
 		r.Context(),
-		&summarizerv1.CreateInferencePolicyRequest{Policy: uiPolicy.ToProto()},
+		summarizerv1.CreateInferencePolicyRequest_builder{Policy: uiPolicy.ToProto()}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeInferencePolicy(response.Policy), nil
+	return ui.MakeInferencePolicy(response.GetPolicy()), nil
 }
 
 // updateInferencePolicy updates an existing inference policy.
@@ -434,13 +434,13 @@ func (h *Plugin) updateInferencePolicy(
 
 	response, err := clt.SummarizerServiceClient().UpsertInferencePolicy(
 		r.Context(),
-		&summarizerv1.UpsertInferencePolicyRequest{Policy: uiPolicy.ToProto()},
+		summarizerv1.UpsertInferencePolicyRequest_builder{Policy: uiPolicy.ToProto()}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.MakeInferencePolicy(response.Policy), nil
+	return ui.MakeInferencePolicy(response.GetPolicy()), nil
 }
 
 // deleteInferencePolicy deletes an inference policy.
@@ -459,7 +459,7 @@ func (h *Plugin) deleteInferencePolicy(
 
 	_, err = clt.SummarizerServiceClient().DeleteInferencePolicy(
 		r.Context(),
-		&summarizerv1.DeleteInferencePolicyRequest{Name: name},
+		summarizerv1.DeleteInferencePolicyRequest_builder{Name: name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)

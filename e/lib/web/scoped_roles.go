@@ -49,15 +49,15 @@ func listRootScopedRoles(ctx context.Context, clt scopedRoleLister, values url.V
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.ListScopedRoles(ctx, &scopedaccessv1.ListScopedRolesRequest{
+	resp, err := clt.ListScopedRoles(ctx, scopedaccessv1.ListScopedRolesRequest_builder{
 		PageSize:  limit,
 		PageToken: values.Get("startKey"),
-		ResourceScope: &scopesv1.Filter{
+		ResourceScope: scopesv1.Filter_builder{
 			Scope: scopes.Root,
 			Mode:  scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
-		},
+		}.Build(),
 		NameFilter: values.Get("filter"),
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

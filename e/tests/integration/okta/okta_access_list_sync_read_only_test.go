@@ -53,17 +53,17 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 
 	// 1. Create the integration with bidirectional sync disabled
 	beforeCreateIntegrationTime := time.Now()
-	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaAuthClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
 		EnableAccessListSync:    true,
 		EnableBidirectionalSync: false, // disabled
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			DefaultOwner: []string{"alice-admin"},
-		},
+		}.Build(),
 		ReuseConnector: "okta-pre-created-test",
-	})
+	}.Build())
 	require.NoError(t, err)
 	updateOktaDelays(t, sut, delays{
 		timeBetweenImports:                1 * time.Second,
@@ -133,73 +133,73 @@ func Test_AccessList_readOnly_members(t *testing.T) {
 
 	// 6. Try (and fail) to upsert member2 (specter)
 
-	_, err = aliceAccessListClient.UpsertAccessListMember(ctx, &accesslistv1.UpsertAccessListMemberRequest{
+	_, err = aliceAccessListClient.UpsertAccessListMember(ctx, accesslistv1.UpsertAccessListMemberRequest_builder{
 		Member: conv.ToMemberProto(member2),
-	})
+	}.Build())
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, "adding and updating members not allowed")
 
 	// 5. Try (and fail) to update member1 (ghost)
 
-	_, err = aliceAccessListClient.UpdateAccessListMember(ctx, &accesslistv1.UpdateAccessListMemberRequest{
+	_, err = aliceAccessListClient.UpdateAccessListMember(ctx, accesslistv1.UpdateAccessListMemberRequest_builder{
 		Member: conv.ToMemberProto(member1),
-	})
+	}.Build())
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, "updating members not allowed")
 
 	// 8. Try (and succeed) to upsert access list with the _already existing_ members
 
-	_, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+	_, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
 		AccessList: conv.ToProto(accessList),
 		Members:    []*accesslistv1.Member{conv.ToMemberProto(member1)},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// 9. Try (and fail) to upsert access list with _a new_ member (member1 exists, member2 added)
 
-	_, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+	_, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
 		AccessList: conv.ToProto(accessList),
 		Members:    []*accesslistv1.Member{conv.ToMemberProto(member1), conv.ToMemberProto(member2)},
-	})
+	}.Build())
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, "Okta-sourced Access List members modification not allowed when bidirectional sync is disabled")
 
 	// 10. Try (and fail) to upsert access list with _removed_ member (member1 removed)
 
-	_, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+	_, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
 		AccessList: conv.ToProto(accessList),
 		Members:    []*accesslistv1.Member{},
-	})
+	}.Build())
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, "Okta-sourced Access List members modification not allowed when bidirectional sync is disabled")
 
 	// 11. Try (and fail) to upsert access list with _replaced_ (member1 removed, member2 added)
 
-	_, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+	_, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
 		AccessList: conv.ToProto(accessList),
 		Members:    []*accesslistv1.Member{conv.ToMemberProto(member2)},
-	})
+	}.Build())
 	require.True(t, trace.IsBadParameter(err))
 	require.ErrorContains(t, err, "Okta-sourced Access List members modification not allowed when bidirectional sync is disabled")
 
 	// 12. Enable bidirectional sync
 
-	mustUpdateOktaIntegration(ctx, t, oktaAuthClient, &oktav1.UpdateIntegrationRequest{
+	mustUpdateOktaIntegration(ctx, t, oktaAuthClient, oktav1.UpdateIntegrationRequest_builder{
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
 		EnableAccessListSync:    true,
 		EnableBidirectionalSync: true, // enabled
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			DefaultOwner: []string{"alice-admin"},
-		},
-	})
+		}.Build(),
+	}.Build())
 
 	// 13. Now adding a member should work
 
-	_, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, &accesslistv1.UpsertAccessListWithMembersRequest{
+	_, err = aliceAccessListClient.UpsertAccessListWithMembers(ctx, accesslistv1.UpsertAccessListWithMembersRequest_builder{
 		AccessList: conv.ToProto(accessList),
 		Members:    []*accesslistv1.Member{conv.ToMemberProto(member1), conv.ToMemberProto(member2)},
-	})
+	}.Build())
 	require.NoError(t, err)
 }
 
@@ -238,17 +238,17 @@ func Test_AccessList_readOnly_pulls_from_Okta(t *testing.T) {
 
 	beforeCreationTime := time.Now()
 
-	_, err := oktaAuthClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	_, err := oktaAuthClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ApiCredentials:          apiCredentials,
 		EnableUserSync:          true,
 		EnableAppGroupSync:      true,
 		EnableAccessListSync:    true,
 		EnableBidirectionalSync: false, // disabled
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			DefaultOwner: []string{"alice-admin"},
-		},
+		}.Build(),
 		ReuseConnector: "okta-pre-created-test",
-	})
+	}.Build())
 	require.NoError(t, err)
 	updateOktaDelays(t, sut, delays{
 		timeBetweenImports:                1 * time.Second,

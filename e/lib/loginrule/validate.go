@@ -11,19 +11,19 @@ import (
 // contains an expression that fails to parse.
 func Validate(rule *loginrulepb.LoginRule) error {
 	switch {
-	case rule.Metadata == nil:
+	case !rule.HasMetadata():
 		return trace.BadParameter("login rule resource must contain metadata")
-	case rule.Metadata.Name == "":
+	case rule.GetMetadata().Name == "":
 		return trace.BadParameter("login rule resource must have non-empty metadata.name")
-	case rule.Version != types.V1:
-		return trace.BadParameter("unsupported login rule resource version %q, current supported version is %s", rule.Version, types.V1)
-	case len(rule.TraitsMap) > 0 && rule.TraitsExpression != "":
+	case rule.GetVersion() != types.V1:
+		return trace.BadParameter("unsupported login rule resource version %q, current supported version is %s", rule.GetVersion(), types.V1)
+	case len(rule.GetTraitsMap()) > 0 && rule.GetTraitsExpression() != "":
 		return trace.BadParameter("both traits_map and traits_expression are non-empty, exactly one must be set")
-	case len(rule.TraitsMap) == 0 && rule.TraitsExpression == "":
+	case len(rule.GetTraitsMap()) == 0 && rule.GetTraitsExpression() == "":
 		return trace.BadParameter("both traits_map and traits_expression are empty, exactly one must be set")
 	}
 
-	for trait, exprs := range rule.TraitsMap {
+	for trait, exprs := range rule.GetTraitsMap() {
 		for _, e := range exprs.Values {
 			_, err := parseExpr(e)
 			if err != nil {
@@ -32,10 +32,10 @@ func Validate(rule *loginrulepb.LoginRule) error {
 		}
 	}
 
-	if len(rule.TraitsExpression) > 0 {
-		_, err := parseExpr(rule.TraitsExpression)
+	if len(rule.GetTraitsExpression()) > 0 {
+		_, err := parseExpr(rule.GetTraitsExpression())
 		if err != nil {
-			return trace.Wrap(err, "failed to parse expression %q", rule.TraitsExpression)
+			return trace.Wrap(err, "failed to parse expression %q", rule.GetTraitsExpression())
 		}
 	}
 

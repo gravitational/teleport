@@ -15,7 +15,7 @@ type icAccountAssertion func(assert.TestingT, *identitycenterv1.Account) bool
 
 func withAccountName(name string) icAccountAssertion {
 	return func(t assert.TestingT, acct *identitycenterv1.Account) bool {
-		return assert.Equal(t, name, acct.GetSpec().Name)
+		return assert.Equal(t, name, acct.GetSpec().GetName())
 	}
 }
 

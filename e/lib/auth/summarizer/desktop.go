@@ -104,14 +104,14 @@ func (s *SessionSummarizer) summarizeDesktopSession(
 
 	if stats.totalScreenshots == 0 {
 		s.logger.DebugContext(ctx, "No screenshots captured, skipping summarization", "session_id", details.sessionID)
-		result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS
+		result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS)
 
 		return nil
 	}
 
 	if len(d.allEvents) == 0 {
 		s.logger.DebugContext(ctx, "No notable events detected, skipping synthesis", "session_id", details.sessionID)
-		result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS
+		result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS)
 
 		return nil
 	}
@@ -124,7 +124,7 @@ func (s *SessionSummarizer) summarizeDesktopSession(
 	// TODO(ryan): in the next PR, convert sessionAnalysis + d.allEvents into Summary proto fields.
 	_ = sessionAnalysis
 
-	result.State = summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS
+	result.SetState(summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS)
 
 	var sessionDuration time.Duration
 	if !processor.StartTime().IsZero() && !stats.lastEventTime.IsZero() {

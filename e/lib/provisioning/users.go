@@ -43,7 +43,7 @@ func (p *provisioner) provisionUser(
 	log := p.log.With("principal_state", principalStateValuer{state})
 	log.DebugContext(ctx, "Provisioning user")
 
-	user, err := p.usersSvc.GetUser(ctx, state.Spec.PrincipalId, false)
+	user, err := p.usersSvc.GetUser(ctx, state.GetSpec().GetPrincipalId(), false)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching user for provisioning")
 	}
@@ -56,7 +56,7 @@ func (p *provisioner) provisionUser(
 	// If we don't have an external ID recorded for this resource, we treat this
 	// as new user creation. If a matching user exists on the downstream system
 	// we will adopt it, rather than create a new user.
-	if state.Status.ExternalId == "" {
+	if state.GetStatus().GetExternalId() == "" {
 		updatedState, err := p.adoptOrCreateDownstreamUser(ctx, state, user)
 		if err != nil {
 			return nil, trace.Wrap(err, "handling user with no external ID")

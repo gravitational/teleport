@@ -251,7 +251,7 @@ func New(params ServiceParams) (*Service, error) {
 
 func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRequest) (*devicepb.Device, error) {
 	var verbs []string
-	if req.CreateEnrollToken {
+	if req.GetCreateEnrollToken() {
 		verbs = []string{types.VerbCreate, types.VerbCreateEnrollToken}
 	} else {
 		verbs = []string{types.VerbCreate}
@@ -264,7 +264,7 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 		return nil, trace.Wrap(err)
 	}
 
-	dev, err := s.storage.CreateDevice(ctx, req.Device, req.CreateAsResource)
+	dev, err := s.storage.CreateDevice(ctx, req.GetDevice(), req.GetCreateAsResource())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -280,8 +280,8 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 		UserMetadata: getUserMetadata(ctx),
 	})
 
-	if req.CreateEnrollToken {
-		token, err := s.storage.CreateDeviceEnrollToken(ctx, dev.Id, getExpireTime(req.EnrollTokenExpireTime))
+	if req.GetCreateEnrollToken() {
+		token, err := s.storage.CreateDeviceEnrollToken(ctx, dev.GetId(), getExpireTime(req.GetEnrollTokenExpireTime()))
 		s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 			Metadata: apievents.Metadata{
 				Type: events.DeviceEnrollTokenCreateEvent,
@@ -299,7 +299,7 @@ func (s *Service) CreateDevice(ctx context.Context, req *devicepb.CreateDeviceRe
 				"error", err,
 			)
 		} else {
-			dev.EnrollToken = token
+			dev.SetEnrollToken(token)
 		}
 	}
 
@@ -316,22 +316,22 @@ func (s *Service) UpdateDevice(ctx context.Context, req *devicepb.UpdateDeviceRe
 	}
 
 	switch {
-	case req.Device == nil:
+	case !req.HasDevice():
 		return nil, trace.BadParameter("device required")
-	case req.Device.Id == "":
+	case req.GetDevice().GetId() == "":
 		return nil, trace.BadParameter("device ID required")
-	case req.UpdateMask == nil:
+	case !req.HasUpdateMask():
 		return nil, trace.BadParameter("update mask required")
 	}
-	dev := req.Device
-	paths := req.UpdateMask.Paths
+	dev := req.GetDevice()
+	paths := req.GetUpdateMask().Paths
 
 	// Validate update mask before hitting storage.
 	if err := applyDeviceUpdateMask(paths, dev, dev); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.storage.UpdateDevice(ctx, dev.Id, func(stored *devicepb.Device) *devicepb.Device {
+	updated, err := s.storage.UpdateDevice(ctx, dev.GetId(), func(stored *devicepb.Device) *devicepb.Device {
 		// err is safe to swallow if the validation above passed.
 		_ = applyDeviceUpdateMask(paths, stored, dev)
 		return stored
@@ -362,11 +362,11 @@ func applyDeviceUpdateMask(paths []string, dst, src *devicepb.Device) error {
 	for _, path := range paths {
 		switch path {
 		case "enroll_status":
-			dst.EnrollStatus = src.EnrollStatus
+			dst.SetEnrollStatus(src.GetEnrollStatus())
 		case "profile":
-			dst.Profile = src.Profile
+			dst.SetProfile(src.GetProfile())
 		case "source":
-			dst.Source = src.Source
+			dst.SetSource(src.GetSource())
 		default:
 			return trace.BadParameter("unsupported update mask path: %q", path)
 		}
@@ -384,10 +384,10 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Device == nil {
+	if !req.HasDevice() {
 		return nil, trace.BadParameter("device required")
 	}
-	dev := req.Device
+	dev := req.GetDevice()
 
 	emitEvent := func(eventType, eventCode string, dev *devicepb.Device) {
 		s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
@@ -404,19 +404,19 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 	}
 
 	// Attempt an update first, if it makes sense.
-	if dev.Id != "" {
-		updated, err := s.storage.UpdateDevice(ctx, dev.Id, func(stored *devicepb.Device) *devicepb.Device {
+	if dev.GetId() != "" {
+		updated, err := s.storage.UpdateDevice(ctx, dev.GetId(), func(stored *devicepb.Device) *devicepb.Device {
 			// Be nice and fill in ApiVersion if it's empty.
-			if dev.ApiVersion == "" {
-				dev.ApiVersion = stored.ApiVersion
+			if dev.GetApiVersion() == "" {
+				dev.SetApiVersion(stored.GetApiVersion())
 			}
 
 			// Play nice with the Terraform provider and ignore changes on fields it
 			// loses precision (like Timestamps) or doesn't manage (Credential).
-			dev.CreateTime = stored.CreateTime
-			dev.UpdateTime = stored.UpdateTime
-			dev.Credential = stored.Credential
-			dev.Owner = stored.Owner
+			dev.SetCreateTime(stored.GetCreateTime())
+			dev.SetUpdateTime(stored.GetUpdateTime())
+			dev.SetCredential(stored.GetCredential())
+			dev.SetOwner(stored.GetOwner())
 
 			// Use the request device for all else.
 			return dev
@@ -431,7 +431,7 @@ func (s *Service) UpsertDevice(ctx context.Context, req *devicepb.UpsertDeviceRe
 		// NotFound errors fall into the create flow.
 	}
 
-	created, err := s.storage.CreateDevice(ctx, dev, req.CreateAsResource)
+	created, err := s.storage.CreateDevice(ctx, dev, req.GetCreateAsResource())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -449,7 +449,7 @@ func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRe
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.storage.DeleteDevice(ctx, req.DeviceId); err != nil {
+	if err := s.storage.DeleteDevice(ctx, req.GetDeviceId()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
@@ -462,7 +462,7 @@ func (s *Service) DeleteDevice(ctx context.Context, req *devicepb.DeleteDeviceRe
 		},
 		Device: &apievents.DeviceMetadata{
 			// Without extra queries, the device ID is all we got here.
-			DeviceId: req.DeviceId,
+			DeviceId: req.GetDeviceId(),
 		},
 		UserMetadata: getUserMetadata(ctx),
 	})
@@ -474,7 +474,7 @@ func (s *Service) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequ
 	if _, err := s.authorizeAccess(ctx, types.KindDevice, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if req.IdOrTag == "" {
+	if req.GetIdOrTag() == "" {
 		return nil, trace.BadParameter("id_or_tag required")
 	}
 
@@ -489,7 +489,7 @@ func (s *Service) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequ
 	}
 	readC := make(chan deviceRead, 1)
 	go func() {
-		dev, err := s.storage.GetDeviceByID(innerCtx, req.IdOrTag)
+		dev, err := s.storage.GetDeviceByID(innerCtx, req.GetIdOrTag())
 		readC <- deviceRead{
 			dev: dev,
 			err: trace.Wrap(err),
@@ -497,7 +497,7 @@ func (s *Service) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequ
 	}()
 
 	// Read devices by asset tag
-	devs, err := s.storage.GetDevicesByAssetTag(innerCtx, req.IdOrTag)
+	devs, err := s.storage.GetDevicesByAssetTag(innerCtx, req.GetIdOrTag())
 	if err != nil {
 		// Be nice and wait for our goroutines to complete.
 		cancel()
@@ -516,9 +516,9 @@ func (s *Service) FindDevices(ctx context.Context, req *devicepb.FindDevicesRequ
 		devs = append([]*devicepb.Device{r.dev}, devs...)
 	}
 
-	return &devicepb.FindDevicesResponse{
+	return devicepb.FindDevicesResponse_builder{
 		Devices: devs,
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) GetDevice(ctx context.Context, req *devicepb.GetDeviceRequest) (*devicepb.Device, error) {
@@ -526,7 +526,7 @@ func (s *Service) GetDevice(ctx context.Context, req *devicepb.GetDeviceRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	dev, err := s.storage.GetDeviceByID(ctx, req.DeviceId)
+	dev, err := s.storage.GetDeviceByID(ctx, req.GetDeviceId())
 	return dev, trace.Wrap(err)
 }
 
@@ -536,20 +536,20 @@ func (s *Service) ListDevices(ctx context.Context, req *devicepb.ListDevicesRequ
 	}
 
 	// Default to "list" view if not specified.
-	view := req.View
+	view := req.GetView()
 	if view == devicepb.DeviceView_DEVICE_VIEW_UNSPECIFIED {
 		view = devicepb.DeviceView_DEVICE_VIEW_LIST
 	}
 
-	devs, nextPageToken, err := s.storage.ListDevices(ctx, int(req.PageSize), req.PageToken, view)
+	devs, nextPageToken, err := s.storage.ListDevices(ctx, int(req.GetPageSize()), req.GetPageToken(), view)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &devicepb.ListDevicesResponse{
+	return devicepb.ListDevicesResponse_builder{
 		Devices:       devs,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) ListDevicesByUser(ctx context.Context, req *devicepb.ListDevicesByUserRequest) (*devicepb.ListDevicesByUserResponse, error) {
@@ -558,15 +558,15 @@ func (s *Service) ListDevicesByUser(ctx context.Context, req *devicepb.ListDevic
 		return nil, trace.Wrap(err)
 	}
 
-	devs, nextToken, err := s.storage.ListDevicesByUser(ctx, int(req.PageSize), req.PageToken, authCtx.User.GetName())
+	devs, nextToken, err := s.storage.ListDevicesByUser(ctx, int(req.GetPageSize()), req.GetPageToken(), authCtx.User.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &devicepb.ListDevicesByUserResponse{
+	return devicepb.ListDevicesByUserResponse_builder{
 		Devices:       devs,
 		NextPageToken: nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreateDevicesRequest) (*devicepb.BulkCreateDevicesResponse, error) {
@@ -578,11 +578,11 @@ func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreat
 		return nil, trace.Wrap(err)
 	}
 
-	if len(req.Devices) == 0 {
+	if len(req.GetDevices()) == 0 {
 		return nil, trace.BadParameter("devices required")
 	}
 
-	devs := s.storage.BulkCreateDevices(ctx, req.Devices, req.CreateAsResource)
+	devs := s.storage.BulkCreateDevices(ctx, req.GetDevices(), req.GetCreateAsResource())
 
 	// Emit audit events.
 	for _, created := range devs {
@@ -598,15 +598,15 @@ func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreat
 				Success: true,
 			},
 			Device: &apievents.DeviceMetadata{
-				DeviceId: created.Id,
+				DeviceId: created.GetId(),
 			},
 			UserMetadata: getUserMetadata(ctx),
 		})
 	}
 
-	return &devicepb.BulkCreateDevicesResponse{
+	return devicepb.BulkCreateDevicesResponse_builder{
 		Devices: devs,
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (_ *devicepb.DeviceEnrollToken, err error) {
@@ -630,7 +630,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	// - User failed verb check (aka allowedByAutoEnroll)
 	// - User succeeded verb check, but only supplied auto-enroll information.
 	//   (Otherwise, favor legacy behavior.)
-	autoEnroll := allowedByAutoEnroll || (req.DeviceId == "" && req.DeviceData != nil && autoEnrollEnabled)
+	autoEnroll := allowedByAutoEnroll || (req.GetDeviceId() == "" && req.HasDeviceData() && autoEnrollEnabled)
 
 	var devMetadata *apievents.DeviceMetadata
 	var token *devicepb.DeviceEnrollToken
@@ -640,7 +640,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 			return nil, trace.Wrap(err)
 		}
 
-		dev, err := s.storage.CreateDeviceEnrollTokenUsingData(ctx, req.DeviceData)
+		dev, err := s.storage.CreateDeviceEnrollTokenUsingData(ctx, req.GetDeviceData())
 		devMetadata = getDeviceMetadata(dev)
 		if err != nil {
 			// Record auto-enroll failures to audit, it can be hard to diagnose
@@ -669,13 +669,13 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 		}
 
 		var err error
-		token, err = s.storage.CreateDeviceEnrollToken(ctx, req.DeviceId, getExpireTime(req.ExpireTime))
+		token, err = s.storage.CreateDeviceEnrollToken(ctx, req.GetDeviceId(), getExpireTime(req.GetExpireTime()))
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		devMetadata = &apievents.DeviceMetadata{
-			DeviceId: req.DeviceId,
+			DeviceId: req.GetDeviceId(),
 		}
 	}
 	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
@@ -963,9 +963,9 @@ func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devic
 	}()
 
 	switch {
-	case req.ConfirmationToken == nil:
+	case !req.HasConfirmationToken():
 		return nil, trace.BadParameter("confirmation token required")
-	case req.CurrentWebSessionId == "":
+	case req.GetCurrentWebSessionId() == "":
 		return nil, trace.BadParameter("current web session ID required")
 	}
 
@@ -994,7 +994,7 @@ func (s *Service) ConfirmDeviceWebAuthentication(ctx context.Context, req *devic
 		},
 		Device: &apievents.DeviceMetadata{
 			DeviceId:            deviceID,
-			WebAuthenticationId: req.ConfirmationToken.Id,
+			WebAuthenticationId: req.GetConfirmationToken().GetId(),
 		},
 		Status: apievents.Status{
 			Success:     err == nil,
@@ -1017,7 +1017,7 @@ func (s *Service) confirmDeviceWebAuthentication(
 	ctx context.Context,
 	req *devicepb.ConfirmDeviceWebAuthenticationRequest,
 ) (*storage.DeviceConfirmationTokenData, *devicepb.Device, error) {
-	tokenData, err := s.storage.SpendDeviceConfirmationToken(ctx, req.ConfirmationToken)
+	tokenData, err := s.storage.SpendDeviceConfirmationToken(ctx, req.GetConfirmationToken())
 	if err != nil {
 		s.logger.DebugContext(ctx,
 			"Failed to spend device confirmation token",
@@ -1031,7 +1031,7 @@ func (s *Service) confirmDeviceWebAuthentication(
 	}
 	// Always return tokenData for audit purposes.
 
-	if req.CurrentWebSessionId != tokenData.WebSessionID {
+	if req.GetCurrentWebSessionId() != tokenData.WebSessionID {
 		return tokenData, nil, auditStatusError{
 			Err:         trace.Wrap(errInvalidDeviceConfirmationToken),
 			UserMessage: "token move check failed",
@@ -1048,9 +1048,9 @@ func (s *Service) confirmDeviceWebAuthentication(
 		WebSessionID: tokenData.WebSessionID,
 		User:         tokenData.User,
 		DeviceExtensions: &auth.DeviceExtensions{
-			DeviceID:     dev.Id,
-			AssetTag:     dev.AssetTag,
-			CredentialID: dev.Credential.Id,
+			DeviceID:     dev.GetId(),
+			AssetTag:     dev.GetAssetTag(),
+			CredentialID: dev.GetCredential().GetId(),
 		},
 	}); err != nil {
 		s.logger.DebugContext(ctx,
@@ -1171,9 +1171,9 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	switch {
 	case token == nil:
 		return nil, trace.BadParameter("device web token required")
-	case token.BrowserUserAgent == "":
+	case token.GetBrowserUserAgent() == "":
 		return nil, trace.BadParameter("browser user agent required")
-	case token.User == "":
+	case token.GetUser() == "":
 		return nil, trace.BadParameter("user required")
 	}
 	// Fields we don't use directly in this method are validated by the storage
@@ -1191,21 +1191,21 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	}
 
 	// Parse user agent, determine OS.
-	expectedOS := loggedGetOSFromUserAgent(s.logger, token.BrowserUserAgent, token.BrowserMaxTouchPoints)
+	expectedOS := loggedGetOSFromUserAgent(s.logger, token.GetBrowserUserAgent(), token.GetBrowserMaxTouchPoints())
 	if expectedOS == devicepb.OSType_OS_TYPE_UNSPECIFIED {
 		s.logger.WarnContext(ctx, "No supported OS type found in user agent, DeviceWebToken will not be created")
 		return nil, nil
 	}
 
 	// Fetch user devices.
-	userDevices, err := s.getUserTrustedDevices(ctx, token.User)
+	userDevices, err := s.getUserTrustedDevices(ctx, token.GetUser())
 	switch {
 	case err != nil:
 		return nil, trace.Wrap(err, "reading user trusted devices")
 	case len(userDevices) == 0:
 		s.logger.DebugContext(ctx,
 			"User has no trusted devices, skipping DeviceWebToken creation",
-			"user", token.User,
+			"user", token.GetUser(),
 		)
 		return nil, nil
 	}
@@ -1214,12 +1214,12 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	var deviceIDs []string
 	var auditDev *devicepb.Device
 	for _, dev := range userDevices {
-		if dev.OsType != expectedOS {
+		if dev.GetOsType() != expectedOS {
 			continue
 		}
 
 		// Device allowed to authenticate.
-		deviceIDs = append(deviceIDs, dev.Id)
+		deviceIDs = append(deviceIDs, dev.GetId())
 
 		// Pick one of the devices as the audit target.
 		// This is correct for users with a single suitable device, but just a guess
@@ -1232,14 +1232,14 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 		s.logger.DebugContext(ctx,
 			"User has no suitable trusted device for Web authentication",
 			"os", expectedOS,
-			"user", token.User,
+			"user", token.GetUser(),
 		)
 		return nil, nil // User has no suitable trusted devices.
 	}
 
 	// Avoid modifying input.
 	createToken := proto.Clone(token).(*devicepb.DeviceWebToken)
-	createToken.ExpectedDeviceIds = deviceIDs
+	createToken.SetExpectedDeviceIds(deviceIDs)
 
 	created, err := s.storage.CreateDeviceWebToken(ctx, createToken)
 	if err != nil {
@@ -1247,7 +1247,7 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 	}
 
 	devMetadata := getDeviceMetadata(auditDev)
-	devMetadata.WebAuthenticationId = created.Id
+	devMetadata.WebAuthenticationId = created.GetId()
 	s.emitAuditEvent(ctx, &apievents.DeviceEvent2{
 		Metadata: apievents.Metadata{
 			Type: events.DeviceWebTokenCreateEvent,
@@ -1259,7 +1259,7 @@ func (s *Service) CreateDeviceWebToken(ctx context.Context, token *devicepb.Devi
 		Device: devMetadata,
 		// Do not use getUserMetadata, the context user is the Auth process.
 		UserMetadata: apievents.UserMetadata{
-			User: token.User,
+			User: token.GetUser(),
 		},
 	})
 
@@ -1281,7 +1281,7 @@ func (s *Service) getUserTrustedDevices(ctx context.Context, user string) ([]*de
 	for i := 0; i < len(devs); i++ {
 		dev := devs[i]
 
-		if dev.Owner == user {
+		if dev.GetOwner() == user {
 			continue
 		}
 
@@ -1484,11 +1484,11 @@ func getDeviceMetadata(dev *devicepb.Device) *apievents.DeviceMetadata {
 		return nil
 	}
 	return &apievents.DeviceMetadata{
-		DeviceId:     dev.Id,
-		OsType:       apievents.OSType(dev.OsType),
-		AssetTag:     dev.AssetTag,
-		CredentialId: dev.Credential.GetId(),
-		DeviceOrigin: apievents.DeviceOrigin(dev.Source.GetOrigin()),
+		DeviceId:     dev.GetId(),
+		OsType:       apievents.OSType(dev.GetOsType()),
+		AssetTag:     dev.GetAssetTag(),
+		CredentialId: dev.GetCredential().GetId(),
+		DeviceOrigin: apievents.DeviceOrigin(dev.GetSource().GetOrigin()),
 	}
 }
 

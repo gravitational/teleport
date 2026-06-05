@@ -288,57 +288,53 @@ func createTestUser(
 // sessions from cluster "openai-cluster" to OpenAI inference provider, and all
 // sessions from cluster "bedrock-cluster" to Bedrock inference provider.
 func createSummarizerConfig(t *testing.T, ctx context.Context, sclt summarizerv1pb.SummarizerServiceClient) {
-	_, err := sclt.CreateInferenceSecret(ctx, &summarizerv1pb.CreateInferenceSecretRequest{
-		Secret: apisummarizer.NewInferenceSecret("openai-secret", &summarizerv1pb.InferenceSecretSpec{
+	_, err := sclt.CreateInferenceSecret(ctx, summarizerv1pb.CreateInferenceSecretRequest_builder{
+		Secret: apisummarizer.NewInferenceSecret("openai-secret", summarizerv1pb.InferenceSecretSpec_builder{
 			Value: "my-secret-value",
-		}),
-	})
+		}.Build()),
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
-		Model: apisummarizer.NewInferenceModel("openai-model", &summarizerv1pb.InferenceModelSpec{
-			Provider: &summarizerv1pb.InferenceModelSpec_Openai{
-				Openai: &summarizerv1pb.OpenAIProvider{
-					OpenaiModelId:   "gpt-4o",
-					ApiKeySecretRef: "openai-secret",
-				},
-			},
-		}),
-	})
+	_, err = sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
+		Model: apisummarizer.NewInferenceModel("openai-model", summarizerv1pb.InferenceModelSpec_builder{
+			Openai: summarizerv1pb.OpenAIProvider_builder{
+				OpenaiModelId:   "gpt-4o",
+				ApiKeySecretRef: "openai-secret",
+			}.Build(),
+		}.Build()),
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
-		Policy: apisummarizer.NewInferencePolicy("openai-policy", &summarizerv1pb.InferencePolicySpec{
+	_, err = sclt.CreateInferencePolicy(ctx, summarizerv1pb.CreateInferencePolicyRequest_builder{
+		Policy: apisummarizer.NewInferencePolicy("openai-policy", summarizerv1pb.InferencePolicySpec_builder{
 			Kinds: []string{
 				string(types.SSHSessionKind), string(types.KubernetesSessionKind), string(types.DatabaseSessionKind),
 			},
 			Filter: `session.cluster_name == "openai-cluster"`,
 			Model:  "openai-model",
-		}),
-	})
+		}.Build()),
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
-		Model: apisummarizer.NewInferenceModel("bedrock-model", &summarizerv1pb.InferenceModelSpec{
-			Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
-				Bedrock: &summarizerv1pb.BedrockProvider{
-					BedrockModelId: "amazon.nova-lite-v1:0",
-					Region:         "us-west-2",
-				},
-			},
-		}),
-	})
+	_, err = sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
+		Model: apisummarizer.NewInferenceModel("bedrock-model", summarizerv1pb.InferenceModelSpec_builder{
+			Bedrock: summarizerv1pb.BedrockProvider_builder{
+				BedrockModelId: "amazon.nova-lite-v1:0",
+				Region:         "us-west-2",
+			}.Build(),
+		}.Build()),
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
-		Policy: apisummarizer.NewInferencePolicy("bedrock-policy", &summarizerv1pb.InferencePolicySpec{
+	_, err = sclt.CreateInferencePolicy(ctx, summarizerv1pb.CreateInferencePolicyRequest_builder{
+		Policy: apisummarizer.NewInferencePolicy("bedrock-policy", summarizerv1pb.InferencePolicySpec_builder{
 			Kinds: []string{
 				string(types.SSHSessionKind), string(types.KubernetesSessionKind), string(types.DatabaseSessionKind),
 			},
 			Filter: `session.cluster_name == "bedrock-cluster"`,
 			Model:  "bedrock-model",
-		}),
-	})
+		}.Build()),
+	}.Build())
 	require.NoError(t, err)
 }
 
@@ -498,12 +494,12 @@ func waitForSummary(
 	var sr *summarizerv1pb.GetSummaryResponse
 	require.Eventually(t, func() bool {
 		var err error
-		sr, err = sclt.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{
+		sr, err = sclt.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{
 			SessionId: sid,
-		})
-		return err == nil && sr.Summary.State != summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING
+		}.Build())
+		return err == nil && sr.GetSummary().GetState() != summarizerv1pb.SummaryState_SUMMARY_STATE_PENDING
 	}, time.Second*5, time.Millisecond*100)
-	return sr.Summary
+	return sr.GetSummary()
 }
 
 func TestSummarizer(t *testing.T) {
@@ -655,7 +651,7 @@ func TestSummarizer(t *testing.T) {
 				require.NoError(t, err)
 
 				assert.Empty(t, cmp.Diff(
-					&summarizerv1pb.Summary{
+					summarizerv1pb.Summary_builder{
 						SessionId:           sessionID,
 						State:               tc.state,
 						InferenceStartedAt:  timestamppb.New(startTime),
@@ -664,7 +660,7 @@ func TestSummarizer(t *testing.T) {
 						ModelName:           providerName + "-model",
 						SessionEndEvent:     expectedEndEvent,
 						ErrorMessage:        tc.errors[providerName],
-					},
+					}.Build(),
 					summary,
 					protocmp.Transform(),
 				))
@@ -779,17 +775,15 @@ func TestSummarizer_ReportsStoredEmbeddingsUsage(t *testing.T) {
 	sclt := clt.SummarizerServiceClient()
 	createSummarizerConfig(t, ctx, sclt)
 
-	_, err = sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
-		Model: apisummarizer.NewRetrievalModel(&summarizerv1pb.RetrievalModelSpec{
-			EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Bedrock{
-				Bedrock: &summarizerv1pb.BedrockProvider{
-					BedrockModelId: "amazon.titan-embed-text-v1",
-					Region:         "us-east-1",
-				},
-			},
+	_, err = sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
+		Model: apisummarizer.NewRetrievalModel(summarizerv1pb.RetrievalModelSpec_builder{
+			Bedrock: summarizerv1pb.BedrockProvider_builder{
+				BedrockModelId: "amazon.titan-embed-text-v1",
+				Region:         "us-east-1",
+			}.Build(),
 			InferenceModelName: "bedrock-model",
-		}),
-	})
+		}.Build()),
+	}.Build())
 	require.NoError(t, err)
 
 	sessionID := uuid.NewString()
@@ -843,29 +837,27 @@ func TestSummarizer_BedrockConfigFromEnvironment(t *testing.T) {
 
 	// Create a model that expects configuration to be injected from the process
 	// environment.
-	_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
+	_, err = sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
 		Model: apisummarizer.NewInferenceModel(
 			"test-model",
-			&summarizerv1pb.InferenceModelSpec{
-				Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
-					Bedrock: &summarizerv1pb.BedrockProvider{
-						BedrockModelId: "{{env.bedrock_model_id}}",
-						Region:         "{{env.bedrock_region}}",
-					},
-				},
-			},
+			summarizerv1pb.InferenceModelSpec_builder{
+				Bedrock: summarizerv1pb.BedrockProvider_builder{
+					BedrockModelId: "{{env.bedrock_model_id}}",
+					Region:         "{{env.bedrock_region}}",
+				}.Build(),
+			}.Build(),
 		),
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
+	_, err = sclt.CreateInferencePolicy(ctx, summarizerv1pb.CreateInferencePolicyRequest_builder{
 		Policy: apisummarizer.NewInferencePolicy(
 			"test-policy",
-			&summarizerv1pb.InferencePolicySpec{
+			summarizerv1pb.InferencePolicySpec_builder{
 				Kinds: []string{string(types.SSHSessionKind)},
 				Model: "test-model",
-			}),
-	})
+			}.Build()),
+	}.Build())
 	require.NoError(t, err)
 
 	// Generate a session and test the model.
@@ -877,7 +869,7 @@ func TestSummarizer_BedrockConfigFromEnvironment(t *testing.T) {
 	ingestSession(t, ctx, srv.Auth(), sid, sessEvents)
 
 	summary := waitForSummary(t, ctx, sclt, sid)
-	assert.Equal(t, "eu-central-1, anthropic.claude-3-5-sonnet-20240620-v1:0", summary.Content)
+	assert.Equal(t, "eu-central-1, anthropic.claude-3-5-sonnet-20240620-v1:0", summary.GetContent())
 }
 
 func TestSummarizer_BedrockRestricted(t *testing.T) {
@@ -900,14 +892,12 @@ func TestSummarizer_BedrockRestricted(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a model that uses default AWS authentication.
-	modelSpec := &summarizerv1pb.InferenceModelSpec{
-		Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
-			Bedrock: &summarizerv1pb.BedrockProvider{
-				BedrockModelId: "amazon.nova-lite-v1:0",
-				Region:         "us-west-2",
-			},
-		},
-	}
+	modelSpec := summarizerv1pb.InferenceModelSpec_builder{
+		Bedrock: summarizerv1pb.BedrockProvider_builder{
+			BedrockModelId: "amazon.nova-lite-v1:0",
+			Region:         "us-west-2",
+		}.Build(),
+	}.Build()
 	_, err = ssrvWithBedrock.CreateInferenceModel(ctx, apisummarizer.NewInferenceModel(
 		"bedrock-model", modelSpec,
 	))
@@ -915,20 +905,20 @@ func TestSummarizer_BedrockRestricted(t *testing.T) {
 
 	// Create a model that uses authentication via OIDC.
 	oidcModelSpec := proto.CloneOf(modelSpec)
-	oidcModelSpec.GetBedrock().Integration = "dummy-integration"
+	oidcModelSpec.GetBedrock().SetIntegration("dummy-integration")
 	_, err = ssrvWithBedrock.CreateInferenceModel(ctx, apisummarizer.NewInferenceModel(
 		"bedrock-oidc-model", oidcModelSpec,
 	))
 	require.NoError(t, err)
 
 	// Create a policy that uses default AWS authentication.
-	policySpec := &summarizerv1pb.InferencePolicySpec{
+	policySpec := summarizerv1pb.InferencePolicySpec_builder{
 		Kinds: []string{
 			string(types.SSHSessionKind), string(types.KubernetesSessionKind), string(types.DatabaseSessionKind),
 		},
 		Filter: `session.cluster_name == "bedrock-cluster"`,
 		Model:  "bedrock-model",
-	}
+	}.Build()
 	_, err = ssrvWithBedrock.CreateInferencePolicy(ctx, apisummarizer.NewInferencePolicy(
 		"bedrock-policy", policySpec,
 	))
@@ -936,8 +926,8 @@ func TestSummarizer_BedrockRestricted(t *testing.T) {
 
 	// Create a policy that uses authentication via OIDC.
 	oidcPolicySpec := proto.CloneOf(policySpec)
-	oidcPolicySpec.Filter = `session.cluster_name == "bedrock-oidc-cluster"`
-	oidcPolicySpec.Model = "bedrock-oidc-model"
+	oidcPolicySpec.SetFilter(`session.cluster_name == "bedrock-oidc-cluster"`)
+	oidcPolicySpec.SetModel("bedrock-oidc-model")
 	_, err = ssrvWithBedrock.CreateInferencePolicy(ctx, apisummarizer.NewInferencePolicy(
 		"bedrock-oidc-policy", oidcPolicySpec,
 	))
@@ -969,7 +959,7 @@ func TestSummarizer_BedrockRestricted(t *testing.T) {
 	require.NoError(t, err)
 	sclt := clt.SummarizerServiceClient()
 	summary := waitForSummary(t, ctx, sclt, oidcSID)
-	assert.Equal(t, "The user wrote: ls", summary.Content)
+	assert.Equal(t, "The user wrote: ls", summary.GetContent())
 }
 
 func TestSummarizerEncrypedDecrypted(t *testing.T) {
@@ -1014,7 +1004,7 @@ func TestSummarizerEncrypedDecrypted(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, cmp.Diff(
-		&summarizerv1pb.Summary{
+		summarizerv1pb.Summary_builder{
 			SessionId:           encryptedSessionID,
 			State:               summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
 			InferenceStartedAt:  timestamppb.New(startTime),
@@ -1022,7 +1012,7 @@ func TestSummarizerEncrypedDecrypted(t *testing.T) {
 			Content:             "The user wrote: netstat",
 			ModelName:           "openai-model",
 			SessionEndEvent:     expectedEndEvent,
-		},
+		}.Build(),
 		summary,
 		protocmp.Transform(),
 	))
@@ -1093,7 +1083,7 @@ func TestSummarizerNoEndEvent(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Empty(t, cmp.Diff(
-		&summarizerv1pb.Summary{
+		summarizerv1pb.Summary_builder{
 			SessionId:           sshSessionID,
 			State:               summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS,
 			InferenceStartedAt:  timestamppb.New(startTime),
@@ -1102,7 +1092,7 @@ func TestSummarizerNoEndEvent(t *testing.T) {
 			ModelName:           "openai-model",
 			SessionEndEvent:     expectedEndEvent,
 			ErrorMessage:        "",
-		},
+		}.Build(),
 		summary,
 		protocmp.Transform(),
 	))
@@ -1142,36 +1132,36 @@ func TestSummarizerEnhancedSession(t *testing.T) {
 		t.Run(providerName+" provider success", func(t *testing.T) {
 			summary := ingestEnhancedSession(t, providerName+"-cluster", "ls -la")
 
-			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
-			require.Equal(t, providerName+"-model", summary.ModelName)
-			require.Empty(t, summary.Content)
-			require.NotNil(t, summary.EnhancedSummary)
-			require.Equal(t, "Test session with commands", summary.EnhancedSummary.ShortDescription)
-			require.Equal(t, summarizerv1pb.RiskLevel_RISK_LEVEL_LOW, summary.EnhancedSummary.RiskLevel)
+			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.GetState())
+			require.Equal(t, providerName+"-model", summary.GetModelName())
+			require.Empty(t, summary.GetContent())
+			require.NotNil(t, summary.GetEnhancedSummary())
+			require.Equal(t, "Test session with commands", summary.GetEnhancedSummary().GetShortDescription())
+			require.Equal(t, summarizerv1pb.RiskLevel_RISK_LEVEL_LOW, summary.GetEnhancedSummary().GetRiskLevel())
 		})
 
 		t.Run(providerName+" provider error", func(t *testing.T) {
 			summary := ingestEnhancedSession(t, providerName+"-cluster", "trigger enhanced error")
 
 			// When enhanced summarization fails, we fall back to simple summarization.
-			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
-			require.Equal(t, providerName+"-model", summary.ModelName)
-			require.Empty(t, summary.ErrorMessage)
-			require.NotEmpty(t, summary.Content)
-			require.Nil(t, summary.EnhancedSummary)
+			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.GetState())
+			require.Equal(t, providerName+"-model", summary.GetModelName())
+			require.Empty(t, summary.GetErrorMessage())
+			require.NotEmpty(t, summary.GetContent())
+			require.Nil(t, summary.GetEnhancedSummary())
 		})
 
 		t.Run(providerName+" command analysis failure is graceful", func(t *testing.T) {
 			summary := ingestEnhancedSession(t, providerName+"-cluster", "trigger command error")
 
-			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
-			require.Equal(t, providerName+"-model", summary.ModelName)
-			require.Empty(t, summary.ErrorMessage)
-			require.NotNil(t, summary.EnhancedSummary)
+			require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.GetState())
+			require.Equal(t, providerName+"-model", summary.GetModelName())
+			require.Empty(t, summary.GetErrorMessage())
+			require.NotNil(t, summary.GetEnhancedSummary())
 			//nolint:staticcheck // deprecated field kept for backwards compatibility
-			require.NotNil(t, summary.EnhancedSummary.NeedsFurtherReview)
+			require.NotNil(t, summary.GetEnhancedSummary().NeedsFurtherReview)
 			//nolint:staticcheck // deprecated field kept for backwards compatibility
-			require.Equal(t, summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED, *summary.EnhancedSummary.NeedsFurtherReview)
+			require.Equal(t, summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED, summary.GetEnhancedSummary().GetNeedsFurtherReview())
 		})
 	}
 }
@@ -1201,9 +1191,9 @@ func TestSummarizerSessionRouting(t *testing.T) {
 		ingestSession(t, ctx, srv.Auth(), sessionID, sessEvents)
 		summary := waitForSummary(t, ctx, sclt, sessionID)
 
-		require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
-		require.NotNil(t, summary.EnhancedSummary, "SSH sessions should produce an enhanced summary via summarizeSession")
-		require.Empty(t, summary.Content, "SSH sessions with commands should not produce simple content")
+		require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.GetState())
+		require.NotNil(t, summary.GetEnhancedSummary(), "SSH sessions should produce an enhanced summary via summarizeSession")
+		require.Empty(t, summary.GetContent(), "SSH sessions with commands should not produce simple content")
 	})
 
 	t.Run("Kubernetes sessions get an enhanced summary", func(t *testing.T) {
@@ -1225,9 +1215,9 @@ func TestSummarizerSessionRouting(t *testing.T) {
 		ingestSession(t, ctx, srv.Auth(), sessionID, sessEvents)
 		summary := waitForSummary(t, ctx, sclt, sessionID)
 
-		require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
-		require.NotNil(t, summary.EnhancedSummary, "Kubernetes sessions should produce an enhanced summary via summarizeSession")
-		require.Empty(t, summary.Content, "Kubernetes sessions with commands should not produce simple content")
+		require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.GetState())
+		require.NotNil(t, summary.GetEnhancedSummary(), "Kubernetes sessions should produce an enhanced summary via summarizeSession")
+		require.Empty(t, summary.GetContent(), "Kubernetes sessions with commands should not produce simple content")
 	})
 
 	t.Run("Database sessions use simple summarization", func(t *testing.T) {
@@ -1244,10 +1234,10 @@ func TestSummarizerSessionRouting(t *testing.T) {
 		ingestSession(t, ctx, srv.Auth(), sessionID, sessEvents)
 		summary := waitForSummary(t, ctx, sclt, sessionID)
 
-		require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.State)
-		require.Nil(t, summary.EnhancedSummary, "Database sessions should not produce an enhanced summary")
-		require.NotEmpty(t, summary.Content, "Database sessions should produce simple content via summarizeSimple")
-		require.Contains(t, summary.Content, "The user queried:", "Database sessions should use the database prompt")
+		require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_SUCCESS, summary.GetState())
+		require.Nil(t, summary.GetEnhancedSummary(), "Database sessions should not produce an enhanced summary")
+		require.NotEmpty(t, summary.GetContent(), "Database sessions should produce simple content via summarizeSimple")
+		require.Contains(t, summary.GetContent(), "The user queried:", "Database sessions should use the database prompt")
 	})
 }
 
@@ -1387,7 +1377,7 @@ func TestSummarizeNowAndReportMetrics_RecoversFromPanic(t *testing.T) {
 		s.summarizeNowAndReportMetrics(t.Context(), sessionDetails{
 			sessionID:  "test-session-id",
 			kind:       types.SSHSessionKind,
-			summary:    &summarizerv1pb.Summary{ModelName: "test-model"},
+			summary:    summarizerv1pb.Summary_builder{ModelName: "test-model"}.Build(),
 			sessionEnd: &apievents.SessionEnd{},
 		})
 	}()
@@ -1407,9 +1397,9 @@ func TestSummarizeNowAndReportMetrics_RecoversFromPanic(t *testing.T) {
 	// The pending summary uploaded before the worker goroutine started must be
 	// finalized to an error state; otherwise clients polling for completion hang.
 	require.NotNil(t, uploader.lastSummary, "expected the failed summary to be persisted")
-	require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR, uploader.lastSummary.State)
-	require.Equal(t, "internal error while processing session recording", uploader.lastSummary.ErrorMessage)
-	require.NotZero(t, uploader.lastSummary.InferenceFinishedAt.AsTime())
+	require.Equal(t, summarizerv1pb.SummaryState_SUMMARY_STATE_ERROR, uploader.lastSummary.GetState())
+	require.Equal(t, "internal error while processing session recording", uploader.lastSummary.GetErrorMessage())
+	require.NotZero(t, uploader.lastSummary.GetInferenceFinishedAt().AsTime())
 }
 
 type capturingSummaryUploader struct {
@@ -1469,9 +1459,9 @@ func (f *fakeAGRecordingClient) SearchSessionSummaries(
 func (f *fakeAGRecordingClient) IsSessionSearchEnabled(
 	_ context.Context, _ *accessgraphv1.IsSessionSearchEnabledRequest, _ ...grpc.CallOption,
 ) (*accessgraphv1.IsSessionSearchEnabledResponse, error) {
-	return &accessgraphv1.IsSessionSearchEnabledResponse{
+	return accessgraphv1.IsSessionSearchEnabledResponse_builder{
 		Availability: accessgraphv1.SessionSearchAvailability_SESSION_SEARCH_AVAILABILITY_AVAILABLE,
-	}, nil
+	}.Build(), nil
 }
 
 func TestSummarizeSSHPushesToAccessGraph(t *testing.T) {
@@ -1493,37 +1483,33 @@ func TestSummarizeSSHPushesToAccessGraph(t *testing.T) {
 	require.NoError(t, err)
 	sclt := clt.SummarizerServiceClient()
 
-	_, err = sclt.CreateInferenceModel(ctx, &summarizerv1pb.CreateInferenceModelRequest{
-		Model: apisummarizer.NewInferenceModel("bedrock-model", &summarizerv1pb.InferenceModelSpec{
-			Provider: &summarizerv1pb.InferenceModelSpec_Bedrock{
-				Bedrock: &summarizerv1pb.BedrockProvider{
-					BedrockModelId: "amazon.nova-lite-v1:0",
-					Region:         "us-east-1",
-				},
-			},
-		}),
-	})
+	_, err = sclt.CreateInferenceModel(ctx, summarizerv1pb.CreateInferenceModelRequest_builder{
+		Model: apisummarizer.NewInferenceModel("bedrock-model", summarizerv1pb.InferenceModelSpec_builder{
+			Bedrock: summarizerv1pb.BedrockProvider_builder{
+				BedrockModelId: "amazon.nova-lite-v1:0",
+				Region:         "us-east-1",
+			}.Build(),
+		}.Build()),
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = sclt.CreateInferencePolicy(ctx, &summarizerv1pb.CreateInferencePolicyRequest{
-		Policy: apisummarizer.NewInferencePolicy("bedrock-policy", &summarizerv1pb.InferencePolicySpec{
+	_, err = sclt.CreateInferencePolicy(ctx, summarizerv1pb.CreateInferencePolicyRequest_builder{
+		Policy: apisummarizer.NewInferencePolicy("bedrock-policy", summarizerv1pb.InferencePolicySpec_builder{
 			Kinds: []string{string(types.SSHSessionKind)},
 			Model: "bedrock-model",
-		}),
-	})
+		}.Build()),
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = sclt.CreateRetrievalModel(ctx, &summarizerv1pb.CreateRetrievalModelRequest{
-		Model: apisummarizer.NewRetrievalModel(&summarizerv1pb.RetrievalModelSpec{
+	_, err = sclt.CreateRetrievalModel(ctx, summarizerv1pb.CreateRetrievalModelRequest_builder{
+		Model: apisummarizer.NewRetrievalModel(summarizerv1pb.RetrievalModelSpec_builder{
 			InferenceModelName: "bedrock-model",
-			EmbeddingsProvider: &summarizerv1pb.RetrievalModelSpec_Bedrock{
-				Bedrock: &summarizerv1pb.BedrockProvider{
-					BedrockModelId: "amazon.titan-embed-text-v1",
-					Region:         "us-east-1",
-				},
-			},
-		}),
-	})
+			Bedrock: summarizerv1pb.BedrockProvider_builder{
+				BedrockModelId: "amazon.titan-embed-text-v1",
+				Region:         "us-east-1",
+			}.Build(),
+		}.Build()),
+	}.Build())
 	require.NoError(t, err)
 
 	sessionID := uuid.NewString()

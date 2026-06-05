@@ -91,10 +91,10 @@ func Test_GetUsage(t *testing.T) {
 		got, err := svc.GetUsage(ctx, &resourceusagepb.GetUsageRequest{})
 		require.NoError(t, err, "GetUsage")
 
-		want := &resourceusagepb.GetUsageResponse{
+		want := resourceusagepb.GetUsageResponse_builder{
 			AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_UNLIMITED,
 			AccessRequests:   &resourceusagepb.AccessRequestsUsage{},
-		}
+		}.Build()
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("GetUsage mismatch (-want +got)\n%s", diff)
 		}
@@ -152,13 +152,13 @@ func Test_GetUsage(t *testing.T) {
 		got, err := svc.GetUsage(ctx, &resourceusagepb.GetUsageRequest{})
 		require.NoError(t, err, "GetUsage")
 
-		want := &resourceusagepb.GetUsageResponse{
+		want := resourceusagepb.GetUsageResponse_builder{
 			AccountUsageType: resourceusagepb.AccountUsageType_ACCOUNT_USAGE_TYPE_USAGE_BASED,
-			AccessRequests: &resourceusagepb.AccessRequestsUsage{
+			AccessRequests: resourceusagepb.AccessRequestsUsage_builder{
 				MonthlyLimit: monthlyLimit,
 				MonthlyUsed:  int32(len(mockEvents)),
-			},
-		}
+			}.Build(),
+		}.Build()
 		if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 			t.Errorf("GetUsage mismatch (-want +got)\n%s", diff)
 		}

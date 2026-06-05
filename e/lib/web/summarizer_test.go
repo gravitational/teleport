@@ -40,7 +40,7 @@ func uploadSummary(t *testing.T, s *webSuite, summary *summarizerv1.Summary) {
 	summaryJson, err := protojson.MarshalOptions{UseProtoNames: true}.Marshal(summary)
 	require.NoError(t, err)
 	_, err = s.testAuthServer.AuthServer.UploadHandler.UploadSummary(
-		t.Context(), session.ID(summary.SessionId), bytes.NewReader(summaryJson),
+		t.Context(), session.ID(summary.GetSessionId()), bytes.NewReader(summaryJson),
 	)
 	require.NoError(t, err)
 }
@@ -67,7 +67,7 @@ func TestGetRecordingSummary(t *testing.T) {
 
 	// Upload an example successful summary.
 	successfulSessionID := "d2f22f16-d3bb-4b0b-bcef-00daa17190d9"
-	uploadSummary(t, s, &summarizerv1.Summary{
+	uploadSummary(t, s, summarizerv1.Summary_builder{
 		SessionId:           successfulSessionID,
 		State:               summarizerv1.SummaryState_SUMMARY_STATE_SUCCESS,
 		InferenceStartedAt:  timestamppb.New(time.Date(2025, 8, 1, 11, 12, 0, 0, time.UTC)),
@@ -75,22 +75,22 @@ func TestGetRecordingSummary(t *testing.T) {
 		Content:             "Thank you for a very enjoyable game.",
 		ModelName:           "HAL 9000",
 		SessionEndEvent:     makeSessionEndEvent(t, successfulSessionID),
-	})
+	}.Build())
 
 	// Upload an example pending summary.
 	pendingSessionID := "3c8f9e27-831d-4d0c-af3c-41893a863df0"
-	uploadSummary(t, s, &summarizerv1.Summary{
+	uploadSummary(t, s, summarizerv1.Summary_builder{
 		SessionId:           pendingSessionID,
 		State:               summarizerv1.SummaryState_SUMMARY_STATE_PENDING,
 		InferenceStartedAt:  timestamppb.New(time.Date(2025, 8, 2, 11, 12, 0, 0, time.UTC)),
 		InferenceFinishedAt: nil,
 		ModelName:           "HAL 9000",
 		SessionEndEvent:     makeSessionEndEvent(t, pendingSessionID),
-	})
+	}.Build())
 
 	// Upload an example failed summary.
 	failedSessionID := "1c64b043-ca5d-4de3-b289-0a24c5fbcb16"
-	uploadSummary(t, s, &summarizerv1.Summary{
+	uploadSummary(t, s, summarizerv1.Summary_builder{
 		SessionId:           failedSessionID,
 		State:               summarizerv1.SummaryState_SUMMARY_STATE_ERROR,
 		InferenceStartedAt:  timestamppb.New(time.Date(2025, 8, 3, 11, 12, 0, 0, time.UTC)),
@@ -98,7 +98,7 @@ func TestGetRecordingSummary(t *testing.T) {
 		ErrorMessage:        "I'm sorry, Dave. I'm afraid I can't do that.",
 		ModelName:           "HAL 9000",
 		SessionEndEvent:     makeSessionEndEvent(t, pendingSessionID),
-	})
+	}.Build())
 
 	cases := []struct {
 		name      string

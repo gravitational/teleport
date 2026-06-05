@@ -62,7 +62,7 @@ func (s *Service) runAuditQuery(ctx context.Context, req *pb.RunAuditQueryReques
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		AuditQueryDetails: apievents.AuditQueryDetails{
-			Query: req.Query,
+			Query: req.GetQuery(),
 			Days:  req.GetDays(),
 		},
 	}
@@ -71,7 +71,7 @@ func (s *Service) runAuditQuery(ctx context.Context, req *pb.RunAuditQueryReques
 			s.log.WarnContext(ctx, "Failed to emit audit event", "error", err)
 		}
 	}()
-	result, err := s.athena.RunQuery(ctx, req.GetQuery(), int(req.Days))
+	result, err := s.athena.RunQuery(ctx, req.GetQuery(), int(req.GetDays()))
 	if err != nil {
 		event.Status = apievents.Status{
 			Success: false,
@@ -83,9 +83,9 @@ func (s *Service) runAuditQuery(ctx context.Context, req *pb.RunAuditQueryReques
 	}
 	event.DataScannedInBytes = result.DataScannedInBytes
 	event.ExecutionTimeInMillis = result.TotalExecutionTimeInMillis
-	return &pb.RunAuditQueryResponse{
+	return pb.RunAuditQueryResponse_builder{
 		ResultId: result.ResultID,
-	}, nil
+	}.Build(), nil
 }
 
 // GetAuditQueryResult returns the audit query result.
@@ -103,21 +103,21 @@ func (s *Service) GetAuditQueryResult(ctx context.Context, req *pb.GetAuditQuery
 		return nil, trace.Wrap(err)
 	}
 
-	result, err := s.athena.GetQueryResult(ctx, req.ResultId, req.NextToken, req.GetMaxResults())
+	result, err := s.athena.GetQueryResult(ctx, req.GetResultId(), req.GetNextToken(), req.GetMaxResults())
 	if err != nil {
 		s.log.WarnContext(ctx, "Failed to get audit query result", "error", err)
 		switch {
 		case trace.IsNotFound(err):
-			return nil, trace.NotFound("audit query result %q not found", req.ResultId)
+			return nil, trace.NotFound("audit query result %q not found", req.GetResultId())
 		default:
 			return nil, errors.New("failed to get audit query result")
 		}
 	}
-	return &pb.GetAuditQueryResultResponse{
+	return pb.GetAuditQueryResultResponse_builder{
 		Result:    result.ToProto(),
 		NextToken: result.NextToken,
-		ResultId:  req.ResultId,
-	}, nil
+		ResultId:  req.GetResultId(),
+	}.Build(), nil
 }
 
 // GetReportResult returns security reports result.
@@ -146,9 +146,9 @@ func (s *Service) GetReportResult(ctx context.Context, req *pb.GetReportResultRe
 			return nil, trace.Wrap(err)
 		}
 	}
-	return &pb.GetReportResultResponse{
+	return pb.GetReportResultResponse_builder{
 		Result: result,
-	}, nil
+	}.Build(), nil
 }
 
 // GetReportState returns security report state.
@@ -245,12 +245,12 @@ func (s *Service) runReportAndUpdateState(ctx context.Context, report *secreport
 	s.log.DebugContext(ctx,
 		"Report was successfully executed",
 		"report_name", executionName,
-		"total_data_scanned", runResult.TotalDataScannedInBytes,
-		"total_execution_time", runResult.TotalExecutionTimeInMillis,
+		"total_data_scanned", runResult.GetTotalDataScannedInBytes(),
+		"total_execution_time", runResult.GetTotalExecutionTimeInMillis(),
 		"duration", s.clock.Since(now),
 	)
-	event.TotalExecutionTimeInMillis = runResult.TotalExecutionTimeInMillis
-	event.TotalDataScannedInBytes = runResult.TotalDataScannedInBytes
+	event.TotalExecutionTimeInMillis = runResult.GetTotalExecutionTimeInMillis()
+	event.TotalDataScannedInBytes = runResult.GetTotalDataScannedInBytes()
 	if err = s.reportStore.SaveReportResult(ctx, executionName, runResult); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -307,18 +307,18 @@ func (s *Service) runReportAndCollectResult(ctx context.Context, report *secrepo
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			auditQueriesResult[i] = &pb.ReportResult_AuditQueryResult{
-				AuditQuery: &pb.AuditQuerySpec{
+			auditQueriesResult[i] = pb.ReportResult_AuditQueryResult_builder{
+				AuditQuery: pb.AuditQuerySpec_builder{
 					Name:        spec.Name,
 					Title:       spec.Title,
 					Query:       spec.Query,
 					Description: spec.Description,
-				},
+				}.Build(),
 				Result:                result,
 				ResultId:              state.ResultID,
 				ExecutionTimeInMillis: state.TotalExecutionTimeInMillis,
 				DataScannedInBytes:    state.DataScannedInBytes,
-			}
+			}.Build()
 			totalExecutionTime.Add(state.TotalExecutionTimeInMillis)
 			totalDataScannedInBytes.Add(state.DataScannedInBytes)
 			return nil
@@ -327,14 +327,14 @@ func (s *Service) runReportAndCollectResult(ctx context.Context, report *secrepo
 	if err := g.Wait(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.ReportResult{
+	return pb.ReportResult_builder{
 		Name:                       report.GetName(),
 		Description:                report.Spec.Description,
 		AuditQueryResults:          auditQueriesResult,
 		UpdatedAt:                  s.clock.Now().Format(time.RFC3339),
 		TotalDataScannedInBytes:    totalDataScannedInBytes.Load(),
 		TotalExecutionTimeInMillis: totalExecutionTime.Load(),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) execAuditQuery(ctx context.Context, spec *secreports.AuditQuerySpec, days int32) (*pb.QueryResultSet, *query.RunQueryResponse, error) {
@@ -354,9 +354,9 @@ func (s *Service) execAuditQuery(ctx context.Context, spec *secreports.AuditQuer
 		}
 		p := resultResp.ToProto()
 		if len(out.GetColumnInfo()) == 0 {
-			out.ColumnInfo = p.ColumnInfo
+			out.SetColumnInfo(p.GetColumnInfo())
 		}
-		out.Rows = append(out.Rows, p.Rows...)
+		out.SetRows(append(out.GetRows(), p.GetRows()...))
 		if !resultResp.HasMoreData() {
 			break
 		}

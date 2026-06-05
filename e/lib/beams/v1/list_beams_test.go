@@ -17,22 +17,22 @@ func TestListBeamsFiltersByUsers(t *testing.T) {
 	adminService := pack.service(t, pack.admin(t))
 	bobService := pack.service(t, pack.user(t, "bob"))
 
-	adminBeamRsp, err := adminService.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	adminBeamRsp, err := adminService.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 	adminBeam := adminBeamRsp.GetBeam()
 
-	_, err = bobService.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	_, err = bobService.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	resp, err := adminService.ListBeams(t.Context(), &beamsv1pb.ListBeamsRequest{
-		Filters: &beamsv1pb.ListBeamsRequest_Filters{
+	resp, err := adminService.ListBeams(t.Context(), beamsv1pb.ListBeamsRequest_builder{
+		Filters: beamsv1pb.ListBeamsRequest_Filters_builder{
 			Users: []string{"admin"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, resp.GetNextPageToken())
 	require.Len(t, resp.GetBeams(), 1)
@@ -50,15 +50,15 @@ func TestListBeamsAuthz(t *testing.T) {
 	adminService := pack.service(t, pack.admin(t))
 	otherUserService := pack.service(t, pack.user(t, "bob"))
 
-	ownBeamRsp, err := adminService.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	ownBeamRsp, err := adminService.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 	ownBeam := ownBeamRsp.GetBeam()
 
-	otherUserBeamRsp, err := otherUserService.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	otherUserBeamRsp, err := otherUserService.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 	otherUserBeam := otherUserBeamRsp.GetBeam()
 
@@ -91,15 +91,15 @@ func TestListBeamsPagination(t *testing.T) {
 
 	service := pack.service(t, pack.user(t, "alice"))
 
-	firstBeamRsp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	firstBeamRsp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 	firstBeam := firstBeamRsp.GetBeam()
 
-	secondBeamRsp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	secondBeamRsp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 	secondBeam := secondBeamRsp.GetBeam()
 
@@ -127,9 +127,9 @@ func TestListBeamsPagination(t *testing.T) {
 		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			listRsp, err := service.ListBeams(t.Context(), &beamsv1pb.ListBeamsRequest{
+			listRsp, err := service.ListBeams(t.Context(), beamsv1pb.ListBeamsRequest_builder{
 				PageSize: tt.pageSize,
-			})
+			}.Build())
 			require.NoError(t, err)
 			require.Len(t, listRsp.GetBeams(), tt.expectedFirstPageLen)
 
@@ -138,10 +138,10 @@ func TestListBeamsPagination(t *testing.T) {
 			if tt.expectNextPage {
 				require.NotEmpty(t, listRsp.GetNextPageToken())
 
-				listRsp, err = service.ListBeams(t.Context(), &beamsv1pb.ListBeamsRequest{
+				listRsp, err = service.ListBeams(t.Context(), beamsv1pb.ListBeamsRequest_builder{
 					PageSize:  tt.pageSize,
 					PageToken: listRsp.GetNextPageToken(),
-				})
+				}.Build())
 				require.NoError(t, err)
 				require.Len(t, listRsp.GetBeams(), 1)
 				require.Empty(t, listRsp.GetNextPageToken())
@@ -164,9 +164,9 @@ func TestListBeamsAccessDenied(t *testing.T) {
 	pack := newBeamServiceTestPack(t, beamServiceTestPackConfig{})
 
 	aliceService := pack.service(t, pack.user(t, "alice"))
-	_, err := aliceService.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	_, err := aliceService.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	nonBeamUserService := pack.service(t, pack.nonBeamUser(t))

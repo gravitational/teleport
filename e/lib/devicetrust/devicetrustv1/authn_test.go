@@ -55,30 +55,30 @@ func TestService_AuthenticateDevice(t *testing.T) {
 	}{
 		{
 			name: "macOS: success",
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "macos-success-ssh-challenge",
-			},
+			}.Build(),
 			simulator: newMacOSSimulator(macOSBehavior{
 				sshSigner: signer,
 			}),
 		},
 		{
 			name: "macOS: success without SSH challenge",
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "macos-success",
-			},
+			}.Build(),
 			simulator:              newMacOSSimulator(macOSBehavior{}),
 			expectUnverifiedSSHKey: true,
 		},
 		{
 			name:       "windows: success",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "windows-success-ssh-challenge",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				sshSigner: signer,
 			}),
@@ -87,10 +87,10 @@ func TestService_AuthenticateDevice(t *testing.T) {
 		{
 			name:       "windows: success without SSH key challenge",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "windows-success",
-			},
+			}.Build(),
 			simulator:                     newTPMSimulator(tpmBehavior{}),
 			wantDCDTPMPlatformAttestation: true,
 			expectUnverifiedSSHKey:        true,
@@ -98,10 +98,10 @@ func TestService_AuthenticateDevice(t *testing.T) {
 		{
 			name:       "linux: success",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_LINUX,
 				AssetTag: "linux-success-ssh-challenge",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				emptyEventLog: true,
 				sshSigner:     signer,
@@ -124,10 +124,10 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			defer cleanup()
 
 			// Create and then enroll the device to use for auth
-			dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			dev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
 				Device:            test.deviceTemplate,
 				CreateEnrollToken: true,
-			})
+			}.Build())
 			if err != nil {
 				t.Fatalf("CreateDevice failed: %v", err)
 			}
@@ -138,36 +138,36 @@ func TestService_AuthenticateDevice(t *testing.T) {
 
 			// Fetch the device before the ceremony so we can compare collected data
 			// entries at the end.
-			devBefore, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
-				DeviceId: enrolledDev.Id,
-			})
+			devBefore, err := devices.GetDevice(ctx, devicepb.GetDeviceRequest_builder{
+				DeviceId: enrolledDev.GetId(),
+			}.Build())
 			if err != nil {
 				t.Fatalf("GetDevice failed: %v", err)
 			}
 
 			emitter.Reset()
 
-			initCerts := &devicepb.UserCertificates{
+			initCerts := devicepb.UserCertificates_builder{
 				X509Der:          []byte("ignored"), // mTLS cert takes its place.
 				SshAuthorizedKey: sshAuthorizedKey,
-			}
+			}.Build()
 			gotCerts, err := authenticateSimulator(ctx, devices, test.simulator, enrolledDev, initCerts)
 			if err != nil {
 				t.Fatalf("authenticateSimulator failed: %v", err)
 			}
 
 			// UserCertificates.
-			if len(gotCerts.X509Der) == 0 {
+			if len(gotCerts.GetX509Der()) == 0 {
 				t.Error("Got empty X509Der, want non-empty")
 			}
-			if len(gotCerts.SshAuthorizedKey) == 0 {
+			if len(gotCerts.GetSshAuthorizedKey()) == 0 {
 				t.Error("Got empty SshAuthorizedKey, want non-empty")
 			}
 
 			wantTLSCert := &fakeTLSCert{
-				deviceID:     enrolledDev.Id,
-				assetTag:     enrolledDev.AssetTag,
-				credentialID: enrolledDev.Credential.Id,
+				deviceID:     enrolledDev.GetId(),
+				assetTag:     enrolledDev.GetAssetTag(),
+				credentialID: enrolledDev.GetCredential().GetId(),
 			}
 			wantSSHCert := sshAuthorizedKey
 			if test.expectUnverifiedSSHKey {
@@ -175,31 +175,31 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			} else {
 				wantSSHCert = append(wantSSHCert, []byte("verified")...)
 			}
-			wantCerts := &devicepb.UserCertificates{
+			wantCerts := devicepb.UserCertificates_builder{
 				X509Der:          wantTLSCert.Marshal(),
 				SshAuthorizedKey: wantSSHCert,
-			}
+			}.Build()
 
 			if diff := cmp.Diff(wantCerts, gotCerts, protocmp.Transform()); diff != "" {
 				t.Errorf("AuthenticateDevice certificates mismatch (-want +got)\n%s", diff)
 			}
 
 			// Verify collected data recording.
-			devAfter, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
-				DeviceId: enrolledDev.Id,
-			})
+			devAfter, err := devices.GetDevice(ctx, devicepb.GetDeviceRequest_builder{
+				DeviceId: enrolledDev.GetId(),
+			}.Build())
 			if err != nil {
 				t.Fatalf("GetDevice failed: %v", err)
 			}
-			if gotCD, wantCD := len(devAfter.CollectedData), len(devBefore.CollectedData)+1; gotCD != wantCD {
+			if gotCD, wantCD := len(devAfter.GetCollectedData()), len(devBefore.GetCollectedData())+1; gotCD != wantCD {
 				t.Errorf("Got %v collected data instances, want %v", gotCD, wantCD)
 			}
 			// TODO(noah): Assert collected data more thoroughly in tests.
-			authnCollectedData := devAfter.CollectedData[len(devAfter.CollectedData)-1]
-			if test.wantDCDTPMPlatformAttestation && authnCollectedData.TpmPlatformAttestation == nil {
+			authnCollectedData := devAfter.GetCollectedData()[len(devAfter.GetCollectedData())-1]
+			if test.wantDCDTPMPlatformAttestation && !authnCollectedData.HasTpmPlatformAttestation() {
 				t.Errorf("authnCollectedData.TpmPlatformAttestation=nil, want non-nil (authnCollectedData=%+v", authnCollectedData)
-			} else if !test.wantDCDTPMPlatformAttestation && authnCollectedData.TpmPlatformAttestation != nil {
-				t.Errorf("authnCollectedData.TpmPlatformAttestation=%v, want nil", authnCollectedData.TpmPlatformAttestation)
+			} else if !test.wantDCDTPMPlatformAttestation && authnCollectedData.HasTpmPlatformAttestation() {
+				t.Errorf("authnCollectedData.TpmPlatformAttestation=%v, want nil", authnCollectedData.GetTpmPlatformAttestation())
 			}
 
 			// Verify audit log.
@@ -251,13 +251,13 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			name: "init: CredentialId empty",
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyAuthenticateDeviceInit: func(r *devicepb.AuthenticateDeviceInit) {
-					r.CredentialId = ""
+					r.SetCredentialId("")
 				},
 			}),
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "credential-id-empty",
-			},
+			}.Build(),
 			assertErr:            trace.IsBadParameter,
 			wantErr:              "credential ID",
 			wantAuditUserMessage: invalidPayloadMessage,
@@ -266,13 +266,13 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			name: "init: CredentialId mismatch",
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyAuthenticateDeviceInit: func(r *devicepb.AuthenticateDeviceInit) {
-					r.CredentialId = "different-credential-id"
+					r.SetCredentialId("different-credential-id")
 				},
 			}),
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "credential-id-unknown",
-			},
+			}.Build(),
 			assertErr:            trace.IsBadParameter,
 			wantErr:              "unknown device credential",
 			wantAuditUserMessage: "unknown device credential",
@@ -281,13 +281,13 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			name: "init: DeviceData nil",
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyAuthenticateDeviceInit: func(r *devicepb.AuthenticateDeviceInit) {
-					r.DeviceData = nil
+					r.ClearDeviceData()
 				},
 			}),
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "device-data-nil",
-			},
+			}.Build(),
 			assertErr:            trace.IsBadParameter,
 			wantErr:              "device data required",
 			wantAuditUserMessage: invalidPayloadMessage,
@@ -296,13 +296,13 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			name: "init: DeviceData mismatch",
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyAuthenticateDeviceInit: func(r *devicepb.AuthenticateDeviceInit) {
-					r.DeviceData.SerialNumber = "ceni n'est pas une serial number"
+					r.GetDeviceData().SetSerialNumber("ceni n'est pas une serial number")
 				},
 			}),
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "device-data-mismatch",
-			},
+			}.Build(),
 			assertErr:            trace.IsNotFound,
 			wantErr:              "not registered",
 			wantAuditUserMessage: "device not found",
@@ -311,15 +311,15 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			name: "init: device sends platform attestation in dcd",
 			simulator: newMacOSSimulator(macOSBehavior{
 				modifyAuthenticateDeviceInit: func(r *devicepb.AuthenticateDeviceInit) {
-					r.DeviceData.TpmPlatformAttestation = &devicepb.TPMPlatformAttestation{
+					r.GetDeviceData().SetTpmPlatformAttestation(devicepb.TPMPlatformAttestation_builder{
 						Nonce: []byte("a-nonce"),
-					}
+					}.Build())
 				},
 			}),
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "device-data-sends-platform-attestation",
-			},
+			}.Build(),
 			assertErr:            trace.IsBadParameter,
 			wantErr:              "tpm_platform_attestation is a read only field and cannot be submitted in device collected data",
 			wantAuditUserMessage: invalidPayloadMessage,
@@ -329,10 +329,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			name:      "unenrolled device",
 			noEnroll:  true,
 			simulator: newMacOSSimulator(macOSBehavior{}),
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "unenrolled",
-			},
+			}.Build(),
 			assertErr:            trace.IsBadParameter,
 			wantErr:              "device not enrolled",
 			wantAuditUserMessage: "device not enrolled",
@@ -344,10 +344,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			simulator: newMacOSSimulator(macOSBehavior{
 				nilSignature: true,
 			}),
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "macos-nil-signature",
-			},
+			}.Build(),
 			assertErr: trace.IsBadParameter,
 			wantErr:   "signature required",
 		},
@@ -356,10 +356,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			simulator: newMacOSSimulator(macOSBehavior{
 				incorrectSignature: true,
 			}),
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "macos-invalid-signature",
-			},
+			}.Build(),
 			assertErr:            trace.IsBadParameter,
 			wantErr:              "verification failed",
 			wantAuditUserMessage: deviceAuthnFailedMessage,
@@ -369,20 +369,20 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			simulator: newMacOSSimulator(macOSBehavior{
 				incorrectSigningKey: true,
 			}),
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "macos-wrong-signing-key",
-			},
+			}.Build(),
 			assertErr:            trace.IsBadParameter,
 			wantErr:              "verification failed",
 			wantAuditUserMessage: deviceAuthnFailedMessage,
 		},
 		{
 			name: "macOS: wrong key signs the SSH challenge",
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "macos-wrong-ssh-signing-key",
-			},
+			}.Build(),
 			simulator: newMacOSSimulator(macOSBehavior{
 				sshSigner: badSigner,
 			}),
@@ -393,10 +393,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 		},
 		{
 			name: "macOS: SSH signature without cert",
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "macos-ssh-sig-no-cert",
-			},
+			}.Build(),
 			simulator: newMacOSSimulator(macOSBehavior{
 				sshSigner: signer,
 			}),
@@ -407,10 +407,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 		{
 			name:       "tpm: incorrect platform attestation AK",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-incorrect-attest-ak",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestAK: true,
 			}),
@@ -421,10 +421,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 		{
 			name:       "tpm: incorrect platform attestation nonce",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-incorrect-attest-nonce",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestNonce: true,
 			}),
@@ -435,10 +435,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 		{
 			name:       "tpm: incorrect platform attestation pcr",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-incorrect-attest-pcr",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestPCR: true,
 			}),
@@ -449,10 +449,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 		{
 			name:       "tpm: incorrect platform attestation event",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-incorrect-attest-event",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				incorrectAttestEvent: true,
 			}),
@@ -463,10 +463,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 		{
 			name:       "tpm: wrong key signs the SSH challenge",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-wrong-ssh-signing-key",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				sshSigner: badSigner,
 			}),
@@ -478,10 +478,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 		{
 			name:       "tpm: SSH signature without cert",
 			shouldSkip: tpmSkip,
-			deviceTemplate: &devicepb.Device{
+			deviceTemplate: devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "tpm-ssh-sig-no-cert",
-			},
+			}.Build(),
 			simulator: newTPMSimulator(tpmBehavior{
 				sshSigner: badSigner,
 			}),
@@ -504,10 +504,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			defer cleanup()
 
 			// Create and then enroll the device to use for auth
-			dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			dev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
 				Device:            test.deviceTemplate,
 				CreateEnrollToken: true,
-			})
+			}.Build())
 			if err != nil {
 				t.Fatalf("CreateDevice failed: %v", err)
 			}
@@ -519,10 +519,10 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			}
 			emitter.Reset()
 
-			initCerts := &devicepb.UserCertificates{
+			initCerts := devicepb.UserCertificates_builder{
 				X509Der:          []byte("ignored"), // mTLS cert takes its place.
 				SshAuthorizedKey: test.sshAuthorizedKey,
-			}
+			}.Build()
 			_, err = authenticateSimulator(ctx, devices, test.simulator, dev, initCerts)
 			if !test.assertErr(err) {
 				t.Errorf("AuthenticateDevice: assertErr failed, err=%v", err)
@@ -570,27 +570,27 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newFakeEnclaveKey failed: %v", err)
 	}
-	legacyDev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	legacyDev, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:       devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag:     "legacyNoOwner",
 			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
-			Credential: &devicepb.DeviceCredential{
+			Credential: devicepb.DeviceCredential_builder{
 				Id:           legacyKey.id,
 				PublicKeyDer: legacyKey.pubKeyDER,
-			},
-		},
+			}.Build(),
+		}.Build(),
 		CreateAsResource: true,
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
 
 	// enrolledDev has an owner, but the user is missing its TrustedDeviceIDs.
-	enrolledDev, enrolledKey, err := createAndEnroll(ctx, devices, &devicepb.Device{
+	enrolledDev, enrolledKey, err := createAndEnroll(ctx, devices, devicepb.Device_builder{
 		OsType:   devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag: "enrolled1",
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
@@ -607,24 +607,24 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newFakeEnclaveKey failed: %v", err)
 	}
-	missingIndex, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
+	missingIndex, err := devices.CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
+		Device: devicepb.Device_builder{
 			OsType:       devicepb.OSType_OS_TYPE_MACOS,
 			AssetTag:     "missingIndex",
 			EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
-			Credential: &devicepb.DeviceCredential{
+			Credential: devicepb.DeviceCredential_builder{
 				Id:           missingIndexKey.id,
 				PublicKeyDer: missingIndexKey.pubKeyDER,
-			},
+			}.Build(),
 			Owner: user.GetName(),
-		},
+		}.Build(),
 		CreateAsResource: true,
-	})
+	}.Build())
 	if err != nil {
 		t.Fatalf("CreateDevice failed: %v", err)
 	}
 	if _, err := identity.UpdateAndSwapUser(ctx, user.GetName(), false /* withSecrets */, func(u types.User) (changed bool, err error) {
-		u.SetTrustedDeviceIDs(append(u.GetTrustedDeviceIDs(), missingIndex.Id))
+		u.SetTrustedDeviceIDs(append(u.GetTrustedDeviceIDs(), missingIndex.GetId()))
 		return true, nil
 	}); err != nil {
 		t.Fatalf("UpdateAndSwapUser failed: %v", err)
@@ -660,15 +660,15 @@ func TestService_AuthenticateDevice_backfillOwner(t *testing.T) {
 			}
 
 			// Verify Device.Owner.
-			deviceID := test.dev.Id
-			storedDev, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
+			deviceID := test.dev.GetId()
+			storedDev, err := devices.GetDevice(ctx, devicepb.GetDeviceRequest_builder{
 				DeviceId: deviceID,
-			})
+			}.Build())
 			switch {
 			case err != nil:
 				t.Fatalf("GetDevice failed: %v", err)
-			case storedDev.Owner != wantOwner:
-				t.Errorf("AuthenticateDevice: Device owner not backfilled, got=%q, want %q", storedDev.Owner, wantOwner)
+			case storedDev.GetOwner() != wantOwner:
+				t.Errorf("AuthenticateDevice: Device owner not backfilled, got=%q, want %q", storedDev.GetOwner(), wantOwner)
 			}
 
 			// Verify User.TrustedDeviceIDs.
@@ -709,14 +709,14 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 	llamaData := setupUserForDeviceWebAuthn(t, env, setupUserWebAuthnOpts{
 		user: userLlama,
 		devices: []*devicepb.Device{
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "llama-1",
-			},
-			{
+			}.Build(),
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "llama-2",
-			},
+			}.Build(),
 		},
 	})
 	t.Cleanup(llamaData.Close) // close simulators
@@ -724,15 +724,15 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 	alpacaData := setupUserForDeviceWebAuthn(t, env, setupUserWebAuthnOpts{
 		user: userAlpaca,
 		devices: []*devicepb.Device{
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "alpaca-1",
-			},
+			}.Build(),
 			// Switches owner to "llama" later.
-			{
+			devicepb.Device_builder{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "alpaca-2",
-			},
+			}.Build(),
 		},
 	})
 	t.Cleanup(alpacaData.Close) // close simulators
@@ -741,13 +741,13 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 	devAlpaca2 := &(alpacaData.devices[1])
 	enrollToken, err := devicesClient.CreateDeviceEnrollToken(
 		contextWithUser(ctx, llamaData.user),
-		&devicepb.CreateDeviceEnrollTokenRequest{
-			DeviceId: devAlpaca2.dev.Id,
-		})
+		devicepb.CreateDeviceEnrollTokenRequest_builder{
+			DeviceId: devAlpaca2.dev.GetId(),
+		}.Build())
 	if err != nil {
 		t.Fatalf("CreateDeviceEnrollToken failed: %v", err)
 	}
-	devAlpaca2.dev.EnrollToken = enrollToken
+	devAlpaca2.dev.SetEnrollToken(enrollToken)
 	devAlpaca2.dev, err = enrollSimulator(
 		contextWithUser(ctx, llamaData.user), // takes ownership of the device
 		devicesClient,
@@ -758,8 +758,8 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 		t.Fatalf("EnrollDevice failed: %v", err)
 	}
 	// Sanity check that the ownership change did work.
-	if devAlpaca2.dev.Owner != llamaData.user {
-		t.Fatalf("Device %q has an unexpected owner: %q", devAlpaca2.dev.AssetTag, devAlpaca2.dev.Owner)
+	if devAlpaca2.dev.GetOwner() != llamaData.user {
+		t.Fatalf("Device %q has an unexpected owner: %q", devAlpaca2.dev.GetAssetTag(), devAlpaca2.dev.GetOwner())
 	}
 
 	type createTokenData struct {
@@ -832,7 +832,7 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 			name:  "token has empty ID",
 			token: validTokenOpts,
 			modifyToken: func(token *devicepb.DeviceWebToken) {
-				token.Id = ""
+				token.SetId("")
 			},
 			ctx:                  validCtxData,
 			authn:                validAuthnOpts,
@@ -844,7 +844,7 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 			name:  "token has empty Token",
 			token: validTokenOpts,
 			modifyToken: func(token *devicepb.DeviceWebToken) {
-				token.Token = ""
+				token.SetToken("")
 			},
 			ctx:                  validCtxData,
 			authn:                validAuthnOpts,
@@ -858,7 +858,7 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 			name:  "invalid plaintext token",
 			token: validTokenOpts,
 			modifyToken: func(token *devicepb.DeviceWebToken) {
-				token.Token = base64.RawURLEncoding.EncodeToString([]byte(`not a valid plaintext token`))
+				token.SetToken(base64.RawURLEncoding.EncodeToString([]byte(`not a valid plaintext token`)))
 			},
 			ctx:                  validCtxData,
 			authn:                validAuthnOpts,
@@ -925,12 +925,12 @@ func TestService_AuthenticateDevice_webAuthn(t *testing.T) {
 
 			// Create the DeviceWebToken, usually done by
 			// auth.Server.AuthenticateWebUser.
-			webToken, err := service.CreateDeviceWebToken(ctx, &devicepb.DeviceWebToken{
+			webToken, err := service.CreateDeviceWebToken(ctx, devicepb.DeviceWebToken_builder{
 				WebSessionId:     webSessionID,
 				BrowserUserAgent: test.token.userAgent,
 				BrowserIp:        test.token.clientIP,
 				User:             test.token.user,
-			})
+			}.Build())
 			if err != nil {
 				t.Fatalf("CreateDeviceWebToken failed: %v", err)
 			}
@@ -1049,16 +1049,16 @@ func setupUserForDeviceWebAuthn(t *testing.T, env *testenv.E, opts setupUserWebA
 
 	var createdDevs []deviceWithSim
 	for _, template := range opts.devices {
-		created, err := devicesClient.CreateDevice(userCtx, &devicepb.CreateDeviceRequest{
+		created, err := devicesClient.CreateDevice(userCtx, devicepb.CreateDeviceRequest_builder{
 			Device:            template,
 			CreateEnrollToken: true,
-		})
+		}.Build())
 		if err != nil {
 			t.Fatalf("CreateDevice failed: %v", err)
 		}
 
 		var sim simulator
-		if created.OsType == devicepb.OSType_OS_TYPE_MACOS {
+		if created.GetOsType() == devicepb.OSType_OS_TYPE_MACOS {
 			sim = newMacOSSimulator(macOSBehavior{})
 		} else {
 			sim = newTPMSimulator(tpmBehavior{})
@@ -1104,13 +1104,13 @@ func authenticateDeviceWeb(
 		return nil, nil
 	}
 
-	resp, err := sim.authenticate(ctx, dev, stream, &devicepb.AuthenticateDeviceInit{
-		UserCertificates: &devicepb.UserCertificates{
+	resp, err := sim.authenticate(ctx, dev, stream, devicepb.AuthenticateDeviceInit_builder{
+		UserCertificates: devicepb.UserCertificates_builder{
 			X509Der:          []byte("ignored input"),
 			SshAuthorizedKey: []byte("other ignored input"),
-		},
+		}.Build(),
 		DeviceWebToken: webToken,
-	})
+	}.Build())
 
 	if err != nil {
 		return nil, err

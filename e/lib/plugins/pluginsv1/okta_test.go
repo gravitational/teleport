@@ -37,13 +37,13 @@ func TestService_CleanupOkta(t *testing.T) {
 	ctx := context.Background()
 
 	expectedNeedsCleanup := func(active bool, resourcesToCleanup ...*types.ResourceID) {
-		resp, err := suite.svc.NeedsCleanup(ctx, &pluginspb.NeedsCleanupRequest{
+		resp, err := suite.svc.NeedsCleanup(ctx, pluginspb.NeedsCleanupRequest_builder{
 			Type: types.PluginTypeOkta,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Equal(t, len(resourcesToCleanup) > 0, resp.NeedsCleanup)
-		require.Equal(t, resourcesToCleanup, resp.ResourcesToCleanup)
-		require.Equal(t, active, resp.PluginActive)
+		require.Equal(t, len(resourcesToCleanup) > 0, resp.GetNeedsCleanup())
+		require.Equal(t, resourcesToCleanup, resp.GetResourcesToCleanup())
+		require.Equal(t, active, resp.GetPluginActive())
 	}
 
 	// Create a bunch of Okta sourced resources.
@@ -192,10 +192,10 @@ func TestService_CleanupOkta(t *testing.T) {
 			},
 		},
 		nil)
-	_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+	_, err := suite.svc.CreatePlugin(ctx, pluginspb.CreatePluginRequest_builder{
 		Plugin:            oktaPlugin,
 		StaticCredentials: staticCredentials,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	expectedNeedsCleanup(true)
@@ -232,24 +232,24 @@ func TestService_CleanupOkta(t *testing.T) {
 	expectedNeedsCleanup(true, resourcesExpectedToCleanup...)
 
 	// Cleanup fails due to an active plugin.
-	_, err = suite.svc.Cleanup(ctx, &pluginspb.CleanupRequest{
+	_, err = suite.svc.Cleanup(ctx, pluginspb.CleanupRequest_builder{
 		Type: types.PluginTypeOkta,
-	})
+	}.Build())
 	require.ErrorContains(t, err, "can't cleanup")
 
 	// Delete the plugin, which means the plugin should no longer be active.
-	_, err = suite.svc.DeletePlugin(ctx, &pluginspb.DeletePluginRequest{
+	_, err = suite.svc.DeletePlugin(ctx, pluginspb.DeletePluginRequest_builder{
 		Name: oktaPlugin.GetName(),
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// The plugin is inactive.
 	expectedNeedsCleanup(false, resourcesExpectedToCleanup...)
 
 	// Cleanup should succeed.
-	_, err = suite.svc.Cleanup(ctx, &pluginspb.CleanupRequest{
+	_, err = suite.svc.Cleanup(ctx, pluginspb.CleanupRequest_builder{
 		Type: types.PluginTypeOkta,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	backendOktaAssignments, _, err := suite.svc.authServer.ListOktaAssignments(ctx, 0, "")

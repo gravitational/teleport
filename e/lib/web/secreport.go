@@ -303,7 +303,7 @@ func (p *Plugin) getQueryResult(w http.ResponseWriter, r *http.Request, params h
 		return nil, trace.Wrap(err)
 	}
 	client := clt.SecReportsClient()
-	resp, err := client.GetSecurityAuditQueryResult(r.Context(), req.ResultId, req.NextToken, req.MaxResults)
+	resp, err := client.GetSecurityAuditQueryResult(r.Context(), req.GetResultId(), req.GetNextToken(), req.GetMaxResults())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

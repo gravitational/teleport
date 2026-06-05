@@ -96,13 +96,13 @@ func TestRBAC(t *testing.T) {
 	service, err := NewService(cfg)
 	require.NoError(t, err)
 
-	rule := &loginrulepb.LoginRule{
+	rule := loginrulepb.LoginRule_builder{
 		Metadata: &types.Metadata{
 			Name: "test_rule",
 		},
 		Version:          types.V1,
 		TraitsExpression: "external",
-	}
+	}.Build()
 
 	for _, tc := range []struct {
 		desc         string
@@ -114,9 +114,9 @@ func TestRBAC(t *testing.T) {
 		{
 			desc: "create",
 			f: func() error {
-				_, err := service.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
+				_, err := service.CreateLoginRule(ctx, loginrulepb.CreateLoginRuleRequest_builder{
 					LoginRule: rule,
-				})
+				}.Build())
 				return err
 			},
 			allow: map[check]bool{
@@ -132,7 +132,7 @@ func TestRBAC(t *testing.T) {
 						Code: events.LoginRuleCreateCode,
 					},
 					ResourceMetadata: apievents.ResourceMetadata{
-						Name: rule.Metadata.Name,
+						Name: rule.GetMetadata().Name,
 					},
 					UserMetadata: authz.ClientUserMetadata(ctx),
 				},
@@ -141,9 +141,9 @@ func TestRBAC(t *testing.T) {
 		{
 			desc: "upsert",
 			f: func() error {
-				_, err := service.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
+				_, err := service.UpsertLoginRule(ctx, loginrulepb.UpsertLoginRuleRequest_builder{
 					LoginRule: rule,
-				})
+				}.Build())
 				return err
 			},
 			allow: map[check]bool{
@@ -161,7 +161,7 @@ func TestRBAC(t *testing.T) {
 						Code: events.LoginRuleCreateCode,
 					},
 					ResourceMetadata: apievents.ResourceMetadata{
-						Name: rule.Metadata.Name,
+						Name: rule.GetMetadata().Name,
 					},
 					UserMetadata: authz.ClientUserMetadata(ctx),
 				},
@@ -170,9 +170,9 @@ func TestRBAC(t *testing.T) {
 		{
 			desc: "get",
 			f: func() error {
-				_, err := service.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
-					Name: rule.Metadata.Name,
-				})
+				_, err := service.GetLoginRule(ctx, loginrulepb.GetLoginRuleRequest_builder{
+					Name: rule.GetMetadata().Name,
+				}.Build())
 				return err
 			},
 			allow: map[check]bool{
@@ -202,9 +202,9 @@ func TestRBAC(t *testing.T) {
 		{
 			desc: "delete",
 			f: func() error {
-				_, err := service.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
-					Name: rule.Metadata.Name,
-				})
+				_, err := service.DeleteLoginRule(ctx, loginrulepb.DeleteLoginRuleRequest_builder{
+					Name: rule.GetMetadata().Name,
+				}.Build())
 				return err
 			},
 			allow: map[check]bool{
@@ -220,7 +220,7 @@ func TestRBAC(t *testing.T) {
 						Code: events.LoginRuleDeleteCode,
 					},
 					ResourceMetadata: apievents.ResourceMetadata{
-						Name: rule.Metadata.Name,
+						Name: rule.GetMetadata().Name,
 					},
 					UserMetadata: authz.ClientUserMetadata(ctx),
 				},
@@ -229,7 +229,7 @@ func TestRBAC(t *testing.T) {
 		{
 			desc: "test",
 			f: func() error {
-				_, err := service.TestLoginRule(ctx, &loginrulepb.TestLoginRuleRequest{Traits: map[string]*wrappers.StringValues{"test": {Values: []string{"test"}}}})
+				_, err := service.TestLoginRule(ctx, loginrulepb.TestLoginRuleRequest_builder{Traits: map[string]*wrappers.StringValues{"test": {Values: []string{"test"}}}}.Build())
 				return err
 			},
 			allow: map[check]bool{

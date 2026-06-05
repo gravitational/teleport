@@ -70,7 +70,7 @@ func TestNewEmbeddingProviderValidation(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	secret := &summarizerv1pb.InferenceSecretSpec{Value: "test-key"}
+	secret := summarizerv1pb.InferenceSecretSpec_builder{Value: "test-key"}.Build()
 	spec := &summarizerv1pb.OpenAIProvider{}
 
 	cases := []struct {

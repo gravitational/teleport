@@ -109,13 +109,13 @@ func installNetIQPlugin(ctx context.Context, args installNetIQPluginArgs) (*ui.P
 		return nil, trace.Wrap(err, "failed to create NetIQ plugin")
 	}
 
-	createPluginRequest := &pluginspb.CreatePluginRequest{
+	createPluginRequest := pluginspb.CreatePluginRequest_builder{
 		Plugin:                plugin,
 		StaticCredentialsList: creds,
 		CredentialLabels: map[string]string{
 			netiq.NetIQOrgURLLabel: params.apiURL,
 		},
-	}
+	}.Build()
 
 	cl, err := args.sessCtx.GetClient()
 	if err != nil {

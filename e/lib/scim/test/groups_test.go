@@ -48,12 +48,12 @@ func TestGroupList(t *testing.T) {
 			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
-				require.Equal(t, int32(1), list.StartIndex)
-				require.Equal(t, int32(17), list.TotalResults)
-				require.Len(t, list.Resources, 17)
-				for i, res := range list.Resources {
+				require.Equal(t, int32(1), list.GetStartIndex())
+				require.Equal(t, int32(17), list.GetTotalResults())
+				require.Len(t, list.GetResources(), 17)
+				for i, res := range list.GetResources() {
 					expectedID := i * 3
-					require.Equal(t, fmt.Sprintf("Access-List-%03d", expectedID), res.Id)
+					require.Equal(t, fmt.Sprintf("Access-List-%03d", expectedID), res.GetId())
 				}
 			},
 		},
@@ -61,13 +61,13 @@ func TestGroupList(t *testing.T) {
 		// request
 		{
 			name:        "summary count",
-			page:        &scimpb.Page{StartIndex: 1, Count: 0},
+			page:        scimpb.Page_builder{StartIndex: 1, Count: 0}.Build(),
 			expectError: require.NoError,
 			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
-				require.Equal(t, int32(17), list.TotalResults)
-				require.Empty(t, list.Resources)
+				require.Equal(t, int32(17), list.GetTotalResults())
+				require.Empty(t, list.GetResources())
 			},
 		},
 		// Tests filtering the group list with a SCIM filter expression,
@@ -79,10 +79,10 @@ func TestGroupList(t *testing.T) {
 			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
-				require.Equal(t, int32(1), list.StartIndex)
-				require.Equal(t, int32(1), list.TotalResults)
-				require.Len(t, list.Resources, 1)
-				require.Equal(t, "Access-List-012", list.Resources[0].Id)
+				require.Equal(t, int32(1), list.GetStartIndex())
+				require.Equal(t, int32(1), list.GetTotalResults())
+				require.Len(t, list.GetResources(), 1)
+				require.Equal(t, "Access-List-012", list.GetResources()[0].GetId())
 			},
 		},
 		// Tests filtering the group list down to nothing, asserting that the
@@ -94,9 +94,9 @@ func TestGroupList(t *testing.T) {
 			expectValue: func(t require.TestingT, obj any, _ ...any) {
 				list, ok := obj.(*scimpb.ResourceList)
 				require.True(t, ok, "expected resource list")
-				require.Equal(t, int32(1), list.StartIndex)
-				require.Equal(t, int32(0), list.TotalResults)
-				require.Empty(t, list.Resources)
+				require.Equal(t, int32(1), list.GetStartIndex())
+				require.Equal(t, int32(0), list.GetTotalResults())
+				require.Empty(t, list.GetResources())
 			},
 		},
 	}
@@ -123,15 +123,15 @@ func TestGroupList(t *testing.T) {
 				Return(testAccessLists, "", nil)
 
 			// When I attempt to list all of the User resources via SCIM...
-			list, err := uut.ListSCIMResources(fix.userCtx, &scimpb.ListSCIMResourcesRequest{
-				Target: &scimpb.RequestTarget{
+			list, err := uut.ListSCIMResources(fix.userCtx, scimpb.ListSCIMResourcesRequest_builder{
+				Target: scimpb.RequestTarget_builder{
 					Authorization: testAuthHeader,
 					PluginId:      testPluginName,
 					ResourceType:  "Groups",
-				},
+				}.Build(),
 				Page:   tt.page,
 				Filter: tt.filter,
-			})
+			}.Build())
 
 			tt.expectError(t, err)
 			tt.expectValue(t, list)
@@ -172,21 +172,21 @@ func TestGroupListHandlesPagedAccessLists(t *testing.T) {
 		Return(testAccessLists[35:49], "", nil)
 
 	// When I attempt to list a specific user via a filtered list request ...
-	list, err := uut.ListSCIMResources(fix.userCtx, &scimpb.ListSCIMResourcesRequest{
-		Target: &scimpb.RequestTarget{
+	list, err := uut.ListSCIMResources(fix.userCtx, scimpb.ListSCIMResourcesRequest_builder{
+		Target: scimpb.RequestTarget_builder{
 			Authorization: testAuthHeader,
 			PluginId:      "test",
 			ResourceType:  "Groups",
-		},
-	})
+		}.Build(),
+	}.Build())
 
 	// Expect the operation to succeed
 	require.NoError(t, err)
 
 	// Also expect that the operation returned all of the desired results
-	require.Equal(t, int32(1), list.StartIndex)
-	require.Equal(t, int32(17), list.TotalResults)
-	require.Len(t, list.Resources, 17)
+	require.Equal(t, int32(1), list.GetStartIndex())
+	require.Equal(t, int32(17), list.GetTotalResults())
+	require.Len(t, list.GetResources(), 17)
 }
 
 func TestGroupGet(t *testing.T) {
@@ -219,13 +219,13 @@ func TestGroupGet(t *testing.T) {
 				expectedACL := testAccessLists[0]
 				expectedName := expectedACL.GetName()
 
-				require.Equal(t, expectedName, r.Id)
-				require.ElementsMatch(t, []string{schema.GroupSchema}, r.Schemas)
-				require.Equal(t, "Group", r.Meta.ResourceType)
-				require.Equal(t, "/Groups/"+expectedName, r.Meta.Location)
-				require.Equal(t, `W/"revision-Access-List-000"`, r.Meta.Version)
+				require.Equal(t, expectedName, r.GetId())
+				require.ElementsMatch(t, []string{schema.GroupSchema}, r.GetSchemas())
+				require.Equal(t, "Group", r.GetMeta().GetResourceType())
+				require.Equal(t, "/Groups/"+expectedName, r.GetMeta().GetLocation())
+				require.Equal(t, `W/"revision-Access-List-000"`, r.GetMeta().GetVersion())
 
-				attributes := r.Attributes.AsMap()
+				attributes := r.GetAttributes().AsMap()
 				require.Equal(t,
 					map[string]any{
 						"displayName": expectedACL.Spec.Title,
@@ -286,7 +286,7 @@ func TestGroupGet(t *testing.T) {
 				r, ok := obj.(*scimpb.Resource)
 				require.True(t, ok, "expected resource")
 
-				attributes := r.Attributes.AsMap()
+				attributes := r.GetAttributes().AsMap()
 				require.Contains(t, attributes, "members")
 				require.Empty(t, attributes["members"])
 			},
@@ -318,14 +318,14 @@ func TestGroupGet(t *testing.T) {
 					Return(tt.getMemberListResult...)
 			}
 
-			resource, err := uut.GetSCIMResource(fix.userCtx, &scimpb.GetSCIMResourceRequest{
-				Target: &scimpb.RequestTarget{
+			resource, err := uut.GetSCIMResource(fix.userCtx, scimpb.GetSCIMResourceRequest_builder{
+				Target: scimpb.RequestTarget_builder{
 					Authorization: testAuthHeader,
 					PluginId:      testPluginName,
 					ResourceType:  "Groups",
 					ResourceId:    tt.group,
-				},
-			})
+				}.Build(),
+			}.Build())
 
 			tt.expectError(t, err)
 			tt.expectValue(t, resource)
@@ -380,7 +380,7 @@ func TestGroupCreate(t *testing.T) {
 			name: "ID must be ignored",
 			makeResource: func(t *testing.T) *scimpb.Resource {
 				r := mkGroup(newACLDisplayName, 0)(t)
-				r.Id = "DO NOT TRUST THIS VALUE"
+				r.SetId("DO NOT TRUST THIS VALUE")
 				return r
 			},
 			expectACLLookup: false,
@@ -549,14 +549,14 @@ func TestGroupCreate(t *testing.T) {
 			resource := tt.makeResource(t)
 
 			// When I attempt to create a new Group...
-			created, err := uut.CreateSCIMResource(fix.userCtx, &scimpb.CreateSCIMResourceRequest{
-				Target: &scimpb.RequestTarget{
+			created, err := uut.CreateSCIMResource(fix.userCtx, scimpb.CreateSCIMResourceRequest_builder{
+				Target: scimpb.RequestTarget_builder{
 					Authorization: testAuthHeader,
 					PluginId:      testPluginName,
 					ResourceType:  "Groups",
-				},
+				}.Build(),
 				Resource: resource,
-			})
+			}.Build())
 
 			tt.expectError(t, err)
 
@@ -709,15 +709,15 @@ func TestGroupUpdate(t *testing.T) {
 			resource := tt.makeResource(t)
 
 			// When I attempt to update a Group...
-			created, err := uut.UpdateSCIMResource(fix.userCtx, &scimpb.UpdateSCIMResourceRequest{
-				Target: &scimpb.RequestTarget{
+			created, err := uut.UpdateSCIMResource(fix.userCtx, scimpb.UpdateSCIMResourceRequest_builder{
+				Target: scimpb.RequestTarget_builder{
 					Authorization: testAuthHeader,
 					PluginId:      testPluginName,
 					ResourceType:  "Groups",
 					ResourceId:    tt.resourceID,
-				},
+				}.Build(),
 				Resource: resource,
-			})
+			}.Build())
 
 			tt.expectError(t, err)
 
@@ -815,14 +815,14 @@ func TestGroupDelete(t *testing.T) {
 			}
 
 			// When I attempt to delete a Group...
-			_, err := uut.DeleteSCIMResource(fix.userCtx, &scimpb.DeleteSCIMResourceRequest{
-				Target: &scimpb.RequestTarget{
+			_, err := uut.DeleteSCIMResource(fix.userCtx, scimpb.DeleteSCIMResourceRequest_builder{
+				Target: scimpb.RequestTarget_builder{
 					Authorization: testAuthHeader,
 					PluginId:      testPluginName,
 					ResourceType:  "Groups",
 					ResourceId:    tt.resourceID,
-				},
-			})
+				}.Build(),
+			}.Build())
 
 			// Examine the result and make sure its as expected
 			tt.expectError(t, err)
@@ -839,7 +839,7 @@ func mkGroup(displayName string, memberCount int) func(*testing.T) *scimpb.Resou
 func setID(id string, fn func(*testing.T) *scimpb.Resource) func(*testing.T) *scimpb.Resource {
 	return func(t *testing.T) *scimpb.Resource {
 		r := fn(t)
-		r.Id = id
+		r.SetId(id)
 		return r
 	}
 }
@@ -851,16 +851,16 @@ func makeTestGroupResource(t *testing.T, displayName string, memberCount int) *s
 		untypedMembers[i] = members[i]
 	}
 
-	resource := &scimpb.Resource{
+	resource := scimpb.Resource_builder{
 		Schemas: []string{"urn:ietf:params:scim:schemas:core:2.0:Group"},
-		Meta: &scimpb.Meta{
+		Meta: scimpb.Meta_builder{
 			ResourceType: "Group",
-		},
+		}.Build(),
 		Attributes: must(structpb.NewStruct(map[string]any{
 			"displayName": displayName,
 			"members":     untypedMembers,
 		})),
-	}
+	}.Build()
 
 	return resource
 }
@@ -971,7 +971,7 @@ func isRoleNamed(name string) any {
 // testing the SCIM implementation
 func resourceToAccessList(id string, clock clockwork.Clock) func(context.Context, *scimpb.Resource) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	return func(_ context.Context, res *scimpb.Resource) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
-		group, err := decodeGroupResource(res.Attributes.AsMap())
+		group, err := decodeGroupResource(res.GetAttributes().AsMap())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -1082,9 +1082,9 @@ func setAccessListMemberMetadata(_ context.Context, m *accesslist.AccessListMemb
 }
 
 func requireGroupResource(t *testing.T, id, displayName string, members []*types.UserV2, resource *scimpb.Resource) {
-	require.Equal(t, id, resource.Id)
+	require.Equal(t, id, resource.GetId())
 
-	attributes := resource.Attributes.AsMap()
+	attributes := resource.GetAttributes().AsMap()
 	require.Equal(t, displayName, attributes["displayName"])
 
 	expectedMembers := make([]any, 0, len(members))

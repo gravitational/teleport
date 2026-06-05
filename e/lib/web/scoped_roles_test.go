@@ -30,9 +30,9 @@ func TestListRootScopedRoles(t *testing.T) {
 		newScopedRole("interns", "/scratch", []string{"/scratch"}),
 	}
 	for _, role := range roles {
-		_, err := scopedAccessService.CreateScopedRole(t.Context(), &scopedaccessv1.CreateScopedRoleRequest{
+		_, err := scopedAccessService.CreateScopedRole(t.Context(), scopedaccessv1.CreateScopedRoleRequest_builder{
 			Role: role,
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -134,15 +134,15 @@ func TestListRootScopedRoles(t *testing.T) {
 }
 
 func newScopedRole(name, scope string, assignableScopes []string) *scopedaccessv1.ScopedRole {
-	return &scopedaccessv1.ScopedRole{
+	return scopedaccessv1.ScopedRole_builder{
 		Kind:    scopedaccess.KindScopedRole,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
+		}.Build(),
 		Scope: scope,
-		Spec: &scopedaccessv1.ScopedRoleSpec{
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: assignableScopes,
-		},
-	}
+		}.Build(),
+	}.Build()
 }

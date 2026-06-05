@@ -56,31 +56,31 @@ func adjustEnhancedSummaryForClient(ctx context.Context, summary *pb.Summary) er
 
 func upgradeEnhancedSummary(es *pb.EnhancedSummary) {
 	//nolint:staticcheck // deprecated field read for backwards compatibility
-	if len(es.SessionEvents) == 0 && len(es.GetCommands()) > 0 {
+	if len(es.GetSessionEvents()) == 0 && len(es.GetCommands()) > 0 {
 		//nolint:staticcheck // deprecated field read for backwards compatibility
-		es.SessionEvents = commandsToSessionEvents(es.GetCommands())
+		es.SetSessionEvents(commandsToSessionEvents(es.GetCommands()))
 	}
 	//nolint:staticcheck // deprecated field read for backwards compatibility
-	if len(es.NeedsFurtherReviewReasons) == 0 && es.NeedsFurtherReview != nil {
+	if len(es.GetNeedsFurtherReviewReasons()) == 0 && es.HasNeedsFurtherReview() {
 		//nolint:staticcheck // deprecated field read for backwards compatibility
-		es.NeedsFurtherReviewReasons = []pb.NeedsReviewReason{*es.NeedsFurtherReview}
+		es.SetNeedsFurtherReviewReasons([]pb.NeedsReviewReason{es.GetNeedsFurtherReview()})
 	}
 }
 
 func downgradeEnhancedSummary(es *pb.EnhancedSummary) {
 	//nolint:staticcheck // deprecated field write for backwards compatibility
-	if len(es.GetCommands()) == 0 && len(es.SessionEvents) > 0 {
+	if len(es.GetCommands()) == 0 && len(es.GetSessionEvents()) > 0 {
 		//nolint:staticcheck // deprecated field write for backwards compatibility
-		es.Commands = sessionEventsToCommands(es.SessionEvents)
+		es.SetCommands(sessionEventsToCommands(es.GetSessionEvents()))
 	}
 	//nolint:staticcheck // deprecated field write for backwards compatibility
-	if es.NeedsFurtherReview == nil && len(es.NeedsFurtherReviewReasons) > 0 {
-		first := es.NeedsFurtherReviewReasons[0]
+	if !es.HasNeedsFurtherReview() && len(es.GetNeedsFurtherReviewReasons()) > 0 {
+		first := es.GetNeedsFurtherReviewReasons()[0]
 		//nolint:staticcheck // deprecated field write for backwards compatibility
-		es.NeedsFurtherReview = &first
+		es.SetNeedsFurtherReview(first)
 	}
-	es.SessionEvents = nil
-	es.NeedsFurtherReviewReasons = nil
+	es.SetSessionEvents(nil)
+	es.SetNeedsFurtherReviewReasons(nil)
 }
 
 func sessionEventsToCommands(events []*pb.SessionEvent) []*pb.CommandAnalysis {
@@ -90,7 +90,7 @@ func sessionEventsToCommands(events []*pb.SessionEvent) []*pb.CommandAnalysis {
 		if details == nil {
 			continue
 		}
-		out = append(out, &pb.CommandAnalysis{
+		out = append(out, pb.CommandAnalysis_builder{
 			Command:               details.GetCommand(),
 			Success:               details.GetSuccess(),
 			ErrorMessages:         details.GetErrorMessages(),
@@ -114,7 +114,7 @@ func sessionEventsToCommands(events []*pb.SessionEvent) []*pb.CommandAnalysis {
 			StartOffset:           e.GetStartOffset(),
 			EndOffset:             e.GetEndOffset(),
 			InferenceErrorMessage: e.GetInferenceErrorMessage(),
-		})
+		}.Build())
 	}
 	return out
 }
@@ -122,7 +122,7 @@ func sessionEventsToCommands(events []*pb.SessionEvent) []*pb.CommandAnalysis {
 func commandsToSessionEvents(commands []*pb.CommandAnalysis) []*pb.SessionEvent {
 	out := make([]*pb.SessionEvent, len(commands))
 	for i, c := range commands {
-		out[i] = &pb.SessionEvent{
+		out[i] = pb.SessionEvent_builder{
 			Category:              c.GetCategory(),
 			RiskLevel:             c.GetRiskLevel(),
 			RiskScore:             c.GetRiskScore(),
@@ -143,14 +143,12 @@ func commandsToSessionEvents(commands []*pb.CommandAnalysis) []*pb.SessionEvent 
 			StartOffset:           c.GetStartOffset(),
 			EndOffset:             c.GetEndOffset(),
 			InferenceErrorMessage: c.GetInferenceErrorMessage(),
-			Details: &pb.SessionEvent_CommandEventDetails{
-				CommandEventDetails: &pb.CommandEventDetails{
-					Command:       c.GetCommand(),
-					Success:       c.GetSuccess(),
-					ErrorMessages: c.GetErrorMessages(),
-				},
-			},
-		}
+			CommandEventDetails: pb.CommandEventDetails_builder{
+				Command:       c.GetCommand(),
+				Success:       c.GetSuccess(),
+				ErrorMessages: c.GetErrorMessages(),
+			}.Build(),
+		}.Build()
 	}
 	return out
 }

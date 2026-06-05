@@ -97,11 +97,11 @@ func (a *auditLogExporter) start(ctx context.Context, config AuditLogConfig) err
 // by performing a fake request. This is done by querying the client to see if
 // it implements the GetEventExportChunks method.
 func (a *auditLogExporter) isBulkExporter(ctx context.Context) (bool, error) {
-	chunks := a.client.GetEventExportChunks(ctx, &auditlogv1.GetEventExportChunksRequest{
+	chunks := a.client.GetEventExportChunks(ctx, auditlogv1.GetEventExportChunksRequest_builder{
 		// target a date 2 days in the future to be confident that we're querying a valid but
 		// empty date range, even in the context of reasonable clock drift.
 		Date: timestamppb.New(time.Now().AddDate(0, 0, 2)),
-	})
+	}.Build())
 
 	if err := stream.Drain(chunks); err != nil {
 		if trace.IsNotImplemented(err) {
@@ -131,11 +131,11 @@ func receiveUntilErr(in auditLogStream) error {
 
 func (a *auditLogExporter) reconcileConfig(ctx context.Context, config AuditLogConfig) (*accessgraphv1.AuditLogConfig, error) {
 	startDate := config.StartDate
-	pbConfig := &accessgraphv1.AuditLogConfig{
+	pbConfig := accessgraphv1.AuditLogConfig_builder{
 		TeleportCluster: a.teleportClusterName,
-	}
+	}.Build()
 	if !startDate.IsZero() {
-		pbConfig.StartDate = timestamppb.New(startDate)
+		pbConfig.SetStartDate(timestamppb.New(startDate))
 	}
 	req := &accessgraphv1.AuditLogStreamRequest{
 		Action: &accessgraphv1.AuditLogStreamRequest_Config{
@@ -168,9 +168,9 @@ func (a *auditLogExporter) getResumeState(ctx context.Context, isBulkExporter bo
 	if err != nil {
 		return nil, trace.Wrap(err, "Failed to receive second audit log response to track resume state")
 	}
-	switch resp.GetState().(type) {
-	case *accessgraphv1.AuditLogStreamResponse_NoResumeState, *accessgraphv1.AuditLogStreamResponse_SearchResumeState: // new, resume or upgrade.
-	case *accessgraphv1.AuditLogStreamResponse_BulkResumeState:
+	switch resp.WhichState() {
+	case accessgraphv1.AuditLogStreamResponse_NoResumeState_case, accessgraphv1.AuditLogStreamResponse_SearchResumeState_case: // new, resume or upgrade.
+	case accessgraphv1.AuditLogStreamResponse_BulkResumeState_case:
 		if !isBulkExporter {
 			a.log.WarnContext(ctx, "Search exporter with bulk resume state, undefined behavior")
 		}
@@ -289,21 +289,17 @@ func (b *auditLogExporter) publishThroughChan(ctx context.Context, events []*aud
 // sendBatch sends a batch of events to the audit log stream.
 func (a *auditLogExporter) sendBatch(ctx context.Context, events []*auditlogv1.EventUnstructured, resumeState export.BulkExportResumeState) error {
 	a.log.DebugContext(ctx, "Sending bulk exported events", "event_count", len(events))
-	err := a.stream.Send(&accessgraphv1.AuditLogStreamRequest{
-		Action: &accessgraphv1.AuditLogStreamRequest_Events{
-			Events: &accessgraphv1.AuditLogEvents{
-				Events: events,
-				ResumeState: &accessgraphv1.AuditLogEvents_BulkResumeStateUpdate{
-					BulkResumeStateUpdate: &accessgraphv1.BulkResumeStateUpdate{
-						Date:      timestamppb.New(resumeState.Date),
-						Chunk:     resumeState.Chunk,
-						Cursor:    resumeState.Cursor,
-						Completed: resumeState.Completed,
-					},
-				},
-			},
-		},
-	})
+	err := a.stream.Send(accessgraphv1.AuditLogStreamRequest_builder{
+		Events: accessgraphv1.AuditLogEvents_builder{
+			Events: events,
+			BulkResumeStateUpdate: accessgraphv1.BulkResumeStateUpdate_builder{
+				Date:      timestamppb.New(resumeState.Date),
+				Chunk:     resumeState.Chunk,
+				Cursor:    resumeState.Cursor,
+				Completed: resumeState.Completed,
+			}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return trace.Errorf("failed to send bulk export on audit log stream. Send error %w, followed by receive error %w", err, receiveUntilErr(a.stream))
 	}
@@ -322,13 +318,11 @@ func (a *auditLogExporter) syncActiveDates(ctx context.Context, newtState export
 		activeDatesPB[i] = timestamppb.New(date)
 	}
 
-	err := a.stream.Send(&accessgraphv1.AuditLogStreamRequest{
-		Action: &accessgraphv1.AuditLogStreamRequest_BulkSync{
-			BulkSync: &accessgraphv1.BulkResumeStateSync{
-				ActiveDates: activeDatesPB,
-			},
-		},
-	})
+	err := a.stream.Send(accessgraphv1.AuditLogStreamRequest_builder{
+		BulkSync: accessgraphv1.BulkResumeStateSync_builder{
+			ActiveDates: activeDatesPB,
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return trace.Errorf("failed to send bulk sync request on audit log stream. Send error %w, followed by receive error %w", err, receiveUntilErr(a.stream))
 	}
@@ -356,20 +350,16 @@ func (a *auditLogExporter) exportSearch(ctx context.Context, startDate time.Time
 			}
 		}
 		a.log.DebugContext(ctx, "Sending search events", "event_count", len(unstructuredEvents))
-		req := &accessgraphv1.AuditLogStreamRequest{
-			Action: &accessgraphv1.AuditLogStreamRequest_Events{
-				Events: &accessgraphv1.AuditLogEvents{
-					Events: unstructuredEvents,
-					ResumeState: &accessgraphv1.AuditLogEvents_SearchResumeState{
-						SearchResumeState: &accessgraphv1.SearchResumeState{
-							StartKey:    a.startKey,
-							LastEventId: a.lastID,
-							// LastEventTime: can be empty, inferred by the server from Events[-1].
-						},
-					},
-				},
-			},
-		}
+		req := accessgraphv1.AuditLogStreamRequest_builder{
+			Events: accessgraphv1.AuditLogEvents_builder{
+				Events: unstructuredEvents,
+				SearchResumeState: accessgraphv1.SearchResumeState_builder{
+					StartKey:    a.startKey,
+					LastEventId: a.lastID,
+					// LastEventTime: can be empty, inferred by the server from Events[-1].
+				}.Build(),
+			}.Build(),
+		}.Build()
 		err = a.stream.Send(req)
 		if err != nil {
 			return trace.Errorf("failed to send search export on audit log stream. Send error %w, followed by receive error %w", err, receiveUntilErr(a.stream))

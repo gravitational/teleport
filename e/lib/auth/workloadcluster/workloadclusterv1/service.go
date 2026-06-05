@@ -205,7 +205,7 @@ func (s *Service) CreateWorkloadCluster(ctx context.Context, req *workloadcluste
 		return nil, trace.Wrap(err)
 	}
 
-	workloadCluster, err = s.createChildCluster(ctx, req.Cluster)
+	workloadCluster, err = s.createChildCluster(ctx, req.GetCluster())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -275,7 +275,7 @@ func (s *Service) UpdateWorkloadCluster(ctx context.Context, req *workloadcluste
 		return nil, trace.Wrap(err)
 	}
 
-	workloadCluster, err = s.updateChildCluster(ctx, req.Cluster)
+	workloadCluster, err = s.updateChildCluster(ctx, req.GetCluster())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -348,7 +348,7 @@ func (s *Service) UpsertWorkloadCluster(ctx context.Context, req *workloadcluste
 		return nil, trace.Wrap(err)
 	}
 
-	workloadCluster, err = s.upsertChildCluster(ctx, req.Cluster)
+	workloadCluster, err = s.upsertChildCluster(ctx, req.GetCluster())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -413,7 +413,7 @@ func (s *Service) DeleteWorkloadCluster(ctx context.Context, req *workloadcluste
 	}
 
 	cloudReq := cloudv1.SuspendChildClusterRequest{
-		Name: req.Name,
+		Name: req.GetName(),
 	}
 	if _, err := cloudClient.SuspendChildCluster(ctx, &cloudReq); err != nil {
 		return nil, trace.Wrap(err)
@@ -469,10 +469,10 @@ func (s *Service) ListWorkloadClusters(ctx context.Context, req *workloadcluster
 		workloadClusters = append(workloadClusters, wc)
 	}
 
-	return &workloadcluster.ListWorkloadClustersResponse{
+	return workloadcluster.ListWorkloadClustersResponse_builder{
 		Clusters:      workloadClusters,
 		NextPageToken: resp.GetNextPageToken(),
-	}, nil
+	}.Build(), nil
 }
 
 // createChildCluster instructs Teleport Cloud to create a new child Teleport Cloud cluster.
@@ -639,46 +639,46 @@ func convert(in *cloudv1.ChildCluster) (*workloadcluster.WorkloadCluster, error)
 		return nil, errors.New("received invalid response from Teleport Cloud - please reach out to our support team at support@goteleport.com")
 	}
 
-	out := &workloadcluster.WorkloadCluster{
+	out := workloadcluster.WorkloadCluster_builder{
 		Version: types.V1,
 		Kind:    types.KindWorkloadCluster,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:     in.GetName(),
 			Revision: in.GetRevision(),
-		},
+		}.Build(),
 		Spec: &workloadcluster.WorkloadClusterSpec{},
-		Status: &workloadcluster.WorkloadClusterStatus{
+		Status: workloadcluster.WorkloadClusterStatus_builder{
 			Domain: in.GetStatus().GetDomain(),
 			State:  in.GetStatus().GetState(),
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	if in.GetSpec().GetBotName() != "" {
-		out.Spec.Bot = &workloadcluster.Bot{
+		out.GetSpec().SetBot(workloadcluster.Bot_builder{
 			Name: in.GetSpec().GetBotName(),
-		}
+		}.Build())
 	}
 
 	if in.GetSpec().GetJoinMethod() != "" {
 		rules := make([]*workloadcluster.Allow, 0, len(in.GetSpec().GetAllow()))
 		for _, a := range in.GetSpec().GetAllow() {
-			rules = append(rules, &workloadcluster.Allow{
+			rules = append(rules, workloadcluster.Allow_builder{
 				AwsAccount: a.GetAwsAccount(),
 				AwsArn:     a.GetAwsArn(),
-			})
+			}.Build())
 		}
 
-		out.Spec.Token = &workloadcluster.Token{
+		out.GetSpec().SetToken(workloadcluster.Token_builder{
 			JoinMethod: in.GetSpec().GetJoinMethod(),
 			Allow:      rules,
-		}
+		}.Build())
 	}
 
-	out.Spec.Regions = make([]*workloadcluster.Region, 0, len(in.GetSpec().GetRegions()))
+	out.GetSpec().SetRegions(make([]*workloadcluster.Region, 0, len(in.GetSpec().GetRegions())))
 	for _, r := range in.GetSpec().GetRegions() {
-		out.Spec.Regions = append(out.Spec.Regions, &workloadcluster.Region{
+		out.GetSpec().SetRegions(append(out.GetSpec().GetRegions(), workloadcluster.Region_builder{
 			Name: r.GetName(),
-		})
+		}.Build()))
 	}
 
 	return out, nil

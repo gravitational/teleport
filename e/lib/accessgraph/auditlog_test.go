@@ -104,13 +104,11 @@ func (s *tagServerMock) receivedRequests() []*accessgraphv1.AuditLogStreamReques
 }
 
 func newConfigAndState() []*accessgraphv1.AuditLogStreamResponse {
-	config := &accessgraphv1.AuditLogStreamResponse{
-		State: &accessgraphv1.AuditLogStreamResponse_AuditLogConfig{
-			AuditLogConfig: &accessgraphv1.AuditLogConfig{
-				StartDate: timestamppb.New(testStartDate),
-			},
-		},
-	}
+	config := accessgraphv1.AuditLogStreamResponse_builder{
+		AuditLogConfig: accessgraphv1.AuditLogConfig_builder{
+			StartDate: timestamppb.New(testStartDate),
+		}.Build(),
+	}.Build()
 	noResumeState := &accessgraphv1.AuditLogStreamResponse{
 		State: &accessgraphv1.AuditLogStreamResponse_NoResumeState{},
 	}
@@ -404,22 +402,20 @@ func newTestEventBatch(nextKey string, events ...apievents.AuditEvent) testEvent
 }
 
 func searchEventRequest(events []apievents.AuditEvent, startKey, lastID string) *accessgraphv1.AuditLogStreamRequest {
-	return &accessgraphv1.AuditLogStreamRequest{
-		Action: &accessgraphv1.AuditLogStreamRequest_Events{
-			Events: &accessgraphv1.AuditLogEvents{
-				Events: toUnstructured(events),
-				ResumeState: &accessgraphv1.AuditLogEvents_SearchResumeState{
-					SearchResumeState: searchResumeState(startKey, lastID),
-				},
+	return accessgraphv1.AuditLogStreamRequest_builder{
+		Events: &accessgraphv1.AuditLogEvents{
+			Events: toUnstructured(events),
+			ResumeState: &accessgraphv1.AuditLogEvents_SearchResumeState{
+				SearchResumeState: searchResumeState(startKey, lastID),
 			},
 		},
-	}
+	}.Build()
 }
 
 func toUnstructured(events []apievents.AuditEvent) []*auditlogpb.EventUnstructured {
 	result := make([]*auditlogpb.EventUnstructured, len(events))
 	for i, event := range events {
-		result[i] = &auditlogpb.EventUnstructured{
+		result[i] = auditlogpb.EventUnstructured_builder{
 			Id:   event.GetID(),
 			Type: event.GetType(),
 			Time: timestamppb.New(event.GetTime()),
@@ -428,16 +424,16 @@ func toUnstructured(events []apievents.AuditEvent) []*auditlogpb.EventUnstructur
 					"AuditEvent": structpb.NewNullValue(),
 				},
 			},
-		}
+		}.Build()
 	}
 	return result
 }
 
 func searchResumeState(startKey, lastID string) *accessgraphv1.SearchResumeState {
-	return &accessgraphv1.SearchResumeState{
+	return accessgraphv1.SearchResumeState_builder{
 		StartKey:    startKey,
 		LastEventId: lastID,
-	}
+	}.Build()
 }
 
 type testEvent struct {
@@ -660,9 +656,9 @@ func (b *bulkEventsMock) addChunk(chunkDate time.Time, chunkID string, eventCnt 
 	result := make([]*auditlogpb.EventUnstructured, eventCnt)
 	for i := range eventCnt {
 		cursor := strconv.Itoa(i)
-		event := &auditlogpb.EventUnstructured{Id: fmt.Sprintf("%s-%s-%s", date, chunkID, cursor)}
+		event := auditlogpb.EventUnstructured_builder{Id: fmt.Sprintf("%s-%s-%s", date, chunkID, cursor)}.Build()
 		result[i] = event
-		events[i] = &auditlogpb.ExportEventUnstructured{Event: event, Cursor: cursor}
+		events[i] = auditlogpb.ExportEventUnstructured_builder{Event: event, Cursor: cursor}.Build()
 	}
 
 	b.mu.Lock()
@@ -677,15 +673,15 @@ func (b *bulkEventsMock) addChunk(chunkDate time.Time, chunkID string, eventCnt 
 func (b *bulkEventsMock) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	chunks, ok := b.data[req.Date.AsTime().Format(time.DateOnly)]
+	chunks, ok := b.data[req.GetDate().AsTime().Format(time.DateOnly)]
 	if !ok {
 		return stream.Empty[*auditlogpb.EventExportChunk]()
 	}
 	var chunkIDs []*auditlogpb.EventExportChunk
 	for chunkID := range chunks {
-		chunkIDPB := &auditlogpb.EventExportChunk{
+		chunkIDPB := auditlogpb.EventExportChunk_builder{
 			Chunk: chunkID,
-		}
+		}.Build()
 		chunkIDs = append(chunkIDs, chunkIDPB)
 	}
 	return stream.Slice(chunkIDs)
@@ -694,23 +690,23 @@ func (b *bulkEventsMock) GetEventExportChunks(ctx context.Context, req *auditlog
 func (b *bulkEventsMock) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
 	b.mu.Lock()
 	defer b.mu.Unlock()
-	date := req.Date.AsTime().Format(time.DateOnly)
+	date := req.GetDate().AsTime().Format(time.DateOnly)
 	chunks, ok := b.data[date]
 	if !ok {
 		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotFound("date not found: %q", date))
 	}
 
-	chunk, ok := chunks[req.Chunk]
+	chunk, ok := chunks[req.GetChunk()]
 	if !ok {
-		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotFound("chunk not found: %q", req.Chunk))
+		return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.NotFound("chunk not found: %q", req.GetChunk()))
 	}
 
 	var cursor int
-	if req.Cursor != "" {
+	if req.GetCursor() != "" {
 		var err error
-		cursor, err = strconv.Atoi(req.Cursor)
+		cursor, err = strconv.Atoi(req.GetCursor())
 		if err != nil {
-			return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("invalid cursor %q", req.Cursor))
+			return stream.Fail[*auditlogpb.ExportEventUnstructured](trace.BadParameter("invalid cursor %q", req.GetCursor()))
 		}
 	}
 	chunk = chunk[cursor:]
@@ -766,31 +762,25 @@ func bulkSync(dates ...time.Time) *accessgraphv1.AuditLogStreamRequest {
 	for i, date := range dates {
 		pbDates[i] = timestamppb.New(date)
 	}
-	return &accessgraphv1.AuditLogStreamRequest{
-		Action: &accessgraphv1.AuditLogStreamRequest_BulkSync{
-			BulkSync: &accessgraphv1.BulkResumeStateSync{
-				ActiveDates: pbDates,
-			},
-		},
-	}
+	return accessgraphv1.AuditLogStreamRequest_builder{
+		BulkSync: accessgraphv1.BulkResumeStateSync_builder{
+			ActiveDates: pbDates,
+		}.Build(),
+	}.Build()
 }
 
 func bulkEventRequest(events []*auditlogpb.EventUnstructured, date time.Time, chunkID, cursor string, completed bool) *accessgraphv1.AuditLogStreamRequest {
-	return &accessgraphv1.AuditLogStreamRequest{
-		Action: &accessgraphv1.AuditLogStreamRequest_Events{
-			Events: &accessgraphv1.AuditLogEvents{
-				Events: events,
-				ResumeState: &accessgraphv1.AuditLogEvents_BulkResumeStateUpdate{
-					BulkResumeStateUpdate: &accessgraphv1.BulkResumeStateUpdate{
-						Date:      timestamppb.New(date), // TODO
-						Chunk:     chunkID,
-						Cursor:    cursor,
-						Completed: completed,
-					},
-				},
-			},
-		},
-	}
+	return accessgraphv1.AuditLogStreamRequest_builder{
+		Events: accessgraphv1.AuditLogEvents_builder{
+			Events: events,
+			BulkResumeStateUpdate: accessgraphv1.BulkResumeStateUpdate_builder{
+				Date:      timestamppb.New(date), // TODO
+				Chunk:     chunkID,
+				Cursor:    cursor,
+				Completed: completed,
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 func requireBulkRequestsSame(t *testing.T, want, got []*accessgraphv1.AuditLogStreamRequest) {
@@ -818,5 +808,5 @@ func bulkEventRequestID(t *testing.T, req *accessgraphv1.AuditLogStreamRequest) 
 	require.NotNil(t, events, "No events action request\n  action:%v\n  type:%T", req.GetAction(), req.GetAction())
 	state := events.GetBulkResumeStateUpdate()
 	require.NotNil(t, state, "No bulk resume state\n  state:%v\n  type:%T", events.GetResumeState(), events.GetResumeState())
-	return fmt.Sprintf("%s-%s-%s-%t", state.Date.AsTime().Format(time.RFC3339), state.Chunk, state.Cursor, state.Completed)
+	return fmt.Sprintf("%s-%s-%s-%t", state.GetDate().AsTime().Format(time.RFC3339), state.GetChunk(), state.GetCursor(), state.GetCompleted())
 }

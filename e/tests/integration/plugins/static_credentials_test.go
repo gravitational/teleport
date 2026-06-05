@@ -6,6 +6,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -41,17 +42,15 @@ func TestPluginUpdateCredentials(t *testing.T) {
 		}
 
 		response, err := adminUser.AuthClient.PluginsClient().UpdatePluginStaticCredentials(ctx,
-			&pluginsv1.UpdatePluginStaticCredentialsRequest{
-				Target: &pluginsv1.UpdatePluginStaticCredentialsRequest_Name{
-					Name: creds.GetName(),
-				},
+			pluginsv1.UpdatePluginStaticCredentialsRequest_builder{
+				Name:       proto.String(creds.GetName()),
 				Credential: newValue,
-			},
+			}.Build(),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, response)
-		require.Equal(t, creds.GetName(), response.Credential.GetName())
-		require.Equal(t, response.Credential.Spec, newValue)
+		require.Equal(t, creds.GetName(), response.GetCredential().GetName())
+		require.Equal(t, response.GetCredential().Spec, newValue)
 
 		// check that the backend token value is updated
 		cred, err := auth.GetPluginStaticCredentials(context.Background(), creds.GetName())
@@ -61,16 +60,14 @@ func TestPluginUpdateCredentials(t *testing.T) {
 
 	t.Run("target by name (not found)", func(t *testing.T) {
 		response, err := adminUser.AuthClient.PluginsClient().UpdatePluginStaticCredentials(ctx,
-			&pluginsv1.UpdatePluginStaticCredentialsRequest{
-				Target: &pluginsv1.UpdatePluginStaticCredentialsRequest_Name{
-					Name: "no-such-credential",
-				},
+			pluginsv1.UpdatePluginStaticCredentialsRequest_builder{
+				Name: proto.String("no-such-credential"),
 				Credential: &types.PluginStaticCredentialsSpecV1{
 					Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
 						APIToken: "some token or other",
 					},
 				},
-			})
+			}.Build())
 		require.True(t, trace.IsNotFound(err), "expected Not Found error, got %T %q", err, err)
 		require.Nil(t, response)
 	})
@@ -95,22 +92,20 @@ func TestPluginUpdateCredentials(t *testing.T) {
 		}
 
 		response, err := adminUser.AuthClient.PluginsClient().UpdatePluginStaticCredentials(ctx,
-			&pluginsv1.UpdatePluginStaticCredentialsRequest{
-				Target: &pluginsv1.UpdatePluginStaticCredentialsRequest_Query{
-					Query: &pluginsv1.CredentialQuery{
-						Labels: map[string]string{
-							"plugin-id": "1",
-							"is-target": "true",
-						},
+			pluginsv1.UpdatePluginStaticCredentialsRequest_builder{
+				Query: pluginsv1.CredentialQuery_builder{
+					Labels: map[string]string{
+						"plugin-id": "1",
+						"is-target": "true",
 					},
-				},
+				}.Build(),
 				Credential: newValue,
-			},
+			}.Build(),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, response)
-		require.Equal(t, targetCreds.GetName(), response.Credential.GetName())
-		require.Equal(t, response.Credential.Spec, newValue)
+		require.Equal(t, targetCreds.GetName(), response.GetCredential().GetName())
+		require.Equal(t, response.GetCredential().Spec, newValue)
 
 		// check that the backend token value is updated
 		cred, err := auth.GetPluginStaticCredentials(context.Background(), "cred-number-2")
@@ -120,18 +115,16 @@ func TestPluginUpdateCredentials(t *testing.T) {
 
 	t.Run("target by label (not found)", func(t *testing.T) {
 		response, err := adminUser.AuthClient.PluginsClient().UpdatePluginStaticCredentials(ctx,
-			&pluginsv1.UpdatePluginStaticCredentialsRequest{
-				Target: &pluginsv1.UpdatePluginStaticCredentialsRequest_Query{
-					Query: &pluginsv1.CredentialQuery{
-						Labels: map[string]string{"exists": "false"},
-					},
-				},
+			pluginsv1.UpdatePluginStaticCredentialsRequest_builder{
+				Query: pluginsv1.CredentialQuery_builder{
+					Labels: map[string]string{"exists": "false"},
+				}.Build(),
 				Credential: &types.PluginStaticCredentialsSpecV1{
 					Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
 						APIToken: "some token or other",
 					},
 				},
-			})
+			}.Build())
 		require.True(t, trace.IsNotFound(err), "expected Not Found error, got %T %q", err, err)
 		require.Nil(t, response)
 	})
@@ -142,16 +135,14 @@ func TestPluginUpdateCredentials(t *testing.T) {
 			withBasicAuth("uid", "pwd"))
 
 		response, err := regularUser.AuthClient.PluginsClient().UpdatePluginStaticCredentials(ctx,
-			&pluginsv1.UpdatePluginStaticCredentialsRequest{
-				Target: &pluginsv1.UpdatePluginStaticCredentialsRequest_Name{
-					Name: "token-number-1",
-				},
+			pluginsv1.UpdatePluginStaticCredentialsRequest_builder{
+				Name: proto.String("token-number-1"),
 				Credential: &types.PluginStaticCredentialsSpecV1{
 					Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
 						APIToken: "some random value",
 					},
 				},
-			},
+			}.Build(),
 		)
 		require.True(t, trace.IsAccessDenied(err), "Expected Access Denied error, gt %T %q", err, err)
 		require.Nil(t, response)
@@ -196,18 +187,16 @@ func TestPluginUpdateCredentials(t *testing.T) {
 			withAPIToken("this is not a real token #3"))
 
 		response, err := adminUser.AuthClient.PluginsClient().UpdatePluginStaticCredentials(ctx,
-			&pluginsv1.UpdatePluginStaticCredentialsRequest{
-				Target: &pluginsv1.UpdatePluginStaticCredentialsRequest_Query{
-					Query: &pluginsv1.CredentialQuery{
-						Labels: map[string]string{"matches": "true"},
-					},
-				},
+			pluginsv1.UpdatePluginStaticCredentialsRequest_builder{
+				Query: pluginsv1.CredentialQuery_builder{
+					Labels: map[string]string{"matches": "true"},
+				}.Build(),
 				Credential: &types.PluginStaticCredentialsSpecV1{
 					Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
 						APIToken: "some random value",
 					},
 				},
-			})
+			}.Build())
 		require.True(t, trace.IsBadParameter(err), "Expected Bad Parameter error, gt %T %q", err, err)
 		require.Nil(t, response)
 	})

@@ -131,17 +131,17 @@ func (s *S) BulkCreateDevices(ctx context.Context, devs []*devicepb.Device, crea
 
 		// Is the device valid?
 		if err := ValidateDeviceForCreate(dev, createAsResource); err != nil {
-			resp[i].Status = errToStatus(err)
+			resp[i].SetStatus(errToStatus(err))
 			continue
 		}
 
 		// Is the tag repeated within devs?
 		tag := assetTagKey{
-			osType:   dev.OsType,
-			assetTag: dev.AssetTag,
+			osType:   dev.GetOsType(),
+			assetTag: dev.GetAssetTag(),
 		}
 		if _, ok := seenTags[tag]; ok {
-			resp[i].Status = errToStatus(trace.AlreadyExists("asset tag already requested"))
+			resp[i].SetStatus(errToStatus(trace.AlreadyExists("asset tag already requested")))
 			continue
 		}
 		seenTags[tag] = struct{}{}
@@ -156,7 +156,7 @@ func (s *S) BulkCreateDevices(ctx context.Context, devs []*devicepb.Device, crea
 	var mu sync.Mutex
 	for i, dev := range devs {
 		mu.Lock()
-		ok := resp[i].Status.GetCode() == int32(codes.OK)
+		ok := resp[i].GetStatus().GetCode() == int32(codes.OK)
 		mu.Unlock()
 		if !ok {
 			continue // Errored on pre-validation.
@@ -167,8 +167,8 @@ func (s *S) BulkCreateDevices(ctx context.Context, devs []*devicepb.Device, crea
 		g.Go(func() error {
 			created, err := s.createDevice(ctx, dev, createAsResource)
 			mu.Lock()
-			resp[i].Status = errToStatus(err)
-			resp[i].Id = created.GetId()
+			resp[i].SetStatus(errToStatus(err))
+			resp[i].SetId(created.GetId())
 			mu.Unlock()
 			return nil
 		})
@@ -251,33 +251,33 @@ func (s *S) createDevice(ctx context.Context, dev *devicepb.Device, createAsReso
 
 func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (deviceID string, storedDev *storedDevice) {
 	var storedSource *storedDeviceSource
-	if d.Source != nil {
+	if d.HasSource() {
 		storedSource = &storedDeviceSource{
-			Name:   d.Source.Name,
-			Origin: int(d.Source.Origin),
+			Name:   d.GetSource().GetName(),
+			Origin: int(d.GetSource().GetOrigin()),
 		}
 	}
 
 	// Profiles have no required fields, but there's no point saving an empty
 	// profile so let's avoid that.
 	var storedProfile *storedDeviceProfile
-	if (createAsResource && d.Profile != nil) || !isDeviceProfileEmpty(d.Profile) {
+	if (createAsResource && d.HasProfile()) || !isDeviceProfileEmpty(d.GetProfile()) {
 		storedProfile = &storedDeviceProfile{
 			UpdateTime:          now,
-			ModelIdentifier:     d.Profile.ModelIdentifier,
-			OSVersion:           d.Profile.OsVersion,
-			OSBuild:             d.Profile.OsBuild,
-			OSBuildSupplemental: d.Profile.OsBuildSupplemental,
-			OSUsernames:         d.Profile.OsUsernames,
-			JamfBinaryVersion:   d.Profile.JamfBinaryVersion,
-			ExternalID:          d.Profile.ExternalId,
-			OSID:                d.Profile.OsId,
+			ModelIdentifier:     d.GetProfile().GetModelIdentifier(),
+			OSVersion:           d.GetProfile().GetOsVersion(),
+			OSBuild:             d.GetProfile().GetOsBuild(),
+			OSBuildSupplemental: d.GetProfile().GetOsBuildSupplemental(),
+			OSUsernames:         d.GetProfile().GetOsUsernames(),
+			JamfBinaryVersion:   d.GetProfile().GetJamfBinaryVersion(),
+			ExternalID:          d.GetProfile().GetExternalId(),
+			OSID:                d.GetProfile().GetOsId(),
 		}
 	}
 
 	storedDev = &storedDevice{
-		OSType:       int(d.OsType),
-		AssetTag:     d.AssetTag,
+		OSType:       int(d.GetOsType()),
+		AssetTag:     d.GetAssetTag(),
 		CreateTime:   now,
 		UpdateTime:   now,
 		EnrollStatus: int(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED),
@@ -291,17 +291,17 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 	}
 
 	// ID.
-	deviceID = d.Id
+	deviceID = d.GetId()
 	if deviceID == "" {
 		deviceID = uuid.NewString()
 	}
 
 	// CreateTime and UpdateTime.
-	if d.CreateTime != nil {
-		storedDev.CreateTime = d.CreateTime.AsTime()
+	if d.HasCreateTime() {
+		storedDev.CreateTime = d.GetCreateTime().AsTime()
 	}
-	if d.UpdateTime != nil {
-		storedDev.UpdateTime = d.UpdateTime.AsTime()
+	if d.HasUpdateTime() {
+		storedDev.UpdateTime = d.GetUpdateTime().AsTime()
 	}
 
 	// EnrollToken: enrollment tokens cannot be backed-up via `tctl get`; they are
@@ -309,28 +309,28 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 	// That seems to be for the best.
 
 	// EnrollStatus.
-	if d.EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED {
-		storedDev.EnrollStatus = int(d.EnrollStatus)
+	if d.GetEnrollStatus() != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_UNSPECIFIED {
+		storedDev.EnrollStatus = int(d.GetEnrollStatus())
 	}
 
 	// DeviceCredential.
-	if cred := d.Credential; cred != nil {
+	if cred := d.GetCredential(); cred != nil {
 		storedDev.Credential = &storedDeviceCredential{
-			ID:                    cred.Id,
-			PublicKeyDER:          cred.PublicKeyDer,
-			DeviceAttestationType: int(cred.DeviceAttestationType),
-			TPMEKCertSerial:       cred.TpmEkcertSerial,
-			TPMAKPublic:           cred.TpmAkPublic,
+			ID:                    cred.GetId(),
+			PublicKeyDER:          cred.GetPublicKeyDer(),
+			DeviceAttestationType: int(cred.GetDeviceAttestationType()),
+			TPMEKCertSerial:       cred.GetTpmEkcertSerial(),
+			TPMAKPublic:           cred.GetTpmAkPublic(),
 		}
 	}
 
 	// Profile.
-	if updateTime := d.Profile.GetUpdateTime(); updateTime != nil {
+	if updateTime := d.GetProfile().GetUpdateTime(); updateTime != nil {
 		storedDev.Profile.UpdateTime = updateTime.AsTime()
 	}
 
 	// Owner (normally set on enroll or authn).
-	storedDev.Owner = d.Owner
+	storedDev.Owner = d.GetOwner()
 
 	return deviceID, storedDev
 }
@@ -340,7 +340,7 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 // A profile that lacks any data other than the UpdateTime, which is a
 // system-managed field, is considered empty.
 func isDeviceProfileEmpty(p *devicepb.DeviceProfile) bool {
-	return p == nil || proto.Equal(p, &devicepb.DeviceProfile{UpdateTime: p.UpdateTime})
+	return p == nil || proto.Equal(p, devicepb.DeviceProfile_builder{UpdateTime: p.GetUpdateTime()}.Build())
 }
 
 func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *deviceRef) error {
@@ -492,15 +492,15 @@ func (s *S) UpdateDevice(
 	updated := updateFn(proto.Clone(stored).(*devicepb.Device))
 
 	// Ignore transient fields.
-	updated.EnrollToken = nil   // Safe to nil, saved to deviceTokenKey.
-	updated.CollectedData = nil // Safe to nil, saved to collectedDataKey.
+	updated.ClearEnrollToken()    // Safe to nil, saved to deviceTokenKey.
+	updated.SetCollectedData(nil) // Safe to nil, saved to collectedDataKey.
 
-	if isDeviceProfileEmpty(updated.Profile) {
+	if isDeviceProfileEmpty(updated.GetProfile()) {
 		// Null "empty" profiles.
-		updated.Profile = nil
-	} else if updated.Profile != nil {
+		updated.ClearProfile()
+	} else if updated.HasProfile() {
 		// Ignore Profile.UpdateTime.
-		updated.Profile.UpdateTime = stored.GetProfile().GetUpdateTime()
+		updated.GetProfile().SetUpdateTime(stored.GetProfile().GetUpdateTime())
 	}
 
 	// Has the device changed?
@@ -515,27 +515,27 @@ func (s *S) UpdateDevice(
 
 	// System-managed: update time.
 	now := s.nowUTC()
-	updated.UpdateTime = timestamppb.New(now)
+	updated.SetUpdateTime(timestamppb.New(now))
 
 	// System-managed: profile update time, if changed.
-	if updated.Profile != nil && !proto.Equal(stored.Profile, updated.Profile) {
-		updated.Profile.UpdateTime = timestamppb.New(now)
+	if updated.HasProfile() && !proto.Equal(stored.GetProfile(), updated.GetProfile()) {
+		updated.GetProfile().SetUpdateTime(timestamppb.New(now))
 	}
 
 	// System-managed: perform unenrollment, if necessary:
 	// * Erase device credential
 	// * Erase device owner
 	// * Erase collected data
-	if stored.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED &&
-		updated.EnrollStatus == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED {
-		updated.Credential = nil // Written below.
-		updated.Owner = ""       // Written below.
+	if stored.GetEnrollStatus() == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED &&
+		updated.GetEnrollStatus() == devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED {
+		updated.ClearCredential() // Written below.
+		updated.SetOwner("")      // Written below.
 
 		if err := s.deleteCollectedData(ctx, deviceID); err != nil {
 			return nil, trace.Wrap(err, "deleting collected data on unenroll")
 		}
 
-		owner := stored.Owner
+		owner := stored.GetOwner()
 		if err := s.unassignDeviceFromUser(ctx, owner, deviceID); err != nil {
 			return nil, trace.Wrap(err, "unassigning device from user")
 		}
@@ -891,7 +891,7 @@ func (s *S) GetDeviceByID(ctx context.Context, deviceID string) (*devicepb.Devic
 		)
 		// err swallowed on purpose, in keeping with legacy behavior
 	}
-	dev.CollectedData = resp.cd // Always safe to do.
+	dev.SetCollectedData(resp.cd) // Always safe to do.
 
 	return dev, nil
 }
@@ -937,7 +937,7 @@ func (s *S) getDeviceCollectedData(ctx context.Context, deviceID string) ([]*dev
 
 	// Sort by ascending RecordTime.
 	slices.SortFunc(cd, func(a, b *devicepb.DeviceCollectedData) int {
-		return a.RecordTime.AsTime().Compare(b.RecordTime.AsTime())
+		return a.GetRecordTime().AsTime().Compare(b.GetRecordTime().AsTime())
 	})
 
 	return cd, nil
@@ -1141,7 +1141,7 @@ func (s *S) ListDevicesByUser(ctx context.Context, pageSize int, pageToken strin
 				)
 				return nil
 			}
-			if dev.Owner != user {
+			if dev.GetOwner() != user {
 				return nil
 			}
 
@@ -1157,7 +1157,7 @@ func (s *S) ListDevicesByUser(ctx context.Context, pageSize int, pageToken strin
 	_ = g.Wait()
 
 	slices.SortFunc(devices, func(a, b *devicepb.Device) int {
-		return strings.Compare(a.Id, b.Id)
+		return strings.Compare(a.GetId(), b.GetId())
 	})
 
 	return devices, nextPageToken, nil
@@ -1234,7 +1234,7 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, vie
 	// There can only be a next page if we got as many devices as we requested.
 	if len(res.Items) == pageSize {
 		lastDev := devices[len(devices)-1]
-		nextPageToken, err = deviceIDToPageToken(lastDev.Id)
+		nextPageToken, err = deviceIDToPageToken(lastDev.GetId())
 		if err != nil {
 			return nil, "", trace.Wrap(err, "generating next page token")
 		}
@@ -1248,17 +1248,17 @@ func (s *S) ListDevices(ctx context.Context, pageSize int, pageToken string, vie
 
 		for _, dev := range devices {
 			g.Go(func() error {
-				cd, err := s.getDeviceCollectedData(ctx, dev.Id)
+				cd, err := s.getDeviceCollectedData(ctx, dev.GetId())
 				if err != nil {
 					s.logger.WarnContext(ctx,
 						"Failed to fetch collected data for device",
 						"error", err,
-						"device_id", dev.Id,
+						"device_id", dev.GetId(),
 					)
 					return nil // err swallowed on purpose
 				}
 
-				dev.CollectedData = cd
+				dev.SetCollectedData(cd)
 				return nil
 			})
 		}
@@ -1318,7 +1318,7 @@ func (s *S) EnrollDevice(
 	if err := ValidateCollectedDataAgainstDevice(cd, dev); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, err := ValidateDeviceCredential(cred, dev.OsType); err != nil {
+	if _, err := ValidateDeviceCredential(cred, dev.GetOsType()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1327,11 +1327,11 @@ func (s *S) EnrollDevice(
 	stored.UpdateTime = now
 	stored.EnrollStatus = int(devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED)
 	stored.Credential = &storedDeviceCredential{
-		ID:                    cred.Id,
-		PublicKeyDER:          cred.PublicKeyDer,
-		DeviceAttestationType: int(cred.DeviceAttestationType),
-		TPMEKCertSerial:       cred.TpmEkcertSerial,
-		TPMAKPublic:           cred.TpmAkPublic,
+		ID:                    cred.GetId(),
+		PublicKeyDER:          cred.GetPublicKeyDer(),
+		DeviceAttestationType: int(cred.GetDeviceAttestationType()),
+		TPMEKCertSerial:       cred.GetTpmEkcertSerial(),
+		TPMAKPublic:           cred.GetTpmAkPublic(),
 	}
 	prevOwner := stored.Owner // Save so we can unassign the device.
 	stored.Owner = owner
@@ -1342,7 +1342,7 @@ func (s *S) EnrollDevice(
 
 	// Clear previous collected data.
 	// A newly-enrolled device is a blank slate.
-	cdKeyStart := collectedDataKeyStart(dev.Id)
+	cdKeyStart := collectedDataKeyStart(dev.GetId())
 	if err := s.backend.DeleteRange(ctx, cdKeyStart, backend.RangeEnd(cdKeyStart)); err != nil {
 		const msg = "" +
 			"Failed to clear device collected data during enrollment. " +
@@ -1351,8 +1351,8 @@ func (s *S) EnrollDevice(
 		s.logger.WarnContext(ctx,
 			msg,
 			"error", err,
-			"device_id", dev.Id,
-			"asset_tag", dev.AssetTag,
+			"device_id", dev.GetId(),
+			"asset_tag", dev.GetAssetTag(),
 		)
 	}
 
@@ -1385,7 +1385,7 @@ func (s *S) EnrollDevice(
 			"Failed to assign device to user",
 			"error", err,
 			"device_id", deviceID,
-			"asset_tag", dev.AssetTag,
+			"asset_tag", dev.GetAssetTag(),
 			"user", owner,
 		)
 		// err swallowed on purpose.
@@ -1420,7 +1420,7 @@ func (s *S) RecordDeviceAuthnData(ctx context.Context, deviceID string, cd *devi
 }
 
 func (s *S) validateCollectedDataDrift(ctx context.Context, dev *devicepb.Device, cd *devicepb.DeviceCollectedData) error {
-	stored, err := s.getDeviceCollectedData(ctx, dev.Id)
+	stored, err := s.getDeviceCollectedData(ctx, dev.GetId())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1437,8 +1437,8 @@ func validateCollectedDataDriftQueried(logger *slog.Logger, dev *devicepb.Device
 	if l == 0 {
 		logger.WarnContext(context.Background(),
 			"Found no collected data entries for device. Skipping collected data drift validation.",
-			"device_id", dev.Id,
-			"asset_tag", dev.AssetTag,
+			"device_id", dev.GetId(),
+			"asset_tag", dev.GetAssetTag(),
 		)
 		return nil
 	}
@@ -1554,7 +1554,7 @@ func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.D
 		return nil, trace.Wrap(err)
 	}
 
-	devs, err := s.GetDevicesByAssetTag(ctx, cd.SerialNumber)
+	devs, err := s.GetDevicesByAssetTag(ctx, cd.GetSerialNumber())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1565,7 +1565,7 @@ func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.D
 	// Find the one specific device we are looking for, or otherwise error.
 	var targetDev *devicepb.Device
 	for _, dev := range devs {
-		if dev.OsType == cd.OsType {
+		if dev.GetOsType() == cd.GetOsType() {
 			// Sanity check: we should get exactly 0 or 1 match, but let's
 			// double-check to be safe.
 			if targetDev != nil {
@@ -1580,7 +1580,7 @@ func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.D
 	// From this point onwards return `targetDev`, it allows for richer logging
 	// in the outer layers.
 
-	if targetDev.EnrollStatus != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED {
+	if targetDev.GetEnrollStatus() != devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED {
 		return targetDev, trace.BadParameter("device is already enrolled")
 	}
 
@@ -1596,12 +1596,12 @@ func (s *S) CreateDeviceEnrollTokenUsingData(ctx context.Context, cd *devicepb.D
 
 	defaultExpire := time.Time{}
 	token, err := s.createDeviceEnrollToken(
-		ctx, targetDev.Id, defaultExpire, true /* createdByAutoEnroll */)
+		ctx, targetDev.GetId(), defaultExpire, true /* createdByAutoEnroll */)
 	if err != nil {
 		return targetDev, trace.Wrap(err)
 	}
 
-	targetDev.EnrollToken = token
+	targetDev.SetEnrollToken(token)
 	return targetDev, trace.Wrap(err)
 }
 
@@ -1672,10 +1672,10 @@ func (s *S) createDeviceEnrollToken(
 		return nil, trace.Wrap(err, "writing enrollment token")
 	}
 
-	return &devicepb.DeviceEnrollToken{
+	return devicepb.DeviceEnrollToken_builder{
 		Token:      tokenPlain,
 		ExpireTime: timestamppb.New(expiresAt),
-	}, nil
+	}.Build(), nil
 }
 
 // DeviceEnrollTokenData holds internal data about a spent DeviceEnrollToken.
@@ -1743,11 +1743,11 @@ func (s *S) CreateDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceW
 	stored := &storedWebAuthenticationAttempt{
 		State:             webAuthenticationAttemptCreated,
 		HashedWebToken:    token.HashedToken,
-		WebSessionID:      webToken.WebSessionId,
-		User:              webToken.User,
-		BrowserUserAgent:  webToken.BrowserUserAgent,
-		BrowserIP:         webToken.BrowserIp,
-		ExpectedDeviceIDs: webToken.ExpectedDeviceIds,
+		WebSessionID:      webToken.GetWebSessionId(),
+		User:              webToken.GetUser(),
+		BrowserUserAgent:  webToken.GetBrowserUserAgent(),
+		BrowserIP:         webToken.GetBrowserIp(),
+		ExpectedDeviceIDs: webToken.GetExpectedDeviceIds(),
 	}
 	val, err := json.Marshal(stored)
 	if err != nil {
@@ -1763,10 +1763,10 @@ func (s *S) CreateDeviceWebToken(ctx context.Context, webToken *devicepb.DeviceW
 		return nil, trace.Wrap(err, "writing device authentication attempt")
 	}
 
-	return &devicepb.DeviceWebToken{
+	return devicepb.DeviceWebToken_builder{
 		Id:    id,
 		Token: token.SafePlainToken,
-	}, nil
+	}.Build(), nil
 }
 
 // SpendDeviceWebToken spends a device web token, returning the spent token on
@@ -1795,7 +1795,7 @@ func (s *S) SpendDeviceWebToken(
 	}
 
 	item, attempt, err := s.getWebAuthnAttempt(ctx, attemptID, webAuthenticationAttemptCreated, func(attempt *storedWebAuthenticationAttempt) error {
-		err := matchDeviceToken(webToken.Token, attempt.HashedWebToken)
+		err := matchDeviceToken(webToken.GetToken(), attempt.HashedWebToken)
 		return trace.Wrap(err)
 	})
 	if err != nil {
@@ -1830,19 +1830,19 @@ func (s *S) SpendDeviceWebToken(
 		return nil, nil, trace.Wrap(err, "update device authentication attempt")
 	}
 
-	storedWebToken := &devicepb.DeviceWebToken{
+	storedWebToken := devicepb.DeviceWebToken_builder{
 		Id:                attemptID,
 		WebSessionId:      attempt.WebSessionID,
 		BrowserUserAgent:  attempt.BrowserUserAgent,
 		BrowserIp:         attempt.BrowserIP,
 		User:              attempt.User,
 		ExpectedDeviceIds: attempt.ExpectedDeviceIDs,
-	}
+	}.Build()
 
-	storedConfirmToken := &devicepb.DeviceConfirmationToken{
+	storedConfirmToken := devicepb.DeviceConfirmationToken_builder{
 		Id:    attemptID,
 		Token: confirmToken.SafePlainToken,
-	}
+	}.Build()
 
 	return storedWebToken, storedConfirmToken, nil
 }
@@ -1876,7 +1876,7 @@ func (s *S) SpendDeviceConfirmationToken(ctx context.Context, confirmToken *devi
 
 	// Read/validate the token.
 	item, attempt, err := s.getWebAuthnAttempt(ctx, attemptID, webAuthenticationAttemptConfirm, func(attempt *storedWebAuthenticationAttempt) error {
-		err := matchDeviceToken(confirmToken.Token, attempt.HashedConfirmToken)
+		err := matchDeviceToken(confirmToken.GetToken(), attempt.HashedConfirmToken)
 		return trace.Wrap(err)
 	})
 	// err handled below.
@@ -1967,16 +1967,16 @@ func deviceIDFromKey(key backend.Key) string {
 func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceView) *devicepb.Device {
 	var source *devicepb.DeviceSource
 	if sd.Source != nil {
-		source = &devicepb.DeviceSource{
+		source = devicepb.DeviceSource_builder{
 			Name:   sd.Source.Name,
 			Origin: devicepb.DeviceOrigin(sd.Source.Origin),
-		}
+		}.Build()
 	}
 
 	// If "list" provide only basic device information.
 	// Suitable for viewing multiple devices at once, as in "tctl devices ls".
 	if view == devicepb.DeviceView_DEVICE_VIEW_LIST {
-		return &devicepb.Device{
+		return devicepb.Device_builder{
 			ApiVersion:   currentAPIVersion,
 			Id:           deviceID,
 			OsType:       devicepb.OSType(sd.OSType),
@@ -1986,24 +1986,24 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 			UpdateTime:   timestamppb.New(sd.UpdateTime),
 			EnrollStatus: devicepb.DeviceEnrollStatus(sd.EnrollStatus),
 			Source:       source,
-		}
+		}.Build()
 	}
 
 	// Full device information.
 	var cred *devicepb.DeviceCredential
 	if c := sd.Credential; c != nil {
-		cred = &devicepb.DeviceCredential{
+		cred = devicepb.DeviceCredential_builder{
 			Id:                    c.ID,
 			PublicKeyDer:          c.PublicKeyDER,
 			DeviceAttestationType: devicepb.DeviceAttestationType(c.DeviceAttestationType),
 			TpmEkcertSerial:       c.TPMEKCertSerial,
 			TpmAkPublic:           c.TPMAKPublic,
-		}
+		}.Build()
 	}
 
 	var profile *devicepb.DeviceProfile
 	if sd.Profile != nil {
-		profile = &devicepb.DeviceProfile{
+		profile = devicepb.DeviceProfile_builder{
 			UpdateTime:          timestamppb.New(sd.Profile.UpdateTime),
 			ModelIdentifier:     sd.Profile.ModelIdentifier,
 			OsVersion:           sd.Profile.OSVersion,
@@ -2013,10 +2013,10 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 			JamfBinaryVersion:   sd.Profile.JamfBinaryVersion,
 			ExternalId:          sd.Profile.ExternalID,
 			OsId:                sd.Profile.OSID,
-		}
+		}.Build()
 	}
 
-	return &devicepb.Device{
+	return devicepb.Device_builder{
 		ApiVersion:   currentAPIVersion,
 		Id:           deviceID,
 		OsType:       devicepb.OSType(sd.OSType),
@@ -2028,7 +2028,7 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 		Source:       source,
 		Profile:      profile,
 		Owner:        sd.Owner,
-	}
+	}.Build()
 }
 
 func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
@@ -2038,37 +2038,37 @@ func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
 func collectedDataToStored(cd *devicepb.DeviceCollectedData, origin collectedDataOrigin, recordTime time.Time, createAsResource bool) *storedCollectedData {
 	storedCD := &storedCollectedData{
 		Origin:                  origin,
-		CollectTime:             cd.CollectTime.AsTime(),
+		CollectTime:             cd.GetCollectTime().AsTime(),
 		RecordTime:              recordTime,
-		OSType:                  int(cd.OsType),
-		SerialNumber:            cd.SerialNumber,
-		ModelIdentifier:         cd.ModelIdentifier,
-		OSVersion:               cd.OsVersion,
-		OSBuild:                 cd.OsBuild,
-		OSUsername:              cd.OsUsername,
-		OSLoginUser:             cd.OsLoginUser,
-		JamfBinaryVersion:       cd.JamfBinaryVersion,
-		MacOSEnrollmentProfiles: cd.MacosEnrollmentProfiles,
-		ReportedAssetTag:        cd.ReportedAssetTag,
-		SystemSerialNumber:      cd.SystemSerialNumber,
-		BaseBoardSerialNumber:   cd.BaseBoardSerialNumber,
-		TPMPlatformAttestation:  tpmPlatformAttestationToStored(cd.TpmPlatformAttestation),
-		OSID:                    cd.OsId,
+		OSType:                  int(cd.GetOsType()),
+		SerialNumber:            cd.GetSerialNumber(),
+		ModelIdentifier:         cd.GetModelIdentifier(),
+		OSVersion:               cd.GetOsVersion(),
+		OSBuild:                 cd.GetOsBuild(),
+		OSUsername:              cd.GetOsUsername(),
+		OSLoginUser:             cd.GetOsLoginUser(),
+		JamfBinaryVersion:       cd.GetJamfBinaryVersion(),
+		MacOSEnrollmentProfiles: cd.GetMacosEnrollmentProfiles(),
+		ReportedAssetTag:        cd.GetReportedAssetTag(),
+		SystemSerialNumber:      cd.GetSystemSerialNumber(),
+		BaseBoardSerialNumber:   cd.GetBaseBoardSerialNumber(),
+		TPMPlatformAttestation:  tpmPlatformAttestationToStored(cd.GetTpmPlatformAttestation()),
+		OSID:                    cd.GetOsId(),
 	}
 
 	if !createAsResource {
 		return storedCD
 	}
 
-	if cd.RecordTime != nil {
-		storedCD.RecordTime = cd.RecordTime.AsTime()
+	if cd.HasRecordTime() {
+		storedCD.RecordTime = cd.GetRecordTime().AsTime()
 	}
 
 	return storedCD
 }
 
 func storedToCollectedData(stored *storedCollectedData) *devicepb.DeviceCollectedData {
-	return &devicepb.DeviceCollectedData{
+	return devicepb.DeviceCollectedData_builder{
 		CollectTime:             timestamppb.New(stored.CollectTime),
 		RecordTime:              timestamppb.New(stored.RecordTime),
 		OsType:                  devicepb.OSType(stored.OSType),
@@ -2085,7 +2085,7 @@ func storedToCollectedData(stored *storedCollectedData) *devicepb.DeviceCollecte
 		BaseBoardSerialNumber:   stored.BaseBoardSerialNumber,
 		TpmPlatformAttestation:  tpmPlatformAttestationFromStored(stored.TPMPlatformAttestation),
 		OsId:                    stored.OSID,
-	}
+	}.Build()
 }
 
 func tpmPlatformAttestationToStored(pa *devicepb.TPMPlatformAttestation) *tpmPlatformAttestation {
@@ -2094,32 +2094,32 @@ func tpmPlatformAttestationToStored(pa *devicepb.TPMPlatformAttestation) *tpmPla
 	}
 
 	var pp *tpmPlatformParameters
-	if pa.PlatformParameters != nil {
+	if pa.HasPlatformParameters() {
 		var quotes []tpmQuote
-		for _, q := range pa.PlatformParameters.Quotes {
+		for _, q := range pa.GetPlatformParameters().GetQuotes() {
 			quotes = append(quotes, tpmQuote{
-				Quote:     q.Quote,
-				Signature: q.Signature,
+				Quote:     q.GetQuote(),
+				Signature: q.GetSignature(),
 			})
 		}
 		var pcrs []tpmPCR
-		for _, pcr := range pa.PlatformParameters.Pcrs {
+		for _, pcr := range pa.GetPlatformParameters().GetPcrs() {
 			pcrs = append(pcrs, tpmPCR{
-				Index:     pcr.Index,
-				Digest:    pcr.Digest,
-				DigestAlg: pcr.DigestAlg,
+				Index:     pcr.GetIndex(),
+				Digest:    pcr.GetDigest(),
+				DigestAlg: pcr.GetDigestAlg(),
 			})
 		}
 
 		pp = &tpmPlatformParameters{
 			Quotes:   quotes,
 			PCRs:     pcrs,
-			EventLog: pa.PlatformParameters.EventLog,
+			EventLog: pa.GetPlatformParameters().GetEventLog(),
 		}
 	}
 
 	return &tpmPlatformAttestation{
-		Nonce:              pa.Nonce,
+		Nonce:              pa.GetNonce(),
 		PlatformParameters: pp,
 	}
 }
@@ -2133,31 +2133,31 @@ func tpmPlatformAttestationFromStored(stored *tpmPlatformAttestation) *devicepb.
 	if stored.PlatformParameters != nil {
 		var quotes []*devicepb.TPMQuote
 		for _, q := range stored.PlatformParameters.Quotes {
-			quotes = append(quotes, &devicepb.TPMQuote{
+			quotes = append(quotes, devicepb.TPMQuote_builder{
 				Quote:     q.Quote,
 				Signature: q.Signature,
-			})
+			}.Build())
 		}
 		var pcrs []*devicepb.TPMPCR
 		for _, pcr := range stored.PlatformParameters.PCRs {
-			pcrs = append(pcrs, &devicepb.TPMPCR{
+			pcrs = append(pcrs, devicepb.TPMPCR_builder{
 				Index:     pcr.Index,
 				Digest:    pcr.Digest,
 				DigestAlg: pcr.DigestAlg,
-			})
+			}.Build())
 		}
 
-		pp = &devicepb.TPMPlatformParameters{
+		pp = devicepb.TPMPlatformParameters_builder{
 			Quotes:   quotes,
 			Pcrs:     pcrs,
 			EventLog: stored.PlatformParameters.EventLog,
-		}
+		}.Build()
 	}
 
-	return &devicepb.TPMPlatformAttestation{
+	return devicepb.TPMPlatformAttestation_builder{
 		Nonce:              stored.Nonce,
 		PlatformParameters: pp,
-	}
+	}.Build()
 }
 
 func deviceKeyStart() backend.Key {

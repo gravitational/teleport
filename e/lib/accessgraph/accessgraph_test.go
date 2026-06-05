@@ -144,7 +144,7 @@ func unpackEvent(t *testing.T, event *accessgraphv1alpha.EventsStreamV2Request) 
 	require.True(t, ok)
 
 	// assert that there is only one resource
-	resources := operation.Upsert.Resources
+	resources := operation.Upsert.GetResources()
 	require.Len(t, resources, 1)
 
 	// assert that the resource is a Server
@@ -212,8 +212,8 @@ func TestSendAccessRequestsPaginatedUpserts(t *testing.T) {
 	for _, event := range stream.events {
 		upsert := event.GetUpsert()
 		require.NotNil(t, upsert)
-		require.Len(t, upsert.Resources, 1)
-		accessRequest := upsert.Resources[0].GetAccessRequest()
+		require.Len(t, upsert.GetResources(), 1)
+		accessRequest := upsert.GetResources()[0].GetAccessRequest()
 		require.NotNil(t, accessRequest)
 		gotNames = append(gotNames, accessRequest.GetName())
 	}
@@ -249,8 +249,8 @@ func TestSendRolesPaginatedUpserts(t *testing.T) {
 	for _, event := range stream.events {
 		upsert := event.GetUpsert()
 		require.NotNil(t, upsert)
-		require.Len(t, upsert.Resources, 1)
-		role := upsert.Resources[0].GetRole()
+		require.Len(t, upsert.GetResources(), 1)
+		role := upsert.GetResources()[0].GetRole()
 		require.NotNil(t, role)
 		gotNames = append(gotNames, role.GetName())
 	}
@@ -328,15 +328,13 @@ func TestConvertEvent(t *testing.T) {
 		},
 		{
 			name: "AccessPathChanged event",
-			inputEvent: &accessgraphv1alpha.AuditEvent{
-				Event: &accessgraphv1alpha.AuditEvent_AccessPathChanged{
-					AccessPathChanged: &accessgraphv1alpha.AccessPathChanged{
-						ChangeId:               "sample-change-id",
-						AffectedResourceName:   "sample-resource-name",
-						AffectedResourceSource: "sample-resource-source",
-					},
-				},
-			},
+			inputEvent: accessgraphv1alpha.AuditEvent_builder{
+				AccessPathChanged: accessgraphv1alpha.AccessPathChanged_builder{
+					ChangeId:               "sample-change-id",
+					AffectedResourceName:   "sample-resource-name",
+					AffectedResourceSource: "sample-resource-source",
+				}.Build(),
+			}.Build(),
 			validate: func(t *testing.T, outputEvent apievents.AuditEvent) {
 				require.NotNil(t, outputEvent)
 				require.Equal(t, events.AccessGraphAccessPathChangedEvent, outputEvent.GetType())
@@ -389,56 +387,44 @@ func TestProcessTAGMessageUsageEvents(t *testing.T) {
 	}{
 		{
 			name: "graph size",
-			msg: &accessgraphv1alpha.EventsStreamV2Response{
-				Action: &accessgraphv1alpha.EventsStreamV2Response_UsageEvent{
-					UsageEvent: &accessgraphv1alpha.UsageEvent{
-						Event: &accessgraphv1alpha.UsageEvent_GraphSize{
-							GraphSize: &prehogv1a.IdentitySecurityGraphSizeEvent{Provider: "teleport"},
-						},
-					},
-				},
-			},
+			msg: accessgraphv1alpha.EventsStreamV2Response_builder{
+				UsageEvent: accessgraphv1alpha.UsageEvent_builder{
+					GraphSize: &prehogv1a.IdentitySecurityGraphSizeEvent{Provider: "teleport"},
+				}.Build(),
+			}.Build(),
 			wantType:  (*usagereporter.IdentitySecurityGraphSizeEvent)(nil),
 			wantCalls: 1,
 		},
 		{
 			name: "audit logs ingested",
-			msg: &accessgraphv1alpha.EventsStreamV2Response{
-				Action: &accessgraphv1alpha.EventsStreamV2Response_UsageEvent{
-					UsageEvent: &accessgraphv1alpha.UsageEvent{
-						Event: &accessgraphv1alpha.UsageEvent_AuditLogsIngested{
-							AuditLogsIngested: &prehogv1a.IdentitySecurityAuditLogsIngestedEvent{Provider: "teleport"},
-						},
-					},
-				},
-			},
+			msg: accessgraphv1alpha.EventsStreamV2Response_builder{
+				UsageEvent: accessgraphv1alpha.UsageEvent_builder{
+					AuditLogsIngested: &prehogv1a.IdentitySecurityAuditLogsIngestedEvent{Provider: "teleport"},
+				}.Build(),
+			}.Build(),
 			wantType:  (*usagereporter.IdentitySecurityAuditLogsIngestedEvent)(nil),
 			wantCalls: 1,
 		},
 		{
 			name: "nil graph size",
-			msg: &accessgraphv1alpha.EventsStreamV2Response{
-				Action: &accessgraphv1alpha.EventsStreamV2Response_UsageEvent{
-					UsageEvent: &accessgraphv1alpha.UsageEvent{
-						Event: &accessgraphv1alpha.UsageEvent_GraphSize{
-							GraphSize: nil,
-						},
+			msg: accessgraphv1alpha.EventsStreamV2Response_builder{
+				UsageEvent: &accessgraphv1alpha.UsageEvent{
+					Event: &accessgraphv1alpha.UsageEvent_GraphSize{
+						GraphSize: nil,
 					},
 				},
-			},
+			}.Build(),
 			wantCalls: 0,
 		},
 		{
 			name: "nil audit logs ingested",
-			msg: &accessgraphv1alpha.EventsStreamV2Response{
-				Action: &accessgraphv1alpha.EventsStreamV2Response_UsageEvent{
-					UsageEvent: &accessgraphv1alpha.UsageEvent{
-						Event: &accessgraphv1alpha.UsageEvent_AuditLogsIngested{
-							AuditLogsIngested: nil,
-						},
+			msg: accessgraphv1alpha.EventsStreamV2Response_builder{
+				UsageEvent: &accessgraphv1alpha.UsageEvent{
+					Event: &accessgraphv1alpha.UsageEvent_AuditLogsIngested{
+						AuditLogsIngested: nil,
 					},
 				},
-			},
+			}.Build(),
 			wantCalls: 0,
 		},
 	}
@@ -465,9 +451,9 @@ func TestTeleportAccessGraphSync(t *testing.T) {
 
 	svc := initService(t)
 
-	accessGraphSettings, err := clusterconfig.NewAccessGraphSettings(&clusterconfigv1.AccessGraphSettingsSpec{
+	accessGraphSettings, err := clusterconfig.NewAccessGraphSettings(clusterconfigv1.AccessGraphSettingsSpec_builder{
 		SecretsScanConfig: clusterconfigv1.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-	})
+	}.Build())
 	require.NoError(t, err)
 	_, err = svc.authServer.CreateAccessGraphSettings(ctx, accessGraphSettings)
 	require.NoError(t, err)
@@ -707,9 +693,9 @@ func TestUserSecretsCleanup(t *testing.T) {
 	t.Cleanup(cancel)
 
 	svc := initService(t)
-	accessGraphSettings, err := clusterconfig.NewAccessGraphSettings(&clusterconfigv1.AccessGraphSettingsSpec{
+	accessGraphSettings, err := clusterconfig.NewAccessGraphSettings(clusterconfigv1.AccessGraphSettingsSpec_builder{
 		SecretsScanConfig: clusterconfigv1.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-	})
+	}.Build())
 	require.NoError(t, err)
 	_, err = svc.authServer.CreateAccessGraphSettings(ctx, accessGraphSettings)
 	require.NoError(t, err)
@@ -758,7 +744,7 @@ func TestUserSecretsCleanup(t *testing.T) {
 				hasSync = true
 				continue
 			}
-			for _, msg := range msg.GetUpsert().Resources {
+			for _, msg := range msg.GetUpsert().GetResources() {
 				if msg.GetUser() != nil {
 					usersFound = true
 					if msg.GetUser().Spec.LocalAuth == nil {
@@ -865,12 +851,12 @@ func TestProcessEventStream_WatcherCreation(t *testing.T) {
 		// Create an authorized key; the services watcher should forward the upsert event.
 		// Regression: the := bug left servicesWatcher as noOpWatcher (nil Events channel),
 		// causing all authorized-key events to be silently dropped.
-		authKey, err := accessgraph.NewAuthorizedKey(&accessgraphsecretsv1pb.AuthorizedKeySpec{
+		authKey, err := accessgraph.NewAuthorizedKey(accessgraphsecretsv1pb.AuthorizedKeySpec_builder{
 			HostId:         "host1",
 			HostUser:       "user1",
 			KeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC",
 			KeyType:        "ssh-rsa",
-		})
+		}.Build())
 		require.NoError(t, err)
 		_, err = secretsSvc.UpsertAuthorizedKey(ctx, authKey)
 		require.NoError(t, err)

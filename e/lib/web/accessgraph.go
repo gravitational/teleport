@@ -104,9 +104,9 @@ func (p *Plugin) queryAccessGraph(_ http.ResponseWriter, r *http.Request, _ http
 
 	resp, err := agClt.Query(
 		ctx,
-		&accessgraphv1.QueryRequest{
+		accessgraphv1.QueryRequest_builder{
 			Query: query,
-		},
+		}.Build(),
 		grpc.MaxCallRecvMsgSize(maxGRPCAccessGraphMessageSize),
 		grpc.MaxCallSendMsgSize(maxGRPCAccessGraphMessageSize),
 	)
@@ -294,9 +294,9 @@ func (p *Plugin) getAccessGraphFileFallback(w http.ResponseWriter, r *http.Reque
 		return nil, trace.NotFound("access graph client is not configured")
 	}
 	ctx := r.Context()
-	resp, err := agClt.GetFile(ctx, &accessgraphv1.GetFileRequest{
+	resp, err := agClt.GetFile(ctx, accessgraphv1.GetFileRequest_builder{
 		Filepath: filePath,
-	},
+	}.Build(),
 		grpc.MaxCallRecvMsgSize(maxGRPCAccessGraphMessageSize),
 		grpc.MaxCallSendMsgSize(maxGRPCAccessGraphMessageSize),
 	)
@@ -315,7 +315,7 @@ func (p *Plugin) getAccessGraphFileFallback(w http.ResponseWriter, r *http.Reque
 	w.Header().Set("Content-Type", extType)
 
 	// Send the file contents to the client
-	w.Write(resp.Data)
+	w.Write(resp.GetData())
 
 	// Return nil to prevent the content type to be set to application/json
 	return nil, nil
@@ -334,8 +334,8 @@ func getTAGResponseReportFromGRPC(rsp *accessgraphv1.QueryResponse) *usageevents
 		}
 	}
 	return &usageeventsv1.TAGExecuteQueryEvent{
-		TotalNodes: int64(len(rsp.Nodes)),
-		TotalEdges: int64(len(rsp.Edges)),
+		TotalNodes: int64(len(rsp.GetNodes())),
+		TotalEdges: int64(len(rsp.GetEdges())),
 		IsSuccess:  true,
 	}
 }
@@ -498,11 +498,11 @@ func listAllAccessGraphPlugins(ctx context.Context, client authclient.ClientI) (
 	)
 	pluginsC := client.PluginsClient()
 	for {
-		rsp, err := pluginsC.ListPlugins(ctx, &pluginsv1.ListPluginsRequest{
+		rsp, err := pluginsC.ListPlugins(ctx, pluginsv1.ListPluginsRequest_builder{
 			PageSize:    defaults.DefaultChunkSize,
 			StartKey:    nextPage,
 			WithSecrets: false, /* don't return secrets */
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -592,9 +592,9 @@ func (p *Plugin) updateAccessGraphSettings(_ http.ResponseWriter, r *http.Reques
 
 	accessGraphSettings, err = clusterConfigClient.UpdateAccessGraphSettings(
 		r.Context(),
-		&clusterconfigpb.UpdateAccessGraphSettingsRequest{
+		clusterconfigpb.UpdateAccessGraphSettingsRequest_builder{
 			AccessGraphSettings: req.UpdateProto(accessGraphSettings),
-		})
+		}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

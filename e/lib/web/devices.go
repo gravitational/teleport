@@ -24,13 +24,13 @@ func (p *Plugin) listDevicesHandle(w http.ResponseWriter, r *http.Request, param
 	var nextPageToken string
 	switch assetTag := r.URL.Query().Get("search"); {
 	case assetTag != "":
-		resp, err := clt.DevicesClient().FindDevices(r.Context(), &devicepb.FindDevicesRequest{
+		resp, err := clt.DevicesClient().FindDevices(r.Context(), devicepb.FindDevicesRequest_builder{
 			IdOrTag: assetTag,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		devices = resp.Devices
+		devices = resp.GetDevices()
 	default:
 		listReq, err := valuesToProtoListDevicesRequest(r.URL.Query())
 		if err != nil {
@@ -40,8 +40,8 @@ func (p *Plugin) listDevicesHandle(w http.ResponseWriter, r *http.Request, param
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		devices = resp.Devices
-		nextPageToken = resp.NextPageToken
+		devices = resp.GetDevices()
+		nextPageToken = resp.GetNextPageToken()
 	}
 
 	return &ui.ListDevicesResponse{
@@ -70,10 +70,10 @@ func (p *Plugin) listDevicesByUserHandle(w http.ResponseWriter, r *http.Request,
 		pageSize = int32(parsedLimit)
 	}
 
-	listReq := &devicepb.ListDevicesByUserRequest{
+	listReq := devicepb.ListDevicesByUserRequest_builder{
 		PageSize:  pageSize,
 		PageToken: query.Get("startKey"),
-	}
+	}.Build()
 
 	resp, err := clt.DevicesClient().ListDevicesByUser(r.Context(), listReq)
 	if err != nil {
@@ -81,8 +81,8 @@ func (p *Plugin) listDevicesByUserHandle(w http.ResponseWriter, r *http.Request,
 	}
 
 	return &ui.ListDevicesResponse{
-		Items:    toUIDevices(resp.Devices),
-		StartKey: resp.NextPageToken,
+		Items:    toUIDevices(resp.GetDevices()),
+		StartKey: resp.GetNextPageToken(),
 	}, nil
 }
 
@@ -95,11 +95,11 @@ func valuesToProtoListDevicesRequest(query url.Values) (*devicepb.ListDevicesReq
 	}
 
 	// Backend handles zeroed or negative page sizes.
-	return &devicepb.ListDevicesRequest{
+	return devicepb.ListDevicesRequest_builder{
 		View:      devicepb.DeviceView_DEVICE_VIEW_LIST,
 		PageSize:  int32(pageSize),
 		PageToken: query.Get("startKey"),
-	}, nil
+	}.Build(), nil
 }
 
 // copy only those fields required for web ui.
@@ -107,21 +107,21 @@ func toUIDevices(devices []*devicepb.Device) []ui.Device {
 	uiDevices := make([]ui.Device, 0, len(devices))
 	for _, v := range devices {
 		var source *ui.DeviceSource
-		if v.Source != nil {
+		if v.HasSource() {
 			source = &ui.DeviceSource{
-				Name:   v.Source.Name,
-				Origin: v.Source.Origin,
+				Name:   v.GetSource().GetName(),
+				Origin: v.GetSource().GetOrigin(),
 			}
 		}
 
 		uiDevices = append(uiDevices,
 			ui.Device{
-				ID:           v.Id,
-				AssetTag:     v.AssetTag,
-				OSType:       devicetrust.FriendlyOSType(v.OsType),
-				EnrollStatus: devicetrust.FriendlyDeviceEnrollStatus(v.EnrollStatus),
-				Owner:        v.Owner,
-				CreateTime:   v.CreateTime.AsTime(),
+				ID:           v.GetId(),
+				AssetTag:     v.GetAssetTag(),
+				OSType:       devicetrust.FriendlyOSType(v.GetOsType()),
+				EnrollStatus: devicetrust.FriendlyDeviceEnrollStatus(v.GetEnrollStatus()),
+				Owner:        v.GetOwner(),
+				CreateTime:   v.GetCreateTime().AsTime(),
 				Source:       source,
 			},
 		)

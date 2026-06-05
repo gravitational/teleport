@@ -450,11 +450,11 @@ func (calc *AssignmentCalculator) applyExpressions(
 }
 
 func sortAssignments(a, b *identitycenterv1.AccountAssignmentRef) int {
-	n := strings.Compare(a.AccountId, b.AccountId)
+	n := strings.Compare(a.GetAccountId(), b.GetAccountId())
 	if n != 0 {
 		return n
 	}
-	return strings.Compare(a.PermissionSetArn, b.PermissionSetArn)
+	return strings.Compare(a.GetPermissionSetArn(), b.GetPermissionSetArn())
 }
 
 // updatePrincipalAccountAssignments conditionally updates the supplied
@@ -474,10 +474,10 @@ func updatePrincipalAccountAssignments(
 	//         PrincipalAssignment record.
 	newAssignments := make([]*identitycenterv1.AccountAssignmentRef, 0, len(assignments))
 	for a := range assignments {
-		newAssignments = append(newAssignments, &identitycenterv1.AccountAssignmentRef{
+		newAssignments = append(newAssignments, identitycenterv1.AccountAssignmentRef_builder{
 			AccountId:        a.accountID,
 			PermissionSetArn: a.permissionSetARN,
-		})
+		}.Build())
 	}
 	slices.SortFunc(newAssignments, sortAssignments)
 
@@ -488,13 +488,13 @@ func updatePrincipalAccountAssignments(
 	setAssignments := func(pa *identitycenterv1.PrincipalAssignment) error {
 		stale := false
 
-		if pa.Spec.ExternalId != string(extID) {
-			pa.Spec.ExternalId = string(extID)
+		if pa.GetSpec().GetExternalId() != string(extID) {
+			pa.GetSpec().SetExternalId(string(extID))
 			stale = true
 		}
 
-		if !slices.EqualFunc(newAssignments, pa.Status.Assignments, equal.AccountAssignmentRefEqual) {
-			pa.Status.Assignments = newAssignments
+		if !slices.EqualFunc(newAssignments, pa.GetStatus().GetAssignments(), equal.AccountAssignmentRefEqual) {
+			pa.GetStatus().SetAssignments(newAssignments)
 			stale = true
 		}
 
@@ -502,7 +502,7 @@ func updatePrincipalAccountAssignments(
 			return principal.ErrNoUpdateRequired
 		}
 
-		pa.Status.ProvisioningState = identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE
+		pa.GetStatus().SetProvisioningState(identitycenterv1.ProvisioningState_PROVISIONING_STATE_STALE)
 		return nil
 	}
 
@@ -525,7 +525,7 @@ func assignmentMatchesExpressions(
 	for _, exp := range expressions {
 		// Note: MatchString handles globbing and automatically caches the
 		//       regular expressions it uses. Don't try and overthink it here.
-		accountMatches, err := utils.MatchString(candidate.Spec.AccountId, exp.Account)
+		accountMatches, err := utils.MatchString(candidate.GetSpec().GetAccountId(), exp.Account)
 		if err != nil {
 			return false, trace.Wrap(err, "checking account match")
 		}
@@ -534,7 +534,7 @@ func assignmentMatchesExpressions(
 		}
 
 		permissionSetMatches, err := utils.MatchString(
-			candidate.Spec.PermissionSet.Arn, exp.PermissionSet)
+			candidate.GetSpec().GetPermissionSet().GetArn(), exp.PermissionSet)
 		if err != nil {
 			return false, trace.Wrap(err, "checking permission set match")
 		}

@@ -64,12 +64,12 @@ func (svc *Service) refreshExternalData(ctx context.Context) (*externalData, err
 
 		for _, psID := range sortedPermissionSetIDs {
 			ps := permissionSets[psID]
-			pss = append(pss, &identitycenterv1.PermissionSetInfo{
-				Name: ps.Spec.Name,
-				Arn:  ps.Spec.Arn,
-			})
+			pss = append(pss, identitycenterv1.PermissionSetInfo_builder{
+				Name: ps.GetSpec().GetName(),
+				Arn:  ps.GetSpec().GetArn(),
+			}.Build())
 		}
-		acct.Spec.PermissionSetInfo = pss
+		acct.GetSpec().SetPermissionSetInfo(pss)
 	}
 
 	return result, nil

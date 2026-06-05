@@ -47,15 +47,15 @@ func (r *GetQueryResultResponse) HasMoreData() bool {
 func (r *GetQueryResultResponse) ToProto() *pb.QueryResultSet {
 	var out pb.QueryResultSet
 	for _, v := range r.Columns {
-		out.ColumnInfo = append(out.ColumnInfo, &pb.QueryResultColumnInfo{
+		out.SetColumnInfo(append(out.GetColumnInfo(), pb.QueryResultColumnInfo_builder{
 			Name: v.Name,
 			Type: v.Type,
-		})
+		}.Build()))
 	}
 	for _, v := range r.Rows {
-		out.Rows = append(out.Rows, &pb.QueryRowResult{
+		out.SetRows(append(out.GetRows(), pb.QueryRowResult_builder{
 			Data: v.Data,
-		})
+		}.Build()))
 	}
 	return &out
 }

@@ -114,13 +114,13 @@ func (s *SAMLIdPService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidp
 	}
 
 	// There needs to be a few assertions.
-	if len(req.Assertion) == 0 {
+	if len(req.GetAssertion()) == 0 {
 		return nil, trace.BadParameter("missing assertions")
 	}
 
 	// Parse the assertion XML
 	assertion := &saml.Assertion{}
-	if err := xml.Unmarshal(req.Assertion, assertion); err != nil {
+	if err := xml.Unmarshal(req.GetAssertion(), assertion); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -131,19 +131,19 @@ func (s *SAMLIdPService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidp
 	// rather than just validating the MFA response and trusting the Proxy to do the rest. To do this,
 	// we could move the saml session + assertion creation logic out of the proxy and into here. This
 	// would also cut down on round trips and move SAML IdP Service trust to the Auth Service.
-	if req.MfaResponse != nil {
+	if req.HasMfaResponse() {
 		username := assertion.Subject.NameID.Value
 		ext := &mfav1.ChallengeExtensions{Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_USER_SESSION}
-		if _, err := s.mfaAuthenticator.ValidateMFAAuthResponse(ctx, req.MfaResponse, username, ext); err != nil {
+		if _, err := s.mfaAuthenticator.ValidateMFAAuthResponse(ctx, req.GetMfaResponse(), username, ext); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	if req.Destination == "" {
+	if req.GetDestination() == "" {
 		return nil, trace.BadParameter("missing destination")
 	}
 
-	if req.SignatureMethod == "" {
+	if req.GetSignatureMethod() == "" {
 		return nil, trace.BadParameter("missing signature method")
 	}
 
@@ -152,18 +152,18 @@ func (s *SAMLIdPService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidp
 
 	// Get the metadata URL, which for our IdP implementation doubles as the
 	// entity ID.
-	metadataURL, err := url.Parse(req.MetadataUrl)
+	metadataURL, err := url.Parse(req.GetMetadataUrl())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	// Parse out the service provider SSO descriptor.
-	if len(req.ServiceProviderSsoDescriptor) == 0 {
+	if len(req.GetServiceProviderSsoDescriptor()) == 0 {
 		return nil, trace.BadParameter("missing service provider SSO descriptor")
 	}
 
 	var spssoDescriptor saml.SPSSODescriptor
-	err = xml.Unmarshal(req.ServiceProviderSsoDescriptor, &spssoDescriptor)
+	err = xml.Unmarshal(req.GetServiceProviderSsoDescriptor(), &spssoDescriptor)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -204,14 +204,14 @@ func (s *SAMLIdPService) ProcessSAMLIdPRequest(ctx context.Context, req *samlidp
 	idpAuthnRequest := &saml.IdpAuthnRequest{
 		IDP: idp, // The cert, key, signature method, and entity ID (metadataURL) and keys will be retrieved from the idp object.
 		Request: saml.AuthnRequest{
-			ID: req.RequestId, // The incoming request ID, will be used to show what this request is in response to.
+			ID: req.GetRequestId(), // The incoming request ID, will be used to show what this request is in response to.
 		},
 		ACSEndpoint: &saml.IndexedEndpoint{
-			Location: req.Destination, // The destination that this response will be sent to.
+			Location: req.GetDestination(), // The destination that this response will be sent to.
 		},
-		SPSSODescriptor: &spssoDescriptor,         // The service provider SSO descriptor.
-		Now:             req.RequestTime.AsTime(), // The request time.
-		Assertion:       assertion,                // The assertions to sign.
+		SPSSODescriptor: &spssoDescriptor,              // The service provider SSO descriptor.
+		Now:             req.GetRequestTime().AsTime(), // The request time.
+		Assertion:       assertion,                     // The assertions to sign.
 	}
 
 	// Make the signed response. We'll lean on crewjam's implementation here.
@@ -248,7 +248,7 @@ func (s *SAMLIdPService) TestSAMLIdPAttributeMapping(ctx context.Context, req *s
 	}
 
 	var mappableUserSpec []attribute.SAMLMappableUserSpec
-	for _, user := range req.Users {
+	for _, user := range req.GetUsers() {
 		mappableUserSpec = append(mappableUserSpec, attribute.SAMLMappableUserSpec{
 			Username: user.GetName(),
 			Roles:    user.Spec.Roles,
@@ -259,14 +259,14 @@ func (s *SAMLIdPService) TestSAMLIdPAttributeMapping(ctx context.Context, req *s
 	var resp samlidppb.TestSAMLIdPAttributeMappingResponse
 	for _, userSpec := range mappableUserSpec {
 		var attributes []saml.Attribute
-		reqAttrs := attributeToRequestedAttribute(req.ServiceProvider.GetAttributeMapping())
+		reqAttrs := attributeToRequestedAttribute(req.GetServiceProvider().GetAttributeMapping())
 		evaluatedAttributes, err := attribute.EvaluateAttributes(reqAttrs, userSpec)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		attributes = append(attributes, evaluatedAttributes...)
 		mapped := attributeToTestSAMLIdPAttributeMappingResponse(userSpec.Username, attributes)
-		resp.MappedAttributes = append(resp.MappedAttributes, mapped)
+		resp.SetMappedAttributes(append(resp.GetMappedAttributes(), mapped))
 	}
 
 	return &resp, nil
@@ -293,10 +293,10 @@ func attributeToTestSAMLIdPAttributeMappingResponse(user string, attributes []sa
 			Values: attributeValuesToStringSlice(attr.Values),
 		}
 	}
-	return &samlidppb.MappedAttribute{
+	return samlidppb.MappedAttribute_builder{
 		Username:     user,
 		MappedValues: mapped,
-	}
+	}.Build()
 }
 
 func attributeValuesToStringSlice(avals []saml.AttributeValue) []string {

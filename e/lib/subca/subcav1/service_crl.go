@@ -45,10 +45,10 @@ func (s *Service) createOverrideCRLs(
 	data := findCRLsToGenerate(ctx, parsed, now)
 
 	// Trim Status to the necessary CRLs.
-	status := parsed.CAOverride.Status
-	for k := range status.PublicKeyHashToCrl {
+	status := parsed.CAOverride.GetStatus()
+	for k := range status.GetPublicKeyHashToCrl() {
 		if _, seen := data.SeenCertPublicKeyHash[k]; !seen {
-			delete(status.PublicKeyHashToCrl, k)
+			delete(status.GetPublicKeyHashToCrl(), k)
 		}
 	}
 
@@ -116,9 +116,9 @@ func (s *Service) createOverrideCRLs(
 			Type:  "X509 CRL",
 			Bytes: crlDER,
 		})
-		status.PublicKeyHashToCrl[pkh] = &subcav1.CertificateRevocationList{
+		status.GetPublicKeyHashToCrl()[pkh] = subcav1.CertificateRevocationList_builder{
 			Pem: string(crlPEM),
-		}
+		}.Build()
 	}
 
 	return nil
@@ -134,7 +134,7 @@ func findCRLsToGenerate(ctx context.Context, parsed *subca.ParsedCertAuthorityOv
 		SeenCertPublicKeyHash: make(map[string]struct{}),
 	}
 
-	status := parsed.CAOverride.Status
+	status := parsed.CAOverride.GetStatus()
 	for _, co := range parsed.CertificateOverrides {
 		if co.Certificate == nil {
 			// Overrides without a certificate can't have a CRL.
@@ -143,7 +143,7 @@ func findCRLsToGenerate(ctx context.Context, parsed *subca.ParsedCertAuthorityOv
 		pkh := co.PublicKey
 		data.SeenCertPublicKeyHash[pkh] = struct{}{}
 
-		crlPB, ok := status.PublicKeyHashToCrl[pkh]
+		crlPB, ok := status.GetPublicKeyHashToCrl()[pkh]
 		if !ok {
 			// CRL absent.
 			data.NeedsCRL = append(data.NeedsCRL, co)
@@ -151,8 +151,8 @@ func findCRLsToGenerate(ctx context.Context, parsed *subca.ParsedCertAuthorityOv
 		}
 
 		logger := slog.With(
-			"ca_type", parsed.CAOverride.SubKind,
-			"cluster_name", parsed.CAOverride.Metadata.Name,
+			"ca_type", parsed.CAOverride.GetSubKind(),
+			"cluster_name", parsed.CAOverride.GetMetadata().GetName(),
 			"public_key_hash", pkh,
 		)
 
@@ -213,7 +213,7 @@ func parseRevocationListPB(crlPB *subcav1.CertificateRevocationList) (*x509.Revo
 	if len(crlPB.GetPem()) == 0 {
 		return nil, trace.BadParameter("empty or nil CRL PB")
 	}
-	block, _ := pem.Decode([]byte(crlPB.Pem))
+	block, _ := pem.Decode([]byte(crlPB.GetPem()))
 	if block == nil {
 		return nil, trace.BadParameter("failed to parse CRL PEM")
 	}

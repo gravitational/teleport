@@ -123,13 +123,13 @@ func toProtobuf(log *okta.LogEvent, orgHref string) (*accessgraphv1alpha.OktaEve
 	// Create root level event properties
 	location := &accessgraphv1alpha.OktaLocationV1{}
 	if log.Client != nil {
-		location.Ip = log.Client.IpAddress
+		location.SetIp(log.Client.IpAddress)
 	}
 	identity := &accessgraphv1alpha.OktaIdentityV1{}
 	if log.Actor != nil {
-		identity.Id = log.Actor.AlternateId
-		identity.Name = log.Actor.DisplayName
-		identity.Kind = log.Actor.Type
+		identity.SetId(log.Actor.AlternateId)
+		identity.SetName(log.Actor.DisplayName)
+		identity.SetKind(log.Actor.Type)
 	}
 	if log.Transaction != nil && log.Transaction.Detail != nil {
 		detail := log.Transaction.Detail
@@ -138,7 +138,7 @@ func toProtobuf(log *okta.LogEvent, orgHref string) (*accessgraphv1alpha.OktaEve
 			if value, ok := detailMap["requestApiTokenId"]; ok {
 				tokenId, ok := value.(string)
 				if ok {
-					identity.Token = tokenId
+					identity.SetToken(tokenId)
 				}
 			}
 		}
@@ -150,7 +150,7 @@ func toProtobuf(log *okta.LogEvent, orgHref string) (*accessgraphv1alpha.OktaEve
 	}
 
 	if log.Client != nil && log.Client.UserAgent != nil {
-		identity.UserAgent = log.Client.UserAgent.RawUserAgent
+		identity.SetUserAgent(log.Client.UserAgent.RawUserAgent)
 	}
 
 	outcome := ""
@@ -165,14 +165,14 @@ func toProtobuf(log *okta.LogEvent, orgHref string) (*accessgraphv1alpha.OktaEve
 
 	var targets []*accessgraphv1alpha.OktaTargetV1
 	for _, oktaTarget := range log.Target {
-		targets = append(targets, &accessgraphv1alpha.OktaTargetV1{
+		targets = append(targets, accessgraphv1alpha.OktaTargetV1_builder{
 			Kind: oktaTarget.Type,
 			Name: oktaTarget.DisplayName,
 			Id:   oktaTarget.AlternateId,
-		})
+		}.Build())
 	}
 
-	event := &accessgraphv1alpha.OktaEventV1{
+	event := accessgraphv1alpha.OktaEventV1_builder{
 		Origin:    orgHref,
 		Identity:  identity,
 		Location:  location,
@@ -181,7 +181,7 @@ func toProtobuf(log *okta.LogEvent, orgHref string) (*accessgraphv1alpha.OktaEve
 		Targets:   targets,
 		Published: timestamppb.New(published),
 		EventData: eventData,
-	}
+	}.Build()
 
 	return event, nil
 }

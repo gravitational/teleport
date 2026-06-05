@@ -197,10 +197,10 @@ func (svc *Service) SetProvisioningStateLabel(ctx context.Context, id services.P
 	}
 
 	setLabel := func(state *provisioningv1.PrincipalState) error {
-		if state.Metadata.Labels == nil {
-			state.Metadata.Labels = make(map[string]string)
+		if state.GetMetadata().GetLabels() == nil {
+			state.GetMetadata().SetLabels(make(map[string]string))
 		}
-		state.Metadata.Labels[key] = value
+		state.GetMetadata().GetLabels()[key] = value
 		return nil
 	}
 
@@ -276,12 +276,12 @@ func (svc *Service) userLockStateChanged(
 	}
 
 	// If the user has transitioned from *some* locks to *no* locks...
-	if len(state.GetStatus().ActiveLocks) > 0 && len(locks) == 0 {
+	if len(state.GetStatus().GetActiveLocks()) > 0 && len(locks) == 0 {
 		return true, nil
 	}
 
 	// If the user has transitioned from *no* locks to *some* locks...
-	if len(state.GetStatus().ActiveLocks) == 0 && len(locks) > 0 {
+	if len(state.GetStatus().GetActiveLocks()) == 0 && len(locks) > 0 {
 		return true, nil
 	}
 
@@ -446,8 +446,8 @@ func (svc *Service) refreshProvisioningStates(ctx context.Context) error {
 
 		err := svc.enqueuePrincipalEvent(ctx,
 			provisioningOpDelete,
-			state.GetSpec().PrincipalType,
-			state.GetSpec().PrincipalId)
+			state.GetSpec().GetPrincipalType(),
+			state.GetSpec().GetPrincipalId())
 		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
 			return ctx.Err()
 		} else if err != nil {
@@ -637,7 +637,7 @@ func (svc *Service) handleLockDeletion(ctx context.Context, lockID string) error
 	err = svc.enqueuePrincipalEvent(ctx,
 		provisioningOpStale,
 		provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER,
-		targetState.GetSpec().PrincipalId)
+		targetState.GetSpec().GetPrincipalId())
 	return trace.Wrap(err)
 }
 
@@ -906,7 +906,7 @@ func (svc *Service) setPrincipalProvisioningState(
 			log.Log(ctx, logutils.TraceLevel, "Principal already has designated state. Abandoning update.")
 			return errNoChangeRequired
 		}
-		status.ProvisioningState = newState
+		status.SetProvisioningState(newState)
 		return nil
 	}
 	updatedState, err := updateProvisioningState(ctx, svc.stateSvc, state, setProvisioningState)

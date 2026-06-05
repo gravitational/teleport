@@ -34,24 +34,24 @@ func TestUserLister_ListResources_Basic(t *testing.T) {
 			return true // include all
 		},
 		UserToResource: func(u types.User) (*scimpb.Resource, error) {
-			return &scimpb.Resource{Id: u.GetName()}, nil
+			return scimpb.Resource_builder{Id: u.GetName()}.Build(), nil
 		},
 	}
 
-	req := &scimpb.ListSCIMResourcesRequest{
+	req := scimpb.ListSCIMResourcesRequest_builder{
 		Filter: "",
-		Page: &scimpb.Page{
+		Page: scimpb.Page_builder{
 			StartIndex: 1,
 			Count:      2,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	resp, err := lister.ListResources(ctx, req)
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, 2)
-	require.Equal(t, "alice", resp.Resources[0].Id)
-	require.Equal(t, "bob", resp.Resources[1].Id)
-	require.Equal(t, int32(3), resp.TotalResults)
+	require.Len(t, resp.GetResources(), 2)
+	require.Equal(t, "alice", resp.GetResources()[0].GetId())
+	require.Equal(t, "bob", resp.GetResources()[1].GetId())
+	require.Equal(t, int32(3), resp.GetTotalResults())
 }
 
 func TestUserLister_ListResources_Predicate(t *testing.T) {
@@ -72,23 +72,23 @@ func TestUserLister_ListResources_Predicate(t *testing.T) {
 			return u.GetName() == "bob"
 		},
 		UserToResource: func(u types.User) (*scimpb.Resource, error) {
-			return &scimpb.Resource{Id: u.GetName()}, nil
+			return scimpb.Resource_builder{Id: u.GetName()}.Build(), nil
 		},
 	}
 
-	req := &scimpb.ListSCIMResourcesRequest{
+	req := scimpb.ListSCIMResourcesRequest_builder{
 		Filter: "",
-		Page: &scimpb.Page{
+		Page: scimpb.Page_builder{
 			StartIndex: 1,
 			Count:      10,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	resp, err := lister.ListResources(ctx, req)
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Equal(t, "bob", resp.Resources[0].Id)
-	require.Equal(t, int32(1), resp.TotalResults)
+	require.Len(t, resp.GetResources(), 1)
+	require.Equal(t, "bob", resp.GetResources()[0].GetId())
+	require.Equal(t, int32(1), resp.GetTotalResults())
 }
 
 func TestUserLister_ListResources_FilterMatch(t *testing.T) {
@@ -104,19 +104,19 @@ func TestUserLister_ListResources_FilterMatch(t *testing.T) {
 		},
 		Predicate: func(ctx context.Context, u types.User) bool { return true },
 		UserToResource: func(u types.User) (*scimpb.Resource, error) {
-			return &scimpb.Resource{Id: u.GetName()}, nil
+			return scimpb.Resource_builder{Id: u.GetName()}.Build(), nil
 		},
 	}
 
-	req := &scimpb.ListSCIMResourcesRequest{
+	req := scimpb.ListSCIMResourcesRequest_builder{
 		Filter: `userName eq "admin"`,
-		Page:   &scimpb.Page{StartIndex: 1, Count: 5},
-	}
+		Page:   scimpb.Page_builder{StartIndex: 1, Count: 5}.Build(),
+	}.Build()
 
 	resp, err := lister.ListResources(ctx, req)
 	require.NoError(t, err)
-	require.Len(t, resp.Resources, 1)
-	require.Equal(t, "admin", resp.Resources[0].Id)
+	require.Len(t, resp.GetResources(), 1)
+	require.Equal(t, "admin", resp.GetResources()[0].GetId())
 }
 
 func TestUserLister_ListResources_FilterNoMatch(t *testing.T) {
@@ -132,19 +132,19 @@ func TestUserLister_ListResources_FilterNoMatch(t *testing.T) {
 		},
 		Predicate: func(ctx context.Context, u types.User) bool { return true },
 		UserToResource: func(u types.User) (*scimpb.Resource, error) {
-			return &scimpb.Resource{Id: u.GetName()}, nil
+			return scimpb.Resource_builder{Id: u.GetName()}.Build(), nil
 		},
 	}
 
-	req := &scimpb.ListSCIMResourcesRequest{
+	req := scimpb.ListSCIMResourcesRequest_builder{
 		Filter: `userName eq "qa"`,
-		Page:   &scimpb.Page{StartIndex: 1, Count: 10},
-	}
+		Page:   scimpb.Page_builder{StartIndex: 1, Count: 10}.Build(),
+	}.Build()
 
 	resp, err := lister.ListResources(ctx, req)
 	require.NoError(t, err)
-	require.Empty(t, resp.Resources)
-	require.Equal(t, int32(0), resp.TotalResults)
+	require.Empty(t, resp.GetResources())
+	require.Equal(t, int32(0), resp.GetTotalResults())
 }
 
 func TestUserLister_ListResources_EmptyUsers(t *testing.T) {
@@ -158,19 +158,19 @@ func TestUserLister_ListResources_EmptyUsers(t *testing.T) {
 		},
 		Predicate: func(ctx context.Context, u types.User) bool { return true },
 		UserToResource: func(u types.User) (*scimpb.Resource, error) {
-			return &scimpb.Resource{Id: u.GetName()}, nil
+			return scimpb.Resource_builder{Id: u.GetName()}.Build(), nil
 		},
 	}
 
-	req := &scimpb.ListSCIMResourcesRequest{
+	req := scimpb.ListSCIMResourcesRequest_builder{
 		Filter: "",
-		Page:   &scimpb.Page{StartIndex: 1, Count: 10},
-	}
+		Page:   scimpb.Page_builder{StartIndex: 1, Count: 10}.Build(),
+	}.Build()
 
 	resp, err := lister.ListResources(ctx, req)
 	require.NoError(t, err)
-	require.Empty(t, resp.Resources)
-	require.Equal(t, int32(0), resp.TotalResults)
+	require.Empty(t, resp.GetResources())
+	require.Equal(t, int32(0), resp.GetTotalResults())
 }
 
 // mockUser creates a new types.User with the given name.
@@ -208,19 +208,19 @@ func (s *fakeUserService) ListOktaAssignments(context.Context, int, string) ([]t
 
 func (s *fakeUserService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
 	start := 0
-	if req.PageToken != "" {
+	if req.GetPageToken() != "" {
 		var err error
-		start, err = strconv.Atoi(req.PageToken)
+		start, err = strconv.Atoi(req.GetPageToken())
 		if err != nil {
-			return nil, trace.BadParameter("invalid page token %q", req.PageToken)
+			return nil, trace.BadParameter("invalid page token %q", req.GetPageToken())
 		}
 	}
-	end := min(start+int(req.PageSize), len(s.users))
-	resp := &userspb.ListUsersResponse{
+	end := min(start+int(req.GetPageSize()), len(s.users))
+	resp := userspb.ListUsersResponse_builder{
 		Users: s.users[start:end],
-	}
+	}.Build()
 	if end < len(s.users) {
-		resp.NextPageToken = strconv.Itoa(end)
+		resp.SetNextPageToken(strconv.Itoa(end))
 	}
 
 	return resp, nil

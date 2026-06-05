@@ -178,7 +178,7 @@ func (s *Synchronizer) synchronizeOnce(ctx context.Context, currentTAGResources 
 	}
 
 	upsert, delete := reconcileResults(currentTAGResources, newResources)
-	s.log.InfoContext(ctx, "Pushing entra resources into access graph", "upsert_count", len(upsert.Resources), "delete_count", len(delete.Resources))
+	s.log.InfoContext(ctx, "Pushing entra resources into access graph", "upsert_count", len(upsert.GetResources()), "delete_count", len(delete.GetResources()))
 	err = push(stream, upsert, delete)
 
 	return newResources, trace.Wrap(err)
@@ -259,16 +259,14 @@ func pushUpsertInBatches(
 	client accessgraphv1alpha.AccessGraphService_EntraEventsStreamClient,
 	toUpsert *accessgraphv1alpha.EntraResourceList,
 ) error {
-	for i := 0; i < len(toUpsert.Resources); i += batchSize {
-		end := min(i+batchSize, len(toUpsert.Resources))
+	for i := 0; i < len(toUpsert.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(toUpsert.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.EntraEventsStreamRequest{
-				Operation: &accessgraphv1alpha.EntraEventsStreamRequest_Upsert{
-					Upsert: &accessgraphv1alpha.EntraResourceList{
-						Resources: toUpsert.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.EntraEventsStreamRequest_builder{
+				Upsert: accessgraphv1alpha.EntraResourceList_builder{
+					Resources: toUpsert.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)
@@ -281,16 +279,14 @@ func pushDeleteInBatches(
 	client accessgraphv1alpha.AccessGraphService_EntraEventsStreamClient,
 	toDel *accessgraphv1alpha.EntraResourceList,
 ) error {
-	for i := 0; i < len(toDel.Resources); i += batchSize {
-		end := min(i+batchSize, len(toDel.Resources))
+	for i := 0; i < len(toDel.GetResources()); i += batchSize {
+		end := min(i+batchSize, len(toDel.GetResources()))
 		err := client.Send(
-			&accessgraphv1alpha.EntraEventsStreamRequest{
-				Operation: &accessgraphv1alpha.EntraEventsStreamRequest_Delete{
-					Delete: &accessgraphv1alpha.EntraResourceList{
-						Resources: toDel.Resources[i:end],
-					},
-				},
-			},
+			accessgraphv1alpha.EntraEventsStreamRequest_builder{
+				Delete: accessgraphv1alpha.EntraResourceList_builder{
+					Resources: toDel.GetResources()[i:end],
+				}.Build(),
+			}.Build(),
 		)
 		if err != nil {
 			return trace.Wrap(err)

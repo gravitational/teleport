@@ -263,9 +263,9 @@ func expectDefaultPluginStatus(t *testing.T, authClt authclient.ClientI, name st
 	ctx := t.Context()
 	require.EventuallyWithT(t,
 		func(t *assert.CollectT) {
-			updatedPlugin, err := authClt.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+			updatedPlugin, err := authClt.PluginsClient().GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 				Name: name,
-			})
+			}.Build())
 			require.NoError(t, err)
 
 			status := updatedPlugin.GetStatus()

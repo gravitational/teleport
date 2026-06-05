@@ -30,44 +30,44 @@ import (
 func TestParseWorkloadIdentityX509IssuerOverride(t *testing.T) {
 	t.Parallel()
 
-	_, err := ParseWorkloadIdentityX509IssuerOverride(&workloadidentityv1.X509IssuerOverride{
+	_, err := ParseWorkloadIdentityX509IssuerOverride(workloadidentityv1.X509IssuerOverride_builder{
 		Kind: "something",
-	})
+	}.Build())
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
-	_, err = ParseWorkloadIdentityX509IssuerOverride(&workloadidentityv1.X509IssuerOverride{
+	_, err = ParseWorkloadIdentityX509IssuerOverride(workloadidentityv1.X509IssuerOverride_builder{
 		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
 		Version: types.V2,
-	})
+	}.Build())
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
-	_, err = ParseWorkloadIdentityX509IssuerOverride(&workloadidentityv1.X509IssuerOverride{
+	_, err = ParseWorkloadIdentityX509IssuerOverride(workloadidentityv1.X509IssuerOverride_builder{
 		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
 		Version: types.V1,
-	})
+	}.Build())
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
-	_, err = ParseWorkloadIdentityX509IssuerOverride(&workloadidentityv1.X509IssuerOverride{
+	_, err = ParseWorkloadIdentityX509IssuerOverride(workloadidentityv1.X509IssuerOverride_builder{
 		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "none",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
-	_, err = ParseWorkloadIdentityX509IssuerOverride(&workloadidentityv1.X509IssuerOverride{
+	_, err = ParseWorkloadIdentityX509IssuerOverride(workloadidentityv1.X509IssuerOverride_builder{
 		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "notdefault",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.ErrorAs(t, err, new(*trace.BadParameterError))
 
-	emptyOverride, err := ParseWorkloadIdentityX509IssuerOverride(&workloadidentityv1.X509IssuerOverride{
+	emptyOverride, err := ParseWorkloadIdentityX509IssuerOverride(workloadidentityv1.X509IssuerOverride_builder{
 		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "default",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	require.Empty(t, emptyOverride.overrides)
 
@@ -78,29 +78,29 @@ func TestParseWorkloadIdentityX509IssuerOverride(t *testing.T) {
 	xca1 := crossSignedCA(t, "xca1", ca1, extCA)
 	xca2 := crossSignedCA(t, "xca2", ca2, extCA)
 
-	override, err := ParseWorkloadIdentityX509IssuerOverride(&workloadidentityv1.X509IssuerOverride{
+	override, err := ParseWorkloadIdentityX509IssuerOverride(workloadidentityv1.X509IssuerOverride_builder{
 		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "default",
-		},
-		Spec: &workloadidentityv1.X509IssuerOverrideSpec{
+		}.Build(),
+		Spec: workloadidentityv1.X509IssuerOverrideSpec_builder{
 			Overrides: []*workloadidentityv1.X509IssuerOverrideSpec_Override{
-				{
+				workloadidentityv1.X509IssuerOverrideSpec_Override_builder{
 					Issuer: xca1.Leaf.Raw,
 					Chain: [][]byte{
 						xca1.Leaf.Raw,
 					},
-				},
-				{
+				}.Build(),
+				workloadidentityv1.X509IssuerOverrideSpec_Override_builder{
 					Issuer: xca2.Leaf.Raw,
 					Chain: [][]byte{
 						xca2.Leaf.Raw,
 					},
-				},
+				}.Build(),
 			},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	ca, chain, ok := override.GetCAOverride(&tlsca.CertAuthority{
@@ -214,13 +214,13 @@ func TestWorkloadIdentityX509IssuerOverrideCache(t *testing.T) {
 	require.NoError(t, err)
 	require.Same(t, blankCA, ca)
 
-	_, err = storage.CreateX509IssuerOverride(ctx, &workloadidentityv1.X509IssuerOverride{
+	_, err = storage.CreateX509IssuerOverride(ctx, workloadidentityv1.X509IssuerOverride_builder{
 		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "default",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	ca, _, err = c.GetWorkloadIdentityX509CAOverride(ctx, "", blankCA)
@@ -244,13 +244,13 @@ func TestWorkloadIdentityX509IssuerOverrideCache(t *testing.T) {
 		require.Same(t, blankCA, ca)
 	}, 5*time.Second, 50*time.Millisecond)
 
-	_, err = storage.CreateX509IssuerOverride(ctx, &workloadidentityv1.X509IssuerOverride{
+	_, err = storage.CreateX509IssuerOverride(ctx, workloadidentityv1.X509IssuerOverride_builder{
 		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "default",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -278,14 +278,14 @@ func TestWorkloadIdentityX509IssuerOverridePrefix(t *testing.T) {
 	_, err = bk.Get(ctx, backend.NewKey(workloadIdentityX509IssuerOverridePrefix, "default"))
 	require.ErrorAs(t, err, new(*trace.NotFoundError))
 
-	_, err = svc.CreateX509IssuerOverride(ctx, &workloadidentityv1.X509IssuerOverride{
+	_, err = svc.CreateX509IssuerOverride(ctx, workloadidentityv1.X509IssuerOverride_builder{
 		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "default",
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	_, err = bk.Get(ctx, backend.NewKey(workloadIdentityX509IssuerOverridePrefix, "default"))

@@ -185,9 +185,9 @@ func TestIdentityCenterValidation_CloudSystemCredentialsIntegrationListRBAC(t *t
 			_, err := suite.svc.authServer.CreateIntegration(t.Context(), mustAWSOIDCIntegration(t, "zeta"))
 			require.NoError(t, err)
 
-			_, err = suite.svc.CreatePlugin(t.Context(), &pluginspb.CreatePluginRequest{
+			_, err = suite.svc.CreatePlugin(t.Context(), pluginspb.CreatePluginRequest_builder{
 				Plugin: newIdentityCenterPluginResource(),
-			})
+			}.Build())
 			require.True(t, trace.IsBadParameter(err))
 			require.ErrorContains(t, err, awsicSystemCredentialsCloudError)
 			if test.expectDetails {

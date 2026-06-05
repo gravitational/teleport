@@ -40,14 +40,14 @@ func TestEntraAppToProto(t *testing.T) {
 
 	t.Run("valid", func(t *testing.T) {
 		entraApp := createEntraApp()
-		expected := &accessgraphv1alpha.EntraApplication{
+		expected := accessgraphv1alpha.EntraApplication_builder{
 			Id:                  id,
 			AppId:               appID,
 			DisplayName:         displayName,
 			TenantId:            tenantID,
 			SigningCertificates: certs,
 			FederatedSsoV2:      "federatedSSOV2_payload",
-		}
+		}.Build()
 		result, err := entraAppToProto(ctx, entraApp, ssoSettings, tenantID, certs)
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(

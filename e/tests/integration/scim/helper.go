@@ -67,12 +67,12 @@ func createGenericSCIMPlugin(t *testing.T, sut *common.SUT, opts ...createSCIMPl
 	hashedToken, err := bcrypt.GenerateFromPassword([]byte(rawToken), bcrypt.DefaultCost)
 	require.NoError(t, err)
 
-	var req = &pluginsv1.CreatePluginRequest{
+	var req = pluginsv1.CreatePluginRequest_builder{
 		Plugin: plugin,
 		StaticCredentialsList: []*types.PluginStaticCredentialsV1{
 			buildSCIMCredentials(string(hashedToken)),
 		},
-	}
+	}.Build()
 	_, err = pluginClient.CreatePlugin(t.Context(), req)
 	require.NoError(t, err)
 	return rawToken
@@ -166,12 +166,12 @@ func createGenericSCIMPluginOauth(t *testing.T, sut *common.SUT) (string, string
 	clientID := uuid.NewString()
 	clientSecret := uuid.NewString()
 
-	var req = &pluginsv1.CreatePluginRequest{
+	var req = pluginsv1.CreatePluginRequest_builder{
 		Plugin: plugin,
 		StaticCredentialsList: []*types.PluginStaticCredentialsV1{
 			buildOauthCreds(clientID, clientSecret),
 		},
-	}
+	}.Build()
 	_, err := pluginClient.CreatePlugin(t.Context(), req)
 	require.NoError(t, err)
 	return clientID, clientSecret

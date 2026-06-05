@@ -51,21 +51,21 @@ func (p *Plugin) listBeams(_ http.ResponseWriter, r *http.Request, _ httprouter.
 		return nil, trace.Wrap(err)
 	}
 
-	request := &beamsv1.ListBeamsRequest{
+	request := beamsv1.ListBeamsRequest_builder{
 		PageToken: querystring.Get("page_token"),
 		SortField: sortField,
 		SortOrder: sortOrder,
-		Filters: &beamsv1.ListBeamsRequest_Filters{
+		Filters: beamsv1.ListBeamsRequest_Filters_builder{
 			Users: querystring["user"],
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	if querystring.Has("page_size") {
 		pageSize, err := strconv.ParseInt(querystring.Get("page_size"), 10, 32)
 		if err != nil {
 			return nil, trace.BadParameter("invalid page size")
 		}
-		request.PageSize = int32(pageSize)
+		request.SetPageSize(int32(pageSize))
 	}
 
 	lt, err := sctx.GetUserClient(r.Context(), cluster)
@@ -78,8 +78,8 @@ func (p *Plugin) listBeams(_ http.ResponseWriter, r *http.Request, _ httprouter.
 		return nil, trace.Wrap(err)
 	}
 
-	beams := make([]beam, 0, len(resp.Beams))
-	for _, b := range resp.Beams {
+	beams := make([]beam, 0, len(resp.GetBeams()))
+	for _, b := range resp.GetBeams() {
 		beams = append(beams, beam{
 			Name:    b.GetMetadata().GetName(),
 			Alias:   b.GetStatus().GetAlias(),
@@ -92,7 +92,7 @@ func (p *Plugin) listBeams(_ http.ResponseWriter, r *http.Request, _ httprouter.
 
 	return listBeamsResponse{
 		Items:         beams,
-		NextPageToken: resp.NextPageToken,
+		NextPageToken: resp.GetNextPageToken(),
 	}, nil
 }
 

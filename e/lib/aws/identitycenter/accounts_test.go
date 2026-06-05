@@ -44,8 +44,8 @@ func TestAccountStartURL(t *testing.T) {
 			require.NoError(t, err)
 			account := newIdentityCenterAccount(name, id, arn, idSource, "us-east-1")
 			require.NotNil(t, account)
-			require.NotEmpty(t, account.Spec.StartUrl)
-			require.Contains(t, account.Spec.StartUrl, test.urlContains)
+			require.NotEmpty(t, account.GetSpec().GetStartUrl())
+			require.Contains(t, account.GetSpec().GetStartUrl(), test.urlContains)
 			require.Equal(t, map[string]string{
 				types.OriginLabel:         common.OriginAWSIdentityCenter,
 				types.AWSAccountIDLabel:   string(id),

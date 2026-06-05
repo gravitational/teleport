@@ -144,7 +144,7 @@ func (p *Plugin) updateAccessMonitoringRule(w http.ResponseWriter, r *http.Reque
 		return nil, trace.BadParameter("missing resource name")
 	}
 	// Error if the user is trying to rename the resource.
-	if resource.Metadata.Name != resourceName {
+	if resource.GetMetadata().GetName() != resourceName {
 		return nil, trace.BadParameter("resource renaming is not supported, please create a different resource and then delete this one")
 	}
 
@@ -207,8 +207,8 @@ func (p *Plugin) getAccessMonitoringRuleTerraform(
 		return nil, trace.Wrap(err)
 	}
 
-	if rule.Metadata != nil {
-		rule.Metadata.Revision = ""
+	if rule.HasMetadata() {
+		rule.GetMetadata().SetRevision("")
 	}
 
 	tfResult, err := tfgen.Generate(rule)

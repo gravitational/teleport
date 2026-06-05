@@ -22,30 +22,30 @@ func TestDeleteBeam(t *testing.T) {
 
 	// Create the beam.
 	service := pack.service(t, pack.user(t, "alice"))
-	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 	beam := proto.CloneOf(createResp.GetBeam())
 
 	// Publish the beam.
-	beam.Spec.Publish = &beamsv1pb.PublishSpec{
+	beam.GetSpec().SetPublish(beamsv1pb.PublishSpec_builder{
 		Port:     8080,
 		Protocol: beamsv1pb.Protocol_PROTOCOL_HTTP,
-	}
+	}.Build())
 
-	updateResp, err := service.UpdateBeam(t.Context(), &beamsv1pb.UpdateBeamRequest{
+	updateResp, err := service.UpdateBeam(t.Context(), beamsv1pb.UpdateBeamRequest_builder{
 		Beam: beam,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	beam = updateResp.GetBeam()
 	require.NotEmpty(t, beam.GetStatus().GetAppName())
 
 	// Delete the beam.
-	resp, err := service.DeleteBeam(t.Context(), &beamsv1pb.DeleteBeamRequest{
+	resp, err := service.DeleteBeam(t.Context(), beamsv1pb.DeleteBeamRequest_builder{
 		Name: beam.GetMetadata().GetName(),
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
@@ -105,15 +105,15 @@ func TestDeleteBeamAccessDenied(t *testing.T) {
 
 	// Create a beam.
 	aliceService := pack.service(t, pack.user(t, "alice"))
-	createResp, err := aliceService.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	createResp, err := aliceService.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	bobService := pack.service(t, pack.user(t, "bob"))
-	_, err = bobService.DeleteBeam(t.Context(), &beamsv1pb.DeleteBeamRequest{
+	_, err = bobService.DeleteBeam(t.Context(), beamsv1pb.DeleteBeamRequest_builder{
 		Name: createResp.GetBeam().GetMetadata().GetName(),
-	})
+	}.Build())
 	require.True(t, trace.IsAccessDenied(err))
 
 	// Check beam wasn't deleted.
@@ -134,14 +134,14 @@ func TestDeleteBeamDestroyComputeNotFoundStillDeletes(t *testing.T) {
 	})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = service.DeleteBeam(t.Context(), &beamsv1pb.DeleteBeamRequest{
+	_, err = service.DeleteBeam(t.Context(), beamsv1pb.DeleteBeamRequest_builder{
 		Name: createResp.GetBeam().GetMetadata().GetName(),
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Len(t, pack.compute.getDestroyRequests(), 1)
 
@@ -163,14 +163,14 @@ func TestDeleteBeamDestroyComputeFailureLeavesBeam(t *testing.T) {
 	})
 
 	service := pack.service(t, pack.user(t, "alice"))
-	createResp, err := service.CreateBeam(t.Context(), &beamsv1pb.CreateBeamRequest{
+	createResp, err := service.CreateBeam(t.Context(), beamsv1pb.CreateBeamRequest_builder{
 		Egress: beamsv1pb.EgressMode_EGRESS_MODE_UNRESTRICTED,
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = service.DeleteBeam(t.Context(), &beamsv1pb.DeleteBeamRequest{
+	_, err = service.DeleteBeam(t.Context(), beamsv1pb.DeleteBeamRequest_builder{
 		Name: createResp.GetBeam().GetMetadata().GetName(),
-	})
+	}.Build())
 	require.ErrorContains(t, err, "failed to deprovision beam compute")
 	require.Len(t, pack.compute.getDestroyRequests(), 1)
 

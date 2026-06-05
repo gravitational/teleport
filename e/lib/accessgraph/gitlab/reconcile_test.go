@@ -12,48 +12,48 @@ import (
 
 func TestReconcileResults(t *testing.T) {
 	oldUsers := []*accessgraphv1alpha.GitlabUser{
-		{Username: "userA"},
-		{Username: "userB"},
+		accessgraphv1alpha.GitlabUser_builder{Username: "userA"}.Build(),
+		accessgraphv1alpha.GitlabUser_builder{Username: "userB"}.Build(),
 	}
 	newUsers := []*accessgraphv1alpha.GitlabUser{
-		{Username: "userA"},
-		{Username: "userC"},
+		accessgraphv1alpha.GitlabUser_builder{Username: "userA"}.Build(),
+		accessgraphv1alpha.GitlabUser_builder{Username: "userC"}.Build(),
 	}
 
 	oldGroups := []*accessgraphv1alpha.GitlabGroup{
-		{Path: "groupA"},
-		{Path: "groupB"},
+		accessgraphv1alpha.GitlabGroup_builder{Path: "groupA"}.Build(),
+		accessgraphv1alpha.GitlabGroup_builder{Path: "groupB"}.Build(),
 	}
 	newGroups := []*accessgraphv1alpha.GitlabGroup{
-		{Path: "groupA"},
-		{Path: "groupC"},
+		accessgraphv1alpha.GitlabGroup_builder{Path: "groupA"}.Build(),
+		accessgraphv1alpha.GitlabGroup_builder{Path: "groupC"}.Build(),
 	}
 
 	oldProjects := []*accessgraphv1alpha.GitlabProject{
-		{Path: "projectA"},
-		{Path: "projectB"},
+		accessgraphv1alpha.GitlabProject_builder{Path: "projectA"}.Build(),
+		accessgraphv1alpha.GitlabProject_builder{Path: "projectB"}.Build(),
 	}
 	newProjects := []*accessgraphv1alpha.GitlabProject{
-		{Path: "projectA"},
-		{Path: "projectC"},
+		accessgraphv1alpha.GitlabProject_builder{Path: "projectA"}.Build(),
+		accessgraphv1alpha.GitlabProject_builder{Path: "projectC"}.Build(),
 	}
 
 	oldProjectMembers := []*accessgraphv1alpha.GitlabProjectMember{
-		{Username: "projectMemberA", Project: &accessgraphv1alpha.GitlabProject{Path: "projectA"}},
-		{Username: "projectMemberB", Project: &accessgraphv1alpha.GitlabProject{Path: "projectA"}},
+		accessgraphv1alpha.GitlabProjectMember_builder{Username: "projectMemberA", Project: accessgraphv1alpha.GitlabProject_builder{Path: "projectA"}.Build()}.Build(),
+		accessgraphv1alpha.GitlabProjectMember_builder{Username: "projectMemberB", Project: accessgraphv1alpha.GitlabProject_builder{Path: "projectA"}.Build()}.Build(),
 	}
 	newProjectMembers := []*accessgraphv1alpha.GitlabProjectMember{
-		{Username: "projectMemberA", Project: &accessgraphv1alpha.GitlabProject{Path: "projectA"}},
-		{Username: "projectMemberC", Project: &accessgraphv1alpha.GitlabProject{Path: "projectA"}},
+		accessgraphv1alpha.GitlabProjectMember_builder{Username: "projectMemberA", Project: accessgraphv1alpha.GitlabProject_builder{Path: "projectA"}.Build()}.Build(),
+		accessgraphv1alpha.GitlabProjectMember_builder{Username: "projectMemberC", Project: accessgraphv1alpha.GitlabProject_builder{Path: "projectA"}.Build()}.Build(),
 	}
 
 	oldGroupMembers := []*accessgraphv1alpha.GitlabGroupMember{
-		{Username: "groupMemberA", Group: &accessgraphv1alpha.GitlabGroup{Path: "groupA"}},
-		{Username: "groupMemberB", Group: &accessgraphv1alpha.GitlabGroup{Path: "groupA"}},
+		accessgraphv1alpha.GitlabGroupMember_builder{Username: "groupMemberA", Group: accessgraphv1alpha.GitlabGroup_builder{Path: "groupA"}.Build()}.Build(),
+		accessgraphv1alpha.GitlabGroupMember_builder{Username: "groupMemberB", Group: accessgraphv1alpha.GitlabGroup_builder{Path: "groupA"}.Build()}.Build(),
 	}
 	newGroupMembers := []*accessgraphv1alpha.GitlabGroupMember{
-		{Username: "groupMemberA", Group: &accessgraphv1alpha.GitlabGroup{Path: "groupA"}},
-		{Username: "groupMemberC", Group: &accessgraphv1alpha.GitlabGroup{Path: "groupA"}},
+		accessgraphv1alpha.GitlabGroupMember_builder{Username: "groupMemberA", Group: accessgraphv1alpha.GitlabGroup_builder{Path: "groupA"}.Build()}.Build(),
+		accessgraphv1alpha.GitlabGroupMember_builder{Username: "groupMemberC", Group: accessgraphv1alpha.GitlabGroup_builder{Path: "groupA"}.Build()}.Build(),
 	}
 
 	oldResources := &resources{
@@ -74,7 +74,7 @@ func TestReconcileResults(t *testing.T) {
 
 	upsert, delete := reconcileResults(oldResources, newResources)
 
-	wantUpsert := &accessgraphv1alpha.GitlabResourceList{
+	wantUpsert := accessgraphv1alpha.GitlabResourceList_builder{
 		Resources: []*accessgraphv1alpha.GitlabResource{
 			{Resource: &accessgraphv1alpha.GitlabResource_User{User: newUsers[1]}},
 			{Resource: &accessgraphv1alpha.GitlabResource_Group{Group: newGroups[1]}},
@@ -82,9 +82,9 @@ func TestReconcileResults(t *testing.T) {
 			{Resource: &accessgraphv1alpha.GitlabResource_ProjectMember{ProjectMember: newProjectMembers[1]}},
 			{Resource: &accessgraphv1alpha.GitlabResource_GroupMember{GroupMember: newGroupMembers[1]}},
 		},
-	}
+	}.Build()
 
-	wantDelete := &accessgraphv1alpha.GitlabResourceList{
+	wantDelete := accessgraphv1alpha.GitlabResourceList_builder{
 		Resources: []*accessgraphv1alpha.GitlabResource{
 			{Resource: &accessgraphv1alpha.GitlabResource_User{User: oldUsers[1]}},
 			{Resource: &accessgraphv1alpha.GitlabResource_Group{Group: oldGroups[1]}},
@@ -92,15 +92,15 @@ func TestReconcileResults(t *testing.T) {
 			{Resource: &accessgraphv1alpha.GitlabResource_ProjectMember{ProjectMember: oldProjectMembers[1]}},
 			{Resource: &accessgraphv1alpha.GitlabResource_GroupMember{GroupMember: oldGroupMembers[1]}},
 		},
-	}
+	}.Build()
 
 	require.Empty(t, cmp.Diff(
-		wantUpsert.Resources, upsert.Resources,
+		wantUpsert.GetResources(), upsert.GetResources(),
 		protocmp.Transform(),
 	),
 	)
 	require.Empty(t, cmp.Diff(
-		wantDelete.Resources, delete.Resources,
+		wantDelete.GetResources(), delete.GetResources(),
 		protocmp.Transform(),
 	),
 	)

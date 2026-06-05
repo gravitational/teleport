@@ -33,14 +33,14 @@ func AccessListToResource(accessList *accesslist.AccessList, members []*accessli
 		return nil, trace.Wrap(err)
 	}
 
-	resource := &scimpb.Resource{
+	resource := scimpb.Resource_builder{
 		Id: accessList.GetName(),
-		Meta: &scimpb.Meta{
+		Meta: scimpb.Meta_builder{
 			ResourceType: common.ResourceTypeGroup,
 			Version:      VersionAsETag(accessList.GetRevision()),
-		},
+		}.Build(),
 		Attributes: attrs,
-	}
+	}.Build()
 	return resource, nil
 }
 
@@ -83,12 +83,12 @@ func WithAccessListName(name string) AccessListToResourceFunc {
 func AccessListFromResource(r *scimpb.Resource, opts ...AccessListToResourceFunc) (*accesslist.AccessList, []*accesslist.AccessListMember, error) {
 	options := accessListToResourceOptions{
 		clock:          clockwork.NewRealClock(),
-		accessListName: r.Id,
+		accessListName: r.GetId(),
 	}
 	for _, opt := range opts {
 		opt(&options)
 	}
-	group, err := decodeGroupResource(r.Attributes.AsMap())
+	group, err := decodeGroupResource(r.GetAttributes().AsMap())
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -175,7 +175,7 @@ func getAttr(attrs map[string]any, key string) (string, error) {
 
 // GetGroupDisplayName extracts the display name from an SCIM group resource.
 func GetGroupDisplayName(r *scimpb.Resource) (string, error) {
-	group, err := decodeGroupResource(r.Attributes.AsMap())
+	group, err := decodeGroupResource(r.GetAttributes().AsMap())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

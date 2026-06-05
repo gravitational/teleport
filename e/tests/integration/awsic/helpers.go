@@ -180,7 +180,7 @@ func awsICPluginRequest(options ...pluginOption) *pluginspb.CreatePluginRequest 
 		optFn(&opts)
 	}
 
-	return &pluginspb.CreatePluginRequest{
+	return pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
 				Name: types.PluginTypeAWSIdentityCenter,
@@ -220,15 +220,15 @@ func awsICPluginRequest(options ...pluginOption) *pluginspb.CreatePluginRequest 
 				},
 			},
 		},
-	}
+	}.Build()
 }
 
 func mustGetPluginResource(t *testing.T, authClient authclient.ClientI, withSecrets bool) *types.PluginV1 {
 	t.Helper()
-	plugin, err := authClient.PluginsClient().GetPlugin(context.Background(), &pluginspb.GetPluginRequest{
+	plugin, err := authClient.PluginsClient().GetPlugin(context.Background(), pluginspb.GetPluginRequest_builder{
 		Name:        types.PluginTypeAWSIdentityCenter,
 		WithSecrets: withSecrets,
-	})
+	}.Build())
 	require.NoError(t, err)
 	return plugin
 }
@@ -241,7 +241,7 @@ func mustUpdatePlugin(t *testing.T, authClient authclient.ClientI, updateFn func
 	updateFn(settings)
 
 	plugin.Spec.Settings = &types.PluginSpecV1_AwsIc{AwsIc: settings}
-	_, err := authClient.PluginsClient().UpdatePlugin(t.Context(), &pluginspb.UpdatePluginRequest{Plugin: plugin})
+	_, err := authClient.PluginsClient().UpdatePlugin(t.Context(), pluginspb.UpdatePluginRequest_builder{Plugin: plugin}.Build())
 	require.NoError(t, err)
 }
 

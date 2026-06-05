@@ -36,23 +36,23 @@ func (c *enrollCeremony) enrollDeviceTPM(
 ) (*devicepb.DeviceCredential, error) {
 	ctx := stream.Context()
 	logger := c.logger.With(
-		"device_id", dev.Id,
-		"asset_tag", dev.AssetTag,
-		"credential_id", initReq.CredentialId,
+		"device_id", dev.GetId(),
+		"asset_tag", dev.GetAssetTag(),
+		"credential_id", initReq.GetCredentialId(),
 	)
 	// Validate provided request includes the correct fields.
 	switch {
-	case initReq.Tpm == nil:
+	case !initReq.HasTpm():
 		return nil, trace.BadParameter("tpm enrollment payload required")
-	case initReq.Tpm.AttestationParameters == nil:
+	case !initReq.GetTpm().HasAttestationParameters():
 		return nil, trace.BadParameter("attestation parameters required")
-	case initReq.Tpm.Ek == nil:
+	case !initReq.GetTpm().HasEk():
 		return nil, trace.BadParameter("ek_pub or ek_cert required")
 	}
 
 	validEK, err := parseAndValidateEK(
 		logger,
-		initReq.Tpm,
+		initReq.GetTpm(),
 		c.ekCertAllowedCAs,
 	)
 	if err != nil {
@@ -65,7 +65,7 @@ func (c *enrollCeremony) enrollDeviceTPM(
 	// - Credential Activation
 	// - Platform Attestation
 	attestationParameters := dtoss.AttestationParametersFromProto(
-		initReq.Tpm.AttestationParameters,
+		initReq.GetTpm().GetAttestationParameters(),
 	)
 	encryptedCredential, finishCredentialActivation, err := credentialActivationChallenge(
 		validEK.publicKey,
@@ -75,7 +75,7 @@ func (c *enrollCeremony) enrollDeviceTPM(
 		return nil, trace.Wrap(err)
 	}
 	attestNonce, finishPlatformAttestation, err := platformAttestationChallenge(
-		dev.OsType,
+		dev.GetOsType(),
 		attestationParameters.Public,
 	)
 	if err != nil {
@@ -86,16 +86,14 @@ func (c *enrollCeremony) enrollDeviceTPM(
 	// Send the two challenges to the client and wait for a response
 	// containing the Credential Activation solution and the Platform
 	// Attestation
-	if err := stream.Send(&devicepb.EnrollDeviceResponse{
-		Payload: &devicepb.EnrollDeviceResponse_TpmChallenge{
-			TpmChallenge: &devicepb.TPMEnrollChallenge{
-				EncryptedCredential: dtoss.EncryptedCredentialToProto(
-					encryptedCredential,
-				),
-				AttestationNonce: attestNonce,
-			},
-		},
-	}); err != nil {
+	if err := stream.Send(devicepb.EnrollDeviceResponse_builder{
+		TpmChallenge: devicepb.TPMEnrollChallenge_builder{
+			EncryptedCredential: dtoss.EncryptedCredentialToProto(
+				encryptedCredential,
+			),
+			AttestationNonce: attestNonce,
+		}.Build(),
+	}.Build()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	resp, err := stream.Recv()
@@ -109,12 +107,12 @@ func (c *enrollCeremony) enrollDeviceTPM(
 	switch {
 	case chalResp == nil:
 		return nil, trace.BadParameter("bad payload, expected TPMEnrollChallengeResponse")
-	case len(chalResp.Solution) == 0:
+	case len(chalResp.GetSolution()) == 0:
 		return nil, trace.BadParameter("credential activation solution required")
 	}
 	// Use the values sent by the client in the challenge response to finish
 	// the credential activation and platform attestation challenges
-	if err := finishCredentialActivation(chalResp.Solution); err != nil {
+	if err := finishCredentialActivation(chalResp.GetSolution()); err != nil {
 		logger.DebugContext(ctx,
 			"TPM credential activation failed verification",
 			"error", err,
@@ -122,7 +120,7 @@ func (c *enrollCeremony) enrollDeviceTPM(
 		return nil, trace.BadParameter("credential activation verification failed")
 	}
 	platformAttestation, err := finishPlatformAttestation(
-		dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
+		dtoss.PlatformParametersFromProto(chalResp.GetPlatformParameters()),
 	)
 	if err != nil {
 		logger.DebugContext(ctx,
@@ -132,15 +130,15 @@ func (c *enrollCeremony) enrollDeviceTPM(
 		return nil, trace.BadParameter("platform attestation verification failed")
 	}
 	// Persist platform attestation record in collected data.
-	initReq.DeviceData.TpmPlatformAttestation = platformAttestation
+	initReq.GetDeviceData().SetTpmPlatformAttestation(platformAttestation)
 
 	// Create credential storage type
-	cred := &devicepb.DeviceCredential{
-		Id:                    initReq.CredentialId,
+	cred := devicepb.DeviceCredential_builder{
+		Id:                    initReq.GetCredentialId(),
 		DeviceAttestationType: validEK.attestationType,
 		TpmEkcertSerial:       validEK.tpmSerial,
 		TpmAkPublic:           attestationParameters.Public,
-	}
+	}.Build()
 
 	return cred, nil
 }
@@ -168,14 +166,14 @@ func parseAndValidateEK(
 	*validatedEK,
 	error,
 ) {
-	switch v := tpm.Ek.(type) {
-	case *devicepb.TPMEnrollPayload_EkKey:
+	switch v := tpm.WhichEk(); v {
+	case devicepb.TPMEnrollPayload_EkKey_case:
 		if len(allowedCAs) > 0 {
 			return nil, trace.BadParameter("tpm device did not submit an ek_cert and ekcert_allowed_cas is configured")
 		}
 
 		// In the case of the key, we can just use this as is.
-		ekPub, err := x509.ParsePKIXPublicKey(v.EkKey)
+		ekPub, err := x509.ParsePKIXPublicKey(tpm.GetEkKey())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -184,11 +182,11 @@ func parseAndValidateEK(
 			attestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB,
 			publicKey:       ekPub,
 		}, nil
-	case *devicepb.TPMEnrollPayload_EkCert:
+	case devicepb.TPMEnrollPayload_EkCert_case:
 		// In the case of a certificate, we need to decode the cert and then
 		// extract the public key, optionally, we also need to verify the
 		// certificates CA.
-		ekCert, err := attest.ParseEKCertificate(v.EkCert)
+		ekCert, err := attest.ParseEKCertificate(tpm.GetEkCert())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -250,7 +248,7 @@ func parseAndValidateEK(
 			tpmSerial:       tpmSerial,
 		}, nil
 	default:
-		return nil, trace.BadParameter("unknown EK type (%T)", v)
+		return nil, trace.BadParameter("unknown EK type (%v)", v)
 	}
 }
 

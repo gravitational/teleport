@@ -9,8 +9,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/bcrypt"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	oktav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/web/ui"
@@ -79,7 +80,7 @@ func updateOktaPlugin(ctx context.Context, sessCtx *web.SessionContext, req *ui.
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.NewPlugin(resp.Plugin)
+	return ui.NewPlugin(resp.GetPlugin())
 }
 
 // validateOktaPluginUpdateInputs validates the Okta plugin update request
@@ -91,11 +92,9 @@ func validateOktaPluginUpdateInputs(params *ui.OktaPluginUpdate) (*oktav1.Update
 	// Only expected to be set if updating UserSync settings, otherwise, will be nil, and we'll use saved credentials
 	var oktaAPICreds *oktav1.OktaAPICredentials
 	if params.ClientID != "" {
-		oktaAPICreds = &oktav1.OktaAPICredentials{
-			Auth: &oktav1.OktaAPICredentials_OauthId{
-				OauthId: params.ClientID,
-			},
-		}
+		oktaAPICreds = oktav1.OktaAPICredentials_builder{
+			OauthId: proto.String(params.ClientID),
+		}.Build()
 	}
 
 	var accessListSettings *oktav1.AccessListSettings
@@ -104,14 +103,14 @@ func validateOktaPluginUpdateInputs(params *ui.OktaPluginUpdate) (*oktav1.Update
 	}
 
 	if params.EnableAccessListSync {
-		accessListSettings = &oktav1.AccessListSettings{
+		accessListSettings = oktav1.AccessListSettings_builder{
 			DefaultOwner: params.DefaultOwners,
 			AppFilters:   params.AppFilters,
 			GroupFilters: params.GroupFilters,
-		}
+		}.Build()
 	}
 
-	return &oktav1.UpdateIntegrationRequest{
+	return oktav1.UpdateIntegrationRequest_builder{
 		ApiCredentials:            oktaAPICreds,
 		ScimToken:                 params.SCIMToken,
 		EnableUserSync:            params.EnableUserSync,
@@ -121,7 +120,7 @@ func validateOktaPluginUpdateInputs(params *ui.OktaPluginUpdate) (*oktav1.Update
 		AccessListSettings:        accessListSettings,
 		EnableBidirectionalSync:   params.EnableBidirectionalSync,
 		EnableSystemLogExport:     params.EnableSystemLogExport,
-	}, nil
+	}.Build(), nil
 }
 
 // TranslateCallbackCookie implements PluginDescriptor for oktaPluginDescriptor,
@@ -177,7 +176,7 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 
 	oktaAPICreds := getOktaCredsFromParams(params)
 	authOktaClient := oktav1.NewOktaServiceClient(args.sessCtx.GetClientConnection())
-	resp, err := authOktaClient.CreateIntegration(ctx, &oktav1.CreateIntegrationRequest{
+	resp, err := authOktaClient.CreateIntegration(ctx, oktav1.CreateIntegrationRequest_builder{
 		ReuseConnector:            params.reuseConnector,
 		SsoMetadataUrl:            params.metadataURL,
 		OktaOrganizationUrl:       params.oktaOrgURL,
@@ -187,18 +186,18 @@ func installOktaPlugin(ctx context.Context, args installOktaPluginArgs) (*ui.Plu
 		DisableAssignDefaultRoles: false,
 		EnableAppGroupSync:        params.enableAppGroupsSync,
 		EnableAccessListSync:      params.enableAccessListSync,
-		AccessListSettings: &oktav1.AccessListSettings{
+		AccessListSettings: oktav1.AccessListSettings_builder{
 			GroupFilters: params.groupFilters,
 			AppFilters:   params.appFilters,
 			DefaultOwner: params.defaultOwners,
-		},
+		}.Build(),
 		EnableBidirectionalSync: params.enableBidirectionalSync,
 		EnableSystemLogExport:   params.enableSystemLogExport,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	uiPlugin, err := ui.NewPlugin(resp.Plugin)
+	uiPlugin, err := ui.NewPlugin(resp.GetPlugin())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -222,17 +221,13 @@ func getOktaCredsFromParams(params *oktaPluginInputs) *oktav1.OktaAPICredentials
 	var apiCreds *oktav1.OktaAPICredentials
 	switch {
 	case params.oauthClientID != "":
-		apiCreds = &oktav1.OktaAPICredentials{
-			Auth: &oktav1.OktaAPICredentials_OauthId{
-				OauthId: params.oauthClientID,
-			},
-		}
+		apiCreds = oktav1.OktaAPICredentials_builder{
+			OauthId: proto.String(params.oauthClientID),
+		}.Build()
 	case params.oktaAPIToken != "":
-		apiCreds = &oktav1.OktaAPICredentials{
-			Auth: &oktav1.OktaAPICredentials_SswsBearerToken{
-				SswsBearerToken: params.oktaAPIToken,
-			},
-		}
+		apiCreds = oktav1.OktaAPICredentials_builder{
+			SswsBearerToken: proto.String(params.oktaAPIToken),
+		}.Build()
 	}
 	// If neither API token nor OAuth client ID is set in req, we return nil
 	// and let the Okta client check for saved credentials.
@@ -262,7 +257,7 @@ type oktaPluginInputs struct {
 type validateOktaPluginInputsArgs struct {
 	form            url.Values
 	httpClient      *http.Client
-	clusterFeatures *proto.Features
+	clusterFeatures *clientproto.Features
 	logger          *slog.Logger
 
 	// bcryptCost is the bcryptCost to be used for hashing the SCIM user token.
@@ -359,24 +354,20 @@ func (args *validateOktaPluginInputsArgs) validateOktaConfig(ctx context.Context
 	// if providing credentials or toggling sync options.
 	shouldValidateAuth := out.oktaAPIToken != "" || out.oauthClientID != "" || out.enableAccessListSync || out.enableUserSync || out.enableAppGroupsSync
 
-	req := &oktav1.ValidateClientCredentialsRequest{
+	req := oktav1.ValidateClientCredentialsRequest_builder{
 		OktaOrganizationUrl: out.oktaOrgURL,
-	}
+	}.Build()
 
 	// Missing credentials are not an immediate error, as
 	// we could be updating a plugin with existing saved credentials.
 	if out.oauthClientID != "" {
-		req.ApiCredentials = &oktav1.OktaAPICredentials{
-			Auth: &oktav1.OktaAPICredentials_OauthId{
-				OauthId: out.oauthClientID,
-			},
-		}
+		req.SetApiCredentials(oktav1.OktaAPICredentials_builder{
+			OauthId: proto.String(out.oauthClientID),
+		}.Build())
 	} else if out.oktaAPIToken != "" {
-		req.ApiCredentials = &oktav1.OktaAPICredentials{
-			Auth: &oktav1.OktaAPICredentials_SswsBearerToken{
-				SswsBearerToken: out.oktaAPIToken,
-			},
-		}
+		req.SetApiCredentials(oktav1.OktaAPICredentials_builder{
+			SswsBearerToken: proto.String(out.oktaAPIToken),
+		}.Build())
 	}
 
 	if shouldValidateAuth {

@@ -41,13 +41,13 @@ func Test_convertTokenToProto(t *testing.T) {
 					},
 				},
 			},
-			want: &accessgraphv1alpha.GithubTokenV1{
+			want: accessgraphv1alpha.GithubTokenV1_builder{
 				Name:         "test-token",
 				Owner:        "test-user",
 				Expires:      timestamppb.New(testTime.Add(24 * time.Hour)),
-				Permissions:  []*accessgraphv1alpha.GithubTokenV1Permission{{Domain: "org", Verb: "read", Object: "account"}},
+				Permissions:  []*accessgraphv1alpha.GithubTokenV1Permission{accessgraphv1alpha.GithubTokenV1Permission_builder{Domain: "org", Verb: "read", Object: "account"}.Build()},
 				Organization: "test-org",
-			},
+			}.Build(),
 		},
 		{
 			name: "convert token to proto without permissions",
@@ -65,12 +65,12 @@ func Test_convertTokenToProto(t *testing.T) {
 					},
 				},
 			},
-			want: &accessgraphv1alpha.GithubTokenV1{
+			want: accessgraphv1alpha.GithubTokenV1_builder{
 				Name:         "test-token",
 				Owner:        "test-user",
 				Expires:      timestamppb.New(testTime.Add(24 * time.Hour)),
 				Organization: "test-org",
-			},
+			}.Build(),
 		},
 		{
 			name: "convert token to proto without expiration",
@@ -87,11 +87,11 @@ func Test_convertTokenToProto(t *testing.T) {
 					},
 				},
 			},
-			want: &accessgraphv1alpha.GithubTokenV1{
+			want: accessgraphv1alpha.GithubTokenV1_builder{
 				Name:         "test-token",
 				Owner:        "test-user",
 				Organization: "test-org",
-			},
+			}.Build(),
 		},
 	}
 	for _, tt := range tests {
