@@ -299,9 +299,9 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, logger *slo
 
 	// TODO(kopiczko) pass the logger with extra attributes to assignmentClient.
 	assignmentClient := a.getAssignmentClient()
-	op := opProvision
+	op := constants.OktaAssignmentTargetOpProvision
 	if needsCleanup {
-		op = opCleanup
+		op = constants.OktaAssignmentTargetOpCleanup
 	}
 	processErrs := a.processTargets(ctx, logger, assignmentClient, assignment, op)
 
@@ -384,7 +384,7 @@ func (a *assignmentProcessor) shouldProcess(ctx context.Context, logger *slog.Lo
 
 // processTargets will try to provision/cleanup targets. It returns the updates assignment status
 // and errors that should be reported in the audit event if any.
-func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, op opType) []error {
+func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, op constants.OktaAssignmentTargetOp) []error {
 	ctx, cancel := context.WithTimeout(ctx, processAssignmentTargetsTimeout)
 	defer cancel()
 
@@ -400,10 +400,16 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.L
 		logger := logger.With(
 			"target_type", target.GetTargetType(),
 			"target_id", target.GetID(),
+			"target_op", op,
 		)
 
+		outcome := constants.OktaAssignmentTargetOutcomeSuccessful
 		if err := a.processTarget(ctx, logger, client, assignment, target, op); err != nil {
+			outcome = constants.OktaAssignmentTargetOutcomeFailed
 			errs = append(errs, trace.Wrap(err))
+		}
+		if err := target.RecordStatus(a.clock.Now(), op, outcome); err != nil {
+			logger.ErrorContext(ctx, "Failed to record target status", "target_outcome", outcome, "error", err)
 		}
 
 		// If context timed out, break the loop, otherwise we can log a lot of confusing
@@ -415,11 +421,13 @@ func (a *assignmentProcessor) processTargets(ctx context.Context, logger *slog.L
 			errs = append(errs, trace.Errorf("assignment targets processing timed out after %s; processed %d of %d targets", processAssignmentTargetsTimeout, i+1, len(targets)))
 			return errs
 		}
+
+		logger.DebugContext(ctx, "Processed assignment target", "target_outcome", outcome)
 	}
 	return errs
 }
 
-func (a *assignmentProcessor) processTarget(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, target types.OktaAssignmentTarget, op opType) error {
+func (a *assignmentProcessor) processTarget(ctx context.Context, logger *slog.Logger, client *assignmentClient, assignment types.OktaAssignment, target types.OktaAssignmentTarget, op constants.OktaAssignmentTargetOp) error {
 	switch outcome := a.authorizeTarget(target); outcome {
 	case targetAuthorized:
 		// Carry on with processing.
@@ -436,9 +444,9 @@ func (a *assignmentProcessor) processTarget(ctx context.Context, logger *slog.Lo
 	}
 
 	switch op {
-	case opProvision:
+	case constants.OktaAssignmentTargetOpProvision:
 		return trace.Wrap(a.provisionTarget(ctx, logger, client, assignment, target))
-	case opCleanup:
+	case constants.OktaAssignmentTargetOpCleanup:
 		return trace.Wrap(a.cleanupTarget(ctx, logger, client, assignment, target))
 	default:
 		logger.ErrorContext(ctx, "Unknown process target operation (this is a bug)", "op", op)
@@ -460,7 +468,7 @@ func (a *assignmentProcessor) provisionTarget(ctx context.Context, logger *slog.
 		// User member, nothing to check.
 	case err != nil:
 		logger.ErrorContext(ctx, "Failed to check user's AccessList membership", "error", err)
-		return trace.Wrap(newTargetAuditError(target, opProvision, trace.Errorf("failed to check user's AccessList membership: %s", err)))
+		return trace.Wrap(newTargetAuditError(target, constants.OktaAssignmentTargetOpProvision, trace.Errorf("failed to check user's AccessList membership: %s", err)))
 	}
 
 	var registerErr error
@@ -479,7 +487,7 @@ func (a *assignmentProcessor) provisionTarget(ctx context.Context, logger *slog.
 	}
 	if registerErr != nil {
 		logger.ErrorContext(ctx, "Error provisioning target", "error", registerErr)
-		return trace.Wrap(newTargetAuditError(target, opProvision, registerErr))
+		return trace.Wrap(newTargetAuditError(target, constants.OktaAssignmentTargetOpProvision, registerErr))
 	}
 	a.registerUserTarget(assignment, target)
 
@@ -511,7 +519,7 @@ func (a *assignmentProcessor) cleanupTarget(ctx context.Context, logger *slog.Lo
 	}
 	if unregisterErr != nil {
 		logger.ErrorContext(ctx, "Error cleaning up target", "error", unregisterErr)
-		return trace.Wrap(newTargetAuditError(target, opCleanup, unregisterErr))
+		return trace.Wrap(newTargetAuditError(target, constants.OktaAssignmentTargetOpCleanup, unregisterErr))
 	}
 
 	return nil
@@ -670,30 +678,20 @@ func userTargetName(assignment types.OktaAssignment, target types.OktaAssignment
 	return fmt.Sprintf("%x:%x:%x", assignment.GetUser(), target.GetTargetType(), target.GetID())
 }
 
-type opType int
-
-const (
-	_ opType = iota // unset
-	opProvision
-	opCleanup
-)
-
 // newTargetAuditError creates an error for an assignment target which denotes the error details
 // are already logged and can be found using assignment reference in this error message.
-func newTargetAuditError(target types.OktaAssignmentTarget, verb opType, err error) error {
+func newTargetAuditError(target types.OktaAssignmentTarget, verb constants.OktaAssignmentTargetOp, err error) error {
 	// The assignment reference should be already present in the audit event, but there is no
 	// info about the target so add the target ref to the error message.
 	targetRef := target.GetTargetType() + ":" + target.GetID()
 
-	// verb type is intentionally not a string to discourage from using %s formatting which
-	// would make it difficult to grep the code for the error message.
 	switch verb {
-	case opProvision:
+	case constants.OktaAssignmentTargetOpProvision:
 		return trace.BadParameter("failed to provision target %q: %s", targetRef, err)
-	case opCleanup:
+	case constants.OktaAssignmentTargetOpCleanup:
 		return trace.BadParameter("failed to cleanup target %q: %s", targetRef, err)
 	default:
-		return trace.BadParameter("failed to process target (unsupported verb [%d]) %q: %s", verb, targetRef, err)
+		return trace.BadParameter("failed to process target (unsupported verb [%s]) %q: %s", verb, targetRef, err)
 	}
 }
 

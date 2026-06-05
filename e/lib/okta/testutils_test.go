@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ossteleport "github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
@@ -490,8 +491,29 @@ func group(t *testing.T, name, origin, orgURL string) types.UserGroup {
 	return userGroup
 }
 
-func target(targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType, id string) *types.OktaAssignmentTargetV1 {
-	return &types.OktaAssignmentTargetV1{Type: targetType, Id: id}
+type targetOpt func(*types.OktaAssignmentTargetV1)
+
+func withStatus(status *types.OktaAssignmentTargetStatus) targetOpt {
+	return func(t *types.OktaAssignmentTargetV1) {
+		t.Status = status
+	}
+}
+
+func target(targetType types.OktaAssignmentTargetV1_OktaAssignmentTargetType, id string, opts ...targetOpt) *types.OktaAssignmentTargetV1 {
+	target := &types.OktaAssignmentTargetV1{Type: targetType, Id: id}
+	for _, opt := range opts {
+		opt(target)
+	}
+	return target
+}
+
+func status(op constants.OktaAssignmentTargetOp, outcome constants.OktaAssignmentTargetOutcome, lastProcessed time.Time, failureCount int) *types.OktaAssignmentTargetStatus {
+	return &types.OktaAssignmentTargetStatus{
+		Op:            string(op),
+		Outcome:       string(outcome),
+		LastProcessed: lastProcessed,
+		FailureCount:  int32(failureCount),
+	}
 }
 
 func assignment(t *testing.T, accessRequestName string, user userName, cleanupTime time.Time, status string, lastTransition time.Time,

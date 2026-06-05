@@ -68,6 +68,13 @@ func TestAssignmentReconciler(t *testing.T) {
 	// Check the assignment was reprocessed and is in successful state now.
 	require.NoError(t, assignment1.SetStatus(constants.OktaAssignmentStatusProcessing))
 	require.NoError(t, assignment1.SetStatus(constants.OktaAssignmentStatusSuccessful))
+	for _, target := range assignment1.GetTargets() {
+		require.NoError(t, target.RecordStatus(
+			clock.Now(),
+			constants.OktaAssignmentTargetOpProvision,
+			constants.OktaAssignmentTargetOutcomeSuccessful,
+		))
+	}
 	assertOktaAssignments(t, ap, types.OktaAssignments{assignment1})
 
 	// Set CleanupTime to past and set LastTransition to time before the CleanupTime.

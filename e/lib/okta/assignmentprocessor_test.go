@@ -91,9 +91,15 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime.Add(time.Minute), false,
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2")),
-				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(time.Minute), 1),
+				)),
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2"), withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(time.Minute), 0),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(time.Minute), 0),
+				)),
 			)},
 			incrementTimeDuration: time.Minute,
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
@@ -124,13 +130,21 @@ func TestProcessAssignments(t *testing.T) {
 			},
 			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime, false,
 				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2")),
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2"), withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(10*time.Minute), 2),
+				)),
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime.Add(10*time.Minute), false,
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2")),
-				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(10*time.Minute), 0),
+				)),
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app2"), withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(10*time.Minute), 0),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(10*time.Minute), 1),
+				)),
 			)},
 			incrementTimeDuration: 10 * time.Minute,
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
@@ -159,7 +173,9 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(time.Minute), false,
-				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(1*time.Minute), 0),
+				)),
 			)},
 			incrementTimeDuration: time.Minute,
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
@@ -205,8 +221,12 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusFailed, startTime.Add(time.Minute), false,
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(1*time.Minute), 1),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(1*time.Minute), 1),
+				)),
 			)},
 			incrementTimeDuration: time.Minute,
 			expectedAuditEvents: []auditEventInfo{
@@ -236,8 +256,12 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(time.Minute), true,
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(1*time.Minute), 0),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(1*time.Minute), 0),
+				)),
 			)},
 			incrementTimeDuration: time.Minute,
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
@@ -291,8 +315,12 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(time.Minute), false,
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(1*time.Minute), 0),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(1*time.Minute), 0),
+				)),
 			)},
 			incrementTimeDuration: time.Minute,
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
@@ -315,8 +343,12 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(1*time.Second), false,
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(1*time.Second), 0),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(1*time.Second), 0),
+				)),
 			)},
 			incrementTimeDuration: 1 * time.Second,
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
@@ -352,8 +384,12 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(1*time.Second), true,
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(1*time.Second), 0),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(1*time.Second), 0),
+				)),
 			)},
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
 				"group1": set.New[oktaUserID](),
@@ -386,8 +422,12 @@ func TestProcessAssignments(t *testing.T) {
 				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
 			)},
 			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, startTime, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), true,
-				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
-				target(types.OktaAssignmentTargetV1_GROUP, "group1"),
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), 0),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
+					status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), 0),
+				)),
 			)},
 			oktaClientGroupMapping: map[oktaGroupID]set.Set[oktaUserID]{
 				"group1": set.New[oktaUserID](),
@@ -422,10 +462,14 @@ func TestProcessAssignments(t *testing.T) {
 			},
 			expected: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), false,
-					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+						status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(5*time.Minute), 0),
+					)),
 				),
 				assignment(t, "assignment2", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), true,
-					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+						status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(5*time.Minute), 0),
+					)),
 				),
 			},
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
@@ -458,10 +502,14 @@ func TestProcessAssignments(t *testing.T) {
 			},
 			expected: types.OktaAssignments{
 				assignment(t, "assignment1", testUser, timeout, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), true,
-					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+						status(constants.OktaAssignmentTargetOpCleanup, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(5*time.Minute), 0),
+					)),
 				),
 				assignment(t, "assignment2", testUser, zero, constants.OktaAssignmentStatusSuccessful, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), false,
-					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1")),
+					target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+						status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeSuccessful, startTime.Add(5*time.Minute), 0),
+					)),
 				),
 			},
 			oktaClientAppMapping: map[oktaapi.OktaAppID]set.Set[oktaapi.AppAssignment]{
@@ -476,6 +524,49 @@ func TestProcessAssignments(t *testing.T) {
 					startingStatus:   constants.OktaAssignmentStatusSuccessful,
 					endingStatus:     constants.OktaAssignmentStatusSuccessful,
 					errorAssertionFn: require.Empty,
+				},
+			},
+		},
+		{
+			name: "fail to process already failed app and group",
+			groups: types.UserGroups{
+				group(t, "group1", types.OriginOkta, testOrgURL),
+			},
+			apps: types.AppServers{
+				application(t, "app1", link, types.OriginOkta, testOrgURL),
+			},
+			deleteOktaAppIDs: map[string]bool{
+				mustAppName(t, "app1", link): true,
+			},
+			groupsSkipAddToOkta: true,
+			assignments: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime, false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(time.Minute), 3),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(time.Minute), 7),
+				)),
+			)},
+			expected: types.OktaAssignments{assignment(t, "assignment1", testUser, zero, constants.OktaAssignmentStatusFailed, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), false,
+				target(types.OktaAssignmentTargetV1_APPLICATION, appName("app1"), withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), 4),
+				)),
+				target(types.OktaAssignmentTargetV1_GROUP, "group1", withStatus(
+					status(constants.OktaAssignmentTargetOpProvision, constants.OktaAssignmentTargetOutcomeFailed, startTime.Add(oktaplugin.DefaultTimeBetweenAssignmentProcessLoops), 8),
+				)),
+			)},
+			incrementTimeDuration: oktaplugin.DefaultTimeBetweenAssignmentProcessLoops,
+			expectedAuditEvents: []auditEventInfo{
+				{
+					name:           "assignment1",
+					event:          events.OktaAssignmentProcessEvent,
+					code:           events.OktaAssignmentProcessFailureCode,
+					startingStatus: constants.OktaAssignmentStatusFailed,
+					endingStatus:   constants.OktaAssignmentStatusFailed,
+					errorAssertionFn: func(t require.TestingT, s any, msgAndArgs ...any) {
+						require.Contains(t, s, fmt.Sprintf(`app_server %q does not have an Okta App ID`, appName("app1")))
+						require.Contains(t, s, `assignments for group group1 not found`)
+					},
 				},
 			},
 		},
