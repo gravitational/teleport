@@ -144,7 +144,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			req: &fileTransferRequestWithApprovers{
 				FileTransferRequest: reexecsftp.FileTransferRequest{
 					ID:        "123",
-					Requester: "teleportUser",
+					Requester: "foo",
 					Location:  "~/badlocation",
 				},
 				approvers: make(map[string]*party),
@@ -159,7 +159,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			req: &fileTransferRequestWithApprovers{
 				FileTransferRequest: reexecsftp.FileTransferRequest{
 					ID:        "123",
-					Requester: "teleportUser",
+					Requester: "foo",
 					Location:  "~/Downloads",
 				},
 				approvers: approvers,
@@ -173,7 +173,7 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 			req: &fileTransferRequestWithApprovers{
 				FileTransferRequest: reexecsftp.FileTransferRequest{
 					ID:        "123",
-					Requester: services.UsernameForRemoteCluster("teleportUser", "root.example.com"),
+					Requester: services.UsernameForRemoteCluster("foo", "root.example.com"),
 				},
 				approvers: make(map[string]*party),
 			},
