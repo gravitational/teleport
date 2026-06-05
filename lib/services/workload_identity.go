@@ -203,4 +203,3 @@ func workloadIdentitySPIFFEIDKey(wi *workloadidentityv1pb.WorkloadIdentity) stri
 	// SPIFFE IDs may not be unique, so append the resource name.
 	return spiffeID + "/" + name
 }
-

@@ -111,17 +111,17 @@ func TestWorkloadIdentity(t *testing.T) {
 			_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, item)
 			return trace.Wrap(err)
 		},
-		list:      workloadIdentityPageFunc(p.workloadIdentity.RangeWorkloadIdentities),
+		list: workloadIdentityPageFunc(p.workloadIdentity.RangeWorkloadIdentities),
 		deleteAll: func(ctx context.Context) error {
 			return p.workloadIdentity.DeleteAllWorkloadIdentities(ctx)
 		},
 		cacheList: workloadIdentityPageFunc(p.cache.RangeWorkloadIdentities),
-		cacheGet: p.cache.GetWorkloadIdentity,
+		cacheGet:  p.cache.GetWorkloadIdentity,
 	})
 }
 
 // TestWorkloadIdentityCacheRange tests that RangeWorkloadIdentities iterates in
-// the requested order and honours range bounds.
+// the requested order and honors range bounds.
 func TestWorkloadIdentityCacheRange(t *testing.T) {
 	t.Parallel()
 
