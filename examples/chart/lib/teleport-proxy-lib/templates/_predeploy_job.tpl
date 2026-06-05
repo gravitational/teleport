@@ -38,7 +38,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: "teleport"
-        image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-proxy-lib.internal.version" . }}'
+        image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-util-lib.version" . }}'
         imagePullPolicy: {{ $proxy.imagePullPolicy }}
 {{- if $proxy.jobResources }}
         resources:

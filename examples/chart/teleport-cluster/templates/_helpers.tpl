@@ -29,16 +29,8 @@ so we can use the same SA for deployments and hooks.
 {{- end -}}
 {{- end -}}
 
-{{- define "teleport-cluster.version" -}}
-{{- include "teleport-util-lib.version" . -}}
-{{- end -}}
-
-{{- define "teleport-cluster.majorVersion" -}}
-{{- include "teleport-util-lib.majorVersion" . -}}
-{{- end -}}
-
 {{- define "teleport-cluster.previousMajorVersion" -}}
-{{- sub (include "teleport-cluster.majorVersion" . | atoi ) 1 -}}
+{{- sub (include "teleport-util-lib.majorVersion" . | atoi ) 1 -}}
 {{- end -}}
 
 {{/* Auth pods all labels */}}
@@ -46,8 +38,8 @@ so we can use the same SA for deployments and hooks.
 {{ include "teleport-cluster.auth.selectorLabels" . }}
 helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
 app.kubernetes.io/managed-by: '{{ .Release.Service }}'
-app.kubernetes.io/version: '{{ include "teleport-cluster.version" . }}'
-teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
+app.kubernetes.io/version: '{{ include "teleport-util-lib.version" . }}'
+teleport.dev/majorVersion: '{{ include "teleport-util-lib.majorVersion" . }}'
 {{- end -}}
 
 {{/* Auth pods selector labels */}}
@@ -62,8 +54,8 @@ app.kubernetes.io/component: 'auth'
 {{ include "teleport-cluster.selectorLabels" . }}
 helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
 app.kubernetes.io/managed-by: '{{ .Release.Service }}'
-app.kubernetes.io/version: '{{ include "teleport-cluster.version" . }}'
-teleport.dev/majorVersion: '{{ include "teleport-cluster.majorVersion" . }}'
+app.kubernetes.io/version: '{{ include "teleport-util-lib.version" . }}'
+teleport.dev/majorVersion: '{{ include "teleport-util-lib.majorVersion" . }}'
 {{- end -}}
 
 {{/* All pods selector labels */}}
@@ -79,7 +71,7 @@ app.kubernetes.io/instance: '{{ .Release.Name }}'
 {{- end -}}
 
 {{- define "teleport-cluster.auth.currentVersionServiceName" -}}
-{{- .Release.Name | trunc 54 | trimSuffix "-" -}}-auth-v{{ include "teleport-cluster.majorVersion" . }}
+{{- .Release.Name | trunc 54 | trimSuffix "-" -}}-auth-v{{ include "teleport-util-lib.majorVersion" . }}
 {{- end -}}
 
 {{- define "teleport-cluster.auth.previousVersionServiceName" -}}

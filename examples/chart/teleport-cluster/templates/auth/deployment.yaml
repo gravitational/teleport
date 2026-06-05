@@ -155,7 +155,7 @@ spec:
 {{- end }}
       containers:
       - name: "teleport"
-        image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
+        image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-util-lib.version" . }}'
         imagePullPolicy: {{ $auth.imagePullPolicy }}
         {{- $gomemlimit := include "teleport-util-lib.gomemlimit" $auth }}
         {{- if or $auth.extraEnv $auth.tls.existingCASecretName $gomemlimit }}

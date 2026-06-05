@@ -37,7 +37,7 @@ spec:
       restartPolicy: Never
       containers:
       - name: "teleport-config-check"
-        image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
+        image: '{{ if $auth.enterprise }}{{ $auth.enterpriseImage }}{{ else }}{{ $auth.image }}{{ end }}:{{ include "teleport-util-lib.version" . }}'
         imagePullPolicy: {{ $auth.imagePullPolicy }}
 {{- if $auth.jobResources }}
         resources:

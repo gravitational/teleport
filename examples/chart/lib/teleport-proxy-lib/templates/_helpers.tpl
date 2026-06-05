@@ -21,21 +21,13 @@ so we can use the same SA for deployments and hooks.
 {{- end -}}
 {{- end -}}
 
-{{- define "teleport-proxy-lib.internal.version" -}}
-{{- include "teleport-util-lib.version" . -}}
-{{- end -}}
-
-{{- define "teleport-proxy-lib.internal.majorVersion" -}}
-{{- include "teleport-util-lib.majorVersion" . -}}
-{{- end -}}
-
 {{/* Proxy all labels */}}
 {{- define "teleport-proxy-lib.internal.labels" -}}
 {{ include "teleport-proxy-lib.internal.selectorLabels" . }}
 helm.sh/chart: '{{ .Chart.Name }}-{{ .Chart.Version | replace "+" "_" }}'
 app.kubernetes.io/managed-by: '{{ .Release.Service }}'
-app.kubernetes.io/version: '{{ include "teleport-proxy-lib.internal.version" . }}'
-teleport.dev/majorVersion: '{{ include "teleport-proxy-lib.internal.majorVersion" . }}'
+app.kubernetes.io/version: '{{ include "teleport-util-lib.version" . }}'
+teleport.dev/majorVersion: '{{ include "teleport-util-lib.majorVersion" . }}'
 {{- end -}}
 
 {{/* Proxy selector labels */}}

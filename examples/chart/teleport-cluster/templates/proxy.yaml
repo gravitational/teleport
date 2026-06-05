@@ -13,7 +13,7 @@ value we use in this chart matches the value used by the lib chart. */}}
 {{- $waitAuthUpdate := dict
   "name" "wait-auth-update"
   "skipDefaultVolumeMounts" true
-  "image" (printf "%s:%s" (ternary $proxyValues.enterpriseImage $proxyValues.image $proxyValues.enterprise) (include "teleport-cluster.version" .))
+  "image" (printf "%s:%s" (ternary $proxyValues.enterpriseImage $proxyValues.image $proxyValues.enterprise) (include "teleport-util-lib.version" .))
   "command" (list
     "teleport"
     "wait"

@@ -150,7 +150,7 @@ spec:
 {{- end }}{{/* initContainers */}}
       containers:
       - name: "teleport"
-        image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-proxy-lib.internal.version" . }}'
+        image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-util-lib.version" . }}'
         imagePullPolicy: {{ $proxy.imagePullPolicy }}
         {{- $gomemlimit := include "teleport-util-lib.gomemlimit" $proxy }}
         {{- if or $proxy.extraEnv $proxy.tls.existingCASecretName $gomemlimit }}

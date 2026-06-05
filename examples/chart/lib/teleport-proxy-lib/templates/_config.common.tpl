@@ -74,7 +74,7 @@ proxy_service:
 {{- if $proxy.proxyProtocol }}
   proxy_protocol: {{ $proxy.proxyProtocol | quote }}
 {{- end }}
-{{- if and $proxy.ingress.enabled (semverCompare ">= 14.0.0-0" (include "teleport-proxy-lib.internal.version" .)) }}
+{{- if and $proxy.ingress.enabled (semverCompare ">= 14.0.0-0" (include "teleport-util-lib.version" .)) }}
   trust_x_forwarded_for: true
 {{- end }}
 {{- end -}}
