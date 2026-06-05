@@ -43,8 +43,10 @@ int converse(int n, const struct pam_message **msg, struct pam_response **resp, 
     int i;
     struct pam_response *aresp;
 
-    // If no messages arrived, the number of messages is greater than
-    // allowed, or msg or resp is NULL, something is wrong with the caller.
+    // Something is wrong with the caller if:
+    // - no messages arrived
+    // - the number of messages is greater than allowed
+    // - msg or resp is NULL
     if (n <= 0 || n > PAM_MAX_NUM_MSG || msg == NULL || resp == NULL) {
         return PAM_CONV_ERR;
     }
