@@ -99,23 +99,23 @@ func (d *SSHDiag) run(ctx context.Context) (*diagv1.SSHConfigurationReport, erro
 	userOpenSSHConfigContents, included, err := d.sshConfigChecker.OpenSSHConfigIncludesVNetSSHConfig()
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return &diagv1.SSHConfigurationReport{
+			return diagv1.SSHConfigurationReport_builder{
 				UserOpensshConfigPath: d.sshConfigChecker.UserOpenSSHConfigPath,
 				VnetSshConfigPath:     d.sshConfigChecker.VNetSSHConfigPath,
-			}, nil
+			}.Build(), nil
 		}
 		return nil, trace.Wrap(err)
 	}
 	if !utf8.Valid(userOpenSSHConfigContents) {
 		return nil, trace.Errorf("%s is not valid UTF-8", d.sshConfigChecker.UserOpenSSHConfigPath)
 	}
-	return &diagv1.SSHConfigurationReport{
+	return diagv1.SSHConfigurationReport_builder{
 		UserOpensshConfigPath:                  d.sshConfigChecker.UserOpenSSHConfigPath,
 		VnetSshConfigPath:                      d.sshConfigChecker.VNetSSHConfigPath,
 		UserOpensshConfigIncludesVnetSshConfig: included,
 		UserOpensshConfigExists:                true,
 		UserOpensshConfigContents:              string(userOpenSSHConfigContents),
-	}, nil
+	}.Build(), nil
 }
 
 // SSHConfigChecker checks the state of the user's SSH configuration.

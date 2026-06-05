@@ -26,19 +26,19 @@ import (
 )
 
 func TestRenderTimelineSanitizesTerminalControlSequences(t *testing.T) {
-	timeline := renderTimeline(&summarizerv1pb.EnhancedSummary{
+	timeline := renderTimeline(summarizerv1pb.EnhancedSummary_builder{
 		NotableCommandIndexes: []int32{0},
 		Commands: []*summarizerv1pb.CommandAnalysis{
-			{
+			summarizerv1pb.CommandAnalysis_builder{
 				TimelineTitle:    "\x1b]0;owned title\aListed files\x1b[31m",
 				TimelineSubtitle: "\x1b]8;;https://example.com\aDenied\x1b]8;;\a",
 				RiskLevel:        summarizerv1pb.RiskLevel_RISK_LEVEL_HIGH,
-			},
-			{
+			}.Build(),
+			summarizerv1pb.CommandAnalysis_builder{
 				Command: "\x1b]52;c;AAAA\acat /etc/passwd",
-			},
+			}.Build(),
 		},
-	}, 100, buildPalette())
+	}.Build(), 100, buildPalette())
 
 	visible := stripANSI(timeline)
 	for _, forbidden := range []string{"\x1b", "\a", "owned title", "AAAA"} {

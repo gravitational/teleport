@@ -64,12 +64,12 @@ func fetchRoleDefinitions(ctx context.Context, subscriptionID string, cli RoleDe
 			}
 			pbPerms = append(pbPerms, &pbPerm)
 		}
-		pbRoleDef := &accessgraphv1alpha.AzureRoleDefinition{
+		pbRoleDef := accessgraphv1alpha.AzureRoleDefinition_builder{
 			Id:             *roleDef.ID,
 			Name:           *roleDef.Properties.RoleName,
 			SubscriptionId: subscriptionID,
 			Permissions:    pbPerms,
-		}
+		}.Build()
 		pbRoleDefs = append(pbRoleDefs, pbRoleDef)
 	}
 	return pbRoleDefs, trace.NewAggregate(fetchErrs...)

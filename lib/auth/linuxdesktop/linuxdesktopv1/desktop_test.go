@@ -32,10 +32,10 @@ import (
 func TestNewLinuxDesktop(t *testing.T) {
 	t.Parallel()
 
-	spec := &linuxdesktopv1pb.LinuxDesktopSpec{
+	spec := linuxdesktopv1pb.LinuxDesktopSpec_builder{
 		Addr:     "127.0.0.1:22",
 		Hostname: "desktop-1",
-	}
+	}.Build()
 	desktop, err := NewLinuxDesktop("desktop-1", spec)
 	require.NoError(t, err)
 	require.Equal(t, types.KindLinuxDesktop, desktop.GetKind())
@@ -47,17 +47,17 @@ func TestNewLinuxDesktop(t *testing.T) {
 func TestValidateLinuxDesktop(t *testing.T) {
 	t.Parallel()
 
-	valid := &linuxdesktopv1pb.LinuxDesktop{
+	valid := linuxdesktopv1pb.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "desktop-1",
-		},
-		Spec: &linuxdesktopv1pb.LinuxDesktopSpec{
+		}.Build(),
+		Spec: linuxdesktopv1pb.LinuxDesktopSpec_builder{
 			Addr:     "127.0.0.1:22",
 			Hostname: "host",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	tests := []struct {
 		name    string
@@ -75,44 +75,44 @@ func TestValidateLinuxDesktop(t *testing.T) {
 		},
 		{
 			name: "missing metadata",
-			desktop: &linuxdesktopv1pb.LinuxDesktop{
-				Spec: valid.Spec,
-			},
+			desktop: linuxdesktopv1pb.LinuxDesktop_builder{
+				Spec: valid.GetSpec(),
+			}.Build(),
 			wantErr: true,
 		},
 		{
 			name: "missing name",
-			desktop: &linuxdesktopv1pb.LinuxDesktop{
+			desktop: linuxdesktopv1pb.LinuxDesktop_builder{
 				Metadata: &headerv1.Metadata{},
-				Spec:     valid.Spec,
-			},
+				Spec:     valid.GetSpec(),
+			}.Build(),
 			wantErr: true,
 		},
 		{
 			name: "missing spec",
-			desktop: &linuxdesktopv1pb.LinuxDesktop{
-				Metadata: valid.Metadata,
-			},
+			desktop: linuxdesktopv1pb.LinuxDesktop_builder{
+				Metadata: valid.GetMetadata(),
+			}.Build(),
 			wantErr: true,
 		},
 		{
 			name: "missing addr",
-			desktop: &linuxdesktopv1pb.LinuxDesktop{
-				Metadata: valid.Metadata,
-				Spec: &linuxdesktopv1pb.LinuxDesktopSpec{
+			desktop: linuxdesktopv1pb.LinuxDesktop_builder{
+				Metadata: valid.GetMetadata(),
+				Spec: linuxdesktopv1pb.LinuxDesktopSpec_builder{
 					Hostname: "host",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: true,
 		},
 		{
 			name: "missing hostname",
-			desktop: &linuxdesktopv1pb.LinuxDesktop{
-				Metadata: valid.Metadata,
-				Spec: &linuxdesktopv1pb.LinuxDesktopSpec{
+			desktop: linuxdesktopv1pb.LinuxDesktop_builder{
+				Metadata: valid.GetMetadata(),
+				Spec: linuxdesktopv1pb.LinuxDesktopSpec_builder{
 					Addr: "127.0.0.1:22",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantErr: true,
 		},
 	}

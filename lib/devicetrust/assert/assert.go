@@ -126,55 +126,51 @@ func (s *authnStreamAdapter) Recv() (*devicepb.AuthenticateDeviceResponse, error
 		return nil, trace.Wrap(err)
 	}
 
-	if resp == nil || resp.Payload == nil {
+	if resp == nil || !resp.HasPayload() {
 		return nil, trace.BadParameter("assertion response payload required")
 	}
 
-	switch resp.Payload.(type) {
-	case *devicepb.AssertDeviceResponse_Challenge:
+	switch resp.WhichPayload() {
+	case devicepb.AssertDeviceResponse_Challenge_case:
 		return &devicepb.AuthenticateDeviceResponse{
 			Payload: &devicepb.AuthenticateDeviceResponse_Challenge{
 				Challenge: resp.GetChallenge(),
 			},
 		}, nil
-	case *devicepb.AssertDeviceResponse_TpmChallenge:
+	case devicepb.AssertDeviceResponse_TpmChallenge_case:
 		return &devicepb.AuthenticateDeviceResponse{
 			Payload: &devicepb.AuthenticateDeviceResponse_TpmChallenge{
 				TpmChallenge: resp.GetTpmChallenge(),
 			},
 		}, nil
-	case *devicepb.AssertDeviceResponse_DeviceAsserted:
+	case devicepb.AssertDeviceResponse_DeviceAsserted_case:
 		// Pass an empty UserCertificates to signify success.
-		return &devicepb.AuthenticateDeviceResponse{
-			Payload: &devicepb.AuthenticateDeviceResponse_UserCertificates{
-				UserCertificates: &devicepb.UserCertificates{},
-			},
-		}, nil
+		return devicepb.AuthenticateDeviceResponse_builder{
+			UserCertificates: &devicepb.UserCertificates{},
+		}.Build(), nil
 	default:
 		return nil, trace.BadParameter("unexpected assertion response payload: %T", resp.Payload)
 	}
 }
 
 func (s *authnStreamAdapter) Send(authnReq *devicepb.AuthenticateDeviceRequest) error {
-	if authnReq == nil || authnReq.Payload == nil {
+	if authnReq == nil || !authnReq.HasPayload() {
 		return trace.BadParameter("authenticate request payload required")
 	}
 
 	req := &devicepb.AssertDeviceRequest{}
-	switch authnReq.Payload.(type) {
-	case *devicepb.AuthenticateDeviceRequest_Init:
+	switch authnReq.WhichPayload() {
+	case devicepb.AuthenticateDeviceRequest_Init_case:
 		init := authnReq.GetInit()
-		req.Payload = &devicepb.AssertDeviceRequest_Init{
-			Init: &devicepb.AssertDeviceInit{
-				CredentialId: init.GetCredentialId(),
-				DeviceData:   init.GetDeviceData(),
-			},
-		}
-	case *devicepb.AuthenticateDeviceRequest_ChallengeResponse:
+		req.SetInit(devicepb.AssertDeviceInit_builder{
+			CredentialId: init.GetCredentialId(),
+			DeviceData:   init.GetDeviceData(),
+		}.Build())
+	case devicepb.AuthenticateDeviceRequest_ChallengeResponse_case:
 		req.Payload = &devicepb.AssertDeviceRequest_ChallengeResponse{
 			ChallengeResponse: authnReq.GetChallengeResponse(),
 		}
-	case *devicepb.AuthenticateDeviceRequest_TpmChallengeResponse:
+	case devicepb.AuthenticateDeviceRequest_TpmChallengeResponse_case:
 		req.Payload = &devicepb.AssertDeviceRequest_TpmChallengeResponse{
 			TpmChallengeResponse: authnReq.GetTpmChallengeResponse(),
 		}

@@ -261,24 +261,24 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+		CreateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: &v1.Metadata{
+			Metadata: v1.Metadata_builder{
 				Name: "test-slack-amr",
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			}.Build(),
+			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 				Subjects:  []string{types.KindAccessRequest},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: &accessmonitoringrulesv1.Notification{
+				Notification: accessmonitoringrulesv1.Notification_builder{
 					Name: "slack",
 					Recipients: []string{
 						s.reviewer1SlackUser.ID,
 						s.reviewer2SlackUser.Profile.Email,
 					},
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 	assert.NoError(t, err)
 
 	// Test execution: we create an access request
@@ -334,24 +334,24 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+		CreateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: &v1.Metadata{
+			Metadata: v1.Metadata_builder{
 				Name: "test-slack-amr-2",
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			}.Build(),
+			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 				Subjects:  []string{types.KindAccessRequest},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: &accessmonitoringrulesv1.Notification{
+				Notification: accessmonitoringrulesv1.Notification_builder{
 					Name: "slack",
 					Recipients: []string{
 						s.reviewer1SlackUser.ID,
 						s.reviewer2SlackUser.Profile.Email,
 					},
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 	assert.NoError(t, err)
 
 	// Test execution: we create an access request
@@ -387,24 +387,24 @@ func (s *SlackSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 
 	_, err = s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		UpdateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+		UpdateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: &v1.Metadata{
+			Metadata: v1.Metadata_builder{
 				Name: "test-slack-amr-2",
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			}.Build(),
+			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 				Subjects:  []string{"someOtherKind"},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: &accessmonitoringrulesv1.Notification{
+				Notification: accessmonitoringrulesv1.Notification_builder{
 					Name: "slack",
 					Recipients: []string{
 						s.reviewer1SlackUser.ID,
 						s.reviewer2SlackUser.Profile.Email,
 					},
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 	assert.NoError(t, err)
 
 	messages = []slack.Message{}

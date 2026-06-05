@@ -130,9 +130,9 @@ type formattedBeam struct {
 func getBeam(ctx context.Context, client authclient.ClientI, ref string) (*beamsv1.Beam, error) {
 	req := &beamsv1.GetBeamRequest{}
 	if _, err := uuid.Parse(ref); err == nil {
-		req.Id = &beamsv1.GetBeamRequest_Name{Name: ref}
+		req.SetName(ref)
 	} else {
-		req.Id = &beamsv1.GetBeamRequest_Alias{Alias: ref}
+		req.SetAlias(ref)
 	}
 
 	rsp, err := client.

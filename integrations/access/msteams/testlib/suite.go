@@ -545,24 +545,24 @@ func (s *MsTeamsSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+		CreateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: &v1.Metadata{
+			Metadata: v1.Metadata_builder{
 				Name: "test-msteams-amr",
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			}.Build(),
+			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 				Subjects:  []string{types.KindAccessRequest},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: &accessmonitoringrulesv1.Notification{
+				Notification: accessmonitoringrulesv1.Notification_builder{
 					Name: "msteams",
 					Recipients: []string{
 						s.reviewer1TeamsUser.ID,
 						s.reviewer2TeamsUser.Mail,
 					},
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 	assert.NoError(t, err)
 
 	// Test execution: create an access request

@@ -144,7 +144,7 @@ func NewService(cfg ServerConfig) (*Service, error) {
 
 // GetClusterDetails returns the cluster details as seen by this service to the client.
 func (s *Service) GetClusterDetails(context.Context, *transportv1pb.GetClusterDetailsRequest) (*transportv1pb.GetClusterDetailsResponse, error) {
-	return &transportv1pb.GetClusterDetailsResponse{Details: &transportv1pb.ClusterDetails{FipsEnabled: s.cfg.FIPS}}, nil
+	return transportv1pb.GetClusterDetailsResponse_builder{Details: transportv1pb.ClusterDetails_builder{FipsEnabled: s.cfg.FIPS}.Build()}.Build(), nil
 }
 
 // ProxyCluster establishes a connection to a cluster and proxies the connection
@@ -167,16 +167,16 @@ func (s *Service) ProxyCluster(stream transportv1pb.TransportService_ProxyCluste
 		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
-	conn, err := s.cfg.Dialer.DialSite(ctx, req.Cluster, p.Addr, clientDst)
+	conn, err := s.cfg.Dialer.DialSite(ctx, req.GetCluster(), p.Addr, clientDst)
 	if err != nil {
-		return trace.Wrap(err, "failed dialing cluster %q", req.Cluster)
+		return trace.Wrap(err, "failed dialing cluster %q", req.GetCluster())
 	}
 
 	// A client may provide a frame with the first message. Since the message is
 	// already consumed it won't be copying during the proxying below. In order for
 	// the contents to be copied to the connection it needs to be manually written.
-	if req.Frame != nil {
-		if _, err := conn.Write(req.Frame.Payload); err != nil {
+	if req.HasFrame() {
+		if _, err := conn.Write(req.GetFrame().GetPayload()); err != nil {
 			return trace.Wrap(err, "failed writing payload from first frame")
 		}
 	}
@@ -201,15 +201,15 @@ func (c clusterStream) Recv() ([]byte, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Frame == nil {
+	if !req.HasFrame() {
 		return nil, trace.BadParameter("received invalid frame")
 	}
 
-	return req.Frame.Payload, nil
+	return req.GetFrame().GetPayload(), nil
 }
 
 func (c clusterStream) Send(frame []byte) error {
-	return trace.Wrap(c.stream.Send(&transportv1pb.ProxyClusterResponse{Frame: &transportv1pb.Frame{Payload: frame}}))
+	return trace.Wrap(c.stream.Send(transportv1pb.ProxyClusterResponse_builder{Frame: transportv1pb.Frame_builder{Payload: frame}.Build()}.Build()))
 }
 
 // ProxySSH establishes a connection to a host and proxies both the SSH and SSH
@@ -235,11 +235,11 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	// validate the target
-	if req.DialTarget == nil {
+	if !req.HasDialTarget() {
 		return trace.BadParameter("first frame must contain a dial target")
 	}
 
-	host, port, err := net.SplitHostPort(req.DialTarget.HostPort)
+	host, port, err := net.SplitHostPort(req.GetDialTarget().GetHostPort())
 	if err != nil {
 		return trace.BadParameter("dial target contains an invalid hostport")
 	}
@@ -265,9 +265,9 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			// clients.
 			switch frame := req.Frame.(type) {
 			case *transportv1pb.ProxySSHRequest_Ssh:
-				sshStream.incomingC <- frame.Ssh.Payload
+				sshStream.incomingC <- frame.Ssh.GetPayload()
 			case *transportv1pb.ProxySSHRequest_Agent:
-				agentStream.incomingC <- frame.Agent.Payload
+				agentStream.incomingC <- frame.Agent.GetPayload()
 			default:
 				s.cfg.Logger.ErrorContext(ctx, "received unexpected ssh frame", "frame", logutils.TypeAttr(frame))
 				continue
@@ -293,9 +293,9 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.Wrap(err, "retrieving destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
 	}
 
-	signer, err := s.cfg.SignerFn(ctx, authzContext, req.DialTarget.Cluster)
+	signer, err := s.cfg.SignerFn(ctx, authzContext, req.GetDialTarget().GetCluster())
 	if err != nil {
-		return trace.Wrap(err, "setting up SSH credentials for cluster %q", req.DialTarget.Cluster)
+		return trace.Wrap(err, "setting up SSH credentials for cluster %q", req.GetDialTarget().GetCluster())
 	}
 
 	checkAccessToRemoteCluster := func(types.RemoteCluster) error {
@@ -311,7 +311,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		scopePin = pin
 	}
 
-	hostConn, err := s.cfg.Dialer.DialHost(ctx, scopePin, p.Addr, clientDst, host, port, req.DialTarget.Cluster, checkAccessToRemoteCluster, s.cfg.agentGetterFn(agentStreamRW), signer)
+	hostConn, err := s.cfg.Dialer.DialHost(ctx, scopePin, p.Addr, clientDst, host, port, req.GetDialTarget().GetCluster(), checkAccessToRemoteCluster, s.cfg.agentGetterFn(agentStreamRW), signer)
 	if err != nil {
 		// Return ambiguous errors unadorned so that clients can detect them easily.
 		if errors.Is(err, teleport.ErrNodeIsAmbiguous) {
@@ -326,7 +326,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		hostConn.Close()
 	}()
 
-	targetAddr, err := utils.ParseAddr(req.DialTarget.HostPort)
+	targetAddr, err := utils.ParseAddr(req.GetDialTarget().GetHostPort())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -348,9 +348,9 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 
 	// send back the cluster details to alert the other side that
 	// the connection has been established
-	if err := stream.Send(&transportv1pb.ProxySSHResponse{
-		Details: &transportv1pb.ClusterDetails{FipsEnabled: s.cfg.FIPS},
-	}); err != nil {
+	if err := stream.Send(transportv1pb.ProxySSHResponse_builder{
+		Details: transportv1pb.ClusterDetails_builder{FipsEnabled: s.cfg.FIPS}.Build(),
+	}.Build()); err != nil {
 		return trace.Wrap(err, "failed sending cluster details ")
 	}
 
@@ -412,7 +412,7 @@ func newSSHStreams(stream transportv1pb.TransportService_ProxySSHServer) (ssh *s
 		incomingC: make(chan []byte, 10),
 		stream:    stream,
 		responseFn: func(payload []byte) *transportv1pb.ProxySSHResponse {
-			return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Ssh{Ssh: &transportv1pb.Frame{Payload: payload}}}
+			return transportv1pb.ProxySSHResponse_builder{Ssh: transportv1pb.Frame_builder{Payload: payload}.Build()}.Build()
 		},
 		wLock: mu,
 	}
@@ -421,7 +421,7 @@ func newSSHStreams(stream transportv1pb.TransportService_ProxySSHServer) (ssh *s
 		incomingC: make(chan []byte, 10),
 		stream:    stream,
 		responseFn: func(payload []byte) *transportv1pb.ProxySSHResponse {
-			return &transportv1pb.ProxySSHResponse{Frame: &transportv1pb.ProxySSHResponse_Agent{Agent: &transportv1pb.Frame{Payload: payload}}}
+			return transportv1pb.ProxySSHResponse_builder{Agent: transportv1pb.Frame_builder{Payload: payload}.Build()}.Build()
 		},
 		wLock: mu,
 	}
@@ -509,7 +509,7 @@ type windowsDesktopStream struct {
 }
 
 func (s windowsDesktopStream) Send(p []byte) error {
-	return trace.Wrap(s.stream.Send(&transportv1pb.ProxyWindowsDesktopSessionResponse{Data: p}))
+	return trace.Wrap(s.stream.Send(transportv1pb.ProxyWindowsDesktopSessionResponse_builder{Data: p}.Build()))
 }
 
 func (s windowsDesktopStream) Recv() ([]byte, error) {

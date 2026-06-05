@@ -46,19 +46,19 @@ func TestGenerateGitHubUserCert(t *testing.T) {
 		Role:     types.RoleAdmin,
 		Username: string(types.RoleAdmin),
 	})
-	_, err = resourceSvc.CreateIntegration(adminCtx, &integrationpb.CreateIntegrationRequest{Integration: githubIntegration})
+	_, err = resourceSvc.CreateIntegration(adminCtx, integrationpb.CreateIntegrationRequest_builder{Integration: githubIntegration}.Build())
 	require.NoError(t, err)
 
 	key, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.Ed25519)
 	require.NoError(t, err)
 
-	req := &integrationpb.GenerateGitHubUserCertRequest{
+	req := integrationpb.GenerateGitHubUserCertRequest_builder{
 		Integration: "github-my-org",
 		PublicKey:   key.MarshalSSHPublicKey(),
 		UserId:      "1122334455",
 		KeyId:       "alice",
 		Ttl:         durationpb.New(time.Minute),
-	}
+	}.Build()
 
 	// Admin users cannot generate certs.
 	_, err = resourceSvc.GenerateGitHubUserCert(adminCtx, req)
@@ -71,7 +71,7 @@ func TestGenerateGitHubUserCert(t *testing.T) {
 	})
 	resp, err := resourceSvc.GenerateGitHubUserCert(proxyCtx, req)
 	require.NoError(t, err)
-	authorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(resp.AuthorizedKey)
+	authorizedKey, _, _, _, err := ssh.ParseAuthorizedKey(resp.GetAuthorizedKey())
 	require.NoError(t, err)
 	sshCert, ok := authorizedKey.(*ssh.Certificate)
 	require.True(t, ok)

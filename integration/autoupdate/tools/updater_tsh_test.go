@@ -372,17 +372,17 @@ func bootstrapTestServer(t *testing.T) (*service.TeleportProcess, string) {
 func setupManagedUpdates(t *testing.T, server *auth.Server, muMode string, muVersion string) {
 	t.Helper()
 	ctx := context.Background()
-	config, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
-		Tools: &autoupdatev1pb.AutoUpdateConfigSpecTools{
+	config, err := autoupdate.NewAutoUpdateConfig(autoupdatev1pb.AutoUpdateConfigSpec_builder{
+		Tools: autoupdatev1pb.AutoUpdateConfigSpecTools_builder{
 			Mode: muMode,
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
-	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatev1pb.AutoUpdateVersionSpec{
-		Tools: &autoupdatev1pb.AutoUpdateVersionSpecTools{
+	version, err := autoupdate.NewAutoUpdateVersion(autoupdatev1pb.AutoUpdateVersionSpec_builder{
+		Tools: autoupdatev1pb.AutoUpdateVersionSpecTools_builder{
 			TargetVersion: muVersion,
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	_, err = server.UpsertAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)

@@ -122,11 +122,11 @@ func (p *vnetClientApplication) GetDialOptions(ctx context.Context, profileName 
 	if err != nil {
 		return nil, trace.Wrap(err, "loading user profile")
 	}
-	dialOpts := &vnetv1.DialOptions{
+	dialOpts := vnetv1.DialOptions_builder{
 		WebProxyAddr:            profile.WebProxyAddr,
 		AlpnConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      p.cf.InsecureSkipVerify,
-	}
+	}.Build()
 	dialOpts.RootClusterCaCertPool, err = p.getRootClusterCACertPoolPEM(ctx, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err)

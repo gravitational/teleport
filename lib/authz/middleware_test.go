@@ -651,13 +651,13 @@ func TestMiddlewareGetUserAgentScopePin(t *testing.T) {
 
 	now := time.Now().UTC()
 
-	agentPin := &scopesv1.Pin{
+	agentPin := scopesv1.Pin_builder{
 		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 		Scope: "/",
-		SystemRoles: &scopesv1.SystemRoles{
+		SystemRoles: scopesv1.SystemRoles_builder{
 			Primary: string(types.RoleNode),
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	identity := tlsca.Identity{
 		Username:          serverFQDN,

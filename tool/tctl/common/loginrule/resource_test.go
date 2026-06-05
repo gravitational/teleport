@@ -57,7 +57,7 @@ spec:
       - "external.groups"
       - teleport
 `,
-			expected: &loginrulepb.LoginRule{
+			expected: loginrulepb.LoginRule_builder{
 				Version: "v1",
 				Metadata: &types.Metadata{
 					Name:      "test_rule",
@@ -72,7 +72,7 @@ spec:
 						Values: []string{"external.groups", "teleport"},
 					},
 				},
-			},
+			}.Build(),
 		},
 		{
 			desc: "traits_map json",
@@ -90,7 +90,7 @@ spec:
 					}
 				}
 			}`,
-			expected: &loginrulepb.LoginRule{
+			expected: loginrulepb.LoginRule_builder{
 				Version: "v1",
 				Metadata: &types.Metadata{
 					Name:      "test_rule",
@@ -105,7 +105,7 @@ spec:
 						Values: []string{"external.groups", "teleport"},
 					},
 				},
-			},
+			}.Build(),
 		},
 		{
 			desc: "empty map value yaml",
@@ -150,7 +150,7 @@ spec:
   priority: 1
   traits_expression: external.remove_keys("test")
 `,
-			expected: &loginrulepb.LoginRule{
+			expected: loginrulepb.LoginRule_builder{
 				Version: "v1",
 				Metadata: &types.Metadata{
 					Name:      "test_rule",
@@ -158,7 +158,7 @@ spec:
 				},
 				Priority:         1,
 				TraitsExpression: `external.remove_keys("test")`,
-			},
+			}.Build(),
 		},
 		{
 			desc: "traits_expression json",
@@ -173,7 +173,7 @@ spec:
 					"traits_expression": "external.remove_keys(\"test\")"
 				}
 			}`,
-			expected: &loginrulepb.LoginRule{
+			expected: loginrulepb.LoginRule_builder{
 				Version: "v1",
 				Metadata: &types.Metadata{
 					Name:      "test_rule",
@@ -181,7 +181,7 @@ spec:
 				},
 				Priority:         1,
 				TraitsExpression: `external.remove_keys("test")`,
-			},
+			}.Build(),
 		},
 		{
 			// Make sure yaml with a "folded scalar" (>) can be parsed
@@ -198,7 +198,7 @@ spec:
       .remove_keys("test")
       .add_values("groups", "teleport")
 `,
-			expected: &loginrulepb.LoginRule{
+			expected: loginrulepb.LoginRule_builder{
 				Version: "v1",
 				Metadata: &types.Metadata{
 					Name:      "test_rule",
@@ -209,7 +209,7 @@ spec:
   .remove_keys("test")
   .add_values("groups", "teleport")
 `,
-			},
+			}.Build(),
 		},
 		{
 			// Make sure yaml with a "literal scalar" (|) can be parsed
@@ -226,7 +226,7 @@ spec:
       .remove_keys("test")
       .add_values("groups", "teleport")
 `,
-			expected: &loginrulepb.LoginRule{
+			expected: loginrulepb.LoginRule_builder{
 				Version: "v1",
 				Metadata: &types.Metadata{
 					Name:      "test_rule",
@@ -237,7 +237,7 @@ spec:
   .remove_keys("test")
   .add_values("groups", "teleport")
 `,
-			},
+			}.Build(),
 		},
 		{
 			desc: "no map or expression yaml",

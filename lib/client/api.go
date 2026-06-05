@@ -3664,11 +3664,11 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRi
 
 	newCerts, err := tc.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
 		DevicesClient: rootAuthClient.DevicesClient(),
-		Certs: &devicepb.UserCertificates{
+		Certs: devicepb.UserCertificates_builder{
 			// Augment the SSH certificate.
 			// The TLS certificate is already part of the connection.
 			SshAuthorizedKey: keyRing.Cert,
-		},
+		}.Build(),
 		SSHSigner: keyRing.SSHPrivateKey,
 	})
 	switch {
@@ -3688,10 +3688,10 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, keyRing *KeyRi
 
 	log.DebugContext(ctx, "Device Trust: acquired augmented user certificates")
 	cp := *keyRing
-	cp.Cert = newCerts.SshAuthorizedKey
+	cp.Cert = newCerts.GetSshAuthorizedKey()
 	cp.TLSCert = pem.EncodeToMemory(&pem.Block{
 		Type:  "CERTIFICATE",
-		Bytes: newCerts.X509Der,
+		Bytes: newCerts.GetX509Der(),
 	})
 
 	if err := tc.localAgent.AddKeyRing(&cp); err != nil {
@@ -4053,7 +4053,7 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	}
 
 	if ident.ScopePin != nil {
-		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.Scope, "assignments", pinning.AssignmentTreeIntoMap(ident.ScopePin.AssignmentTree))
+		log.DebugContext(ctx, "got scoped certificate identity", "scope", ident.ScopePin.GetScope(), "assignments", pinning.AssignmentTreeIntoMap(ident.ScopePin.GetAssignmentTree()))
 	}
 
 	return keyRing, nil

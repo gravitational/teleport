@@ -42,9 +42,9 @@ func (s *Server) validateAzureDevopsToken(
 	// events remain useful.
 	var workloadIDAttrs *workloadidentityv1.JoinAttrs
 	if claims != nil {
-		workloadIDAttrs = &workloadidentityv1.JoinAttrs{
+		workloadIDAttrs = workloadidentityv1.JoinAttrs_builder{
 			AzureDevops: claims.JoinAttrs(),
-		}
+		}.Build()
 	}
 
 	return claims, workloadIDAttrs, trace.Wrap(err)

@@ -233,8 +233,8 @@ func (s *TLSServer) unregisterKubeCluster(ctx context.Context, cluster types.Kub
 		// Manual deletion per cluster is only required if the auth server
 		// doesn't support actively cleaning up database resources when the
 		// inventory control stream is terminated during shutdown.
-		if capabilities := sender.Hello().Capabilities; capabilities != nil {
-			shouldDeleteOnShutdown = shouldDeleteOnShutdown && !capabilities.KubernetesCleanup
+		if capabilities := sender.Hello().GetCapabilities(); capabilities != nil {
+			shouldDeleteOnShutdown = shouldDeleteOnShutdown && !capabilities.GetKubernetesCleanup()
 		}
 	}
 

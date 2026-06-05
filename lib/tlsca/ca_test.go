@@ -133,13 +133,13 @@ func TestScopePin(t *testing.T) {
 
 	identity := Identity{
 		Username: "alice@example.com",
-		ScopePin: &scopesv1.Pin{
+		ScopePin: scopesv1.Pin_builder{
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"r1"}, "/foo": {"r2"}},
 			}),
-		},
+		}.Build(),
 	}
 
 	subj, err := identity.Subject()
@@ -221,17 +221,17 @@ func TestJoinAttributes(t *testing.T) {
 		BotInstanceID: "1234-5678",
 		BotInternal:   true,
 		Expires:       expires,
-		JoinAttributes: &workloadidentityv1pb.JoinAttrs{
-			Kubernetes: &workloadidentityv1pb.JoinAttrsKubernetes{
-				ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+		JoinAttributes: workloadidentityv1pb.JoinAttrs_builder{
+			Kubernetes: workloadidentityv1pb.JoinAttrsKubernetes_builder{
+				ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
 					Namespace: "default",
 					Name:      "foo",
-				},
-				Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+				}.Build(),
+				Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
 					Name: "bar",
-				},
-			},
-		},
+				}.Build(),
+			}.Build(),
+		}.Build(),
 	}
 
 	subj, err := identity.Subject()
@@ -767,7 +767,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 			name: "pinned user identity",
 			identity: Identity{
 				Username: "alpaca",
-				ScopePin: &scopesv1.Pin{
+				ScopePin: scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_USER,
 					Scope: "/staging",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
@@ -777,7 +777,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 							"/staging/green": {"staging-access"},
 						},
 					}),
-				},
+				}.Build(),
 			},
 			want: apievents.UserMetadata{
 				User:     "alpaca",
@@ -798,7 +798,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 				Username:      "bot-alpaca",
 				BotName:       "alpaca",
 				BotInstanceID: "123-123",
-				ScopePin: &scopesv1.Pin{
+				ScopePin: scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_USER,
 					Scope: "/staging",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
@@ -808,7 +808,7 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 							"/staging/green": {"staging-access"},
 						},
 					}),
-				},
+				}.Build(),
 			},
 			want: apievents.UserMetadata{
 				User:          "bot-alpaca",
@@ -829,16 +829,16 @@ func TestIdentity_GetUserMetadata(t *testing.T) {
 			name: "pinned system identity",
 			identity: Identity{
 				Username: "system.teleport.name",
-				ScopePin: &scopesv1.Pin{
+				ScopePin: scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: "/staging",
-					SystemRoles: &scopesv1.SystemRoles{
+					SystemRoles: scopesv1.SystemRoles_builder{
 						Primary: types.RoleInstance.String(),
 						Additional: []string{
 							types.RoleNode.String(), types.RoleKube.String(),
 						},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			want: apievents.UserMetadata{
 				User:     "system.teleport.name",

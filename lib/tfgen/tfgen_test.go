@@ -71,22 +71,22 @@ func TestGenerate_Bot(t *testing.T) {
 	t.Parallel()
 
 	goldenTest(t,
-		&machineidv1.Bot{
+		machineidv1.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "gha-gravitational-teleport",
-			},
-			Spec: &machineidv1.BotSpec{
+			}.Build(),
+			Spec: machineidv1.BotSpec_builder{
 				Roles: []string{"gravitational-teleport-kube-access"},
 				Traits: []*machineidv1.Trait{
-					{
+					machineidv1.Trait_builder{
 						Name:   "kubernetes_groups",
 						Values: []string{"system:masters", "viewers"},
-					},
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 		tfgen.WithFieldTransform("spec.traits", transform.BotTraits),
 	)
 }
@@ -123,45 +123,45 @@ func TestGenerate_AccessMonitoringRule(t *testing.T) {
 	t.Parallel()
 
 	goldenTest(t,
-		&accessmonitoringrulesv1.AccessMonitoringRule{
+		accessmonitoringrulesv1.AccessMonitoringRule_builder{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "monitoring-rule",
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			}.Build(),
+			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 				Subjects:     []string{"access_request"},
 				Condition:    `access_request.spec.roles.contains("your_role_name")`,
 				DesiredState: types.AccessMonitoringRuleStateReviewed,
-				Notification: &accessmonitoringrulesv1.Notification{
+				Notification: accessmonitoringrulesv1.Notification_builder{
 					Name:       "slack",
 					Recipients: []string{"#your-slack-channel"},
-				},
-				AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+				}.Build(),
+				AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
 					Integration: "builtin",
 					Decision:    "APPROVED",
-				},
+				}.Build(),
 				Schedules: map[string]*accessmonitoringrulesv1.Schedule{
-					"default": {
-						Time: &accessmonitoringrulesv1.TimeSchedule{
+					"default": accessmonitoringrulesv1.Schedule_builder{
+						Time: accessmonitoringrulesv1.TimeSchedule_builder{
 							Timezone: "America/Los_Angeles",
 							Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-								{
+								accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 									Weekday: "Monday",
 									Start:   "00:00",
 									End:     "23:59",
-								},
-								{
+								}.Build(),
+								accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 									Weekday: "Tuesday",
 									Start:   "00:00",
 									End:     "23:59",
-								},
+								}.Build(),
 							},
-						},
-					},
+						}.Build(),
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	)
 }
 

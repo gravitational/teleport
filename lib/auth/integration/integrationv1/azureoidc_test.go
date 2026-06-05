@@ -61,7 +61,7 @@ func TestGenerateAzureOIDCToken(t *testing.T) {
 				{Resources: []string{types.KindIntegration}, Verbs: []string{types.VerbUse}},
 			}},
 		}, localClient)
-		_, err = resourceSvc.GenerateAzureOIDCToken(ctx, &integrationv1.GenerateAzureOIDCTokenRequest{Integration: integrationName})
+		_, err = resourceSvc.GenerateAzureOIDCToken(ctx, integrationv1.GenerateAzureOIDCTokenRequest_builder{Integration: integrationName}.Build())
 		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %T", err)
 
 		// Auth, Discovery, and Proxy roles should be able to generate Azure OIDC tokens
@@ -75,7 +75,7 @@ func TestGenerateAzureOIDCToken(t *testing.T) {
 				},
 			})
 
-			_, err := resourceSvc.GenerateAzureOIDCToken(ctx, &integrationv1.GenerateAzureOIDCTokenRequest{Integration: integrationName})
+			_, err := resourceSvc.GenerateAzureOIDCToken(ctx, integrationv1.GenerateAzureOIDCTokenRequest_builder{Integration: integrationName}.Build())
 			require.NoError(t, err)
 		}
 	})
@@ -89,9 +89,9 @@ func TestGenerateAzureOIDCToken(t *testing.T) {
 				Username: string(types.RoleDiscovery),
 			},
 		})
-		resp, err := resourceSvc.GenerateAzureOIDCToken(ctx, &integrationv1.GenerateAzureOIDCTokenRequest{
+		resp, err := resourceSvc.GenerateAzureOIDCToken(ctx, integrationv1.GenerateAzureOIDCTokenRequest_builder{
 			Integration: integrationName,
-		})
+		}.Build())
 		require.NoError(t, err)
 
 		// Validate JWT against public key
@@ -107,7 +107,7 @@ func TestGenerateAzureOIDCToken(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify the Azure token using the JWT
-		_, err = key.VerifyAzureToken(resp.Token)
+		_, err = key.VerifyAzureToken(resp.GetToken())
 		require.NoError(t, err)
 	})
 }

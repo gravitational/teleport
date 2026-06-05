@@ -188,7 +188,7 @@ func CreateEnrolledDevice(deviceID string, d FakeDevice) (*devicepb.Device, *ecd
 
 	var pub *ecdsa.PublicKey
 	if d.GetDeviceOSType() == devicepb.OSType_OS_TYPE_MACOS {
-		pubKey, err := x509.ParsePKIXPublicKey(initReq.Macos.PublicKeyDer)
+		pubKey, err := x509.ParsePKIXPublicKey(initReq.GetMacos().GetPublicKeyDer())
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -199,16 +199,16 @@ func CreateEnrolledDevice(deviceID string, d FakeDevice) (*devicepb.Device, *ecd
 		}
 	}
 
-	dev := &devicepb.Device{
+	dev := devicepb.Device_builder{
 		ApiVersion:   "v1",
 		Id:           deviceID,
 		OsType:       d.GetDeviceOSType(),
-		AssetTag:     initReq.DeviceData.SerialNumber,
+		AssetTag:     initReq.GetDeviceData().GetSerialNumber(),
 		CreateTime:   now,
 		UpdateTime:   now,
 		Credential:   d.GetDeviceCredential(),
 		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_ENROLLED,
-	}
+	}.Build()
 	return dev, pub, nil
 }
 

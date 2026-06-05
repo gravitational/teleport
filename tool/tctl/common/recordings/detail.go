@@ -114,18 +114,18 @@ func renderDetail(s *sessionsearchv1pb.SessionSummary, p palette) string {
 
 	if props := s.GetResourceProperties(); props != nil {
 		b.WriteString("\n")
-		switch t := props.Type.(type) {
-		case *sessionsearchv1pb.ResourceProperties_Ssh:
+		switch props.WhichType() {
+		case sessionsearchv1pb.ResourceProperties_Ssh_case:
 			section("SSH Properties")
-			field("Hostname", t.Ssh.GetServerHostname())
-			field("Address", t.Ssh.GetServerAddr())
-		case *sessionsearchv1pb.ResourceProperties_Kubernetes:
+			field("Hostname", props.GetSsh().GetServerHostname())
+			field("Address", props.GetSsh().GetServerAddr())
+		case sessionsearchv1pb.ResourceProperties_Kubernetes_case:
 			section("Kubernetes Properties")
-			field("Namespace", t.Kubernetes.GetPodNamespace())
-			field("Pod", t.Kubernetes.GetPodName())
-		case *sessionsearchv1pb.ResourceProperties_Database:
+			field("Namespace", props.GetKubernetes().GetPodNamespace())
+			field("Pod", props.GetKubernetes().GetPodName())
+		case sessionsearchv1pb.ResourceProperties_Database_case:
 			section("Database Properties")
-			field("Database", t.Database.GetDatabaseName())
+			field("Database", props.GetDatabase().GetDatabaseName())
 		}
 	}
 

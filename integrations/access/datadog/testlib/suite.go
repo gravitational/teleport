@@ -257,23 +257,23 @@ func (s *DatadogSuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+		CreateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test-datadog-amr",
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			}.Build(),
+			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 				Subjects:  []string{types.KindAccessRequest},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: &accessmonitoringrulesv1.Notification{
+				Notification: accessmonitoringrulesv1.Notification_builder{
 					Name: "datadog",
 					Recipients: []string{
 						integration.Reviewer1UserName,
 					},
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 	require.NoError(t, err)
 
 	// Test execution: create an access request
@@ -312,23 +312,23 @@ func (s *DatadogSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+		CreateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test-datadog-amr-2",
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			}.Build(),
+			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 				Subjects:  []string{types.KindAccessRequest},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: &accessmonitoringrulesv1.Notification{
+				Notification: accessmonitoringrulesv1.Notification_builder{
 					Name: "datadog",
 					Recipients: []string{
 						integration.Reviewer1UserName,
 					},
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 	assert.NoError(t, err)
 
 	// Test execution: we create an access request
@@ -348,23 +348,23 @@ func (s *DatadogSuiteOSS) TestRecipientsFromAccessMonitoringRuleAfterUpdate() {
 	// Update the Access Monitoring Rule so it is no longer applied
 	_, err = s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		UpdateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+		UpdateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test-datadog-amr-2",
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			}.Build(),
+			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 				Subjects:  []string{"someOtherKind"},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: &accessmonitoringrulesv1.Notification{
+				Notification: accessmonitoringrulesv1.Notification_builder{
 					Name: "datadog",
 					Recipients: []string{
 						integration.Reviewer1UserName,
 					},
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 	assert.NoError(t, err)
 
 	// Test execution: we create an access request

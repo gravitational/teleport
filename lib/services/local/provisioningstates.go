@@ -77,7 +77,7 @@ func (ss *ProvisioningStateService) CreateProvisioningState(ctx context.Context,
 		return nil, trace.Wrap(err, "creating provisioning state record")
 	}
 
-	createdState, err := ss.service.WithPrefix(state.Spec.DownstreamId).CreateResource(ctx, state)
+	createdState, err := ss.service.WithPrefix(state.GetSpec().GetDownstreamId()).CreateResource(ctx, state)
 	if err != nil {
 		return nil, trace.Wrap(err, "creating provisioning state record")
 	}
@@ -91,7 +91,7 @@ func (ss *ProvisioningStateService) UpdateProvisioningState(ctx context.Context,
 		return nil, trace.Wrap(err, "updating provisioning state record")
 	}
 
-	updatedState, err := ss.service.WithPrefix(state.Spec.DownstreamId).ConditionalUpdateResource(ctx, state)
+	updatedState, err := ss.service.WithPrefix(state.GetSpec().GetDownstreamId()).ConditionalUpdateResource(ctx, state)
 	if err != nil {
 		return nil, trace.Wrap(err, "updating provisioning state record")
 	}
@@ -105,7 +105,7 @@ func (ss *ProvisioningStateService) UpsertProvisioningState(ctx context.Context,
 		return nil, trace.Wrap(err, "upserting provisioning state record")
 	}
 
-	updatedState, err := ss.service.WithPrefix(state.Spec.DownstreamId).UpsertResource(ctx, state)
+	updatedState, err := ss.service.WithPrefix(state.GetSpec().GetDownstreamId()).UpsertResource(ctx, state)
 	if err != nil {
 		return nil, trace.Wrap(err, "upserting provisioning state record")
 	}

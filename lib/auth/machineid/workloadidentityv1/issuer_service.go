@@ -171,22 +171,22 @@ func (s *IssuanceService) deriveAttrs(
 	authzCtx *authz.Context,
 	workloadAttrs *workloadidentityv1pb.WorkloadAttrs,
 ) (*workloadidentityv1pb.Attrs, error) {
-	attrs := &workloadidentityv1pb.Attrs{
+	attrs := workloadidentityv1pb.Attrs_builder{
 		Workload: workloadAttrs,
-		User: &workloadidentityv1pb.UserAttrs{
+		User: workloadidentityv1pb.UserAttrs_builder{
 			Name:    authzCtx.Identity.GetIdentity().Username,
 			IsBot:   authzCtx.Identity.GetIdentity().BotName != "",
 			BotName: authzCtx.Identity.GetIdentity().BotName,
 			Labels:  authzCtx.User.GetAllLabels(),
-		},
+		}.Build(),
 		Join: authzCtx.Identity.GetIdentity().JoinAttributes,
-	}
+	}.Build()
 
 	for key, values := range authzCtx.Identity.GetIdentity().Traits {
-		attrs.User.Traits = append(attrs.User.Traits, &traitv1.Trait{
+		attrs.GetUser().SetTraits(append(attrs.GetUser().GetTraits(), traitv1.Trait_builder{
 			Key:    key,
 			Values: values,
-		})
+		}.Build()))
 	}
 
 	return attrs, nil
@@ -243,9 +243,9 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 	}
 
 	var cred *workloadidentityv1pb.Credential
-	switch v := req.GetCredential().(type) {
-	case *workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams:
-		ca, chain, err := s.getX509CA(ctx, types.SPIFFECA, v.X509SvidParams.GetUseIssuerOverrides())
+	switch req.WhichCredential() {
+	case workloadidentityv1pb.IssueWorkloadIdentityRequest_X509SvidParams_case:
+		ca, chain, err := s.getX509CA(ctx, types.SPIFFECA, req.GetX509SvidParams().GetUseIssuerOverrides())
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching X509 SPIFFE CA")
 		}
@@ -255,8 +255,8 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 				ca:                    ca,
 				chain:                 chain,
 				workloadIdentity:      decision.templatedWorkloadIdentity,
-				x509Params:            v.X509SvidParams,
-				requestedTTL:          req.RequestedTtl.AsDuration(),
+				x509Params:            req.GetX509SvidParams(),
+				requestedTTL:          req.GetRequestedTtl().AsDuration(),
 				attrs:                 attrs,
 				sigstorePolicyResults: decision.sigstorePolicyResults,
 				nameSelector:          req.GetName(),
@@ -265,7 +265,7 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 		if err != nil {
 			return nil, trace.Wrap(err, "issuing X509 SVID")
 		}
-	case *workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams:
+	case workloadidentityv1pb.IssueWorkloadIdentityRequest_JwtSvidParams_case:
 		key, issuer, err := s.getJWTIssuerKey(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting JWT issuer key")
@@ -276,8 +276,8 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 				issuerKey:             key,
 				issuerURI:             issuer,
 				workloadIdentity:      decision.templatedWorkloadIdentity,
-				jwtParams:             v.JwtSvidParams,
-				requestedTTL:          req.RequestedTtl.AsDuration(),
+				jwtParams:             req.GetJwtSvidParams(),
+				requestedTTL:          req.GetRequestedTtl().AsDuration(),
 				attrs:                 attrs,
 				sigstorePolicyResults: decision.sigstorePolicyResults,
 				nameSelector:          req.GetName(),
@@ -287,12 +287,12 @@ func (s *IssuanceService) IssueWorkloadIdentity(
 			return nil, trace.Wrap(err, "issuing JWT SVID")
 		}
 	default:
-		return nil, trace.BadParameter("credential: unknown type %T", req.GetCredential())
+		return nil, trace.BadParameter("credential: unknown type %v", req.WhichCredential())
 	}
 
-	return &workloadidentityv1pb.IssueWorkloadIdentityResponse{
+	return workloadidentityv1pb.IssueWorkloadIdentityResponse_builder{
 		Credential: cred,
-	}, nil
+	}.Build(), nil
 }
 
 // maxWorkloadIdentitiesIssued is the maximum number of workload identities that
@@ -306,7 +306,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	req *workloadidentityv1pb.IssueWorkloadIdentitiesRequest,
 ) (*workloadidentityv1pb.IssueWorkloadIdentitiesResponse, error) {
 	switch {
-	case len(req.LabelSelectors) == 0:
+	case len(req.GetLabelSelectors()) == 0:
 		return nil, trace.BadParameter("label_selectors: at least one label selector must be specified")
 	case req.GetCredential() == nil:
 		return nil, trace.BadParameter("at least one credential type must be requested")
@@ -332,7 +332,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	for wi, err := range s.matchingAndAuthorizedWorkloadIdentities(
 		ctx,
 		authCtx,
-		convertLabels(req.LabelSelectors),
+		convertLabels(req.GetLabelSelectors()),
 	) {
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -352,9 +352,9 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 	}
 
 	creds := make([]*workloadidentityv1pb.Credential, 0, len(shouldIssue))
-	switch v := req.GetCredential().(type) {
-	case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams:
-		ca, chain, err := s.getX509CA(ctx, types.SPIFFECA, v.X509SvidParams.GetUseIssuerOverrides())
+	switch req.WhichCredential() {
+	case workloadidentityv1pb.IssueWorkloadIdentitiesRequest_X509SvidParams_case:
+		ca, chain, err := s.getX509CA(ctx, types.SPIFFECA, req.GetX509SvidParams().GetUseIssuerOverrides())
 		if err != nil {
 			return nil, trace.Wrap(err, "fetching CA to sign X509 SVID")
 		}
@@ -365,10 +365,10 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 					ca:               ca,
 					chain:            chain,
 					workloadIdentity: wi,
-					x509Params:       v.X509SvidParams,
-					requestedTTL:     req.RequestedTtl.AsDuration(),
+					x509Params:       req.GetX509SvidParams(),
+					requestedTTL:     req.GetRequestedTtl().AsDuration(),
 					attrs:            attrs,
-					labelSelectors:   req.LabelSelectors,
+					labelSelectors:   req.GetLabelSelectors(),
 				},
 			)
 			if err != nil {
@@ -380,7 +380,7 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 			}
 			creds = append(creds, cred)
 		}
-	case *workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams:
+	case workloadidentityv1pb.IssueWorkloadIdentitiesRequest_JwtSvidParams_case:
 		key, issuer, err := s.getJWTIssuerKey(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err, "getting JWT issuer key")
@@ -392,10 +392,10 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 					issuerKey:        key,
 					issuerURI:        issuer,
 					workloadIdentity: wi,
-					jwtParams:        v.JwtSvidParams,
-					requestedTTL:     req.RequestedTtl.AsDuration(),
+					jwtParams:        req.GetJwtSvidParams(),
+					requestedTTL:     req.GetRequestedTtl().AsDuration(),
 					attrs:            attrs,
-					labelSelectors:   req.LabelSelectors,
+					labelSelectors:   req.GetLabelSelectors(),
 				},
 			)
 			if err != nil {
@@ -408,12 +408,12 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 			creds = append(creds, cred)
 		}
 	default:
-		return nil, trace.BadParameter("credential: unknown type %T", req.GetCredential())
+		return nil, trace.BadParameter("credential: unknown type %v", req.WhichCredential())
 	}
 
-	return &workloadidentityv1pb.IssueWorkloadIdentitiesResponse{
+	return workloadidentityv1pb.IssueWorkloadIdentitiesResponse_builder{
 		Credentials: creds,
-	}, nil
+	}.Build(), nil
 }
 
 // IssueTeleportWorkloadIdentity issues a workload identity credential for the
@@ -442,14 +442,14 @@ func (s *IssuanceService) IssueTeleportWorkloadIdentity(
 		return nil, trace.AccessDenied("only Teleport services can execute this request")
 	}
 
-	switch usage := req.Usage.(type) {
-	case *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess:
+	switch req.WhichUsage() {
+	case workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_AppAccess_case:
 		if !authz.HasBuiltinRole(*authCtx, string(types.RoleApp)) {
 			return nil, trace.AccessDenied("only app services can issue workload identity for app access")
 		}
 		switch credParams := req.Credential.(type) {
 		case *workloadidentityv1pb.IssueTeleportWorkloadIdentityRequest_X509SvidParams:
-			return s.issueAppAccessX509Identity(ctx, builtin.GetServerID(), req, usage.AppAccess, credParams)
+			return s.issueAppAccessX509Identity(ctx, builtin.GetServerID(), req, req.GetAppAccess(), credParams)
 		default:
 			return nil, trace.BadParameter("app access usage only supports issuing x509 credentials")
 		}
@@ -482,7 +482,7 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 		return nil, trace.Wrap(err, "unable to locate app")
 	}
 
-	pubKey, err := x509.ParsePKIXPublicKey(credParams.X509SvidParams.PublicKey)
+	pubKey, err := x509.ParsePKIXPublicKey(credParams.X509SvidParams.GetPublicKey())
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing public key")
 	}
@@ -497,7 +497,7 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 		ctx,
 		s.logger,
 		s.clock,
-		req.RequestedTtl.AsDuration(),
+		req.GetRequestedTtl().AsDuration(),
 		// Cap the cert TTL at the session expiry, plus an alloweance for clock
 		// drift that mirrors [veirfyCertValidityWithSkew]. Without the
 		// allowance session that are within the skew window would yield app
@@ -534,9 +534,9 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 			notAfter,
 			spiffeID,
 			nil, /* dnsSANs */
-			&workloadidentityv1pb.X509DistinguishedNameTemplate{
+			workloadidentityv1pb.X509DistinguishedNameTemplate_builder{
 				CommonName: userIdentity.Username,
-			},
+			}.Build(),
 		),
 		ca.Cert,
 		pubKey,
@@ -546,22 +546,20 @@ func (s *IssuanceService) issueAppAccessX509Identity(
 		return nil, trace.Wrap(err)
 	}
 
-	return &workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse{
-		Credential: &workloadidentityv1pb.Credential{
+	return workloadidentityv1pb.IssueTeleportWorkloadIdentityResponse_builder{
+		Credential: workloadidentityv1pb.Credential_builder{
 			SpiffeId: spiffeID.String(),
 
 			ExpiresAt: timestamppb.New(notAfter),
 			Ttl:       durationpb.New(ttl),
 
-			Credential: &workloadidentityv1pb.Credential_X509Svid{
-				X509Svid: &workloadidentityv1pb.X509SVIDCredential{
-					Cert:         certBytes,
-					SerialNumber: serialString(certSerial),
-					Chain:        chain,
-				},
-			},
-		},
-	}, nil
+			X509Svid: workloadidentityv1pb.X509SVIDCredential_builder{
+				Cert:         certBytes,
+				SerialNumber: serialString(certSerial),
+				Chain:        chain,
+			}.Build(),
+		}.Build(),
+	}.Build(), nil
 }
 
 // routeToAppFromCert validates the certificate and extracts the RouteToApp info.
@@ -734,14 +732,14 @@ func x509Template(
 		DNSNames: dnsSANs,
 	}
 	if subjectTemplate != nil {
-		c.Subject.CommonName = subjectTemplate.CommonName
-		if subjectTemplate.Organization != "" {
+		c.Subject.CommonName = subjectTemplate.GetCommonName()
+		if subjectTemplate.GetOrganization() != "" {
 			c.Subject.Organization = []string{
-				subjectTemplate.Organization,
+				subjectTemplate.GetOrganization(),
 			}
 		}
-		if subjectTemplate.OrganizationalUnit != "" {
-			c.Subject.OrganizationalUnit = []string{subjectTemplate.OrganizationalUnit}
+		if subjectTemplate.GetOrganizationalUnit() != "" {
+			c.Subject.OrganizationalUnit = []string{subjectTemplate.GetOrganizationalUnit()}
 		}
 	}
 
@@ -868,8 +866,8 @@ func labelSelectorsToAudit(
 	out := make([]*apievents.LabelSelector, 0, len(in))
 	for _, ls := range in {
 		out = append(out, &apievents.LabelSelector{
-			Key:    ls.Key,
-			Values: ls.Values,
+			Key:    ls.GetKey(),
+			Values: ls.GetValues(),
 		})
 	}
 	return out
@@ -919,7 +917,7 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 	switch {
 	case params.x509Params == nil:
 		return nil, trace.BadParameter("x509_svid_params: is required")
-	case len(params.x509Params.PublicKey) == 0:
+	case len(params.x509Params.GetPublicKey()) == 0:
 		return nil, trace.BadParameter("x509_svid_params.public_key: is required")
 	}
 
@@ -939,7 +937,7 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 		params.workloadIdentity.GetSpec().GetSpiffe().GetX509().GetMaximumTtl().AsDuration(),
 	)
 
-	pubKey, err := x509.ParsePKIXPublicKey(params.x509Params.PublicKey)
+	pubKey, err := x509.ParsePKIXPublicKey(params.x509Params.GetPublicKey())
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing public key")
 	}
@@ -992,7 +990,7 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 		)
 	}
 
-	return &workloadidentityv1pb.Credential{
+	return workloadidentityv1pb.Credential_builder{
 		WorkloadIdentityName:     params.workloadIdentity.GetMetadata().GetName(),
 		WorkloadIdentityRevision: params.workloadIdentity.GetMetadata().GetRevision(),
 
@@ -1002,14 +1000,12 @@ func (s *IssuanceService) issueX509SVID(ctx context.Context, params issueX509SVI
 		ExpiresAt: timestamppb.New(notAfter),
 		Ttl:       durationpb.New(ttl),
 
-		Credential: &workloadidentityv1pb.Credential_X509Svid{
-			X509Svid: &workloadidentityv1pb.X509SVIDCredential{
-				Cert:         certBytes,
-				SerialNumber: serialString,
-				Chain:        params.chain,
-			},
-		},
-	}, nil
+		X509Svid: workloadidentityv1pb.X509SVIDCredential_builder{
+			Cert:         certBytes,
+			SerialNumber: serialString,
+			Chain:        params.chain,
+		}.Build(),
+	}.Build(), nil
 }
 
 const jtiLength = 16
@@ -1069,7 +1065,7 @@ func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDP
 	switch {
 	case params.jwtParams == nil:
 		return nil, trace.BadParameter("jwt_svid_params: is required")
-	case len(params.jwtParams.Audiences) == 0:
+	case len(params.jwtParams.GetAudiences()) == 0:
 		return nil, trace.BadParameter("jwt_svid_params.audiences: at least one audience should be specified")
 	}
 
@@ -1095,7 +1091,7 @@ func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDP
 	}
 
 	signed, err := params.issuerKey.SignJWTSVID(jwt.SignParamsJWTSVID{
-		Audiences: params.jwtParams.Audiences,
+		Audiences: params.jwtParams.GetAudiences(),
 		SPIFFEID:  spiffeID,
 		JTI:       jti,
 		Issuer:    params.issuerURI,
@@ -1132,7 +1128,7 @@ func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDP
 		)
 	}
 
-	return &workloadidentityv1pb.Credential{
+	return workloadidentityv1pb.Credential_builder{
 		WorkloadIdentityName:     params.workloadIdentity.GetMetadata().GetName(),
 		WorkloadIdentityRevision: params.workloadIdentity.GetMetadata().GetRevision(),
 
@@ -1142,13 +1138,11 @@ func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDP
 		ExpiresAt: timestamppb.New(notAfter),
 		Ttl:       durationpb.New(ttl),
 
-		Credential: &workloadidentityv1pb.Credential_JwtSvid{
-			JwtSvid: &workloadidentityv1pb.JWTSVIDCredential{
-				Jwt: signed,
-				Jti: jti,
-			},
-		},
-	}, nil
+		JwtSvid: workloadidentityv1pb.JWTSVIDCredential_builder{
+			Jwt: signed,
+			Jti: jti,
+		}.Build(),
+	}.Build(), nil
 }
 
 // matchingAndAuthorizedWorkloadIdentities returns a stream of the workload
@@ -1197,7 +1191,7 @@ func (s *IssuanceService) matchingAndAuthorizedWorkloadIdentities(
 func convertLabels(selectors []*workloadidentityv1pb.LabelSelector) types.Labels {
 	labels := types.Labels{}
 	for _, selector := range selectors {
-		labels[selector.Key] = selector.Values
+		labels[selector.GetKey()] = selector.GetValues()
 	}
 	return labels
 }

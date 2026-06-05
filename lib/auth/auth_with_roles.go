@@ -835,16 +835,16 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 		filteredServices = append(filteredServices, service)
 	}
 
-	hello.Services = filteredServices
+	hello.SetServices(filteredServices)
 
 	// If the hello message's scope is non-empty, we can verify that it matches the authenticated
 	// scope in the identity. Otherwise, in order to support agents unaware of scopes, we fall back
 	// to the authenticated identity's scope.
 	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
-	if hello.Scope != "" && hello.Scope != agentScope {
-		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.Scope, agentScope)
+	if hello.GetScope() != "" && hello.GetScope() != agentScope {
+		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.GetScope(), agentScope)
 	}
-	hello.Scope = agentScope
+	hello.SetScope(agentScope)
 	labelHash := a.context.Identity.GetIdentity().ImmutableLabelHash
 	if labels := hello.GetImmutableLabels(); labels != nil || labelHash != "" {
 		if !joining.VerifyImmutableLabelsHash(labels, labelHash) {
@@ -859,7 +859,7 @@ func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req *proto.Inv
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Connected {
+	if req.GetConnected() {
 		if !a.hasBuiltinRole(types.RoleAdmin) {
 			return nil, trace.AccessDenied("requires local tctl, try using 'tctl inventory ls' instead")
 		}
@@ -1572,10 +1572,10 @@ func (a *ServerWithRoles) ListUnifiedResources(ctx context.Context, req *proto.L
 		if err != nil {
 			return nil, trace.Wrap(err, "getting user preferences")
 		}
-		if len(prefs.ClusterPreferences.PinnedResources.ResourceIds) == 0 {
+		if len(prefs.GetClusterPreferences().GetPinnedResources().GetResourceIds()) == 0 {
 			return &proto.ListUnifiedResourcesResponse{}, nil
 		}
-		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.ClusterPreferences.PinnedResources.GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
+		unifiedResources, err = a.authServer.UnifiedResourceCache.GetUnifiedResourcesByIDs(ctx, prefs.GetClusterPreferences().GetPinnedResources().GetResourceIds(), func(resource types.ResourceWithLabels) (bool, error) {
 			match, err := resourceLister.canList(resource, userFilter)
 			return match, trace.Wrap(err)
 		})
@@ -1780,23 +1780,23 @@ func (a *ServerWithRoles) filterICPermissionSets(r *proto.PaginatedResource, app
 	}
 
 	assignment := services.IdentityCenterAccountAssignment{
-		AccountAssignment: &identitycenterv1.AccountAssignment{
+		AccountAssignment: identitycenterv1.AccountAssignment_builder{
 			Kind:     types.KindIdentityCenterAccountAssignment,
 			Version:  types.V1,
 			Metadata: &headerv1.Metadata{},
-			Spec: &identitycenterv1.AccountAssignmentSpec{
+			Spec: identitycenterv1.AccountAssignmentSpec_builder{
 				AccountId:     appV3.GetName(),
 				PermissionSet: &identitycenterv1.PermissionSetInfo{},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}
-	permissionSetQuery := assignment.Spec.PermissionSet
+	permissionSetQuery := assignment.Spec.GetPermissionSet()
 	checkable := types.Resource153ToResourceWithLabels(assignment)
 
 	var output []*types.IdentityCenterPermissionSet
 	for _, ps := range pss {
-		assignment.Metadata.Name = ps.AssignmentID
-		permissionSetQuery.Arn = ps.ARN
+		assignment.Metadata.SetName(ps.AssignmentID)
+		permissionSetQuery.SetArn(ps.ARN)
 
 		hasAccess, err := checker.canList(checkable, services.MatchResourceFilter{
 			ResourceKind: types.KindIdentityCenterAccountAssignment,
@@ -5144,8 +5144,8 @@ func (a *ServerWithRoles) ListRoles(ctx context.Context, req *proto.ListRolesReq
 // This does not use the resource verbs for RBAC, and all users are allowed to call this endpoint. The requestable roles returned here are only the ones that the user
 // has been granted permission to request. If a user has not been granted permission to request any roles, this will return an empty list.
 func (a *ServerWithRoles) ListRequestableRoles(ctx context.Context, req *proto.ListRequestableRolesRequest) (*proto.ListRequestableRolesResponse, error) {
-	if req.PageSize == 0 || req.PageSize > apidefaults.DefaultChunkSize {
-		req.PageSize = apidefaults.DefaultChunkSize
+	if req.GetPageSize() == 0 || req.GetPageSize() > apidefaults.DefaultChunkSize {
+		req.SetPageSize(apidefaults.DefaultChunkSize)
 	}
 
 	requestValidator, err := services.NewRequestValidator(ctx, a.authServer.clock, a.authServer, a.context.GetUserMetadata().User)
@@ -5155,14 +5155,14 @@ func (a *ServerWithRoles) ListRequestableRoles(ctx context.Context, req *proto.L
 
 	// Convert ListRequestableRolesRequest to ListRolesRequest for compatibility with `IterateRoles`
 	listReq := &proto.ListRolesRequest{
-		Limit:    req.PageSize,
-		StartKey: req.PageToken,
+		Limit:    req.GetPageSize(),
+		StartKey: req.GetPageToken(),
 	}
 
 	var roleFilter *types.RoleFilter
-	if req.Filter != nil {
+	if req.HasFilter() {
 		roleFilter = &types.RoleFilter{
-			SearchKeywords:  req.Filter.SearchKeywords,
+			SearchKeywords:  req.GetFilter().GetSearchKeywords(),
 			SkipSystemRoles: true,
 		}
 	}
@@ -5176,7 +5176,7 @@ func (a *ServerWithRoles) ListRequestableRoles(ctx context.Context, req *proto.L
 		}
 
 		// Apply any RoleFilters if defined.
-		if req.Filter != nil && !roleFilter.Match(role) {
+		if req.HasFilter() && !roleFilter.Match(role) {
 			return false, nil
 		}
 
@@ -5192,20 +5192,20 @@ func (a *ServerWithRoles) ListRequestableRoles(ctx context.Context, req *proto.L
 		return nil, trace.Wrap(err)
 	}
 
-	return &proto.ListRequestableRolesResponse{
+	return proto.ListRequestableRolesResponse_builder{
 		Roles:         convertRolesToRequestableRoles(out),
 		NextPageToken: nextKey,
-	}, nil
+	}.Build(), nil
 }
 
 // convertRolesToRequestableRoles turns a slice of Roles into RequestableRoles, stripping all data except the name and description.
 func convertRolesToRequestableRoles(roles []*types.RoleV6) []*proto.ListRequestableRolesResponse_RequestableRole {
 	items := make([]*proto.ListRequestableRolesResponse_RequestableRole, 0, len(roles))
 	for _, role := range roles {
-		item := &proto.ListRequestableRolesResponse_RequestableRole{
+		item := proto.ListRequestableRolesResponse_RequestableRole_builder{
 			Name:        role.GetName(),
 			Description: role.GetMetadata().Description,
-		}
+		}.Build()
 		items = append(items, item)
 	}
 

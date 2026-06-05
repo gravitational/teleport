@@ -2743,7 +2743,7 @@ func (set RoleSet) checkAccess(
 		}
 
 		// Mark that MFA is required and continue evaluating access.
-		preconds = append(preconds, &decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+		preconds = append(preconds, decisionpb.Precondition_builder{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}.Build())
 	}
 
 	requiresLabelMatching := resourceRequiresLabelMatching(r)
@@ -2896,7 +2896,7 @@ func (set RoleSet) checkAccess(
 			}
 
 			// Mark that MFA is required and continue evaluating access.
-			preconds = append(preconds, &decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+			preconds = append(preconds, decisionpb.Precondition_builder{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}.Build())
 		}
 
 		// Device verification.
@@ -2937,7 +2937,7 @@ func deduplicateAndSortPreconditions(preconds []*decisionpb.Precondition) []*dec
 	// Deduplicate preconditions by kind.
 	preconds = slices.CompactFunc(
 		preconds, func(a, b *decisionpb.Precondition) bool {
-			return a.Kind == b.Kind
+			return a.GetKind() == b.GetKind()
 		},
 	)
 
@@ -2945,7 +2945,7 @@ func deduplicateAndSortPreconditions(preconds []*decisionpb.Precondition) []*dec
 	slices.SortFunc(
 		preconds,
 		func(a, b *decisionpb.Precondition) int {
-			return cmp.Compare(a.Kind, b.Kind)
+			return cmp.Compare(a.GetKind(), b.GetKind())
 		},
 	)
 

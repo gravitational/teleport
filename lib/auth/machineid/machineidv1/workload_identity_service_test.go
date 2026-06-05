@@ -108,9 +108,9 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 		{
 			name: "success",
 			user: authorizedUser.GetName(),
-			req: &machineidv1pb.SignX509SVIDsRequest{
+			req: machineidv1pb.SignX509SVIDsRequest_builder{
 				Svids: []*machineidv1pb.SVIDRequest{
-					{
+					machineidv1pb.SVIDRequest_builder{
 						SpiffeIdPath: "/alpha/foo",
 						PublicKey:    pubBytes,
 						Hint:         "llamas",
@@ -120,19 +120,19 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 							"bar.alpha.example.com",
 						},
 						IpSans: []string{"10.42.42.42"},
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			requireError: require.NoError,
 			assertResponse: func(t *testing.T, resp *machineidv1pb.SignX509SVIDsResponse) {
 				wantSPIFFEID := "spiffe://localhost/alpha/foo"
 
 				// Parse response
-				require.Len(t, resp.Svids, 1)
-				svid := resp.Svids[0]
-				require.Equal(t, "llamas", svid.Hint)
-				require.Equal(t, wantSPIFFEID, svid.SpiffeId)
-				cert, err := x509.ParseCertificate(svid.Certificate)
+				require.Len(t, resp.GetSvids(), 1)
+				svid := resp.GetSvids()[0]
+				require.Equal(t, "llamas", svid.GetHint())
+				require.Equal(t, wantSPIFFEID, svid.GetSpiffeId())
+				cert, err := x509.ParseCertificate(svid.GetCertificate())
 				require.NoError(t, err)
 
 				// Check TTL
@@ -174,20 +174,20 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 		{
 			name: "forbidden svid",
 			user: authorizedUser.GetName(),
-			req: &machineidv1pb.SignX509SVIDsRequest{
+			req: machineidv1pb.SignX509SVIDsRequest_builder{
 				Svids: []*machineidv1pb.SVIDRequest{
 					// Include an ok SVID first to ensure we check perms for all
 					// SVIDs.
-					{
+					machineidv1pb.SVIDRequest_builder{
 						SpiffeIdPath: "/alpha/foo",
 						PublicKey:    pubBytes,
-					},
-					{
+					}.Build(),
+					machineidv1pb.SVIDRequest_builder{
 						SpiffeIdPath: "/alpha/forbidden",
 						PublicKey:    pubBytes,
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -204,14 +204,14 @@ func TestWorkloadIdentityService_SignX509SVIDs(t *testing.T) {
 		{
 			name: "no permissions",
 			user: unauthorizedUser.GetName(),
-			req: &machineidv1pb.SignX509SVIDsRequest{
+			req: machineidv1pb.SignX509SVIDsRequest_builder{
 				Svids: []*machineidv1pb.SVIDRequest{
-					{
+					machineidv1pb.SVIDRequest_builder{
 						SpiffeIdPath: "/alpha/foo",
 						PublicKey:    pubBytes,
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -309,29 +309,29 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 		{
 			name: "success",
 			user: authorizedUser.GetName(),
-			req: &machineidv1pb.SignJWTSVIDsRequest{
+			req: machineidv1pb.SignJWTSVIDsRequest_builder{
 				Svids: []*machineidv1pb.JWTSVIDRequest{
-					{
+					machineidv1pb.JWTSVIDRequest_builder{
 						SpiffeIdPath: "/alpha/foo",
 						Hint:         "llamas",
 						Ttl:          durationpb.New(30 * time.Minute),
 						Audiences:    []string{"example.com"},
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			requireError: require.NoError,
 			assertResponse: func(t *testing.T, resp *machineidv1pb.SignJWTSVIDsResponse) {
-				require.Len(t, resp.Svids, 1)
+				require.Len(t, resp.GetSvids(), 1)
 
-				svid := resp.Svids[0]
+				svid := resp.GetSvids()[0]
 				wantSPIFFEID := "spiffe://localhost/alpha/foo"
-				require.Equal(t, wantSPIFFEID, svid.SpiffeId)
-				require.Equal(t, "llamas", svid.Hint)
-				require.Equal(t, []string{"example.com"}, svid.Audiences)
-				require.NotEmpty(t, svid.Jti)
-				require.NotEmpty(t, svid.Jwt)
+				require.Equal(t, wantSPIFFEID, svid.GetSpiffeId())
+				require.Equal(t, "llamas", svid.GetHint())
+				require.Equal(t, []string{"example.com"}, svid.GetAudiences())
+				require.NotEmpty(t, svid.GetJti())
+				require.NotEmpty(t, svid.GetJwt())
 
-				parsed, err := jwt.ParseSigned(svid.Jwt)
+				parsed, err := jwt.ParseSigned(svid.GetJwt())
 				require.NoError(t, err)
 
 				claims := jwt.Claims{}
@@ -344,7 +344,7 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 
 				// Check claims
 				require.Equal(t, wantSPIFFEID, claims.Subject)
-				require.Equal(t, svid.Jti, claims.ID)
+				require.Equal(t, svid.GetJti(), claims.ID)
 				require.Equal(t, "example.com", claims.Audience[0])
 				require.Equal(t, wantIssuer, claims.Issuer)
 				require.WithinDuration(t, srv.Clock().Now().Add(30*time.Minute), claims.Expiry.Time(), 5*time.Second)
@@ -354,20 +354,20 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 		{
 			name: "forbidden svid",
 			user: authorizedUser.GetName(),
-			req: &machineidv1pb.SignJWTSVIDsRequest{
+			req: machineidv1pb.SignJWTSVIDsRequest_builder{
 				Svids: []*machineidv1pb.JWTSVIDRequest{
 					// Include an ok SVID first to ensure we check perms for all
 					// SVIDs.
-					{
+					machineidv1pb.JWTSVIDRequest_builder{
 						SpiffeIdPath: "/alpha/foo",
 						Audiences:    []string{"example.com"},
-					},
-					{
+					}.Build(),
+					machineidv1pb.JWTSVIDRequest_builder{
 						SpiffeIdPath: "/alpha/forbidden",
 						Audiences:    []string{"example.com"},
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},
@@ -375,14 +375,14 @@ func TestWorkloadIdentityService_SignJWTSVIDs(t *testing.T) {
 		{
 			name: "no permissions",
 			user: unauthorizedUser.GetName(),
-			req: &machineidv1pb.SignJWTSVIDsRequest{
+			req: machineidv1pb.SignJWTSVIDsRequest_builder{
 				Svids: []*machineidv1pb.JWTSVIDRequest{
-					{
+					machineidv1pb.JWTSVIDRequest_builder{
 						SpiffeIdPath: "/alpha/foo",
 						Audiences:    []string{"example.com"},
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			requireError: func(t require.TestingT, err error, i ...any) {
 				require.True(t, trace.IsAccessDenied(err))
 			},

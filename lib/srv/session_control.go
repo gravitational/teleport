@@ -258,12 +258,12 @@ func (s *SessionController) AcquireSessionContext(ctx context.Context, identity 
 	var pinSourceIP bool
 	switch {
 	case identity.AccessPermit != nil:
-		lockingMode = constants.LockingMode(identity.AccessPermit.LockingMode)
-		lockTargets = decision.LockTargetsFromProto(identity.AccessPermit.LockTargets)
-		requiredPolicy = keys.PrivateKeyPolicy(identity.AccessPermit.PrivateKeyPolicy)
-		maxConnections = identity.AccessPermit.MaxConnections
-		pinSourceIP = slices.ContainsFunc(identity.AccessPermit.Preconditions, func(p *decisionpb.Precondition) bool {
-			return p.Kind == decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP
+		lockingMode = constants.LockingMode(identity.AccessPermit.GetLockingMode())
+		lockTargets = decision.LockTargetsFromProto(identity.AccessPermit.GetLockTargets())
+		requiredPolicy = keys.PrivateKeyPolicy(identity.AccessPermit.GetPrivateKeyPolicy())
+		maxConnections = identity.AccessPermit.GetMaxConnections()
+		pinSourceIP = slices.ContainsFunc(identity.AccessPermit.GetPreconditions(), func(p *decisionpb.Precondition) bool {
+			return p.GetKind() == decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP
 		})
 	case identity.ProxyingPermit != nil:
 		lockingMode = identity.ProxyingPermit.LockingMode

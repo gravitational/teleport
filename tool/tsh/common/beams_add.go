@@ -87,9 +87,9 @@ func (c *beamsAddCommand) run(cf *CLIConf) error {
 		// Create the beam.
 		rsp, err := rootClient.
 			BeamServiceClient().
-			CreateBeam(ctx, &beamsv1.CreateBeamRequest{
+			CreateBeam(ctx, beamsv1.CreateBeamRequest_builder{
 				Egress: beamsv1.EgressMode_EGRESS_MODE_UNRESTRICTED,
-			})
+			}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}

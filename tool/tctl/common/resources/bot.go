@@ -50,8 +50,8 @@ func (c *botCollection) WriteText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"Name", "Roles"})
 	for _, b := range c.bots {
 		t.AddRow([]string{
-			b.Metadata.Name,
-			strings.Join(b.Spec.Roles, ", "),
+			b.GetMetadata().GetName(),
+			strings.Join(b.GetSpec().GetRoles(), ", "),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)
@@ -77,9 +77,9 @@ func getBot(
 ) (Collection, error) {
 	c := client.BotServiceClient()
 	if ref.Name != "" {
-		bot, err := c.GetBot(ctx, &machineidv1pb.GetBotRequest{
+		bot, err := c.GetBot(ctx, machineidv1pb.GetBotRequest_builder{
 			BotName: ref.Name,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -88,10 +88,10 @@ func getBot(
 	}
 
 	bots, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*machineidv1pb.Bot, string, error) {
-		resp, err := c.ListBots(ctx, &machineidv1pb.ListBotsRequest{
+		resp, err := c.ListBots(ctx, machineidv1pb.ListBotsRequest_builder{
 			PageSize:  int32(limit),
 			PageToken: token,
-		})
+		}.Build())
 
 		return resp.GetBots(), resp.GetNextPageToken(), trace.Wrap(err)
 	}))
@@ -113,23 +113,23 @@ func createBot(
 		return trace.Wrap(err)
 	}
 	if opts.Force {
-		_, err := client.BotServiceClient().UpsertBot(ctx, &machineidv1pb.UpsertBotRequest{
+		_, err := client.BotServiceClient().UpsertBot(ctx, machineidv1pb.UpsertBotRequest_builder{
 			Bot: bot,
-		})
+		}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		fmt.Printf("Bot %q has been created\n", bot.Metadata.Name)
+		fmt.Printf("Bot %q has been created\n", bot.GetMetadata().GetName())
 		return nil
 	}
 
-	_, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+	_, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
 		Bot: bot,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Bot %q has been created\n", bot.Metadata.Name)
+	fmt.Printf("Bot %q has been created\n", bot.GetMetadata().GetName())
 	return nil
 }
 
@@ -138,9 +138,9 @@ func deleteBot(
 	client *authclient.Client,
 	ref services.Ref,
 ) error {
-	_, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+	_, err := client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 		BotName: ref.Name,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

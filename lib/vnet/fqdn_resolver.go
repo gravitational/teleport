@@ -339,13 +339,11 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &vnetv1.ResolveFQDNResponse{
-			Match: &vnetv1.ResolveFQDNResponse_MatchedTcpApp{
-				MatchedTcpApp: &vnetv1.MatchedTCPApp{
-					AppInfo: appInfo,
-				},
-			},
-		}, nil
+		return vnetv1.ResolveFQDNResponse_builder{
+			MatchedTcpApp: vnetv1.MatchedTCPApp_builder{
+				AppInfo: appInfo,
+			}.Build(),
+		}.Build(), nil
 
 	case r.shouldUseAppHTTPSTunnel(app):
 		log.InfoContext(ctx, "Query matched an HTTPS tunnel app", "protocol", app.GetProtocol())
@@ -353,21 +351,17 @@ func (r *fqdnResolver) resolveAppInfoForCluster(
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return &vnetv1.ResolveFQDNResponse{
-			Match: &vnetv1.ResolveFQDNResponse_MatchedHttpsTunnelApp{
-				MatchedHttpsTunnelApp: &vnetv1.MatchedHTTPSTunnelApp{
-					AppInfo: appInfo,
-				},
-			},
-		}, nil
+		return vnetv1.ResolveFQDNResponse_builder{
+			MatchedHttpsTunnelApp: vnetv1.MatchedHTTPSTunnelApp_builder{
+				AppInfo: appInfo,
+			}.Build(),
+		}.Build(), nil
 
 	default:
 		log.InfoContext(ctx, "Query matched a web app")
-		return &vnetv1.ResolveFQDNResponse{
-			Match: &vnetv1.ResolveFQDNResponse_MatchedWebApp{
-				MatchedWebApp: &vnetv1.MatchedWebApp{},
-			},
-		}, nil
+		return vnetv1.ResolveFQDNResponse_builder{
+			MatchedWebApp: &vnetv1.MatchedWebApp{},
+		}.Build(), nil
 	}
 }
 
@@ -382,17 +376,17 @@ func (r *fqdnResolver) makeAppInfo(ctx context.Context, candidate clusterResolut
 		log.ErrorContext(ctx, "Failed to get cluster dial options", "error", err)
 		return nil, trace.Wrap(err, "getting dial options for matching app")
 	}
-	return &vnetv1.AppInfo{
-		AppKey: &vnetv1.AppKey{
+	return vnetv1.AppInfo_builder{
+		AppKey: vnetv1.AppKey_builder{
 			Profile:     candidate.profileName,
 			LeafCluster: candidate.leafClusterName,
 			Name:        app.GetName(),
-		},
+		}.Build(),
 		Cluster:       candidate.clusterName,
 		App:           app,
 		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
 		DialOptions:   dialOpts,
-	}, nil
+	}.Build(), nil
 }
 
 func (r *fqdnResolver) resolveDBInfoForCluster(
@@ -446,24 +440,22 @@ func (r *fqdnResolver) resolveDBInfoForCluster(
 	}
 
 	log.InfoContext(ctx, "Query matched a database", "db_name", dbName, "protocol", protocol)
-	dbInfo := &vnetv1.DatabaseInfo{
-		DatabaseKey: &vnetv1.DatabaseKey{
+	dbInfo := vnetv1.DatabaseInfo_builder{
+		DatabaseKey: vnetv1.DatabaseKey_builder{
 			Profile:     candidate.profileName,
 			LeafCluster: candidate.leafClusterName,
 			Name:        dbName,
-		},
+		}.Build(),
 		Cluster:       candidate.clusterName,
 		Protocol:      protocol,
 		Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
 		DialOptions:   dialOpts,
-	}
-	return &vnetv1.ResolveFQDNResponse{
-		Match: &vnetv1.ResolveFQDNResponse_MatchedDatabase{
-			MatchedDatabase: &vnetv1.MatchedDatabase{
-				DatabaseInfo: dbInfo,
-			},
-		},
-	}, nil
+	}.Build()
+	return vnetv1.ResolveFQDNResponse_builder{
+		MatchedDatabase: vnetv1.MatchedDatabase_builder{
+			DatabaseInfo: dbInfo,
+		}.Build(),
+	}.Build(), nil
 }
 
 // VNet SSH handles SSH hostnames matching "<hostname>.<cluster_name>.", where
@@ -492,17 +484,15 @@ func (r *fqdnResolver) resolveClusterMatch(ctx context.Context, log *slog.Logger
 
 		log.InfoContext(ctx, "Query matched a cluster subdomain and may later resolve to an app or SSH node",
 			"cluster_name", matchedCluster.clusterName)
-		return &vnetv1.ResolveFQDNResponse{
-			Match: &vnetv1.ResolveFQDNResponse_MatchedCluster{
-				MatchedCluster: &vnetv1.MatchedCluster{
-					WebProxyAddr:  rootDialOpts.GetWebProxyAddr(),
-					Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
-					Profile:       matchedCluster.profileName,
-					RootCluster:   matchedCluster.rootClusterName,
-					LeafCluster:   matchedCluster.leafClusterName,
-				},
-			},
-		}, nil
+		return vnetv1.ResolveFQDNResponse_builder{
+			MatchedCluster: vnetv1.MatchedCluster_builder{
+				WebProxyAddr:  rootDialOpts.GetWebProxyAddr(),
+				Ipv4CidrRange: clusterConfig.IPv4CIDRRange,
+				Profile:       matchedCluster.profileName,
+				RootCluster:   matchedCluster.rootClusterName,
+				LeafCluster:   matchedCluster.leafClusterName,
+			}.Build(),
+		}.Build(), nil
 	}
 	return nil, errNoMatch
 }

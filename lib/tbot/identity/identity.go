@@ -408,7 +408,7 @@ func (i *Identity) LogValue() slog.Value {
 
 	scopePin := ""
 	if tlsIdent.ScopePin != nil {
-		scopePin = tlsIdent.ScopePin.Scope
+		scopePin = tlsIdent.ScopePin.GetScope()
 	}
 
 	duration := cert.NotAfter.Sub(cert.NotBefore)

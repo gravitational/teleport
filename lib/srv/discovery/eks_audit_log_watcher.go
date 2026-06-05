@@ -212,7 +212,7 @@ func (w *eksAuditLogWatcher) reconcile(ctx context.Context, clusters []eksAuditL
 	// the existing clusters we are fetching audit logs for.
 	discoveredClusters := make(map[string]eksAuditLogCluster)
 	for _, discovered := range clusters {
-		discoveredClusters[discovered.cluster.Arn] = discovered
+		discoveredClusters[discovered.cluster.GetArn()] = discovered
 	}
 	// Stop any fetchers for clusters we are running a fetcher for that discovery did not return.
 	for arn, fetcherCancel := range mapDifference(w.fetchers, discoveredClusters) {

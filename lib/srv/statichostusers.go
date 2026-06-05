@@ -169,7 +169,7 @@ func (s *StaticHostUserHandler) run(ctx context.Context) error {
 		for _, hostUser := range users {
 			if err := s.handleNewHostUser(ctx, hostUser); err != nil {
 				// Log the error so we don't stop the handler.
-				slog.WarnContext(ctx, "Error handling static host user.", "error", err, "login", hostUser.GetMetadata().Name)
+				slog.WarnContext(ctx, "Error handling static host user.", "error", err, "login", hostUser.GetMetadata().GetName())
 			}
 		}
 		if nextKey == "" {
@@ -194,7 +194,7 @@ func (s *StaticHostUserHandler) run(ctx context.Context) error {
 
 			if err := s.handleNewHostUser(ctx, hostUser); err != nil {
 				// Log the error so we don't stop the handler.
-				slog.WarnContext(ctx, "Error handling static host user.", "error", err, "login", hostUser.GetMetadata().Name)
+				slog.WarnContext(ctx, "Error handling static host user.", "error", err, "login", hostUser.GetMetadata().GetName())
 				continue
 			}
 		case <-watcher.Done():
@@ -210,19 +210,19 @@ func (s *StaticHostUserHandler) run(ctx context.Context) error {
 
 func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser *userprovisioningv2.StaticHostUser) error {
 	var createUser *userprovisioningv2.Matcher
-	login := hostUser.GetMetadata().Name
+	login := hostUser.GetMetadata().GetName()
 	server := s.server.GetInfo()
-	for _, matcher := range hostUser.Spec.Matchers {
+	for _, matcher := range hostUser.GetSpec().GetMatchers() {
 		// Check if this host user applies to this node.
 		nodeLabels := make(types.Labels)
-		for k, v := range label.ToMap(matcher.NodeLabels) {
+		for k, v := range label.ToMap(matcher.GetNodeLabels()) {
 			nodeLabels[k] = apiutils.Strings(v)
 		}
 		matched, _, err := services.CheckLabelsMatch(
 			types.Allow,
 			types.LabelMatchers{
 				Labels:     nodeLabels,
-				Expression: matcher.NodeLabelsExpression,
+				Expression: matcher.GetNodeLabelsExpression(),
 			},
 			"",  // username
 			nil, // userTraits
@@ -240,8 +240,8 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 		if createUser != nil {
 			const msg = "Multiple matchers matched this node. Please update resource to ensure that each node is matched only once."
 			slog.WarnContext(ctx, msg, slog.String("login", login),
-				slog.Group("first_match", "labels", createUser.NodeLabels, "expression", createUser.NodeLabelsExpression),
-				slog.Group("second_match", "labels", matcher.NodeLabels, "expression", matcher.NodeLabelsExpression),
+				slog.Group("first_match", "labels", createUser.GetNodeLabels(), "expression", createUser.GetNodeLabelsExpression()),
+				slog.Group("second_match", "labels", matcher.GetNodeLabels(), "expression", matcher.GetNodeLabelsExpression()),
 			)
 			return trace.BadParameter("%s", msg)
 		}
@@ -254,21 +254,21 @@ func (s *StaticHostUserHandler) handleNewHostUser(ctx context.Context, hostUser 
 
 	slog.DebugContext(ctx, "Attempt to update matched static host user.", "login", login)
 	ui := decisionpb.HostUsersInfo{
-		Groups: createUser.Groups,
+		Groups: createUser.GetGroups(),
 		Mode:   decisionpb.HostUserMode_HOST_USER_MODE_STATIC,
-		Shell:  createUser.DefaultShell,
+		Shell:  createUser.GetDefaultShell(),
 	}
-	if createUser.Uid != 0 {
-		ui.Uid = strconv.Itoa(int(createUser.Uid))
+	if createUser.GetUid() != 0 {
+		ui.SetUid(strconv.Itoa(int(createUser.GetUid())))
 	}
-	if createUser.Gid != 0 {
-		ui.Gid = strconv.Itoa(int(createUser.Gid))
+	if createUser.GetGid() != 0 {
+		ui.SetGid(strconv.Itoa(int(createUser.GetGid())))
 	}
-	if _, err := s.users.UpsertUser(login, &ui, TakeOwnershipIfUserExists(createUser.TakeOwnershipIfUserExists)); err != nil {
+	if _, err := s.users.UpsertUser(login, &ui, TakeOwnershipIfUserExists(createUser.GetTakeOwnershipIfUserExists())); err != nil {
 		return trace.Wrap(err)
 	}
-	if s.sudoers != nil && len(createUser.Sudoers) != 0 {
-		if err := s.sudoers.WriteSudoers(login, createUser.Sudoers); err != nil {
+	if s.sudoers != nil && len(createUser.GetSudoers()) != 0 {
+		if err := s.sudoers.WriteSudoers(login, createUser.GetSudoers()); err != nil {
 			return trace.Wrap(err)
 		}
 	}

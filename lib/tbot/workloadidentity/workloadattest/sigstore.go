@@ -181,9 +181,9 @@ func (a *SigstoreAttestor) Attest(ctx context.Context, ctr Container) (*workload
 		return nil, trace.Wrap(err, "discovering Sigstore payloads")
 	}
 
-	result := &workloadidentityv1.WorkloadAttrsSigstore{
+	result := workloadidentityv1.WorkloadAttrsSigstore_builder{
 		Payloads: payloads,
-	}
+	}.Build()
 	_ = a.cache.Add(ctr.GetImageDigest(), result)
 
 	a.failuresMu.Lock()

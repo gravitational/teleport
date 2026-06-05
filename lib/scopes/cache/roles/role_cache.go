@@ -68,9 +68,9 @@ func (c *RoleCache) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetSc
 		return nil, trace.NotFound("scoped role %q not found", req.GetName())
 	}
 
-	return &scopedaccessv1.GetScopedRoleResponse{
+	return scopedaccessv1.GetScopedRoleResponse_builder{
 		Role: role,
-	}, nil
+	}.Build(), nil
 }
 
 // ListScopedRoles returns a paginated list of scoped roles.
@@ -157,10 +157,10 @@ Outer:
 		}
 	}
 
-	return &scopedaccessv1.ListScopedRolesResponse{
+	return scopedaccessv1.ListScopedRolesResponse_builder{
 		Roles:         out,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // Put adds a new role to the cache. It will overwrite any existing role with the same name.

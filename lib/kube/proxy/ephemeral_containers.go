@@ -223,7 +223,7 @@ func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
 func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContName string, authCtx *authContext, podPatch []byte, patchType apimachinerytypes.PatchType) error {
 	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer(
 		ephemeralContName,
-		&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
+		kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
 			Username:      authCtx.User.GetName(),
 			Cluster:       authCtx.kubeClusterName,
 			Namespace:     authCtx.metaResource.requestedResource.namespace,
@@ -231,7 +231,7 @@ func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContNam
 			ContainerName: ephemeralContName,
 			Patch:         podPatch,
 			PatchType:     string(patchType),
-		})
+		}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -312,7 +312,7 @@ func patchPodWithDebugContainer(decoder runtime.Decoder, podJson, podPatch []byt
 // a session which can be safely waiting on until the moderated session
 // is approved.
 func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession, waitingCont *kubewaitingcontainerpb.KubernetesWaitingContainer) (*watch.Event, error) {
-	contentType, err := patchTypeToContentType(apimachinerytypes.PatchType(waitingCont.Spec.PatchType))
+	contentType, err := patchTypeToContentType(apimachinerytypes.PatchType(waitingCont.GetSpec().GetPatchType()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -327,13 +327,13 @@ func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession
 	patchedPod, _, err := f.mergeEphemeralPatchWithCurrentPod(
 		ctx,
 		mergeEphemeralPatchWithCurrentPodConfig{
-			kubeCluster:   waitingCont.Spec.Cluster,
-			kubeNamespace: waitingCont.Spec.Namespace,
-			podName:       waitingCont.Spec.PodName,
+			kubeCluster:   waitingCont.GetSpec().GetCluster(),
+			kubeNamespace: waitingCont.GetSpec().GetNamespace(),
+			podName:       waitingCont.GetSpec().GetPodName(),
 			decoder:       decoder,
 			encoder:       encoder,
-			podPatch:      waitingCont.Spec.Patch,
-			patchType:     apimachinerytypes.PatchType(waitingCont.Spec.PatchType),
+			podPatch:      waitingCont.GetSpec().GetPatch(),
+			patchType:     apimachinerytypes.PatchType(waitingCont.GetSpec().GetPatchType()),
 		},
 	)
 	if err != nil {
@@ -365,10 +365,10 @@ func (f *Forwarder) getUserEphemeralContainersForPod(ctx context.Context, userna
 			return nil, trace.Wrap(err)
 		}
 		for _, cont := range waitingContainers {
-			if cont.Spec.Username != username ||
-				cont.Spec.Cluster != kubeCluster ||
-				cont.Spec.Namespace != namespace ||
-				cont.Spec.PodName != pod {
+			if cont.GetSpec().GetUsername() != username ||
+				cont.GetSpec().GetCluster() != kubeCluster ||
+				cont.GetSpec().GetNamespace() != namespace ||
+				cont.GetSpec().GetPodName() != pod {
 				continue
 			}
 

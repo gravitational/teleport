@@ -57,12 +57,12 @@ func (a Resource153Adapter[T]) GetResourceOrigin(res T) string {
 
 // SetResourceRevision implements the Adapter interface.
 func (a Resource153Adapter[T]) SetResourceRevision(res T, revision string) {
-	res.GetMetadata().Revision = revision
+	res.GetMetadata().SetRevision(revision)
 }
 
 // SetResourceLabels implements the Adapter interface.
 func (a Resource153Adapter[T]) SetResourceLabels(res T, labels map[string]string) {
-	res.GetMetadata().Labels = labels
+	res.GetMetadata().SetLabels(labels)
 }
 
 // NewTeleportResource153Reconciler instantiates a resourceReconciler for a

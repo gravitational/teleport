@@ -109,15 +109,15 @@ func TestFetchAWSEC2InstancesMultipleRegions(t *testing.T) {
 	// Verify each region's instances are present with correct region/account metadata.
 	byID := make(map[string]*accessgraphv1alpha.AWSInstanceV1, len(instances))
 	for _, inst := range instances {
-		byID[inst.InstanceId] = inst
+		byID[inst.GetInstanceId()] = inst
 	}
 	for region, regionInstances := range instancesByRegion {
 		for _, ec2inst := range regionInstances {
 			id := aws.ToString(ec2inst.InstanceId)
 			got, ok := byID[id]
 			require.True(t, ok, "expected instance %s to be present", id)
-			require.Equal(t, region, got.Region)
-			require.Equal(t, accountID, got.AccountId)
+			require.Equal(t, region, got.GetRegion())
+			require.Equal(t, accountID, got.GetAccountId())
 		}
 	}
 }
@@ -131,7 +131,7 @@ func TestFetchAWSEC2InstancesClientError(t *testing.T) {
 	regions := []string{"us-east-1", "us-west-2"}
 
 	existingInstances := []*accessgraphv1alpha.AWSInstanceV1{
-		{InstanceId: "i-existing", Region: "us-east-1", AccountId: accountID},
+		accessgraphv1alpha.AWSInstanceV1_builder{InstanceId: "i-existing", Region: "us-east-1", AccountId: accountID}.Build(),
 	}
 
 	getEC2Client := func(_ context.Context, region string, _ ...awsconfig.OptionsFn) (ec2.DescribeInstancesAPIClient, error) {
@@ -167,7 +167,7 @@ func TestFetchAWSEC2InstancesClientError(t *testing.T) {
 
 	byID := make(map[string]*accessgraphv1alpha.AWSInstanceV1, len(instances))
 	for _, inst := range instances {
-		byID[inst.InstanceId] = inst
+		byID[inst.GetInstanceId()] = inst
 	}
 	require.Contains(t, byID, "i-existing")
 	require.Contains(t, byID, "i-us-west-2a")
@@ -180,7 +180,7 @@ func TestFetchInstanceProfilesErrorReturnsExisting(t *testing.T) {
 	const accountID = "123456789012"
 
 	existingProfiles := []*accessgraphv1alpha.AWSInstanceProfileV1{
-		{InstanceProfileId: "profile-existing", AccountId: accountID},
+		accessgraphv1alpha.AWSInstanceProfileV1_builder{InstanceProfileId: "profile-existing", AccountId: accountID}.Build(),
 	}
 
 	a := &Fetcher{
@@ -243,7 +243,7 @@ func TestFetchInstanceProfilesSuccess(t *testing.T) {
 
 	byID := make(map[string]*accessgraphv1alpha.AWSInstanceProfileV1, len(profiles))
 	for _, p := range profiles {
-		byID[p.InstanceProfileId] = p
+		byID[p.GetInstanceProfileId()] = p
 	}
 	require.Contains(t, byID, "AIPA1")
 	require.Contains(t, byID, "AIPA2")

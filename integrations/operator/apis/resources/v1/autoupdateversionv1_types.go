@@ -65,16 +65,16 @@ type TeleportAutoupdateVersionV1List struct {
 
 // ToTeleport returns an AutoUpdateVersion that can be sent to Teleport.
 func (l *TeleportAutoupdateVersionV1) ToTeleport() *autoupdatev1pb.AutoUpdateVersion {
-	resource := &autoupdatev1pb.AutoUpdateVersion{
+	resource := autoupdatev1pb.AutoUpdateVersion_builder{
 		Kind:    types.KindAutoUpdateVersion,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        l.Name,
 			Description: l.Annotations[teleportcr.DescriptionKey],
 			Labels:      l.Labels,
-		},
+		}.Build(),
 		Spec: (*autoupdatev1pb.AutoUpdateVersionSpec)(l.Spec),
-	}
+	}.Build()
 	return resource
 }
 

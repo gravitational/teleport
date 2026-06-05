@@ -96,27 +96,23 @@ func TestRequestToMessage(t *testing.T) {
 		},
 		{
 			desc: "empty HostParams",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_TokenInit{
-					TokenInit: &joinv1.TokenInit{
-						ClientParams: &joinv1.ClientParams{
-							Payload: &joinv1.ClientParams_HostParams{},
-						},
+			req: joinv1.JoinRequest_builder{
+				TokenInit: joinv1.TokenInit_builder{
+					ClientParams: &joinv1.ClientParams{
+						Payload: &joinv1.ClientParams_HostParams{},
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "empty BotParams",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_TokenInit{
-					TokenInit: &joinv1.TokenInit{
-						ClientParams: &joinv1.ClientParams{
-							Payload: &joinv1.ClientParams_BotParams{},
-						},
+			req: joinv1.JoinRequest_builder{
+				TokenInit: joinv1.TokenInit_builder{
+					ClientParams: &joinv1.ClientParams{
+						Payload: &joinv1.ClientParams_BotParams{},
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			desc: "empty Solution",
@@ -126,63 +122,51 @@ func TestRequestToMessage(t *testing.T) {
 		},
 		{
 			desc: "empty BoundKeypairChallengeSolution",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_BoundKeypairChallengeSolution{},
-					},
+			req: joinv1.JoinRequest_builder{
+				Solution: &joinv1.ChallengeSolution{
+					Payload: &joinv1.ChallengeSolution_BoundKeypairChallengeSolution{},
 				},
-			},
+			}.Build(),
 		},
 		{
 			desc: "empty BoundKeypairRotationResponse",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_BoundKeypairRotationResponse{},
-					},
+			req: joinv1.JoinRequest_builder{
+				Solution: &joinv1.ChallengeSolution{
+					Payload: &joinv1.ChallengeSolution_BoundKeypairRotationResponse{},
 				},
-			},
+			}.Build(),
 		},
 		{
 			desc: "empty IamChallengeSolution",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_IamChallengeSolution{},
-					},
+			req: joinv1.JoinRequest_builder{
+				Solution: &joinv1.ChallengeSolution{
+					Payload: &joinv1.ChallengeSolution_IamChallengeSolution{},
 				},
-			},
+			}.Build(),
 		},
 		{
 			desc: "empty OracleChallengeSolution",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_OracleChallengeSolution{},
-					},
+			req: joinv1.JoinRequest_builder{
+				Solution: &joinv1.ChallengeSolution{
+					Payload: &joinv1.ChallengeSolution_OracleChallengeSolution{},
 				},
-			},
+			}.Build(),
 		},
 		{
 			desc: "empty TpmSolution",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_TpmSolution{},
-					},
+			req: joinv1.JoinRequest_builder{
+				Solution: &joinv1.ChallengeSolution{
+					Payload: &joinv1.ChallengeSolution_TpmSolution{},
 				},
-			},
+			}.Build(),
 		},
 		{
 			desc: "empty AzureSolution",
-			req: &joinv1.JoinRequest{
-				Payload: &joinv1.JoinRequest_Solution{
-					Solution: &joinv1.ChallengeSolution{
-						Payload: &joinv1.ChallengeSolution_AzureChallengeSolution{},
-					},
+			req: joinv1.JoinRequest_builder{
+				Solution: &joinv1.ChallengeSolution{
+					Payload: &joinv1.ChallengeSolution_AzureChallengeSolution{},
 				},
-			},
+			}.Build(),
 		},
 		{
 			desc: "empty GivingUp",

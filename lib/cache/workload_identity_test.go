@@ -60,18 +60,18 @@ func workloadIdentityPageFunc(
 }
 
 func newWorkloadIdentity(name string) *workloadidentityv1pb.WorkloadIdentity {
-	return &workloadidentityv1pb.WorkloadIdentity{
+	return workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+		}.Build(),
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
 				Id: "/example",
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 // createWorkloadIdentities creates the given identities (keyed by name, valued

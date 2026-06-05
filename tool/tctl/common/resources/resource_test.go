@@ -207,23 +207,23 @@ func TestHandlers(t *testing.T) {
 			kind: types.KindUserTask,
 			makeResource: func(t *testing.T, name string) types.Resource {
 				t.Helper()
-				userTask, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+				userTask, err := usertasks.NewDiscoverEC2UserTask(usertasksv1.UserTaskSpec_builder{
 					Integration: name + "-integration",
 					TaskType:    "discover-ec2",
 					IssueType:   "ec2-ssm-invocation-failure",
 					State:       "OPEN",
-					DiscoverEc2: &usertasksv1.DiscoverEC2{
+					DiscoverEc2: usertasksv1.DiscoverEC2_builder{
 						AccountId: "123456789012",
 						Region:    "us-east-1",
 						Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-							"i-123": {
+							"i-123": usertasksv1.DiscoverEC2Instance_builder{
 								InstanceId:      "i-123",
 								DiscoveryConfig: "dc01",
 								DiscoveryGroup:  "dg01",
-							},
+							}.Build(),
 						},
-					},
-				})
+					}.Build(),
+				}.Build())
 				require.NoError(t, err)
 				return types.ProtoResource153ToLegacy(userTask)
 			},
@@ -237,32 +237,32 @@ func TestHandlers(t *testing.T) {
 			kind: types.KindAccessMonitoringRule,
 			makeResource: func(t *testing.T, name string) types.Resource {
 				t.Helper()
-				accessMonitoringRule, err := services.NewAccessMonitoringRuleWithLabels(name, nil, &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+				accessMonitoringRule, err := services.NewAccessMonitoringRuleWithLabels(name, nil, accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 					Subjects:  []string{types.KindAccessRequest},
 					Condition: "true",
-					Notification: &accessmonitoringrulesv1.Notification{
+					Notification: accessmonitoringrulesv1.Notification_builder{
 						Name:       name + "-notification",
 						Recipients: []string{"recipient"},
-					},
-					AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+					}.Build(),
+					AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
 						Integration: name + "-review",
 						Decision:    types.RequestState_APPROVED.String(),
-					},
+					}.Build(),
 					DesiredState: types.AccessMonitoringRuleStateReviewed,
 					Schedules: map[string]*accessmonitoringrulesv1.Schedule{
-						"default": {
-							Time: &accessmonitoringrulesv1.TimeSchedule{
+						"default": accessmonitoringrulesv1.Schedule_builder{
+							Time: accessmonitoringrulesv1.TimeSchedule_builder{
 								Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-									{
+									accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 										Weekday: time.Monday.String(),
 										Start:   "00:00",
 										End:     "23:59",
-									},
+									}.Build(),
 								},
-							},
-						},
+							}.Build(),
+						}.Build(),
 					},
-				})
+				}.Build())
 				require.NoError(t, err)
 				return types.ProtoResource153ToLegacy(accessMonitoringRule)
 			},

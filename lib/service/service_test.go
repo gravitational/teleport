@@ -2056,14 +2056,14 @@ func TestAgentRolloutController(t *testing.T) {
 
 	// Test execution: create the autoupdate_version resource
 	authServer := process.GetAuthServer()
-	version, err := autoupdate.NewAutoUpdateVersion(&autoupdatepb.AutoUpdateVersionSpec{
-		Agents: &autoupdatepb.AutoUpdateVersionSpecAgents{
+	version, err := autoupdate.NewAutoUpdateVersion(autoupdatepb.AutoUpdateVersionSpec_builder{
+		Agents: autoupdatepb.AutoUpdateVersionSpecAgents_builder{
 			StartVersion:  "1.2.3",
 			TargetVersion: "1.2.4",
 			Schedule:      autoupdate.AgentsScheduleImmediate,
 			Mode:          autoupdate.AgentsUpdateModeEnabled,
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	version, err = authServer.CreateAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
@@ -2074,7 +2074,7 @@ func TestAgentRolloutController(t *testing.T) {
 		if err != nil {
 			return false
 		}
-		return rollout.Spec.GetTargetVersion() == version.Spec.GetAgents().GetTargetVersion()
+		return rollout.GetSpec().GetTargetVersion() == version.GetSpec().GetAgents().GetTargetVersion()
 	}, 5*time.Second, 10*time.Millisecond)
 }
 

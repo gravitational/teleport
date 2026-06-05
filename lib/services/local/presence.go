@@ -2032,14 +2032,14 @@ type relayServerParser struct{}
 func (relayServerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return types.Resource153ToLegacy(&presencev1.RelayServer{
+		return types.Resource153ToLegacy(presencev1.RelayServer_builder{
 			Kind:    types.KindRelayServer,
 			SubKind: "",
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: event.Item.Key.TrimPrefix(backend.ExactKey(relayServersPrefix)).String(),
-			},
-		}), nil
+			}.Build(),
+		}.Build()), nil
 	case types.OpPut:
 		r, err := services.UnmarshalProtoResource[*presencev1.RelayServer](
 			event.Item.Value,

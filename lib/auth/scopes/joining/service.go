@@ -117,9 +117,9 @@ func (s *Server) DeleteScopedToken(ctx context.Context, req *scopedjoiningv1.Del
 	}
 
 	// fetch the token so we can determine the resource scope
-	preAuthzRes, err := s.backend.GetScopedToken(ctx, &scopedjoiningv1.GetScopedTokenRequest{
+	preAuthzRes, err := s.backend.GetScopedToken(ctx, scopedjoiningv1.GetScopedTokenRequest_builder{
 		Name: req.GetName(),
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,7 +179,7 @@ func makeCursor(token *scopedjoiningv1.ScopedToken) string {
 func (s *Server) scopedTokenIter(ctx context.Context, req *scopedjoiningv1.ListScopedTokensRequest) iter.Seq2[*scopedjoiningv1.ScopedToken, error] {
 	return func(yield func(token *scopedjoiningv1.ScopedToken, err error) bool) {
 		iterReq := proto.CloneOf(req)
-		iterReq.Limit = s.maxPageSize
+		iterReq.SetLimit(s.maxPageSize)
 
 		var cursorFound bool
 		for {
@@ -204,7 +204,7 @@ func (s *Server) scopedTokenIter(ctx context.Context, req *scopedjoiningv1.ListS
 			if res.GetCursor() == "" {
 				return
 			}
-			iterReq.Cursor = res.GetCursor()
+			iterReq.SetCursor(res.GetCursor())
 		}
 	}
 }
@@ -254,10 +254,10 @@ func (s *Server) ListScopedTokens(ctx context.Context, req *scopedjoiningv1.List
 	if len(authorizedTokens) >= limit {
 		lastToken = authorizedTokens[len(authorizedTokens)-1]
 	}
-	return &scopedjoiningv1.ListScopedTokensResponse{
+	return scopedjoiningv1.ListScopedTokensResponse_builder{
 		Tokens: authorizedTokens,
 		Cursor: makeCursor(lastToken),
-	}, nil
+	}.Build(), nil
 }
 
 // UpsertScopedToken implements [scopedjoiningv1.ScopedJoiningServiceServer].
@@ -294,9 +294,9 @@ func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.Upd
 		return nil, trace.Wrap(err)
 	}
 
-	extant, err := s.backend.GetScopedToken(ctx, &scopedjoiningv1.GetScopedTokenRequest{
+	extant, err := s.backend.GetScopedToken(ctx, scopedjoiningv1.GetScopedTokenRequest_builder{
 		Name: req.GetToken().GetMetadata().GetName(),
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

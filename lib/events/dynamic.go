@@ -739,13 +739,13 @@ func EventFieldsToUnstructured(evt EventFields) (*auditlogpb.EventUnstructured, 
 
 	id := getOrComputeEventID(evt)
 
-	return &auditlogpb.EventUnstructured{
+	return auditlogpb.EventUnstructured_builder{
 		Type:         evt.GetType(),
 		Index:        int64(evt.GetInt(EventIndex)),
 		Time:         timestamppb.New(evt.GetTime(EventTime)),
 		Id:           id,
 		Unstructured: str,
-	}, nil
+	}.Build(), nil
 }
 
 // getOrComputeEventID computes the ID of the event. If the event already has an ID, it is returned.

@@ -37,170 +37,170 @@ func TestListScopedRolesScenarios(t *testing.T) {
 	t.Parallel()
 
 	roles := []*scopedaccessv1.ScopedRole{
-		{
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "admin-01",
-			},
+			}.Build(),
 			Scope:   "/",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "admin-02",
-			},
+			}.Build(),
 			Scope:   "/aa",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "user-01",
-			},
+			}.Build(),
 			Scope:   "/",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "user-02",
-			},
+			}.Build(),
 			Scope:   "/aa",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "admin-03",
-			},
+			}.Build(),
 			Scope:   "/aa/bb",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "user-03",
-			},
+			}.Build(),
 			Scope:   "/aa/bb",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "intern-01",
-			},
+			}.Build(),
 			Scope:   "/bb",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 
 	cache := NewRoleCache()
 	for _, role := range roles {
-		_, err := cache.GetScopedRole(t.Context(), &scopedaccessv1.GetScopedRoleRequest{
+		_, err := cache.GetScopedRole(t.Context(), scopedaccessv1.GetScopedRoleRequest_builder{
 			Name: role.GetMetadata().GetName(),
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 		cache.Put(role)
 
-		rsp, err := cache.GetScopedRole(t.Context(), &scopedaccessv1.GetScopedRoleRequest{
+		rsp, err := cache.GetScopedRole(t.Context(), scopedaccessv1.GetScopedRoleRequest_builder{
 			Name: role.GetMetadata().GetName(),
-		})
+		}.Build())
 		require.NoError(t, err)
 		require.NotNil(t, rsp.GetRole())
 	}
 
 	// verify expected behavior for standard cursors in resources subject to scope mode
-	rsp, err := cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
-		ResourceScope: &scopespb.Filter{
+	rsp, err := cache.ListScopedRoles(t.Context(), scopedaccessv1.ListScopedRolesRequest_builder{
+		ResourceScope: scopespb.Filter_builder{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
-		},
+		}.Build(),
 		PageToken: "v1:user-02@/aa",
-	})
+	}.Build())
 	require.NoError(t, err)
-	require.Empty(t, rsp.NextPageToken)
-	require.Equal(t, []string{"user-02", "admin-03", "user-03"}, collectRoleNames(rsp.Roles))
+	require.Empty(t, rsp.GetNextPageToken())
+	require.Equal(t, []string{"user-02", "admin-03", "user-03"}, collectRoleNames(rsp.GetRoles()))
 
 	// try to inject a malicious root out-of-band cursor in resources subject to scope mode (no effect)
-	rsp, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
-		ResourceScope: &scopespb.Filter{
+	rsp, err = cache.ListScopedRoles(t.Context(), scopedaccessv1.ListScopedRolesRequest_builder{
+		ResourceScope: scopespb.Filter_builder{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
-		},
+		}.Build(),
 		PageToken: "v1:user-01@/",
-	})
+	}.Build())
 	require.NoError(t, err)
-	require.Empty(t, rsp.NextPageToken)
-	require.Equal(t, []string{"admin-02", "user-02", "admin-03", "user-03"}, collectRoleNames(rsp.Roles))
+	require.Empty(t, rsp.GetNextPageToken())
+	require.Equal(t, []string{"admin-02", "user-02", "admin-03", "user-03"}, collectRoleNames(rsp.GetRoles()))
 
 	// try to inject a malicious orthogonal out-of-band cursor in resources subject to scope mode (no effect)
-	rsp, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
-		ResourceScope: &scopespb.Filter{
+	rsp, err = cache.ListScopedRoles(t.Context(), scopedaccessv1.ListScopedRolesRequest_builder{
+		ResourceScope: scopespb.Filter_builder{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
-		},
+		}.Build(),
 		PageToken: "v1:intern-01@/bb",
-	})
+	}.Build())
 	require.NoError(t, err)
-	require.Empty(t, rsp.NextPageToken)
-	require.Equal(t, []string{"admin-02", "user-02", "admin-03", "user-03"}, collectRoleNames(rsp.Roles))
+	require.Empty(t, rsp.GetNextPageToken())
+	require.Equal(t, []string{"admin-02", "user-02", "admin-03", "user-03"}, collectRoleNames(rsp.GetRoles()))
 
 	// verify expected behavior for standard cursors in policies applicable to scope mode
-	rsp, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
-		ResourceScope: &scopespb.Filter{
+	rsp, err = cache.ListScopedRoles(t.Context(), scopedaccessv1.ListScopedRolesRequest_builder{
+		ResourceScope: scopespb.Filter_builder{
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
-		},
+		}.Build(),
 		PageToken: "v1:user-01@/",
-	})
+	}.Build())
 	require.NoError(t, err)
-	require.Empty(t, rsp.NextPageToken)
-	require.Equal(t, []string{"user-01", "admin-02", "user-02"}, collectRoleNames(rsp.Roles))
+	require.Empty(t, rsp.GetNextPageToken())
+	require.Equal(t, []string{"user-01", "admin-02", "user-02"}, collectRoleNames(rsp.GetRoles()))
 
 	// try to inject a malicious child out-of-band cursor in policies applicable to scope mode (effect is
 	// to ignore all items in valid query path).
-	rsp, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
-		ResourceScope: &scopespb.Filter{
+	rsp, err = cache.ListScopedRoles(t.Context(), scopedaccessv1.ListScopedRolesRequest_builder{
+		ResourceScope: scopespb.Filter_builder{
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
-		},
+		}.Build(),
 		PageToken: "v1:user-03@/aa/bb",
-	})
+	}.Build())
 	require.NoError(t, err)
-	require.Empty(t, rsp.NextPageToken)
-	require.Empty(t, collectRoleNames(rsp.Roles))
+	require.Empty(t, rsp.GetNextPageToken())
+	require.Empty(t, collectRoleNames(rsp.GetRoles()))
 
 	// try to inject a malicious orthogonal out-of-band cursor in policies applicable to scope mode (effect is to
 	// ignore root, but process leaf normally).
-	rsp, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
-		ResourceScope: &scopespb.Filter{
+	rsp, err = cache.ListScopedRoles(t.Context(), scopedaccessv1.ListScopedRolesRequest_builder{
+		ResourceScope: scopespb.Filter_builder{
 			Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 			Scope: "/aa",
-		},
+		}.Build(),
 		PageToken: "v1:intern-01@/bb",
-	})
+	}.Build())
 	require.NoError(t, err)
-	require.Empty(t, rsp.NextPageToken)
-	require.Equal(t, []string{"admin-02", "user-02"}, collectRoleNames(rsp.Roles))
+	require.Empty(t, rsp.GetNextPageToken())
+	require.Equal(t, []string{"admin-02", "user-02"}, collectRoleNames(rsp.GetRoles()))
 
 	// verify rejection of unknown cursor version
-	_, err = cache.ListScopedRoles(t.Context(), &scopedaccessv1.ListScopedRolesRequest{
-		ResourceScope: &scopespb.Filter{
+	_, err = cache.ListScopedRoles(t.Context(), scopedaccessv1.ListScopedRolesRequest_builder{
+		ResourceScope: scopespb.Filter_builder{
 			Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 			Scope: "/aa",
-		},
+		}.Build(),
 		PageToken: "v2:user-02@/aa",
-	})
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsBadParameter(err), "expected BadParameter error, got %v", err)
 }
@@ -210,51 +210,51 @@ func TestListScopedRolesBasics(t *testing.T) {
 	t.Parallel()
 
 	roles := []*scopedaccessv1.ScopedRole{
-		{
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "admin-01",
-			},
+			}.Build(),
 			Scope:   "/",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "admin-02",
-			},
+			}.Build(),
 			Scope:   "/aa",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "user-01",
-			},
+			}.Build(),
 			Scope:   "/",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "user-02",
-			},
+			}.Build(),
 			Scope:   "/aa",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerpb.Metadata{
+			Metadata: headerpb.Metadata_builder{
 				Name: "intern-01",
-			},
+			}.Build(),
 			Scope:   "/bb",
 			Spec:    &scopedaccessv1.ScopedRoleSpec{},
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 
 	tts := []struct {
@@ -264,9 +264,9 @@ func TestListScopedRolesBasics(t *testing.T) {
 	}{
 		{
 			name: "all single page explicit excess",
-			req: &scopedaccessv1.ListScopedRolesRequest{
+			req: scopedaccessv1.ListScopedRolesRequest_builder{
 				PageSize: int32(len(roles) + 1),
-			},
+			}.Build(),
 			expect: [][]string{
 				{
 					"admin-01",
@@ -292,9 +292,9 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "all single page exact",
-			req: &scopedaccessv1.ListScopedRolesRequest{
+			req: scopedaccessv1.ListScopedRolesRequest_builder{
 				PageSize: int32(len(roles)),
-			},
+			}.Build(),
 			expect: [][]string{
 				{
 					"admin-01",
@@ -307,9 +307,9 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "all multi page",
-			req: &scopedaccessv1.ListScopedRolesRequest{
+			req: scopedaccessv1.ListScopedRolesRequest_builder{
 				PageSize: 2,
-			},
+			}.Build(),
 			expect: [][]string{
 				{
 					"admin-01",
@@ -326,12 +326,12 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "resource scope root",
-			req: &scopedaccessv1.ListScopedRolesRequest{
-				ResourceScope: &scopespb.Filter{
+			req: scopedaccessv1.ListScopedRolesRequest_builder{
+				ResourceScope: scopespb.Filter_builder{
 					Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expect: [][]string{
 				{
 					"admin-01",
@@ -344,12 +344,12 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "resource scope non-root",
-			req: &scopedaccessv1.ListScopedRolesRequest{
-				ResourceScope: &scopespb.Filter{
+			req: scopedaccessv1.ListScopedRolesRequest_builder{
+				ResourceScope: scopespb.Filter_builder{
 					Mode:  scopespb.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE,
 					Scope: "/aa",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expect: [][]string{
 				{
 					"admin-02",
@@ -359,12 +359,12 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "policy scope root",
-			req: &scopedaccessv1.ListScopedRolesRequest{
-				ResourceScope: &scopespb.Filter{
+			req: scopedaccessv1.ListScopedRolesRequest_builder{
+				ResourceScope: scopespb.Filter_builder{
 					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 					Scope: "/",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expect: [][]string{
 				{
 					"admin-01",
@@ -374,12 +374,12 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "policy scope non-root",
-			req: &scopedaccessv1.ListScopedRolesRequest{
-				ResourceScope: &scopespb.Filter{
+			req: scopedaccessv1.ListScopedRolesRequest_builder{
+				ResourceScope: scopespb.Filter_builder{
 					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 					Scope: "/aa",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expect: [][]string{
 				{
 					"admin-01",
@@ -391,9 +391,9 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "name filter",
-			req: &scopedaccessv1.ListScopedRolesRequest{
+			req: scopedaccessv1.ListScopedRolesRequest_builder{
 				NameFilter: "admin",
-			},
+			}.Build(),
 			expect: [][]string{
 				{
 					"admin-01",
@@ -403,9 +403,9 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "name case insensitive",
-			req: &scopedaccessv1.ListScopedRolesRequest{
+			req: scopedaccessv1.ListScopedRolesRequest_builder{
 				NameFilter: "AdMiN",
-			},
+			}.Build(),
 			expect: [][]string{
 				{
 					"admin-01",
@@ -415,10 +415,10 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "name filter paged",
-			req: &scopedaccessv1.ListScopedRolesRequest{
+			req: scopedaccessv1.ListScopedRolesRequest_builder{
 				NameFilter: "min",
 				PageSize:   1,
-			},
+			}.Build(),
 			expect: [][]string{
 				{"admin-01"},
 				{"admin-02"},
@@ -426,13 +426,13 @@ func TestListScopedRolesBasics(t *testing.T) {
 		},
 		{
 			name: "name filter policy scope root",
-			req: &scopedaccessv1.ListScopedRolesRequest{
+			req: scopedaccessv1.ListScopedRolesRequest_builder{
 				NameFilter: "01",
-				ResourceScope: &scopespb.Filter{
+				ResourceScope: scopespb.Filter_builder{
 					Mode:  scopespb.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE,
 					Scope: "/",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			expect: [][]string{
 				{
 					"admin-01",
@@ -444,17 +444,17 @@ func TestListScopedRolesBasics(t *testing.T) {
 
 	cache := NewRoleCache()
 	for _, role := range roles {
-		_, err := cache.GetScopedRole(t.Context(), &scopedaccessv1.GetScopedRoleRequest{
+		_, err := cache.GetScopedRole(t.Context(), scopedaccessv1.GetScopedRoleRequest_builder{
 			Name: role.GetMetadata().GetName(),
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 
 		cache.Put(role)
 
-		rsp, err := cache.GetScopedRole(t.Context(), &scopedaccessv1.GetScopedRoleRequest{
+		rsp, err := cache.GetScopedRole(t.Context(), scopedaccessv1.GetScopedRoleRequest_builder{
 			Name: role.GetMetadata().GetName(),
-		})
+		}.Build())
 		require.NoError(t, err)
 		require.NotNil(t, rsp.GetRole())
 	}
@@ -466,17 +466,17 @@ func TestListScopedRolesBasics(t *testing.T) {
 				rsp, err := cache.ListScopedRoles(t.Context(), tt.req)
 				require.NoError(t, err)
 
-				if len(rsp.Roles) == 0 {
+				if len(rsp.GetRoles()) == 0 {
 					break
 				}
 
-				out = append(out, collectRoleNames(rsp.Roles))
+				out = append(out, collectRoleNames(rsp.GetRoles()))
 
-				if rsp.NextPageToken == "" {
+				if rsp.GetNextPageToken() == "" {
 					break
 				}
 
-				tt.req.PageToken = rsp.NextPageToken
+				tt.req.SetPageToken(rsp.GetNextPageToken())
 			}
 
 			require.Equal(t, tt.expect, out)
@@ -487,7 +487,7 @@ func TestListScopedRolesBasics(t *testing.T) {
 func collectRoleNames(roles []*scopedaccessv1.ScopedRole) []string {
 	var names []string
 	for _, role := range roles {
-		names = append(names, role.Metadata.Name)
+		names = append(names, role.GetMetadata().GetName())
 	}
 	return names
 }

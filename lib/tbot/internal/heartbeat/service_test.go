@@ -106,8 +106,8 @@ func TestHeartbeatService(t *testing.T) {
 		svcA.ReportReason(readyz.Unhealthy, "no more bananas")
 		svcB.ReportReason(readyz.Unhealthy, strings.Repeat("b", 300))
 
-		want := &machineidv1pb.SubmitHeartbeatRequest{
-			Heartbeat: &machineidv1pb.BotInstanceStatusHeartbeat{
+		want := machineidv1pb.SubmitHeartbeatRequest_builder{
+			Heartbeat: machineidv1pb.BotInstanceStatusHeartbeat_builder{
 				Hostname:     hostName,
 				IsStartup:    true,
 				OneShot:      false,
@@ -117,37 +117,37 @@ func TestHeartbeatService(t *testing.T) {
 				Os:           runtime.GOOS,
 				JoinMethod:   string(types.JoinMethodGitHub),
 				Kind:         machineidv1pb.BotKind_BOT_KIND_TBOT,
-			},
+			}.Build(),
 			ServiceHealth: []*machineidv1pb.BotInstanceServiceHealth{
-				{
-					Service: &machineidv1pb.BotInstanceServiceIdentifier{
+				machineidv1pb.BotInstanceServiceHealth_builder{
+					Service: machineidv1pb.BotInstanceServiceIdentifier_builder{
 						Name: "a",
 						Type: "a",
-					},
+					}.Build(),
 					Reason:    ptr("no more bananas"),
 					Status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 					UpdatedAt: timestamppb.New(time.Now()),
-				},
+				}.Build(),
 				// Check limits were applied on user-controlled or dynamic fields.
-				{
-					Service: &machineidv1pb.BotInstanceServiceIdentifier{
+				machineidv1pb.BotInstanceServiceHealth_builder{
+					Service: machineidv1pb.BotInstanceServiceIdentifier_builder{
 						Name: strings.Repeat("b", 64),
 						Type: "b",
-					},
+					}.Build(),
 					Reason:    ptr(strings.Repeat("b", 256)),
 					Status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_UNHEALTHY,
 					UpdatedAt: timestamppb.New(time.Now()),
-				},
-				{
-					Service: &machineidv1pb.BotInstanceServiceIdentifier{
+				}.Build(),
+				machineidv1pb.BotInstanceServiceHealth_builder{
+					Service: machineidv1pb.BotInstanceServiceIdentifier_builder{
 						Name: "heartbeat",
 						Type: "internal/heartbeat",
-					},
+					}.Build(),
 					Status:    machineidv1pb.BotInstanceHealthStatus_BOT_INSTANCE_HEALTH_STATUS_HEALTHY,
 					UpdatedAt: timestamppb.New(time.Now()),
-				},
+				}.Build(),
 			},
-		}
+		}.Build()
 
 		compare := func(t *testing.T, want, got *machineidv1pb.SubmitHeartbeatRequest) {
 			t.Helper()
@@ -173,8 +173,8 @@ func TestHeartbeatService(t *testing.T) {
 
 		select {
 		case got := <-fhs.ch:
-			want.Heartbeat.IsStartup = false
-			want.Heartbeat.Uptime = durationpb.New(time.Hour + time.Second)
+			want.GetHeartbeat().SetIsStartup(false)
+			want.GetHeartbeat().SetUptime(durationpb.New(time.Hour + time.Second))
 			compare(t, want, got)
 		default:
 			t.Fatal("no heartbeat received")

@@ -272,9 +272,9 @@ func TestSession_newRecorder(t *testing.T) {
 					component: teleport.ComponentNode,
 				},
 				Identity: IdentityContext{
-					AccessPermit: &decisionpb.SSHAccessPermit{
+					AccessPermit: decisionpb.SSHAccessPermit_builder{
 						SessionRecordingMode: string(constants.SessionRecordingModeStrict),
-					},
+					}.Build(),
 				},
 			},
 			errAssertion: require.Error,
@@ -290,9 +290,9 @@ func TestSession_newRecorder(t *testing.T) {
 					datadir:   t.TempDir(),
 				},
 				Identity: IdentityContext{
-					AccessPermit: &decisionpb.SSHAccessPermit{
+					AccessPermit: decisionpb.SSHAccessPermit_builder{
 						SessionRecordingMode: string(constants.SessionRecordingModeBestEffort),
-					},
+					}.Build(),
 				},
 			},
 			errAssertion: require.NoError,
@@ -454,9 +454,9 @@ func TestSessionRegistrySetupFailureCleanup(t *testing.T) {
 			t.Cleanup(func() { reg.Close() })
 
 			// Use strict recording mode so that recorder errors aren't ignored.
-			accessPermit := &decisionpb.SSHAccessPermit{
+			accessPermit := decisionpb.SSHAccessPermit_builder{
 				SessionRecordingMode: string(constants.SessionRecordingModeStrict),
-			}
+			}.Build()
 
 			scx := newTestServerContext(t, reg.Srv, tt.sessionRoles, accessPermit)
 			t.Cleanup(func() { require.NoError(t, scx.Close()) })
@@ -1043,9 +1043,9 @@ func TestSessionRecordingModes(t *testing.T) {
 			require.NoError(t, err)
 			t.Cleanup(func() { reg.Close() })
 
-			sess, sessCh := testOpenSession(t, reg, nil, &decisionpb.SSHAccessPermit{
+			sess, sessCh := testOpenSession(t, reg, nil, decisionpb.SSHAccessPermit_builder{
 				SessionRecordingMode: string(tt.sessionRecordingMode),
-			})
+			}.Build())
 
 			// Write to the session as a synchronization barrier.
 			_, err = sessCh.Write([]byte("hello"))
@@ -1684,11 +1684,11 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
+					HostUsersInfo: decisionpb.HostUsersInfo_builder{
 						Groups: []string{"foo", "bar"},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			hostUsers: &fakeHostUsersBackend{users: map[string]fakeUser{
 				username: {},
@@ -1705,11 +1705,11 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
+					HostUsersInfo: decisionpb.HostUsersInfo_builder{
 						Groups: []string{"foo", "bar"},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			hostUsers: &fakeHostUsersBackend{},
 
@@ -1723,9 +1723,9 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					HostUsersInfo: nil,
-				},
+				}.Build(),
 			},
 			hostUsers: &fakeHostUsersBackend{
 				users: map[string]fakeUser{
@@ -1744,9 +1744,9 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					HostUsersInfo: nil,
-				},
+				}.Build(),
 			},
 			hostUsers: &fakeHostUsersBackend{},
 
@@ -1768,11 +1768,11 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
+					HostUsersInfo: decisionpb.HostUsersInfo_builder{
 						Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			hostUsers: &fakeHostUsersBackend{},
 			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
@@ -1789,11 +1789,11 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
+					HostUsersInfo: decisionpb.HostUsersInfo_builder{
 						Mode: decisionpb.HostUserMode_HOST_USER_MODE_DROP,
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			hostUsers: &fakeHostUsersBackend{},
 			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
@@ -1810,11 +1810,11 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
+					HostUsersInfo: decisionpb.HostUsersInfo_builder{
 						Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			hostUsers: &fakeHostUsersBackend{
 				users: map[string]fakeUser{
@@ -1835,12 +1835,12 @@ func TestUpsertHostUser(t *testing.T) {
 			createHostUser: true,
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
-					HostUsersInfo: &decisionpb.HostUsersInfo{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
+					HostUsersInfo: decisionpb.HostUsersInfo_builder{
 						Mode: decisionpb.HostUserMode_HOST_USER_MODE_KEEP,
 						Gid:  "set",
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			hostUsers: &fakeHostUsersBackend{},
 			obtainFallbackUID: func(ctx context.Context, username string) (uid int32, ok bool, _ error) {
@@ -1908,9 +1908,9 @@ func TestWriteSudoersFile(t *testing.T) {
 			name: "should write sudoers with permission",
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					HostSudoers: []string{"foo", "bar"},
-				},
+				}.Build(),
 			},
 			hostSudoers: &fakeSudoersBackend{},
 
@@ -1922,9 +1922,9 @@ func TestWriteSudoersFile(t *testing.T) {
 			name: "should do nothing if no sudoers defined",
 			identityContext: IdentityContext{
 				Login: username,
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					HostSudoers: nil,
-				},
+				}.Build(),
 			},
 			hostSudoers: &fakeSudoersBackend{},
 
@@ -1934,9 +1934,9 @@ func TestWriteSudoersFile(t *testing.T) {
 			name: "should do nothing for session join principal",
 			identityContext: IdentityContext{
 				Login: teleport.SSHSessionJoinPrincipal,
-				AccessPermit: &decisionpb.SSHAccessPermit{
+				AccessPermit: decisionpb.SSHAccessPermit_builder{
 					HostSudoers: []string{"foo", "bar"}, // should not be written
-				},
+				}.Build(),
 			},
 			hostSudoers: &fakeSudoersBackend{},
 
@@ -2020,9 +2020,9 @@ func (f *fakeHostUsersBackend) UpsertUser(name string, hostRoleInfo *decisionpb.
 	}
 
 	f.users[name] = fakeUser{
-		groups: hostRoleInfo.Groups,
-		uid:    hostRoleInfo.Uid,
-		gid:    hostRoleInfo.Gid,
+		groups: hostRoleInfo.GetGroups(),
+		uid:    hostRoleInfo.GetUid(),
+		gid:    hostRoleInfo.GetGid(),
 	}
 	return nil, nil
 }

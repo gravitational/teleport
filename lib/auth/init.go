@@ -1313,9 +1313,9 @@ func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
 		return nil
 	}
 
-	stored, err = clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+	stored, err = clusterconfig.NewAccessGraphSettings(clusterconfigpb.AccessGraphSettingsSpec_builder{
 		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -100,13 +100,13 @@ func (a *Fetcher) fetchAWSRDSDatabases(ctx context.Context) (
 func awsRDSInstanceToRDS(instance *rdstypes.DBInstance, region, accountID string) *accessgraphv1alpha.AWSRDSDatabaseV1 {
 	var tags []*accessgraphv1alpha.AWSTag
 	for _, v := range instance.TagList {
-		tags = append(tags, &accessgraphv1alpha.AWSTag{
+		tags = append(tags, accessgraphv1alpha.AWSTag_builder{
 			Key:   aws.ToString(v.Key),
 			Value: strPtrToWrapper(v.Value),
-		})
+		}.Build())
 	}
 
-	return &accessgraphv1alpha.AWSRDSDatabaseV1{
+	return accessgraphv1alpha.AWSRDSDatabaseV1_builder{
 		Name:      aws.ToString(instance.DBInstanceIdentifier),
 		Arn:       aws.ToString(instance.DBInstanceArn),
 		CreatedAt: awsTimeToProtoTime(instance.InstanceCreateTime),
@@ -114,13 +114,13 @@ func awsRDSInstanceToRDS(instance *rdstypes.DBInstance, region, accountID string
 		Region:    region,
 		AccountId: accountID,
 		Tags:      tags,
-		EngineDetails: &accessgraphv1alpha.AWSRDSEngineV1{
+		EngineDetails: accessgraphv1alpha.AWSRDSEngineV1_builder{
 			Engine:  aws.ToString(instance.Engine),
 			Version: aws.ToString(instance.EngineVersion),
-		},
+		}.Build(),
 		IsCluster:  false,
 		ResourceId: aws.ToString(instance.DbiResourceId),
-	}
+	}.Build()
 }
 
 // awsRDSInstanceToRDS converts an rdstypes.DBCluster to accessgraphv1alpha.AWSRDSDatabaseV1
@@ -128,13 +128,13 @@ func awsRDSInstanceToRDS(instance *rdstypes.DBInstance, region, accountID string
 func awsRDSClusterToRDS(instance *rdstypes.DBCluster, region, accountID string) *accessgraphv1alpha.AWSRDSDatabaseV1 {
 	var tags []*accessgraphv1alpha.AWSTag
 	for _, v := range instance.TagList {
-		tags = append(tags, &accessgraphv1alpha.AWSTag{
+		tags = append(tags, accessgraphv1alpha.AWSTag_builder{
 			Key:   aws.ToString(v.Key),
 			Value: strPtrToWrapper(v.Value),
-		})
+		}.Build())
 	}
 
-	return &accessgraphv1alpha.AWSRDSDatabaseV1{
+	return accessgraphv1alpha.AWSRDSDatabaseV1_builder{
 		Name:      aws.ToString(instance.DBClusterIdentifier),
 		Arn:       aws.ToString(instance.DBClusterArn),
 		CreatedAt: awsTimeToProtoTime(instance.ClusterCreateTime),
@@ -142,13 +142,13 @@ func awsRDSClusterToRDS(instance *rdstypes.DBCluster, region, accountID string) 
 		Region:    region,
 		AccountId: accountID,
 		Tags:      tags,
-		EngineDetails: &accessgraphv1alpha.AWSRDSEngineV1{
+		EngineDetails: accessgraphv1alpha.AWSRDSEngineV1_builder{
 			Engine:  aws.ToString(instance.Engine),
 			Version: aws.ToString(instance.EngineVersion),
-		},
+		}.Build(),
 		IsCluster:  true,
 		ResourceId: aws.ToString(instance.DbClusterResourceId),
-	}
+	}.Build()
 }
 
 func (a *Fetcher) collectDBInstances(ctx context.Context,
@@ -167,7 +167,7 @@ func (a *Fetcher) collectDBInstances(ctx context.Context,
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			old := sliceFilter(a.lastResult.RDSDatabases, func(db *accessgraphv1alpha.AWSRDSDatabaseV1) bool {
-				return !db.IsCluster && db.Region == region && db.AccountId == a.AccountID
+				return !db.GetIsCluster() && db.GetRegion() == region && db.GetAccountId() == a.AccountID
 			})
 			collectDBs(old, trace.Wrap(err))
 			return
@@ -201,7 +201,7 @@ func (a *Fetcher) collectDBClusters(
 		page, err := pager.NextPage(ctx)
 		if err != nil {
 			old := sliceFilter(a.lastResult.RDSDatabases, func(db *accessgraphv1alpha.AWSRDSDatabaseV1) bool {
-				return db.IsCluster && db.Region == region && db.AccountId == a.AccountID
+				return db.GetIsCluster() && db.GetRegion() == region && db.GetAccountId() == a.AccountID
 			})
 			collectDBs(old, trace.Wrap(err))
 			return

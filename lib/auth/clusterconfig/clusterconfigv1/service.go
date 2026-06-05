@@ -214,26 +214,26 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
+	if req.GetAuthPreference().GetPrivateKeyPolicy().IsHardwareKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), s.modules); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(req.GetAuthPreference().GetDeviceTrust(), s.modules); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := req.AuthPreference.CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
+	if err := req.GetAuthPreference().CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	req.AuthPreference.SetOrigin(types.OriginDynamic)
+	req.GetAuthPreference().SetOrigin(types.OriginDynamic)
 
 	original, err := s.cache.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.backend.UpdateAuthPreference(ctx, req.AuthPreference)
+	updated, err := s.backend.UpdateAuthPreference(ctx, req.GetAuthPreference())
 
 	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
@@ -243,7 +243,7 @@ func (s *Service) UpdateAuthPreference(ctx context.Context, req *clusterconfigpb
 		UserMetadata:       authzCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
-		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.AuthPreference),
+		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.GetAuthPreference()),
 	}); auditErr != nil {
 		slog.WarnContext(ctx, "Failed to emit auth preference update event.", "error", auditErr)
 	}
@@ -282,26 +282,26 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 	}
 
 	// check that the given RequireMFAType is supported in this build.
-	if req.AuthPreference.GetPrivateKeyPolicy().IsHardwareKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
+	if req.GetAuthPreference().GetPrivateKeyPolicy().IsHardwareKeyPolicy() && s.modules.BuildType() != modules.BuildEnterprise {
 		return nil, trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 	}
 
-	if err := dtconfig.ValidateConfigAgainstModules(req.AuthPreference.GetDeviceTrust(), s.modules); err != nil {
+	if err := dtconfig.ValidateConfigAgainstModules(req.GetAuthPreference().GetDeviceTrust(), s.modules); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := req.AuthPreference.CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
+	if err := req.GetAuthPreference().CheckSignatureAlgorithmSuite(s.signatureAlgorithmSuiteParams); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	req.AuthPreference.SetOrigin(types.OriginDynamic)
+	req.GetAuthPreference().SetOrigin(types.OriginDynamic)
 
 	original, err := s.cache.GetAuthPreference(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.backend.UpsertAuthPreference(ctx, req.AuthPreference)
+	updated, err := s.backend.UpsertAuthPreference(ctx, req.GetAuthPreference())
 
 	if auditErr := s.emitter.EmitAuditEvent(ctx, &apievents.AuthPreferenceUpdate{
 		Metadata: apievents.Metadata{
@@ -311,7 +311,7 @@ func (s *Service) UpsertAuthPreference(ctx context.Context, req *clusterconfigpb
 		UserMetadata:       authzCtx.GetUserMetadata(),
 		ConnectionMetadata: authz.ConnectionMetadata(ctx),
 		Status:             eventStatus(err),
-		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.AuthPreference),
+		AdminActionsMFA:    GetAdminActionsMFAStatus(original, req.GetAuthPreference()),
 	}); auditErr != nil {
 		slog.WarnContext(ctx, "Failed to emit auth preference update event.", "error", auditErr)
 	}
@@ -485,7 +485,7 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 		return nil, trace.Wrap(err)
 	}
 
-	tst, err := req.ClusterNetworkConfig.GetTunnelStrategyType()
+	tst, err := req.GetClusterNetworkConfig().GetTunnelStrategyType()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -493,7 +493,7 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
-	req.ClusterNetworkConfig.SetOrigin(types.OriginDynamic)
+	req.GetClusterNetworkConfig().SetOrigin(types.OriginDynamic)
 
 	oldCfg, err := s.cache.GetClusterNetworkingConfig(ctx)
 	if err != nil {
@@ -506,7 +506,7 @@ func (s *Service) UpdateClusterNetworkingConfig(ctx context.Context, req *cluste
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.backend.UpdateClusterNetworkingConfig(ctx, req.ClusterNetworkConfig)
+	updated, err := s.backend.UpdateClusterNetworkingConfig(ctx, req.GetClusterNetworkConfig())
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.ClusterNetworkingConfigUpdate{
 		Metadata: apievents.Metadata{
@@ -550,7 +550,7 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 		return nil, trace.Wrap(err)
 	}
 
-	tst, err := req.ClusterNetworkConfig.GetTunnelStrategyType()
+	tst, err := req.GetClusterNetworkConfig().GetTunnelStrategyType()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -558,7 +558,7 @@ func (s *Service) UpsertClusterNetworkingConfig(ctx context.Context, req *cluste
 		return nil, trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
-	req.ClusterNetworkConfig.SetOrigin(types.OriginDynamic)
+	req.GetClusterNetworkConfig().SetOrigin(types.OriginDynamic)
 
 	oldCfg, err := s.cache.GetClusterNetworkingConfig(ctx)
 	if err != nil {
@@ -787,13 +787,13 @@ func (s *Service) UpdateSessionRecordingConfig(ctx context.Context, req *cluster
 		return nil, trace.Wrap(err)
 	}
 
-	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
+	req.GetSessionRecordingConfig().SetOrigin(types.OriginDynamic)
 
-	if err := services.ValidateSessionRecordingConfig(req.SessionRecordingConfig, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
+	if err := services.ValidateSessionRecordingConfig(req.GetSessionRecordingConfig(), s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	updated, err := s.backend.UpdateSessionRecordingConfig(ctx, req.SessionRecordingConfig)
+	updated, err := s.backend.UpdateSessionRecordingConfig(ctx, req.GetSessionRecordingConfig())
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.SessionRecordingConfigUpdate{
 		Metadata: apievents.Metadata{
@@ -837,13 +837,13 @@ func (s *Service) UpsertSessionRecordingConfig(ctx context.Context, req *cluster
 		return nil, trace.Wrap(err)
 	}
 
-	req.SessionRecordingConfig.SetOrigin(types.OriginDynamic)
+	req.GetSessionRecordingConfig().SetOrigin(types.OriginDynamic)
 
-	if err := services.ValidateSessionRecordingConfig(req.SessionRecordingConfig, s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
+	if err := services.ValidateSessionRecordingConfig(req.GetSessionRecordingConfig(), s.signatureAlgorithmSuiteParams.FIPS, s.signatureAlgorithmSuiteParams.Cloud); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	upserted, err := s.backend.UpsertSessionRecordingConfig(ctx, req.SessionRecordingConfig)
+	upserted, err := s.backend.UpsertSessionRecordingConfig(ctx, req.GetSessionRecordingConfig())
 
 	if err := s.emitter.EmitAuditEvent(ctx, &apievents.SessionRecordingConfigUpdate{
 		Metadata: apievents.Metadata{
@@ -945,11 +945,11 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 
 	// If the policy feature is disabled in the license, return a disabled response. if cloud, return the response to allow demo mode enabling
 	if !s.modules.Features().GetEntitlement(entitlements.Policy).Enabled && !s.modules.Features().AccessGraph && !s.modules.Features().Cloud {
-		return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
-			AccessGraph: &clusterconfigpb.AccessGraphConfig{
+		return clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
+			AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
 				Enabled: false,
-			},
-		}, nil
+			}.Build(),
+		}.Build(), nil
 	}
 
 	var sshScanEnabled bool
@@ -960,17 +960,17 @@ func (s *Service) GetClusterAccessGraphConfig(ctx context.Context, _ *clustercon
 		sshScanEnabled = obj.SecretsScanConfig() == clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
 	}
 
-	return &clusterconfigpb.GetClusterAccessGraphConfigResponse{
-		AccessGraph: &clusterconfigpb.AccessGraphConfig{
+	return clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
+		AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
 			Enabled:  s.accessGraph.Enabled,
 			Address:  s.accessGraph.Address,
 			Ca:       s.accessGraph.CA,
 			Insecure: s.accessGraph.Insecure,
-			SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{
+			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfiguration_builder{
 				SshScanEnabled: sshScanEnabled,
-			},
-		},
-	}, nil
+			}.Build(),
+		}.Build(),
+	}.Build(), nil
 }
 
 func (s *Service) GetAccessGraphSettings(ctx context.Context, _ *clusterconfigpb.GetAccessGraphSettingsRequest) (*clusterconfigpb.AccessGraphSettings, error) {
@@ -1137,9 +1137,9 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 		return nil, trace.AccessDenied("access graph is feature isn't enabled")
 	}
 
-	obj, err := clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+	obj, err := clusterconfig.NewAccessGraphSettings(clusterconfigpb.AccessGraphSettingsSpec_builder{
 		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

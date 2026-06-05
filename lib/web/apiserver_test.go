@@ -10127,12 +10127,12 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
 		func(ctx context.Context) (*authproto.UpstreamInventoryHello, error) {
-			return &authproto.UpstreamInventoryHello{
+			return authproto.UpstreamInventoryHello_builder{
 				ServerID: hostID,
 				Version:  teleport.Version,
 				Services: types.SystemRoles{role}.StringSlice(),
 				Hostname: "test",
-			}, nil
+			}.Build(), nil
 		})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
@@ -10640,7 +10640,7 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 	// NOTE: Here we are using the Teleport kinds.
 	case types.KindKubePod:
 		{
-			return &kubeproto.ListKubernetesResourcesResponse{
+			return kubeproto.ListKubernetesResourcesResponse_builder{
 				Resources: []*types.KubernetesResourceV1{
 					{
 						Kind: "pods",
@@ -10668,11 +10668,11 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 					},
 				},
 				TotalCount: 2,
-			}, nil
+			}.Build(), nil
 		}
 	case types.KindKubeNamespace:
 		{
-			return &kubeproto.ListKubernetesResourcesResponse{
+			return kubeproto.ListKubernetesResourcesResponse_builder{
 				Resources: []*types.KubernetesResourceV1{
 					{
 						Kind: "namespaces",
@@ -10685,7 +10685,7 @@ func (s *fakeKubeService) ListKubernetesResources(ctx context.Context, req *kube
 					},
 				},
 				TotalCount: 1,
-			}, nil
+			}.Build(), nil
 		}
 	default:
 		return nil, trace.BadParameter("kubernetes resource kind %q is not mocked", req.GetResourceType())
