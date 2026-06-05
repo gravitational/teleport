@@ -2476,7 +2476,7 @@ func TestResourceService_GetWorkloadIdentity(t *testing.T) {
 func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	t.Parallel()
 	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	ctx := t.Context()
 
 	authorizedUser, _, err := authtest.CreateUserAndRole(
 		srv.Auth(),
@@ -2502,7 +2502,9 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a pre-existing workload identities
-	// Two complete pages of ten, plus one incomplete page of nine
+	// Two complete pages of ten, plus one incomplete page of nine.
+	// SPIFFE IDs alternate between /test/0/ and /test/1/ so the search-filter
+	// subtest can match on a field other than name.
 	created := []*workloadidentityv1pb.WorkloadIdentity{}
 	for i := range 29 {
 		r, err := srv.Auth().CreateWorkloadIdentity(
@@ -2515,7 +2517,7 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 				},
 				Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
 					Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-						Id: "/example",
+						Id: fmt.Sprintf("/test/%d/id%d", i%2, i),
 					},
 				},
 			})
@@ -2579,51 +2581,32 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 			}))
 		}
 	})
-}
 
-// TestResourceService_ListWorkloadIdentitiesFilter verifies that the search
-// term filter is applied by the gRPC handler over the ranged results.
-func TestResourceService_ListWorkloadIdentitiesFilter(t *testing.T) {
-	t.Parallel()
-	srv, _ := newTestTLSServer(t)
-	ctx := context.Background()
+	t.Run("success - search filter", func(t *testing.T) {
+		client := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(
+			authorizedClient.GetConnection(),
+		)
 
-	user, _, err := authtest.CreateUserAndRole(
-		srv.Auth(),
-		"filterer",
-		[]string{},
-		[]types.Rule{{
-			Resources: []string{types.KindWorkloadIdentity},
-			Verbs:     []string{types.VerbRead, types.VerbList},
-		}},
-	)
-	require.NoError(t, err)
-	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
-	require.NoError(t, err)
-	rsClient := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(client.GetConnection())
+		// The filter is applied at the gRPC layer over the ranged results. The
+		// "test/1" term matches on SPIFFE ID, selecting the odd-indexed
+		// preexisting identities (/test/1/...).
+		var want []*workloadidentityv1pb.WorkloadIdentity
+		for _, wi := range created {
+			if strings.Contains(wi.GetSpec().GetSpiffe().GetId(), "/test/1/") {
+				want = append(want, wi)
+			}
+		}
+		require.NotEmpty(t, want)
 
-	for i := range 10 {
-		_, err := srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
-			Kind:     types.KindWorkloadIdentity,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{Name: fmt.Sprintf("wi-%d", i)},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-					Id: fmt.Sprintf("/test/%d/id%d", i%2, i),
-				},
-			},
+		res, err := client.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
+			FilterSearchTerm: "test/1",
 		})
 		require.NoError(t, err)
-	}
-
-	res, err := rsClient.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
-		FilterSearchTerm: "test/1",
+		require.Len(t, res.WorkloadIdentities, len(want))
+		for _, wi := range res.WorkloadIdentities {
+			require.Contains(t, wi.GetSpec().GetSpiffe().GetId(), "/test/1/")
+		}
 	})
-	require.NoError(t, err)
-	require.Len(t, res.WorkloadIdentities, 5)
-	for _, wi := range res.WorkloadIdentities {
-		require.Contains(t, wi.GetSpec().GetSpiffe().GetId(), "/test/1/")
-	}
 }
 
 func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
