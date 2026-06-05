@@ -83,7 +83,7 @@ func newUserCollection(upstream services.UsersService, w types.WatchKind) (*coll
 
 // GetUser is a part of auth.Cache implementation.
 func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (types.User, error) {
-	_, span := c.Tracer.Start(ctx, "cache/GetUser")
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUser")
 	defer span.End()
 
 	if withSecrets { // cache never tracks user secrets
@@ -125,7 +125,7 @@ func (c *Cache) GetUser(ctx context.Context, name string, withSecrets bool) (typ
 
 // GetUsers is a part of auth.Cache implementation
 func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, error) {
-	_, span := c.Tracer.Start(ctx, "cache/GetUsers")
+	ctx, span := c.Tracer.Start(ctx, "cache/GetUsers")
 	defer span.End()
 
 	if withSecrets { // cache never tracks user secrets
@@ -157,7 +157,7 @@ func (c *Cache) GetUsers(ctx context.Context, withSecrets bool) ([]types.User, e
 
 // ListUsers returns a page of users.
 func (c *Cache) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	_, span := c.Tracer.Start(ctx, "cache/ListUsers")
+	ctx, span := c.Tracer.Start(ctx, "cache/ListUsers")
 	defer span.End()
 
 	if req.WithSecrets { // cache never tracks user secrets

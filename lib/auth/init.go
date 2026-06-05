@@ -663,24 +663,24 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticTokens")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetStaticTokens")
 		defer span.End()
 		asrv.logger.InfoContext(ctx, "Updating cluster configuration", "static_tokens", cfg.StaticTokens)
 		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
 	})
 
 	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
 		defer span.End()
 		if cfg.StaticScopedTokens != nil {
-			return trace.Wrap(asrv.SetStaticScopedTokens(gctx, cfg.StaticScopedTokens))
+			return trace.Wrap(asrv.SetStaticScopedTokens(ctx, cfg.StaticScopedTokens))
 		}
 		return nil
 	})
 
 	var cn types.ClusterName
 	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
 		defer span.End()
 
 		// The first Auth Server that starts gets to set the name of the cluster.

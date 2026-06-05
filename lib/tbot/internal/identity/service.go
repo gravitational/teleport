@@ -735,7 +735,7 @@ func botIdentityFromToken(
 	cfg Config,
 	authClient *apiclient.Client,
 ) (*identity.Identity, error) {
-	_, span := tracer.Start(ctx, "botIdentityFromToken")
+	ctx, span := tracer.Start(ctx, "botIdentityFromToken")
 	defer span.End()
 
 	log.InfoContext(ctx, "Fetching bot identity using token")
