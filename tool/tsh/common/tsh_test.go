@@ -3117,7 +3117,10 @@ func TestSSHAccessRequestAndAddingMFA(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var output strings.Builder
 		err = Run(ctx, []string{
-			"ssh", "--disable-access-request", "--no-add-mfa",
+			"ssh",
+			"--insecure",
+			"--disable-access-request",
+			"--no-add-mfa",
 			fmt.Sprintf("%s@%s", localUser.Username, sshHostname),
 		}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 			cf.overrideStderr = &output
@@ -3276,7 +3279,9 @@ func TestSSHAccessRequestWait(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		var output strings.Builder
 		err = Run(ctx, []string{
-			"ssh", "--disable-access-request",
+			"ssh",
+			"--insecure",
+			"--disable-access-request",
 			fmt.Sprintf("%s@%s", user.Username, sshHostID),
 		}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 			cf.overrideStderr = &output
@@ -3302,6 +3307,7 @@ func TestSSHAccessRequestWait(t *testing.T) {
 	go func() {
 		sshErr <- Run(ctx, []string{
 			"ssh",
+			"--insecure",
 			"--request-reason", "reason here to bypass prompt",
 			fmt.Sprintf("%s@%s", user.Username, sshHostID),
 			"echo", "test",

@@ -121,9 +121,9 @@ func (c *Ceremony) Run(
 func registrationReasonForError(req *proto.CreateAuthenticateChallengeRequest, err error) (RegistrationReason, bool) {
 	switch {
 	case errors.Is(err, &ErrNoMFADevices):
-		return RegistrationReasonSessionMFANoDevices, true
+		return RegistrationReasonMFANoDevices, true
 	case errors.Is(err, &ErrNoEligibleMFADevices):
-		return RegistrationReasonSessionMFANoEligibleDevices, true
+		return RegistrationReasonMFANoEligibleDevices, true
 	default:
 		return "", false
 	}
@@ -225,13 +225,12 @@ const (
 	// RegistrationReasonExplicit indicates that the user explicitly asked to
 	// register an MFA device.
 	RegistrationReasonExplicit RegistrationReason = "explicit"
-	// RegistrationReasonSessionMFANoDevices indicates that the registration is
-	// attempted for per-session MFA, but there are no MFA devices registered.
-	RegistrationReasonSessionMFANoDevices RegistrationReason = "session_mfa_no_devices"
-	// RegistrationReasonSessionMFANoEligibleDevices indicates that the
-	// registration is attempted for per-session MFA, but none of the registered
-	// MFA devices are eligible.
-	RegistrationReasonSessionMFANoEligibleDevices RegistrationReason = "session_mfa_no_eligible_devices"
+	// RegistrationReasonMFANoDevices indicates that the registration is
+	// attempted, but there are no MFA devices registered.
+	RegistrationReasonMFANoDevices RegistrationReason = "mfa_no_devices"
+	// RegistrationReasonMFANoEligibleDevices indicates that the registration is
+	// attempted, but none of the registered MFA devices are eligible.
+	RegistrationReasonMFANoEligibleDevices RegistrationReason = "mfa_no_eligible_devices"
 )
 
 // RegistrationCeremonyConfig provides configuration for the

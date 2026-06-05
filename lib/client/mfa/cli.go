@@ -589,9 +589,9 @@ func (c *CLIPrompt) promptBrowser(ctx context.Context, chal *proto.MFAAuthentica
 func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
 	confirmation := ""
 	switch config.Reason {
-	case mfa.RegistrationReasonSessionMFANoDevices:
+	case mfa.RegistrationReasonMFANoDevices:
 		confirmation = "\nYou have no MFA devices registered. Do you want to register a new one?"
-	case mfa.RegistrationReasonSessionMFANoEligibleDevices:
+	case mfa.RegistrationReasonMFANoEligibleDevices:
 		confirmation = "\nNone of your MFA devices are eligible for per-session MFA. Do you want to register a new one?"
 	}
 	if confirmation != "" {
@@ -695,8 +695,8 @@ func deviceTypesFromConfig(cfg mfa.RegistrationPromptConfig) []mfa.MFADeviceType
 	// If the device is being created because of a session MFA, exclude TOTP, as
 	// it's not eligible.
 	switch cfg.Reason {
-	case mfa.RegistrationReasonSessionMFANoDevices,
-		mfa.RegistrationReasonSessionMFANoEligibleDevices:
+	case mfa.RegistrationReasonMFANoDevices,
+		mfa.RegistrationReasonMFANoEligibleDevices:
 		withoutTOTP := make([]mfa.MFADeviceType, 0, len(devices))
 		for _, d := range devices {
 			if d != mfa.MFADeviceTypeTOTP {
