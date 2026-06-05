@@ -173,16 +173,28 @@ or a preset `access-plugin-with-review` role with permissions for native reviews
 
 #### Socket Mode
 
-The plugin will initiate a WebSocket connection to the Slack API to receive
+The plugin will initiate a WebSocket connection to the Slack Socket Mode server to receive
 JSON interaction payloads from Slack messages. It calls the `apps.connection.open` endpoint with
-the configured App-level token and receives a dynamic WebSocket URL from Slack. This URL
+the configured App-level token and receives a temporary WebSocket URL from Slack. This URL
 will periodically refresh via a "disconnect" message from Slack. When this occurs,
 the old connection will be torn down and a new one started to maintain availability.
 
 From the interaction payloads, the plugin will extract the Access Request ID, Slack user ID,
 and proposed state of the Access Request (approved/denied) to perform the RBAC checks for review submission.
 
-This connection is not created if the native review feature is disabled, falling back to the external link
+During plugin restarts, there is a slight risk of missing Socket Mode events or not completing the review submission.
+During this short window, users will be met with a warning icon indicating the review did not follow through.
+Since this window is brief and the error is visible to the user, we are able to avoid silent failures. The review
+will not be submitted, and the user can retry the action.
+
+The Slack server requires us to acknowledge every interaction event we receive, and otherwise may retry
+the request. Since the acknowledgment window is short, we opt to acknowledge events prior to any downstream review work.
+This runs the same risk during plugin restarts, where we fail before the review submission. However,
+this failure mode is preferred over missing the acknowledgement window, where the Slack server may attempt
+retries during normal operation when the downstream review work is particularly slow. A lack of a review reply will
+indicate to the user that the review was not submitted, and they can retry the action.
+
+The Slack Socket Mode connection is not created if the native review feature is disabled, falling back to the external link
 to the Teleport Web UI.
 
 #### RBAC
@@ -205,6 +217,9 @@ We will introduce a new RBAC rule
 reviews for those users for Access Request reviews.
 This is because current RBAC rules, ie. `review_requests.roles`, are role-based and
 do not support RBAC checks for reviews submitted by another identity.
+In addition, for this path of submitting for other users, this rule will ignore all other
+access review conditions set in the `review_requests` spec. This is because when performing
+review permission checks, we use the "submitted_for" user's permissions instead of the plugin's permissions.
 
 In practice, access plugins would set `review_requests.submit_for_users: ["*"]` to be able to
 submit for all users for Access Request reviews. The preset `access-plugin-with-review` role will set
@@ -378,15 +393,16 @@ Add unit tests for new RBAC checks. Run manual tests with proper plugin RBAC per
 
 Manual tests:
 
-- [ ]  When the Slack access request plugin has native reviews disabled (default):
-    - [ ]  Verify that only the link is provided (old UI), and no Approve/Deny buttons
-- [ ]  When the Slack access request plugin has native reviews enabled:
-    - [ ]  Verify that a Slack notification will be sent to the appropriate channel with UI buttons: Approve/Deny
-    - [ ]  Verify when a Slack user without proper Teleport review permissions clicks the "Approve" button, they receive an error reply message
-    - [ ]  Verify when a Slack user with proper Teleport review permissions clicks the "Approve" button, the Access Request gets 1 approval in Teleport
-    - [ ]  Verify the Slack notification is updated with the Access Request’s result, and a reply is sent
-    - [ ]  Verify clicking the buttons again will not affect Access Request state in Teleport
-- [ ]  When Slack native reviews is enabled, and an Access Request requires multiple approvals:
-    - [ ]  Verify the Slack notification will be updated with count of approvals, and remain PENDING
-    - [ ]  Verify the Access Request on Teleport does not get fully approved after 1 Slack approval
-    - [ ]  Verify when the threshold is met, the Access Request is approved in Teleport
+- [ ] When native review is disabled (default):
+	- [ ] Only Web UI link is provided, no Approve/Deny buttons
+- [ ] When native review is enabled:
+    - [ ] Slack notification will be sent to channel with Approve/Deny buttons
+	- [ ] When a Slack user without proper Teleport review permissions clicks the "Approve" button, they receive an error reply message
+   	- [ ] When a Slack user with proper Teleport review permissions clicks the "Approve" button, the Access Request gets 1 approval in Teleport
+   	- [ ] Slack notification is updated with Access Request’s result, and a reply is sent (original behavior)
+   	- [ ] A resolved Access Request message removes Approve/Deny buttons
+	- [ ] A long-term Access Request message hides Approve/Deny buttons
+- [] When Slack native reviews is enabled, and an Access Request requires multiple approvals:
+    - [ ] Slack notification is updated with count of approvals, and remain PENDING
+    - [ ] Access Request on Teleport is not fully approved after 1 Slack approval
+    - [ ] When a threshold is met, Access Request is approved in Teleport
