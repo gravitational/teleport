@@ -33,11 +33,9 @@ import (
 )
 
 func GenSchemaTimestamp(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional:    true,
-		Type:        tfschema.UseRFC3339Time(),
-		Description: attr.Description,
-	}
+	attr.Optional = true
+	attr.Type = tfschema.UseRFC3339Time()
+	return attr
 }
 
 func CopyFromTimestamp(diags diag.Diagnostics, v attr.Value, o **timestamppb.Timestamp) {
@@ -47,7 +45,7 @@ func CopyFromTimestamp(diags diag.Diagnostics, v attr.Value, o **timestamppb.Tim
 		return
 	}
 
-	if value.IsNull() {
+	if value.IsNull() || value.IsUnknown() {
 		*o = nil
 	} else {
 		*o = timestamppb.New(value.Value)
@@ -59,6 +57,7 @@ func CopyToTimestamp(diags diag.Diagnostics, o *timestamppb.Timestamp, t attr.Ty
 	if !ok {
 		value = tfschema.TimeValue{}
 	}
+	value.Unknown = false
 
 	if o == nil {
 		value.Null = true
@@ -68,21 +67,25 @@ func CopyToTimestamp(diags diag.Diagnostics, o *timestamppb.Timestamp, t attr.Ty
 	value.Value = (*o).AsTime()
 	value.Format = time.RFC3339
 
+	value.Null = false
 	return value
 }
 
 func GenSchemaDuration(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional:    true,
-		Type:        tfschema.DurationType{},
-		Description: attr.Description,
-	}
+	attr.Optional = true
+	attr.Type = tfschema.DurationType{}
+	return attr
 }
 
 func CopyFromDuration(diags diag.Diagnostics, v attr.Value, o **durationpb.Duration) {
 	value, ok := v.(tfschema.DurationValue)
 	if !ok {
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to String", v))
+		return
+	}
+
+	if value.IsNull() || value.IsUnknown() {
+		*o = nil
 		return
 	}
 
@@ -94,6 +97,7 @@ func CopyToDuration(diags diag.Diagnostics, o *durationpb.Duration, t attr.Type,
 	if !ok {
 		value = tfschema.DurationValue{}
 	}
+	value.Unknown = false
 
 	if o == nil {
 		value.Null = true
@@ -102,6 +106,7 @@ func CopyToDuration(diags diag.Diagnostics, o *durationpb.Duration, t attr.Type,
 
 	value.Value = (*o).AsDuration()
 
+	value.Null = false
 	return value
 }
 
