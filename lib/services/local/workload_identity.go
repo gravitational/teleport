@@ -27,6 +27,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
@@ -83,19 +84,16 @@ func (b *WorkloadIdentityService) RangeWorkloadIdentities(
 	ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool,
 ) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error] {
 	if sortField != "" && sortField != services.WorkloadIdentitySortFieldName {
-		return errWorkloadIdentityIter(trace.BadParameter("unsupported sort, only name field is supported, but got %q", sortField))
+		return stream.Fail[*workloadidentityv1pb.WorkloadIdentity](
+			trace.BadParameter("unsupported sort, only name field is supported, but got %q", sortField),
+		)
 	}
 	if sortDesc {
-		return errWorkloadIdentityIter(trace.BadParameter("unsupported sort, only ascending order is supported"))
+		return stream.Fail[*workloadidentityv1pb.WorkloadIdentity](
+			trace.BadParameter("unsupported sort, only ascending order is supported"),
+		)
 	}
 	return b.service.Resources(ctx, start, end)
-}
-
-// errWorkloadIdentityIter returns an iterator that yields a single error.
-func errWorkloadIdentityIter(err error) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error] {
-	return func(yield func(*workloadidentityv1pb.WorkloadIdentity, error) bool) {
-		yield(nil, err)
-	}
 }
 
 // DeleteWorkloadIdentity deletes a specific WorkloadIdentity.

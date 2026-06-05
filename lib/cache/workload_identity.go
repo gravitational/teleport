@@ -89,9 +89,7 @@ func (c *Cache) RangeWorkloadIdentities(
 ) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error] {
 	index, keyFn, err := workloadIdentitySortIndex(sortField)
 	if err != nil {
-		return func(yield func(*workloadidentityv1pb.WorkloadIdentity, error) bool) {
-			yield(nil, trace.Wrap(err))
-		}
+		return stream.Fail[*workloadidentityv1pb.WorkloadIdentity](trace.Wrap(err))
 	}
 
 	lister := genericLister[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
