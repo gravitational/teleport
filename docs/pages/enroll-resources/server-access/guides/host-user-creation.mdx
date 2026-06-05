@@ -6,6 +6,7 @@ tags:
  - how-to
  - zero-trust
  - infrastructure-identity
+page_type: how-to
 ---
 
 Teleport's SSH Service can be configured to automatically create local Unix users
@@ -15,6 +16,17 @@ This saves you from having to manually create users for each member of an
 organization and provides more fine-grained control of permissions on a given
 host. Host users created by Teleport are transient and will be deleted at the
 end of an SSH session.
+
+In this guide, you will:
+- Choose between enabling automatic host user creation, which takes place during
+  an SSH session, and static host user creation, which takes place independently
+  of an SSH session.
+- Configure Teleport roles to enable your chosen host user creation mode.
+- For automatic host user creation, configure your target server to support the
+  created host users.
+- For static host user creation, apply a dynamic Teleport resource that
+  configures the created host user.
+- Test host user creation on a Teleport-protected server.
 
 ## Prerequisites
 
