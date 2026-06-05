@@ -221,6 +221,9 @@ type PresenceInternal interface {
 	// RangeKubernetesServersWithName returns an iterator over kubernetes servers for a given cluster name.
 	RangeKubernetesServersWithName(ctx context.Context, clusterName string) iter.Seq2[types.KubeServer, error]
 
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
+
 	// AppendPutNodeActions adds conditional actions to an atomic write to create
 	// or update a node resource.
 	AppendPutNodeActions(
