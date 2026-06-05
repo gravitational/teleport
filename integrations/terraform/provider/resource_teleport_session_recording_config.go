@@ -343,3 +343,51 @@ func (r resourceTeleportSessionRecordingConfig) ImportState(ctx context.Context,
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportSessionRecordingConfig) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	sessionRecordingConfig := &apitypes.SessionRecordingConfigV2{}
+	resp.Diagnostics.Append(tfschema.CopySessionRecordingConfigV2FromTerraform(ctx, config, sessionRecordingConfig)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	sessionRecordingConfigResource := sessionRecordingConfig
+
+	if err := sessionRecordingConfigResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting SessionRecordingConfig defaults", trace.Wrap(err), "session_recording_config"))
+		return
+	}
+
+	sessionRecordingConfig = sessionRecordingConfigResource
+
+	resp.Diagnostics.Append(tfschema.CopySessionRecordingConfigV2ToTerraform(ctx, sessionRecordingConfig, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}

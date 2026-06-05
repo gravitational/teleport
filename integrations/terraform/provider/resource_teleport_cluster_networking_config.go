@@ -343,3 +343,51 @@ func (r resourceTeleportClusterNetworkingConfig) ImportState(ctx context.Context
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportClusterNetworkingConfig) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	clusterNetworkingConfig := &apitypes.ClusterNetworkingConfigV2{}
+	resp.Diagnostics.Append(tfschema.CopyClusterNetworkingConfigV2FromTerraform(ctx, config, clusterNetworkingConfig)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	clusterNetworkingConfigResource := clusterNetworkingConfig
+
+	if err := clusterNetworkingConfigResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting ClusterNetworkingConfig defaults", trace.Wrap(err), "cluster_networking_config"))
+		return
+	}
+
+	clusterNetworkingConfig = clusterNetworkingConfigResource
+
+	resp.Diagnostics.Append(tfschema.CopyClusterNetworkingConfigV2ToTerraform(ctx, clusterNetworkingConfig, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}

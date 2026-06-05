@@ -356,3 +356,51 @@ func (r resourceTeleportTrustedCluster) ImportState(ctx context.Context, req tfs
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportTrustedCluster) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	trustedCluster := &apitypes.TrustedClusterV2{}
+	resp.Diagnostics.Append(tfschema.CopyTrustedClusterV2FromTerraform(ctx, config, trustedCluster)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	trustedClusterResource := trustedCluster
+
+	if err := trustedClusterResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting TrustedCluster defaults", trace.Wrap(err), "trusted_cluster"))
+		return
+	}
+
+	trustedCluster = trustedClusterResource
+
+	resp.Diagnostics.Append(tfschema.CopyTrustedClusterV2ToTerraform(ctx, trustedCluster, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}

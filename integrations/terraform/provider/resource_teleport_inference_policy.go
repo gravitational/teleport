@@ -340,3 +340,47 @@ func (r resourceTeleportInferencePolicy) ImportState(ctx context.Context, req tf
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportInferencePolicy) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	inferencePolicy := &summarizerv1.InferencePolicy{}
+	resp.Diagnostics.Append(schemav1.CopyInferencePolicyFromTerraform(ctx, config, inferencePolicy)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	inferencePolicyResource := inferencePolicy
+	inferencePolicyResource.Kind = apitypes.KindInferencePolicy
+
+	inferencePolicy = inferencePolicyResource
+
+	resp.Diagnostics.Append(schemav1.CopyInferencePolicyToTerraform(ctx, inferencePolicy, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}

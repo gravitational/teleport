@@ -353,3 +353,55 @@ func (r resourceTeleportAccessList) ImportState(ctx context.Context, req tfsdk.I
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportAccessList) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	accessList := &accesslist.AccessList{}
+	resp.Diagnostics.Append(schemav1.CopyAccessListFromTerraform(ctx, config, accessList)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	accessListResource, err := convert.FromProto(accessList)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessList", trace.Errorf("Can not convert %T to AccessList: %s", accessListResource, err), "access_list"))
+		return
+	}
+
+	if err := accessListResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting AccessList defaults", trace.Wrap(err), "access_list"))
+		return
+	}
+
+	accessList = convert.ToProto(accessListResource)
+
+	resp.Diagnostics.Append(schemav1.CopyAccessListToTerraform(ctx, accessList, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}

@@ -374,3 +374,55 @@ func (r resourceTeleportMember) ImportState(ctx context.Context, req tfsdk.Impor
 		return
 	}
 }
+
+// ModifyPlan modifies the planned value, normalizing null values.
+func (r resourceTeleportMember) ModifyPlan(ctx context.Context, req tfsdk.ModifyResourcePlanRequest, resp *tfsdk.ModifyResourcePlanResponse) {
+	// If the entire plan is null, the resource is planned for destruction.
+	if req.Plan.Raw.IsNull() {
+		return
+	}
+
+	// If the state is null, the resource is being created. No need to modify plan.
+	if req.State.Raw.IsNull() {
+		return
+	}
+
+	var config types.Object
+	resp.Diagnostics.Append(req.Config.Get(ctx, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	accessListMember := &accesslist.Member{}
+	resp.Diagnostics.Append(schemav1.CopyMemberFromTerraform(ctx, config, accessListMember)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	accessListMemberResource, err := convert.FromMemberProto(accessListMember)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Member", trace.Errorf("Can not convert %T to Member: %s", accessListMemberResource, err), "access_list_member"))
+		return
+	}
+
+	if err := accessListMemberResource.CheckAndSetDefaults(); err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error setting Member defaults", trace.Wrap(err), "access_list_member"))
+		return
+	}
+
+	accessListMember = convert.ToMemberProto(accessListMemberResource)
+
+	resp.Diagnostics.Append(schemav1.CopyMemberToTerraform(ctx, accessListMember, &config)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+
+	var plan types.Object
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Attrs["spec"] = config.Attrs["spec"]
+
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, &plan)...)
+}
