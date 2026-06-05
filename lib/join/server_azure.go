@@ -104,9 +104,9 @@ func (s *Server) handleAzureJoin(
 		&azureInit.ClientParams,
 		token,
 		nil, // rawClaims
-		&workloadidentityv1pb.JoinAttrs{
+		workloadidentityv1pb.JoinAttrs_builder{
 			Azure: claims,
-		},
+		}.Build(),
 	)
 	return result, trace.Wrap(err)
 }

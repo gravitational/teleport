@@ -131,13 +131,11 @@ func TestMFAPromptVerifier_VerifyAnswer_Success(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	resp := &sshpb.MFAPromptResponse{
-		Response: &sshpb.MFAPromptResponse_Reference{
-			Reference: &sshpb.MFAPromptResponseReference{
-				ChallengeName: challengeName,
-			},
-		},
-	}
+	resp := sshpb.MFAPromptResponse_builder{
+		Reference: sshpb.MFAPromptResponseReference_builder{
+			ChallengeName: challengeName,
+		}.Build(),
+	}.Build()
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 
@@ -191,13 +189,11 @@ func TestMFAPromptVerifier_VerifyAnswer_EmptyChallengeName(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	resp := &sshpb.MFAPromptResponse{
-		Response: &sshpb.MFAPromptResponse_Reference{
-			Reference: &sshpb.MFAPromptResponseReference{
-				ChallengeName: "",
-			},
-		},
-	}
+	resp := sshpb.MFAPromptResponse_builder{
+		Reference: sshpb.MFAPromptResponseReference_builder{
+			ChallengeName: "",
+		}.Build(),
+	}.Build()
 	respJSON, err := protojson.Marshal(resp)
 	require.NoError(t, err)
 

@@ -41,77 +41,77 @@ func TestValidate(t *testing.T) {
 	}{
 		{
 			name: "basic",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {"/": {"r1"}, "/foo": {"r2"}, "/foo/bar": {"r3"}},
 				}),
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "missing scope",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {"/": {"r1"}},
 				}),
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "missing assignments",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "orthogonal assignment",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {"/": {"r1"}, "/bar": {"r2"}},
 				}),
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "empty assignments",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "malformed assignment scope",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/":             {"/": {"r1"}},
 					"invalid@scope": {"invalid@scope": {"r2"}},
 				}),
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "malformed pin scope",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "invalid@scope",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {"/": {"r1"}},
 				}),
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
@@ -151,14 +151,14 @@ func TestDescendAssignmentTree(t *testing.T) {
 	}{
 		{
 			name: "single-role",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/foo": {
 						"/foo": {"r1"},
 					},
 				}),
-			},
+			}.Build(),
 			scope: "/foo",
 			ok:    true,
 			expect: []RoleAssignment{
@@ -172,7 +172,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 		},
 		{
 			name: "hierarchical multi",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -185,7 +185,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 						"/foo/bar": {"r3"},
 					},
 				}),
-			},
+			}.Build(),
 			scope: "/foo",
 			ok:    true,
 			expect: []RoleAssignment{
@@ -205,7 +205,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 		},
 		{
 			name: "single scope multi",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -214,7 +214,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 						"/foo/bar": {"r3"},
 					},
 				}),
-			},
+			}.Build(),
 			scope: "/foo",
 			ok:    true,
 			expect: []RoleAssignment{
@@ -234,7 +234,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 		},
 		{
 			name: "partially orthogonal",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -247,7 +247,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 						"/foo/baz": {"r3"},
 					},
 				}),
-			},
+			}.Build(),
 			scope: "/foo/bar",
 			ok:    true,
 			expect: []RoleAssignment{
@@ -267,28 +267,28 @@ func TestDescendAssignmentTree(t *testing.T) {
 		},
 		{
 			name: "fully orthogonal",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/foo/bar": {
 						"/foo/bar": {"r1"},
 					},
 				}),
-			},
+			}.Build(),
 			scope:  "/foo/baz",
 			ok:     true,
 			expect: nil,
 		},
 		{
 			name: "equivalent scoping",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/foo": {
 						"/foo": {"b", "c", "a", "x", "q"},
 					},
 				}),
-			},
+			}.Build(),
 			scope: "/foo",
 			ok:    true,
 			expect: []RoleAssignment{
@@ -326,7 +326,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 		},
 		{
 			name: "comprehensive",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -343,7 +343,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 						"/foo/bar/baz": {"rb2"},
 					},
 				}),
-			},
+			}.Build(),
 			scope: "/foo/bar",
 			ok:    true,
 			expect: []RoleAssignment{
@@ -387,21 +387,21 @@ func TestDescendAssignmentTree(t *testing.T) {
 		},
 		{
 			name: "no assignments for scope",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/foo/bar": {
 						"/foo/bar": {"r1"},
 					},
 				}),
-			},
+			}.Build(),
 			scope:  "/foo",
 			ok:     true,
 			expect: nil,
 		},
 		{
 			name: "orthogonal resource scope",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -409,13 +409,13 @@ func TestDescendAssignmentTree(t *testing.T) {
 						"/foo": {"r2"},
 					},
 				}),
-			},
+			}.Build(),
 			scope: "/bar",
 			ok:    false,
 		},
 		{
 			name: "parent resource scope",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -423,7 +423,7 @@ func TestDescendAssignmentTree(t *testing.T) {
 						"/foo": {"r2"},
 					},
 				}),
-			},
+			}.Build(),
 			scope: "/",
 			ok:    false,
 		},
@@ -456,7 +456,7 @@ func TestGetRolesAtEnforcementPoint(t *testing.T) {
 	t.Parallel()
 
 	// Build a test pin with a populated assignment tree
-	pin := &scopesv1.Pin{
+	pin := scopesv1.Pin_builder{
 		Scope: "/staging/west",
 		AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 			"/": {
@@ -473,7 +473,7 @@ func TestGetRolesAtEnforcementPoint(t *testing.T) {
 				"/staging/west": {"west-west-a", "west-west-b", "west-west-c"},
 			},
 		}),
-	}
+	}.Build()
 
 	tests := []struct {
 		name          string
@@ -547,10 +547,10 @@ func TestGetRolesAtEnforcementPoint(t *testing.T) {
 		},
 		{
 			name: "nil assignment tree",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope:          "/foo",
 				AssignmentTree: nil,
-			},
+			}.Build(),
 			scopeOfOrigin: "/",
 			scopeOfEffect: "/foo",
 			expect:        nil,
@@ -581,7 +581,7 @@ func TestGetRolesAtEnforcementPoint(t *testing.T) {
 func TestRolesAtEnforcementPointComposition(t *testing.T) {
 	t.Parallel()
 
-	pin := &scopesv1.Pin{
+	pin := scopesv1.Pin_builder{
 		Scope: "/staging/west",
 		AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 			"/": {
@@ -597,7 +597,7 @@ func TestRolesAtEnforcementPointComposition(t *testing.T) {
 				"/staging/west": {"west-west-a", "west-west-b"},
 			},
 		}),
-	}
+	}.Build()
 
 	resourceScope := "/staging/west"
 
@@ -633,29 +633,29 @@ func TestEnumerateAllAssignments(t *testing.T) {
 	}{
 		{
 			name: "empty pin",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope:          "/foo",
 				AssignmentTree: nil,
-			},
+			}.Build(),
 			expect: []RoleAssignment{},
 		},
 		{
 			name: "single assignment at root",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
 						"/": {"role1"},
 					},
 				}),
-			},
+			}.Build(),
 			expect: []RoleAssignment{
 				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "role1"},
 			},
 		},
 		{
 			name: "multiple assignments at different origins",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/staging/west",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -671,7 +671,7 @@ func TestEnumerateAllAssignments(t *testing.T) {
 						"/staging/west": {"west-west"},
 					},
 				}),
-			},
+			}.Build(),
 			expect: []RoleAssignment{
 				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "root-root"},
 				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "root-staging"},
@@ -683,7 +683,7 @@ func TestEnumerateAllAssignments(t *testing.T) {
 		},
 		{
 			name: "assignments at scopes beyond pin scope",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/staging",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -699,7 +699,7 @@ func TestEnumerateAllAssignments(t *testing.T) {
 						"/staging/west/rack": {"west-rack"},
 					},
 				}),
-			},
+			}.Build(),
 			expect: []RoleAssignment{
 				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging", RoleName: "root-staging"},
 				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/staging/west", RoleName: "root-west"},
@@ -711,7 +711,7 @@ func TestEnumerateAllAssignments(t *testing.T) {
 		},
 		{
 			name: "multiple roles at same scope combination",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/foo",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -721,7 +721,7 @@ func TestEnumerateAllAssignments(t *testing.T) {
 						"/foo": {"owner", "user"},
 					},
 				}),
-			},
+			}.Build(),
 			expect: []RoleAssignment{
 				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "admin"},
 				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/foo", RoleName: "developer"},
@@ -732,7 +732,7 @@ func TestEnumerateAllAssignments(t *testing.T) {
 		},
 		{
 			name: "complex tree with multiple branches",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Scope: "/",
 				AssignmentTree: AssignmentTreeFromMap(map[string]map[string][]string{
 					"/": {
@@ -749,7 +749,7 @@ func TestEnumerateAllAssignments(t *testing.T) {
 						"/prod/eu": {"eu-admin"},
 					},
 				}),
-			},
+			}.Build(),
 			expect: []RoleAssignment{
 				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/", RoleName: "global"},
 				{RoleKind: RoleKindUser, ScopeOfOrigin: "/", ScopeOfEffect: "/prod", RoleName: "prod-policy"},
@@ -1103,16 +1103,16 @@ func TestPruneAssignmentTree(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			// set up pin with assignment tree
-			pin := &scopesv1.Pin{
+			pin := scopesv1.Pin_builder{
 				Scope:          "/staging/west",
 				AssignmentTree: AssignmentTreeFromMap(tt.before),
-			}
+			}.Build()
 
 			// perform pruning
 			prunedCount := PruneAssignmentTree(context.Background(), pin, tt.maxBytes)
 
 			// verify resulting tree matches expected
-			afterMap := AssignmentTreeIntoMap(pin.AssignmentTree)
+			afterMap := AssignmentTreeIntoMap(pin.GetAssignmentTree())
 			require.Equal(t, tt.after, afterMap, "tree after pruning should match expected")
 
 			// verify pruned count (this is more about making sure the function returns the expected
@@ -1120,8 +1120,8 @@ func TestPruneAssignmentTree(t *testing.T) {
 			require.Equal(t, tt.expectPruned, prunedCount, "pruned count should match expected")
 
 			// verify final size is on the expected side of the limit
-			if pin.AssignmentTree != nil {
-				finalSize := proto.Size(pin.AssignmentTree)
+			if pin.HasAssignmentTree() {
+				finalSize := proto.Size(pin.GetAssignmentTree())
 				if tt.expectOversized {
 					require.Greater(t, finalSize, tt.maxBytes, "pruned tree should still exceed size limit")
 				} else {

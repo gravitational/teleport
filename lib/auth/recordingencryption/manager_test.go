@@ -283,9 +283,9 @@ func TestCreateUpdateSessionRecordingConfig(t *testing.T) {
 	require.NoError(t, err)
 	activePairs := encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, activePairs, 1)
-	require.NotNil(t, activePairs[0].KeyPair)
-	require.NotEmpty(t, activePairs[0].KeyPair.PrivateKey)
-	require.NotEmpty(t, activePairs[0].KeyPair.PublicKey)
+	require.NotNil(t, activePairs[0].GetKeyPair())
+	require.NotEmpty(t, activePairs[0].GetKeyPair().PrivateKey)
+	require.NotEmpty(t, activePairs[0].GetKeyPair().PublicKey)
 
 	// update should change nothing
 	src, err = manager.UpdateSessionRecordingConfig(ctx, src)
@@ -331,16 +331,16 @@ func TestResolveRecordingEncryption(t *testing.T) {
 	require.Len(t, initialKeys, 1)
 	require.Len(t, src.GetEncryptionKeys(), 1)
 	key := initialKeys[0]
-	require.Equal(t, key.KeyPair.PublicKey, src.GetEncryptionKeys()[0].PublicKey)
-	require.NotNil(t, key.KeyPair)
+	require.Equal(t, key.GetKeyPair().PublicKey, src.GetEncryptionKeys()[0].PublicKey)
+	require.NotNil(t, key.GetKeyPair())
 
 	// CASE: service B should have access to the same key
 	encryption, src, err = resolve(ctx, service, managerB)
 	require.NoError(t, err)
 
-	activePairs := encryption.GetSpec().ActiveKeyPairs
+	activePairs := encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, src.GetEncryptionKeys(), 1)
-	require.Equal(t, key.KeyPair.PublicKey, src.GetEncryptionKeys()[0].PublicKey)
+	require.Equal(t, key.GetKeyPair().PublicKey, src.GetEncryptionKeys()[0].PublicKey)
 	require.ElementsMatch(t, initialKeys, activePairs)
 
 	// service C should error without access to the current key
@@ -382,13 +382,13 @@ func TestResolveRecordingEncryptionConcurrent(t *testing.T) {
 	encryption, err := service.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
 
-	activePairs := encryption.GetSpec().ActiveKeyPairs
+	activePairs := encryption.GetSpec().GetActiveKeyPairs()
 	// each service should share a single active key
 	require.Len(t, activePairs, 1)
-	require.NotNil(t, activePairs[0].KeyPair)
-	require.NotEmpty(t, activePairs[0].KeyPair.PrivateKey)
-	require.NotEmpty(t, activePairs[0].KeyPair.PublicKey)
-	require.Equal(t, types.PrivateKeyType_RAW, activePairs[0].KeyPair.PrivateKeyType)
+	require.NotNil(t, activePairs[0].GetKeyPair())
+	require.NotEmpty(t, activePairs[0].GetKeyPair().PrivateKey)
+	require.NotEmpty(t, activePairs[0].GetKeyPair().PublicKey)
+	require.Equal(t, types.PrivateKeyType_RAW, activePairs[0].GetKeyPair().PrivateKeyType)
 }
 
 func TestUnwrapKey(t *testing.T) {
@@ -464,10 +464,10 @@ func TestRotateKey(t *testing.T) {
 	activePairs := encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, activePairs, 1)
 	initialKey := activePairs[0]
-	require.NotNil(t, initialKey.KeyPair)
-	require.NotEmpty(t, initialKey.KeyPair.PrivateKey)
-	require.NotEmpty(t, initialKey.KeyPair.PublicKey)
-	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, initialKey.State)
+	require.NotNil(t, initialKey.GetKeyPair())
+	require.NotEmpty(t, initialKey.GetKeyPair().PrivateKey)
+	require.NotEmpty(t, initialKey.GetKeyPair().PublicKey)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, initialKey.GetState())
 
 	// rotate key
 	err = manager.RotateKey(ctx)
@@ -481,12 +481,12 @@ func TestRotateKey(t *testing.T) {
 	var foundInitialPair bool
 	var newPair *recordingencryptionv1.KeyPair
 	for _, pair := range activePairs {
-		if slices.Equal(initialKey.KeyPair.PublicKey, pair.KeyPair.PublicKey) {
-			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, pair.State)
+		if slices.Equal(initialKey.GetKeyPair().PublicKey, pair.GetKeyPair().PublicKey) {
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, pair.GetState())
 			foundInitialPair = true
 		} else {
 			newPair = pair
-			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, pair.State)
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, pair.GetState())
 		}
 	}
 
@@ -501,11 +501,11 @@ func TestRotateKey(t *testing.T) {
 	activePairs = encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, activePairs, 1)
 
-	require.Equal(t, newPair.KeyPair.PublicKey, activePairs[0].KeyPair.PublicKey)
-	require.Equal(t, newPair.KeyPair.PrivateKey, activePairs[0].KeyPair.PrivateKey)
-	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, activePairs[0].State)
+	require.Equal(t, newPair.GetKeyPair().PublicKey, activePairs[0].GetKeyPair().PublicKey)
+	require.Equal(t, newPair.GetKeyPair().PrivateKey, activePairs[0].GetKeyPair().PrivateKey)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, activePairs[0].GetState())
 
-	pubKey, err := x509.ParsePKIXPublicKey(initialKey.KeyPair.PublicKey)
+	pubKey, err := x509.ParsePKIXPublicKey(initialKey.GetKeyPair().PublicKey)
 	require.NoError(t, err)
 
 	fingerprint, err := recordingencryption.Fingerprint(pubKey)
@@ -514,8 +514,8 @@ func TestRotateKey(t *testing.T) {
 	rotatedKey, err := config.Backend.GetRotatedKey(ctx, fingerprint)
 	require.NoError(t, err)
 
-	require.Equal(t, initialKey.KeyPair.PublicKey, rotatedKey.Spec.EncryptionKeyPair.PublicKey)
-	require.Equal(t, initialKey.KeyPair.PrivateKey, rotatedKey.Spec.EncryptionKeyPair.PrivateKey)
+	require.Equal(t, initialKey.GetKeyPair().PublicKey, rotatedKey.GetSpec().GetEncryptionKeyPair().PublicKey)
+	require.Equal(t, initialKey.GetKeyPair().PrivateKey, rotatedKey.GetSpec().GetEncryptionKeyPair().PrivateKey)
 }
 
 func TestRotateRollback(t *testing.T) {
@@ -542,10 +542,10 @@ func TestRotateRollback(t *testing.T) {
 	activePairs := encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, activePairs, 1)
 	initialKey := proto.CloneOf(activePairs[0])
-	require.NotNil(t, initialKey.KeyPair)
-	require.NotEmpty(t, initialKey.KeyPair.PrivateKey)
-	require.NotEmpty(t, initialKey.KeyPair.PublicKey)
-	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, initialKey.State)
+	require.NotNil(t, initialKey.GetKeyPair())
+	require.NotEmpty(t, initialKey.GetKeyPair().PrivateKey)
+	require.NotEmpty(t, initialKey.GetKeyPair().PublicKey)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, initialKey.GetState())
 
 	// rotate key
 	err = manager.RotateKey(ctx)
@@ -559,12 +559,12 @@ func TestRotateRollback(t *testing.T) {
 	var foundInitialPair bool
 	var newPair *recordingencryptionv1.KeyPair
 	for _, pair := range activePairs {
-		if slices.Equal(initialKey.KeyPair.PublicKey, pair.KeyPair.PublicKey) {
-			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, pair.State)
+		if slices.Equal(initialKey.GetKeyPair().PublicKey, pair.GetKeyPair().PublicKey) {
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, pair.GetState())
 			foundInitialPair = true
 		} else {
 			newPair = pair
-			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, pair.State)
+			require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, pair.GetState())
 		}
 	}
 
@@ -579,11 +579,11 @@ func TestRotateRollback(t *testing.T) {
 	activePairs = encryption.GetSpec().GetActiveKeyPairs()
 	require.Len(t, activePairs, 1)
 
-	require.Equal(t, initialKey.KeyPair.PublicKey, activePairs[0].KeyPair.PublicKey)
-	require.Equal(t, initialKey.KeyPair.PrivateKey, activePairs[0].KeyPair.PrivateKey)
-	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, activePairs[0].State)
+	require.Equal(t, initialKey.GetKeyPair().PublicKey, activePairs[0].GetKeyPair().PublicKey)
+	require.Equal(t, initialKey.GetKeyPair().PrivateKey, activePairs[0].GetKeyPair().PrivateKey)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, activePairs[0].GetState())
 
-	pubKey, err := x509.ParsePKIXPublicKey(initialKey.KeyPair.PublicKey)
+	pubKey, err := x509.ParsePKIXPublicKey(initialKey.GetKeyPair().PublicKey)
 	require.NoError(t, err)
 
 	fingerprint, err := recordingencryption.Fingerprint(pubKey)

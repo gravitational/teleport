@@ -46,7 +46,7 @@ func (c *autoUpdateBotInstanceReportCollection) WriteText(w io.Writer, _ bool) e
 			groupName = "<no update group>"
 		}
 		for versionName, versionMetrics := range groupMetrics.GetVersions() {
-			t.AddRow([]string{groupName, versionName, strconv.Itoa(int(versionMetrics.Count))})
+			t.AddRow([]string{groupName, versionName, strconv.Itoa(int(versionMetrics.GetCount()))})
 		}
 	}
 	t.SortRowsBy([]int{0, 1}, true)

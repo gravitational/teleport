@@ -111,11 +111,11 @@ func TestTeleportProcess_initDiscoveryService(t *testing.T) {
 			cfg: servicecfg.AccessGraphConfig{
 				Enabled: false,
 			},
-			rsp: &clusterconfigpb.AccessGraphConfig{
+			rsp: clusterconfigpb.AccessGraphConfig_builder{
 				Enabled:  true,
 				Address:  "localhost:5000",
 				Insecure: true,
-			},
+			}.Build(),
 			err: nil,
 			want: discovery.AccessGraphConfig{
 				Enabled:  true,

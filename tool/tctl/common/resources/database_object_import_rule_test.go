@@ -30,23 +30,23 @@ import (
 func makeDatabaseObjectImportRule(t *testing.T, name string, priority int) *dbobjectimportrulev1.DatabaseObjectImportRule {
 	t.Helper()
 
-	r, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+	r, err := databaseobjectimportrule.NewDatabaseObjectImportRule(name, dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 		Priority: int32(priority),
 		DatabaseLabels: label.FromMap(map[string][]string{
 			"foo":   {"bar"},
 			"beast": {"dragon", "phoenix"},
 		}),
 		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
-			{
-				Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
+			dbobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+				Match: dbobjectimportrulev1.DatabaseObjectImportMatch_builder{
 					TableNames: []string{"dummy"},
-				},
+				}.Build(),
 				AddLabels: map[string]string{
 					"dummy_table": "true",
 					"another":     "label"},
-			},
+			}.Build(),
 		},
-	})
+	}.Build())
 	require.NoError(t, err)
 	return r
 }

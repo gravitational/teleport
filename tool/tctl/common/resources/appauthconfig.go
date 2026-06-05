@@ -58,17 +58,17 @@ func (c *appAuthConfigCollection) WriteText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, item := range c.configs {
 		subKind := "undefined"
-		switch item.Spec.SubKindSpec.(type) {
-		case *appauthconfigv1.AppAuthConfigSpec_Jwt:
+		switch item.GetSpec().WhichSubKindSpec() {
+		case appauthconfigv1.AppAuthConfigSpec_Jwt_case:
 			subKind = "JWT"
 		}
 
 		rows = append(rows, []string{
-			item.Metadata.Name,
+			item.GetMetadata().GetName(),
 			subKind,
 			// Always format in verbose given that internal labels can be used
 			// as matchers and should be shown to the users.
-			common.FormatMultiValueLabels(label.ToMap(item.Spec.AppLabels), true),
+			common.FormatMultiValueLabels(label.ToMap(item.GetSpec().GetAppLabels()), true),
 		})
 	}
 
@@ -95,7 +95,7 @@ func appAuthConfigHandler() Handler {
 func getAppAuthConfig(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	c := client.AppAuthConfigClient()
 	if ref.Name != "" {
-		config, err := c.GetAppAuthConfig(ctx, &appauthconfigv1.GetAppAuthConfigRequest{Name: ref.Name})
+		config, err := c.GetAppAuthConfig(ctx, appauthconfigv1.GetAppAuthConfigRequest_builder{Name: ref.Name}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -103,10 +103,10 @@ func getAppAuthConfig(ctx context.Context, client *authclient.Client, ref servic
 	}
 
 	configs, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*appauthconfigv1.AppAuthConfig, string, error) {
-		resp, err := c.ListAppAuthConfigs(ctx, &appauthconfigv1.ListAppAuthConfigsRequest{
+		resp, err := c.ListAppAuthConfigs(ctx, appauthconfigv1.ListAppAuthConfigsRequest_builder{
 			PageSize:  int32(limit),
 			PageToken: pageToken,
-		})
+		}.Build())
 
 		return resp.GetConfigs(), resp.GetNextPageToken(), trace.Wrap(err)
 	}))
@@ -124,15 +124,15 @@ func createAppAuthConfig(ctx context.Context, client *authclient.Client, raw ser
 
 	c := client.AppAuthConfigClient()
 	if opts.Force {
-		if _, err := c.UpsertAppAuthConfig(ctx, &appauthconfigv1.UpsertAppAuthConfigRequest{
+		if _, err := c.UpsertAppAuthConfig(ctx, appauthconfigv1.UpsertAppAuthConfigRequest_builder{
 			Config: in,
-		}); err != nil {
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		if _, err := c.CreateAppAuthConfig(ctx, &appauthconfigv1.CreateAppAuthConfigRequest{
+		if _, err := c.CreateAppAuthConfig(ctx, appauthconfigv1.CreateAppAuthConfigRequest_builder{
 			Config: in,
-		}); err != nil {
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -148,9 +148,9 @@ func updateAppAuthConfig(ctx context.Context, client *authclient.Client, raw ser
 	}
 
 	c := client.AppAuthConfigClient()
-	if _, err := c.UpdateAppAuthConfig(ctx, &appauthconfigv1.UpdateAppAuthConfigRequest{
+	if _, err := c.UpdateAppAuthConfig(ctx, appauthconfigv1.UpdateAppAuthConfigRequest_builder{
 		Config: in,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -160,9 +160,9 @@ func updateAppAuthConfig(ctx context.Context, client *authclient.Client, raw ser
 
 func deleteAppAuthConfig(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	c := client.AppAuthConfigClient()
-	_, err := c.DeleteAppAuthConfig(ctx, &appauthconfigv1.DeleteAppAuthConfigRequest{
+	_, err := c.DeleteAppAuthConfig(ctx, appauthconfigv1.DeleteAppAuthConfigRequest_builder{
 		Name: ref.Name,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

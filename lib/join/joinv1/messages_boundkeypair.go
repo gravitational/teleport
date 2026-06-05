@@ -40,11 +40,11 @@ func boundKeypairInitFromMessage(msg *messages.BoundKeypairInit) (*joinv1.BoundK
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &joinv1.BoundKeypairInit{
+	return joinv1.BoundKeypairInit_builder{
 		ClientParams:      clientParams,
 		InitialJoinSecret: msg.InitialJoinSecret,
 		PreviousJoinState: msg.PreviousJoinState,
-	}, nil
+	}.Build(), nil
 }
 
 func boundKeypairChallengeToMessage(resp *joinv1.BoundKeypairChallenge) *messages.BoundKeypairChallenge {
@@ -55,10 +55,10 @@ func boundKeypairChallengeToMessage(resp *joinv1.BoundKeypairChallenge) *message
 }
 
 func boundKeypairChallengeFromMessage(msg *messages.BoundKeypairChallenge) *joinv1.BoundKeypairChallenge {
-	return &joinv1.BoundKeypairChallenge{
+	return joinv1.BoundKeypairChallenge_builder{
 		PublicKey: msg.PublicKey,
 		Challenge: msg.Challenge,
-	}
+	}.Build()
 }
 
 func boundKeypairChallengeSolutionToMessage(req *joinv1.BoundKeypairChallengeSolution) *messages.BoundKeypairChallengeSolution {
@@ -74,15 +74,15 @@ func boundKeypairRotationRequestToMessage(resp *joinv1.BoundKeypairRotationReque
 }
 
 func boundKeypairRotationRequestFromMessage(resp *messages.BoundKeypairRotationRequest) *joinv1.BoundKeypairRotationRequest {
-	return &joinv1.BoundKeypairRotationRequest{
+	return joinv1.BoundKeypairRotationRequest_builder{
 		SignatureAlgorithmSuite: resp.SignatureAlgorithmSuite,
-	}
+	}.Build()
 }
 
 func boundKeypairChallengeSolutionFromMessage(msg *messages.BoundKeypairChallengeSolution) *joinv1.BoundKeypairChallengeSolution {
-	return &joinv1.BoundKeypairChallengeSolution{
+	return joinv1.BoundKeypairChallengeSolution_builder{
 		Solution: msg.Solution,
-	}
+	}.Build()
 }
 
 func boundKeypairRotationResponseToMessage(req *joinv1.BoundKeypairRotationResponse) *messages.BoundKeypairRotationResponse {
@@ -92,9 +92,9 @@ func boundKeypairRotationResponseToMessage(req *joinv1.BoundKeypairRotationRespo
 }
 
 func boundKeypairRotationResponseFromMessage(msg *messages.BoundKeypairRotationResponse) *joinv1.BoundKeypairRotationResponse {
-	return &joinv1.BoundKeypairRotationResponse{
+	return joinv1.BoundKeypairRotationResponse_builder{
 		PublicKey: msg.PublicKey,
-	}
+	}.Build()
 }
 
 func boundKeypairResultToMessage(req *joinv1.BoundKeypairResult) *messages.BoundKeypairResult {
@@ -111,8 +111,8 @@ func boundKeypairResultFromMessage(msg *messages.BoundKeypairResult) *joinv1.Bou
 	if msg == nil {
 		return nil
 	}
-	return &joinv1.BoundKeypairResult{
+	return joinv1.BoundKeypairResult_builder{
 		JoinState: msg.JoinState,
 		PublicKey: msg.PublicKey,
-	}
+	}.Build()
 }

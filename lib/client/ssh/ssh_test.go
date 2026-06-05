@@ -45,11 +45,9 @@ func TestKeyboardInteractive_SuccessfulMFA(t *testing.T) {
 	)
 	require.NotNil(t, authMethod)
 
-	mfaPrompt := &sshpb.AuthPrompt{
-		Prompt: &sshpb.AuthPrompt_MfaPrompt{
-			MfaPrompt: &sshpb.MFAPrompt{},
-		},
-	}
+	mfaPrompt := sshpb.AuthPrompt_builder{
+		MfaPrompt: &sshpb.MFAPrompt{},
+	}.Build()
 	mfaPromptJSON, err := protojson.Marshal(mfaPrompt)
 	require.NoError(t, err)
 
@@ -79,11 +77,9 @@ func TestKeyboardInteractive_FailedMFA(t *testing.T) {
 	)
 	require.NotNil(t, authMethod)
 
-	mfaPrompt := &sshpb.AuthPrompt{
-		Prompt: &sshpb.AuthPrompt_MfaPrompt{
-			MfaPrompt: &sshpb.MFAPrompt{},
-		},
-	}
+	mfaPrompt := sshpb.AuthPrompt_builder{
+		MfaPrompt: &sshpb.MFAPrompt{},
+	}.Build()
 	mfaPromptJSON, err := protojson.Marshal(mfaPrompt)
 	require.NoError(t, err)
 

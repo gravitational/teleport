@@ -100,16 +100,16 @@ func (h *Handler) machineIDWizardGenerateIaC(_ http.ResponseWriter, r *http.Requ
 	}
 
 	// Bot resource.
-	bot := &machineidv1.Bot{
+	bot := machineidv1.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: namePrefix,
-		},
-		Spec: &machineidv1.BotSpec{
+		}.Build(),
+		Spec: machineidv1.BotSpec_builder{
 			Roles: []string{role.GetName()},
-		},
-	}
+		}.Build(),
+	}.Build()
 	botOpts := []tfgen.GenerateOpt{
 		tfgen.WithFieldTransform("spec.traits", transform.BotTraits),
 	}

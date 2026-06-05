@@ -34,11 +34,11 @@ import (
 func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
 	t.Helper()
 	cfg, err := healthcheckconfig.NewHealthCheckConfig(name,
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
+		healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
 				DbLabelsExpression: "labels.env == `test`",
-			},
-		},
+			}.Build(),
+		}.Build(),
 	)
 	require.NoError(t, err)
 	return cfg

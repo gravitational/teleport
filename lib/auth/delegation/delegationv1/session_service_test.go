@@ -250,15 +250,15 @@ func (p *sessionTestPack) authenticateBotInDelegationSession(botName, delegation
 func (p *sessionTestPack) createSession(t *testing.T, spec *delegationv1pb.DelegationSessionSpec) *delegationv1pb.DelegationSession {
 	t.Helper()
 
-	session, err := p.sessions.CreateDelegationSession(t.Context(), &delegationv1pb.DelegationSession{
+	session, err := p.sessions.CreateDelegationSession(t.Context(), delegationv1pb.DelegationSession_builder{
 		Kind:    types.KindDelegationSession,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:    uuid.NewString(),
 			Expires: timestamppb.New(time.Now().Add(time.Hour)),
-		},
+		}.Build(),
 		Spec: spec,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	return session

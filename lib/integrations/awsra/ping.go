@@ -94,7 +94,7 @@ func Ping(ctx context.Context, clt PingClient, ignoredProfileARNs []string) (*Pi
 		}
 		for _, profile := range profiles {
 			// Ignore disabled profiles and profiles without assigned roles.
-			if profile.Enabled && len(profile.Roles) > 0 {
+			if profile.GetEnabled() && len(profile.GetRoles()) > 0 {
 				profileCounter++
 			}
 		}

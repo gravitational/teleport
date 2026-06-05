@@ -51,31 +51,31 @@ func ValidateStaticHostUser(u *userprovisioningpb.StaticHostUser) error {
 	if u == nil {
 		return trace.BadParameter("StaticHostUser is nil")
 	}
-	if u.Metadata == nil {
+	if !u.HasMetadata() {
 		return trace.BadParameter("Metadata is nil")
 	}
-	if u.Metadata.Name == "" {
+	if u.GetMetadata().GetName() == "" {
 		return trace.BadParameter("missing name")
 	}
-	if u.Spec == nil {
+	if !u.HasSpec() {
 		return trace.BadParameter("Spec is nil")
 	}
 
-	if len(u.Spec.Matchers) == 0 {
+	if len(u.GetSpec().GetMatchers()) == 0 {
 		return trace.BadParameter("missing matchers")
 	}
-	for _, matcher := range u.Spec.Matchers {
+	for _, matcher := range u.GetSpec().GetMatchers() {
 		// Check if matcher can match any resources.
-		if len(matcher.NodeLabels) == 0 && len(matcher.NodeLabelsExpression) == 0 {
+		if len(matcher.GetNodeLabels()) == 0 && len(matcher.GetNodeLabelsExpression()) == 0 {
 			return trace.BadParameter("either NodeLabels or NodeLabelsExpression must be set")
 		}
-		for _, label := range matcher.NodeLabels {
-			if label.Name == types.Wildcard && (len(label.Values) != 1 || label.Values[0] != types.Wildcard) {
+		for _, label := range matcher.GetNodeLabels() {
+			if label.GetName() == types.Wildcard && (len(label.GetValues()) != 1 || label.GetValues()[0] != types.Wildcard) {
 				return trace.BadParameter("selector *:<val> is not supported")
 			}
 		}
-		if len(matcher.NodeLabelsExpression) > 0 {
-			if _, err := parseLabelExpression(matcher.NodeLabelsExpression); err != nil {
+		if len(matcher.GetNodeLabelsExpression()) > 0 {
+			if _, err := parseLabelExpression(matcher.GetNodeLabelsExpression()); err != nil {
 				return trace.BadParameter("parsing node labels expression: %v", err)
 			}
 		}

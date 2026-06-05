@@ -178,14 +178,14 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "decoding legacy ConnectionActivated")
 		}
 
-		return s.handleServerHello(&tdpbv1.ServerHello{
-			ActivationSpec: &tdpbv1.ConnectionActivated{
+		return s.handleServerHello(tdpbv1.ServerHello_builder{
+			ActivationSpec: tdpbv1.ConnectionActivated_builder{
 				IoChannelId:   uint32(ca.IOChannelID),
 				UserChannelId: uint32(ca.UserChannelID),
 				ScreenWidth:   uint32(ca.ScreenWidth),
 				ScreenHeight:  uint32(ca.ScreenHeight),
-			},
-		})
+			}.Build(),
+		}.Build())
 
 	case legacyTypeRDPFastPathPDU:
 		var dataLen uint32
@@ -202,7 +202,7 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "reading legacy RDPFastPathPDU data")
 		}
 
-		return s.handleFastPathPDU(&tdpbv1.FastPathPDU{Pdu: pdu})
+		return s.handleFastPathPDU(tdpbv1.FastPathPDU_builder{Pdu: pdu}.Build())
 
 	case legacyTypeMouseMove:
 		var mm struct{ X, Y uint32 }
@@ -210,7 +210,7 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "reading legacy MouseMove")
 		}
 
-		return s.handleMouseMove(&tdpbv1.MouseMove{X: mm.X, Y: mm.Y})
+		return s.handleMouseMove(tdpbv1.MouseMove_builder{X: mm.X, Y: mm.Y}.Build())
 	}
 
 	return nil
@@ -239,13 +239,13 @@ func (s *RDPState) processTDPBMessage(data []byte) error {
 		return trace.Wrap(err, "unmarshalling TDPB envelope")
 	}
 
-	switch m := env.Payload.(type) {
-	case *tdpbv1.Envelope_ServerHello:
-		return s.handleServerHello(m.ServerHello)
-	case *tdpbv1.Envelope_FastPathPdu:
-		return s.handleFastPathPDU(m.FastPathPdu)
-	case *tdpbv1.Envelope_MouseMove:
-		return s.handleMouseMove(m.MouseMove)
+	switch env.WhichPayload() {
+	case tdpbv1.Envelope_ServerHello_case:
+		return s.handleServerHello(env.GetServerHello())
+	case tdpbv1.Envelope_FastPathPdu_case:
+		return s.handleFastPathPDU(env.GetFastPathPdu())
+	case tdpbv1.Envelope_MouseMove_case:
+		return s.handleMouseMove(env.GetMouseMove())
 	}
 
 	return nil
@@ -312,12 +312,12 @@ func (s *RDPState) handleFastPathPDU(msg *tdpbv1.FastPathPDU) error {
 }
 
 func (s *RDPState) handleMouseMove(msg *tdpbv1.MouseMove) error {
-	if msg.X > math.MaxUint16 || msg.Y > math.MaxUint16 {
-		return trace.BadParameter("mouse coordinates out of range: (%d, %d)", msg.X, msg.Y)
+	if msg.GetX() > math.MaxUint16 || msg.GetY() > math.MaxUint16 {
+		return trace.BadParameter("mouse coordinates out of range: (%d, %d)", msg.GetX(), msg.GetY())
 	}
 
-	s.mouseX = uint16(msg.X)
-	s.mouseY = uint16(msg.Y)
+	s.mouseX = uint16(msg.GetX())
+	s.mouseY = uint16(msg.GetY())
 	s.hasMouse = true
 
 	return nil

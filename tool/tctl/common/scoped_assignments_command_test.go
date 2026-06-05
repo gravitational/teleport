@@ -64,79 +64,79 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 	t.Cleanup(func() { _ = clt.Close() })
 
 	assignments := map[string]*scopedaccessv1.ScopedRoleAssignment{
-		"alice-role1": {
+		"alice-role1": scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Scope:   "/testscope",
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "alice-role1",
-			},
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			}.Build(),
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: "alice",
-				Assignments: []*scopedaccessv1.Assignment{{
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 					Role:  "role1",
 					Scope: "/testscope",
-				}},
-			},
-		},
-		"bob-role1": {
+				}.Build()},
+			}.Build(),
+		}.Build(),
+		"bob-role1": scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Scope:   "/testscope",
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "bob-role1",
-			},
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			}.Build(),
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: "bob",
-				Assignments: []*scopedaccessv1.Assignment{{
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 					Role:  "role1",
 					Scope: "/testscope",
-				}},
-			},
-		},
-		"charlie-role2": {
+				}.Build()},
+			}.Build(),
+		}.Build(),
+		"charlie-role2": scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Scope:   "/testscope",
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "charlie-role2",
-			},
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			}.Build(),
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: "charlie",
-				Assignments: []*scopedaccessv1.Assignment{{
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 					Role:  "role2",
 					Scope: "/testscope",
-				}},
-			},
-		},
-		"charlie-role3": {
+				}.Build()},
+			}.Build(),
+		}.Build(),
+		"charlie-role3": scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
 			Scope:   "/testscope",
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "charlie-role3",
-			},
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			}.Build(),
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: "charlie",
-				Assignments: []*scopedaccessv1.Assignment{{
+				Assignments: []*scopedaccessv1.Assignment{scopedaccessv1.Assignment_builder{
 					Role:  "role3",
 					Scope: "/testscope",
-				}},
-			},
-		},
+				}.Build()},
+			}.Build(),
+		}.Build(),
 	}
 
 	scopedClt := clt.ScopedAccessServiceClient()
 	for name, assignment := range assignments {
-		created, err := scopedClt.CreateScopedRoleAssignment(t.Context(), &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		created, err := scopedClt.CreateScopedRoleAssignment(t.Context(), scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 			Assignment: assignment,
-		})
+		}.Build())
 		require.NoError(t, err)
-		assignments[name] = created.Assignment
+		assignments[name] = created.GetAssignment()
 	}
 
 	allAssignmentNames := slices.Collect(maps.Keys(assignments))
@@ -154,7 +154,7 @@ func TestScopedAssignmentListCommand(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err := scopedClt.ListScopedRoleAssignments(ctx, &scopedaccessv1.ListScopedRoleAssignmentsRequest{})
 		require.NoError(t, err)
-		require.Len(t, resp.Assignments, len(assignments))
+		require.Len(t, resp.GetAssignments(), len(assignments))
 	}, 10*time.Second, 50*time.Millisecond, "waiting for scoped role assignments to be present in cache")
 
 	for _, tc := range []struct {

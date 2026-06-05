@@ -53,21 +53,21 @@ func (c *autoUpdateConfigBrokenCollection) Resources() []types.Resource {
 // checks we can do a round-trip with one of those proto-struct resource.
 func TestRoundTripProtoResource153(t *testing.T) {
 	// Test setup: generate fixture.
-	initial, err := autoupdate.NewAutoUpdateConfig(&autoupdatev1pb.AutoUpdateConfigSpec{
-		Agents: &autoupdatev1pb.AutoUpdateConfigSpecAgents{
+	initial, err := autoupdate.NewAutoUpdateConfig(autoupdatev1pb.AutoUpdateConfigSpec_builder{
+		Agents: autoupdatev1pb.AutoUpdateConfigSpecAgents_builder{
 			Mode:                      autoupdate.AgentsUpdateModeEnabled,
 			Strategy:                  autoupdate.AgentsStrategyTimeBased,
 			MaintenanceWindowDuration: durationpb.New(1 * time.Hour),
-			Schedules: &autoupdatev1pb.AgentAutoUpdateSchedules{
+			Schedules: autoupdatev1pb.AgentAutoUpdateSchedules_builder{
 				Regular: []*autoupdatev1pb.AgentAutoUpdateGroup{
-					{
+					autoupdatev1pb.AgentAutoUpdateGroup_builder{
 						Name: "group1",
 						Days: []string{types.Wildcard},
-					},
+					}.Build(),
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Test execution: dump the resource into a YAML manifest.

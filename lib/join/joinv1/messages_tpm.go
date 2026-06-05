@@ -24,16 +24,16 @@ import (
 )
 
 func tpmInitToMessage(req *joinv1.TPMInit) (*messages.TPMInit, error) {
-	clientParams, err := clientParamsToMessage(req.ClientParams)
+	clientParams, err := clientParamsToMessage(req.GetClientParams())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &messages.TPMInit{
 		ClientParams:      clientParams,
-		Public:            req.Public,
-		CreateData:        req.CreateData,
-		CreateAttestation: req.CreateAttestation,
-		CreateSignature:   req.CreateSignature,
+		Public:            req.GetPublic(),
+		CreateData:        req.GetCreateData(),
+		CreateAttestation: req.GetCreateAttestation(),
+		CreateSignature:   req.GetCreateSignature(),
 		EKCert:            req.GetEkCert(),
 		EKKey:             req.GetEkKey(),
 	}, nil
@@ -44,13 +44,13 @@ func tpmInitFromMessage(msg *messages.TPMInit) (*joinv1.TPMInit, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req := &joinv1.TPMInit{
+	req := joinv1.TPMInit_builder{
 		ClientParams:      clientParams,
 		Public:            msg.Public,
 		CreateData:        msg.CreateData,
 		CreateAttestation: msg.CreateAttestation,
 		CreateSignature:   msg.CreateSignature,
-	}
+	}.Build()
 	var (
 		hasEKCert = len(msg.EKCert) > 0
 		hasEKKey  = len(msg.EKKey) > 0
@@ -72,26 +72,26 @@ func tpmInitFromMessage(msg *messages.TPMInit) (*joinv1.TPMInit, error) {
 
 func tpmEncryptedCredentialToMessage(req *joinv1.TPMEncryptedCredential) *messages.TPMEncryptedCredential {
 	return &messages.TPMEncryptedCredential{
-		CredentialBlob: req.CredentialBlob,
-		Secret:         req.Secret,
+		CredentialBlob: req.GetCredentialBlob(),
+		Secret:         req.GetSecret(),
 	}
 }
 
 func tpmEncryptedCredentialFromMessage(msg *messages.TPMEncryptedCredential) *joinv1.TPMEncryptedCredential {
-	return &joinv1.TPMEncryptedCredential{
+	return joinv1.TPMEncryptedCredential_builder{
 		CredentialBlob: msg.CredentialBlob,
 		Secret:         msg.Secret,
-	}
+	}.Build()
 }
 
 func tpmSolutionToMessage(req *joinv1.TPMSolution) *messages.TPMSolution {
 	return &messages.TPMSolution{
-		Solution: req.Solution,
+		Solution: req.GetSolution(),
 	}
 }
 
 func tpmSolutionFromMessage(msg *messages.TPMSolution) *joinv1.TPMSolution {
-	return &joinv1.TPMSolution{
+	return joinv1.TPMSolution_builder{
 		Solution: msg.Solution,
-	}
+	}.Build()
 }

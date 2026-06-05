@@ -1413,8 +1413,8 @@ func FromSubject(subject pkix.Name, expires time.Time) (*Identity, error) {
 				}
 				// Certs issued before PinKind was introduced will have UNSPECIFIED here.
 				// Pins decoded from the user OID are always user pins.
-				if pin.Kind == scopesv1.PinKind_PIN_KIND_UNSPECIFIED {
-					pin.Kind = scopesv1.PinKind_PIN_KIND_USER
+				if pin.GetKind() == scopesv1.PinKind_PIN_KIND_UNSPECIFIED {
+					pin.SetKind(scopesv1.PinKind_PIN_KIND_USER)
 				}
 				id.ScopePin = pin
 			}

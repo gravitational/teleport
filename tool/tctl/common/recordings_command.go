@@ -288,9 +288,9 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 	// fetcher is defined early so it can be used both for resume and for normal pagination.
 	fetcher := recordingstui.BatchFetcher(func(ctx context.Context, token string) ([]*sessionsearchv1pb.SessionSummary, string, error) {
 		// When BatchToken is set the server ignores all other filter fields per the proto contract.
-		batchStream, err := searchClient.SearchSessionSummaries(ctx, &sessionsearchv1pb.SearchSessionSummariesRequest{
+		batchStream, err := searchClient.SearchSessionSummaries(ctx, sessionsearchv1pb.SearchSessionSummariesRequest_builder{
 			BatchToken: token,
-		})
+		}.Build())
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
@@ -321,7 +321,7 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 	if len(c.searchQuery) > 0 {
 		search = []string{strings.Join(c.searchQuery, " ")}
 	}
-	req := &sessionsearchv1pb.SearchSessionSummariesRequest{
+	req := sessionsearchv1pb.SearchSessionSummariesRequest_builder{
 		StartTime:        timestamppb.New(fromUTC),
 		EndTime:          timestamppb.New(toUTC),
 		SearchQueries:    search,
@@ -330,34 +330,34 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 		Kinds:            c.searchKinds,
 		UserRoles:        c.searchRoles,
 		MaxResults:       c.searchLimit,
-	}
+	}.Build()
 	resourceProperties, err := c.buildSearchResourceProperties()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req.ResourceProperties = resourceProperties
+	req.SetResourceProperties(resourceProperties)
 	if c.searchUsername != "" {
-		req.Username = &c.searchUsername
+		req.SetUsername(c.searchUsername)
 	}
 	if c.searchResourceKind != "" {
-		req.ResourceKind = &c.searchResourceKind
+		req.SetResourceKind(c.searchResourceKind)
 	}
 	if c.searchResourceName != "" {
-		req.ResourceName = &c.searchResourceName
+		req.SetResourceName(c.searchResourceName)
 	}
 	if c.searchSeverity != "" {
 		level, err := parseSeverity(c.searchSeverity)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.Severity = &level
+		req.SetSeverity(level)
 	}
 	if c.searchMode != "" {
 		mode, err := parseSearchMode(c.searchMode)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.SearchMode = mode
+		req.SetSearchMode(mode)
 	}
 
 	stream, err := searchClient.SearchSessionSummaries(ctx, req)
@@ -428,10 +428,10 @@ func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.
 	case sshSet:
 		props := &sessionsearchv1pb.SSHProperties{}
 		if c.searchServerHostname != "" {
-			props.ServerHostname = &c.searchServerHostname
+			props.SetServerHostname(c.searchServerHostname)
 		}
 		if c.searchServerAddr != "" {
-			props.ServerAddr = &c.searchServerAddr
+			props.SetServerAddr(c.searchServerAddr)
 		}
 		return &sessionsearchv1pb.ResourceProperties{
 			Type: &sessionsearchv1pb.ResourceProperties_Ssh{
@@ -441,10 +441,10 @@ func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.
 	case kubernetesSet:
 		props := &sessionsearchv1pb.KubernetesProperties{}
 		if c.searchPodNamespace != "" {
-			props.PodNamespace = &c.searchPodNamespace
+			props.SetPodNamespace(c.searchPodNamespace)
 		}
 		if c.searchPodName != "" {
-			props.PodName = &c.searchPodName
+			props.SetPodName(c.searchPodName)
 		}
 		return &sessionsearchv1pb.ResourceProperties{
 			Type: &sessionsearchv1pb.ResourceProperties_Kubernetes{
@@ -452,13 +452,11 @@ func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.
 			},
 		}, nil
 	case databaseSet:
-		return &sessionsearchv1pb.ResourceProperties{
-			Type: &sessionsearchv1pb.ResourceProperties_Database{
-				Database: &sessionsearchv1pb.DatabaseProperties{
-					DatabaseName: &c.searchDatabaseName,
-				},
-			},
-		}, nil
+		return sessionsearchv1pb.ResourceProperties_builder{
+			Database: sessionsearchv1pb.DatabaseProperties_builder{
+				DatabaseName: &c.searchDatabaseName,
+			}.Build(),
+		}.Build(), nil
 	default:
 		return nil, nil
 	}
@@ -500,12 +498,12 @@ func collectStream(stream sessionsearchv1pb.SessionSearchService_SearchSessionSu
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
-		switch p := resp.Payload.(type) {
-		case *sessionsearchv1pb.SearchSessionSummariesResponse_Summary:
-			sessions = append(sessions, p.Summary)
-		case *sessionsearchv1pb.SearchSessionSummariesResponse_BatchComplete_:
-			if p.BatchComplete.GetHasMore() {
-				nextToken = p.BatchComplete.GetNextBatchToken()
+		switch resp.WhichPayload() {
+		case sessionsearchv1pb.SearchSessionSummariesResponse_Summary_case:
+			sessions = append(sessions, resp.GetSummary())
+		case sessionsearchv1pb.SearchSessionSummariesResponse_BatchComplete_case:
+			if resp.GetBatchComplete().GetHasMore() {
+				nextToken = resp.GetBatchComplete().GetNextBatchToken()
 			}
 		}
 	}

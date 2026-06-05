@@ -40,8 +40,8 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 
 	sortBy := types.SortBy{}
 	if req.GetSortBy() != nil {
-		sortBy.IsDesc = req.GetSortBy().IsDesc
-		sortBy.Field = req.GetSortBy().Field
+		sortBy.IsDesc = req.GetSortBy().GetIsDesc()
+		sortBy.Field = req.GetSortBy().GetField()
 	}
 
 	daemonResponse, err := s.DaemonService.ListUnifiedResources(ctx, clusterURI, &proto.ListUnifiedResourcesRequest{
@@ -65,52 +65,52 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 
 	for _, resource := range daemonResponse.Resources {
 		if resource.Server != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
+			response.SetResources(append(response.GetResources(), &api.PaginatedResource{
 				Resource: &api.PaginatedResource_Server{
 					Server: newAPIServer(*resource.Server),
 				},
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}))
 		}
 		if resource.Database != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
+			response.SetResources(append(response.GetResources(), &api.PaginatedResource{
 				Resource: &api.PaginatedResource_Database{
 					Database: newAPIDatabase(*resource.Database),
 				},
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}))
 		}
 		if resource.Kube != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
+			response.SetResources(append(response.GetResources(), &api.PaginatedResource{
 				Resource: &api.PaginatedResource_Kube{
 					Kube: newAPIKube(*resource.Kube),
 				},
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}))
 		}
 		if resource.App != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
+			response.SetResources(append(response.GetResources(), &api.PaginatedResource{
 				Resource: &api.PaginatedResource_App{
 					App: newAPIApp(*resource.App),
 				},
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}))
 		}
 		if resource.SAMLIdPServiceProvider != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
+			response.SetResources(append(response.GetResources(), &api.PaginatedResource{
 				Resource: &api.PaginatedResource_App{
 					App: newSAMLIdPServiceProviderAPIApp(*resource.SAMLIdPServiceProvider),
 				},
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}))
 		}
 		if resource.WindowsDesktop != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
+			response.SetResources(append(response.GetResources(), &api.PaginatedResource{
 				Resource: &api.PaginatedResource_WindowsDesktop{
 					WindowsDesktop: newAPIWindowsDesktop(*resource.WindowsDesktop),
 				},
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}))
 		}
 	}
 
@@ -122,7 +122,7 @@ func newAPIServer(server clusters.Server) *api.Server {
 		ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels()),
 	)
 
-	return &api.Server{
+	return api.Server_builder{
 		Uri:      server.URI.String(),
 		Tunnel:   server.GetUseTunnel(),
 		Name:     server.GetName(),
@@ -131,5 +131,5 @@ func newAPIServer(server clusters.Server) *api.Server {
 		SubKind:  server.GetSubKind(),
 		Labels:   apiLabels,
 		Logins:   server.Logins,
-	}
+	}.Build()
 }

@@ -66,9 +66,9 @@ func TestCeremony_Run(t *testing.T) {
 
 	runParams := &authntypes.CeremonyRunParams{
 		DevicesClient: devices,
-		Certs: &devicepb.UserCertificates{
+		Certs: devicepb.UserCertificates_builder{
 			SshAuthorizedKey: sshCert,
-		},
+		}.Build(),
 		SSHSigner: sshSigner,
 	}
 
@@ -129,7 +129,7 @@ func TestCeremony_RunWeb(t *testing.T) {
 	t.Run("sanity checks", func(t *testing.T) {
 		t.Parallel()
 
-		devID := macOSDev1.Id
+		devID := macOSDev1.GetId()
 		dev := macOSFakeDev1
 
 		webToken1, err := fakeService.CreateDeviceWebTokenForTesting(testenv.CreateDeviceWebTokenParams{
@@ -147,16 +147,16 @@ func TestCeremony_RunWeb(t *testing.T) {
 		const wantErr = "invalid device web token"
 
 		// Unknown token fails.
-		runError(t, wantErr, dev, &devicepb.DeviceWebToken{
+		runError(t, wantErr, dev, devicepb.DeviceWebToken_builder{
 			Id:    "I'm a llama not a token",
-			Token: webToken1.Token,
-		})
+			Token: webToken1.GetToken(),
+		}.Build())
 
 		// Incorrect token fails (spends webToken1 regardless).
-		runError(t, wantErr, dev, &devicepb.DeviceWebToken{
-			Id:    webToken1.Id,
-			Token: webToken1.Token + "BAD",
-		})
+		runError(t, wantErr, dev, devicepb.DeviceWebToken_builder{
+			Id:    webToken1.GetId(),
+			Token: webToken1.GetToken() + "BAD",
+		}.Build())
 
 		// Spent token fails (spent above).
 		runError(t, wantErr, dev, webToken1)
@@ -166,7 +166,7 @@ func TestCeremony_RunWeb(t *testing.T) {
 	})
 
 	t.Run("ok", func(t *testing.T) {
-		devID := macOSDev1.Id
+		devID := macOSDev1.GetId()
 		dev := macOSFakeDev1
 
 		// Create a fake DeviceWebToken. This and a previous enrollment is all the
@@ -207,7 +207,7 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 	if err != nil {
 		return nil, fmt.Errorf("enroll device init: %w", err)
 	}
-	enrollDeviceInit.Token = testenv.FakeEnrollmentToken
+	enrollDeviceInit.SetToken(testenv.FakeEnrollmentToken)
 	if err := stream.Send(&devicepb.EnrollDeviceRequest{
 		Payload: &devicepb.EnrollDeviceRequest_Init{
 			Init: enrollDeviceInit,
@@ -223,17 +223,15 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 	}
 	switch osType := dev.GetDeviceOSType(); osType {
 	case devicepb.OSType_OS_TYPE_MACOS:
-		sig, err := dev.SignChallenge(resp.GetMacosChallenge().Challenge)
+		sig, err := dev.SignChallenge(resp.GetMacosChallenge().GetChallenge())
 		if err != nil {
 			return nil, err
 		}
-		if err := stream.Send(&devicepb.EnrollDeviceRequest{
-			Payload: &devicepb.EnrollDeviceRequest_MacosChallengeResponse{
-				MacosChallengeResponse: &devicepb.MacOSEnrollChallengeResponse{
-					Signature: sig,
-				},
-			},
-		}); err != nil {
+		if err := stream.Send(devicepb.EnrollDeviceRequest_builder{
+			MacosChallengeResponse: devicepb.MacOSEnrollChallengeResponse_builder{
+				Signature: sig,
+			}.Build(),
+		}.Build()); err != nil {
 			return nil, err
 		}
 	case devicepb.OSType_OS_TYPE_LINUX, devicepb.OSType_OS_TYPE_WINDOWS:
@@ -261,5 +259,5 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 	if success == nil {
 		return nil, fmt.Errorf("success response is nil, got %T instead", resp.Payload)
 	}
-	return success.Device, nil
+	return success.GetDevice(), nil
 }

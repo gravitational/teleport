@@ -79,7 +79,7 @@ func upsertAccessGraphSettings(ctx context.Context, client *authclient.Client, r
 		return trace.Wrap(err)
 	}
 
-	if _, err = client.ClusterConfigClient().UpsertAccessGraphSettings(ctx, &clusterconfigpb.UpsertAccessGraphSettingsRequest{AccessGraphSettings: settings}); err != nil {
+	if _, err = client.ClusterConfigClient().UpsertAccessGraphSettings(ctx, clusterconfigpb.UpsertAccessGraphSettingsRequest_builder{AccessGraphSettings: settings}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -93,7 +93,7 @@ func updateAccessGraphSettings(ctx context.Context, client *authclient.Client, r
 		return trace.Wrap(err)
 	}
 
-	if _, err = client.ClusterConfigClient().UpdateAccessGraphSettings(ctx, &clusterconfigpb.UpdateAccessGraphSettingsRequest{AccessGraphSettings: settings}); err != nil {
+	if _, err = client.ClusterConfigClient().UpdateAccessGraphSettings(ctx, clusterconfigpb.UpdateAccessGraphSettingsRequest_builder{AccessGraphSettings: settings}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Println("access_graph_settings has been updated")

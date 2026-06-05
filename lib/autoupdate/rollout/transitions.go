@@ -132,9 +132,9 @@ func TriggerGroups(rollout *autoupdatev1pb.AutoUpdateAgentRollout, reports []*au
 		}
 
 		setGroupState(group, desiredState, updateReasonManualTrigger, now)
-		group.UpToDateCount = uint64(upToDateCount)
-		group.InitialCount = uint64(initialCount)
-		group.PresentCount = uint64(initialCount)
+		group.SetUpToDateCount(uint64(upToDateCount))
+		group.SetInitialCount(uint64(initialCount))
+		group.SetPresentCount(uint64(initialCount))
 	}
 
 	return nil

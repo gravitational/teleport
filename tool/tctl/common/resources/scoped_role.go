@@ -83,9 +83,9 @@ func createScopedRole(ctx context.Context, client *authclient.Client, raw servic
 	}
 
 	if opts.Force {
-		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRole(ctx, &scopedaccessv1.UpsertScopedRoleRequest{
+		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRole(ctx, scopedaccessv1.UpsertScopedRoleRequest_builder{
 			Role: r,
-		})
+		}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -97,9 +97,9 @@ func createScopedRole(ctx context.Context, client *authclient.Client, raw servic
 		return nil
 	}
 
-	if _, err := client.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+	if _, err := client.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 		Role: r,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -118,9 +118,9 @@ func updateScopedRole(ctx context.Context, client *authclient.Client, raw servic
 		return trace.Wrap(err)
 	}
 
-	if _, err = client.ScopedAccessServiceClient().UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
+	if _, err = client.ScopedAccessServiceClient().UpdateScopedRole(ctx, scopedaccessv1.UpdateScopedRoleRequest_builder{
 		Role: r,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -135,14 +135,14 @@ func updateScopedRole(ctx context.Context, client *authclient.Client, raw servic
 
 func getScopedRole(ctx context.Context, client *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	if ref.Name != "" {
-		rsp, err := client.ScopedAccessServiceClient().GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+		rsp, err := client.ScopedAccessServiceClient().GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
 			Name: ref.Name,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return &scopedRoleCollection{roles: []*scopedaccessv1.ScopedRole{rsp.Role}}, nil
+		return &scopedRoleCollection{roles: []*scopedaccessv1.ScopedRole{rsp.GetRole()}}, nil
 	}
 
 	items, err := stream.Collect(scopedutils.RangeScopedRoles(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRolesRequest{}))
@@ -153,9 +153,9 @@ func getScopedRole(ctx context.Context, client *authclient.Client, ref services.
 }
 
 func deleteScopedRole(ctx context.Context, client *authclient.Client, ref services.Ref) error {
-	if _, err := client.ScopedAccessServiceClient().DeleteScopedRole(ctx, &scopedaccessv1.DeleteScopedRoleRequest{
+	if _, err := client.ScopedAccessServiceClient().DeleteScopedRole(ctx, scopedaccessv1.DeleteScopedRoleRequest_builder{
 		Name: ref.Name,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf(

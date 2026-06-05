@@ -101,14 +101,14 @@ func TestRecipients(t *testing.T) {
 		},
 	})
 
-	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: `user.traits["team"].contains("example")`,
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       pluginName,
 			Recipients: []string{recipient},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
 		Type:     types.OpPut,
@@ -181,14 +181,14 @@ func TestRecipientsWithResources(t *testing.T) {
 		},
 	})
 
-	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: `access_request.spec.resource_labels_intersection["env"].contains("dev")`,
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       pluginName,
 			Recipients: []string{recipient},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	err = amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
 		Type:     types.OpPut,
@@ -238,27 +238,27 @@ func TestRecipientsWithSchedules(t *testing.T) {
 		},
 	})
 
-	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects: []string{types.KindAccessRequest},
 		Schedules: map[string]*pb.Schedule{
-			"default": {
-				Time: &pb.TimeSchedule{
+			"default": pb.Schedule_builder{
+				Time: pb.TimeSchedule_builder{
 					Shifts: []*pb.TimeSchedule_Shift{
-						{
+						pb.TimeSchedule_Shift_builder{
 							Weekday: time.Monday.String(),
 							Start:   "14:00",
 							End:     "15:00",
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		Condition: `true`,
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       pluginName,
 			Recipients: []string{recipient},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	err = amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
 		Type:     types.OpPut,
@@ -311,14 +311,14 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 		FetchRecipientCallback: mockFetchRecipient,
 	})
 
-	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       "fakePluginName",
 			Recipients: []string{"a", "b"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
 		Type:     types.OpPut,
@@ -326,14 +326,14 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 	})
 	require.Len(t, amrh.getAccessMonitoringRules(), 1)
 
-	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, &pb.AccessMonitoringRuleSpec{
+	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       "aDifferentFakePlugin",
 			Recipients: []string{"a", "b"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
 		Type:     types.OpPut,
@@ -354,14 +354,14 @@ func TestHandleAccessMonitoringRulePluginNameMisMatch(t *testing.T) {
 		FetchRecipientCallback: mockFetchRecipient,
 	})
 
-	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, &pb.AccessMonitoringRuleSpec{
+	rule1, err := services.NewAccessMonitoringRuleWithLabels("rule1", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       "notTheFakePluginName",
 			Recipients: []string{"a", "b"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
 		Type:     types.OpPut,
@@ -369,14 +369,14 @@ func TestHandleAccessMonitoringRulePluginNameMisMatch(t *testing.T) {
 	})
 	require.Empty(t, amrh.getAccessMonitoringRules())
 
-	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, &pb.AccessMonitoringRuleSpec{
+	rule2, err := services.NewAccessMonitoringRuleWithLabels("rule2", nil, pb.AccessMonitoringRuleSpec_builder{
 		Subjects:  []string{types.KindAccessRequest},
 		Condition: "true",
-		Notification: &pb.Notification{
+		Notification: pb.Notification_builder{
 			Name:       "fakePluginName",
 			Recipients: []string{"c", "d"},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	amrh.HandleAccessMonitoringRule(context.Background(), types.Event{
 		Type:     types.OpPut,

@@ -104,7 +104,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 				},
 			},
 			expectSAMLConnectorQuery: "okta-integration",
-			expectRequest: &pluginsv1.CreatePluginRequest{
+			expectRequest: pluginsv1.CreatePluginRequest_builder{
 				Plugin: &types.PluginV1{
 					SubKind: types.PluginSubkindAccess,
 					Metadata: types.Metadata{
@@ -144,7 +144,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 				CredentialLabels: map[string]string{
 					types.OktaOrgURLLabel: "https://example.okta.com",
 				},
-			},
+			}.Build(),
 			expectError: require.NoError,
 		},
 		{
@@ -167,7 +167,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 				},
 			},
 			expectSAMLConnectorQuery: "saml-connector-name",
-			expectRequest: &pluginsv1.CreatePluginRequest{
+			expectRequest: pluginsv1.CreatePluginRequest_builder{
 				Plugin: &types.PluginV1{
 					SubKind: types.PluginSubkindAccess,
 					Metadata: types.Metadata{
@@ -212,7 +212,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 				CredentialLabels: map[string]string{
 					types.OktaOrgURLLabel: "https://example.okta.com",
 				},
-			},
+			}.Build(),
 			expectError: require.NoError,
 		},
 		{
@@ -238,7 +238,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 			},
 			expectPing:               true,
 			expectSAMLConnectorQuery: "teleport-saml-connector-id",
-			expectRequest: &pluginsv1.CreatePluginRequest{
+			expectRequest: pluginsv1.CreatePluginRequest_builder{
 				Plugin: &types.PluginV1{
 					SubKind: types.PluginSubkindAccess,
 					Metadata: types.Metadata{
@@ -299,7 +299,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 				CredentialLabels: map[string]string{
 					types.OktaOrgURLLabel: "https://example.okta.com",
 				},
-			},
+			}.Build(),
 			expectError: require.NoError,
 		},
 		{
@@ -319,7 +319,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 			},
 			expectSAMLConnectorQuery: "okta-integration",
 			expectPing:               true,
-			expectRequest: &pluginsv1.CreatePluginRequest{
+			expectRequest: pluginsv1.CreatePluginRequest_builder{
 				Plugin: &types.PluginV1{
 					SubKind: types.PluginSubkindAccess,
 					Metadata: types.Metadata{
@@ -359,7 +359,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 				CredentialLabels: map[string]string{
 					types.OktaOrgURLLabel: "https://example.okta.com",
 				},
-			},
+			}.Build(),
 			expectError: require.NoError,
 		},
 		{
@@ -378,7 +378,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 			},
 			expectSAMLConnectorQuery: "okta-integration",
 			expectPing:               true,
-			expectRequest: &pluginsv1.CreatePluginRequest{
+			expectRequest: pluginsv1.CreatePluginRequest_builder{
 				Plugin: &types.PluginV1{
 					SubKind: types.PluginSubkindAccess,
 					Metadata: types.Metadata{
@@ -419,7 +419,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 				CredentialLabels: map[string]string{
 					types.OktaOrgURLLabel: "https://example.okta.com",
 				},
-			},
+			}.Build(),
 			expectError: require.NoError,
 		},
 		{
@@ -438,7 +438,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 				},
 			},
 			expectSAMLConnectorQuery: "okta-integration",
-			expectRequest: &pluginsv1.CreatePluginRequest{
+			expectRequest: pluginsv1.CreatePluginRequest_builder{
 				Plugin: &types.PluginV1{
 					SubKind: types.PluginSubkindAccess,
 					Metadata: types.Metadata{
@@ -480,7 +480,7 @@ func TestPluginsInstallOkta(t *testing.T) {
 				CredentialLabels: map[string]string{
 					types.OktaOrgURLLabel: "https://okta.example.com",
 				},
-			},
+			}.Build(),
 			expectError: require.NoError,
 		},
 	}

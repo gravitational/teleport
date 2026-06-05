@@ -67,10 +67,10 @@ type Handler struct {
 func makeAPILabels(uiLabels []ui.Label) []*api.Label {
 	apiLabels := make([]*api.Label, 0, len(uiLabels))
 	for _, uiLabel := range uiLabels {
-		apiLabels = append(apiLabels, &api.Label{
+		apiLabels = append(apiLabels, api.Label_builder{
 			Name:  uiLabel.Name,
 			Value: uiLabel.Value,
-		})
+		}.Build())
 	}
 	return apiLabels
 }

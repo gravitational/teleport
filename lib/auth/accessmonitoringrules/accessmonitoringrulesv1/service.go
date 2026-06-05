@@ -79,7 +79,7 @@ func (s *Service) CreateAccessMonitoringRule(ctx context.Context, req *accessmon
 	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	created, err := s.backend.CreateAccessMonitoringRule(ctx, req.Rule)
+	created, err := s.backend.CreateAccessMonitoringRule(ctx, req.GetRule())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -96,7 +96,7 @@ func (s *Service) UpdateAccessMonitoringRule(ctx context.Context, req *accessmon
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.backend.UpdateAccessMonitoringRule(ctx, req.Rule)
+	created, err := s.backend.UpdateAccessMonitoringRule(ctx, req.GetRule())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -112,7 +112,7 @@ func (s *Service) GetAccessMonitoringRule(ctx context.Context, req *accessmonito
 	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	got, err := s.backend.GetAccessMonitoringRule(ctx, req.Name)
+	got, err := s.backend.GetAccessMonitoringRule(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -128,7 +128,7 @@ func (s *Service) DeleteAccessMonitoringRule(ctx context.Context, req *accessmon
 	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbDelete); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := s.backend.DeleteAccessMonitoringRule(ctx, req.Name); err != nil {
+	if err := s.backend.DeleteAccessMonitoringRule(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &emptypb.Empty{}, nil
@@ -144,7 +144,7 @@ func (s *Service) UpsertAccessMonitoringRule(ctx context.Context, req *accessmon
 		return nil, trace.Wrap(err)
 	}
 
-	created, err := s.backend.UpsertAccessMonitoringRule(ctx, req.Rule)
+	created, err := s.backend.UpsertAccessMonitoringRule(ctx, req.GetRule())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -160,14 +160,14 @@ func (s *Service) ListAccessMonitoringRules(ctx context.Context, req *accessmoni
 	if err := authCtx.CheckAccessToKind(types.KindAccessMonitoringRule, types.VerbRead, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	results, nextToken, err := s.cache.ListAccessMonitoringRules(ctx, int(req.PageSize), req.PageToken)
+	results, nextToken, err := s.cache.ListAccessMonitoringRules(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &accessmonitoringrulesv1.ListAccessMonitoringRulesResponse{
+	return accessmonitoringrulesv1.ListAccessMonitoringRulesResponse_builder{
 		Rules:         results,
 		NextPageToken: nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // ListAccessMonitoringRulesWithFilter lists current access monitoring rules.
@@ -183,8 +183,8 @@ func (s *Service) ListAccessMonitoringRulesWithFilter(ctx context.Context, req *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterResponse{
+	return accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterResponse_builder{
 		Rules:         results,
 		NextPageToken: nextToken,
-	}, nil
+	}.Build(), nil
 }

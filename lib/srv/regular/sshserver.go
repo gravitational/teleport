@@ -1369,7 +1369,7 @@ func (s *Server) startNetworkingProcess(ctx context.Context, scx *srv.ServerCont
 		// If the networking process failed with an error message from stderr, prefer
 		// that over the other error.
 		childErr = reexecutils.ChildErrorWithContext(childErr, &reexecutils.ErrorContext{
-			DecisionContext: scx.Identity.AccessPermit.DecisionContext,
+			DecisionContext: scx.Identity.AccessPermit.GetDecisionContext(),
 			Login:           scx.Identity.Login,
 		})
 		return nil, errors.New(strings.TrimRight(childErr, "\n"))
@@ -1499,9 +1499,9 @@ func (s *Server) obtainFallbackUID(ctx context.Context, username string) (uid in
 		return 0, false, nil
 	}
 
-	resp, err := s.stableUnixUsers.ObtainUIDForUsername(ctx, &stableunixusersv1.ObtainUIDForUsernameRequest{
+	resp, err := s.stableUnixUsers.ObtainUIDForUsername(ctx, stableunixusersv1.ObtainUIDForUsernameRequest_builder{
 		Username: username,
-	})
+	}.Build())
 	if err != nil {
 		return 0, false, trace.Wrap(err)
 	}
@@ -1569,7 +1569,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
 		var decr func()
-		if max := identityContext.AccessPermit.MaxSessions; max != 0 {
+		if max := identityContext.AccessPermit.GetMaxSessions(); max != 0 {
 			d, ok := ccx.IncrSessions(max)
 			if !ok {
 				// user has exceeded their max concurrent ssh sessions.

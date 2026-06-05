@@ -154,7 +154,7 @@ func (s *HostOutputService) generate(ctx context.Context) error {
 	}
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
-	res, err := impersonatedClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+	res, err := impersonatedClient.TrustClient().GenerateHostCert(ctx, trustpb.GenerateHostCertRequest_builder{
 		Key:         privKey.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
@@ -162,14 +162,14 @@ func (s *HostOutputService) generate(ctx context.Context) error {
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
 		Ttl:         durationpb.New(cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).TTL),
-	},
+	}.Build(),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	keyRing := &libclient.KeyRing{
 		SSHPrivateKey: privKey,
-		Cert:          res.SshCertificate,
+		Cert:          res.GetSshCertificate(),
 	}
 
 	cfg := identityfile.WriteConfig{

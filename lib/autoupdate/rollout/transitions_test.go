@@ -42,81 +42,81 @@ func TestTriggerGroups(t *testing.T) {
 	targetVersion := "1.2.4"
 	otherVersion := "1.2.5"
 
-	spec := &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+	spec := autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 		StartVersion:   startVersion,
 		TargetVersion:  targetVersion,
 		Schedule:       autoupdate.AgentsScheduleRegular,
 		AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 		Strategy:       autoupdate.AgentsStrategyHaltOnError,
-	}
-	status := &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
+	}.Build()
+	status := autoupdatev1pb.AutoUpdateAgentRolloutStatus_builder{
 		Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-			{
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "blue",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "dev",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "stage",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "prod",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "backup",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED,
-			},
+			}.Build(),
 		},
-	}
+	}.Build()
 	testReports := []*autoupdatev1pb.AutoUpdateAgentReport{
-		{
-			Metadata: &headerv1.Metadata{Name: "auth1"},
-			Spec: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+		autoupdatev1pb.AutoUpdateAgentReport_builder{
+			Metadata: headerv1.Metadata_builder{Name: "auth1"}.Build(),
+			Spec: autoupdatev1pb.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(fewSecondsAgo),
 				Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
-					"blue": {
+					"blue": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							startVersion:  {Count: 4},
-							targetVersion: {Count: 5},
-							otherVersion:  {Count: 1},
+							startVersion:  autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 4}.Build(),
+							targetVersion: autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
+							otherVersion:  autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 1}.Build(),
 						},
-					},
-					"dev": {
+					}.Build(),
+					"dev": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							startVersion:  {Count: 5},
-							targetVersion: {Count: 5},
+							startVersion:  autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
+							targetVersion: autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			},
-		},
-		{
+			}.Build(),
+		}.Build(),
+		autoupdatev1pb.AutoUpdateAgentReport_builder{
 			// This report is expired, it must be ignored
-			Metadata: &headerv1.Metadata{Name: "auth2"},
-			Spec: &autoupdatev1pb.AutoUpdateAgentReportSpec{
+			Metadata: headerv1.Metadata_builder{Name: "auth2"}.Build(),
+			Spec: autoupdatev1pb.AutoUpdateAgentReportSpec_builder{
 				Timestamp: timestamppb.New(fewMinutesAgo),
 				Groups: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroup{
-					"blue": {
+					"blue": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							startVersion:  {Count: 123},
-							targetVersion: {Count: 123},
-							otherVersion:  {Count: 123},
+							startVersion:  autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
+							targetVersion: autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
+							otherVersion:  autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
 						},
-					},
-					"stage": {
+					}.Build(),
+					"stage": autoupdatev1pb.AutoUpdateAgentReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion{
-							startVersion:  {Count: 123},
-							targetVersion: {Count: 123},
+							startVersion:  autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
+							targetVersion: autoupdatev1pb.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 123}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}
 
 	tests := []struct {
@@ -130,60 +130,60 @@ func TestTriggerGroups(t *testing.T) {
 	}{
 		{
 			name: "valid transition",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: proto.CloneOf(status),
-			},
+			}.Build(),
 			groupNames:   []string{"blue", "prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 			expectErr:    require.NoError,
-			expectedStatus: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
+			expectedStatus: autoupdatev1pb.AutoUpdateAgentRolloutStatus_builder{
 				Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-					{
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "blue",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 						StartTime:        nowPb,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonManualTrigger,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:  "dev",
 						State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:  "stage",
 						State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "prod",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 						StartTime:        nowPb,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonManualTrigger,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "backup",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 						StartTime:        nowPb,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonManualTrigger,
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "valid transition, with reports",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: proto.CloneOf(status),
-			},
+			}.Build(),
 			groupNames:   []string{"blue", "prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 			reports:      testReports,
 			expectErr:    require.NoError,
-			expectedStatus: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
+			expectedStatus: autoupdatev1pb.AutoUpdateAgentRolloutStatus_builder{
 				Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-					{
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "blue",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 						StartTime:        nowPb,
@@ -193,38 +193,38 @@ func TestTriggerGroups(t *testing.T) {
 						InitialCount:  10,
 						PresentCount:  10,
 						UpToDateCount: 5,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:  "dev",
 						State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:  "stage",
 						State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "prod",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 						StartTime:        nowPb,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonManualTrigger,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "backup",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 						StartTime:        nowPb,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonManualTrigger,
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "no groups in rollout",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{},
-			},
+			}.Build(),
 			groupNames:   []string{"prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 			expectErr: func(t require.TestingT, err error, i ...any) {
@@ -233,10 +233,10 @@ func TestTriggerGroups(t *testing.T) {
 		},
 		{
 			name: "unsupported desired state",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: proto.CloneOf(status),
-			},
+			}.Build(),
 			groupNames:   []string{"prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 			expectErr: func(t require.TestingT, err error, i ...any) {
@@ -245,16 +245,16 @@ func TestTriggerGroups(t *testing.T) {
 		},
 		{
 			name: "unsupported strategy",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
+				Spec: autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 					StartVersion:   startVersion,
 					TargetVersion:  targetVersion,
 					Schedule:       autoupdate.AgentsScheduleRegular,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 					Strategy:       autoupdate.AgentsStrategyTimeBased,
-				},
+				}.Build(),
 				Status: proto.CloneOf(status),
-			},
+			}.Build(),
 			groupNames:   []string{"prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 			expectErr: func(t require.TestingT, err error, i ...any) {
@@ -263,15 +263,15 @@ func TestTriggerGroups(t *testing.T) {
 		},
 		{
 			name: "unsupported schedule",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
+				Spec: autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 					StartVersion:   startVersion,
 					TargetVersion:  targetVersion,
 					Schedule:       autoupdate.AgentsScheduleImmediate,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
-				},
+				}.Build(),
 				Status: proto.CloneOf(status),
-			},
+			}.Build(),
 			groupNames:   []string{"prod", "backup"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 			expectErr: func(t require.TestingT, err error, i ...any) {
@@ -280,10 +280,10 @@ func TestTriggerGroups(t *testing.T) {
 		},
 		{
 			name: "group already active",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: status,
-			},
+			}.Build(),
 			groupNames:   []string{"stage"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 			expectErr: func(t require.TestingT, err error, i ...any) {
@@ -292,10 +292,10 @@ func TestTriggerGroups(t *testing.T) {
 		},
 		{
 			name: "group already done",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: status,
-			},
+			}.Build(),
 			groupNames:   []string{"dev"},
 			desiredState: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 			expectErr: func(t require.TestingT, err error, i ...any) {
@@ -318,37 +318,37 @@ func TestTriggerGroups(t *testing.T) {
 func TestForceGroupsDone(t *testing.T) {
 	now := time.Now()
 	nowPb := timestamppb.New(now)
-	spec := &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+	spec := autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 		StartVersion:   "1.2.3",
 		TargetVersion:  "1.2.4",
 		Schedule:       autoupdate.AgentsScheduleRegular,
 		AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 		Strategy:       autoupdate.AgentsStrategyHaltOnError,
-	}
-	status := &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
+	}.Build()
+	status := autoupdatev1pb.AutoUpdateAgentRolloutStatus_builder{
 		Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-			{
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "blue",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "dev",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "stage",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "prod",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "backup",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED,
-			},
+			}.Build(),
 		},
-	}
+	}.Build()
 
 	tests := []struct {
 		name           string
@@ -359,51 +359,51 @@ func TestForceGroupsDone(t *testing.T) {
 	}{
 		{
 			name: "valid transition",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: status,
-			},
+			}.Build(),
 			groupNames: []string{"blue", "stage", "prod", "backup"},
 			expectErr:  require.NoError,
-			expectedStatus: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
+			expectedStatus: autoupdatev1pb.AutoUpdateAgentRolloutStatus_builder{
 				Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-					{
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "blue",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonForcedDone,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:  "dev",
 						State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "stage",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonForcedDone,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "prod",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonForcedDone,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "backup",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonForcedDone,
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "no groups in rollout",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{},
-			},
+			}.Build(),
 			groupNames: []string{"prod", "backup"},
 			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "rollout has no groups")
@@ -411,16 +411,16 @@ func TestForceGroupsDone(t *testing.T) {
 		},
 		{
 			name: "unsupported strategy",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
+				Spec: autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 					StartVersion:   "1.2.3",
 					TargetVersion:  "1.2.4",
 					Schedule:       autoupdate.AgentsScheduleRegular,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 					Strategy:       autoupdate.AgentsStrategyTimeBased,
-				},
+				}.Build(),
 				Status: status,
-			},
+			}.Build(),
 			groupNames: []string{"prod", "backup"},
 			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "not supported for rollout strategy")
@@ -428,15 +428,15 @@ func TestForceGroupsDone(t *testing.T) {
 		},
 		{
 			name: "unsupported schedule",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
+				Spec: autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 					StartVersion:   "1.2.3",
 					TargetVersion:  "1.2.4",
 					Schedule:       autoupdate.AgentsScheduleImmediate,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
-				},
+				}.Build(),
 				Status: nil,
-			},
+			}.Build(),
 			groupNames: []string{"prod", "backup"},
 			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "rollout schedule is immediate")
@@ -444,10 +444,10 @@ func TestForceGroupsDone(t *testing.T) {
 		},
 		{
 			name: "group already done",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: status,
-			},
+			}.Build(),
 			groupNames: []string{"dev"},
 			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "is already done")
@@ -469,37 +469,37 @@ func TestForceGroupsDone(t *testing.T) {
 func TestRollbackGroups(t *testing.T) {
 	now := time.Now()
 	nowPb := timestamppb.New(now)
-	spec := &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+	spec := autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 		StartVersion:   "1.2.3",
 		TargetVersion:  "1.2.4",
 		Schedule:       autoupdate.AgentsScheduleRegular,
 		AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 		Strategy:       autoupdate.AgentsStrategyHaltOnError,
-	}
-	status := &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
+	}.Build()
+	status := autoupdatev1pb.AutoUpdateAgentRolloutStatus_builder{
 		Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-			{
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "blue",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "dev",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "stage",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "prod",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
-			},
-			{
+			}.Build(),
+			autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 				Name:  "backup",
 				State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED,
-			},
+			}.Build(),
 		},
-	}
+	}.Build()
 
 	tests := []struct {
 		name           string
@@ -510,51 +510,51 @@ func TestRollbackGroups(t *testing.T) {
 	}{
 		{
 			name: "valid transition",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: status,
-			},
+			}.Build(),
 			groupNames: []string{"dev", "stage", "prod", "backup"},
 			expectErr:  require.NoError,
-			expectedStatus: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
+			expectedStatus: autoupdatev1pb.AutoUpdateAgentRolloutStatus_builder{
 				Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-					{
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:  "blue",
 						State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "dev",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonManualRollback,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "stage",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonManualRollback,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "prod",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonManualRollback,
-					},
-					{
+					}.Build(),
+					autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 						Name:             "backup",
 						State:            autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 						LastUpdateTime:   nowPb,
 						LastUpdateReason: updateReasonManualRollback,
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 		},
 		{
 			name: "no groups in rollout",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{},
-			},
+			}.Build(),
 			groupNames: []string{"prod", "backup"},
 			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "rollout has no groups")
@@ -562,16 +562,16 @@ func TestRollbackGroups(t *testing.T) {
 		},
 		{
 			name: "unsupported strategy",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
+				Spec: autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 					StartVersion:   "1.2.3",
 					TargetVersion:  "1.2.4",
 					Schedule:       autoupdate.AgentsScheduleRegular,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 					Strategy:       autoupdate.AgentsStrategyTimeBased,
-				},
+				}.Build(),
 				Status: status,
-			},
+			}.Build(),
 			groupNames: []string{"prod", "backup"},
 			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "not supported for rollout strategy")
@@ -579,15 +579,15 @@ func TestRollbackGroups(t *testing.T) {
 		},
 		{
 			name: "unsupported schedule",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
-				Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
+				Spec: autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 					StartVersion:   "1.2.3",
 					TargetVersion:  "1.2.4",
 					Schedule:       autoupdate.AgentsScheduleImmediate,
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
-				},
+				}.Build(),
 				Status: nil,
-			},
+			}.Build(),
 			groupNames: []string{"prod", "backup"},
 			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "rollout schedule is immediate")
@@ -595,10 +595,10 @@ func TestRollbackGroups(t *testing.T) {
 		},
 		{
 			name: "group already rolledback",
-			rollout: &autoupdatev1pb.AutoUpdateAgentRollout{
+			rollout: autoupdatev1pb.AutoUpdateAgentRollout_builder{
 				Spec:   spec,
 				Status: status,
-			},
+			}.Build(),
 			groupNames: []string{"blue"},
 			expectErr: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "is already in a rolled-back state")
@@ -618,39 +618,39 @@ func TestRollbackGroups(t *testing.T) {
 }
 
 func TestStartedGroups(t *testing.T) {
-	rollout := &autoupdatev1pb.AutoUpdateAgentRollout{
-		Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+	rollout := autoupdatev1pb.AutoUpdateAgentRollout_builder{
+		Spec: autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 			StartVersion:   "1.2.3",
 			TargetVersion:  "1.2.4",
 			Schedule:       autoupdate.AgentsScheduleRegular,
 			AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 			Strategy:       autoupdate.AgentsStrategyHaltOnError,
-		},
-		Status: &autoupdatev1pb.AutoUpdateAgentRolloutStatus{
+		}.Build(),
+		Status: autoupdatev1pb.AutoUpdateAgentRolloutStatus_builder{
 			Groups: []*autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:  "blue",
 					State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:  "dev",
 					State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:  "stage",
 					State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:  "prod",
 					State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
-				},
-				{
+				}.Build(),
+				autoupdatev1pb.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:  "backup",
 					State: autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSPECIFIED,
-				},
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	expectedGroups := GroupListToGroupSet([]string{"dev", "stage"})
 	result := GetStartedGroups(rollout)

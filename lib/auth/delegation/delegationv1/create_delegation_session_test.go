@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 
@@ -58,10 +59,10 @@ func TestSessionService_CreateSession(t *testing.T) {
 			expectedExpires := time.Now().Add(5 * time.Minute)
 			expectedSpec := newDelegationSessionSpec("bob")
 
-			session, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+			session, err := service.CreateDelegationSession(t.Context(), delegationv1pb.CreateDelegationSessionRequest_builder{
 				Spec: expectedSpec,
 				Ttl:  durationpb.New(5 * time.Minute),
-			})
+			}.Build())
 			require.NoError(t, err)
 
 			assert.Equal(t, types.KindDelegationSession, session.GetKind())
@@ -91,16 +92,16 @@ func TestSessionService_CreateSession(t *testing.T) {
 			types.RoleSpecV6{},
 		)
 
-		session, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+		session, err := service.CreateDelegationSession(t.Context(), delegationv1pb.CreateDelegationSessionRequest_builder{
 			Spec: newDelegationSessionSpec(
 				"bob",
-				&delegationv1pb.DelegationResourceSpec{
+				delegationv1pb.DelegationResourceSpec_builder{
 					Kind: types.Wildcard,
 					Name: types.Wildcard,
-				},
+				}.Build(),
 			),
 			Ttl: durationpb.New(5 * time.Minute),
-		})
+		}.Build())
 		require.NoError(t, err)
 		assert.Equal(t, types.Wildcard, session.GetSpec().GetResources()[0].GetKind())
 		assert.Equal(t, types.Wildcard, session.GetSpec().GetResources()[0].GetName())
@@ -115,10 +116,10 @@ func TestSessionService_CreateSession(t *testing.T) {
 			types.RoleSpecV6{},
 		)
 
-		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+		_, err := service.CreateDelegationSession(t.Context(), delegationv1pb.CreateDelegationSessionRequest_builder{
 			Spec: newDelegationSessionSpec("bob"),
 			Ttl:  durationpb.New(5 * time.Minute),
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 		require.ErrorContains(t, err, "user does not have permission to delegate access to all of the required resources")
@@ -139,16 +140,16 @@ func TestSessionService_CreateSession(t *testing.T) {
 			},
 		)
 
-		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+		_, err := service.CreateDelegationSession(t.Context(), delegationv1pb.CreateDelegationSessionRequest_builder{
 			Spec: newDelegationSessionSpec(
 				"bob",
-				&delegationv1pb.DelegationResourceSpec{
+				delegationv1pb.DelegationResourceSpec_builder{
 					Kind: types.KindApp,
 					Name: "unknown-app",
-				},
+				}.Build(),
 			),
 			Ttl: durationpb.New(5 * time.Minute),
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 		require.ErrorContains(t, err, "missing resources: [app/unknown-app]")
@@ -169,10 +170,10 @@ func TestSessionService_CreateSession(t *testing.T) {
 			},
 		)
 
-		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+		_, err := service.CreateDelegationSession(t.Context(), delegationv1pb.CreateDelegationSessionRequest_builder{
 			Spec: newDelegationSessionSpec("alice"),
 			Ttl:  durationpb.New(5 * time.Minute),
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 		require.ErrorContains(t, err, "cannot create a delegation session for a different user")
@@ -193,10 +194,10 @@ func TestSessionService_CreateSession(t *testing.T) {
 			},
 		)
 
-		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+		_, err := service.CreateDelegationSession(t.Context(), delegationv1pb.CreateDelegationSessionRequest_builder{
 			Spec: newDelegationSessionSpec("bob"),
 			Ttl:  durationpb.New(5 * time.Minute),
-		})
+		}.Build())
 		require.Error(t, err)
 		require.ErrorIs(t, err, &mfa.ErrAdminActionMFARequired)
 	})
@@ -218,10 +219,10 @@ func TestSessionService_CreateSession(t *testing.T) {
 			},
 		)
 
-		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+		_, err := service.CreateDelegationSession(t.Context(), delegationv1pb.CreateDelegationSessionRequest_builder{
 			Spec: newDelegationSessionSpec("bob"),
 			Ttl:  durationpb.New(5 * time.Minute),
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 		require.ErrorContains(t, err, "cannot create a delegation session from within a delegation session")
@@ -243,10 +244,10 @@ func TestSessionService_CreateSession(t *testing.T) {
 			},
 		)
 
-		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+		_, err := service.CreateDelegationSession(t.Context(), delegationv1pb.CreateDelegationSessionRequest_builder{
 			Spec: newDelegationSessionSpec("bob"),
 			Ttl:  durationpb.New(5 * time.Minute),
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsAccessDenied(err))
 		require.ErrorContains(t, err, "cannot create a delegation session because certificate reissuance is prohibited")
@@ -267,9 +268,9 @@ func TestSessionService_CreateSession(t *testing.T) {
 			},
 		)
 
-		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+		_, err := service.CreateDelegationSession(t.Context(), delegationv1pb.CreateDelegationSessionRequest_builder{
 			Spec: newDelegationSessionSpec("bob"),
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))
 		require.ErrorContains(t, err, "ttl: is required")
@@ -290,10 +291,10 @@ func TestSessionService_CreateSession(t *testing.T) {
 			},
 		)
 
-		_, err := service.CreateDelegationSession(t.Context(), &delegationv1pb.CreateDelegationSessionRequest{
+		_, err := service.CreateDelegationSession(t.Context(), delegationv1pb.CreateDelegationSessionRequest_builder{
 			Spec: newDelegationSessionSpec("bob"),
 			Ttl:  durationpb.New(14 * 24 * time.Hour),
-		})
+		}.Build())
 		require.Error(t, err)
 		require.True(t, trace.IsBadParameter(err))
 		require.ErrorContains(t, err, "ttl: cannot be more than 168 hours")
@@ -306,23 +307,21 @@ func newDelegationSessionSpec(
 ) *delegationv1pb.DelegationSessionSpec {
 	if len(resources) == 0 {
 		resources = []*delegationv1pb.DelegationResourceSpec{
-			{
+			delegationv1pb.DelegationResourceSpec_builder{
 				Kind: types.KindApp,
 				Name: "hr-system",
-			},
+			}.Build(),
 		}
 	}
 
-	return &delegationv1pb.DelegationSessionSpec{
+	return delegationv1pb.DelegationSessionSpec_builder{
 		User:      user,
 		Resources: resources,
 		AuthorizedUsers: []*delegationv1pb.DelegationUserSpec{
-			{
-				Kind: types.KindBot,
-				Matcher: &delegationv1pb.DelegationUserSpec_BotName{
-					BotName: "payroll-agent",
-				},
-			},
+			delegationv1pb.DelegationUserSpec_builder{
+				Kind:    types.KindBot,
+				BotName: proto.String("payroll-agent"),
+			}.Build(),
 		},
-	}
+	}.Build()
 }

@@ -64,29 +64,29 @@ func ValidateAppAuthConfig(s *appauthconfigv1.AppAuthConfig) error {
 	switch {
 	case s == nil:
 		return trace.BadParameter("app auth config must not be empty")
-	case s.Version != types.V1:
-		return trace.BadParameter("app auth config only supports version %q, got %q", types.V1, s.Version)
-	case s.Kind != types.KindAppAuthConfig:
-		return trace.BadParameter("app auth config kind must be %q, got %q", types.KindAppAuthConfig, s.Kind)
-	case s.Metadata == nil:
+	case s.GetVersion() != types.V1:
+		return trace.BadParameter("app auth config only supports version %q, got %q", types.V1, s.GetVersion())
+	case s.GetKind() != types.KindAppAuthConfig:
+		return trace.BadParameter("app auth config kind must be %q, got %q", types.KindAppAuthConfig, s.GetKind())
+	case !s.HasMetadata():
 		return trace.BadParameter("app auth config metadata is missing")
-	case s.Metadata.Name == "":
+	case s.GetMetadata().GetName() == "":
 		return trace.BadParameter("app auth config metadata.name is missing")
-	case s.Spec == nil:
+	case !s.HasSpec():
 		return trace.BadParameter("app auth config spec is missing")
-	case len(s.Spec.AppLabels) == 0:
+	case len(s.GetSpec().GetAppLabels()) == 0:
 		return trace.BadParameter("app auth config spec.app_labels must at least contain a single label, otherwise this config won't be effective")
 	}
 
-	for _, label := range s.Spec.AppLabels {
+	for _, label := range s.GetSpec().GetAppLabels() {
 		if err := validateLabel(label); err != nil {
 			return trace.BadParameter("invalid app auth config spec.app_labels: %v", err)
 		}
 	}
 
-	switch spec := s.Spec.SubKindSpec.(type) {
-	case *appauthconfigv1.AppAuthConfigSpec_Jwt:
-		return validateJWTAppAuthConfig(spec.Jwt)
+	switch s.GetSpec().WhichSubKindSpec() {
+	case appauthconfigv1.AppAuthConfigSpec_Jwt_case:
+		return validateJWTAppAuthConfig(s.GetSpec().GetJwt())
 	default:
 		return trace.BadParameter("unsupported app auth config type")
 	}
@@ -96,9 +96,9 @@ func validateJWTAppAuthConfig(s *appauthconfigv1.AppAuthConfigJWTSpec) error {
 	switch {
 	case s == nil:
 		return trace.BadParameter("app auth config spec.jwt is required")
-	case s.Audience == "":
+	case s.GetAudience() == "":
 		return trace.BadParameter("app auth config spec.jwt.audience cannot be empty")
-	case s.Issuer == "":
+	case s.GetIssuer() == "":
 		return trace.BadParameter("app auth config spec.jwt.issuer cannot be empty")
 	case s.GetJwksUrl() == "" && s.GetStaticJwks() == "":
 		return trace.BadParameter("app auth config spec.jwt.jwks_url or spec.jwt.static_jwks must be provided")

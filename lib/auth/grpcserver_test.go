@@ -3260,11 +3260,11 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	require.NoError(t, err)
 	defer stream.Close()
 
-	err = stream.Send(ctx, &proto.UpstreamInventoryHello{
+	err = stream.Send(ctx, proto.UpstreamInventoryHello_builder{
 		ServerID: serverID,
 		Version:  teleport.Version,
 		Services: types.SystemRoles(roles).StringSlice(),
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	select {
@@ -3298,9 +3298,9 @@ func TestInstanceCertAndControlStream(t *testing.T) {
 	case msg := <-stream.Recv():
 		ping, ok := msg.(*proto.DownstreamInventoryPing)
 		require.True(t, ok)
-		err = stream.Send(ctx, &proto.UpstreamInventoryPong{
-			ID: ping.ID,
-		})
+		err = stream.Send(ctx, proto.UpstreamInventoryPong_builder{
+			ID: ping.GetID(),
+		}.Build())
 		require.NoError(t, err)
 	case <-time.After(time.Second * 5):
 		t.Fatalf("timeout waiting for downstream ping")
@@ -5417,14 +5417,14 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 
 			if tc.hasAgentRollout {
 				rollout, err := autoupdate.NewAutoUpdateAgentRollout(
-					&autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+					autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 						StartVersion:              "1.2.3",
 						TargetVersion:             "1.2.4",
 						Schedule:                  autoupdate.AgentsScheduleImmediate,
 						AutoupdateMode:            autoupdate.AgentsUpdateModeEnabled,
 						Strategy:                  autoupdate.AgentsStrategyTimeBased,
 						MaintenanceWindowDuration: durationpb.New(1 * time.Hour),
-					})
+					}.Build())
 				require.NoError(t, err)
 				_, err = grpc.AuthServer.CreateAutoUpdateAgentRollout(ctx, rollout)
 				require.NoError(t, err)
@@ -5949,12 +5949,12 @@ func TestGetAccessGraphConfig(t *testing.T) {
 	)
 	user, _, err := authtest.CreateUserAndRole(server.Auth(), "test", []string{"role"}, nil)
 	require.NoError(t, err)
-	positiveResponse := &clusterconfigpb.AccessGraphConfig{
+	positiveResponse := clusterconfigpb.AccessGraphConfig_builder{
 		Enabled:           true,
 		Ca:                []byte("ca"),
 		Address:           "addr",
 		SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
-	}
+	}.Build()
 
 	tests := []struct {
 		desc      string
@@ -6009,10 +6009,10 @@ func TestGetVnetConfig(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create newConfig.
-	newConfig, err := vnet.NewVnetConfig(&vnetv1pb.VnetConfigSpec{
+	newConfig, err := vnet.NewVnetConfig(vnetv1pb.VnetConfigSpec_builder{
 		Ipv4CidrRange:  vnet.DefaultIPv4CIDRRange,
-		CustomDnsZones: []*vnetv1pb.CustomDNSZone{{Suffix: "example.com"}},
-	})
+		CustomDnsZones: []*vnetv1pb.CustomDNSZone{vnetv1pb.CustomDNSZone_builder{Suffix: "example.com"}.Build()},
+	}.Build())
 	require.NoError(t, err)
 	createdConfig, err := server.Auth().CreateVnetConfig(t.Context(), newConfig)
 	require.NoError(t, err)
@@ -7074,55 +7074,55 @@ func TestGenerateUserCertsScopedBot(t *testing.T) {
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
 			ctx := t.Context()
-			bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
-				Bot: &machineidv1.Bot{
+			bot, err := adminClient.BotServiceClient().CreateBot(ctx, machineidv1.CreateBotRequest_builder{
+				Bot: machineidv1.Bot_builder{
 					Kind:    types.KindBot,
 					Version: types.V1,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: c.botName,
-					},
+					}.Build(),
 					Scope: c.scope,
 					Spec:  &machineidv1.BotSpec{},
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.NoError(t, err)
 
 			ident := authtest.TestBot(c.botName, c.internal)
 			if c.scope != "" {
 				scopedSvc := adminClient.ScopedAccessServiceClient()
-				roleResp, err := scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-					Role: &scopedaccessv1.ScopedRole{
+				roleResp, err := scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+					Role: scopedaccessv1.ScopedRole_builder{
 						Kind:    scopedaccess.KindScopedRole,
 						Version: types.V1,
-						Metadata: &headerv1.Metadata{
+						Metadata: headerv1.Metadata_builder{
 							Name: c.botName + "-role",
-						},
+						}.Build(),
 						Scope: c.scope,
-						Spec: &scopedaccessv1.ScopedRoleSpec{
+						Spec: scopedaccessv1.ScopedRoleSpec_builder{
 							AssignableScopes: []string{c.scope},
-						},
-					},
-				})
+						}.Build(),
+					}.Build(),
+				}.Build())
 				require.NoError(t, err)
 
-				sra, err := testServer.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-					Assignment: &scopedaccessv1.ScopedRoleAssignment{
+				sra, err := testServer.Auth().ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+					Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 						Kind:    scopedaccess.KindScopedRoleAssignment,
 						SubKind: scopedaccess.SubKindDynamic,
 						Version: types.V1,
-						Metadata: &headerv1.Metadata{
+						Metadata: headerv1.Metadata_builder{
 							Name: uuid.NewString(),
-						},
+						}.Build(),
 						Scope: c.scope,
-						Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+						Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 							BotName:  bot.GetMetadata().GetName(),
 							BotScope: c.scope,
 							Assignments: []*scopedaccessv1.Assignment{
-								{Role: roleResp.GetRole().GetMetadata().GetName(), Scope: c.scope},
+								scopedaccessv1.Assignment_builder{Role: roleResp.GetRole().GetMetadata().GetName(), Scope: c.scope}.Build(),
 							},
-						},
-					},
-				})
+						}.Build(),
+					}.Build(),
+				}.Build())
 				require.NoError(t, err)
 
 				waitForSRACache(t, testServer, sra)

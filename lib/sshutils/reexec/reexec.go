@@ -53,11 +53,11 @@ func ChildErrorWithContext(errMsg string, context *ErrorContext) string {
 	// If some roles allow host user creation while others deny it, this can be
 	// ambiguous to the end user and warrants clarification if it results in an
 	// unknown user error.
-	ambiguousHostUserDenial := len(context.DecisionContext.HostUserCreationDeniedBy) > 0 && len(context.DecisionContext.HostUserCreationAllowedBy) > 0
+	ambiguousHostUserDenial := len(context.DecisionContext.GetHostUserCreationDeniedBy()) > 0 && len(context.DecisionContext.GetHostUserCreationAllowedBy()) > 0
 	ambiguousHostUserError := func() string {
 		var deniedBy []string
-		for _, d := range context.DecisionContext.HostUserCreationDeniedBy {
-			deniedBy = append(deniedBy, fmt.Sprintf("%v: %q", d.Kind, d.Name))
+		for _, d := range context.DecisionContext.GetHostUserCreationDeniedBy() {
+			deniedBy = append(deniedBy, fmt.Sprintf("%v: %q", d.GetKind(), d.GetName()))
 		}
 		return fmt.Sprintf("%s: host user creation denied by the following resources: [%s]\n", strings.TrimRight(errMsg, ".\n"), strings.Join(deniedBy, ", "))
 	}

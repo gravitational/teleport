@@ -84,7 +84,7 @@ func (a *Fetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1alp
 			prevIterationEc2 := sliceFilter(
 				existing,
 				func(h *accessgraphv1alpha.AWSInstanceV1) bool {
-					return h.Region == region && h.AccountId == a.AccountID
+					return h.GetRegion() == region && h.GetAccountId() == a.AccountID
 				},
 			)
 			ec2Client, err := a.GetEC2Client(ctx, region, a.getAWSOptions()...)
@@ -123,17 +123,17 @@ func (a *Fetcher) fetchAWSEC2Instances(ctx context.Context) ([]*accessgraphv1alp
 func awsInstanceToProtoInstance(instance ec2types.Instance, region string, accountID string) *accessgraphv1alpha.AWSInstanceV1 {
 	var tags []*accessgraphv1alpha.AWSTag
 	for _, tag := range instance.Tags {
-		tags = append(tags, &accessgraphv1alpha.AWSTag{
+		tags = append(tags, accessgraphv1alpha.AWSTag_builder{
 			Key:   aws.ToString(tag.Key),
 			Value: strPtrToWrapper(tag.Value),
-		})
+		}.Build())
 	}
 
 	var instanceProfileMetadata *wrapperspb.StringValue
 	if instance.IamInstanceProfile != nil {
 		instanceProfileMetadata = strPtrToWrapper(instance.IamInstanceProfile.Arn)
 	}
-	return &accessgraphv1alpha.AWSInstanceV1{
+	return accessgraphv1alpha.AWSInstanceV1_builder{
 		InstanceId:            aws.ToString(instance.InstanceId),
 		Region:                region,
 		PublicDnsName:         aws.ToString(instance.PublicDnsName),
@@ -142,7 +142,7 @@ func awsInstanceToProtoInstance(instance ec2types.Instance, region string, accou
 		AccountId:             accountID,
 		Tags:                  tags,
 		LaunchTime:            awsTimeToProtoTime(instance.LaunchTime),
-	}
+	}.Build()
 }
 
 // fetchInstanceProfiles fetches instance profiles from all regions and returns them
@@ -187,13 +187,13 @@ func (a *Fetcher) fetchInstanceProfiles(ctx context.Context) ([]*accessgraphv1al
 func awsInstanceProfileToProtoInstanceProfile(profile iamtypes.InstanceProfile, accountID string) *accessgraphv1alpha.AWSInstanceProfileV1 {
 	tags := make([]*accessgraphv1alpha.AWSTag, 0, len(profile.Tags))
 	for _, tag := range profile.Tags {
-		tags = append(tags, &accessgraphv1alpha.AWSTag{
+		tags = append(tags, accessgraphv1alpha.AWSTag_builder{
 			Key:   aws.ToString(tag.Key),
 			Value: strPtrToWrapper(tag.Value),
-		})
+		}.Build())
 	}
 
-	out := &accessgraphv1alpha.AWSInstanceProfileV1{
+	out := accessgraphv1alpha.AWSInstanceProfileV1_builder{
 		InstanceProfileId:   aws.ToString(profile.InstanceProfileId),
 		InstanceProfileName: aws.ToString(profile.InstanceProfileName),
 		Arn:                 aws.ToString(profile.Arn),
@@ -201,9 +201,9 @@ func awsInstanceProfileToProtoInstanceProfile(profile iamtypes.InstanceProfile, 
 		AccountId:           accountID,
 		Tags:                tags,
 		CreatedAt:           awsTimeToProtoTime(profile.CreateDate),
-	}
+	}.Build()
 	for _, role := range profile.Roles {
-		out.Roles = append(out.Roles, awsRoleToProtoRole(role, accountID))
+		out.SetRoles(append(out.GetRoles(), awsRoleToProtoRole(role, accountID)))
 	}
 	return out
 }

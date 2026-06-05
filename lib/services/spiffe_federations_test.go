@@ -47,38 +47,38 @@ func TestValidateSPIFFEFederation(t *testing.T) {
 	}{
 		{
 			name: "success - https_web",
-			in: &machineidv1.SPIFFEFederation{
+			in: machineidv1.SPIFFEFederation_builder{
 				Kind:    types.KindSPIFFEFederation,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example.com",
-				},
-				Spec: &machineidv1.SPIFFEFederationSpec{
-					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
-						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+				}.Build(),
+				Spec: machineidv1.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
+						HttpsWeb: machineidv1.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 							BundleEndpointUrl: "https://example.com/foo",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			requireErr: require.NoError,
 		},
 		{
 			name: "success - static",
-			in: &machineidv1.SPIFFEFederation{
+			in: machineidv1.SPIFFEFederation_builder{
 				Kind:    types.KindSPIFFEFederation,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example.com",
-				},
-				Spec: &machineidv1.SPIFFEFederationSpec{
-					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
-						Static: &machineidv1.SPIFFEFederationBundleSourceStatic{
+				}.Build(),
+				Spec: machineidv1.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
+						Static: machineidv1.SPIFFEFederationBundleSourceStatic_builder{
 							Bundle: `{"keys":[{"use":"x509-svid","kty":"RSA","n":"1AgwZOvyaX_rdEzZsTk6WPAmW0rkz_yM2KTo_6tp8Qck7F1O75ssLUWRJh7IIZlWjXA0Nfc7DQiJw40ClGRds2kD-hJnsVa1UhP0QF9a02dP4ormhoCtOQMRsOJq4CkiuzowfkIRNkc1As5cMocAHhIKcu9H15fYEve390Oy7k3cJwTroRL0JXx8eYS32ae_d5S5QtgXYJvNpB1IumC2hJrkddTW97ozP53H6Vt6JdFpnZNqLXTCKm-pUebzEQ6RCCeLbKNS_NLvixL-4hlPelokUaMaPWnqZvJ0u4txhTSDbcwzjFXznqs6C9LUt3mzUQ_OudX1nsDk0wPab32HgQ","e":"AQAB","x5c":["MIIDnjCCAoagAwIBAgIQQwsx6y8q17q9cU6TsyuQ6zANBgkqhkiG9w0BAQsFADBpMRowGAYDVQQKExFsZWFmLnRlbGUub3R0ci5zaDEaMBgGA1UEAxMRbGVhZi50ZWxlLm90dHIuc2gxLzAtBgNVBAUTJjg5MTE2NDAzNDU0MzE5NjA1NDcyMDA1MDQyMDc3NDU1NTg1NTE1MB4XDTI0MDgwMTA5NDQ0NloXDTM0MDczMDA5NDQ0NlowaTEaMBgGA1UEChMRbGVhZi50ZWxlLm90dHIuc2gxGjAYBgNVBAMTEWxlYWYudGVsZS5vdHRyLnNoMS8wLQYDVQQFEyY4OTExNjQwMzQ1NDMxOTYwNTQ3MjAwNTA0MjA3NzQ1NTU4NTUxNTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEBANQIMGTr8ml/63RM2bE5OljwJltK5M/8jNik6P+rafEHJOxdTu+bLC1FkSYeyCGZVo1wNDX3Ow0IicONApRkXbNpA/oSZ7FWtVIT9EBfWtNnT+KK5oaArTkDEbDiauApIrs6MH5CETZHNQLOXDKHAB4SCnLvR9eX2BL3t/dDsu5N3CcE66ES9CV8fHmEt9mnv3eUuULYF2CbzaQdSLpgtoSa5HXU1ve6Mz+dx+lbeiXRaZ2Tai10wipvqVHm8xEOkQgni2yjUvzS74sS/uIZT3paJFGjGj1p6mbydLuLcYU0g23MM4xV856rOgvS1Ld5s1EPzrnV9Z7A5NMD2m99h4ECAwEAAaNCMEAwDgYDVR0PAQH/BAQDAgGmMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFFrGpt59RUgaAoD5MQEa8McxNOIPMA0GCSqGSIb3DQEBCwUAA4IBAQBRhYIeYU7YW+DxQgIB4gtoM+d0+FOCbteq2IAOjCzZC0rqds4nO1hCFSLaBa8a7GIrW4KoObBJDANRXUokrbbm+zwzj66Rcjj9cKOw/YTbYDu/FXGxY4nNwuI0oFg5CWV+XGepQ5xtGavISTqFK+ctrrIhlvhw+z4xMz4kw6IsMta+WrYPJv1DDoAm/qdZ8Ituvx1cx8THLCSxiXCVgm+AwzlKV4CXU12oY6xrBbHrSxUb/EfnX1KkvFGqQgjDZE+PjClNIN1qS0G2BuWYtjl3pRhiuA9I4B4u31F3wX7LtSlNdzesJeTEGJzcmgHjVr5voozHIeNq/fV/SgjYz2Do"]}],"spiffe_refresh_hint":300}`,
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			requireErr: require.NoError,
 		},
 		{
@@ -88,125 +88,125 @@ func TestValidateSPIFFEFederation(t *testing.T) {
 		},
 		{
 			name: "fail - nil metadata",
-			in: &machineidv1.SPIFFEFederation{
+			in: machineidv1.SPIFFEFederation_builder{
 				Kind:    types.KindSPIFFEFederation,
 				Version: types.V1,
-				Spec: &machineidv1.SPIFFEFederationSpec{
-					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
-						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+				Spec: machineidv1.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
+						HttpsWeb: machineidv1.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 							BundleEndpointUrl: "https://example.com/foo",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("metadata: is required"),
 		},
 		{
 			name: "fail - no name",
-			in: &machineidv1.SPIFFEFederation{
+			in: machineidv1.SPIFFEFederation_builder{
 				Kind:    types.KindSPIFFEFederation,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "",
-				},
-				Spec: &machineidv1.SPIFFEFederationSpec{
-					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
-						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+				}.Build(),
+				Spec: machineidv1.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
+						HttpsWeb: machineidv1.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 							BundleEndpointUrl: "https://example.com/foo",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("metadata.name: is required"),
 		},
 		{
 			name: "fail - bad url",
-			in: &machineidv1.SPIFFEFederation{
+			in: machineidv1.SPIFFEFederation_builder{
 				Kind:    types.KindSPIFFEFederation,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example.com",
-				},
-				Spec: &machineidv1.SPIFFEFederationSpec{
-					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
-						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+				}.Build(),
+				Spec: machineidv1.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
+						HttpsWeb: machineidv1.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 							BundleEndpointUrl: ":::::",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("validating spec.bundle_source.https_web.bundle_endpoint_url"),
 		},
 		{
 			name: "fail - bad bundle",
-			in: &machineidv1.SPIFFEFederation{
+			in: machineidv1.SPIFFEFederation_builder{
 				Kind:    types.KindSPIFFEFederation,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example.com",
-				},
-				Spec: &machineidv1.SPIFFEFederationSpec{
-					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
-						Static: &machineidv1.SPIFFEFederationBundleSourceStatic{
+				}.Build(),
+				Spec: machineidv1.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
+						Static: machineidv1.SPIFFEFederationBundleSourceStatic_builder{
 							Bundle: "xyzzy",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("validating spec.bundle_source.static.bundle"),
 		},
 		{
 			name: "fail - name contains prefix",
-			in: &machineidv1.SPIFFEFederation{
+			in: machineidv1.SPIFFEFederation_builder{
 				Kind:    types.KindSPIFFEFederation,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "spiffe://example.com",
-				},
-				Spec: &machineidv1.SPIFFEFederationSpec{
-					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
-						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+				}.Build(),
+				Spec: machineidv1.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
+						HttpsWeb: machineidv1.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 							BundleEndpointUrl: "https://example.com/foo",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("metadata.name: must not include the spiffe:// prefix"),
 		},
 		{
 			name: "fail - wrong kind",
-			in: &machineidv1.SPIFFEFederation{
+			in: machineidv1.SPIFFEFederation_builder{
 				Kind:    types.KindUser,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example.com",
-				},
-				Spec: &machineidv1.SPIFFEFederationSpec{
-					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
-						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+				}.Build(),
+				Spec: machineidv1.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
+						HttpsWeb: machineidv1.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 							BundleEndpointUrl: "https://example.com/foo",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			requireErr: errContains(`kind: must be "spiffe_federation"`),
 		},
 		{
 			name: "fail - wrong version",
-			in: &machineidv1.SPIFFEFederation{
+			in: machineidv1.SPIFFEFederation_builder{
 				Kind:    types.KindUser,
 				Version: types.V3,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example.com",
-				},
-				Spec: &machineidv1.SPIFFEFederationSpec{
-					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
-						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+				}.Build(),
+				Spec: machineidv1.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
+						HttpsWeb: machineidv1.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 							BundleEndpointUrl: "https://example.com/foo",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			requireErr: errContains(`version: only "v1" is supported`),
 		},
 	}
@@ -229,24 +229,24 @@ func TestSPIFFEFederationMarshaling(t *testing.T) {
 	}{
 		{
 			name: "normal",
-			in: &machineidv1.SPIFFEFederation{
+			in: machineidv1.SPIFFEFederation_builder{
 				Kind:    types.KindSPIFFEFederation,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &machineidv1.SPIFFEFederationSpec{
-					BundleSource: &machineidv1.SPIFFEFederationBundleSource{
-						HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+				}.Build(),
+				Spec: machineidv1.SPIFFEFederationSpec_builder{
+					BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
+						HttpsWeb: machineidv1.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 							BundleEndpointUrl: "https://example.com",
-						},
-					},
-				},
-				Status: &machineidv1.SPIFFEFederationStatus{
+						}.Build(),
+					}.Build(),
+				}.Build(),
+				Status: machineidv1.SPIFFEFederationStatus_builder{
 					CurrentBundle:         "xyzzy",
 					CurrentBundleSyncedAt: timestamppb.New(testTime),
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	}
 	for _, tc := range testCases {

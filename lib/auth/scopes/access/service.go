@@ -139,16 +139,16 @@ func (s *Server) CreateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	}
 
 	if assignment := req.GetAssignment(); assignment.GetMetadata() == nil {
-		assignment.Metadata = &headerv1.Metadata{}
+		assignment.SetMetadata(&headerv1.Metadata{})
 	}
 
 	if req.GetAssignment().GetMetadata().GetName() == "" {
-		req.GetAssignment().GetMetadata().Name = uuid.New().String()
+		req.GetAssignment().GetMetadata().SetName(uuid.New().String())
 	}
 	// Currently, don't allow assignments created via the API to have a status,
 	// as they could impersonate an access-list-materialized assignment.
 	// TODO(nklaassen): set assignment status based on authenticated identity.
-	req.GetAssignment().Status = nil
+	req.GetAssignment().ClearStatus()
 
 	if err := scopedaccess.StrongValidateAssignment(req.GetAssignment()); err != nil {
 		return nil, trace.Wrap(err)
@@ -187,9 +187,9 @@ func (s *Server) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.Delet
 	}
 
 	// load the role so we can determine the resource scope.
-	grsp, err := s.cfg.BackendReader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+	grsp, err := s.cfg.BackendReader.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
 		Name: req.GetName(),
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -215,7 +215,7 @@ func (s *Server) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.Delet
 
 	// set the revision to the current revision to prevent deletion in the event of concurrent modification
 	// that might invalidate the access-control checks we just performed.
-	req.Revision = grsp.GetRole().GetMetadata().GetRevision()
+	req.SetRevision(grsp.GetRole().GetMetadata().GetRevision())
 
 	return s.cfg.Writer.DeleteScopedRole(ctx, req)
 }
@@ -241,10 +241,10 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 	}
 
 	// load the assignment so we can determine the resource scope.
-	grsp, err := s.cfg.BackendReader.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+	grsp, err := s.cfg.BackendReader.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    req.GetName(),
 		SubKind: req.GetSubKind(),
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -270,7 +270,7 @@ func (s *Server) DeleteScopedRoleAssignment(ctx context.Context, req *scopedacce
 
 	// set the revision to the current revision to prevent deletion in the event of concurrent modification
 	// that might invalidate the access-control checks we just performed.
-	req.Revision = grsp.GetAssignment().GetMetadata().GetRevision()
+	req.SetRevision(grsp.GetAssignment().GetMetadata().GetRevision())
 
 	return s.cfg.Writer.DeleteScopedRoleAssignment(ctx, req)
 }
@@ -373,14 +373,14 @@ func (s *Server) ListScopedRoleAssignments(ctx context.Context, req *scopedacces
 	// can be pre-built once at the beginning of the call.
 	ruleCtx := authzContext.RuleContext()
 
-	if req.AllCallerAssignments {
+	if req.GetAllCallerAssignments() {
 		// the all_caller_assignments flag indicates that the caller is specifically trying to discover
 		// their own assignments. in this mode we do not require resource verb permissions, instead filtering
 		// the results to only those assignments that apply to the caller.
 		if req.GetUser() != "" && req.GetUser() != authzContext.User.GetName() {
 			return nil, trace.AccessDenied("caller %q cannot list assignments for user %q using the all_caller_assignments flag", authzContext.User.GetName(), req.GetUser())
 		}
-		req.User = authzContext.User.GetName()
+		req.SetUser(authzContext.User.GetName())
 	} else {
 		// do a pre-check to weed out requests that definitely won't be authorized.
 		if err := authzContext.CheckerContext.CheckMaybeHasAccessToRules(&ruleCtx, scopedaccess.KindScopedRoleAssignment, types.VerbReadNoSecrets, types.VerbList); err != nil {
@@ -390,7 +390,7 @@ func (s *Server) ListScopedRoleAssignments(ctx context.Context, req *scopedacces
 
 	// list scoped role assignments with a filter that only passes assignments the user has access to.
 	rsp, err := s.cfg.Reader.ListScopedRoleAssignmentsWithFilter(ctx, req, func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
-		if req.AllCallerAssignments {
+		if req.GetAllCallerAssignments() {
 			// note that this short-circuit doesn't just bypass verb checks, it also bypasses scope pinning. this is
 			// intended behavior and an important part of what makes the all_caller_assignments mode useful, as it allows
 			// users to get an overview of their available privileges across all scopes.
@@ -492,7 +492,7 @@ func (s *Server) UpdateScopedRoleAssignment(ctx context.Context, req *scopedacce
 	// as they could impersonate an access-list-materialized assignment.
 	// TODO(nklaassen): set assignment status based on authenticated identity.
 	if req.GetAssignment().GetStatus() != nil {
-		req.GetAssignment().Status = nil
+		req.GetAssignment().ClearStatus()
 	}
 
 	return s.cfg.Writer.UpdateScopedRoleAssignment(ctx, req)
@@ -549,7 +549,7 @@ func (s *Server) UpsertScopedRoleAssignment(ctx context.Context, req *scopedacce
 	// as they could impersonate an access-list-materialized assignment.
 	// TODO(nklaassen): set assignment status based on authenticated identity.
 	if req.GetAssignment().GetStatus() != nil {
-		req.GetAssignment().Status = nil
+		req.GetAssignment().ClearStatus()
 	}
 
 	return s.cfg.Writer.UpsertScopedRoleAssignment(ctx, req)

@@ -129,7 +129,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	instance, err := b.backend.GetBotInstance(ctx, req.BotName, req.InstanceId)
+	instance, err := b.backend.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -137,7 +137,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	ruleCtx.Resource153 = instance
 	if err := authCtx.CheckerContext.Decision(
 		ctx,
-		instance.Scope,
+		instance.GetScope(),
 		func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
 				&ruleCtx,
@@ -158,7 +158,7 @@ func (b *BotInstanceService) DeleteBotInstance(ctx context.Context, req *pb.Dele
 	}
 
 	if err := b.backend.DeleteBotInstance(
-		ctx, instance.Spec.BotName, instance.Spec.InstanceId,
+		ctx, instance.GetSpec().GetBotName(), instance.GetSpec().GetInstanceId(),
 	); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -182,7 +182,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := b.cache.GetBotInstance(ctx, req.BotName, req.InstanceId)
+	res, err := b.cache.GetBotInstance(ctx, req.GetBotName(), req.GetInstanceId())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -190,7 +190,7 @@ func (b *BotInstanceService) GetBotInstance(ctx context.Context, req *pb.GetBotI
 	ruleCtx.Resource153 = res
 	if err := authCtx.CheckerContext.Decision(
 		ctx,
-		res.Scope,
+		res.GetScope(),
 		func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
 				&ruleCtx,
@@ -213,16 +213,16 @@ func (b *BotInstanceService) ListBotInstances(ctx context.Context, req *pb.ListB
 		sortField = req.GetSort().Field
 		sortDesc = req.GetSort().IsDesc
 	}
-	return b.ListBotInstancesV2(ctx, &pb.ListBotInstancesV2Request{
+	return b.ListBotInstancesV2(ctx, pb.ListBotInstancesV2Request_builder{
 		PageSize:  req.GetPageSize(),
 		PageToken: req.GetPageToken(),
 		SortField: sortField,
 		SortDesc:  sortDesc,
-		Filter: &pb.ListBotInstancesV2Request_Filters{
+		Filter: pb.ListBotInstancesV2Request_Filters_builder{
 			BotName:    req.GetFilterBotName(),
 			SearchTerm: req.GetFilterSearchTerm(),
-		},
-	})
+		}.Build(),
+	}.Build())
 }
 
 // ListBotInstancesV2 returns a list of bot instances matching the criteria in the request
@@ -243,8 +243,8 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 
 	botInstances, nextToken, err := b.cache.ListBotInstances(
 		ctx,
-		int(req.PageSize),
-		req.PageToken,
+		int(req.GetPageSize()),
+		req.GetPageToken(),
 		&services.ListBotInstancesRequestOptions{
 			SortField:        req.GetSortField(),
 			SortDesc:         req.GetSortDesc(),
@@ -256,7 +256,7 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 				ruleCtx.Resource153 = botInstance
 				err := authCtx.CheckerContext.Decision(
 					ctx,
-					botInstance.Scope,
+					botInstance.GetScope(),
 					func(checker *services.ScopedAccessChecker) error {
 						return checker.CheckAccessToRules(
 							&ruleCtx,
@@ -274,10 +274,10 @@ func (b *BotInstanceService) ListBotInstancesV2(ctx context.Context, req *pb.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	return &pb.ListBotInstancesResponse{
+	return pb.ListBotInstancesResponse_builder{
 		BotInstances:  botInstances,
 		NextPageToken: nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // SubmitHeartbeat records heartbeat information for a bot
@@ -286,7 +286,7 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if req.Heartbeat == nil {
+	if !req.HasHeartbeat() {
 		return nil, trace.BadParameter("heartbeat: must be non-nil")
 	}
 
@@ -316,7 +316,7 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 	// flag set - however - once sufficient time has passed and we're sure all
 	// existing bots will have the BotInternal flag set in their certs, we can
 	// make this check always applied.
-	if ident.ScopePin != nil && ident.ScopePin.Scope != "" {
+	if ident.ScopePin != nil && ident.ScopePin.GetScope() != "" {
 		if !ident.BotInternal {
 			return nil, trace.AccessDenied("identity not marked BotInternal")
 		}
@@ -327,28 +327,28 @@ func (b *BotInstanceService) SubmitHeartbeat(ctx context.Context, req *pb.Submit
 		"Received bot instance heartbeat",
 		"bot_name", botName,
 		"bot_instance", botInstanceID,
-		"heartbeat", logutils.StringerAttr(req.Heartbeat),
+		"heartbeat", logutils.StringerAttr(req.GetHeartbeat()),
 	)
 	_, err = b.backend.PatchBotInstance(ctx, botName, botInstanceID, func(instance *pb.BotInstance) (*pb.BotInstance, error) {
-		if instance.Status == nil {
-			instance.Status = &pb.BotInstanceStatus{}
+		if !instance.HasStatus() {
+			instance.SetStatus(&pb.BotInstanceStatus{})
 		}
 		// Set initial heartbeat if not set.
-		if instance.Status.InitialHeartbeat == nil {
-			instance.Status.InitialHeartbeat = req.Heartbeat
+		if !instance.GetStatus().HasInitialHeartbeat() {
+			instance.GetStatus().SetInitialHeartbeat(req.GetHeartbeat())
 		}
 		// If we're at or above the limit, remove enough of the front
 		// elements to make room for the new one at the end.
-		if len(instance.Status.LatestHeartbeats) >= heartbeatHistoryLimit {
-			toRemove := len(instance.Status.LatestHeartbeats) - heartbeatHistoryLimit + 1
-			instance.Status.LatestHeartbeats = instance.Status.LatestHeartbeats[toRemove:]
+		if len(instance.GetStatus().GetLatestHeartbeats()) >= heartbeatHistoryLimit {
+			toRemove := len(instance.GetStatus().GetLatestHeartbeats()) - heartbeatHistoryLimit + 1
+			instance.GetStatus().SetLatestHeartbeats(instance.GetStatus().GetLatestHeartbeats()[toRemove:])
 		}
 		// Append the new heartbeat to the end.
-		instance.Status.LatestHeartbeats = append(instance.Status.LatestHeartbeats, req.Heartbeat)
+		instance.GetStatus().SetLatestHeartbeats(append(instance.GetStatus().GetLatestHeartbeats(), req.GetHeartbeat()))
 
 		if storeHeartbeatExtras() {
 			// Overwrite the service health.
-			instance.Status.ServiceHealth = req.ServiceHealth
+			instance.GetStatus().SetServiceHealth(req.GetServiceHealth())
 		}
 
 		return instance, nil

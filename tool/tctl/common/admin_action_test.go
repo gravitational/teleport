@@ -140,18 +140,18 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	ctx := context.Background()
 
 	botName := "bot"
-	botReq := &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	botReq := machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: botName,
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{teleport.PresetAccessRoleName},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	createBot := func() error {
 		_, err := s.localAdminClient.BotServiceClient().CreateBot(ctx, botReq)
@@ -159,9 +159,9 @@ func (s *adminActionTestSuite) testBots(t *testing.T) {
 	}
 
 	deleteBot := func() error {
-		_, err := s.localAdminClient.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+		_, err := s.localAdminClient.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 			BotName: botName,
-		})
+		}.Build())
 		return trace.Wrap(err)
 	}
 

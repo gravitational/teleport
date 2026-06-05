@@ -41,36 +41,36 @@ func TestTemplate_Success(t *testing.T) {
 		},
 		"simple interpolation": {
 			tmpl: "{{user.name}}",
-			attrs: &workloadidentityv1.Attrs{
-				User: &workloadidentityv1.UserAttrs{
+			attrs: workloadidentityv1.Attrs_builder{
+				User: workloadidentityv1.UserAttrs_builder{
 					Name: "Larry",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			output: "Larry",
 		},
 		"multiple interpolations": {
 			tmpl: "{{user.name}} {{user.bot_name}}",
-			attrs: &workloadidentityv1.Attrs{
-				User: &workloadidentityv1.UserAttrs{
+			attrs: workloadidentityv1.Attrs_builder{
+				User: workloadidentityv1.UserAttrs_builder{
 					Name:    "Larry",
 					BotName: "LarryBot",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			output: "Larry LarryBot",
 		},
 		"map access": {
 			tmpl: `/region/{{workload.podman.pod.labels["com.mycloud/region"]}}/service`,
-			attrs: &workloadidentityv1.Attrs{
-				Workload: &workloadidentityv1.WorkloadAttrs{
-					Podman: &workloadidentityv1.WorkloadAttrsPodman{
-						Pod: &workloadidentityv1.WorkloadAttrsPodmanPod{
+			attrs: workloadidentityv1.Attrs_builder{
+				Workload: workloadidentityv1.WorkloadAttrs_builder{
+					Podman: workloadidentityv1.WorkloadAttrsPodman_builder{
+						Pod: workloadidentityv1.WorkloadAttrsPodmanPod_builder{
 							Labels: map[string]string{
 								"com.mycloud/region": "eu",
 							},
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			output: "/region/eu/service",
 		},
 		"function calling": {
@@ -100,38 +100,38 @@ func TestTemplate_Success(t *testing.T) {
 		},
 		"int interpolation": {
 			tmpl: `{{ workload.unix.pid }}`,
-			attrs: &workloadidentityv1.Attrs{
-				Workload: &workloadidentityv1.WorkloadAttrs{
-					Unix: &workloadidentityv1.WorkloadAttrsUnix{
+			attrs: workloadidentityv1.Attrs_builder{
+				Workload: workloadidentityv1.WorkloadAttrs_builder{
+					Unix: workloadidentityv1.WorkloadAttrsUnix_builder{
 						Pid: 1337,
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			output: "1337",
 		},
 		"uint interpolation": {
 			tmpl: `{{ workload.unix.uid }}`,
-			attrs: &workloadidentityv1.Attrs{
-				Workload: &workloadidentityv1.WorkloadAttrs{
-					Unix: &workloadidentityv1.WorkloadAttrsUnix{
+			attrs: workloadidentityv1.Attrs_builder{
+				Workload: workloadidentityv1.WorkloadAttrs_builder{
+					Unix: workloadidentityv1.WorkloadAttrsUnix_builder{
 						Uid: 1337,
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			output: "1337",
 		},
 		"user traits": {
 			tmpl: `{{user.traits.skill}}`,
-			attrs: &workloadidentityv1.Attrs{
-				User: &workloadidentityv1.UserAttrs{
+			attrs: workloadidentityv1.Attrs_builder{
+				User: workloadidentityv1.UserAttrs_builder{
 					Traits: []*traitv1.Trait{
-						{
+						traitv1.Trait_builder{
 							Key:    "skill",
 							Values: []string{"coffee-drinker"},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			output: "coffee-drinker",
 		},
 	}
@@ -170,16 +170,16 @@ func TestTemplate_MultipleTraitValues(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = tmpl.Render(&expression.Environment{
-		Attrs: &workloadidentityv1.Attrs{
-			User: &workloadidentityv1.UserAttrs{
+		Attrs: workloadidentityv1.Attrs_builder{
+			User: workloadidentityv1.UserAttrs_builder{
 				Traits: []*traitv1.Trait{
-					{
+					traitv1.Trait_builder{
 						Key:    "skills",
 						Values: []string{"sword-fighting", "sonnet-writing"},
-					},
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	})
 	require.ErrorContains(t, err, "multiple values")
 }
@@ -189,9 +189,9 @@ func TestTemplate_MissingSubmessage(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = tmpl.Render(&expression.Environment{
-		Attrs: &workloadidentityv1.Attrs{
+		Attrs: workloadidentityv1.Attrs_builder{
 			Workload: &workloadidentityv1.WorkloadAttrs{},
-		},
+		}.Build(),
 	})
 	require.ErrorContains(t, err, "workload.podman is unset")
 }
@@ -201,15 +201,15 @@ func TestTemplate_MissingMapValue(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = tmpl.Render(&expression.Environment{
-		Attrs: &workloadidentityv1.Attrs{
-			Workload: &workloadidentityv1.WorkloadAttrs{
-				Podman: &workloadidentityv1.WorkloadAttrsPodman{
-					Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
+		Attrs: workloadidentityv1.Attrs_builder{
+			Workload: workloadidentityv1.WorkloadAttrs_builder{
+				Podman: workloadidentityv1.WorkloadAttrsPodman_builder{
+					Container: workloadidentityv1.WorkloadAttrsPodmanContainer_builder{
 						Labels: map[string]string{"bar": "baz"},
-					},
-				},
-			},
-		},
+					}.Build(),
+				}.Build(),
+			}.Build(),
+		}.Build(),
 	})
 	require.ErrorContains(t, err, `no value for key: "foo"`)
 }
@@ -219,16 +219,16 @@ func TestTemplate_MissingTrait(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = tmpl.Render(&expression.Environment{
-		Attrs: &workloadidentityv1.Attrs{
-			User: &workloadidentityv1.UserAttrs{
+		Attrs: workloadidentityv1.Attrs_builder{
+			User: workloadidentityv1.UserAttrs_builder{
 				Traits: []*traitv1.Trait{
-					{
+					traitv1.Trait_builder{
 						Key:    "bar",
 						Values: []string{"baz"},
-					},
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	})
 	require.ErrorContains(t, err, `no value for trait: "foo"`)
 }
@@ -238,15 +238,15 @@ func TestTemplate_UnsetValue(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = tmpl.Render(&expression.Environment{
-		Attrs: &workloadidentityv1.Attrs{
-			Workload: &workloadidentityv1.WorkloadAttrs{
-				Podman: &workloadidentityv1.WorkloadAttrsPodman{
-					Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
+		Attrs: workloadidentityv1.Attrs_builder{
+			Workload: workloadidentityv1.WorkloadAttrs_builder{
+				Podman: workloadidentityv1.WorkloadAttrsPodman_builder{
+					Container: workloadidentityv1.WorkloadAttrsPodmanContainer_builder{
 						Name: "",
-					},
-				},
-			},
-		},
+					}.Build(),
+				}.Build(),
+			}.Build(),
+		}.Build(),
 	})
 	require.ErrorContains(t, err, "workload.podman.container.name is unset")
 }

@@ -92,7 +92,7 @@ spec:
 
 	// Explicitly change the revision and try creating the resource with and
 	// without the force flag.
-	expected.GetMetadata().Revision = uuid.NewString()
+	expected.GetMetadata().SetRevision(uuid.NewString())
 	blob, err := services.MarshalHealthCheckConfig(expected, services.PreserveRevision())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(resourceYAMLPath, blob, 0644))
@@ -110,11 +110,11 @@ func testEditHealthCheckConfig(t *testing.T, clt *authclient.Client) {
 
 	// create expected health check config
 	expected, err := healthcheckconfig.NewHealthCheckConfig("test",
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
+		healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
 				DbLabelsExpression: "labels.env == `dev`",
-			},
-		},
+			}.Build(),
+		}.Build(),
 	)
 	require.NoError(t, err)
 	created, err := clt.CreateHealthCheckConfig(ctx, expected)
@@ -125,7 +125,7 @@ func testEditHealthCheckConfig(t *testing.T, clt *authclient.Client) {
 		if err != nil {
 			return trace.Wrap(err, "opening file to edit")
 		}
-		expected.GetMetadata().Revision = created.GetMetadata().GetRevision()
+		expected.GetMetadata().SetRevision(created.GetMetadata().GetRevision())
 		collection := &healthCheckConfigCollection{
 			items: []*healthcheckconfigv1.HealthCheckConfig{expected},
 		}

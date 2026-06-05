@@ -56,7 +56,7 @@ func TestUpsertTunnelConnection(t *testing.T) {
 		{
 			name: "success",
 			req: func(t *testing.T) *trustpb.UpsertTunnelConnectionRequest {
-				return &trustpb.UpsertTunnelConnectionRequest{TunnelConnection: newConn(t)}
+				return trustpb.UpsertTunnelConnectionRequest_builder{TunnelConnection: newConn(t)}.Build()
 			},
 			allow: map[check]bool{
 				{types.KindTunnelConnection, types.VerbCreate}: true,
@@ -80,7 +80,7 @@ func TestUpsertTunnelConnection(t *testing.T) {
 		{
 			name: "access denied",
 			req: func(t *testing.T) *trustpb.UpsertTunnelConnectionRequest {
-				return &trustpb.UpsertTunnelConnectionRequest{TunnelConnection: newConn(t)}
+				return trustpb.UpsertTunnelConnectionRequest_builder{TunnelConnection: newConn(t)}.Build()
 			},
 			allow: map[check]bool{
 				{types.KindTunnelConnection, types.VerbCreate}: false,
@@ -113,14 +113,14 @@ func TestUpsertTunnelConnection(t *testing.T) {
 			if err != nil {
 				return
 			}
-			require.NotEmpty(t, resp.TunnelConnection.GetRevision(), "response should carry the backend-assigned revision")
-			require.Equal(t, req.TunnelConnection, resp.TunnelConnection)
+			require.NotEmpty(t, resp.GetTunnelConnection().GetRevision(), "response should carry the backend-assigned revision")
+			require.Equal(t, req.GetTunnelConnection(), resp.GetTunnelConnection())
 
-			stored, err := trust.GetTunnelConnections(req.TunnelConnection.GetClusterName())
+			stored, err := trust.GetTunnelConnections(req.GetTunnelConnection().GetClusterName())
 			require.NoError(t, err)
 			require.Len(t, stored, 1)
-			require.Equal(t, req.TunnelConnection.GetName(), stored[0].GetName())
-			require.Equal(t, resp.TunnelConnection.GetRevision(), stored[0].GetRevision())
+			require.Equal(t, req.GetTunnelConnection().GetName(), stored[0].GetName())
+			require.Equal(t, resp.GetTunnelConnection().GetRevision(), stored[0].GetRevision())
 		})
 	}
 }
@@ -153,32 +153,32 @@ func TestDeleteTunnelConnection(t *testing.T) {
 	}{
 		{
 			name: "success",
-			req: &trustpb.DeleteTunnelConnectionRequest{
+			req: trustpb.DeleteTunnelConnectionRequest_builder{
 				ClusterName:    clusterName,
 				ConnectionName: connName,
-			},
+			}.Build(),
 			allow:     map[check]bool{{types.KindTunnelConnection, types.VerbDelete}: true},
 			assertErr: require.NoError,
 			wantGone:  true,
 		},
 		{
 			name:      "missing cluster name",
-			req:       &trustpb.DeleteTunnelConnectionRequest{ConnectionName: connName},
+			req:       trustpb.DeleteTunnelConnectionRequest_builder{ConnectionName: connName}.Build(),
 			allow:     map[check]bool{{types.KindTunnelConnection, types.VerbDelete}: true},
 			assertErr: func(t require.TestingT, err error, _ ...any) { require.True(t, trace.IsBadParameter(err)) },
 		},
 		{
 			name:      "missing connection name",
-			req:       &trustpb.DeleteTunnelConnectionRequest{ClusterName: clusterName},
+			req:       trustpb.DeleteTunnelConnectionRequest_builder{ClusterName: clusterName}.Build(),
 			allow:     map[check]bool{{types.KindTunnelConnection, types.VerbDelete}: true},
 			assertErr: func(t require.TestingT, err error, _ ...any) { require.True(t, trace.IsBadParameter(err)) },
 		},
 		{
 			name: "access denied",
-			req: &trustpb.DeleteTunnelConnectionRequest{
+			req: trustpb.DeleteTunnelConnectionRequest_builder{
 				ClusterName:    clusterName,
 				ConnectionName: connName,
-			},
+			}.Build(),
 			allow:     map[check]bool{{types.KindTunnelConnection, types.VerbDelete}: false},
 			assertErr: func(t require.TestingT, err error, _ ...any) { require.True(t, trace.IsAccessDenied(err)) },
 		},
