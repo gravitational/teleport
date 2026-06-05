@@ -1031,7 +1031,7 @@ func (a *ahLoginChecker) evaluateScopedSSHAccess(ident *sshca.Identity, ca types
 		ClientIdleTimeout:     durationpb.New(clientIdleTimeout),
 		DisconnectExpiredCert: timestampFromGoTime(getDisconnectExpiredCertFromSSHIdentityScoped(checker.SSH(), authPref, ident)),
 		SessionRecordingMode:  string(checker.SSH().SessionRecordingMode()),
-		LockingMode:           string(checker.LockingMode(authPref.GetLockingMode())),
+		LockingMode:           string(checker.SSH().LockingMode(authPref.GetLockingMode())),
 		PrivateKeyPolicy:      string(privateKeyPolicy),
 		LockTargets:           decision.LockTargetsToProto(lockTargets),
 		MappedRoles:           accessInfo.Roles,
