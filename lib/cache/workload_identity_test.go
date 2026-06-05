@@ -80,14 +80,19 @@ func newWorkloadIdentity(name string) *workloadidentityv1pb.WorkloadIdentity {
 func createWorkloadIdentities(t *testing.T, ctx context.Context, p *testPack, ids map[string]string) {
 	t.Helper()
 	for name, spiffeID := range ids {
-		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
-			Kind:     types.KindWorkloadIdentity,
-			Version:  types.V1,
-			Metadata: &headerv1.Metadata{Name: name},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{Id: spiffeID},
-			},
-		})
+		wid := workloadidentityv1pb.WorkloadIdentity_builder{
+			Kind:    types.KindWorkloadIdentity,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: name,
+			}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
+					Id: spiffeID,
+				}.Build(),
+			}.Build(),
+		}.Build()
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, wid)
 		require.NoError(t, err, "failed to create WorkloadIdentity %q", name)
 	}
 
