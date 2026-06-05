@@ -22,6 +22,7 @@ package web
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand/v2"
 	"net/http"
@@ -34,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
 )
@@ -248,9 +250,14 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	// application that the caller is requesting. If it does not, do best effort FQDN resolution.
 	switch {
 	case params.ClusterName != "" && (params.AppName != "" || params.PublicAddr != ""):
-		server, appClusterName, err = h.resolveAppByName(ctx, proxy, params.AppName, params.PublicAddr, params.ClusterName)
+		server, appClusterName, err = h.resolveAppForCluster(ctx, proxy, params.AppName, params.PublicAddr, params.ClusterName)
 	case params.FQDNHint != "":
-		server, appClusterName, err = app.ResolveFQDN(ctx, proxy, h.auth.clusterName, h.proxyDNSNames(), params.FQDNHint)
+		// Multiple apps can have the same FQDN - prefer those the user
+		// can actually access.
+		var canAccess func(types.Application) bool
+		if canAccess, err = h.userAppAccessFilter(ctx, scx); err == nil {
+			server, appClusterName, err = app.ResolveFQDN(ctx, proxy, h.auth.clusterName, h.proxyDNSNames(), params.FQDNHint, canAccess)
+		}
 	default:
 		err = trace.BadParameter("no inputs to resolve application")
 	}
@@ -272,10 +279,38 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	}, nil
 }
 
-// resolveAppByName will take a cluster name, public address, and optional app name in order to
+// userAppAccessFilter returns a filter that checks whether the current user session
+// is allowed to access an application.
+//
+// Per-session MFA and device trust requirements are treated as "accessible" here
+// since the user is allowed, they'll just be asked for an extra factor when the connection
+// is actually established.
+func (h *Handler) userAppAccessFilter(ctx context.Context, scx *SessionContext) (func(types.Application) bool, error) {
+	checker, err := scx.GetUserAccessChecker()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	authPref, err := h.cfg.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	state := checker.GetAccessState(authPref)
+	return func(app types.Application) bool {
+		err := checker.CheckAccess(app, state)
+		return err == nil ||
+			errors.Is(err, services.ErrSessionMFARequired) ||
+			errors.Is(err, services.ErrTrustedDeviceRequired)
+	}, nil
+}
+
+// resolveAppForCluster will take a cluster name, public address, and optional app name in order to
 // locate the application and the server on which it is running.
 // The app name, if provided, is used to disambiguate multiple apps with the same public addr.
-func (h *Handler) resolveAppByName(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, appName, publicAddr, clusterName string) (types.AppServer, string, error) {
+func (h *Handler) resolveAppForCluster(
+	ctx context.Context,
+	clusterGetter reversetunnelclient.ClusterGetter,
+	appName, publicAddr, clusterName string,
+) (types.AppServer, string, error) {
 	clusterClient, err := clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)

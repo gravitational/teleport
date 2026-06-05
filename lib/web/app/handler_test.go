@@ -329,8 +329,7 @@ func TestMatchApplicationServers(t *testing.T) {
 	authClient := &mockAuthClient{
 		clusterName: clusterName,
 		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
-		// Three app servers (HA replicas of the same app, so same name and
-		// public addr) that match our session, and three that won't match.
+		// Three replicas of the same app, and three that won't match.
 		appServers: []types.AppServer{
 			createNamedAppServer(t, "testapp", publicAddr),
 			createNamedAppServer(t, "testapp", publicAddr),

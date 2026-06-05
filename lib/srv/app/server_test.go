@@ -770,9 +770,8 @@ func TestGetApp(t *testing.T) {
 	}
 
 	t.Run("disambiguates shared public addr by name", func(t *testing.T) {
-		// s.apps is a map, so iteration order is randomized. Repeat the lookup
-		// to ensure the result is deterministic and never resolves to the other
-		// app sharing the address (the bug being fixed).
+		// Repeat the lookup to ensure the result is deterministic and always
+		// hits the correct app.
 		for range 100 {
 			got, err := s.GetApp(t.Context(), "test-app-1", sharedAddr)
 			require.NoError(t, err)

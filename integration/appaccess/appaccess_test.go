@@ -100,8 +100,7 @@ func TestAppAccess(t *testing.T) {
 }
 
 // TestAppAccessRoutingByName tests the scenario where two apps share a
-// public address but have distinct names. A session routed (by name) to one app
-// must always reach that app and never the other.
+// public address but have distinct names.
 func TestAppAccessRoutingByName(t *testing.T) {
 	const sharedPublicAddr = "dup.example.com"
 

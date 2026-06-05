@@ -5014,6 +5014,74 @@ func TestGetAppDetails(t *testing.T) {
 	}
 }
 
+// TestCreateAppSessionRBACAware verifies that when a user navigates directly to
+// a public address shared by multiple apps (the FQDN-only flow, with no app name),
+// the resulting session is pinned to an app the user can actually access.
+func TestCreateAppSessionRBACAware(t *testing.T) {
+	s := newWebSuite(t)
+
+	const sharedPublicAddr = "dup.example.com"
+
+	// Two apps share a public address but have distinct names and labels.
+	for _, app := range []struct{ name, label string }{
+		{"dup-app-1", "dup-app-1"},
+		{"dup-app-2", "dup-app-2"},
+	} {
+		a, err := types.NewAppV3(types.Metadata{
+			Name:   app.name,
+			Labels: map[string]string{"app_name": app.label},
+		}, types.AppSpecV3{
+			URI:        "http://127.0.0.1:8080",
+			PublicAddr: sharedPublicAddr,
+		})
+		require.NoError(t, err)
+		server, err := types.NewAppServerV3FromApp(a, "host-"+app.name, uuid.New().String())
+		require.NoError(t, err)
+		_, err = s.server.Auth().UpsertApplicationServer(s.ctx, server)
+		require.NoError(t, err)
+	}
+
+	// The default user role grants wildcard app access, so deny dup-app-2 to
+	// ensure the user can reach dup-app-1 but not dup-app-2.
+	denyRole, err := types.NewRole("deny-dup-app-2", types.RoleSpecV6{
+		Deny: types.RoleConditions{
+			AppLabels: types.Labels{"app_name": []string{"dup-app-2"}},
+		},
+	})
+	require.NoError(t, err)
+	_, err = s.server.Auth().UpsertRole(s.ctx, denyRole)
+	require.NoError(t, err)
+
+	pack := s.authPack(t, "foo@example.com", denyRole.GetName())
+
+	// Create an app session with FQDN hint only (no app name).
+	// Repeat this multiple times to make sure we always get the correct app
+	// in the app session's cert.
+	endpoint := pack.clt.Endpoint("webapi", "sessions", "app")
+	for range 20 {
+		resp, err := pack.clt.PostJSON(s.ctx, endpoint, &CreateAppSessionRequest{
+			ResolveAppParams: ResolveAppParams{FQDNHint: sharedPublicAddr},
+		})
+		require.NoError(t, err)
+
+		var response CreateAppSessionResponse
+		require.NoError(t, json.Unmarshal(resp.Bytes(), &response))
+
+		sess, err := s.server.Auth().GetAppSession(s.ctx, types.GetAppSessionRequest{
+			SessionID: response.CookieValue,
+		})
+		require.NoError(t, err)
+
+		certificate, err := tlsca.ParseCertificatePEM(sess.GetTLSCert())
+		require.NoError(t, err)
+		identity, err := tlsca.FromSubject(certificate.Subject, certificate.NotAfter)
+		require.NoError(t, err)
+
+		require.Equal(t, "dup-app-1", identity.RouteToApp.Name)
+		require.Equal(t, sharedPublicAddr, identity.RouteToApp.PublicAddr)
+	}
+}
+
 // connRemoteAddrOverride wraps a net.Conn for the sole purpose of
 // specifying a remote address with a valid hostport. This is meant
 // to be used with bufconn.Listeners which hardcode addresses to "bufconn"

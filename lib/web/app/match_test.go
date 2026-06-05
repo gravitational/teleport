@@ -128,3 +128,44 @@ func TestMatchAppServerForRoute(t *testing.T) {
 		})
 	}
 }
+
+func TestPickAppServer(t *testing.T) {
+	t.Parallel()
+
+	mustMakeAppServer := func(name string) types.AppServer {
+		s, err := types.NewAppServerV3(
+			types.Metadata{Name: name},
+			types.AppServerSpecV3{
+				HostID: "host-" + name,
+				App: &types.AppV3{
+					Metadata: types.Metadata{Name: name},
+					Spec:     types.AppSpecV3{PublicAddr: "dup.example.com", URI: "http://localhost:1"},
+				},
+			},
+		)
+		require.NoError(t, err)
+		return s
+	}
+
+	app1, app2 := mustMakeAppServer("dup-app-1"), mustMakeAppServer("dup-app-2")
+	servers := []types.AppServer{app1, app2}
+	onlyApp1 := func(a types.Application) bool { return a.GetName() == "dup-app-1" }
+	none := func(types.Application) bool { return false }
+
+	t.Run("prefers the accessible app", func(t *testing.T) {
+		for range 100 {
+			require.Equal(t, "dup-app-1", pickAppServer(servers, onlyApp1).GetApp().GetName())
+		}
+	})
+
+	t.Run("nil filter picks among all (legacy behavior)", func(t *testing.T) {
+		got := pickAppServer(servers, nil)
+		require.Contains(t, []string{"dup-app-1", "dup-app-2"}, got.GetApp().GetName())
+	})
+
+	t.Run("no accessible match falls back to all", func(t *testing.T) {
+		got := pickAppServer(servers, none)
+		require.NotNil(t, got)
+		require.Contains(t, []string{"dup-app-1", "dup-app-2"}, got.GetApp().GetName())
+	})
+}
