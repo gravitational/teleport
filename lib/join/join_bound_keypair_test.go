@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	libboundkeypair "github.com/gravitational/teleport/lib/auth/join/boundkeypair"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/auth/state"
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -2010,6 +2011,7 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 				BotInstanceID: firstInstance,
 				TokenName:     scopedToken.GetMetadata().GetName(),
 				Method:        scopedToken.GetSpec().GetJoinMethod(),
+				UserName:      machineidv1.BotResourceName(scopedToken.GetSpec().GetBotName()),
 				BotName:       scopedToken.GetSpec().GetBotName(),
 				Scope:         scopedToken.GetSpec().GetBotScope(),
 			},

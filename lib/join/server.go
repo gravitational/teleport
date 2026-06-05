@@ -44,6 +44,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/keystore"
+	"github.com/gravitational/teleport/lib/auth/machineid/machineidv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
@@ -826,6 +827,7 @@ func makeAuditEvent(info diagnostic.Info, attributesStruct *apievents.Struct) ap
 			},
 			Method:        cmp.Or(info.TokenJoinMethod, info.RequestedJoinMethod),
 			TokenName:     info.SafeTokenName,
+			UserName:      machineidv1.BotResourceName(info.BotName),
 			BotName:       info.BotName,
 			BotInstanceID: info.BotInstanceID,
 			Scope:         info.BotScope,

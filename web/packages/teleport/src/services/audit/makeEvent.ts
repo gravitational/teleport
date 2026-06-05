@@ -251,15 +251,17 @@ export const formatters: Formatters = {
         return `User [${user}] executed a command on Kubernetes cluster [${kubernetes_cluster}] within session [${sid}]`;
       }
 
-      return `User [${user}] executed a command on node ${event['server_hostname'] || event['addr.local']
-        } within session [${sid}]`;
+      return `User [${user}] executed a command on node ${
+        event['server_hostname'] || event['addr.local']
+      } within session [${sid}]`;
     },
   },
   [eventCodes.EXEC_FAILURE]: {
     type: 'exec',
     desc: 'Command Execution Failed',
     format: ({ user, exitError, sid, ...rest }) =>
-      `User [${user}] command execution on node ${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] command execution on node ${
+        rest['server_hostname'] || rest['addr.local']
       } failed [${exitError}] within session [${sid}]`,
   },
   [eventCodes.GITHUB_CONNECTOR_CREATED]: {
@@ -335,182 +337,208 @@ export const formatters: Formatters = {
     type: 'scp',
     desc: 'SCP Download',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] downloaded a file [${path}] from node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] downloaded a file [${path}] from node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SCP_DOWNLOAD_FAILURE]: {
     type: 'scp',
     desc: 'SCP Download Failed',
     format: ({ exitError, ...rest }) =>
-      `File download from node [${rest['server_hostname'] || rest['addr.local']
+      `File download from node [${
+        rest['server_hostname'] || rest['addr.local']
       }] failed [${exitError}]`,
   },
   [eventCodes.SCP_UPLOAD]: {
     type: 'scp',
     desc: 'SCP Upload',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] uploaded a file to [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] uploaded a file to [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SCP_UPLOAD_FAILURE]: {
     type: 'scp',
     desc: 'SCP Upload Failed',
     format: ({ exitError, ...rest }) =>
-      `File upload to node [${rest['server_hostname'] || rest['addr.local']
+      `File upload to node [${
+        rest['server_hostname'] || rest['addr.local']
       }] failed [${exitError}]`,
   },
   [eventCodes.SCP_DISALLOWED]: {
     type: 'scp',
     desc: 'SCP Disallowed',
     format: ({ user, ...rest }) =>
-      `User [${user}] SCP file transfer on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] SCP file transfer on node [${
+        rest['server_hostname'] || rest['addr.local']
       }] blocked`,
   },
   [eventCodes.SFTP_OPEN]: {
     type: 'sftp',
     desc: 'SFTP Open',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] opened file [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] opened file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SFTP_OPEN_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Open Failed',
     format: ({ user, path, error, ...rest }) =>
-      `User [${user}] failed to open file [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] failed to open file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
   [eventCodes.SFTP_SETSTAT]: {
     type: 'sftp',
     desc: 'SFTP Setstat',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] changed attributes of file [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] changed attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SFTP_SETSTAT_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Setstat Failed',
     format: ({ user, path, error, ...rest }) =>
-      `User [${user}] failed to change attributes of file [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] failed to change attributes of file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
   [eventCodes.SFTP_OPENDIR]: {
     type: 'sftp',
     desc: 'SFTP Opendir',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] opened directory [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] opened directory [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SFTP_OPENDIR_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Opendir Failed',
     format: ({ user, path, error, ...rest }) =>
-      `User [${user}] failed to open directory [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] failed to open directory [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
   [eventCodes.SFTP_READDIR]: {
     type: 'sftp',
     desc: 'SFTP Readdir',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] read directory [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] read directory [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SFTP_READDIR_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Readdir Failed',
     format: ({ user, path, error, ...rest }) =>
-      `User [${user}] failed to read directory [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] failed to read directory [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
   [eventCodes.SFTP_REMOVE]: {
     type: 'sftp',
     desc: 'SFTP Remove',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] removed file [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] removed file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SFTP_REMOVE_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Remove Failed',
     format: ({ user, path, error, ...rest }) =>
-      `User [${user}] failed to remove file [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] failed to remove file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
   [eventCodes.SFTP_MKDIR]: {
     type: 'sftp',
     desc: 'SFTP Mkdir',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] created directory [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] created directory [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SFTP_MKDIR_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Mkdir Failed',
     format: ({ user, path, error, ...rest }) =>
-      `User [${user}] failed to create directory [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] failed to create directory [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
   [eventCodes.SFTP_RMDIR]: {
     type: 'sftp',
     desc: 'SFTP Rmdir',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] removed directory [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] removed directory [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SFTP_RMDIR_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Rmdir Failed',
     format: ({ user, path, error, ...rest }) =>
-      `User [${user}] failed to remove directory [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] failed to remove directory [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
   [eventCodes.SFTP_RENAME]: {
     type: 'sftp',
     desc: 'SFTP Rename',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] renamed file [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] renamed file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SFTP_RENAME_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Rename Failed',
     format: ({ user, path, error, ...rest }) =>
-      `User [${user}] failed to rename file [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] failed to rename file [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
   [eventCodes.SFTP_SYMLINK]: {
     type: 'sftp',
     desc: 'SFTP Symlink',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] created symbolic link [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] created symbolic link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SFTP_SYMLINK_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Symlink Failed',
     format: ({ user, path, error, ...rest }) =>
-      `User [${user}] failed to create symbolic link [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] failed to create symbolic link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
   [eventCodes.SFTP_LINK]: {
     type: 'sftp',
     desc: 'SFTP Link',
     format: ({ user, path, ...rest }) =>
-      `User [${user}] created hard link [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] created hard link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SFTP_LINK_FAILURE]: {
     type: 'sftp',
     desc: 'SFTP Link Failed',
     format: ({ user, path, error, ...rest }) =>
-      `User [${user}] failed to create hard link [${path}] on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] failed to create hard link [${path}] on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]: [${error}]`,
   },
   [eventCodes.SFTP_DISALLOWED]: {
     type: 'sftp',
     desc: 'SFTP Disallowed',
     format: ({ user, ...rest }) =>
-      `User [${user}] was blocked from creating an SFTP session on node [${rest['server_hostname'] || rest['addr.local']
+      `User [${user}] was blocked from creating an SFTP session on node [${
+        rest['server_hostname'] || rest['addr.local']
       }]`,
   },
   [eventCodes.SESSION_JOIN]: {
@@ -793,8 +821,10 @@ export const formatters: Formatters = {
     type: 'db.session.start',
     desc: 'Database Session Started',
     format: ({ user, db_service, db_name, db_user, db_roles }) =>
-      `User [${user}] has connected ${db_name ? `to database [${db_name}] ` : ''
-      }as [${db_user}] ${db_roles ? `with roles [${db_roles}] ` : ''
+      `User [${user}] has connected ${
+        db_name ? `to database [${db_name}] ` : ''
+      }as [${db_user}] ${
+        db_roles ? `with roles [${db_roles}] ` : ''
       }on [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: {
@@ -807,7 +837,8 @@ export const formatters: Formatters = {
     type: 'db.session.end',
     desc: 'Database Session Ended',
     format: ({ user, db_service, db_name }) =>
-      `User [${user}] has disconnected ${db_name ? `from database [${db_name}] ` : ''
+      `User [${user}] has disconnected ${
+        db_name ? `from database [${db_name}] ` : ''
       }on [${db_service}]`,
   },
   [eventCodes.DATABASE_SESSION_QUERY]: {
