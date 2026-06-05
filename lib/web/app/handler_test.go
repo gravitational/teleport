@@ -429,6 +429,93 @@ func TestNewSessionRoutesByAppName(t *testing.T) {
 	}
 }
 
+// TestCrossSiteWebSocketProtection verifies the CSWSH guard is wired into the
+// cookie-authenticated app forward path end-to-end: under block, a cross-origin
+// WebSocket upgrade is rejected with 403, while a non-WebSocket request is still
+// forwarded. The guard's full decision matrix (action modes, origin
+// classification) is unit-tested in TestGuardCrossSiteWebSocket; this test covers
+// the wiring and status propagation through the real handler and middleware.
+//
+// Requests use a realistic handshake (Connection: Upgrade + Origin), matching
+// what a browser actually sends — Chrome attaches no Sec-Fetch-* to a WebSocket
+// upgrade, so Origin is the signal that drives detection.
+func TestCrossSiteWebSocketProtection(t *testing.T) {
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
+		appServers:  []types.AppServer{createAppServer(t, publicAddr)},
+		caKey:       key,
+		caCert:      cert,
+	}
+
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+	}
+
+	// Valid victim session cookies. In the real attack the browser attaches
+	// these automatically on cross-site requests because they are SameSite=None.
+	cookies := []http.Cookie{
+		{Name: CookieName, Value: "abc"},
+		{Name: SubjectCookieName, Value: authClient.appSession.GetBearerToken()},
+	}
+	// A cross-origin WebSocket handshake: the Origin host differs from the app's,
+	// and there is no Sec-Fetch-Site (as on a real browser WebSocket upgrade).
+	crossOriginWS := map[string]string{
+		"Connection": "Upgrade",
+		"Upgrade":    "websocket",
+		"Origin":     "https://attacker.example",
+	}
+
+	for _, tc := range []struct {
+		name       string
+		action     string // TELEPORT_UNSTABLE_APP_CSWSH_ACTION
+		method     string
+		headers    map[string]string
+		wantStatus int
+	}{
+		{
+			name:       "block rejects cross-origin WebSocket",
+			action:     "block",
+			method:     "GET",
+			headers:    crossOriginWS,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "report-and-block rejects cross-origin WebSocket",
+			action:     "report-and-block",
+			method:     "GET",
+			headers:    crossOriginWS,
+			wantStatus: http.StatusForbidden,
+		},
+		{
+			name:       "cross-origin non-WebSocket request is forwarded under block (HTTP CSRF out of scope)",
+			action:     "block",
+			method:     "POST",
+			headers:    map[string]string{"Origin": "https://attacker.example"},
+			wantStatus: http.StatusOK,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Setenv(cswshActionEnv, tc.action)
+			p := setup(t, fakeClock, authClient, tunnel)
+			status, _, _ := p.makeRequestWithHeaders(t, tc.method, "/", []byte{}, cookies, tc.headers)
+			require.Equal(t, tc.wantStatus, status)
+		})
+	}
+}
+
 func TestHealthCheckAppServer(t *testing.T) {
 	ctx := context.Background()
 	clusterName := "test-cluster"
