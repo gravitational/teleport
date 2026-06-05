@@ -28,10 +28,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/lib/httplib/sse"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHandleNonStreaming(t *testing.T) {
@@ -77,7 +78,7 @@ func TestHandleNonStreaming(t *testing.T) {
 				require.Equal(tt, len(successResponse), rec.Written())
 				require.Equal(tt, 15, rec.InputTokensCount(), i2...)
 				require.Equal(tt, 20, rec.OutputTokensCount(), i2...)
-				require.NoError(tt, rec.Err())
+				require.NoError(tt, rec.Err(), i2...)
 			},
 		},
 		"non-json response": {
@@ -88,15 +89,16 @@ func TestHandleNonStreaming(t *testing.T) {
 				body, _ := i1.(string)
 				var apiErr errorEnvelope
 				require.NoError(tt, json.Unmarshal([]byte(body), &apiErr), "expected message to be in JSON format")
-				require.Contains(tt, body, llmerrors.ErrUnknown.Error(), "expected error response to include Teleport message")
+				require.Contains(tt, apiErr.Error.Message, llmerrors.ErrBadResponse.Error(), "expected error response to include Teleport message")
+				require.Contains(tt, apiErr.Error.Message, `unsupported "text/html" response type`, "expected error response to include the unsupported content-type detail")
 			},
 			expectedDownstreamStatusCode: expectStatus(http.StatusInternalServerError),
 			// In case of errors, we always expect empty Content-Length.
 			expectedContentLength: require.Empty,
 			expectedRecorder: func(tt require.TestingT, i1 any, i2 ...any) {
 				rec, _ := i1.(*ResponseRecorder)
-				require.Equal(tt, 146, rec.Written())
-				require.ErrorIs(tt, rec.Err(), llmerrors.ErrUnknown)
+				require.NotEmpty(tt, rec.Written(), i2...)
+				require.ErrorIs(tt, rec.Err(), llmerrors.ErrBadResponse, i2...)
 			},
 		},
 		"api invalid request includes original message": {
@@ -107,17 +109,17 @@ func TestHandleNonStreaming(t *testing.T) {
 				body, _ := i1.(string)
 				var apiErr errorEnvelope
 				require.NoError(tt, json.Unmarshal([]byte(body), &apiErr), "expected message to be in JSON format")
-				require.Contains(tt, body, "invalid model", "expected error response to include original message")
-				require.Contains(tt, body, llmerrors.ErrBadRequest.Error(), "expected error response to include Teleport message")
+				require.Contains(tt, apiErr.Error.Message, "invalid model", "expected error response to include original message")
+				require.Contains(tt, apiErr.Error.Message, llmerrors.ErrBadRequest.Error(), "expected error response to include Teleport message")
 			},
 			expectedDownstreamStatusCode: expectStatus(http.StatusBadRequest),
 			// In case of errors, we always expect empty Content-Length.
 			expectedContentLength: require.Empty,
 			expectedRecorder: func(tt require.TestingT, i1 any, i2 ...any) {
 				rec, _ := i1.(*ResponseRecorder)
-				require.Equal(tt, 197, rec.Written())
-				require.Equal(tt, rec.OutputTokensCount(), 0, i2...)
-				require.ErrorIs(tt, rec.Err(), llmerrors.ErrBadRequest)
+				require.NotEmpty(tt, rec.Written(), i2...)
+				require.Equal(tt, 0, rec.OutputTokensCount(), i2...)
+				require.ErrorIs(tt, rec.Err(), llmerrors.ErrBadRequest, i2...)
 			},
 		},
 		"auth error 401 rewrites message": {
@@ -129,15 +131,15 @@ func TestHandleNonStreaming(t *testing.T) {
 				var apiErr errorEnvelope
 				require.NoError(tt, json.Unmarshal([]byte(body), &apiErr), "expected message to be in JSON format")
 				require.NotContains(tt, body, "original provider secret", "expected error response to NOT include original message")
-				require.Contains(tt, body, llmerrors.ErrUnauthorized.Error(), "expected error response to include Teleport message")
+				require.Contains(tt, apiErr.Error.Message, llmerrors.ErrUnauthorized.Error(), "expected error response to include Teleport message")
 			},
 			expectedDownstreamStatusCode: expectStatus(http.StatusUnauthorized),
 			// In case of errors, we always expect empty Content-Length.
 			expectedContentLength: require.Empty,
 			expectedRecorder: func(tt require.TestingT, i1 any, i2 ...any) {
 				rec, _ := i1.(*ResponseRecorder)
-				require.Equal(tt, 202, rec.Written())
-				require.ErrorIs(tt, rec.Err(), llmerrors.ErrUnauthorized)
+				require.NotEmpty(tt, rec.Written(), i2...)
+				require.ErrorIs(tt, rec.Err(), llmerrors.ErrUnauthorized, i2...)
 			},
 		},
 		"empty success response": {
@@ -149,8 +151,8 @@ func TestHandleNonStreaming(t *testing.T) {
 			expectedContentLength:        expectContentLength(0),
 			expectedRecorder: func(tt require.TestingT, i1 any, i2 ...any) {
 				rec, _ := i1.(*ResponseRecorder)
-				require.Empty(tt, rec.Written())
-				require.NoError(tt, rec.Err(), i2...)
+				require.Empty(tt, rec.Written(), i2...)
+				require.ErrorIs(tt, rec.Err(), llmerrors.ErrBadResponse, i2...)
 			},
 		},
 		"empty error response": {
@@ -161,14 +163,15 @@ func TestHandleNonStreaming(t *testing.T) {
 				body, _ := i1.(string)
 				var apiErr errorEnvelope
 				require.NoError(tt, json.Unmarshal([]byte(body), &apiErr), "expected message to be in JSON format")
-				require.Contains(tt, body, llmerrors.ErrUnknown.Error(), "expected error response to include Teleport message")
+				require.Contains(tt, apiErr.Error.Message, llmerrors.ErrBadResponse.Error(), "expected error response to include Teleport message")
+				require.Contains(tt, apiErr.Error.Message, "invalid JSON response", "expected error response to include the unparseable-body detail")
 			},
 			expectedDownstreamStatusCode: expectStatus(http.StatusUnauthorized),
 			expectedContentLength:        require.Empty,
 			expectedRecorder: func(tt require.TestingT, i1 any, i2 ...any) {
 				rec, _ := i1.(*ResponseRecorder)
-				require.Equal(tt, 146, rec.Written())
-				require.ErrorIs(tt, rec.Err(), llmerrors.ErrUnknown)
+				require.NotEmpty(tt, rec.Written(), i2...)
+				require.ErrorIs(tt, rec.Err(), llmerrors.ErrBadResponse, i2...)
 			},
 		},
 		"broken response": {
@@ -186,8 +189,50 @@ func TestHandleNonStreaming(t *testing.T) {
 			expectedContentLength: expectContentLength(42),
 			expectedRecorder: func(tt require.TestingT, i1 any, i2 ...any) {
 				rec, _ := i1.(*ResponseRecorder)
-				require.Equal(tt, 42, rec.Written())
+				require.Equal(tt, 42, rec.Written(), i2...)
+				require.ErrorIs(tt, rec.Err(), llmerrors.ErrBadResponse, i2...)
+			},
+		},
+		"no write header success": {
+			// WriteHeader is not called.
+			providerStatusCode:  0,
+			providerBody:        successResponse,
+			providerContentType: "application/json",
+			expectedDownstreamBody: func(tt require.TestingT, i1 any, i2 ...any) {
+				body, _ := i1.(string)
+				// Expect unmodified response.
+				require.Equal(tt, successResponse, body, i2...)
+			},
+			expectedDownstreamStatusCode: expectStatus(http.StatusOK),
+			expectedContentLength:        expectContentLength(len(successResponse)),
+			expectedRecorder: func(tt require.TestingT, i1 any, i2 ...any) {
+				rec, _ := i1.(*ResponseRecorder)
+				require.Equal(tt, len(successResponse), rec.Written(), i2...)
+				require.Equal(tt, 15, rec.InputTokensCount(), i2...)
+				require.Equal(tt, 20, rec.OutputTokensCount(), i2...)
 				require.NoError(tt, rec.Err(), i2...)
+			},
+		},
+		"no write header unsupported content-type": {
+			// WriteHeader is not called.
+			providerStatusCode:  0,
+			providerBody:        "Non-JSON result",
+			providerContentType: "text/html",
+			expectedDownstreamBody: func(tt require.TestingT, i1 any, i2 ...any) {
+				body, _ := i1.(string)
+				var apiErr errorEnvelope
+				require.NoError(tt, json.Unmarshal([]byte(body), &apiErr), "expected message to be in JSON format")
+				require.Contains(tt, apiErr.Error.Message, llmerrors.ErrBadResponse.Error(), "expected error response to include Teleport message")
+				require.Contains(tt, apiErr.Error.Message, `unsupported "text/html" response type`, "expected error response to include the unsupported content-type detail")
+			},
+			// Without WriteHeader the recorder cannot force a 500 status nor
+			// strip the original Content-Length, so the status stays 200.
+			expectedDownstreamStatusCode: expectStatus(http.StatusOK),
+			expectedContentLength:        expectContentLength(len("Non-JSON result")),
+			expectedRecorder: func(tt require.TestingT, i1 any, i2 ...any) {
+				rec, _ := i1.(*ResponseRecorder)
+				require.NotEmpty(tt, rec.Written(), i2...)
+				require.ErrorIs(tt, rec.Err(), llmerrors.ErrBadResponse, i2...)
 			},
 		},
 	} {
@@ -204,13 +249,17 @@ func TestHandleNonStreaming(t *testing.T) {
 
 				rec.Header().Add("Content-Type", tc.providerContentType)
 				rec.Header().Add("Content-Length", strconv.Itoa(len(tc.providerBody)))
-				rec.WriteHeader(tc.providerStatusCode)
+				// A status code of 0 simulates a caller that never calls
+				// WriteHeader, exercising the default 200 status path.
+				if tc.providerStatusCode != 0 {
+					rec.WriteHeader(tc.providerStatusCode)
+				}
 				if len(tc.providerBody) > 0 {
 					_, err = io.WriteString(rec, tc.providerBody)
 					require.NoError(t, err)
 				}
 
-				rec.Close()
+				require.NoError(t, rec.Close())
 
 				resp := w.Result()
 				body, err := io.ReadAll(resp.Body)
@@ -230,13 +279,17 @@ func TestHandleNonStreaming(t *testing.T) {
 
 				rec.Header().Add("Content-Type", tc.providerContentType)
 				rec.Header().Add("Content-Length", strconv.Itoa(len(tc.providerBody)))
-				rec.WriteHeader(tc.providerStatusCode)
+				// A status code of 0 simulates a caller that never calls
+				// WriteHeader, exercising the default 200 status path.
+				if tc.providerStatusCode != 0 {
+					rec.WriteHeader(tc.providerStatusCode)
+				}
 				for chunk := range slices.Chunk([]byte(tc.providerBody), 1) {
 					_, err = rec.Write(chunk)
 					require.NoError(t, err)
 				}
 
-				rec.Close()
+				require.NoError(t, rec.Close())
 
 				resp := w.Result()
 				body, err := io.ReadAll(resp.Body)
@@ -348,7 +401,7 @@ func TestHandleStreaming(t *testing.T) {
 			rec, err := NewResponseRecorder(slog.Default(), w)
 			require.NoError(t, err)
 			tc.providerResp(rec)
-			rec.Close()
+			require.NoError(t, rec.Close())
 
 			resp := w.Result()
 			body, err := io.ReadAll(resp.Body)
@@ -421,14 +474,11 @@ func BenchmarkResponseRecorderJSON(b *testing.B) {
 				w := &discardResponseWriter{header: http.Header{}}
 				w.header.Set("Content-Type", "application/json")
 				rec, err := NewResponseRecorder(log, w)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(b, err)
 				rec.WriteHeader(http.StatusOK)
-				if _, err := rec.Write(bc.body); err != nil {
-					b.Fatal(err)
-				}
-				rec.Close()
+				_, err = rec.Write(bc.body)
+				require.NoError(b, err)
+				require.NoError(b, rec.Close())
 			}
 		})
 	}
@@ -461,17 +511,14 @@ func BenchmarkResponseRecorderStream(b *testing.B) {
 				w := &discardResponseWriter{header: http.Header{}}
 				w.header.Set("Content-Type", "text/event-stream")
 				rec, err := NewResponseRecorder(log, w)
-				if err != nil {
-					b.Fatal(err)
-				}
+				require.NoError(b, err)
 				rec.WriteHeader(http.StatusOK)
 				for _, e := range events {
-					if _, err := rec.Write(e); err != nil {
-						b.Fatal(err)
-					}
+					_, err := rec.Write(e)
+					require.NoError(b, err)
 				}
 				// Close waits for the SSE-processing goroutine to drain.
-				rec.Close()
+				require.NoError(b, rec.Close())
 			}
 		})
 	}

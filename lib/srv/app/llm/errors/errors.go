@@ -18,6 +18,7 @@ package errors
 
 import (
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/gravitational/trace"
@@ -36,6 +37,8 @@ var (
 	ErrRejected = errors.New("the inference provider rejected the request due to usage limits. Contact your Teleport administrator")
 	// ErrUnsupported returned when the requested endpoint is not supported.
 	ErrUnsupported = errors.New("teleport doesn't support the requested endpoint, please check the list of supported endpoints in the documentation")
+	// ErrBadResponse returned when the provider replied the request with an unsupported message or format.
+	ErrBadResponse = errors.New("the inference provider returned an unexpected response. Contact your Teleport administrator")
 	// ErrUnknown returned when the handler could not identify the error.
 	ErrUnknown = errors.New("the inference provider returned an unexpected error. Contact your Teleport administrator")
 )
@@ -47,7 +50,10 @@ type ProviderError struct {
 }
 
 // NewProviderError creates a new provider error with details.
-func NewProviderError(err error, detail string) *ProviderError {
+func NewProviderError(err error, detail string, args ...any) *ProviderError {
+	if len(args) > 0 {
+		detail = fmt.Sprintf(detail, args...)
+	}
 	return &ProviderError{err, detail}
 }
 
@@ -74,7 +80,7 @@ func StatusCodeFromErr(err error) int {
 	switch {
 	case errors.Is(err, ErrCanceled), errors.Is(err, ErrTimeout):
 		return http.StatusGatewayTimeout
-	case errors.Is(err, ErrBadRequest):
+	case errors.Is(err, ErrBadRequest), errors.Is(err, ErrBadResponse):
 		return http.StatusBadRequest
 	case errors.Is(err, ErrUnauthorized):
 		return http.StatusUnauthorized

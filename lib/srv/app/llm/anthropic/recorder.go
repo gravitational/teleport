@@ -43,7 +43,8 @@ type ResponseRecorder struct {
 	written      int
 	containsErr  bool
 	err          error
-	responseType func() (string, error)
+	responseType func() string
+	closed       atomic.Bool
 
 	// usage-related fields
 	inputTokensCount  int
@@ -71,17 +72,22 @@ func NewResponseRecorder(log *slog.Logger, w http.ResponseWriter) (*ResponseReco
 	}
 	r := &ResponseRecorder{
 		ResponseWriter: w,
-		flusher:        f,
-		log:            log,
-		buf:            new(bytes.Buffer),
+		// Defaults to 200, this matches the [http.ResponseWriter] expectation when
+		// [WriteHeader] is not called.
+		status:  http.StatusOK,
+		flusher: f,
+		log:     log,
+		buf:     new(bytes.Buffer),
 	}
 	r.writer = io.MultiWriter(w, r.buf)
-	r.responseType = sync.OnceValues(func() (string, error) {
+	r.responseType = sync.OnceValue(func() string {
 		mediaType, _, err := mime.ParseMediaType(w.Header().Get("Content-Type"))
 		if err != nil {
-			return "", trace.Wrap(err, "unable to retrieve response content type")
+			// No need to log the error here, the caller of this function will
+			// do the proper handling of this case (including logs).
+			return ""
 		}
-		return mediaType, nil
+		return mediaType
 	})
 	return r, nil
 }
@@ -91,7 +97,7 @@ func (r *ResponseRecorder) WriteHeader(status int) {
 	// In case of errors or response type not JSON, we delete the original
 	// Content-Length because we might rewrite the result contents, changing the
 	// total length.
-	contentType, _ := r.responseType()
+	contentType := r.responseType()
 	if status != http.StatusOK || contentType != "application/json" {
 		r.Header().Del("Content-Length")
 	}
@@ -103,6 +109,8 @@ func (r *ResponseRecorder) WriteHeader(status int) {
 	// API contract where errors return only when status code is not 200.
 	if contentType != "application/json" && contentType != "text/event-stream" {
 		status = http.StatusInternalServerError
+		r.log.ErrorContext(context.Background(), "unsupported response content-type", "content_type", contentType)
+		r.err = llmerrors.NewProviderError(llmerrors.ErrBadResponse, "unsupported %q response type", contentType)
 	}
 	if status != http.StatusOK {
 		r.containsErr = true
@@ -114,16 +122,13 @@ func (r *ResponseRecorder) WriteHeader(status int) {
 // Writer implements [http.ResponseWriter].
 func (r *ResponseRecorder) Write(data []byte) (int, error) {
 	if r.status != http.StatusOK {
+		// Necessary because [WriteHeader] might not have been called before
+		// [Write].
 		r.containsErr = true
 		return r.writeError(data)
 	}
 
-	contentType, err := r.responseType()
-	if err != nil {
-		r.containsErr = true
-		return 0, trace.Wrap(err)
-	}
-
+	contentType := r.responseType()
 	switch contentType {
 	case "application/json":
 		n, err := r.writer.Write(data)
@@ -132,14 +137,17 @@ func (r *ResponseRecorder) Write(data []byte) (int, error) {
 	case "text/event-stream":
 		return r.writeStream(data)
 	default:
-		r.log.ErrorContext(context.Background(), "unsupported response content-type", "content_type", contentType)
-		// This is very unlikely to happen, but in any case the upstream
-		// misbehave we default the response to JSON.
+		// This handling exists because callers are not guaranteed to call
+		// [WriteHeader]. So we must mimic the behavior here in case it wasn't
+		// called before.
 		//
 		// Note that at this point, we cannot change the status code returned,
-		// but we'll still return an error object here. In addition, the
-		// following parts must handle an empty error case.
-		r.containsErr = true
+		// but we'll still return an error object here.
+		if !r.containsErr {
+			r.log.ErrorContext(context.Background(), "unsupported response content-type", "content_type", contentType)
+			r.err = llmerrors.NewProviderError(llmerrors.ErrBadResponse, "unsupported %q response type", contentType)
+			r.containsErr = true
+		}
 		return len(data), nil
 	}
 }
@@ -162,7 +170,7 @@ func (r *ResponseRecorder) Written() int {
 	return r.written
 }
 
-// Err is the error returned to the downstream connection.
+// Err is the error encountered while processing/forwarding the response.
 //
 // Must be called after [Close].
 func (r *ResponseRecorder) Err() error {
@@ -183,23 +191,32 @@ func (r *ResponseRecorder) OutputTokensCount() int {
 	return r.outputTokensCount
 }
 
-// Close closes the recorder.
+// Close implements [io.Closer]. Errors returned are only related to the
+// recorder teardown. For processing errors, callers must retrieve errors using
+// [Err].
 //
 // Must be called once.
-func (r *ResponseRecorder) Close() {
+func (r *ResponseRecorder) Close() error {
+	if r.closed.Swap(true) {
+		return nil
+	}
+
 	// In case the response contains an error, this is the place where we write
 	// it back to the upstream.
 	if r.containsErr {
-		// Failure here could indicate that the message is incomplete or that it
-		// is malformed.
-		apiErr, err := parseProviderError(r.buf.Bytes())
-		if err != nil {
-			r.log.WarnContext(context.Background(), "unable to parse the provider error message", "error", err)
-			apiErr = llmerrors.NewProviderError(llmerrors.ErrUnknown, "")
+		// Error might already be defined, so we can skip parsing it.
+		if r.err == nil {
+			var err error
+			r.err, err = parseProviderError(r.buf.Bytes())
+			// Failure here could indicate that the message is incomplete or
+			// that it is malformed.
+			if err != nil {
+				r.log.WarnContext(context.Background(), "unable to parse the provider error message", "error", err)
+				r.err = llmerrors.NewProviderError(llmerrors.ErrBadResponse, "invalid JSON response")
+			}
 		}
 
-		encodedErr := marshalError(newErrorMessage(apiErr))
-		r.err = apiErr
+		encodedErr := marshalError(newErrorMessage(r.err))
 		r.written += len(encodedErr)
 		if _, err := r.ResponseWriter.Write(encodedErr); err != nil {
 			r.log.WarnContext(context.Background(), "unable to write error message to downstream", "error", err)
@@ -207,20 +224,29 @@ func (r *ResponseRecorder) Close() {
 	}
 
 	if r.sseWriter != nil {
-		r.sseWriter.Close()
+		err := r.sseWriter.Close()
 		<-r.streamDoneCh
-		return
+		return trace.Wrap(err)
+	}
+
+	// When request contains error, it won't contain usage information, so we
+	// can skip it.
+	if r.containsErr {
+		return nil
 	}
 
 	// Non-streaming requests we must try to extract result metrics at the end.
 	var result messagesAPIResult
 	err := utils.FastUnmarshal(r.buf.Bytes(), &result)
 	if err != nil {
-		return
+		r.log.WarnContext(context.Background(), "unable to parse messages result", "error", err)
+		r.err = llmerrors.NewProviderError(llmerrors.ErrBadResponse, "invalid JSON response")
+		return nil
 	}
 
 	r.inputTokensCount = result.Usage.InputTokens
 	r.outputTokensCount = result.Usage.OutputTokens
+	return nil
 }
 
 func (r *ResponseRecorder) writeStream(data []byte) (int, error) {

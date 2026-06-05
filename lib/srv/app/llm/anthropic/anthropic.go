@@ -24,9 +24,9 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	llmerrors "github.com/gravitational/teleport/lib/srv/app/llm/errors"
 	"github.com/gravitational/teleport/lib/srv/app/llm/models"
@@ -74,7 +74,7 @@ func NewRequest(cfg *NewRequestConfig) (*http.Request, *RequestInfo, error) {
 		info            = &RequestInfo{}
 		providerPath    string
 		providerMethod  string
-		providerHeaders http.Header = http.Header{}
+		providerHeaders = http.Header{}
 	)
 
 	if err := cfg.CheckAndSetDefaults(); err != nil {
