@@ -89,19 +89,14 @@ exclude_fields:
 # These fields will be marked as Computed: true
 computed_fields:
   - "InferenceModel.kind"
-  - "InferenceModel.metadata.expires"
   - "InferenceModel.metadata.namespace"
   - "InferenceSecret.kind"
-  - "InferenceSecret.metadata.expires"
   - "InferenceSecret.metadata.namespace"
   - "InferencePolicy.kind"
-  - "InferencePolicy.metadata.expires"
   - "InferencePolicy.metadata.namespace"
   - "Classifier.kind"
-  - "Classifier.metadata.expires"
   - "Classifier.metadata.namespace"
   - "RetrievalModel.kind"
-  - "RetrievalModel.metadata.expires"
   - "RetrievalModel.metadata.namespace"
 
 # These fields will be marked as Required: true
