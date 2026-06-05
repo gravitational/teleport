@@ -202,32 +202,32 @@ func TestDBCertSigning(t *testing.T) {
 		oldCert, err := tlsutils.ParseCertificatePEM(oldCertPEM)
 		require.NoError(t, err)
 
-		dbClientCAOverride = &subcav1.CertAuthorityOverride{
+		dbClientCAOverride = subcav1.CertAuthorityOverride_builder{
 			Kind:    types.KindCertAuthorityOverride,
 			SubKind: string(types.DatabaseClientCA),
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: clusterName,
-			},
-			Spec: &subcav1.CertAuthorityOverrideSpec{
+			}.Build(),
+			Spec: subcav1.CertAuthorityOverrideSpec_builder{
 				CertificateOverrides: []*subcav1.CertificateOverride{
 					subCAEnv.NewDisabledCertificateOverride(t, parsedActiveDBClientCert, nil),
 					subCAEnv.NewDisabledCertificateOverride(t, parsedNewDBClientCert, nil),
 					subCAEnv.NewDisabledCertificateOverride(t, oldCert, nil),
 				},
-			},
-		}
+			}.Build(),
+		}.Build()
 		// Include external root in the first override's chain.
-		dbClientCAOverride.Spec.CertificateOverrides[0].Chain = []string{string(externalRoot.CertPEM)}
+		dbClientCAOverride.GetSpec().GetCertificateOverrides()[0].SetChain([]string{string(externalRoot.CertPEM)})
 		// Active the old override.
-		dbClientCAOverride.Spec.CertificateOverrides[2].Disabled = false
+		dbClientCAOverride.GetSpec().GetCertificateOverrides()[2].SetDisabled(false)
 	}
 
 	// Map self-signed certificates to their overrides.
 	// Certificates absent from the map don't need to change.
 	caOverrideCertificateMap := map[string]*subcav1.CertificateOverride{
-		string(activeDBClientCACert): dbClientCAOverride.Spec.CertificateOverrides[0],
-		string(newDBClientCACert):    dbClientCAOverride.Spec.CertificateOverrides[1],
+		string(activeDBClientCACert): dbClientCAOverride.GetSpec().GetCertificateOverrides()[0],
+		string(newDBClientCACert):    dbClientCAOverride.GetSpec().GetCertificateOverrides()[1],
 	}
 	getOverrideAwareCertificates := func(
 		selfSignedCert []byte,
@@ -239,21 +239,21 @@ func TestDBCertSigning(t *testing.T) {
 		}
 
 		if includeChain {
-			chain = make([][]byte, 0, len(co.Chain)+1)
-			chain = append(chain, []byte(co.Certificate))
-			for _, pem := range co.Chain {
+			chain = make([][]byte, 0, len(co.GetChain())+1)
+			chain = append(chain, []byte(co.GetCertificate()))
+			for _, pem := range co.GetChain() {
 				chain = append(chain, []byte(pem))
 			}
 		}
 
-		return []byte(co.Certificate), co.PublicKey, chain
+		return []byte(co.GetCertificate()), co.GetPublicKey(), chain
 	}
 
 	mustDeleteCAOverrides := func(t *testing.T) {
 		t.Helper()
 		err := authServer.DeleteCertAuthorityOverride(t.Context(), types.CertAuthorityOverrideID{
-			ClusterName: dbClientCAOverride.Metadata.Name,
-			CAType:      dbClientCAOverride.SubKind,
+			ClusterName: dbClientCAOverride.GetMetadata().GetName(),
+			CAType:      dbClientCAOverride.GetSubKind(),
 		})
 		require.NoError(t, err, "DeleteCertAuthorityOverride errored")
 	}
@@ -360,8 +360,8 @@ func TestDBCertSigning(t *testing.T) {
 			t.Run("active_ca_overrides", func(t *testing.T) {
 				// Take a copy, then enable all overrides.
 				caOverride := proto.Clone(dbClientCAOverride).(*subcav1.CertAuthorityOverride)
-				for _, co := range caOverride.Spec.CertificateOverrides {
-					co.Disabled = false
+				for _, co := range caOverride.GetSpec().GetCertificateOverrides() {
+					co.SetDisabled(false)
 				}
 				_, err := authServer.CreateCertAuthorityOverride(t.Context(), caOverride)
 				require.NoError(t, err, "CreateCertAuthorityOverride errored")

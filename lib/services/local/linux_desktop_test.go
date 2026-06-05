@@ -58,10 +58,10 @@ func TestLinuxDesktopServiceCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 
 	update := proto.Clone(created).(*linuxdesktopv1.LinuxDesktop)
-	update.Spec.Hostname = "updated-host"
+	update.GetSpec().SetHostname("updated-host")
 	updated, err := service.UpdateLinuxDesktop(ctx, update)
 	require.NoError(t, err)
-	require.Equal(t, "updated-host", updated.Spec.Hostname)
+	require.Equal(t, "updated-host", updated.GetSpec().GetHostname())
 
 	require.NoError(t, service.DeleteLinuxDesktop(ctx, "desktop-1"))
 	out, _, err = service.ListLinuxDesktops(ctx, 10, "")
@@ -79,15 +79,15 @@ func TestLinuxDesktopServiceCRUD(t *testing.T) {
 }
 
 func newLinuxDesktop(name string) *linuxdesktopv1.LinuxDesktop {
-	return &linuxdesktopv1.LinuxDesktop{
+	return linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     "127.0.0.1:22",
 			Hostname: "host",
-		},
-	}
+		}.Build(),
+	}.Build()
 }

@@ -53,25 +53,25 @@ func TestService_GetUserPreferences(t *testing.T) {
 			name:     "success",
 			userName: defaultUser,
 			req:      &userpreferencesv1.GetUserPreferencesRequest{},
-			want: &userpreferencesv1.GetUserPreferencesResponse{
-				Preferences: &userpreferencesv1.UserPreferences{
+			want: userpreferencesv1.GetUserPreferencesResponse_builder{
+				Preferences: userpreferencesv1.UserPreferences_builder{
 					Theme:             userpreferencesv1.Theme_THEME_UNSPECIFIED,
 					SideNavDrawerMode: userpreferencesv1.SideNavDrawerMode_SIDE_NAV_DRAWER_MODE_UNSPECIFIED,
-					UnifiedResourcePreferences: &userpreferencesv1.UnifiedResourcePreferences{
+					UnifiedResourcePreferences: userpreferencesv1.UnifiedResourcePreferences_builder{
 						DefaultTab:            userpreferencesv1.DefaultTab_DEFAULT_TAB_ALL,
 						ViewMode:              userpreferencesv1.ViewMode_VIEW_MODE_CARD,
 						LabelsViewMode:        userpreferencesv1.LabelsViewMode_LABELS_VIEW_MODE_COLLAPSED,
 						AvailableResourceMode: userpreferencesv1.AvailableResourceMode_AVAILABLE_RESOURCE_MODE_NONE,
-					},
-					Onboard: &userpreferencesv1.OnboardUserPreferences{
+					}.Build(),
+					Onboard: userpreferencesv1.OnboardUserPreferences_builder{
 						PreferredResources: []userpreferencesv1.Resource{},
 						MarketingParams:    &userpreferencesv1.MarketingParams{},
-					},
-					ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
+					}.Build(),
+					ClusterPreferences: userpreferencesv1.ClusterUserPreferences_builder{
 						PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{},
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			wantErr: assert.NoError,
 		},
 		{
@@ -100,17 +100,17 @@ func TestService_GetUserPreferences(t *testing.T) {
 func TestService_UpsertUserPreferences(t *testing.T) {
 	t.Parallel()
 
-	defaultPreferences := &userpreferencesv1.UserPreferences{
+	defaultPreferences := userpreferencesv1.UserPreferences_builder{
 		Theme: userpreferencesv1.Theme_THEME_LIGHT,
-		Onboard: &userpreferencesv1.OnboardUserPreferences{
+		Onboard: userpreferencesv1.OnboardUserPreferences_builder{
 			PreferredResources: []userpreferencesv1.Resource{},
-		},
-		ClusterPreferences: &userpreferencesv1.ClusterUserPreferences{
-			PinnedResources: &userpreferencesv1.PinnedResourcesUserPreferences{
+		}.Build(),
+		ClusterPreferences: userpreferencesv1.ClusterUserPreferences_builder{
+			PinnedResources: userpreferencesv1.PinnedResourcesUserPreferences_builder{
 				ResourceIds: []string{"node1", "node2"},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	tests := []struct {
 		name     string
@@ -121,17 +121,17 @@ func TestService_UpsertUserPreferences(t *testing.T) {
 		{
 			name:     "success",
 			userName: defaultUser,
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+			req: userpreferencesv1.UpsertUserPreferencesRequest_builder{
 				Preferences: defaultPreferences,
-			},
+			}.Build(),
 			wantErr: assert.NoError,
 		},
 		{
 			name:     "access denied - user doesn't exist",
 			userName: nonExistingUser,
-			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+			req: userpreferencesv1.UpsertUserPreferencesRequest_builder{
 				Preferences: defaultPreferences,
-			},
+			}.Build(),
 			wantErr: assert.Error,
 		},
 	}

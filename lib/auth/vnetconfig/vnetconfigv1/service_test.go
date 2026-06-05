@@ -48,13 +48,13 @@ func TestServiceAccess(t *testing.T) {
 
 	ctx := context.Background()
 
-	vnetConfig := &vnet.VnetConfig{
+	vnetConfig := vnet.VnetConfig_builder{
 		Kind:    types.KindVnetConfig,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "vnet-config",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	type testCase struct {
 		name          string
@@ -73,7 +73,7 @@ func TestServiceAccess(t *testing.T) {
 			},
 			allowedVerbs: []string{types.VerbCreate},
 			action: func(service *Service) error {
-				_, err := service.CreateVnetConfig(ctx, &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
+				_, err := service.CreateVnetConfig(ctx, vnet.CreateVnetConfigRequest_builder{VnetConfig: vnetConfig}.Build())
 				return trace.Wrap(err)
 			},
 			requireEvent: &apievents.VnetConfigCreate{},
@@ -90,7 +90,7 @@ func TestServiceAccess(t *testing.T) {
 				if _, err := service.storage.CreateVnetConfig(ctx, vnetConfig); err != nil {
 					return trace.Wrap(err, "creating vnet_config as pre-req for Update test")
 				}
-				_, err := service.UpdateVnetConfig(ctx, &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig})
+				_, err := service.UpdateVnetConfig(ctx, vnet.UpdateVnetConfigRequest_builder{VnetConfig: vnetConfig}.Build())
 				return trace.Wrap(err)
 			},
 			requireEvent: &apievents.VnetConfigUpdate{},
@@ -121,7 +121,7 @@ func TestServiceAccess(t *testing.T) {
 			},
 			allowedVerbs: []string{types.VerbCreate, types.VerbUpdate},
 			action: func(service *Service) error {
-				_, err := service.UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
+				_, err := service.UpsertVnetConfig(ctx, vnet.UpsertVnetConfigRequest_builder{VnetConfig: vnetConfig}.Build())
 				return trace.Wrap(err)
 			},
 			requireEvent: &apievents.VnetConfigCreate{},
@@ -138,7 +138,7 @@ func TestServiceAccess(t *testing.T) {
 				if _, err := service.storage.CreateVnetConfig(ctx, vnetConfig); err != nil {
 					return trace.Wrap(err, "creating vnet_config as pre-req for Upsert test")
 				}
-				_, err := service.UpsertVnetConfig(ctx, &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
+				_, err := service.UpsertVnetConfig(ctx, vnet.UpsertVnetConfigRequest_builder{VnetConfig: vnetConfig}.Build())
 				return trace.Wrap(err)
 			},
 			requireEvent: &apievents.VnetConfigCreate{},
@@ -231,13 +231,13 @@ func TestServiceAccess(t *testing.T) {
 func TestServiceScopedAccess(t *testing.T) {
 	t.Parallel()
 
-	vnetConfig := &vnet.VnetConfig{
+	vnetConfig := vnet.VnetConfig_builder{
 		Kind:    types.KindVnetConfig,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameVnetConfig,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	t.Run("read allowed despite scope pin", func(t *testing.T) {
 		service, _ := newServiceWithScopedAuthorizer(t, newFakeScopedAuthorizer(t))
@@ -254,15 +254,15 @@ func TestServiceScopedAccess(t *testing.T) {
 	t.Run("write denied for scoped identity", func(t *testing.T) {
 		service, emitter := newServiceWithScopedAuthorizer(t, newFakeScopedAuthorizer(t))
 
-		_, err := service.CreateVnetConfig(t.Context(), &vnet.CreateVnetConfigRequest{VnetConfig: vnetConfig})
+		_, err := service.CreateVnetConfig(t.Context(), vnet.CreateVnetConfigRequest_builder{VnetConfig: vnetConfig}.Build())
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 		require.Empty(t, emitter.Events(), "expected no audit events on access denied")
 
-		_, err = service.UpdateVnetConfig(t.Context(), &vnet.UpdateVnetConfigRequest{VnetConfig: vnetConfig})
+		_, err = service.UpdateVnetConfig(t.Context(), vnet.UpdateVnetConfigRequest_builder{VnetConfig: vnetConfig}.Build())
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 		require.Empty(t, emitter.Events(), "expected no audit events on access denied")
 
-		_, err = service.UpsertVnetConfig(t.Context(), &vnet.UpsertVnetConfigRequest{VnetConfig: vnetConfig})
+		_, err = service.UpsertVnetConfig(t.Context(), vnet.UpsertVnetConfigRequest_builder{VnetConfig: vnetConfig}.Build())
 		require.ErrorAs(t, err, new(*trace.AccessDeniedError))
 		require.Empty(t, emitter.Events(), "expected no audit events on access denied")
 
@@ -373,7 +373,7 @@ func (f fakeScopedRoleReader) GetScopedRole(_ context.Context, req *scopedaccess
 	if role == nil {
 		return nil, trace.NotFound("scoped role %q not found", req.GetName())
 	}
-	return &scopedaccessv1.GetScopedRoleResponse{Role: role}, nil
+	return scopedaccessv1.GetScopedRoleResponse_builder{Role: role}.Build(), nil
 }
 
 func (f fakeScopedRoleReader) ListScopedRoles(context.Context, *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
@@ -381,7 +381,7 @@ func (f fakeScopedRoleReader) ListScopedRoles(context.Context, *scopedaccessv1.L
 	for _, role := range f.roles {
 		roles = append(roles, role)
 	}
-	return &scopedaccessv1.ListScopedRolesResponse{Roles: roles}, nil
+	return scopedaccessv1.ListScopedRolesResponse_builder{Roles: roles}.Build(), nil
 }
 
 func newFakeScopedAuthorizer(t *testing.T) fakeScopedAuthorizer {
@@ -389,10 +389,10 @@ func newFakeScopedAuthorizer(t *testing.T) fakeScopedAuthorizer {
 
 	checkerContext, err := services.NewScopedAccessCheckerContext(t.Context(), &services.AccessInfo{
 		Username: "alice",
-		ScopePin: &scopesv1.Pin{
+		ScopePin: scopesv1.Pin_builder{
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/test",
-		},
+		}.Build(),
 	}, "test-cluster", fakeScopedRoleReader{})
 	require.NoError(t, err)
 

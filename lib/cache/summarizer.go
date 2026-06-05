@@ -54,13 +54,13 @@ func newInferenceModelCollection(upstream services.Summarizer, w types.WatchKind
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *summarizerv1.InferenceModel {
-			return &summarizerv1.InferenceModel{
+			return summarizerv1.InferenceModel_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil
@@ -120,13 +120,13 @@ func newInferenceSecretCollection(upstream services.Summarizer, w types.WatchKin
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *summarizerv1.InferenceSecret {
-			return &summarizerv1.InferenceSecret{
+			return summarizerv1.InferenceSecret_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil
@@ -186,13 +186,13 @@ func newInferencePolicyCollection(upstream services.Summarizer, w types.WatchKin
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *summarizerv1.InferencePolicy {
-			return &summarizerv1.InferencePolicy{
+			return summarizerv1.InferencePolicy_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil
@@ -284,13 +284,13 @@ func newRetrievalModelCollection(upstream services.Summarizer, w types.WatchKind
 			return []*summarizerv1.RetrievalModel{model}, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *summarizerv1.RetrievalModel {
-			return &summarizerv1.RetrievalModel{
+			return summarizerv1.RetrievalModel_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil

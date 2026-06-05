@@ -101,10 +101,10 @@ func (c *scopedAssignmentsListCommand) TryRun(ctx context.Context, cmd string, c
 
 // list retrieves scoped role assignments matching the configured filters and writes them.
 func (c *scopedAssignmentsListCommand) list(ctx context.Context, client services.ScopedRoleAssignmentReader) error {
-	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client, &scopedaccessv1.ListScopedRoleAssignmentsRequest{
+	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client, scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
 		User: c.user,
 		Role: c.role,
-	}))
+	}.Build()))
 	if err != nil {
 		return trace.Wrap(err, "collecting filtered scoped role assignments")
 	}

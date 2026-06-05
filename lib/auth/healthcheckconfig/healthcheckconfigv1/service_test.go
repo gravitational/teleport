@@ -67,9 +67,9 @@ func TestHealthCheckConfigCRUD(t *testing.T) {
 		{
 			name: "CreateHealthCheckConfig",
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
-				_, err := clt.ServiceUnderTest.CreateHealthCheckConfig(ctx, &healthcheckconfigv1.CreateHealthCheckConfigRequest{
+				_, err := clt.ServiceUnderTest.CreateHealthCheckConfig(ctx, healthcheckconfigv1.CreateHealthCheckConfigRequest_builder{
 					Config: newResource(t),
-				})
+				}.Build())
 				return err
 			},
 			requiredAccessRules: []types.Rule{healthCheckConfigRule(types.VerbCreate)},
@@ -82,9 +82,9 @@ func TestHealthCheckConfigCRUD(t *testing.T) {
 				cfg1 := newResource(t)
 				_, err := clt.CreateHealthCheckConfig(ctx, cfg1)
 				require.NoError(t, err)
-				_, err = clt.ServiceUnderTest.GetHealthCheckConfig(ctx, &healthcheckconfigv1.GetHealthCheckConfigRequest{
-					Name: cfg1.Metadata.GetName(),
-				})
+				_, err = clt.ServiceUnderTest.GetHealthCheckConfig(ctx, healthcheckconfigv1.GetHealthCheckConfigRequest_builder{
+					Name: cfg1.GetMetadata().GetName(),
+				}.Build())
 				return err
 			},
 			requiredAccessRules: []types.Rule{healthCheckConfigRule(types.VerbRead)},
@@ -99,7 +99,7 @@ func TestHealthCheckConfigCRUD(t *testing.T) {
 				resp, err := clt.ServiceUnderTest.ListHealthCheckConfigs(ctx, &healthcheckconfigv1.ListHealthCheckConfigsRequest{})
 				if err == nil {
 					require.NotNil(t, resp)
-					require.Len(t, resp.Configs, 2+teleport.VirtualDefaultHealthCheckConfigCount,
+					require.Len(t, resp.GetConfigs(), 2+teleport.VirtualDefaultHealthCheckConfigCount,
 						"expected 2 inserted and virtual defaults")
 				}
 				return err
@@ -112,13 +112,13 @@ func TestHealthCheckConfigCRUD(t *testing.T) {
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
 				cfg, err := clt.CreateHealthCheckConfig(ctx, newResource(t))
 				require.NoError(t, err)
-				cfg.Spec.HealthyThreshold = 3
-				cfg, err = clt.ServiceUnderTest.UpdateHealthCheckConfig(ctx, &healthcheckconfigv1.UpdateHealthCheckConfigRequest{
+				cfg.GetSpec().SetHealthyThreshold(3)
+				cfg, err = clt.ServiceUnderTest.UpdateHealthCheckConfig(ctx, healthcheckconfigv1.UpdateHealthCheckConfigRequest_builder{
 					Config: cfg,
-				})
+				}.Build())
 				if err == nil {
 					require.NotNil(t, cfg, "the updated resource should be returned")
-					require.Equal(t, 3, int(cfg.Spec.HealthyThreshold), "the resource should have been updated")
+					require.Equal(t, 3, int(cfg.GetSpec().GetHealthyThreshold()), "the resource should have been updated")
 				}
 				return err
 			},
@@ -129,9 +129,9 @@ func TestHealthCheckConfigCRUD(t *testing.T) {
 			name: "UpsertHealthCheckConfig",
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
 				cfg := newResource(t)
-				_, err := clt.ServiceUnderTest.UpsertHealthCheckConfig(ctx, &healthcheckconfigv1.UpsertHealthCheckConfigRequest{
+				_, err := clt.ServiceUnderTest.UpsertHealthCheckConfig(ctx, healthcheckconfigv1.UpsertHealthCheckConfigRequest_builder{
 					Config: cfg,
-				})
+				}.Build())
 				return err
 			},
 			requiredAccessRules: []types.Rule{healthCheckConfigRule(types.VerbCreate, types.VerbUpdate)},
@@ -143,9 +143,9 @@ func TestHealthCheckConfigCRUD(t *testing.T) {
 			actionFn: func(t *testing.T, ctx context.Context, clt testClient) error {
 				cfg, err := clt.CreateHealthCheckConfig(ctx, newResource(t))
 				require.NoError(t, err)
-				_, err = clt.ServiceUnderTest.DeleteHealthCheckConfig(ctx, &healthcheckconfigv1.DeleteHealthCheckConfigRequest{
-					Name: cfg.Metadata.GetName(),
-				})
+				_, err = clt.ServiceUnderTest.DeleteHealthCheckConfig(ctx, healthcheckconfigv1.DeleteHealthCheckConfigRequest_builder{
+					Name: cfg.GetMetadata().GetName(),
+				}.Build())
 				return err
 			},
 			requiredAccessRules: []types.Rule{healthCheckConfigRule(types.VerbDelete)},
@@ -219,14 +219,14 @@ func (c *accessTest) run(t *testing.T) {
 func newResource(t *testing.T) *healthcheckconfigv1.HealthCheckConfig {
 	t.Helper()
 	r, err := healthcheckconfig.NewHealthCheckConfig(uuid.NewString(),
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
-				DbLabels: []*labelv1.Label{{
+		healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
+				DbLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   "*",
 					Values: []string{"*"},
-				}},
-			},
-		},
+				}.Build()},
+			}.Build(),
+		}.Build(),
 	)
 	require.NoError(t, err)
 	return r

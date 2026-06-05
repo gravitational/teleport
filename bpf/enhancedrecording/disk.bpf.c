@@ -29,7 +29,10 @@ char LICENSE[] SEC("license") = "Dual BSD/GPL";
 // failures like ENOENT — that's fine, do_filp_open falls back
 // to the unresolved path from struct filename in that case.
 struct inflight_disk_t {
-    bool valid;
+    // valid_unsent is true if file_path is set and it has not already 
+    // been added to an event for userland to consume.
+    bool valid_unsent;
+    // file_path is the resolved path of the file being opened.
     u8 file_path[PATH_MAX];
 };
 
@@ -71,6 +74,17 @@ BPF_RING_BUF(open_events, EVENTS_BUF_SIZE);
 
 BPF_COUNTER(lost);
 
+void zero_data(struct data_t *data)
+{
+    data->cgroup = 0;
+    data->audit_session_id = 0;
+    data->pid = 0;
+    data->return_code = 0;
+    data->command[0] = '\0';
+    data->file_path[0] = '\0';
+    data->flags = 0;
+}
+
 // security_file_open allows us to get the resolved absolute path
 // of the file being opened. We stash the resolved path so 
 // fexit/do_filp_open can emit an event with a return code and our
@@ -90,8 +104,11 @@ int BPF_PROG(security_file_open, struct file *f)
         return 0;
     }
 
+    info->valid_unsent = false;
+    info->file_path[0] = '\0';
+
     if (bpf_d_path(&f->f_path, (char *)info->file_path, sizeof(info->file_path)) > 0) {
-        info->valid = true;
+        info->valid_unsent = true;
     }
 
     return 0;
@@ -119,9 +136,10 @@ int BPF_PROG(do_filp_open_exit, int dfd, struct filename *pathname, const struct
         bpf_printk("open_events ring buffer full");
         goto out;
     }
+    zero_data(data);
 
     // Use the resolved path from security_file_open if possible.
-    if (info && info->valid) {
+    if (info && info->valid_unsent) {
         bpf_probe_read_kernel_str(data->file_path, sizeof(data->file_path), info->file_path);
     } else {
         const char *name = BPF_CORE_READ(pathname, name);
@@ -149,7 +167,7 @@ out:
     // Mark consumed so a subsequent open on the same thread doesn't 
     // pick up stale data.
     if (info) {
-        info->valid = false;
+        info->valid_unsent = false;
     }
 
     return 0;

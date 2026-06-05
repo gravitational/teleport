@@ -50,25 +50,25 @@ func (f *testSingletonFuncs153[T]) CheckAndSetDefaults(t *testing.T) {
 	if f.setup == nil {
 		f.setup = func(t T) {
 			metadata := t.GetMetadata()
-			if metadata.Expires == nil {
-				metadata.Expires = timestamppb.New(time.Now().Add(30 * time.Minute))
+			if !metadata.HasExpires() {
+				metadata.SetExpires(timestamppb.New(time.Now().Add(30 * time.Minute)))
 			} else {
-				expiry := metadata.Expires.AsTime()
-				metadata.Expires = timestamppb.New(expiry.Add(30 * time.Minute))
+				expiry := metadata.GetExpires().AsTime()
+				metadata.SetExpires(timestamppb.New(expiry.Add(30 * time.Minute)))
 			}
-			metadata.Labels = map[string]string{"label": "value1"}
+			metadata.SetLabels(map[string]string{"label": "value1"})
 		}
 	}
 	if f.modify == nil {
 		f.modify = func(t T) {
 			metadata := t.GetMetadata()
-			if metadata.Expires == nil {
-				metadata.Expires = timestamppb.New(time.Now().Add(30 * time.Minute))
+			if !metadata.HasExpires() {
+				metadata.SetExpires(timestamppb.New(time.Now().Add(30 * time.Minute)))
 			} else {
-				expiry := metadata.Expires.AsTime()
-				metadata.Expires = timestamppb.New(expiry.Add(30 * time.Minute))
+				expiry := metadata.GetExpires().AsTime()
+				metadata.SetExpires(timestamppb.New(expiry.Add(30 * time.Minute)))
 			}
-			metadata.Labels["label"] = "value2"
+			metadata.GetLabels()["label"] = "value2"
 		}
 	}
 	if f.cmpOpts == nil {

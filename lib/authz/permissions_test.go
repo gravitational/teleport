@@ -1631,13 +1631,13 @@ func TestAuthorizeRejectsScopedAgents(t *testing.T) {
 	_, _, authorizer := newTestResources(t)
 
 	scopedRole := authz.ScopedBuiltinRole{
-		ScopePin: &scopesv1.Pin{
+		ScopePin: scopesv1.Pin_builder{
 			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 			Scope: "/some/scope",
-			SystemRoles: &scopesv1.SystemRoles{
+			SystemRoles: scopesv1.SystemRoles_builder{
 				Primary: string(types.RoleNode),
-			},
-		},
+			}.Build(),
+		}.Build(),
 		ServerFQDN:  "node-uuid." + clusterName,
 		ClusterName: clusterName,
 		Identity: tlsca.Identity{
@@ -1657,13 +1657,13 @@ func TestScopedContextLockTargets(t *testing.T) {
 	t.Run("ScopedBuiltinRole", func(t *testing.T) {
 		scopedCtx := &authz.ScopedContext{
 			Identity: authz.ScopedBuiltinRole{
-				ScopePin: &scopesv1.Pin{
+				ScopePin: scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 					Scope: "/test",
-					SystemRoles: &scopesv1.SystemRoles{
+					SystemRoles: scopesv1.SystemRoles_builder{
 						Primary: string(types.RoleNode),
-					},
-				},
+					}.Build(),
+				}.Build(),
 				ServerFQDN:  "node-uuid." + clusterName,
 				ClusterName: clusterName,
 				Identity: tlsca.Identity{
@@ -1688,10 +1688,10 @@ func TestScopedContextLockTargets(t *testing.T) {
 				Identity: tlsca.Identity{
 					Username:    "alice",
 					MFAVerified: "mfa-device-id",
-					ScopePin: &scopesv1.Pin{
+					ScopePin: scopesv1.Pin_builder{
 						Kind:  scopesv1.PinKind_PIN_KIND_USER,
 						Scope: "/test",
-					},
+					}.Build(),
 				},
 			},
 		}
@@ -1732,13 +1732,13 @@ func TestAuthorizeScopedWithLocksForScopedBuiltinRole(t *testing.T) {
 	require.NoError(t, err)
 
 	scopedRole := authz.ScopedBuiltinRole{
-		ScopePin: &scopesv1.Pin{
+		ScopePin: scopesv1.Pin_builder{
 			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 			Scope: "/test/scope",
-			SystemRoles: &scopesv1.SystemRoles{
+			SystemRoles: scopesv1.SystemRoles_builder{
 				Primary: string(types.RoleNode),
-			},
-		},
+			}.Build(),
+		}.Build(),
 		ServerFQDN:  "node-uuid." + clusterName,
 		ClusterName: clusterName,
 		Identity: tlsca.Identity{
@@ -1815,14 +1815,14 @@ func TestAuthorizeScopedBuiltinRolePartialSkip(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.desc, func(t *testing.T) {
-			pin := &scopesv1.Pin{
+			pin := scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 				Scope: "/test/scope",
-				SystemRoles: &scopesv1.SystemRoles{
+				SystemRoles: scopesv1.SystemRoles_builder{
 					Primary:    string(types.RoleInstance),
 					Additional: tt.roles,
-				},
-			}
+				}.Build(),
+			}.Build()
 			role := authz.ScopedBuiltinRole{
 				ScopePin:    pin,
 				ServerFQDN:  "node-uuid." + clusterName,
@@ -1859,10 +1859,10 @@ func TestAuthorizeScopedWithLocksForScopedLocalUser(t *testing.T) {
 	user, _, err := authtest.CreateUserAndRole(client, "test-scoped-user", []string{}, nil)
 	require.NoError(t, err)
 
-	scopedPin := &scopesv1.Pin{
+	scopedPin := scopesv1.Pin_builder{
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/test/scope",
-	}
+	}.Build()
 	localUser := authz.LocalUser{
 		Username: user.GetName(),
 		Identity: tlsca.Identity{

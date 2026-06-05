@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
@@ -120,30 +121,28 @@ func (a *Server) checkInventorySystemClocks(ctx context.Context) {
 // servers related to the system clock difference in nodes.
 func upsertClockWarningGlobalNotification(ctx context.Context, notification services.Notifications, title, text string) error {
 	now := time.Now()
-	_, err := notification.UpsertGlobalNotification(ctx, &notificationsv1.GlobalNotification{
+	_, err := notification.UpsertGlobalNotification(ctx, notificationsv1.GlobalNotification_builder{
 		Kind:     types.KindGlobalNotification,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: systemClockNotificationWarningName},
-		Spec: &notificationsv1.GlobalNotificationSpec{
-			Matcher: &notificationsv1.GlobalNotificationSpec_All{
-				All: true,
-			},
-			Notification: &notificationsv1.Notification{
+		Metadata: headerv1.Metadata_builder{Name: systemClockNotificationWarningName}.Build(),
+		Spec: notificationsv1.GlobalNotificationSpec_builder{
+			All: proto.Bool(true),
+			Notification: notificationsv1.Notification_builder{
 				SubKind: types.NotificationDefaultWarningSubKind,
-				Spec: &notificationsv1.NotificationSpec{
+				Spec: notificationsv1.NotificationSpec_builder{
 					Created: timestamppb.New(now),
-				},
-				Metadata: &headerv1.Metadata{
+				}.Build(),
+				Metadata: headerv1.Metadata_builder{
 					Expires: timestamppb.New(now.Add(systemClockNotificationExpiration)),
 					Name:    systemClockNotificationWarningName,
 					Labels: map[string]string{
 						types.NotificationTitleLabel:       title,
 						types.NotificationTextContentLabel: text,
 					},
-				},
-			},
-		},
-	})
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	return trace.Wrap(err)
 }
 

@@ -40,9 +40,9 @@ func TestRecordingEncryption(t *testing.T) {
 	ctx := context.Background()
 
 	initialEncryption := pb.RecordingEncryption{
-		Spec: &pb.RecordingEncryptionSpec{
+		Spec: pb.RecordingEncryptionSpec_builder{
 			ActiveKeyPairs: nil,
-		},
+		}.Build(),
 	}
 
 	// get should fail when there's no recording encryption
@@ -55,28 +55,28 @@ func TestRecordingEncryption(t *testing.T) {
 	encryption, err := service.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
 
-	require.Empty(t, created.Spec.ActiveKeyPairs)
-	require.Empty(t, encryption.Spec.ActiveKeyPairs)
+	require.Empty(t, created.GetSpec().GetActiveKeyPairs())
+	require.Empty(t, encryption.GetSpec().GetActiveKeyPairs())
 
-	encryption.Spec.ActiveKeyPairs = []*pb.KeyPair{
-		{
+	encryption.GetSpec().SetActiveKeyPairs([]*pb.KeyPair{
+		pb.KeyPair_builder{
 			KeyPair: &types.EncryptionKeyPair{
 				PrivateKey: []byte("recording encryption private"),
 				PublicKey:  []byte("recording encryption public"),
 				Hash:       0,
 			},
-		},
-	}
+		}.Build(),
+	})
 
 	updated, err := service.UpdateRecordingEncryption(ctx, encryption)
 	require.NoError(t, err)
-	require.Len(t, updated.Spec.ActiveKeyPairs, 1)
-	require.EqualExportedValues(t, encryption.Spec.ActiveKeyPairs[0], updated.Spec.ActiveKeyPairs[0])
+	require.Len(t, updated.GetSpec().GetActiveKeyPairs(), 1)
+	require.EqualExportedValues(t, encryption.GetSpec().GetActiveKeyPairs()[0], updated.GetSpec().GetActiveKeyPairs()[0])
 
 	encryption, err = service.GetRecordingEncryption(ctx)
 	require.NoError(t, err)
-	require.Len(t, encryption.Spec.ActiveKeyPairs, 1)
-	require.EqualExportedValues(t, updated.Spec.ActiveKeyPairs[0], encryption.Spec.ActiveKeyPairs[0])
+	require.Len(t, encryption.GetSpec().GetActiveKeyPairs(), 1)
+	require.EqualExportedValues(t, updated.GetSpec().GetActiveKeyPairs()[0], encryption.GetSpec().GetActiveKeyPairs()[0])
 
 	err = service.DeleteRecordingEncryption(ctx)
 	require.NoError(t, err)
@@ -112,16 +112,16 @@ func TestRotatedKeys(t *testing.T) {
 		PrivateKeyType: types.PrivateKeyType_RAW,
 	})
 	require.NoError(t, err)
-	require.Equal(t, testRSA4096PrivateKeyPEM, created.Spec.EncryptionKeyPair.PrivateKey)
-	require.Equal(t, publicKeyDER, created.Spec.EncryptionKeyPair.PublicKey)
-	require.Equal(t, types.PrivateKeyType_RAW, created.Spec.EncryptionKeyPair.PrivateKeyType)
+	require.Equal(t, testRSA4096PrivateKeyPEM, created.GetSpec().GetEncryptionKeyPair().PrivateKey)
+	require.Equal(t, publicKeyDER, created.GetSpec().GetEncryptionKeyPair().PublicKey)
+	require.Equal(t, types.PrivateKeyType_RAW, created.GetSpec().GetEncryptionKeyPair().PrivateKeyType)
 
 	rotatedKey, err := service.GetRotatedKey(ctx, fingerprint)
 	require.NoError(t, err)
 
-	require.Equal(t, testRSA4096PrivateKeyPEM, rotatedKey.Spec.EncryptionKeyPair.PrivateKey)
-	require.Equal(t, publicKeyDER, rotatedKey.Spec.EncryptionKeyPair.PublicKey)
-	require.Equal(t, types.PrivateKeyType_RAW, rotatedKey.Spec.EncryptionKeyPair.PrivateKeyType)
+	require.Equal(t, testRSA4096PrivateKeyPEM, rotatedKey.GetSpec().GetEncryptionKeyPair().PrivateKey)
+	require.Equal(t, publicKeyDER, rotatedKey.GetSpec().GetEncryptionKeyPair().PublicKey)
+	require.Equal(t, types.PrivateKeyType_RAW, rotatedKey.GetSpec().GetEncryptionKeyPair().PrivateKeyType)
 
 	err = service.DeleteRotatedKey(ctx, fingerprint)
 	require.NoError(t, err)

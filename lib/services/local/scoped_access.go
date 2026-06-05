@@ -97,9 +97,9 @@ func (s *ScopedAccessService) GetScopedRole(ctx context.Context, req *scopedacce
 		return nil, trace.Wrap(err)
 	}
 
-	return &scopedaccessv1.GetScopedRoleResponse{
+	return scopedaccessv1.GetScopedRoleResponse_builder{
 		Role: role,
-	}, nil
+	}.Build(), nil
 }
 
 // ListScopedRoles returns a paginated list of scoped roles.
@@ -130,9 +130,9 @@ func (s *ScopedAccessService) ListScopedRoles(ctx context.Context, req *scopedac
 		out = append(out, role)
 	}
 
-	return &scopedaccessv1.ListScopedRolesResponse{
+	return scopedaccessv1.ListScopedRolesResponse_builder{
 		Roles: out,
-	}, nil
+	}.Build(), nil
 }
 
 // StreamScopedRoles returns a stream of all scoped roles in the backend. Malformed roles are skipped. Returned roles
@@ -196,9 +196,9 @@ func (s *ScopedAccessService) CreateScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.Wrap(err)
 	}
 
-	return &scopedaccessv1.CreateScopedRoleResponse{
+	return scopedaccessv1.CreateScopedRoleResponse_builder{
 		Role: scopedRoleWithRevision(role, lease.Revision),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopedaccessv1.UpdateScopedRoleRequest) (*scopedaccessv1.UpdateScopedRoleResponse, error) {
@@ -211,9 +211,9 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.Wrap(err)
 	}
 
-	extant, err := s.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+	extant, err := s.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
 		Name: role.GetMetadata().GetName(),
-	})
+	}.Build())
 	if err != nil {
 		if trace.IsNotFound(err) {
 			// generic condition failure keeps error handling simpler
@@ -250,9 +250,9 @@ func (s *ScopedAccessService) UpdateScopedRole(ctx context.Context, req *scopeda
 		return nil, trace.Wrap(err)
 	}
 
-	return &scopedaccessv1.UpdateScopedRoleResponse{
+	return scopedaccessv1.UpdateScopedRoleResponse_builder{
 		Role: scopedRoleWithRevision(role, lease.Revision),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *ScopedAccessService) DeleteScopedRole(ctx context.Context, req *scopedaccessv1.DeleteScopedRoleRequest) (*scopedaccessv1.DeleteScopedRoleResponse, error) {
@@ -303,35 +303,35 @@ func (s *ScopedAccessService) UpsertScopedRole(ctx context.Context, req *scopeda
 			}
 		}
 
-		existing, err := s.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+		existing, err := s.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
 			Name: role.GetMetadata().GetName(),
-		})
+		}.Build())
 		if trace.IsNotFound(err) {
-			rsp, err := s.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+			rsp, err := s.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 				Role: role,
-			})
+			}.Build())
 			if err != nil {
 				if trace.IsCompareFailed(err) {
 					continue
 				}
 				return nil, trace.Wrap(err)
 			}
-			return &scopedaccessv1.UpsertScopedRoleResponse{Role: rsp.GetRole()}, nil
+			return scopedaccessv1.UpsertScopedRoleResponse_builder{Role: rsp.GetRole()}.Build(), nil
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		rsp, err := s.UpdateScopedRole(ctx, &scopedaccessv1.UpdateScopedRoleRequest{
+		rsp, err := s.UpdateScopedRole(ctx, scopedaccessv1.UpdateScopedRoleRequest_builder{
 			Role: scopedRoleWithRevision(role, existing.GetRole().GetMetadata().GetRevision()),
-		})
+		}.Build())
 		if err != nil {
 			if trace.IsCompareFailed(err) || trace.IsNotFound(err) {
 				continue
 			}
 			return nil, trace.Wrap(err)
 		}
-		return &scopedaccessv1.UpsertScopedRoleResponse{Role: rsp.GetRole()}, nil
+		return scopedaccessv1.UpsertScopedRoleResponse_builder{Role: rsp.GetRole()}.Build(), nil
 	}
 
 	return nil, trace.LimitExceeded("exceeded max retries attempting to upsert scoped role %q", role.GetMetadata().GetName())
@@ -367,9 +367,9 @@ func (s *ScopedAccessService) GetScopedRoleAssignment(ctx context.Context, req *
 		return nil, trace.Wrap(err)
 	}
 
-	return &scopedaccessv1.GetScopedRoleAssignmentResponse{
+	return scopedaccessv1.GetScopedRoleAssignmentResponse_builder{
 		Assignment: assignment,
-	}, nil
+	}.Build(), nil
 }
 
 // ListScopedRoleAssignments returns a paginated list of scoped role assignments.
@@ -395,9 +395,9 @@ func (s *ScopedAccessService) ListScopedRoleAssignments(ctx context.Context, req
 		out = append(out, assignment)
 	}
 
-	return &scopedaccessv1.ListScopedRoleAssignmentsResponse{
+	return scopedaccessv1.ListScopedRoleAssignmentsResponse_builder{
 		Assignments: out,
-	}, nil
+	}.Build(), nil
 }
 
 // StreamScopedRoleAssignments returns a stream of all scoped role assignments in the backend. Malformed assignments are skipped.
@@ -481,9 +481,9 @@ func (s *ScopedAccessService) CreateScopedRoleAssignment(ctx context.Context, re
 		return nil, trace.Wrap(err)
 	}
 
-	return &scopedaccessv1.CreateScopedRoleAssignmentResponse{
+	return scopedaccessv1.CreateScopedRoleAssignmentResponse_builder{
 		Assignment: scopedRoleAssignmentWithRevision(assignment, lease.Revision),
-	}, nil
+	}.Build(), nil
 }
 
 // UpdateScopedRoleAssignment updates an existing scoped role assignment.
@@ -501,10 +501,10 @@ func (s *ScopedAccessService) UpdateScopedRoleAssignment(ctx context.Context, re
 		return nil, trace.BadParameter("scoped role assignment resource %q contains too many sub-assignments (max %d)", assignment.GetMetadata().GetName(), scopedaccess.MaxRolesPerAssignment)
 	}
 
-	extant, err := s.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+	extant, err := s.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    assignment.GetMetadata().GetName(),
 		SubKind: assignment.GetSubKind(),
-	})
+	}.Build())
 	if trace.IsNotFound(err) {
 		// generic condition failure keeps error handling simpler
 		return nil, trace.CompareFailed("scoped role assignment %q not found", assignment.GetMetadata().GetName())
@@ -537,9 +537,9 @@ func (s *ScopedAccessService) UpdateScopedRoleAssignment(ctx context.Context, re
 		return nil, trace.Wrap(err)
 	}
 
-	return &scopedaccessv1.UpdateScopedRoleAssignmentResponse{
+	return scopedaccessv1.UpdateScopedRoleAssignmentResponse_builder{
 		Assignment: scopedRoleAssignmentWithRevision(assignment, lease.Revision),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *ScopedAccessService) UpsertScopedRoleAssignment(ctx context.Context, req *scopedaccessv1.UpsertScopedRoleAssignmentRequest) (*scopedaccessv1.UpsertScopedRoleAssignmentResponse, error) {
@@ -564,35 +564,35 @@ func (s *ScopedAccessService) UpsertScopedRoleAssignment(ctx context.Context, re
 			}
 		}
 
-		_, err := s.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		_, err := s.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    assignment.GetMetadata().GetName(),
 			SubKind: assignment.GetSubKind(),
-		})
+		}.Build())
 		if trace.IsNotFound(err) {
-			rsp, err := s.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+			rsp, err := s.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 				Assignment: assignment,
-			})
+			}.Build())
 			if err != nil {
 				if trace.IsCompareFailed(err) {
 					continue
 				}
 				return nil, trace.Wrap(err)
 			}
-			return &scopedaccessv1.UpsertScopedRoleAssignmentResponse{Assignment: rsp.GetAssignment()}, nil
+			return scopedaccessv1.UpsertScopedRoleAssignmentResponse_builder{Assignment: rsp.GetAssignment()}.Build(), nil
 		}
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		// update path
-		ursp, err := s.UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{Assignment: assignment})
+		ursp, err := s.UpdateScopedRoleAssignment(ctx, scopedaccessv1.UpdateScopedRoleAssignmentRequest_builder{Assignment: assignment}.Build())
 		if err != nil {
 			if trace.IsCompareFailed(err) || trace.IsNotFound(err) {
 				continue
 			}
 			return nil, trace.Wrap(err)
 		}
-		return &scopedaccessv1.UpsertScopedRoleAssignmentResponse{Assignment: ursp.GetAssignment()}, nil
+		return scopedaccessv1.UpsertScopedRoleAssignmentResponse_builder{Assignment: ursp.GetAssignment()}.Build(), nil
 	}
 
 	return nil, trace.LimitExceeded("exceeded max retries attempting to upsert scoped role assignment %q", assignment.GetMetadata().GetName())
@@ -671,8 +671,8 @@ func scopedRoleFromItem(item *backend.Item) (*scopedaccessv1.ScopedRole, error) 
 		return nil, trace.BadParameter("role at %q is critically malformed (missing metadata)", item.Key)
 	}
 
-	role.Metadata.Revision = item.Revision
-	role.Metadata.Expires = utils.TimeIntoProto(item.Expires)
+	role.GetMetadata().SetRevision(item.Revision)
+	role.GetMetadata().SetExpires(utils.TimeIntoProto(item.Expires))
 	return &role, nil
 }
 
@@ -681,7 +681,7 @@ func scopedRoleToItem(role *scopedaccessv1.ScopedRole) (backend.Item, error) {
 		return backend.Item{}, trace.BadParameter("missing metadata in scoped role")
 	}
 
-	if role.GetMetadata().Expires != nil {
+	if role.GetMetadata().HasExpires() {
 		return backend.Item{}, trace.BadParameter("scoped roles do not support expiration")
 	}
 
@@ -707,8 +707,8 @@ func scopedRoleAssignmentFromItem(item *backend.Item) (*scopedaccessv1.ScopedRol
 		return nil, trace.BadParameter("assignment at %q is critically malformed (missing metadata)", item.Key)
 	}
 
-	assignment.Metadata.Revision = item.Revision
-	assignment.Metadata.Expires = utils.TimeIntoProto(item.Expires)
+	assignment.GetMetadata().SetRevision(item.Revision)
+	assignment.GetMetadata().SetExpires(utils.TimeIntoProto(item.Expires))
 	return &assignment, nil
 }
 
@@ -717,7 +717,7 @@ func scopedRoleAssignmentToItem(assignment *scopedaccessv1.ScopedRoleAssignment)
 		return backend.Item{}, trace.BadParameter("missing metadata in scoped role assignment")
 	}
 
-	if assignment.GetMetadata().Expires != nil {
+	if assignment.GetMetadata().HasExpires() {
 		return backend.Item{}, trace.BadParameter("scoped role assignments do not support expiration")
 	}
 
@@ -743,13 +743,13 @@ func scopedRoleAssignmentToItem(assignment *scopedaccessv1.ScopedRoleAssignment)
 // scopedRoleWithRevision creates a copy of the provided role with an updated revision.
 func scopedRoleWithRevision(role *scopedaccessv1.ScopedRole, revision string) *scopedaccessv1.ScopedRole {
 	role = apiutils.CloneProtoMsg(role)
-	role.Metadata.Revision = revision
+	role.GetMetadata().SetRevision(revision)
 	return role
 }
 
 // scopedRoleAssignmentWithRevision creates a shallow copy of the provided assignment with an updated revision.
 func scopedRoleAssignmentWithRevision(assignment *scopedaccessv1.ScopedRoleAssignment, revision string) *scopedaccessv1.ScopedRoleAssignment {
 	assignment = apiutils.CloneProtoMsg(assignment)
-	assignment.Metadata.Revision = revision
+	assignment.GetMetadata().SetRevision(revision)
 	return assignment
 }

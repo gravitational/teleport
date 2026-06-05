@@ -40,19 +40,19 @@ type inferenceSecretClient struct {
 // Get gets an inference secret with a given name from Teleport.
 func (c inferenceSecretClient) Get(ctx context.Context, name string) (*summarizerv1.InferenceSecret, error) {
 	resp, err := c.teleportClient.SummarizerServiceClient().GetInferenceSecret(
-		ctx, &summarizerv1.GetInferenceSecretRequest{Name: name},
+		ctx, summarizerv1.GetInferenceSecretRequest_builder{Name: name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return resp.Secret, nil
+	return resp.GetSecret(), nil
 }
 
 // Create creates an inference secret in Teleport.
 func (c inferenceSecretClient) Create(ctx context.Context, secret *summarizerv1.InferenceSecret) error {
 	_, err := c.teleportClient.SummarizerServiceClient().CreateInferenceSecret(
-		ctx, &summarizerv1.CreateInferenceSecretRequest{Secret: secret},
+		ctx, summarizerv1.CreateInferenceSecretRequest_builder{Secret: secret}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -60,7 +60,7 @@ func (c inferenceSecretClient) Create(ctx context.Context, secret *summarizerv1.
 // Update updates an existing inference secret in Teleport.
 func (c inferenceSecretClient) Update(ctx context.Context, secret *summarizerv1.InferenceSecret) error {
 	_, err := c.teleportClient.SummarizerServiceClient().UpdateInferenceSecret(
-		ctx, &summarizerv1.UpdateInferenceSecretRequest{Secret: secret},
+		ctx, summarizerv1.UpdateInferenceSecretRequest_builder{Secret: secret}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -68,7 +68,7 @@ func (c inferenceSecretClient) Update(ctx context.Context, secret *summarizerv1.
 // Delete deletes an inference secret with a given name from Teleport.
 func (c inferenceSecretClient) Delete(ctx context.Context, name string) error {
 	_, err := c.teleportClient.SummarizerServiceClient().DeleteInferenceSecret(
-		ctx, &summarizerv1.DeleteInferenceSecretRequest{Name: name},
+		ctx, summarizerv1.DeleteInferenceSecretRequest_builder{Name: name}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -81,7 +81,7 @@ func (c inferenceSecretClient) Mutate(ctx context.Context, new, _ *summarizerv1.
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		new.Spec.Value = resolvedSecret
+		new.GetSpec().SetValue(resolvedSecret)
 	}
 	return nil
 }

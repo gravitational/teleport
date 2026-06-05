@@ -93,9 +93,9 @@ func (a *Server) RegisterUsingTPMMethod(
 	}
 
 	if initReq.JoinRequest.Role == types.RoleBot {
-		params := makeBotCertsParams(initReq.JoinRequest, validatedEK, &workloadidentityv1pb.JoinAttrs{
+		params := makeBotCertsParams(initReq.JoinRequest, validatedEK, workloadidentityv1pb.JoinAttrs_builder{
 			Tpm: validatedEK.JoinAttrs(),
-		})
+		}.Build())
 		certs, _, err := a.GenerateBotCertsForJoin(ctx, ptv2, params)
 		return certs, trace.Wrap(err, "generating certs for bot")
 	}

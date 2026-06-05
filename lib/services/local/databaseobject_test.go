@@ -52,7 +52,7 @@ func getService(t *testing.T) services.DatabaseObjects {
 
 func getObject(t *testing.T, index int) *dbobjectv1.DatabaseObject {
 	name := fmt.Sprintf("obj%v", index)
-	obj, err := databaseobject.NewDatabaseObject(name, &dbobjectv1.DatabaseObjectSpec{Name: name, Protocol: "postgres"})
+	obj, err := databaseobject.NewDatabaseObject(name, dbobjectv1.DatabaseObjectSpec_builder{Name: name, Protocol: "postgres"}.Build())
 	require.NoError(t, err)
 
 	return obj
@@ -71,7 +71,7 @@ func TestCreateDatabaseObjects(t *testing.T) {
 	ctx := context.Background()
 	service := getService(t)
 
-	obj, err := databaseobject.NewDatabaseObject("obj", &dbobjectv1.DatabaseObjectSpec{Name: "obj", Protocol: "postgres"})
+	obj, err := databaseobject.NewDatabaseObject("obj", dbobjectv1.DatabaseObjectSpec_builder{Name: "obj", Protocol: "postgres"}.Build())
 	require.NoError(t, err)
 
 	// first attempt should succeed
@@ -90,7 +90,7 @@ func TestUpsertDatabaseObjects(t *testing.T) {
 	ctx := context.Background()
 	service := getService(t)
 
-	obj, err := databaseobject.NewDatabaseObject("obj", &dbobjectv1.DatabaseObjectSpec{Name: "obj", Protocol: "postgres"})
+	obj, err := databaseobject.NewDatabaseObject("obj", dbobjectv1.DatabaseObjectSpec_builder{Name: "obj", Protocol: "postgres"}.Build())
 	require.NoError(t, err)
 
 	// first attempt should succeed
@@ -160,15 +160,15 @@ func TestUpdateDatabaseObject(t *testing.T) {
 	expiry := timestamppb.New(time.Now().Add(30 * time.Minute))
 
 	obj := getObject(t, 0)
-	obj.Metadata.Expires = expiry
+	obj.GetMetadata().SetExpires(expiry)
 
 	objUpdated, err := service.UpdateDatabaseObject(ctx, obj)
 	require.NoError(t, err)
-	require.Equal(t, expiry, objUpdated.Metadata.Expires)
+	require.Equal(t, expiry, objUpdated.GetMetadata().GetExpires())
 
-	objFresh, err := service.GetDatabaseObject(ctx, obj.Metadata.Name)
+	objFresh, err := service.GetDatabaseObject(ctx, obj.GetMetadata().GetName())
 	require.NoError(t, err)
-	require.Equal(t, expiry, objFresh.Metadata.Expires)
+	require.Equal(t, expiry, objFresh.GetMetadata().GetExpires())
 }
 
 func TestDeleteDatabaseObject(t *testing.T) {
@@ -265,7 +265,7 @@ func TestListDatabaseObjects(t *testing.T) {
 func TestMarshalDatabaseObjectRoundTrip(t *testing.T) {
 	t.Parallel()
 
-	spec := &dbobjectv1.DatabaseObjectSpec{Name: "dummy", Protocol: "postgres"}
+	spec := dbobjectv1.DatabaseObjectSpec_builder{Name: "dummy", Protocol: "postgres"}.Build()
 	obj, err := databaseobject.NewDatabaseObject("dummy-table", spec)
 	require.NoError(t, err)
 

@@ -1054,52 +1054,52 @@ func NewSystemBeamRole(buildType string) types.Role {
 // health checks for all databases resources, and is intended to be used as a
 // virtual default resource. Its name is "default" for historical reasons.
 func VirtualDefaultHealthCheckConfigDB() *healthcheckconfigv1.HealthCheckConfig {
-	return &healthcheckconfigv1.HealthCheckConfig{
+	return healthcheckconfigv1.HealthCheckConfig_builder{
 		Kind:    types.KindHealthCheckConfig,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        teleport.VirtualDefaultHealthCheckConfigDBName,
 			Description: "Enables health checks for all databases by default",
 			// this revision MUST be changed every time we change the contents
 			// of the preset so that conditional updates can check against it
 			Revision: "af391615-1e42-4237-aa2b-155e6abbd41a",
-		},
-		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
+		}.Build(),
+		Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
 				// match all databases
-				DbLabels: []*labelv1.Label{{
+				DbLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
-				}},
-			},
-		},
-	}
+				}.Build()},
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 // VirtualDefaultHealthCheckConfigKube returns a health_check_config enabling
 // health checks for all Kubernetes resources. It's intended to be used as a
 // virtual default resource.
 func VirtualDefaultHealthCheckConfigKube() *healthcheckconfigv1.HealthCheckConfig {
-	return &healthcheckconfigv1.HealthCheckConfig{
+	return healthcheckconfigv1.HealthCheckConfig_builder{
 		Kind:    types.KindHealthCheckConfig,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        teleport.VirtualDefaultHealthCheckConfigKubeName,
 			Description: "Enables health checks for all Kubernetes clusters by default.",
 			// this revision MUST be changed every time we change the contents
 			// of the preset so that conditional updates can check against it
 			Revision: "d796f007-e60c-4747-8dde-f479aff6b743",
-		},
-		Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
+		}.Build(),
+		Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
 				// match all kubernetes clusters
-				KubernetesLabels: []*labelv1.Label{{
+				KubernetesLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
-				}},
-			},
-		},
-	}
+				}.Build()},
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 // bootstrapRoleMetadataLabels are metadata labels that will be applied to each role.

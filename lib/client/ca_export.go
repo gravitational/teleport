@@ -485,13 +485,13 @@ func ExportIntegrationAuthorities(ctx context.Context, client authclient.ClientI
 }
 
 func fetchIntegrationCAKeySet(ctx context.Context, client authclient.ClientI, integration string) (*types.CAKeySet, error) {
-	resp, err := client.IntegrationsClient().ExportIntegrationCertAuthorities(ctx, &integrationpb.ExportIntegrationCertAuthoritiesRequest{
+	resp, err := client.IntegrationsClient().ExportIntegrationCertAuthorities(ctx, integrationpb.ExportIntegrationCertAuthoritiesRequest_builder{
 		Integration: integration,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resp.CertAuthorities, nil
+	return resp.GetCertAuthorities(), nil
 }
 
 func exportGitHubCAs(keySet *types.CAKeySet, req ExportIntegrationAuthoritiesRequest) (string, error) {

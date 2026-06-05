@@ -115,9 +115,9 @@ func (c *InventoryCommand) TryRun(ctx context.Context, cmd string, clientFunc co
 }
 
 func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client) error {
-	rsp, err := client.GetInventoryStatus(ctx, &proto.InventoryStatusRequest{
+	rsp, err := client.GetInventoryStatus(ctx, proto.InventoryStatusRequest_builder{
 		Connected: c.getConnected,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -140,10 +140,10 @@ func (c *InventoryCommand) Status(ctx context.Context, client *authclient.Client
 		}
 
 		printHierarchicalData(map[string]any{
-			"Versions":        toAnyMap(rsp.VersionCounts),
-			"Upgraders":       toAnyMap(rsp.UpgraderCounts),
-			"Services":        toAnyMap(rsp.ServiceCounts),
-			"Total Instances": rsp.InstanceCount,
+			"Versions":        toAnyMap(rsp.GetVersionCounts()),
+			"Upgraders":       toAnyMap(rsp.GetUpgraderCounts()),
+			"Services":        toAnyMap(rsp.GetServiceCounts()),
+			"Total Instances": rsp.GetInstanceCount(),
 		}, "  ", 0)
 	case teleport.JSON:
 		output, err := json.Marshal(rsp)

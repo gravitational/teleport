@@ -19,6 +19,7 @@
 package azure
 
 import (
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -46,9 +47,55 @@ func ConvertResponseError(err error) error {
 			return trace.AlreadyExists("%s", responseErr)
 		case http.StatusNotFound:
 			return trace.NotFound("%s", responseErr)
+		case http.StatusTooManyRequests:
+			// TODO(marco): Extract the Retry-After header or any other indication of when we can retry the request.
+			return trace.LimitExceeded("%s", responseErr)
+
+		case http.StatusBadRequest:
+			// Azure API return BadRequest in multiple scenarios, so we need to inspect the error details to ensure we return the most accurate error type.
+			if errorDetails := errorDetails(responseErr); errorDetails != nil {
+				switch errorDetails.Code {
+				case "SubscriptionsContainInvalidGuids":
+					return trace.BadParameter("%s", responseErr)
+
+				case "NoValidSubscriptionsInQueryRequest":
+					return trace.AccessDenied("%s", responseErr)
+				}
+			}
 		}
 	case errors.As(err, &authenticationFailedErr):
 		return trace.AccessDenied("%s", authenticationFailedErr)
 	}
 	return err // Return unmodified.
+}
+
+// errorDetails does a best-effort attempt to extract error details, and may return nil if the detail cannot be extracted for any reason.
+func errorDetails(responseErr *azcore.ResponseError) *apiErrorDetail {
+	if responseErr == nil || responseErr.RawResponse == nil {
+		return nil
+	}
+	body := responseErr.RawResponse.Body
+	defer body.Close()
+
+	var apiErrResp apiResponseError
+	if err := json.NewDecoder(body).Decode(&apiErrResp); err != nil {
+		return nil
+	}
+
+	if len(apiErrResp.Error.Details) == 0 {
+		return nil
+	}
+
+	return &apiErrResp.Error.Details[0]
+}
+
+type apiResponseError struct {
+	Error struct {
+		Details []apiErrorDetail `json:"details"`
+	} `json:"error"`
+}
+
+type apiErrorDetail struct {
+	Code    string `json:"code"`
+	Message string `json:"message"`
 }

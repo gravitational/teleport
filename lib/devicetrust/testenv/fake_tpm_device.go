@@ -58,22 +58,22 @@ func (f *FakeTPMDevice) GetDeviceOSType() devicepb.OSType {
 }
 
 func (f *FakeTPMDevice) CollectDeviceData(mode native.CollectDataMode) (*devicepb.DeviceCollectedData, error) {
-	return &devicepb.DeviceCollectedData{
+	return devicepb.DeviceCollectedData_builder{
 		CollectTime:  timestamppb.Now(),
 		OsType:       f.OSType,
 		SerialNumber: f.SerialNumber,
 		// Note: other data points are nice to have, but not mandatory.
-	}, nil
+	}.Build(), nil
 }
 
 var validEKKey = []byte("FAKE_VALID_EK_KEY")
-var validAttestationParameters = &devicepb.TPMAttestationParameters{
+var validAttestationParameters = devicepb.TPMAttestationParameters_builder{
 	Public: []byte("FAKE_TPMT_PUBLIC_FOR_AK"),
-}
+}.Build()
 
 func (f *FakeTPMDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	cd, _ := f.CollectDeviceData(native.CollectedDataAlwaysEscalate)
-	return &devicepb.EnrollDeviceInit{
+	return devicepb.EnrollDeviceInit_builder{
 		CredentialId: f.CredentialID,
 		DeviceData:   cd,
 		Tpm: &devicepb.TPMEnrollPayload{
@@ -82,7 +82,7 @@ func (f *FakeTPMDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 			},
 			AttestationParameters: validAttestationParameters,
 		},
-	}, nil
+	}.Build(), nil
 }
 
 func (f *FakeTPMDevice) SolveTPMEnrollChallenge(
@@ -95,15 +95,15 @@ func (f *FakeTPMDevice) SolveTPMEnrollChallenge(
 	// This lets us assert from the server that the `SolveTPMEnrollChallenge`
 	// is provided all the values from the server by `RunCeremony`.
 	solution := append(
-		challenge.EncryptedCredential.Secret,
-		challenge.EncryptedCredential.CredentialBlob...,
+		challenge.GetEncryptedCredential().GetSecret(),
+		challenge.GetEncryptedCredential().GetCredentialBlob()...,
 	)
-	return &devicepb.TPMEnrollChallengeResponse{
+	return devicepb.TPMEnrollChallengeResponse_builder{
 		Solution: solution,
-		PlatformParameters: &devicepb.TPMPlatformParameters{
-			EventLog: challenge.AttestationNonce,
-		},
-	}, nil
+		PlatformParameters: devicepb.TPMPlatformParameters_builder{
+			EventLog: challenge.GetAttestationNonce(),
+		}.Build(),
+	}.Build(), nil
 }
 
 func (f *FakeTPMDevice) SolveTPMAuthnDeviceChallenge(
@@ -112,11 +112,11 @@ func (f *FakeTPMDevice) SolveTPMAuthnDeviceChallenge(
 	// This fake is similar to the one used in SolveTPMEnrollChallenge except
 	// only the PlatformAttestation is faked, as CredentialActivation is not
 	// used in device authentication.
-	return &devicepb.TPMAuthenticateDeviceChallengeResponse{
-		PlatformParameters: &devicepb.TPMPlatformParameters{
-			EventLog: challenge.AttestationNonce,
-		},
-	}, nil
+	return devicepb.TPMAuthenticateDeviceChallengeResponse_builder{
+		PlatformParameters: devicepb.TPMPlatformParameters_builder{
+			EventLog: challenge.GetAttestationNonce(),
+		}.Build(),
+	}.Build(), nil
 }
 
 func (f *FakeTPMDevice) SignChallenge(_ []byte) (sig []byte, err error) {
@@ -124,7 +124,7 @@ func (f *FakeTPMDevice) SignChallenge(_ []byte) (sig []byte, err error) {
 }
 
 func (f *FakeTPMDevice) GetDeviceCredential() *devicepb.DeviceCredential {
-	return &devicepb.DeviceCredential{
+	return devicepb.DeviceCredential_builder{
 		Id: f.CredentialID,
-	}
+	}.Build()
 }

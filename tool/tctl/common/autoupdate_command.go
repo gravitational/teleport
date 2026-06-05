@@ -374,7 +374,7 @@ func getAllReports(ctx context.Context, client autoupdateClient) ([]*autoupdatev
 
 func rolloutHasAgentCounters(rollout *autoupdatev1pb.AutoUpdateAgentRollout) bool {
 	for _, group := range rollout.GetStatus().GetGroups() {
-		if group.PresentCount != 0 {
+		if group.GetPresentCount() != 0 {
 			return true
 		}
 	}
@@ -389,8 +389,8 @@ func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, writer io
 		table := asciitable.MakeTable(headers)
 		for i, group := range groups {
 			groupName := group.GetName()
-			groupCount := group.PresentCount
-			groupUpToDate := group.UpToDateCount
+			groupCount := group.GetPresentCount()
+			groupUpToDate := group.GetUpToDateCount()
 			if i == len(groups)-1 {
 				groupName = groupName + " (catch-all)"
 			}
@@ -399,12 +399,12 @@ func rolloutGroupTable(rollout *autoupdatev1pb.AutoUpdateAgentRollout, writer io
 			// If this is the canary state, we annotate the group state with the canary progress
 			if group.GetState() == autoupdatev1pb.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_CANARY {
 				successCount := 0
-				for _, canary := range group.Canaries {
-					if canary.Success {
+				for _, canary := range group.GetCanaries() {
+					if canary.GetSuccess() {
 						successCount++
 					}
 				}
-				state = fmt.Sprintf("%s (%d/%d)", state, successCount, group.CanaryCount)
+				state = fmt.Sprintf("%s (%d/%d)", state, successCount, group.GetCanaryCount())
 			}
 
 			table.AddRow([]string{
@@ -526,16 +526,16 @@ func (c *AutoUpdateCommand) ToolsStatus(ctx context.Context, client autoupdateCl
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	if config != nil && config.Spec.Tools != nil {
-		response.Mode = config.Spec.Tools.Mode
+	if config != nil && config.GetSpec().HasTools() {
+		response.Mode = config.GetSpec().GetTools().GetMode()
 	}
 
 	version, err := client.GetAutoUpdateVersion(ctx)
 	if err != nil && !trace.IsNotFound(err) {
 		return trace.Wrap(err)
 	}
-	if version != nil && version.Spec.Tools != nil {
-		response.TargetVersion = version.Spec.Tools.TargetVersion
+	if version != nil && version.GetSpec().HasTools() {
+		response.TargetVersion = version.GetSpec().GetTools().GetTargetVersion()
 	}
 
 	return c.printToolsResponse(response)
@@ -574,13 +574,13 @@ func (c *AutoUpdateCommand) setToolsMode(ctx context.Context, client autoupdateC
 		return trace.Wrap(err)
 	}
 
-	if config.Spec.Tools == nil {
-		config.Spec.Tools = &autoupdatev1pb.AutoUpdateConfigSpecTools{}
+	if !config.GetSpec().HasTools() {
+		config.GetSpec().SetTools(&autoupdatev1pb.AutoUpdateConfigSpecTools{})
 	}
 
-	config.Spec.Tools.Mode = autoupdate.ToolsUpdateModeDisabled
+	config.GetSpec().GetTools().SetMode(autoupdate.ToolsUpdateModeDisabled)
 	if enabled {
-		config.Spec.Tools.Mode = autoupdate.ToolsUpdateModeEnabled
+		config.GetSpec().GetTools().SetMode(autoupdate.ToolsUpdateModeEnabled)
 	}
 	if _, err := setMode(ctx, config); err != nil {
 		return trace.Wrap(err)
@@ -604,11 +604,11 @@ func (c *AutoUpdateCommand) setToolsTargetVersion(ctx context.Context, client au
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
-	if version.Spec.Tools == nil {
-		version.Spec.Tools = &autoupdatev1pb.AutoUpdateVersionSpecTools{}
+	if !version.GetSpec().HasTools() {
+		version.GetSpec().SetTools(&autoupdatev1pb.AutoUpdateVersionSpecTools{})
 	}
-	if version.Spec.Tools.TargetVersion != c.toolsTargetVersion {
-		version.Spec.Tools.TargetVersion = c.toolsTargetVersion
+	if version.GetSpec().GetTools().GetTargetVersion() != c.toolsTargetVersion {
+		version.GetSpec().GetTools().SetTargetVersion(c.toolsTargetVersion)
 		if _, err := setTargetVersion(ctx, version); err != nil {
 			return trace.Wrap(err)
 		}
@@ -624,8 +624,8 @@ func (c *AutoUpdateCommand) clearToolsTargetVersion(ctx context.Context, client 
 	} else if err != nil {
 		return trace.Wrap(err)
 	}
-	if version.Spec.Tools != nil {
-		version.Spec.Tools = nil
+	if version.GetSpec().HasTools() {
+		version.GetSpec().ClearTools()
 		if _, err := client.UpdateAutoUpdateVersion(ctx, version); err != nil {
 			return trace.Wrap(err)
 		}

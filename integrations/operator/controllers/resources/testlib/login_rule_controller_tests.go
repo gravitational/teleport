@@ -67,26 +67,26 @@ func (l *loginRuleTestingPrimitives) CreateTeleportResource(ctx context.Context,
 			},
 		},
 	}
-	rule.Metadata.SetOrigin(types.OriginKubernetes)
-	_, err := l.setup.TeleportClient.LoginRuleClient().CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
+	rule.GetMetadata().SetOrigin(types.OriginKubernetes)
+	_, err := l.setup.TeleportClient.LoginRuleClient().CreateLoginRule(ctx, loginrulepb.CreateLoginRuleRequest_builder{
 		LoginRule: &rule,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
 func (l *loginRuleTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*resourcesv1.LoginRuleResource, error) {
 	lrClient := l.setup.TeleportClient.LoginRuleClient()
-	loginRule, err := lrClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
+	loginRule, err := lrClient.GetLoginRule(ctx, loginrulepb.GetLoginRuleRequest_builder{
 		Name: name,
-	})
+	}.Build())
 	return &resourcesv1.LoginRuleResource{LoginRule: loginRule}, trail.FromGRPC(err)
 }
 
 func (l *loginRuleTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
 	lrClient := l.setup.TeleportClient.LoginRuleClient()
-	_, err := lrClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
+	_, err := lrClient.DeleteLoginRule(ctx, loginrulepb.DeleteLoginRuleRequest_builder{
 		Name: name,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 

@@ -84,10 +84,10 @@ func getAccessList(ctx context.Context, client *authclient.Client, ref services.
 	accessLists, err := stream.Collect(
 		clientutils.Resources(ctx, func(ctx context.Context, size int, token string) ([]*accesslist.AccessList, string, error) {
 			return client.AccessListClient().ListAccessListsV2(ctx,
-				&accesslistv1.ListAccessListsV2Request{
+				accesslistv1.ListAccessListsV2Request_builder{
 					PageSize:  int32(size),
 					PageToken: token,
-				})
+				}.Build())
 		}),
 	)
 

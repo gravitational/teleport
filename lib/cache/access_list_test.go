@@ -519,14 +519,14 @@ func TestListAccessListsV2(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			require.EventuallyWithT(t, func(t *assert.CollectT) {
-				results, nextToken, err := p.cache.ListAccessListsV2(ctx, &accesslistv1.ListAccessListsV2Request{
+				results, nextToken, err := p.cache.ListAccessListsV2(ctx, accesslistv1.ListAccessListsV2Request_builder{
 					PageSize:  int32(tc.pageSize),
 					PageToken: tc.startKey,
-					Filter: &accesslistv1.AccessListsFilter{
+					Filter: accesslistv1.AccessListsFilter_builder{
 						Search: tc.search,
-					},
+					}.Build(),
 					SortBy: tc.sortBy,
-				})
+				}.Build())
 				require.NoError(t, err)
 				require.Equal(t, tc.expectedNextKey, nextToken)
 

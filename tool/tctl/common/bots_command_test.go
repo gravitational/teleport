@@ -218,7 +218,7 @@ func TestUpdateBotLogins(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, mask.Paths, []string{"spec.traits"})
-				require.ElementsMatch(t, bot.Spec.Traits[0].Values, splitEntries("a,b,c,d,e"))
+				require.ElementsMatch(t, bot.GetSpec().GetTraits()[0].GetValues(), splitEntries("a,b,c,d,e"))
 			},
 		},
 		{
@@ -229,7 +229,7 @@ func TestUpdateBotLogins(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.Empty(t, mask.Paths)
-				require.ElementsMatch(t, bot.Spec.Traits[0].Values, splitEntries("a,b,c,d,e"))
+				require.ElementsMatch(t, bot.GetSpec().GetTraits()[0].GetValues(), splitEntries("a,b,c,d,e"))
 			},
 		},
 		{
@@ -238,7 +238,7 @@ func TestUpdateBotLogins(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, mask.Paths, []string{"spec.traits"})
-				require.ElementsMatch(t, bot.Spec.Traits[0].Values, splitEntries("a,b,c"))
+				require.ElementsMatch(t, bot.GetSpec().GetTraits()[0].GetValues(), splitEntries("a,b,c"))
 			},
 		},
 		{
@@ -248,7 +248,7 @@ func TestUpdateBotLogins(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, mask.Paths, []string{"spec.traits"})
-				require.ElementsMatch(t, bot.Spec.Traits[0].Values, splitEntries("a,b,c"))
+				require.ElementsMatch(t, bot.GetSpec().GetTraits()[0].GetValues(), splitEntries("a,b,c"))
 			},
 		},
 	}
@@ -260,23 +260,23 @@ func TestUpdateBotLogins(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			traits := []*machineidv1pb.Trait{}
 			if len(tt.initialLogins) > 0 {
-				traits = append(traits, &machineidv1pb.Trait{
+				traits = append(traits, machineidv1pb.Trait_builder{
 					Name:   constants.TraitLogins,
 					Values: tt.initialLogins,
-				})
+				}.Build())
 			}
 
-			bot := &machineidv1pb.Bot{
+			bot := machineidv1pb.Bot_builder{
 				Kind:    types.KindBot,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: botName,
-				},
-				Spec: &machineidv1pb.BotSpec{
+				}.Build(),
+				Spec: machineidv1pb.BotSpec_builder{
 					Roles:  []string{},
 					Traits: traits,
-				},
-			}
+				}.Build(),
+			}.Build()
 
 			fieldMask, err := fieldmaskpb.New(&machineidv1pb.Bot{})
 			require.NoError(t, err)
@@ -325,7 +325,7 @@ func TestUpdateBotRoles(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, mask.Paths, []string{"spec.roles"})
-				require.ElementsMatch(t, bot.Spec.Roles, splitEntries("a,b,c,d,e"))
+				require.ElementsMatch(t, bot.GetSpec().GetRoles(), splitEntries("a,b,c,d,e"))
 			},
 		},
 		{
@@ -337,7 +337,7 @@ func TestUpdateBotRoles(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.Empty(t, mask.Paths)
-				require.ElementsMatch(t, bot.Spec.Roles, splitEntries("a,b,c,d,e"))
+				require.ElementsMatch(t, bot.GetSpec().GetRoles(), splitEntries("a,b,c,d,e"))
 			},
 		},
 		{
@@ -348,7 +348,7 @@ func TestUpdateBotRoles(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.NoError(t, err)
 				require.ElementsMatch(t, mask.Paths, []string{"spec.roles"})
-				require.ElementsMatch(t, bot.Spec.Roles, splitEntries("a,b,c"))
+				require.ElementsMatch(t, bot.GetSpec().GetRoles(), splitEntries("a,b,c"))
 			},
 		},
 		{
@@ -359,7 +359,7 @@ func TestUpdateBotRoles(t *testing.T) {
 			assert: func(t *testing.T, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask, err error) {
 				require.True(t, trace.IsNotFound(err))
 				require.Empty(t, mask.Paths)
-				require.ElementsMatch(t, bot.Spec.Roles, splitEntries("a,b,c"))
+				require.ElementsMatch(t, bot.GetSpec().GetRoles(), splitEntries("a,b,c"))
 			},
 		},
 	}
@@ -373,16 +373,16 @@ func TestUpdateBotRoles(t *testing.T) {
 				roles: tt.knownRoles,
 			}
 
-			bot := &machineidv1pb.Bot{
+			bot := machineidv1pb.Bot_builder{
 				Kind:    types.KindBot,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: botName,
-				},
-				Spec: &machineidv1pb.BotSpec{
+				}.Build(),
+				Spec: machineidv1pb.BotSpec_builder{
 					Roles: tt.initialRoles,
-				},
-			}
+				}.Build(),
+			}.Build()
 
 			fieldMask, err := fieldmaskpb.New(&machineidv1pb.Bot{})
 			require.NoError(t, err)
@@ -434,16 +434,16 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	require.Empty(t, tokens)
 
 	// Create an initial bot
-	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	bot, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
+			}.Build(),
 			Spec: &machineidv1pb.BotSpec{},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Attempt to add a new instance and ensure a new token was created.
@@ -451,7 +451,7 @@ func TestAddAndListBotInstancesJSON(t *testing.T) {
 	cmd := BotsCommand{
 		stdout:  &buf,
 		format:  teleport.JSON,
-		botName: bot.Metadata.Name,
+		botName: bot.GetMetadata().GetName(),
 	}
 	require.NoError(t, cmd.AddBotInstance(ctx, client))
 
@@ -637,13 +637,13 @@ func TestListBotInstances(t *testing.T) {
 
 	instance0 := createBotInstance(t, ctx, process)
 	instance1 := createBotInstance(t, ctx, process, func(instance *machineidv1pb.BotInstance) {
-		instance.Status.InitialHeartbeat.Hostname = "test-hostname-3"
-		instance.Status.InitialHeartbeat.Version = "19.0.1"
+		instance.GetStatus().GetInitialHeartbeat().SetHostname("test-hostname-3")
+		instance.GetStatus().GetInitialHeartbeat().SetVersion("19.0.1")
 	})
 	instance2 := createBotInstance(t, ctx, process, func(instance *machineidv1pb.BotInstance) {
-		instance.Spec.BotName = "test-bot-2"
-		instance.Status.InitialHeartbeat.Hostname = "test-hostname-2"
-		instance.Status.InitialHeartbeat.Version = "18.1.0"
+		instance.GetSpec().SetBotName("test-bot-2")
+		instance.GetStatus().GetInitialHeartbeat().SetHostname("test-hostname-2")
+		instance.GetStatus().GetInitialHeartbeat().SetVersion("18.1.0")
 	})
 
 	// Give the auth cache a chance to catch-up
@@ -767,27 +767,27 @@ func assertContainsInstance(t *testing.T, res []*machineidv1pb.BotInstance, inst
 }
 
 func createBotInstance(t *testing.T, ctx context.Context, process *service.TeleportProcess, options ...func(instance *machineidv1pb.BotInstance)) (result *machineidv1pb.BotInstance) {
-	heartbeat := &machineidv1pb.BotInstanceStatusHeartbeat{
+	heartbeat := machineidv1pb.BotInstanceStatusHeartbeat_builder{
 		RecordedAt: timestamppb.New(time.Now()),
 		IsStartup:  true,
 		Version:    "19.0.0",
 		Hostname:   "test-hostname-1",
 		Uptime:     durationpb.New(1 * time.Hour),
 		Os:         "linux",
-	}
+	}.Build()
 
-	base := &machineidv1pb.BotInstance{
-		Spec: &machineidv1pb.BotInstanceSpec{
+	base := machineidv1pb.BotInstance_builder{
+		Spec: machineidv1pb.BotInstanceSpec_builder{
 			BotName:    "test-bot-1",
 			InstanceId: uuid.New().String(),
-		},
-		Status: &machineidv1pb.BotInstanceStatus{
+		}.Build(),
+		Status: machineidv1pb.BotInstanceStatus_builder{
 			InitialHeartbeat: heartbeat,
 			LatestHeartbeats: []*machineidv1pb.BotInstanceStatusHeartbeat{
 				heartbeat,
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	for _, fn := range options {
 		fn(base)

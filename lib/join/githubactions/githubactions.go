@@ -131,7 +131,7 @@ func (c *IDTokenClaims) GetSubject() string {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsGitHub {
-	attrs := &workloadidentityv1pb.JoinAttrsGitHub{
+	attrs := workloadidentityv1pb.JoinAttrsGitHub_builder{
 		Sub:             c.Sub,
 		Actor:           c.Actor,
 		Environment:     c.Environment,
@@ -145,7 +145,7 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsGitHub {
 		RunId:           c.RunID,
 		Enterprise:      c.Enterprise,
 		EnterpriseId:    c.EnterpriseID,
-	}
+	}.Build()
 
 	return attrs
 }

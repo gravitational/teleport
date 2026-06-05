@@ -47,10 +47,10 @@ func runUnixAdminProcess(ctx context.Context, clt *clientApplicationServiceClien
 		return trace.Wrap(err, "creating network stack")
 	}
 
-	if err := clt.ReportNetworkStackInfo(ctx, &vnetv1.NetworkStackInfo{
+	if err := clt.ReportNetworkStackInfo(ctx, vnetv1.NetworkStackInfo_builder{
 		InterfaceName: tunName,
 		Ipv6Prefix:    networkStackConfig.ipv6Prefix.String(),
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err, "reporting network stack info to client application")
 	}
 

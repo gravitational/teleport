@@ -117,10 +117,10 @@ func (s *Service) ListHealthCheckConfigs(ctx context.Context, req *healthcheckco
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &healthcheckconfigv1.ListHealthCheckConfigsResponse{
+	return healthcheckconfigv1.ListHealthCheckConfigsResponse_builder{
 		Configs:       page,
 		NextPageToken: token,
-	}, nil
+	}.Build(), nil
 }
 
 // UpdateHealthCheckConfig updates an existing HealthCheckConfig.

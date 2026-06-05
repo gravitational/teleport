@@ -91,7 +91,7 @@ func (s *MFAService) CreateValidatedMFAChallenge(
 	svc := s.service.WithPrefix(targetCluster)
 
 	// All validated MFA challenges must expire after 5 minutes.
-	chal.GetMetadata().Expires = timestamppb.New(time.Now().Add(ValidatedMFAChallengeExpiry))
+	chal.GetMetadata().SetExpires(timestamppb.New(time.Now().Add(ValidatedMFAChallengeExpiry)))
 
 	res, err := svc.CreateResource(ctx, chal)
 	if err != nil {
@@ -183,11 +183,11 @@ func UnmarshalValidatedMFAChallenge(b []byte, opts ...services.MarshalOption) (*
 		}
 
 		if cfg.Revision != "" {
-			metadata.Revision = cfg.Revision
+			metadata.SetRevision(cfg.Revision)
 		}
 
 		if !cfg.Expires.IsZero() {
-			metadata.Expires = timestamppb.New(cfg.Expires)
+			metadata.SetExpires(timestamppb.New(cfg.Expires))
 		}
 	}
 
@@ -251,9 +251,9 @@ func (p *validatedMFAChallengeParser) parse(event backend.Event) (types.Resource
 		chal = mfav2.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: keyComponents[len(keyComponents)-1], // The challenge name is the last component of the key.
-			},
+			}.Build(),
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				TargetCluster: keyComponents[0], // The target cluster is the first component of the key.
 			}.Build(),

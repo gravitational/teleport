@@ -24,6 +24,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
@@ -54,7 +55,7 @@ func TestAppAuthConfigService(t *testing.T) {
 	t.Run("create invalid", func(t *testing.T) {
 		cfg := appauthconfig.NewAppAuthConfigJWT(
 			"jwt-invalid",
-			[]*labelv1.Label{{Name: "*", Values: []string{"*"}}},
+			[]*labelv1.Label{labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build()},
 			&appauthconfigv1.AppAuthConfigJWTSpec{},
 		)
 
@@ -103,7 +104,7 @@ func TestAppAuthConfigService(t *testing.T) {
 
 		cfgCreated, err := svc.CreateAppAuthConfig(t.Context(), makeAppAuthJWTConfig("jwt1"))
 		require.NoError(t, err)
-		cfgRetrieved, err := svc.GetAppAuthConfig(t.Context(), cfgCreated.Metadata.Name)
+		cfgRetrieved, err := svc.GetAppAuthConfig(t.Context(), cfgCreated.GetMetadata().GetName())
 		require.NoError(t, err)
 
 		requireAppAuthConfigEqual(t, []*appauthconfigv1.AppAuthConfig{cfgCreated}, []*appauthconfigv1.AppAuthConfig{cfgRetrieved})
@@ -113,15 +114,15 @@ func TestAppAuthConfigService(t *testing.T) {
 		cfg := makeAppAuthJWTConfig("jwt1")
 		svc := setupAppAuthService(t, []*appauthconfigv1.AppAuthConfig{cfg})
 
-		err := svc.DeleteAppAuthConfig(t.Context(), cfg.Metadata.Name)
+		err := svc.DeleteAppAuthConfig(t.Context(), cfg.GetMetadata().GetName())
 		require.NoError(t, err)
 
 		// Deleting again should return error.
-		err = svc.DeleteAppAuthConfig(t.Context(), cfg.Metadata.Name)
+		err = svc.DeleteAppAuthConfig(t.Context(), cfg.GetMetadata().GetName())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected error to be NotFound but got %T", err)
 
-		_, err = svc.GetAppAuthConfig(t.Context(), cfg.Metadata.Name)
+		_, err = svc.GetAppAuthConfig(t.Context(), cfg.GetMetadata().GetName())
 		require.Error(t, err)
 		require.True(t, trace.IsNotFound(err), "expected error to be NotFound but got %T", err)
 	})
@@ -132,11 +133,11 @@ func TestAppAuthConfigService(t *testing.T) {
 
 		firstCfg, err := svc.UpsertAppAuthConfig(t.Context(), baseCfg)
 		require.NoError(t, err)
-		firstRev := firstCfg.Metadata.Revision
+		firstRev := firstCfg.GetMetadata().GetRevision()
 
 		secondCfg, err := svc.UpsertAppAuthConfig(t.Context(), baseCfg)
 		require.NoError(t, err)
-		secondRev := secondCfg.Metadata.Revision
+		secondRev := secondCfg.GetMetadata().GetRevision()
 
 		require.NotEqual(t, firstRev, secondRev)
 	})
@@ -154,14 +155,12 @@ func requireAppAuthConfigEqual(t *testing.T, expected []*appauthconfigv1.AppAuth
 func makeAppAuthJWTConfig(name string) *appauthconfigv1.AppAuthConfig {
 	return appauthconfig.NewAppAuthConfigJWT(
 		name,
-		[]*labelv1.Label{{Name: "*", Values: []string{"*"}}},
-		&appauthconfigv1.AppAuthConfigJWTSpec{
+		[]*labelv1.Label{labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build()},
+		appauthconfigv1.AppAuthConfigJWTSpec_builder{
 			Audience: "teleport",
 			Issuer:   "https://my-issuer",
-			KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_JwksUrl{
-				JwksUrl: "https://my-issuer/.well-known/jwks.json",
-			},
-		},
+			JwksUrl:  proto.String("https://my-issuer/.well-known/jwks.json"),
+		}.Build(),
 	)
 }
 

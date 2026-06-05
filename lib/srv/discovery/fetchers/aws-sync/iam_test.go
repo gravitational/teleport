@@ -85,26 +85,26 @@ func TestAWSIAMPollSAMLProviders(t *testing.T) {
 		lastResult: &Resources{},
 	}
 	expected := []*accessgraphv1alpha.AWSSAMLProviderV1{
-		{
+		accessgraphv1alpha.AWSSAMLProviderV1_builder{
 			Arn:        "arn:aws:iam::1234678:saml-provider/provider1",
 			CreatedAt:  timestamppb.New(timestamp1),
 			ValidUntil: timestamppb.New(timestamp2),
 			Tags: []*accessgraphv1alpha.AWSTag{
-				{Key: "key1", Value: &wrapperspb.StringValue{Value: "value1"}},
-				{Key: "key2", Value: &wrapperspb.StringValue{Value: "value2"}},
+				accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: &wrapperspb.StringValue{Value: "value1"}}.Build(),
+				accessgraphv1alpha.AWSTag_builder{Key: "key2", Value: &wrapperspb.StringValue{Value: "value2"}}.Build(),
 			},
 			AccountId:           accountID,
 			EntityId:            "provider1",
 			SsoUrls:             []string{"https://posturl.example.com", "https://redirecturl.example.com"},
 			SigningCertificates: []string{"cert1", "cert2"},
-		},
-		{
+		}.Build(),
+		accessgraphv1alpha.AWSSAMLProviderV1_builder{
 			Arn:       "arn:aws:iam::1234678:saml-provider/provider2",
 			CreatedAt: timestamppb.New(timestamp2),
 			AccountId: accountID,
 			EntityId:  "provider2",
 			SsoUrls:   []string{"https://posturl.teleport.local", "https://redirecturl.teleport.local"},
-		},
+		}.Build(),
 	}
 	result := &Resources{}
 	execFunc := a.pollAWSSAMLProviders(context.Background(), result, collectErr)
@@ -237,24 +237,24 @@ func TestAWSIAMPollOIDCProviders(t *testing.T) {
 		lastResult: &Resources{},
 	}
 	expected := []*accessgraphv1alpha.AWSOIDCProviderV1{
-		{
+		accessgraphv1alpha.AWSOIDCProviderV1_builder{
 			Arn:       "arn:aws:iam::1234678:oidc-provider/provider1",
 			CreatedAt: timestamppb.New(timestamp1),
 			Tags: []*accessgraphv1alpha.AWSTag{
-				{Key: "key1", Value: &wrapperspb.StringValue{Value: "value1"}},
-				{Key: "key2", Value: &wrapperspb.StringValue{Value: "value2"}},
+				accessgraphv1alpha.AWSTag_builder{Key: "key1", Value: &wrapperspb.StringValue{Value: "value1"}}.Build(),
+				accessgraphv1alpha.AWSTag_builder{Key: "key2", Value: &wrapperspb.StringValue{Value: "value2"}}.Build(),
 			},
 			AccountId:   accountID,
 			ClientIds:   []string{"audience1", "audience2"},
 			Thumbprints: []string{"thumb1", "thumb2"},
 			Url:         "https://example.com",
-		},
-		{
+		}.Build(),
+		accessgraphv1alpha.AWSOIDCProviderV1_builder{
 			Arn:       "arn:aws:iam::1234678:oidc-provider/provider2",
 			CreatedAt: timestamppb.New(timestamp2),
 			AccountId: accountID,
 			Url:       "https://teleport.local",
-		},
+		}.Build(),
 	}
 	result := &Resources{}
 	execFunc := a.pollAWSOIDCProviders(context.Background(), result, collectErr)

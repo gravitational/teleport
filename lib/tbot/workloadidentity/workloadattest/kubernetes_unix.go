@@ -108,14 +108,14 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadiden
 
 	var ctr *workloadidentityv1pb.WorkloadAttrsKubernetesContainer
 	if containerStatus != nil {
-		ctr = &workloadidentityv1pb.WorkloadAttrsKubernetesContainer{
+		ctr = workloadidentityv1pb.WorkloadAttrsKubernetesContainer_builder{
 			Name:        containerStatus.Name,
 			Image:       containerStatus.Image,
 			ImageDigest: imageDigestRegex.FindString(containerStatus.ImageID),
-		}
+		}.Build()
 	}
 
-	att := &workloadidentityv1pb.WorkloadAttrsKubernetes{
+	att := workloadidentityv1pb.WorkloadAttrsKubernetes_builder{
 		Attested:       true,
 		Namespace:      pod.Namespace,
 		ServiceAccount: pod.Spec.ServiceAccountName,
@@ -123,7 +123,7 @@ func (a *KubernetesAttestor) Attest(ctx context.Context, pid int) (*workloadiden
 		PodUid:         string(pod.UID),
 		Labels:         pod.Labels,
 		Container:      ctr,
-	}
+	}.Build()
 	a.log.DebugContext(ctx, "Finished Kubernetes workload attestation", "attestation", att)
 	return att, nil
 }

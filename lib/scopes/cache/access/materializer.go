@@ -831,39 +831,39 @@ func (m *Materializer) materializeAssignment(
 		return nil
 	}
 
-	assignment := &scopedaccessv1.ScopedRoleAssignment{
+	assignment := scopedaccessv1.ScopedRoleAssignment_builder{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindMaterialized,
 		Version: types.V1,
 		Scope:   "/",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: key.AssignmentName(),
-		},
-		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+		}.Build(),
+		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 			User: userName,
-		},
-		Status: &scopedaccessv1.ScopedRoleAssignmentStatus{
-			Origin: &scopedaccessv1.ScopedRoleAssignmentStatus_Origin{
+		}.Build(),
+		Status: scopedaccessv1.ScopedRoleAssignmentStatus_builder{
+			Origin: scopedaccessv1.ScopedRoleAssignmentStatus_Origin_builder{
 				CreatorKind: scopedaccess.CreatorKindAccessList,
 				CreatorName: list.GetName(),
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	if relation.isMember {
 		for _, grant := range list.Spec.Grants.ScopedRoles {
-			assignment.Spec.Assignments = append(assignment.Spec.Assignments, &scopedaccessv1.Assignment{
+			assignment.GetSpec().SetAssignments(append(assignment.GetSpec().GetAssignments(), scopedaccessv1.Assignment_builder{
 				Role:  grant.Role,
 				Scope: grant.Scope,
-			})
+			}.Build()))
 		}
 	}
 	if relation.isOwner {
 		for _, grant := range list.Spec.OwnerGrants.ScopedRoles {
-			assignment.Spec.Assignments = append(assignment.Spec.Assignments, &scopedaccessv1.Assignment{
+			assignment.GetSpec().SetAssignments(append(assignment.GetSpec().GetAssignments(), scopedaccessv1.Assignment_builder{
 				Role:  grant.Role,
 				Scope: grant.Scope,
-			})
+			}.Build()))
 		}
 	}
 

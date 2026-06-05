@@ -271,11 +271,11 @@ func (s *Service) startHeadlessWatcher(rootCluster *clusters.Cluster, waitInit b
 
 // sendPendingHeadlessAuthentication notifies the Electron App of a pending headless authentication.
 func (s *Service) sendPendingHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication, rootClusterURI string) error {
-	req := &api.SendPendingHeadlessAuthenticationRequest{
+	req := api.SendPendingHeadlessAuthenticationRequest_builder{
 		RootClusterUri:                 rootClusterURI,
 		HeadlessAuthenticationId:       ha.GetName(),
 		HeadlessAuthenticationClientIp: ha.ClientIpAddress,
-	}
+	}.Build()
 
 	if err := s.headlessAuthSemaphore.Acquire(ctx); err != nil {
 		return trace.Wrap(err)

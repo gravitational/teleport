@@ -296,18 +296,18 @@ func TestJoinBoundKeypair(t *testing.T) {
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"example"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	jwtCA, err := authServer.GetCertAuthority(ctx, types.CertAuthID{
@@ -1203,18 +1203,18 @@ func TestJoinBoundKeypair_GenerationCounter(t *testing.T) {
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"example"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	token, err := types.NewProvisionTokenFromSpecAndStatus(
@@ -1390,18 +1390,18 @@ func TestJoinBoundKeypair_JoinStateFailure(t *testing.T) {
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"example"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	token, err := types.NewProvisionTokenFromSpecAndStatus(
@@ -1544,18 +1544,18 @@ func TestJoinBoundKeypair_JoinStateFailureDuringRenewal(t *testing.T) {
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"example"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	token, err := types.NewProvisionTokenFromSpecAndStatus(
@@ -1830,62 +1830,62 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 
 	// Create a scoped role for the bot.
 	scopedSvc := adminClient.ScopedAccessServiceClient()
-	_, err := scopedSvc.CreateScopedRole(t.Context(), &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
+	_, err := scopedSvc.CreateScopedRole(t.Context(), scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "scoped-example",
-			},
+			}.Build(),
 			Scope: "/test",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/test"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the scoped bot.
-	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
 			Scope:   "/test",
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test-scoped",
-			},
+			}.Build(),
 			Spec: &machineidv1pb.BotSpec{},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Create a scoped role assignment for the bot.
-	resp, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+	resp, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: uuid.NewString(),
-			},
+			}.Build(),
 			SubKind: scopedaccess.SubKindDynamic,
 			Scope:   "/test",
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				BotName:  "test-scoped",
 				BotScope: "/test",
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "scoped-example", Scope: "/test"},
+					scopedaccessv1.Assignment_builder{Role: "scoped-example", Scope: "/test"}.Build(),
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    resp.GetAssignment().GetMetadata().GetName(),
 			SubKind: resp.GetAssignment().GetSubKind(),
-		})
+		}.Build())
 		require.NoError(t, err)
 	}, time.Second*10, 100*time.Millisecond)
 }
@@ -1911,45 +1911,45 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"example"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	createScopedBot(t, srv, adminClient)
 
-	scopedToken := &joiningv1.ScopedToken{
+	scopedToken := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
 		Scope:   "/test",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "example-token",
-		},
-		Spec: &joiningv1.ScopedTokenSpec{
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
 			JoinMethod: string(types.JoinMethodBoundKeypair),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
 			BotName:    "test-scoped",
 			BotScope:   "/test",
-			BoundKeypair: &joiningv1.BoundKeypairSpec{
-				Onboarding: &joiningv1.BoundKeypairSpec_OnboardingSpec{
+			BoundKeypair: joiningv1.BoundKeypairSpec_builder{
+				Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
 					InitialPublicKey: correctPublicKey,
-				},
-				Recovery: &joiningv1.BoundKeypairSpec_RecoverySpec{
+				}.Build(),
+				Recovery: joiningv1.BoundKeypairSpec_RecoverySpec_builder{
 					Limit: 2,
-				},
-			},
-		},
-	}
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	_, err = adminClient.CreateScopedToken(ctx, scopedToken)
 	require.NoError(t, err)
@@ -1978,10 +1978,10 @@ func TestJoinBoundKeypair_ScopedToken(t *testing.T) {
 	require.Equal(t, uint64(1), generation)
 
 	// The BotInstance should have the scope set.
-	botInstance, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+	botInstance, err := adminClient.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
 		BotName:    "test-scoped",
 		InstanceId: firstInstance,
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, "/test", botInstance.GetScope())
 

@@ -97,11 +97,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 // GetThumbnail retrieves the thumbnail for a session recording.
 func (r *Service) GetThumbnail(ctx context.Context, req *pb.GetThumbnailRequest) (*pb.GetThumbnailResponse, error) {
 	// Authorize will have checked the session end event to ensure the user has access to the session recording.
-	if err := r.authorizer.Authorize(ctx, req.SessionId); err != nil {
+	if err := r.authorizer.Authorize(ctx, req.GetSessionId()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	rc, err := r.downloadHandler.StreamSessionThumbnail(ctx, session.ID(req.SessionId))
+	rc, err := r.downloadHandler.StreamSessionThumbnail(ctx, session.ID(req.GetSessionId()))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,18 +118,18 @@ func (r *Service) GetThumbnail(ctx context.Context, req *pb.GetThumbnailRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	return &pb.GetThumbnailResponse{Thumbnail: thumbnail}, nil
+	return pb.GetThumbnailResponse_builder{Thumbnail: thumbnail}.Build(), nil
 }
 
 // GetMetadata retrieves the metadata for a session recording, streaming it back in chunks (one for metadata and one
 // for each frame).
 func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStreamingServer[pb.GetMetadataResponseChunk]) error {
 	// Authorize will have checked the session end event to ensure the user has access to the session recording.
-	if err := r.authorizer.Authorize(stream.Context(), req.SessionId); err != nil {
+	if err := r.authorizer.Authorize(stream.Context(), req.GetSessionId()); err != nil {
 		return trace.Wrap(err)
 	}
 
-	rc, err := r.downloadHandler.StreamSessionMetadata(stream.Context(), session.ID(req.SessionId))
+	rc, err := r.downloadHandler.StreamSessionMetadata(stream.Context(), session.ID(req.GetSessionId()))
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -148,7 +148,7 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 				break
 			}
 			r.logger.ErrorContext(stream.Context(), "Failed to read delimited message",
-				"session_id", req.SessionId, "error", err)
+				"session_id", req.GetSessionId(), "error", err)
 			return trace.Wrap(err)
 		}
 
@@ -164,7 +164,7 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 			if err := stream.Send(metadataChunk); err != nil {
 				if !errors.Is(err, io.EOF) {
 					r.logger.ErrorContext(stream.Context(), "Failed to send session recording metadata",
-						"session_id", req.SessionId, "error", err)
+						"session_id", req.GetSessionId(), "error", err)
 				}
 				return trace.Wrap(err)
 			}
@@ -184,7 +184,7 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 			if err := stream.Send(frameChunk); err != nil {
 				if !errors.Is(err, io.EOF) {
 					r.logger.ErrorContext(stream.Context(), "Failed to send session recording thumbnail",
-						"session_id", req.SessionId, "error", err)
+						"session_id", req.GetSessionId(), "error", err)
 				}
 				return trace.Wrap(err)
 			}
@@ -193,7 +193,7 @@ func (r *Service) GetMetadata(req *pb.GetMetadataRequest, stream grpc.ServerStre
 		}
 
 		r.logger.ErrorContext(stream.Context(), "Failed to parse message as metadata or thumbnail",
-			"session_id", req.SessionId)
+			"session_id", req.GetSessionId())
 
 		return trace.Errorf("unable to parse message as metadata or thumbnail")
 	}

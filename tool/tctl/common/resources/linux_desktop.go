@@ -61,8 +61,8 @@ func (c *linuxDesktopCollection) Resources() (r []types.Resource) {
 func (c *linuxDesktopCollection) WriteText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, d := range c.desktops {
-		labels := common.FormatLabels(d.Metadata.Labels, verbose)
-		rows = append(rows, []string{d.Metadata.Name, d.Spec.Addr, d.Spec.Hostname, labels})
+		labels := common.FormatLabels(d.GetMetadata().GetLabels(), verbose)
+		rows = append(rows, []string{d.GetMetadata().GetName(), d.GetSpec().GetAddr(), d.GetSpec().GetHostname(), labels})
 	}
 	headers := []string{"Name", "Address", "Hostname", "Labels"}
 	var t asciitable.Table
@@ -116,18 +116,18 @@ func createLinuxDesktop(ctx context.Context, client *authclient.Client, raw serv
 	if _, err := linuxDesktopClient.CreateLinuxDesktop(ctx, desktop); err != nil {
 		if trace.IsAlreadyExists(err) {
 			if !opts.Force {
-				return trace.AlreadyExists("linux desktop %q already exists", desktop.Metadata.Name)
+				return trace.AlreadyExists("linux desktop %q already exists", desktop.GetMetadata().GetName())
 			}
 			if _, err := linuxDesktopClient.UpsertLinuxDesktop(ctx, desktop); err != nil {
 				return trace.Wrap(err)
 			}
-			fmt.Printf("linux desktop %q has been updated\n", desktop.Metadata.Name)
+			fmt.Printf("linux desktop %q has been updated\n", desktop.GetMetadata().GetName())
 			return nil
 		}
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("linux desktop %q has been created\n", desktop.Metadata.Name)
+	fmt.Printf("linux desktop %q has been created\n", desktop.GetMetadata().GetName())
 	return nil
 }
 
@@ -142,6 +142,6 @@ func updateLinuxDesktop(ctx context.Context, client *authclient.Client, raw serv
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("linux desktop %q has been updated\n", desktop.Metadata.Name)
+	fmt.Printf("linux desktop %q has been updated\n", desktop.GetMetadata().GetName())
 	return nil
 }

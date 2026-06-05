@@ -1061,15 +1061,15 @@ func TestAWSOIDCSecurityGroupsRulesConverter(t *testing.T) {
 	}{
 		{
 			name: "valid",
-			in: []*integrationv1.SecurityGroupRule{{
+			in: []*integrationv1.SecurityGroupRule{integrationv1.SecurityGroupRule_builder{
 				IpProtocol: "tcp",
 				FromPort:   8080,
 				ToPort:     8081,
-				Cidrs: []*integrationv1.SecurityGroupRuleCIDR{{
+				Cidrs: []*integrationv1.SecurityGroupRuleCIDR{integrationv1.SecurityGroupRuleCIDR_builder{
 					Cidr:        "10.10.10.0/24",
 					Description: "cidr x",
-				}},
-			}},
+				}.Build()},
+			}.Build()},
 			expected: []awsoidc.SecurityGroupRule{{
 				IPProtocol: "tcp",
 				FromPort:   8080,
@@ -1294,11 +1294,11 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 	}
 	const pageSize = 10
 	ret := &integrationv1.ListDeployedDatabaseServicesResponse{}
-	if in.Integration != m.integration {
+	if in.GetIntegration() != m.integration {
 		return ret, nil
 	}
 
-	services := m.servicesPerRegion[in.Region]
+	services := m.servicesPerRegion[in.GetRegion()]
 	if len(services) == 0 {
 		return ret, nil
 	}
@@ -1306,8 +1306,8 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 	requestedPage := 1
 	totalResources := len(services)
 
-	if in.NextToken != "" {
-		currentMarker, err := strconv.Atoi(in.NextToken)
+	if in.GetNextToken() != "" {
+		currentMarker, err := strconv.Atoi(in.GetNextToken())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -1317,9 +1317,9 @@ func (m *mockDeployedDatabaseServices) ListDeployedDatabaseServices(ctx context.
 	sliceStart := pageSize * (requestedPage - 1)
 	sliceEnd := min(pageSize*requestedPage, totalResources)
 
-	ret.DeployedDatabaseServices = services[sliceStart:sliceEnd]
+	ret.SetDeployedDatabaseServices(services[sliceStart:sliceEnd])
 	if sliceEnd < totalResources {
-		ret.NextToken = strconv.Itoa(requestedPage + 1)
+		ret.SetNextToken(strconv.Itoa(requestedPage + 1))
 	}
 
 	return ret, nil
@@ -1521,12 +1521,12 @@ func buildCommandDeployedDatabaseService(t *testing.T, valid bool, matchingLabel
 func dummyDeployedDatabaseServices(count int, command []string) []*integrationv1.DeployedDatabaseService {
 	var ret []*integrationv1.DeployedDatabaseService
 	for i := range count {
-		ret = append(ret, &integrationv1.DeployedDatabaseService{
+		ret = append(ret, integrationv1.DeployedDatabaseService_builder{
 			Name:                fmt.Sprintf("database-service-vpc-%d", i),
 			ServiceDashboardUrl: "url",
 			ContainerEntryPoint: []string{"teleport"},
 			ContainerCommand:    command,
-		})
+		}.Build())
 	}
 	return ret
 }

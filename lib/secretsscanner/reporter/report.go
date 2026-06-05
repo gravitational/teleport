@@ -129,13 +129,11 @@ func (r *Reporter) reportPrivateKeys(stream accessgraphsecretsv1pb.SecretsScanne
 	for i := 0; len(privateKeys) > i; i += batchSize {
 		start := i
 		end := min(i+batchSize, len(privateKeys))
-		if err := stream.Send(&accessgraphsecretsv1pb.ReportSecretsRequest{
-			Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_PrivateKeys{
-				PrivateKeys: &accessgraphsecretsv1pb.ReportPrivateKeys{
-					Keys: privateKeys[start:end],
-				},
-			},
-		}); err != nil && !errors.Is(err, io.EOF) {
+		if err := stream.Send(accessgraphsecretsv1pb.ReportSecretsRequest_builder{
+			PrivateKeys: accessgraphsecretsv1pb.ReportPrivateKeys_builder{
+				Keys: privateKeys[start:end],
+			}.Build(),
+		}.Build()); err != nil && !errors.Is(err, io.EOF) {
 			// [io.EOF] indicates that the server has closed the stream.
 			// The client should handle the underlying error on the subsequent Recv call.
 			// All other errors are client-side errors and should be returned.

@@ -555,10 +555,10 @@ func TestAuthenticate_deviceWebToken(t *testing.T) {
 		Token: "this is an opaque token Token",
 	}
 	authServer.SetCreateDeviceWebTokenFunc(func(context.Context, *devicepb.DeviceWebToken) (*devicepb.DeviceWebToken, error) {
-		return &devicepb.DeviceWebToken{
+		return devicepb.DeviceWebToken_builder{
 			Id:    wantToken.Id,
 			Token: wantToken.Token,
-		}, nil
+		}.Build(), nil
 	})
 
 	ctx := context.Background()

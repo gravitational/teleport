@@ -50,7 +50,7 @@ func (c *workloadIdentityCollection) WriteText(w io.Writer, verbose bool) error 
 	var rows [][]string
 	for _, item := range c.items {
 		rows = append(rows, []string{
-			item.Metadata.Name,
+			item.GetMetadata().GetName(),
 			item.GetSpec().GetSpiffe().GetId(),
 		})
 	}
@@ -83,9 +83,9 @@ func getWorkloadIdentity(
 	c := client.WorkloadIdentityResourceServiceClient()
 
 	if ref.Name != "" {
-		resource, err := c.GetWorkloadIdentity(ctx, &workloadidentityv1pb.GetWorkloadIdentityRequest{
+		resource, err := c.GetWorkloadIdentity(ctx, workloadidentityv1pb.GetWorkloadIdentityRequest_builder{
 			Name: ref.Name,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -93,10 +93,10 @@ func getWorkloadIdentity(
 	}
 
 	resources, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-		resp, err := client.WorkloadIdentityResourceServiceClient().ListWorkloadIdentities(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesRequest{
+		resp, err := client.WorkloadIdentityResourceServiceClient().ListWorkloadIdentities(ctx, workloadidentityv1pb.ListWorkloadIdentitiesRequest_builder{
 			PageSize:  int32(limit),
 			PageToken: pageToken,
-		})
+		}.Build())
 
 		return resp.GetWorkloadIdentities(), resp.GetNextPageToken(), trace.Wrap(err)
 	}))
@@ -120,15 +120,15 @@ func createWorkloadIdentity(
 
 	c := client.WorkloadIdentityResourceServiceClient()
 	if opts.Force {
-		if _, err := c.UpsertWorkloadIdentity(ctx, &workloadidentityv1pb.UpsertWorkloadIdentityRequest{
+		if _, err := c.UpsertWorkloadIdentity(ctx, workloadidentityv1pb.UpsertWorkloadIdentityRequest_builder{
 			WorkloadIdentity: in,
-		}); err != nil {
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		if _, err := c.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+		if _, err := c.CreateWorkloadIdentity(ctx, workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
 			WorkloadIdentity: in,
-		}); err != nil {
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -144,9 +144,9 @@ func deleteWorkloadIdentity(
 	ref services.Ref,
 ) error {
 	c := client.WorkloadIdentityResourceServiceClient()
-	_, err := c.DeleteWorkloadIdentity(ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
+	_, err := c.DeleteWorkloadIdentity(ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{
 		Name: ref.Name,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

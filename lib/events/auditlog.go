@@ -532,7 +532,7 @@ func (l *AuditLog) SearchUnstructuredEvents(ctx context.Context, req SearchEvent
 }
 
 func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb.ExportUnstructuredEventsRequest) stream.Stream[*auditlogpb.ExportEventUnstructured] {
-	l.log.DebugContext(ctx, "ExportUnstructuredEvents", "date", req.Date, "chunk", req.Chunk, "cursor", req.Cursor)
+	l.log.DebugContext(ctx, "ExportUnstructuredEvents", "date", req.GetDate(), "chunk", req.GetChunk(), "cursor", req.GetCursor())
 	if l.ExternalLog != nil {
 		return l.ExternalLog.ExportUnstructuredEvents(ctx, req)
 	}
@@ -540,7 +540,7 @@ func (l *AuditLog) ExportUnstructuredEvents(ctx context.Context, req *auditlogpb
 }
 
 func (l *AuditLog) GetEventExportChunks(ctx context.Context, req *auditlogpb.GetEventExportChunksRequest) stream.Stream[*auditlogpb.EventExportChunk] {
-	l.log.DebugContext(ctx, "GetEventExportChunks", "date", req.Date)
+	l.log.DebugContext(ctx, "GetEventExportChunks", "date", req.GetDate())
 	if l.ExternalLog != nil {
 		return l.ExternalLog.GetEventExportChunks(ctx, req)
 	}

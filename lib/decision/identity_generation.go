@@ -37,7 +37,7 @@ func (s *Service) GenerateDryRunSSHIdentity(ctx context.Context, req *decisionpb
 	// various equivalent auth logic can have a single source of truth.
 
 	// get the core state user configuration
-	user, err := s.cfg.AccessPoint.GetUser(ctx, req.Username, false /* withSecrets */)
+	user, err := s.cfg.AccessPoint.GetUser(ctx, req.GetUsername(), false /* withSecrets */)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

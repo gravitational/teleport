@@ -40,7 +40,7 @@ type GetDatabasePermissions interface {
 }
 
 func databasePermissionMatch(perm types.DatabasePermission, obj *dbobjectv1.DatabaseObject) bool {
-	ok, _, _ := services.MatchLabels(perm.Match, obj.Metadata.Labels)
+	ok, _, _ := services.MatchLabels(perm.Match, obj.GetMetadata().GetLabels())
 	return ok
 }
 
@@ -49,7 +49,7 @@ func CountObjectKinds(objs []*dbobjectv1.DatabaseObject) (string, map[string]int
 	var fragments []string
 
 	counts := utils.CountBy(objs, func(obj *dbobjectv1.DatabaseObject) string {
-		return obj.GetSpec().ObjectKind
+		return obj.GetSpec().GetObjectKind()
 	})
 	kinds := slices.Sorted(maps.Keys(counts))
 	for _, kind := range kinds {

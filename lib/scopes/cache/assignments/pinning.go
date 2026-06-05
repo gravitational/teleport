@@ -60,7 +60,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForUser(ctx context.Context, 
 	var lastErr error
 
 	// all non-orthogonal assignments for this user *may* assign roles relevant to this pin
-	assignments := c.cache.AllNonOrthogonalResources(pin.Scope, c.cache.WithFilter(func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
+	assignments := c.cache.AllNonOrthogonalResources(pin.GetScope(), c.cache.WithFilter(func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
 		return assignment.GetSpec().GetUser() == user
 	}))
 
@@ -199,7 +199,7 @@ func (c *AssignmentCache) PopulatePinnedAssignmentsForBot(
 	var lastErr error
 
 	// all non-orthogonal assignments for this bot *may* assign roles relevant to this pin
-	assignments := c.cache.AllNonOrthogonalResources(pin.Scope, c.cache.WithFilter(func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
+	assignments := c.cache.AllNonOrthogonalResources(pin.GetScope(), c.cache.WithFilter(func(assignment *scopedaccessv1.ScopedRoleAssignment) bool {
 		matchesBotName := assignment.GetSpec().GetBotName() == botName
 		// ignore assignments where actual bot scope mismatches bot scope
 		// specified in SRA. this mitigates name reuse attacks across scopes.

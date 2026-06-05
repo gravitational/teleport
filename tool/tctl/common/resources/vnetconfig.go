@@ -82,8 +82,8 @@ func (c *vnetConfigCollection) Resources() []types.Resource {
 
 func (c *vnetConfigCollection) WriteText(w io.Writer, verbose bool) error {
 	var dnsZoneSuffixes []string
-	for _, dnsZone := range c.vnetConfig.Spec.CustomDnsZones {
-		dnsZoneSuffixes = append(dnsZoneSuffixes, dnsZone.Suffix)
+	for _, dnsZone := range c.vnetConfig.GetSpec().GetCustomDnsZones() {
+		dnsZoneSuffixes = append(dnsZoneSuffixes, dnsZone.GetSuffix())
 	}
 	t := asciitable.MakeTable([]string{"IPv4 CIDR range", "Custom DNS Zones"})
 	t.AddRow([]string{

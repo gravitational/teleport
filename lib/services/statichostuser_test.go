@@ -43,18 +43,18 @@ func TestValidateStaticHostUser(t *testing.T) {
 		},
 		{
 			name: "no name",
-			hostUser: userprovisioning.NewStaticHostUser("", &userprovisioningpb.StaticHostUserSpec{
+			hostUser: userprovisioning.NewStaticHostUser("", userprovisioningpb.StaticHostUserSpec_builder{
 				Matchers: []*userprovisioningpb.Matcher{
-					{
+					userprovisioningpb.Matcher_builder{
 						NodeLabels: []*labelv1.Label{
-							{
+							labelv1.Label_builder{
 								Name:   "foo",
 								Values: []string{"bar"},
-							},
+							}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			}),
+			}.Build()),
 			assert: require.Error,
 		},
 		{
@@ -69,73 +69,73 @@ func TestValidateStaticHostUser(t *testing.T) {
 		},
 		{
 			name: "invalid node labels",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", &userprovisioningpb.StaticHostUserSpec{
+			hostUser: userprovisioning.NewStaticHostUser("alice_user", userprovisioningpb.StaticHostUserSpec_builder{
 				Matchers: []*userprovisioningpb.Matcher{
-					{
+					userprovisioningpb.Matcher_builder{
 						NodeLabels: []*labelv1.Label{
-							{
+							labelv1.Label_builder{
 								Name:   types.Wildcard,
 								Values: []string{"bar"},
-							},
+							}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			}),
+			}.Build()),
 			assert: require.Error,
 		},
 		{
 			name: "invalid node labels expression",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", &userprovisioningpb.StaticHostUserSpec{
+			hostUser: userprovisioning.NewStaticHostUser("alice_user", userprovisioningpb.StaticHostUserSpec_builder{
 				Matchers: []*userprovisioningpb.Matcher{
-					{
+					userprovisioningpb.Matcher_builder{
 						NodeLabelsExpression: "foo bar xyz",
-					},
+					}.Build(),
 				},
-			}),
+			}.Build()),
 			assert: require.Error,
 		},
 		{
 			name: "valid wildcard labels",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", &userprovisioningpb.StaticHostUserSpec{
+			hostUser: userprovisioning.NewStaticHostUser("alice_user", userprovisioningpb.StaticHostUserSpec_builder{
 				Matchers: []*userprovisioningpb.Matcher{
-					{
+					userprovisioningpb.Matcher_builder{
 						NodeLabels: []*labelv1.Label{
-							{
+							labelv1.Label_builder{
 								Name:   "foo",
 								Values: []string{types.Wildcard},
-							},
+							}.Build(),
 						},
-					},
-					{
+					}.Build(),
+					userprovisioningpb.Matcher_builder{
 						NodeLabels: []*labelv1.Label{
-							{
+							labelv1.Label_builder{
 								Name:   types.Wildcard,
 								Values: []string{types.Wildcard},
-							},
+							}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			}),
+			}.Build()),
 			assert: require.NoError,
 		},
 		{
 			name: "ok",
-			hostUser: userprovisioning.NewStaticHostUser("alice_user", &userprovisioningpb.StaticHostUserSpec{
+			hostUser: userprovisioning.NewStaticHostUser("alice_user", userprovisioningpb.StaticHostUserSpec_builder{
 				Matchers: []*userprovisioningpb.Matcher{
-					{
+					userprovisioningpb.Matcher_builder{
 						NodeLabels: []*labelv1.Label{
-							{
+							labelv1.Label_builder{
 								Name:   "foo",
 								Values: []string{"bar"},
-							},
+							}.Build(),
 						},
 						Groups:               []string{"foo", "bar"},
 						NodeLabelsExpression: `labels["env"] == "staging" || labels["env"] == "test"`,
 						Uid:                  1234,
 						Gid:                  1234,
-					},
+					}.Build(),
 				},
-			}),
+			}.Build()),
 			assert: require.NoError,
 		},
 	}

@@ -186,10 +186,10 @@ func allowChecks(checks ...check) map[check]bool {
 func newTestDesktop(t *testing.T, name string) *linuxdesktopv1pb.LinuxDesktop {
 	t.Helper()
 
-	desktop, err := NewLinuxDesktop(name, &linuxdesktopv1pb.LinuxDesktopSpec{
+	desktop, err := NewLinuxDesktop(name, linuxdesktopv1pb.LinuxDesktopSpec_builder{
 		Addr:     "127.0.0.1:22",
 		Hostname: "desktop-host",
-	})
+	}.Build())
 	require.NoError(t, err)
 	return desktop
 }
@@ -213,10 +213,10 @@ func TestServiceListLinuxDesktops(t *testing.T) {
 	}
 	service := newTestService(t, checker, authz.AdminActionAuthNotRequired, backend, reader)
 
-	resp, err := service.ListLinuxDesktops(ctx, &linuxdesktopv1pb.ListLinuxDesktopsRequest{
+	resp, err := service.ListLinuxDesktops(ctx, linuxdesktopv1pb.ListLinuxDesktopsRequest_builder{
 		PageSize:  10,
 		PageToken: "next-token",
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, []*linuxdesktopv1pb.LinuxDesktop{desktop}, resp.GetLinuxDesktops())
 	require.Empty(t, resp.GetNextPageToken())
@@ -246,9 +246,9 @@ func TestServiceGetLinuxDesktop(t *testing.T) {
 	}
 	service := newTestService(t, checker, authz.AdminActionAuthNotRequired, backend, reader)
 
-	resp, err := service.GetLinuxDesktop(ctx, &linuxdesktopv1pb.GetLinuxDesktopRequest{
+	resp, err := service.GetLinuxDesktop(ctx, linuxdesktopv1pb.GetLinuxDesktopRequest_builder{
 		Name: "desktop-1",
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, desktop, resp)
 	require.True(t, reader.getCalled)
@@ -273,9 +273,9 @@ func TestServiceCreateLinuxDesktop(t *testing.T) {
 	}
 	service := newTestService(t, checker, authz.AdminActionAuthNotRequired, backend, reader)
 
-	resp, err := service.CreateLinuxDesktop(ctx, &linuxdesktopv1pb.CreateLinuxDesktopRequest{
+	resp, err := service.CreateLinuxDesktop(ctx, linuxdesktopv1pb.CreateLinuxDesktopRequest_builder{
 		LinuxDesktop: desktop,
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, desktop, resp)
 	require.True(t, backend.createCalled)
@@ -319,9 +319,9 @@ func TestServiceUpdateLinuxDesktop(t *testing.T) {
 	}
 	service := newTestService(t, checker, authz.AdminActionAuthNotRequired, backend, reader)
 
-	resp, err := service.UpdateLinuxDesktop(ctx, &linuxdesktopv1pb.UpdateLinuxDesktopRequest{
+	resp, err := service.UpdateLinuxDesktop(ctx, linuxdesktopv1pb.UpdateLinuxDesktopRequest_builder{
 		LinuxDesktop: desktop,
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, desktop, resp)
 	require.True(t, backend.updateCalled)
@@ -366,9 +366,9 @@ func TestServiceUpsertLinuxDesktop(t *testing.T) {
 	}
 	service := newTestService(t, checker, authz.AdminActionAuthNotRequired, backend, reader)
 
-	resp, err := service.UpsertLinuxDesktop(ctx, &linuxdesktopv1pb.UpsertLinuxDesktopRequest{
+	resp, err := service.UpsertLinuxDesktop(ctx, linuxdesktopv1pb.UpsertLinuxDesktopRequest_builder{
 		LinuxDesktop: desktop,
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.Equal(t, desktop, resp)
 	require.True(t, backend.upsertCalled)
@@ -413,9 +413,9 @@ func TestServiceDeleteLinuxDesktop(t *testing.T) {
 	}
 	service := newTestService(t, checker, authz.AdminActionAuthNotRequired, backend, reader)
 
-	_, err := service.DeleteLinuxDesktop(ctx, &linuxdesktopv1pb.DeleteLinuxDesktopRequest{
+	_, err := service.DeleteLinuxDesktop(ctx, linuxdesktopv1pb.DeleteLinuxDesktopRequest_builder{
 		Name: "desktop-1",
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.True(t, backend.deleteCalled)
 	require.Equal(t, "desktop-1", backend.deleteName)
@@ -439,9 +439,9 @@ func TestServiceAdminActionRequired(t *testing.T) {
 		{
 			name: "create",
 			call: func(ctx context.Context, svc *Service) error {
-				_, err := svc.CreateLinuxDesktop(ctx, &linuxdesktopv1pb.CreateLinuxDesktopRequest{
+				_, err := svc.CreateLinuxDesktop(ctx, linuxdesktopv1pb.CreateLinuxDesktopRequest_builder{
 					LinuxDesktop: desktop,
-				})
+				}.Build())
 				return err
 			},
 			backendCheck: func(t *testing.T, backend *fakeBackend) {
@@ -452,9 +452,9 @@ func TestServiceAdminActionRequired(t *testing.T) {
 		{
 			name: "update",
 			call: func(ctx context.Context, svc *Service) error {
-				_, err := svc.UpdateLinuxDesktop(ctx, &linuxdesktopv1pb.UpdateLinuxDesktopRequest{
+				_, err := svc.UpdateLinuxDesktop(ctx, linuxdesktopv1pb.UpdateLinuxDesktopRequest_builder{
 					LinuxDesktop: desktop,
-				})
+				}.Build())
 				return err
 			},
 			backendCheck: func(t *testing.T, backend *fakeBackend) {
@@ -465,9 +465,9 @@ func TestServiceAdminActionRequired(t *testing.T) {
 		{
 			name: "upsert",
 			call: func(ctx context.Context, svc *Service) error {
-				_, err := svc.UpsertLinuxDesktop(ctx, &linuxdesktopv1pb.UpsertLinuxDesktopRequest{
+				_, err := svc.UpsertLinuxDesktop(ctx, linuxdesktopv1pb.UpsertLinuxDesktopRequest_builder{
 					LinuxDesktop: desktop,
-				})
+				}.Build())
 				return err
 			},
 			backendCheck: func(t *testing.T, backend *fakeBackend) {
@@ -481,9 +481,9 @@ func TestServiceAdminActionRequired(t *testing.T) {
 		{
 			name: "delete",
 			call: func(ctx context.Context, svc *Service) error {
-				_, err := svc.DeleteLinuxDesktop(ctx, &linuxdesktopv1pb.DeleteLinuxDesktopRequest{
+				_, err := svc.DeleteLinuxDesktop(ctx, linuxdesktopv1pb.DeleteLinuxDesktopRequest_builder{
 					Name: "desktop-1",
-				})
+				}.Build())
 				return err
 			},
 			backendCheck: func(t *testing.T, backend *fakeBackend) {

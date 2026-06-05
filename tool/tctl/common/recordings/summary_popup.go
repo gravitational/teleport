@@ -240,7 +240,7 @@ func (m *summaryPopupModel) close() {
 
 func loadSummaryCmd(ctx context.Context, getter SummaryGetter, sessionID string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := getter.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{SessionId: sessionID})
+		resp, err := getter.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{SessionId: sessionID}.Build())
 		if err != nil {
 			return summaryLoadedMsg{err: err}
 		}
