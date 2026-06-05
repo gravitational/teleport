@@ -133,6 +133,12 @@ func isCrossOriginWebSocketUpgrade(r *http.Request) bool {
 // (RFC 6455). Both are forbidden header names, so a script cannot forge them on a
 // non-WebSocket request. Both are RFC 7230 comma-separated token lists, so match
 // each as a token rather than by exact value.
+//
+// This detects HTTP/1.1 upgrades only, which is all the app forward path relays
+// (httputil.ReverseProxy switches protocols on a 101 response). HTTP/2 WebSockets
+// (RFC 8441 Extended CONNECT) carry no Connection/Upgrade headers; if WebSocket
+// forwarding over HTTP/2 is ever added, extend this to also match :method=CONNECT
+// with :protocol=websocket.
 func isWebSocketUpgrade(r *http.Request) bool {
 	return headerListContainsToken(r.Header.Get("Connection"), "upgrade") &&
 		headerListContainsToken(r.Header.Get("Upgrade"), "websocket")
