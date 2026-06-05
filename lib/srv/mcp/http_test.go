@@ -298,7 +298,7 @@ func Test_Server_HandleSession_request_sanitization(t *testing.T) {
 	require.NoError(t, err)
 	requireDeniedToolResponse(t, testJSON(t, resp))
 	// Verify the request was not forwarded.
-	require.Len(t, recorder.requests, 0)
+	require.Empty(t, recorder.requests)
 
 	// Verify that when an empty "name" param is specified the request is rejected as invalid.
 	recorder.Reset()
@@ -313,7 +313,7 @@ func Test_Server_HandleSession_request_sanitization(t *testing.T) {
 	require.NoError(t, err)
 	requireToolNameMissingResponse(t, testJSON(t, resp))
 	// Verify the request was not forwarded.
-	require.Len(t, recorder.requests, 0)
+	require.Empty(t, recorder.requests)
 
 	// Verify that when non-canonical capitalized "Name" param is specified and send through
 	// streamable transport the request is correctly rejected.
@@ -331,7 +331,7 @@ func Test_Server_HandleSession_request_sanitization(t *testing.T) {
 	require.NoError(t, err)
 	requireDeniedToolResponse(t, testJSON(t, resp))
 	// Verify the request was not forwarded.
-	require.Len(t, recorder.requests, 0)
+	require.Empty(t, recorder.requests)
 
 	// Verify that when non-canonical capitalized "Name" param is specified and send through
 	// HTTP transport the request is correctly rejected.
@@ -343,14 +343,10 @@ func Test_Server_HandleSession_request_sanitization(t *testing.T) {
 		"name", deniedTool,
 		"NAME", allowedTool,
 	)
-	expectedForwardedRequest := fmt.Sprintf(
-		`{"jsonrpc":"2.0","id":7,"method":"tools/call","params":{%q:%q}}`,
-		"name", deniedTool,
-	)
 	rawResp := testSendRAWRequest(t, http.MethodPost, proxyURL, mcpClientTransport.GetSessionId(), proxyRequest)
 	requireDeniedToolResponse(t, rawResp)
 	// Verify the request was not forwarded.
-	require.Len(t, recorder.requests, 0)
+	require.Empty(t, recorder.requests)
 
 	// Verify that when non-canonical capitalized "Params" field is specified and send through
 	// HTTP transport the request is correctly rejected.
@@ -359,12 +355,10 @@ func Test_Server_HandleSession_request_sanitization(t *testing.T) {
 		`{"jsonrpc":"2.0","id":8,"method":"tools/call","Params":{%q:%q}}`,
 		"name", deniedTool,
 	)
-	expectedForwardedRequest =
-		`{"jsonrpc":"2.0","id":8,"method":"tools/call"}`
 	rawResp = testSendRAWRequest(t, http.MethodPost, proxyURL, mcpClientTransport.GetSessionId(), proxyRequest)
 	requireToolNameMissingResponse(t, rawResp)
 	// Verify the request was not forwarded.
-	require.Len(t, recorder.requests, 0)
+	require.Empty(t, recorder.requests)
 
 	// Verify that when non-canonical capitalized "Method" field is specified and send through
 	// HTTP transport the request is sanitized before forwarding, resulting in a ping message.
@@ -373,7 +367,7 @@ func Test_Server_HandleSession_request_sanitization(t *testing.T) {
 		`{"jsonrpc":"2.0","id":9,"method":"ping","Method":"tools/call","params":{%q:%q}}`,
 		"name", deniedTool,
 	)
-	expectedForwardedRequest = fmt.Sprintf(
+	expectedForwardedRequest := fmt.Sprintf(
 		`{"jsonrpc":"2.0","id":9,"method":"ping","params":{%q:%q}}`,
 		"name", deniedTool,
 	)

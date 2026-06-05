@@ -1,7 +1,24 @@
+/*
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
 package mcp
 
 import (
-	"bytes"
 	"encoding/json"
 	"strings"
 
@@ -12,7 +29,7 @@ import (
 
 // sanitizeMCPRequestParams removes all non-canonical "name" (e.g. "Name") from top-level "params"
 // field of the MCP Request message. This is to prevent vulnerable upstream MCP servers and
-// responding to malformed messages. This is a stripped down version of [sanitizeRawRequest] and
+// responding to malformed messages. This is a stripped down version of [sanitizeRawMCPRequest] and
 // prevents the same issue.  For mcputils.JSONRPCRequest the blast radius is reduced because
 // JSONRPCRequest.UnmarshalJSON is case-sensitive cutting out the edge cases like capitalized
 // "method", "id" or "params" field.
@@ -20,11 +37,11 @@ func sanitizeMCPRequestParams(r *mcputils.JSONRPCRequest) {
 	deleteNonCanonicalKey(r.Params, mcputils.ParamsNameKey)
 }
 
-// sanitizeRawMessage is an extended version of [sanitizeMCPRequestParamsName] which works on raw
-// JSON data. It works for both MCP Requests and Notifications and removes are non-canonical fields
-// and parameters which have a potential of confusing the upstream server. The confusion is
-// possible due to non-compliant implementation. One example is usage of the Go builtin "json"
-// package which is case-insensitive.
+// sanitizeRawMCPRequest is an extended version of [sanitizeMCPRequestParams] which works on raw JSON
+// data. It works for both MCP Requests and Notifications and removes all non-canonical fields and
+// parameters which have a potential of confusing the upstream server. The confusion is possible
+// due to non-compliant implementation. One example is usage of the Go builtin "json" package which
+// is case-insensitive.
 //
 // Currently, it handles following cases:
 //
@@ -62,7 +79,7 @@ func sanitizeRawMCPRequest(request []byte) ([]byte, error) {
 		return request, nil
 	}
 
-	// User json.RawMessage, to not mess with the content, e.g. introduce floating-point
+	// Use json.RawMessage, to not mess with the content, e.g. introduce floating-point
 	// corruption caused by rounding.
 	var m map[string]json.RawMessage
 	if err := json.Unmarshal(request, &m); err != nil {
@@ -83,20 +100,20 @@ func sanitizeRawMCPRequest(request []byte) ([]byte, error) {
 		modifiedParams = deleteNonCanonicalKey(params, mcputils.ParamsNameKey)
 
 		if modifiedParams {
-			buf := bytes.NewBuffer(rawParams[:0])
-			if err := json.NewEncoder(buf).Encode(params); err != nil {
+			var err error
+			m[mcputils.ParamsKey], err = json.Marshal(params)
+			if err != nil {
 				return nil, trace.Wrap(err, "encoding MCP Request params map back into JSON")
 			}
-			m[mcputils.ParamsKey] = buf.Bytes()
 		}
 	}
 
 	if modifiedM || modifiedParams {
-		buf := bytes.NewBuffer(request[:0])
-		if err := json.NewEncoder(buf).Encode(m); err != nil {
+		var err error
+		request, err = json.Marshal(m)
+		if err != nil {
 			return nil, trace.Wrap(err, "encoding MCP Request map back into JSON")
 		}
-		request = buf.Bytes()
 	}
 	return request, nil
 }

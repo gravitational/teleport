@@ -34,7 +34,7 @@ func Test_sanitizeParamsNameRaw_preserves_number_precision(t *testing.T) {
 	const preciseFloat = `0.123456789012345678901234567890123456789`
 	const bigNumber = `12345678901234567890123456789012345678901234567890`
 
-	request := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"test-tool","arguments":{"preciseFloat":` + preciseFloat + `,"bigNumber":` + bigNumber + `}}}`)
+	request := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"Name":"force_decoding","name":"test-tool","arguments":{"preciseFloat":` + preciseFloat + `,"bigNumber":` + bigNumber + `}}}`)
 
 	// Verify those values cause errors with naive unmarshaling.
 	var m map[string]any
@@ -63,5 +63,5 @@ func Test_sanitizeRawRequest_returns_same_slice_when_unmodified(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, request, sanitized)
-	require.True(t, unsafe.SliceData(request) == unsafe.SliceData(sanitized))
+	require.Same(t, unsafe.SliceData(request), unsafe.SliceData(sanitized))
 }

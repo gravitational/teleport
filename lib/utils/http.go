@@ -27,24 +27,18 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// GetRequestBody reads the request's into a slice and safely calls req.Body.Close().
-func GetRequestBody(req *http.Request) ([]byte, error) {
-	if req.Body == nil || req.Body == http.NoBody {
-		return []byte{}, nil
-	}
-	defer req.Body.Close()
-
-	payload, err := io.ReadAll(req.Body)
-	return payload, trace.Wrap(err)
-}
-
 // GetAndReplaceRequestBody returns the request body and replaces the drained
 // body reader with an [io.NopCloser] allowing for further body processing by
 // http transport.
 // If memory exhaustion is a concern, it is the caller's responsibility to wrap
 // the request body in an [io.LimitReader] prior to calling this function.
 func GetAndReplaceRequestBody(req *http.Request) ([]byte, error) {
-	payload, err := GetRequestBody(req)
+	if req.Body == nil || req.Body == http.NoBody {
+		return []byte{}, nil
+	}
+	defer req.Body.Close()
+
+	payload, err := io.ReadAll(req.Body)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

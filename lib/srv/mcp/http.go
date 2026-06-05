@@ -203,7 +203,7 @@ func (t *streamableHTTPTransport) handleListenSSEStreamRequest(r *http.Request) 
 }
 
 func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Response, error) {
-	reqBody, err := utils.GetRequestBody(r)
+	reqBody, err := utils.GetAndReplaceRequestBody(r)
 	if err != nil {
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("invalid request body %v", err)
