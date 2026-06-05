@@ -2999,12 +2999,16 @@ func TestSSHAddingMFA(t *testing.T) {
 				"echo", greeting,
 			)
 
-			err = Run(ctx, args, setHomePath(tmpHomePath), func(cf *CLIConf) error {
-				cf.OverrideStdout = &stdout
-				cf.WebauthnRegister = webauthnRegister
-				cf.WebauthnLogin = webauthnLogin
-				return nil
-			})
+			err = Run(ctx, args,
+				setHomePath(tmpHomePath),
+				setMockSSOLogin(server.GetAuthServer(), user, connector.GetName()),
+				func(cf *CLIConf) error {
+					cf.OverrideStdout = &stdout
+					cf.WebauthnRegister = webauthnRegister
+					cf.WebauthnLogin = webauthnLogin
+					return nil
+				},
+			)
 
 			tc.assertFn(t, stdout.String(), err)
 		})
