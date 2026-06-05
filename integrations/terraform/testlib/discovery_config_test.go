@@ -192,9 +192,6 @@ resource "teleport_discovery_config" "test" {
 }
 
 func (s *TerraformSuiteOSS) TestDiscoveryConfigAzureComputedFields() {
-	// TODO: `metadata.expires` should no longer be computed.
-	s.T().Skip("After applying this test step, the plan was not empty")
-
 	t := s.T()
 	name := "teleport_discovery_config.test"
 
