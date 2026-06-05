@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"iter"
 	"log/slog"
 	"math/big"
 	"net/url"
@@ -323,21 +324,20 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		return nil, trace.Wrap(err, "deriving attributes")
 	}
 
-	// Fetch all workload identities that match the label selectors AND the
-	// principal can access.
-	workloadIdentities, err := s.matchingAndAuthorizedWorkloadIdentities(
+	// Evaluate rules/templating for each workload identity that matches the
+	// label selectors and the principal can access, filtering out those that
+	// should not be issued. The matching identities are streamed and filtered
+	// lazily, so we stop as soon as the issue limit is exceeded.
+	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
+	for wi, err := range s.matchingAndAuthorizedWorkloadIdentities(
 		ctx,
 		authCtx,
 		convertLabels(req.LabelSelectors),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	) {
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
-	// Evaluate rules/templating for each worklaod identity, filtering out those
-	// that should not be issued.
-	shouldIssue := []*workloadidentityv1pb.WorkloadIdentity{}
-	for _, wi := range workloadIdentities {
 		decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
 		if decision.shouldIssue {
 			shouldIssue = append(shouldIssue, decision.templatedWorkloadIdentity)
@@ -1151,63 +1151,47 @@ func (s *IssuanceService) issueJWTSVID(ctx context.Context, params issueJWTSVIDP
 	}, nil
 }
 
-func (s *IssuanceService) getAllWorkloadIdentities(
-	ctx context.Context,
-) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-	workloadIdentities := []*workloadidentityv1pb.WorkloadIdentity{}
-	page := ""
-	for {
-		pageItems, nextPage, err := s.cache.ListWorkloadIdentities(ctx, 0, page, nil)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		workloadIdentities = append(workloadIdentities, pageItems...)
-		if nextPage == "" {
-			break
-		}
-		page = nextPage
-	}
-	return workloadIdentities, nil
-}
-
-// matchingAndAuthorizedWorkloadIdentities returns the workload identities that
-// match the provided labels and the principal has access to.
+// matchingAndAuthorizedWorkloadIdentities returns a stream of the workload
+// identities that match the provided labels and that the principal has access
+// to.
 func (s *IssuanceService) matchingAndAuthorizedWorkloadIdentities(
 	ctx context.Context,
 	authCtx *authz.Context,
 	labels types.Labels,
-) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-	allWorkloadIdentities, err := s.getAllWorkloadIdentities(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error] {
+	return func(yield func(*workloadidentityv1pb.WorkloadIdentity, error) bool) {
+		for wid, err := range s.cache.RangeWorkloadIdentities(ctx, "", "", "", false) {
+			if err != nil {
+				yield(nil, trace.Wrap(err))
+				return
+			}
 
-	canAccess := []*workloadidentityv1pb.WorkloadIdentity{}
-	// Filter out identities user cannot access.
-	for _, wid := range allWorkloadIdentities {
-		if err := authCtx.Checker.CheckAccess(
-			types.Resource153ToResourceWithLabels(wid),
-			services.AccessState{},
-		); err == nil {
-			canAccess = append(canAccess, wid)
+			// Filter out WI the principal cannot access.
+			if err := authCtx.Checker.CheckAccess(
+				types.Resource153ToResourceWithLabels(wid),
+				services.AccessState{},
+			); err != nil {
+				continue
+			}
+
+			// Filter out WI that do not match the label selector.
+			match, _, err := services.MatchLabelGetter(
+				labels, types.Resource153ToResourceWithLabels(wid),
+			)
+			if err != nil {
+				// Maybe log and skip rather than returning an error?
+				yield(nil, trace.Wrap(err))
+				return
+			}
+			if !match {
+				continue
+			}
+
+			if !yield(wid, nil) {
+				return
+			}
 		}
 	}
-
-	canAccessAndInSearch := []*workloadidentityv1pb.WorkloadIdentity{}
-	for _, wid := range canAccess {
-		match, _, err := services.MatchLabelGetter(
-			labels, types.Resource153ToResourceWithLabels(wid),
-		)
-		if err != nil {
-			// Maybe log and skip rather than returning an error?
-			return nil, trace.Wrap(err)
-		}
-		if match {
-			canAccessAndInSearch = append(canAccessAndInSearch, wid)
-		}
-	}
-
-	return canAccessAndInSearch, nil
 }
 
 func convertLabels(selectors []*workloadidentityv1pb.LabelSelector) types.Labels {

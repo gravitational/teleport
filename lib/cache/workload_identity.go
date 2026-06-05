@@ -19,18 +19,17 @@ package cache
 
 import (
 	"context"
-	"encoding/base32"
+	"iter"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/text/cases"
 	"google.golang.org/protobuf/proto"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 type workloadIdentityIndex string
@@ -45,19 +44,25 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 		return nil, trace.BadParameter("missing parameter WorkloadIdentities")
 	}
 
+	nameKey, err := services.WorkloadIdentityKey(services.WorkloadIdentitySortFieldName)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	spiffeIDKey, err := services.WorkloadIdentityKey(services.WorkloadIdentitySortFieldSPIFFEID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &collection[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
 		store: newStore(
 			types.KindWorkloadIdentity,
 			proto.CloneOf[*workloadidentityv1pb.WorkloadIdentity],
 			map[workloadIdentityIndex]func(*workloadidentityv1pb.WorkloadIdentity) string{
-				workloadIdentityNameIndex:     keyForWorkloadIdentityNameIndex,
-				workloadIdentitySpiffeIDIndex: keyForWorkloadIdentitySpiffeIDIndex,
+				workloadIdentityNameIndex:     nameKey,
+				workloadIdentitySpiffeIDIndex: spiffeIDKey,
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*workloadidentityv1pb.WorkloadIdentity, error) {
-			out, err := stream.Collect(clientutils.Resources(ctx,
-				func(ctx context.Context, pageSize int, currentToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-					return upstream.ListWorkloadIdentities(ctx, pageSize, currentToken, nil)
-				}))
+			out, err := stream.Collect(upstream.RangeWorkloadIdentities(ctx, "", "", "", false))
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *workloadidentityv1pb.WorkloadIdentity {
@@ -73,47 +78,55 @@ func newWorkloadIdentityCollection(upstream services.WorkloadIdentities, w types
 	}, nil
 }
 
-// ListWorkloadIdentities returns a paginated list of WorkloadIdentity resources.
-func (c *Cache) ListWorkloadIdentities(
+// RangeWorkloadIdentities returns WorkloadIdentity resources within the range
+// [start, end), ordered by the given sort field and direction. Supported sort
+// fields are "name" (the default) and "spiffe_id".
+func (c *Cache) RangeWorkloadIdentities(
 	ctx context.Context,
-	pageSize int,
-	nextToken string,
-	options *services.ListWorkloadIdentitiesRequestOptions,
-) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-	ctx, span := c.Tracer.Start(ctx, "cache/ListWorkloadIdentities")
-	defer span.End()
-
-	index := workloadIdentityNameIndex
-	keyFn := keyForWorkloadIdentityNameIndex
-	isDesc := options.GetSortDesc()
-	switch options.GetSortField() {
-	case "name":
-		index = workloadIdentityNameIndex
-		keyFn = keyForWorkloadIdentityNameIndex
-	case "spiffe_id":
-		index = workloadIdentitySpiffeIDIndex
-		keyFn = keyForWorkloadIdentitySpiffeIDIndex
-	case "":
-		// default ordering as defined above
-	default:
-		return nil, "", trace.BadParameter("unsupported sort %q but expected name or spiffe_id", options.GetSortField())
+	start, end string,
+	sortField services.WorkloadIdentitySortField,
+	sortDesc bool,
+) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error] {
+	index, keyFn, err := workloadIdentitySortIndex(sortField)
+	if err != nil {
+		return func(yield func(*workloadidentityv1pb.WorkloadIdentity, error) bool) {
+			yield(nil, trace.Wrap(err))
+		}
 	}
 
 	lister := genericLister[*workloadidentityv1pb.WorkloadIdentity, workloadIdentityIndex]{
 		cache:      c,
 		collection: c.collections.workloadIdentity,
 		index:      index,
-		isDesc:     isDesc,
+		isDesc:     sortDesc,
 		upstreamList: func(ctx context.Context, pageSize int, nextToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-			return c.Config.WorkloadIdentity.ListWorkloadIdentities(ctx, pageSize, nextToken, options)
-		},
-		filter: func(b *workloadidentityv1pb.WorkloadIdentity) bool {
-			return services.MatchWorkloadIdentity(b, options.GetFilterSearchTerm())
+			// When the cache is unhealthy, fall back to collecting a page from
+			// the upstream backend's range. The backend only supports
+			// name-ordered ascending iteration, so a spiffe_id or descending
+			// range surfaces an error here.
+			return generic.CollectPageAndCursor(
+				c.Config.WorkloadIdentity.RangeWorkloadIdentities(ctx, nextToken, "", sortField, sortDesc),
+				pageSize,
+				keyFn,
+			)
 		},
 		nextToken: keyFn,
 	}
-	out, next, err := lister.list(ctx, pageSize, nextToken)
-	return out, next, trace.Wrap(err)
+
+	return func(yield func(*workloadidentityv1pb.WorkloadIdentity, error) bool) {
+		ctx, span := c.Tracer.Start(ctx, "cache/RangeWorkloadIdentities")
+		defer span.End()
+
+		for wi, err := range lister.Range(ctx, start, end) {
+			if !yield(wi, err) {
+				return
+			}
+
+			if err != nil {
+				return
+			}
+		}
+	}
 }
 
 // GetWorkloadIdentity returns a single WorkloadIdentity by name
@@ -131,17 +144,21 @@ func (c *Cache) GetWorkloadIdentity(ctx context.Context, name string) (*workload
 	return out, trace.Wrap(err)
 }
 
-func keyForWorkloadIdentityNameIndex(r *workloadidentityv1pb.WorkloadIdentity) string {
-	return r.GetMetadata().GetName()
-}
-
-func keyForWorkloadIdentitySpiffeIDIndex(r *workloadidentityv1pb.WorkloadIdentity) string {
-	name := keyForWorkloadIdentityNameIndex(r)
-	// Sort case-insensitively to keep /spiffe-1 and /Spiffe-1 together
-	spiffeID := cases.Fold().String(r.GetSpec().GetSpiffe().GetId())
-	// Encode the id avoid; "a/b" + "/" + "c" vs. "a" + "/" + "b/c". Base32 hex
-	// maintains original ordering.
-	spiffeID = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(spiffeID))
-	// SPIFFE IDs may not be unique, so append the resource name
-	return spiffeID + "/" + name
+// workloadIdentitySortIndex maps a sort field to its store index and key
+// function.
+func workloadIdentitySortIndex(sortField services.WorkloadIdentitySortField) (workloadIdentityIndex, func(*workloadidentityv1pb.WorkloadIdentity) string, error) {
+	keyFn, err := services.WorkloadIdentityKey(sortField)
+	if err != nil {
+		return "", nil, trace.Wrap(err)
+	}
+	switch sortField {
+	case "", services.WorkloadIdentitySortFieldName:
+		return workloadIdentityNameIndex, keyFn, nil
+	case services.WorkloadIdentitySortFieldSPIFFEID:
+		return workloadIdentitySpiffeIDIndex, keyFn, nil
+	default:
+		// This branch is technically unreachable as WorkloadIdentityKey has
+		// already checked.
+		return "", nil, trace.BadParameter("unsupported sort %q", sortField)
+	}
 }

@@ -2581,6 +2581,51 @@ func TestResourceService_ListWorkloadIdentities(t *testing.T) {
 	})
 }
 
+// TestResourceService_ListWorkloadIdentitiesFilter verifies that the search
+// term filter is applied by the gRPC handler over the ranged results.
+func TestResourceService_ListWorkloadIdentitiesFilter(t *testing.T) {
+	t.Parallel()
+	srv, _ := newTestTLSServer(t)
+	ctx := context.Background()
+
+	user, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"filterer",
+		[]string{},
+		[]types.Rule{{
+			Resources: []string{types.KindWorkloadIdentity},
+			Verbs:     []string{types.VerbRead, types.VerbList},
+		}},
+	)
+	require.NoError(t, err)
+	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+	rsClient := workloadidentityv1pb.NewWorkloadIdentityResourceServiceClient(client.GetConnection())
+
+	for i := range 10 {
+		_, err := srv.Auth().CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{Name: fmt.Sprintf("wi-%d", i)},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+					Id: fmt.Sprintf("/test/%d/id%d", i%2, i),
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	res, err := rsClient.ListWorkloadIdentitiesV2(ctx, &workloadidentityv1pb.ListWorkloadIdentitiesV2Request{
+		FilterSearchTerm: "test/1",
+	})
+	require.NoError(t, err)
+	require.Len(t, res.WorkloadIdentities, 5)
+	for _, wi := range res.WorkloadIdentities {
+		require.Contains(t, wi.GetSpec().GetSpiffe().GetId(), "/test/1/")
+	}
+}
+
 func TestResourceService_UpdateWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 	srv, eventRecorder := newTestTLSServer(t)

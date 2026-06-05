@@ -18,11 +18,13 @@ package services
 
 import (
 	"context"
-	"slices"
+	"encoding/base32"
+	"iter"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/text/cases"
 
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -38,14 +40,14 @@ type WorkloadIdentities interface {
 	GetWorkloadIdentity(
 		ctx context.Context, name string,
 	) (*workloadidentityv1pb.WorkloadIdentity, error)
-	// ListWorkloadIdentities lists all WorkloadIdentities using Google style
-	// pagination.
-	ListWorkloadIdentities(
+	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
+	// range [start, end), ordered by the given sort field and direction.
+	RangeWorkloadIdentities(
 		ctx context.Context,
-		pageSize int,
-		lastToken string,
-		options *ListWorkloadIdentitiesRequestOptions,
-	) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+		start, end string,
+		sortField WorkloadIdentitySortField,
+		sortDesc bool,
+	) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 	// CreateWorkloadIdentity creates a new WorkloadIdentity.
 	CreateWorkloadIdentity(
 		ctx context.Context, workloadIdentity *workloadidentityv1pb.WorkloadIdentity,
@@ -155,51 +157,50 @@ func ValidateWorkloadIdentity(s *workloadidentityv1pb.WorkloadIdentity) error {
 	return nil
 }
 
-type ListWorkloadIdentitiesRequestOptions struct {
-	// The sort field to use for the results. If empty, the default sort field is used.
-	SortField string
-	// The sort order to use for the results. If empty, the default sort order is used.
-	SortDesc bool
-	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
-	FilterSearchTerm string
+// WorkloadIdentitySortField identifies a field that WorkloadIdentities may be
+// sorted (and ranged) by. An empty value defaults to
+// [WorkloadIdentitySortFieldName].
+type WorkloadIdentitySortField string
+
+const (
+	// WorkloadIdentitySortFieldName sorts WorkloadIdentities by name. It is the
+	// default when no sort field is specified.
+	WorkloadIdentitySortFieldName WorkloadIdentitySortField = "name"
+	// WorkloadIdentitySortFieldSPIFFEID sorts WorkloadIdentities by SPIFFE ID.
+	WorkloadIdentitySortFieldSPIFFEID WorkloadIdentitySortField = "spiffe_id"
+)
+
+// WorkloadIdentityKey returns a function deriving the canonical ordering key for
+// a WorkloadIdentity for the given sort field. It is the single source of truth
+// for both the order in which WorkloadIdentities are iterated and the pagination
+// cursor used to resume iteration. Supported sort fields are "" (defaults to
+// name), [WorkloadIdentitySortFieldName] and [WorkloadIdentitySortFieldSPIFFEID];
+// any other sort field returns an error.
+//
+// The sort field is validated once, when the key function is obtained, so
+// callers do not have to handle an error per resource.
+func WorkloadIdentityKey(sortField WorkloadIdentitySortField) (func(*workloadidentityv1pb.WorkloadIdentity) string, error) {
+	switch sortField {
+	case "", WorkloadIdentitySortFieldName:
+		return func(wi *workloadidentityv1pb.WorkloadIdentity) string {
+			return wi.GetMetadata().GetName()
+		}, nil
+	case WorkloadIdentitySortFieldSPIFFEID:
+		return workloadIdentitySPIFFEIDKey, nil
+	default:
+		return nil, trace.BadParameter("unsupported sort %q but expected %s or %s", sortField, WorkloadIdentitySortFieldName, WorkloadIdentitySortFieldSPIFFEID)
+	}
 }
 
-func (o *ListWorkloadIdentitiesRequestOptions) GetSortField() string {
-	if o == nil {
-		return ""
-	}
-	return o.SortField
+// workloadIdentitySPIFFEIDKey returns the ordering key for the spiffe_id sort.
+func workloadIdentitySPIFFEIDKey(wi *workloadidentityv1pb.WorkloadIdentity) string {
+	name := wi.GetMetadata().GetName()
+	// Sort case-insensitively to keep /spiffe-1 and /Spiffe-1 together.
+	spiffeID := cases.Fold().String(wi.GetSpec().GetSpiffe().GetId())
+	// Encode to avoid ambiguity; "a/b" + "/" + "c" vs. "a" + "/" + "b/c". Base32
+	// hex maintains the original ordering.
+	spiffeID = base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(spiffeID))
+	// SPIFFE IDs may not be unique, so append the resource name.
+	return spiffeID + "/" + name
 }
 
-func (o *ListWorkloadIdentitiesRequestOptions) GetSortDesc() bool {
-	if o == nil {
-		return false
-	}
-	return o.SortDesc
-}
-
-func (o *ListWorkloadIdentitiesRequestOptions) GetFilterSearchTerm() string {
-	if o == nil {
-		return ""
-	}
-	return o.FilterSearchTerm
-}
-
-func MatchWorkloadIdentity(item *workloadidentityv1pb.WorkloadIdentity, filterSearchTerm string) bool {
-	if item == nil {
-		return false
-	}
-	if filterSearchTerm == "" {
-		return true
-	}
-
-	values := []string{
-		item.GetMetadata().GetName(),
-		item.GetSpec().GetSpiffe().GetId(),
-		item.GetSpec().GetSpiffe().GetHint(),
-	}
-
-	return slices.ContainsFunc(values, func(val string) bool {
-		return strings.Contains(strings.ToLower(val), strings.ToLower(filterSearchTerm))
-	})
-}

@@ -18,6 +18,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -75,35 +76,26 @@ func (b *WorkloadIdentityService) GetWorkloadIdentity(
 	return resource, trace.Wrap(err)
 }
 
-// ListWorkloadIdentities lists all WorkloadIdentities using a given page size
-// and last key.
-func (b *WorkloadIdentityService) ListWorkloadIdentities(
-	ctx context.Context,
-	pageSize int,
-	currentToken string,
-	options *services.ListWorkloadIdentitiesRequestOptions,
-) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-	if options.GetSortField() != "" && options.GetSortField() != "name" {
-		return nil, "", trace.CompareFailed("unsupported sort, only name field is supported, but got %q", options.GetSortField())
+// RangeWorkloadIdentities returns WorkloadIdentity resources within the range
+// [start, end). The backend only supports ordering by name in ascending order;
+// any other sort field or a descending order returns an error.
+func (b *WorkloadIdentityService) RangeWorkloadIdentities(
+	ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool,
+) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error] {
+	if sortField != "" && sortField != services.WorkloadIdentitySortFieldName {
+		return errWorkloadIdentityIter(trace.BadParameter("unsupported sort, only name field is supported, but got %q", sortField))
 	}
-	if options.GetSortDesc() {
-		return nil, "", trace.CompareFailed("unsupported sort, only ascending order is supported")
+	if sortDesc {
+		return errWorkloadIdentityIter(trace.BadParameter("unsupported sort, only ascending order is supported"))
 	}
+	return b.service.Resources(ctx, start, end)
+}
 
-	if options.GetFilterSearchTerm() == "" {
-		r, nextToken, err := b.service.ListResources(ctx, pageSize, currentToken)
-		return r, nextToken, trace.Wrap(err)
+// errWorkloadIdentityIter returns an iterator that yields a single error.
+func errWorkloadIdentityIter(err error) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error] {
+	return func(yield func(*workloadidentityv1pb.WorkloadIdentity, error) bool) {
+		yield(nil, err)
 	}
-
-	r, nextToken, err := b.service.ListResourcesWithFilter(
-		ctx,
-		pageSize,
-		currentToken,
-		func(item *workloadidentityv1pb.WorkloadIdentity) bool {
-			return services.MatchWorkloadIdentity(item, options.GetFilterSearchTerm())
-		},
-	)
-	return r, nextToken, trace.Wrap(err)
 }
 
 // DeleteWorkloadIdentity deletes a specific WorkloadIdentity.

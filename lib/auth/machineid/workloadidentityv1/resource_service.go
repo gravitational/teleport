@@ -18,7 +18,10 @@ package workloadidentityv1
 
 import (
 	"context"
+	"iter"
 	"log/slog"
+	"slices"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -31,12 +34,14 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
 type workloadIdentityReader interface {
 	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
-	ListWorkloadIdentities(ctx context.Context, pageSize int, token string, options *services.ListWorkloadIdentitiesRequestOptions) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 }
 
 type workloadIdentityReadWriter interface {
@@ -152,16 +157,22 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 		return nil, trace.Wrap(err)
 	}
 
-	resources, nextToken, err := s.cache.ListWorkloadIdentities(
-		ctx,
-		int(req.PageSize),
-		req.PageToken,
-		&services.ListWorkloadIdentitiesRequestOptions{
-			SortField:        req.GetSortField(),
-			SortDesc:         req.GetSortDesc(),
-			FilterSearchTerm: req.GetFilterSearchTerm(),
-		},
-	)
+	sortField := services.WorkloadIdentitySortField(req.GetSortField())
+	keyFn, err := services.WorkloadIdentityKey(sortField)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Iterate the cache in sorted order, applying any filtering here at the gRPC
+	// layer rather than pushing it down, then collect a single page.
+	items := s.cache.RangeWorkloadIdentities(ctx, req.GetPageToken(), "", sortField, req.GetSortDesc())
+	if searchTerm := req.GetFilterSearchTerm(); searchTerm != "" {
+		items = stream.FilterMap(items, func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
+			return wi, matchWorkloadIdentity(wi, searchTerm)
+		})
+	}
+
+	resources, nextToken, err := generic.CollectPageAndCursor(items, int(req.GetPageSize()), keyFn)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -170,6 +181,27 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 		WorkloadIdentities: resources,
 		NextPageToken:      nextToken,
 	}, nil
+}
+
+// matchWorkloadIdentity reports whether the WorkloadIdentity matches the given
+// search term across its name, SPIFFE ID and hint.
+func matchWorkloadIdentity(item *workloadidentityv1pb.WorkloadIdentity, filterSearchTerm string) bool {
+	if item == nil {
+		return false
+	}
+	if filterSearchTerm == "" {
+		return true
+	}
+
+	values := []string{
+		item.GetMetadata().GetName(),
+		item.GetSpec().GetSpiffe().GetId(),
+		item.GetSpec().GetSpiffe().GetHint(),
+	}
+
+	return slices.ContainsFunc(values, func(val string) bool {
+		return strings.Contains(strings.ToLower(val), strings.ToLower(filterSearchTerm))
+	})
 }
 
 // DeleteWorkloadIdentity deletes a WorkloadIdentity by name.
