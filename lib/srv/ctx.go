@@ -244,7 +244,7 @@ type IdentityContext struct {
 	// TeleportUser is the Teleport user associated with the connection. For remote users,
 	// this value is namespaced to the user's origin cluster via [services.UsernameForCluster],
 	// making cross-cluster users uniquely identifiable for features like session joining.
-	// When the real Teleport username is needed, e.g. for user output, use UnmappedIdentity.Username.
+	// When the real Teleport username is needed, use UnmappedIdentity.Username.
 	TeleportUser string
 
 	// ClusterName is the name of the cluster the user authenticated with.
@@ -1027,9 +1027,6 @@ func getPAMConfig(c *ServerContext) (*reexec.PAMConfig, error) {
 
 	// Fill in the environment variables from the config and interpolate them if needed.
 	environment := make(map[string]string)
-	// Use the raw (unmapped) username here: this env var is exposed to the
-	// user's shell/scripts and should match what they typed at login, not the
-	// cluster-namespaced form used internally for identity matching.
 	environment["TELEPORT_USERNAME"] = c.Identity.UnmappedIdentity.Username
 	environment["TELEPORT_LOGIN"] = c.Identity.Login
 	environment["TELEPORT_ROLES"] = strings.Join(c.Identity.AccessPermit.GetMappedRoles(), " ")
@@ -1213,9 +1210,6 @@ func buildEnvironment(ctx *ServerContext) []string {
 	// SSH_TELEPORT_HOST_UUID, SSH_TELEPORT_CLUSTER_NAME, and SSH_SESSION_WEBPROXY_ADDR.
 	env.AddTrusted(teleport.SSHTeleportHostUUID, ctx.srv.ID())
 	env.AddTrusted(teleport.SSHTeleportClusterName, ctx.ClusterName)
-	// Use the raw (unmapped) username here: this env var is exposed to the
-	// user's shell/scripts and should match what they typed at login, not the
-	// cluster-namespaced form used internally for identity matching.
 	env.AddTrusted(teleport.SSHTeleportUser, ctx.Identity.UnmappedIdentity.Username)
 
 	if ctx.GetSessionParams().WebProxyAddr != "" {
