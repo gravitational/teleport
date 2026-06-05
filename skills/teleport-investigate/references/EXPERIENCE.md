@@ -155,11 +155,6 @@ the elevated session carry it in _different_ `event_data` paths. So you can't
 filter by the id server-side. To stay efficient, reason about how to surface it:
 start with low-cost searches and refine until the result set is narrow.
 
-**Fast path:** for "what did they do with the grant", facet-sweep the user over
-the grant window (step 3) — if the event-type facet has no `*.session.*` events,
-they never used it, so answer and stop. Do steps 1–2 and the id-correlation in
-step 4 only when sessions exist. The request id is never a queryable column.
-
 1. **Confirm the id and see who's involved.** A request surfaces as a target
    resource of kind `access_request`, so it _is_ reachable via `--resource`:
 
@@ -174,33 +169,41 @@ step 4 only when sessions exist. The request id is never a queryable column.
                 { "name": "user", "values": ["alice", "bob", "system"] }] }
    ```
 
-2. **Read the request itself.** You only need the `access_request.create` event,
-   so filter to it; its payload hands you the requester, the requested
-   roles/resources, and the window to search:
+2. **Read the request and confirm it was approved.** Pull both lifecycle events:
+   `access_request.create` gives the requester, roles/resources, and the window to
+   search; `access_request.review` gives the verdict. If no review reaches
+   `state: APPROVED`, the grant was never issued — stop and report that.
 
    ```sh
-   $TCTL investigate --resource <uuid> --event-type access_request.create \
+   $TCTL investigate --resource <uuid> \
+     --event-type access_request.create --event-type access_request.review \
      --from 30d --limit 0 --format json \
-     | jq '.data[].event_data | {user, roles, resource_names, time, expires}'
+     | jq '.data[].event_data
+           | {event, user, reviewer, state, roles, resource_names, time, expires}'
    ```
 
    ```
-   {
-     "user": "bob",
-     "roles": ["access"],
+   { "event": "access_request.create", "user": "bob", "reviewer": null,
+     "state": "PENDING", "roles": ["access"],
      "resource_names": ["/acme.example.com/app/internal-dashboard"],
-     "time": "2026-06-02T18:47:26Z",
-     "expires": "2026-06-03T06:47:14Z"
-   }
+     "time": "2026-06-02T18:47:26Z", "expires": "2026-06-03T06:47:14Z" }
+   { "event": "access_request.review", "user": null, "reviewer": "alice",
+     "state": "APPROVED", "time": "2026-06-02T18:49:02Z" }
    ```
 
 3. **Gauge the requester's footprint in the grant window** before pulling, so
    you know how big step 4 is:
 
-   Scoping by the requested resource alone (e.g. `--resource internal-dashboard`) would only
-   return events directly tied to that resource, not everything done while the
-   grant was active. So pull all of the user's activity in the window, then
-   narrow it client-side.
+   If the request is scoped to one resource and that's all you care about, the
+   event type for its kind is conclusive — `db.session.start` (database),
+   `app.session.start` (app), `session.start` (SSH, incl. into a kube node),
+   `kube.request` (`kubectl` on a kube_cluster). None in the window → never
+   exercised against it; answer and stop.
+
+   For a broader "everything they did" question, `--resource internal-dashboard`
+   would catch only events tied to that resource, not everything done while the
+   grant was active. So pull all the user's activity in the window and narrow
+   client-side.
 
    ```sh
    $TCTL investigate --user bob --from 2026-06-02T18:47:26Z --to 2026-06-03T06:47:14Z \
@@ -217,6 +220,20 @@ step 4 only when sessions exist. The request id is never a queryable column.
 
 4. **Pull that window and keep every event whose payload references the id**
    anywhere — a plain `tostring | contains` catches both `event_data` paths:
+
+   `investigate` handles high event counts well, so up to ~1000 events just pull
+   the whole window. Only when step 3's count is well beyond that, tighten `--from`
+   first: the user can't have acted before assuming the grant, and assuming it
+   mints an elevated cert carrying the id in `identity.access_requests`, so the
+   earliest such `cert.create` is a safe lower bound — discarding pre-assume noise:
+
+   ```sh
+   $TCTL investigate --user bob --event-type cert.create \
+     --from 2026-06-02T18:47:26Z --to 2026-06-03T06:47:14Z --limit 0 --format json \
+     | jq -r --arg req <uuid> '[.data[]
+         | select((.event_data.identity.access_requests // []) | index($req))
+         | .time] | min'
+   ```
 
    ```sh
    $TCTL investigate --user bob --from 2026-06-02T18:47:26Z --to 2026-06-03T06:47:14Z \
