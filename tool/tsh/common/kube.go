@@ -213,6 +213,10 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 	tlsConfig.InsecureSkipVerify = cf.InsecureSkipVerify
 	tlsConfig.ServerName = kubeStatus.tlsServerNameForCluster(cluster, kubeCluster)
+	ceremony, err := tc.NewMFACeremony(cf.Context)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	session, err := client.NewKubeSession(cf.Context,
 		client.KubeSessionConfig{
 			KubeProxyAddr:                 tc.Config.KubeProxyAddr,
@@ -235,7 +239,7 @@ func (c *kubeJoinCommand) run(cf *CLIConf) error {
 
 				return authClientCloser{ClientI: auth, clusterClient: clt}, nil
 			},
-			Ceremony: tc.NewMFACeremony(),
+			Ceremony: ceremony,
 			Stdin:    tc.Config.Stdin,
 			Stdout:   tc.Config.Stdout,
 			Stderr:   tc.Config.Stderr,

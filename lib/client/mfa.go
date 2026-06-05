@@ -30,19 +30,24 @@ import (
 )
 
 // NewMFACeremony returns a new MFA ceremony configured for this client.
-func (tc *TeleportClient) NewMFACeremony() *mfa.Ceremony {
+func (tc *TeleportClient) NewMFACeremony(ctx context.Context) (*mfa.Ceremony, error) {
+	pingResp, err := tc.Ping(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	c := &mfa.Ceremony{
 		CreateAuthenticateChallenge: tc.createAuthenticateChallenge,
 		PromptConstructor:           tc.NewMFAPrompt,
 		MFACeremonyConstructor:      tc.NewRedirectorMFACeremony,
-		Ping:                        tc.Ping,
+		AuthSecondFactor:            pingResp.Auth.SecondFactor,
 	}
 
 	if tc.RegisterMFADeviceIfRequired {
 		tc.allowRegisteringMFADevicesForCeremony(c)
 	}
 
-	return c
+	return c, nil
 }
 
 func (tc *TeleportClient) allowRegisteringMFADevicesForCeremony(c *mfa.Ceremony) {
@@ -167,7 +172,10 @@ func (tc *TeleportClient) NewRedirectorMFACeremony(ctx context.Context) (mfa.Cal
 }
 
 func (tc *TeleportClient) AddMFA(ctx context.Context, rdc mfa.RegistrationCeremonyConfig) (bool, error) {
-	c := tc.NewMFACeremony()
+	c, err := tc.NewMFACeremony(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
 	// Unconditionally allow registering MFA devices.
 	tc.allowRegisteringMFADevicesForCeremony(c)
 	added, err := c.Register(ctx, rdc)

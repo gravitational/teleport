@@ -26,7 +26,7 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/client/webclient"
+	"github.com/gravitational/teleport/api/constants"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 )
@@ -47,8 +47,9 @@ type Ceremony struct {
 	// registered on the client side. If set to nil, the ceremony is unable to
 	// register MFA devices.
 	AddMFADevice AddMFADeviceFunc
-	// Ping fetches a [webclient.PingResponse] from the server.
-	Ping PingFunc
+	// AuthSecondFactor is the Second Factor option as configured in the auth
+	// service's auth preferences.
+	AuthSecondFactor constants.SecondFactorType
 }
 
 // CallbackCeremony is an SSO/Browser callback ceremony.
@@ -82,10 +83,6 @@ type AddMFADeviceFunc func(
 	ctx context.Context, req *proto.MFARegisterResponse, config RegistrationCeremonyConfig,
 ) error
 
-// PingFunc is a function that fetches a PingResponse from the server. Its
-// purpose is to discover available MFA methods.
-type PingFunc func(ctx context.Context) (*webclient.PingResponse, error)
-
 // Run runs the MFA ceremony. If the user has no eligible MFA devices and the
 // ceremony is requested for per-session MFA, this function will attempt to
 // register a new device and then retry the ceremony.
@@ -111,7 +108,7 @@ func (c *Ceremony) Run(
 		Reason: reason,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(authErr, err)
 	}
 	if !added {
 		return nil, trace.Wrap(authErr)
@@ -122,10 +119,6 @@ func (c *Ceremony) Run(
 }
 
 func registrationReasonForError(req *proto.CreateAuthenticateChallengeRequest, err error) (RegistrationReason, bool) {
-	if !isPerSessionMFARequest(req) {
-		return "", false
-	}
-
 	switch {
 	case errors.Is(err, &ErrNoMFADevices):
 		return RegistrationReasonSessionMFANoDevices, true
@@ -198,6 +191,7 @@ func (c *Ceremony) Authenticate(
 	case proto.MFARequired_MFA_REQUIRED_YES:
 		// If the user has no eligible device while attempting a per-session MFA,
 		// return an error. The caller might retry after registering a new device.
+		// TODO: test and enable other flows (not just per-session MFA).
 		if chal.WebauthnChallenge == nil &&
 			chal.SSOChallenge == nil &&
 			chal.BrowserMFAChallenge == nil &&
@@ -274,16 +268,7 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 
 	promptConfig := RegistrationPromptConfig{
 		RegistrationCeremonyConfig: config,
-	}
-	if config.DeviceType == "" && c.Ping != nil {
-		// If we are prompting the user for the device type, then take a glimpse at
-		// server-side settings and adjust the options accordingly.
-		// This is undesirable to do during flag setup, but we can do it here.
-		pingResp, err := c.Ping(ctx)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		promptConfig.AuthSecondFactor = pingResp.Auth.SecondFactor
+		AuthSecondFactor:           c.AuthSecondFactor,
 	}
 
 	// Query for missing data to register the device.
@@ -294,12 +279,11 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 	if updatedPromptConfig == nil {
 		// No device has been registered.
 		return false, nil
-	} else {
-		promptConfig = *updatedPromptConfig
-		config = updatedPromptConfig.RegistrationCeremonyConfig
 	}
+	promptConfig = *updatedPromptConfig
+	config = updatedPromptConfig.RegistrationCeremonyConfig
 
-	mfaResp, err := c.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+	mfaResp, err := c.Authenticate(ctx, &proto.CreateAuthenticateChallengeRequest{
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 		},

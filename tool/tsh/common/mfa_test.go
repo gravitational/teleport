@@ -68,7 +68,7 @@ func setupMFAAddTestUser(t *testing.T) (*service.TeleportProcess, types.User, st
 	require.NoError(t, err)
 	proxyHost, _, err := net.SplitHostPort(proxyAddr.Addr)
 	require.NoError(t, err)
-	_, err = process.GetAuthServer().UpsertAuthPreference(context.Background(), &types.AuthPreferenceV2{
+	_, err = process.GetAuthServer().UpsertAuthPreference(t.Context(), &types.AuthPreferenceV2{
 		Spec: types.AuthPreferenceSpecV2{
 			Type:         constants.Local,
 			SecondFactor: constants.SecondFactorOn,
@@ -124,6 +124,13 @@ func setMockMFARegister() CliOption {
 	}
 }
 
+func setInsecure(insecure bool) CliOption {
+	return func(cf *CLIConf) error {
+		cf.InsecureSkipVerify = insecure
+		return nil
+	}
+}
+
 func runMFAAddCommand(ctx context.Context, cmd *mfaAddCommand, opts ...CliOption) error {
 	cf := &CLIConf{
 		Context: ctx,
@@ -137,6 +144,7 @@ func runMFAAddCommand(ctx context.Context, cmd *mfaAddCommand, opts ...CliOption
 }
 
 func TestTshMFAAddOTP(t *testing.T) {
+	ctx := t.Context()
 	process, alice, tshHome := setupMFAAddTestUser(t)
 
 	oldStdin := prompt.Stdin()
@@ -159,8 +167,9 @@ func TestTshMFAAddOTP(t *testing.T) {
 		return code, nil
 	}))
 
-	err := Run(context.Background(), []string{
+	err := Run(ctx, []string{
 		"mfa", "add",
+		"--insecure",
 		"--name", "otp-device",
 		"--type", "TOTP",
 	},
@@ -170,7 +179,7 @@ func TestTshMFAAddOTP(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, stdout.String(), "MFA device \"otp-device\" added.")
 
-	devices, err := process.GetAuthServer().Services.GetMFADevices(context.Background(), alice.GetName(), false)
+	devices, err := process.GetAuthServer().Services.GetMFADevices(ctx, alice.GetName(), false)
 	require.NoError(t, err)
 
 	for _, device := range devices {
@@ -183,6 +192,7 @@ func TestTshMFAAddOTP(t *testing.T) {
 }
 
 func TestTshMFAAddWebauthn(t *testing.T) {
+	ctx := t.Context()
 	process, alice, tshHome := setupMFAAddTestUser(t)
 
 	oldStdin := prompt.Stdin()
@@ -191,12 +201,13 @@ func TestTshMFAAddWebauthn(t *testing.T) {
 	})
 	prompt.SetStdin(prompt.NewFakeReader().AddString("NO"))
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	stdout := new(bytes.Buffer)
-	err := Run(ctx, []string{
+	err := Run(ctxWithTimeout, []string{
 		"mfa", "add",
+		"--insecure",
 		"--name", "webauthn-device",
 		"--type", "WEBAUTHN",
 	},
@@ -207,7 +218,7 @@ func TestTshMFAAddWebauthn(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, stdout.String(), "MFA device \"webauthn-device\" added.")
 
-	devices, err := process.GetAuthServer().Services.GetMFADevices(context.Background(), alice.GetName(), false)
+	devices, err := process.GetAuthServer().Services.GetMFADevices(ctx, alice.GetName(), false)
 	require.NoError(t, err)
 
 	for _, device := range devices {
@@ -220,16 +231,18 @@ func TestTshMFAAddWebauthn(t *testing.T) {
 }
 
 func TestTshMFAAddNativePlatformAuthenticator(t *testing.T) {
+	ctx := t.Context()
 	process, alice, tshHome := setupMFAAddTestUser(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 
 	stdout := new(bytes.Buffer)
-	err := runMFAAddCommand(ctx, &mfaAddCommand{
+	err := runMFAAddCommand(ctxWithTimeout, &mfaAddCommand{
 		devName: "touchid-device",
 		devType: "TOUCHID",
 	},
+		setInsecure(true),
 		setHomePath(tshHome),
 		setMockMFARegister(),
 		setCopyStdout(stdout),
@@ -237,7 +250,7 @@ func TestTshMFAAddNativePlatformAuthenticator(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, stdout.String(), "MFA device \"touchid-device\" added.")
 
-	devices, err := process.GetAuthServer().Services.GetMFADevices(context.Background(), alice.GetName(), false)
+	devices, err := process.GetAuthServer().Services.GetMFADevices(ctx, alice.GetName(), false)
 	require.NoError(t, err)
 
 	for _, device := range devices {

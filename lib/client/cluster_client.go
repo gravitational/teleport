@@ -555,10 +555,14 @@ func (c *ClusterClient) performSessionMFACeremony(ctx context.Context, rootClien
 		promptOpts = append(promptOpts, mfa.WithPromptReasonSessionMFA("Windows desktop", params.RouteToWindowsDesktop.WindowsDesktop, leafClusterName))
 	}
 
+	ceremony, err := c.tc.NewMFACeremony(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 	result, err := PerformSessionMFACeremony(ctx, PerformSessionMFACeremonyParams{
 		CurrentAuthClient: c.AuthClient,
 		RootAuthClient:    rootClient.AuthClient,
-		MFACeremony:       c.tc.NewMFACeremony(),
+		MFACeremony:       ceremony,
 		MFAAgainstRoot:    mfaAgainstRoot,
 		MFARequiredReq:    mfaRequiredReq,
 		CertsReq:          certsReq,

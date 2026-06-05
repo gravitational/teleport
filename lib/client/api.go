@@ -2403,7 +2403,12 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				RunDefaultPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), tc.NewMFACeremony())
+				ceremony, err := tc.NewMFACeremony(ctx)
+				if err != nil {
+					log.WarnContext(ctx, "Unable to stream terminal - failure creating an MFA ceremony", "error", err)
+					return
+				}
+				RunDefaultPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), ceremony)
 			}
 		}
 	}
@@ -5489,7 +5494,11 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		}
 	}
 
-	mfaResp, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+	ceremony, err := tc.NewMFACeremony(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	mfaResp, err := ceremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
 			Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_HEADLESS_LOGIN,
 		},

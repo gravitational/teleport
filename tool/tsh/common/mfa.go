@@ -271,7 +271,11 @@ func (c *mfaRemoveCommand) run(cf *CLIConf) error {
 			return trace.NotFound("device %q not found", c.name)
 		}
 
-		mfaResponse, err := tc.NewMFACeremony().Run(ctx, &proto.CreateAuthenticateChallengeRequest{
+		ceremony, err := tc.NewMFACeremony(cf.Context)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		mfaResponse, err := ceremony.Run(ctx, &proto.CreateAuthenticateChallengeRequest{
 			ChallengeExtensions: &mfav1.ChallengeExtensions{
 				Scope: mfav1.ChallengeScope_CHALLENGE_SCOPE_MANAGE_DEVICES,
 			},
