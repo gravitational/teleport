@@ -251,7 +251,8 @@ func ValidateRoleName(role types.Role) error {
 //
 // This function should be called on the write path (role create/update)
 // and NOT on read paths to avoid bricking clusters with existing roles
-// that may not parse with newer parsers.
+// that may not parse with newer parsers. Read paths should call plain
+// CheckAndSetDefaults to reject truly unusable roles.
 func ValidateRole(r types.Role) error {
 	if err := CheckAndSetDefaults(r); err != nil {
 		return trace.Wrap(err)
