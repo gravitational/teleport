@@ -255,7 +255,8 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 		// We'll make it the default behavior in a future release.
 		// NLA code is also not FIPS-compliant so we will disable it
 		// in FIPS mode
-		NLA: !process.Config.FIPS && os.Getenv("TELEPORT_ENABLE_RDP_NLA") == "yes",
+		NLA:                           !process.Config.FIPS && os.Getenv("TELEPORT_ENABLE_RDP_NLA") == "yes",
+		ValidatedMFAChallengeVerifier: conn.Client.MFAServiceClientV2(),
 	})
 	if err != nil {
 		return trace.Wrap(err)

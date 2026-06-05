@@ -42,7 +42,9 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
@@ -224,6 +226,8 @@ type WindowsServiceConfig struct {
 	// NLA indicates whether the client should perform Network Level Authentication
 	// (NLA) when initiating the RDP session.
 	NLA bool
+	// ValidatedMFAChallengeVerifier is used to verify that a validated MFA challenge resource exists.
+	ValidatedMFAChallengeVerifier mfav2.MFAServiceClient
 }
 
 // HeartbeatConfig contains the configuration for service heartbeats.
@@ -752,7 +756,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	log.DebugContext(ctx, "Connecting to Windows desktop")
 	defer log.DebugContext(ctx, "Windows desktop disconnected")
 
-	if err := s.connectRDP(ctx, log, tdpConn, desktop, authContext, clientProtocol); err != nil {
+	if err := s.connectRDP(ctx, log, proxyConn, tdpConn, desktop, authContext, clientProtocol); err != nil {
 		log.ErrorContext(context.Background(), "RDP connection failed", "error", err)
 		msg := "RDP connection failed."
 		var um trace.UserMessager
@@ -764,17 +768,87 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	}
 }
 
-func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpConn *tdp.Conn, desktop types.WindowsDesktop, authCtx *authz.Context, clientProtocol string) error {
+func (s *WindowsService) connectRDP(
+	ctx context.Context,
+	log *slog.Logger,
+	tlsConn *tls.Conn,
+	tdpConn *tdp.Conn,
+	desktop types.WindowsDesktop,
+	authCtx *authz.Context,
+	clientProtocol string,
+) error {
 	identity := authCtx.Identity.GetIdentity()
 
 	log = log.With("teleport_user", identity.Username, "desktop_addr", desktop.GetAddr(), "ad", !desktop.NonAD())
 
-	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
+	authPref, err := s.cfg.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	authPref, err := s.cfg.AccessPoint.GetAuthPreference(ctx)
+	// Read ClientHello and check access before doing any expensive setup work. This fails early when access is denied,
+	// avoiding unnecessary work.
+	translatedConn, hello, err := rdpclient.PrepareConnecton(clientProtocol, tdpConn, log)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	windowsUser := hello.Username
+
+	// Check conditional access with the Windows login matcher. This validates the user can access the desktop as the
+	// requested Windows user and returns any preconditions (e.g., MFA) that must be satisfied before the session can
+	// start.
+	//
+	// TODO(cthach): Extract auth logic because connectRDP is very large.
+	preconds, err := authCtx.Checker.CheckConditionalAccess(
+		desktop,
+		authCtx.GetAccessState(authPref),
+		services.NewWindowsLoginMatcher(windowsUser),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, precond := range preconds {
+		switch precond.GetKind() {
+		case decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA:
+			// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility
+			// with legacy clients is no longer supported.
+			if !(*tdpbv1.ClientHello)(hello).GetInBandMfaSupported() {
+				if os.Getenv(ForceInBandMFAEnv) == "yes" {
+					return errInBandMFARequired
+				}
+
+				// Legacy client: MFA required but not verified, reject.
+				//
+				// CheckConditionalAccess already skipped adding this precondition if the client presented a valid
+				// per-session MFA certificate (state.MFAVerified).
+				return services.ErrSessionMFARequired
+			}
+
+			sourceCluster, err := s.cfg.AccessPoint.GetClusterName(ctx)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			if err := HandleInBandMFA(
+				ctx,
+				tlsConn,
+				tdpConn,
+				s.cfg.ValidatedMFAChallengeVerifier,
+				sourceCluster.GetClusterName(),
+				identity.Username,
+			); err != nil {
+				return trace.Wrap(err)
+			}
+
+		default:
+			// If an unknown or unsupported precondition is provided, fail close to prevent potential auth bypasses.
+			return trace.BadParameter("unexpected precondition type %q found (this is a bug)", precond.GetKind())
+		}
+	}
+
+	netConfig, err := s.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -810,14 +884,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	authorize := func(login string) error {
-		state := authCtx.GetAccessState(authPref)
-		return authCtx.Checker.CheckAccess(
-			desktop,
-			state,
-			services.NewWindowsLoginMatcher(login))
-	}
-
 	recorder, err := s.newSessionRecorder(recConfig, string(sessionID))
 	if err != nil {
 		return trace.Wrap(err)
@@ -835,10 +901,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		}()
 	}()
 
-	// We won't have the windows username until we start to read from the websocket,
-	// but we need to start emitting audit events now. Create an auditor without
-	// specifying the username (we'll update it soon as we have it).
-	audit := s.newSessionAuditor(string(sessionID), &identity, "", desktop)
+	audit := s.newSessionAuditor(string(sessionID), &identity, windowsUser, desktop)
 
 	groups, err := authCtx.Checker.DesktopGroups(desktop)
 	if err != nil && !trace.IsAccessDenied(err) {
@@ -881,12 +944,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 	log = log.With("kdc_addr", kdcAddr, "nla", nla)
 	log.InfoContext(context.Background(), "initiating RDP client", "client_protocol", clientProtocol)
 
-	// read the client hello and wrap the connection with a translation layer (if needed)
-	translatedConn, hello, err := rdpclient.PrepareConnecton(clientProtocol, tdpConn, log)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	// Adapt send /receive handlers to run as Interceptors.
 	asInterceptor := func(handler func(tdp.Message) error) tdp.Interceptor {
 		return func(message tdp.Message) ([]tdp.Message, error) {
@@ -913,7 +970,7 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		Addr:                  addr.String(),
 		ComputerName:          computerName,
 		KDCAddr:               kdcAddr,
-		AuthorizeFn:           authorize,
+		AuthorizeFn:           func(string) error { return nil },
 		AllowClipboard:        authCtx.Checker.DesktopClipboard(),
 		AllowDirectorySharing: authCtx.Checker.DesktopDirectorySharing(),
 		ShowDesktopWallpaper:  s.cfg.ShowDesktopWallpaper,
@@ -922,14 +979,6 @@ func (s *WindowsService) connectRDP(ctx context.Context, log *slog.Logger, tdpCo
 		AD:                    !desktop.NonAD(),
 		NLA:                   nla,
 	})
-	// before we check the error above, we grab the Windows user so that
-	// future audit events include the proper username
-	var windowsUser string
-	if rdpc != nil {
-		windowsUser = rdpc.GetClientUsername()
-		audit.windowsUser = windowsUser
-	}
-
 	//nolint:staticcheck // SA4023. False positive, depends on build tags.
 	if err != nil {
 		startEvent := audit.makeSessionStart(err)
