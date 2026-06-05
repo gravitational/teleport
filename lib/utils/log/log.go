@@ -110,6 +110,7 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, io.Writer, e
 	)
 
 	var w io.Writer
+	var sw SyslogWriter
 	switch loggerConfig.Output {
 	case "":
 		w = os.Stderr
@@ -119,7 +120,8 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, io.Writer, e
 		w = os.Stdout
 	case LogOutputSyslog:
 		var err error
-		w, err = NewSyslogWriter()
+		sw, err = NewSyslogWriter()
+		w = sw
 		if err != nil {
 			slog.ErrorContext(context.Background(), "Failed to switch logging to syslog", "error", err)
 			slog.SetDefault(slog.New(slog.DiscardHandler))
@@ -148,18 +150,28 @@ func Initialize(loggerConfig Config) (*slog.Logger, *slog.LevelVar, io.Writer, e
 	case "":
 		fallthrough // not set. defaults to 'text'
 	case "text":
-		logger = slog.New(NewSlogTextHandler(w, SlogTextHandlerConfig{
+		config := SlogTextHandlerConfig{
 			Level:            level,
 			EnableColors:     loggerConfig.EnableColors,
 			ConfiguredFields: configuredFields,
 			Padding:          loggerConfig.Padding,
-		}))
+		}
+		if sw != nil {
+			logger = NewSyslogTextLogger(sw, config)
+		} else {
+			logger = slog.New(NewSlogTextHandler(w, config))
+		}
 		slog.SetDefault(logger)
 	case "json":
-		logger = slog.New(NewSlogJSONHandler(w, SlogJSONHandlerConfig{
+		config := SlogJSONHandlerConfig{
 			Level:            level,
 			ConfiguredFields: configuredFields,
-		}))
+		}
+		if sw != nil {
+			logger = NewSyslogJsonLogger(sw, config)
+		} else {
+			logger = slog.New(NewSlogJSONHandler(w, config))
+		}
 		slog.SetDefault(logger)
 	default:
 		return nil, nil, nil, trace.BadParameter("unsupported log output format : %q", loggerConfig.Format)

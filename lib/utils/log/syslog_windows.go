@@ -20,11 +20,24 @@ package log
 
 import (
 	"io"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 )
 
+type SyslogWriter = io.Writer
+
 // NewSyslogWriter always returns an error on Windows.
-func NewSyslogWriter() (io.Writer, error) {
+func NewSyslogWriter() (SyslogWriter, error) {
 	return nil, trace.NotImplemented("cannot use syslog on Windows")
+}
+
+// NewSyslogTextLogger always returns a discard logger on Windows; syslog is not supported.
+func NewSyslogTextLogger(w SyslogWriter, cfg SlogTextHandlerConfig) *slog.Logger {
+	return slog.New(slog.DiscardHandler)
+}
+
+// NewSyslogJsonLogger always returns a discard logger on Windows; syslog is not supported.
+func NewSyslogJsonLogger(w SyslogWriter, cfg SlogJSONHandlerConfig) *slog.Logger {
+	return slog.New(slog.DiscardHandler)
 }
