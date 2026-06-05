@@ -1,0 +1,30 @@
+name: Docs Preview Scripts Tests
+on:
+  pull_request:
+    paths:
+      - .github/scripts/**
+      - .github/workflows/docs-preview-scripts-tests.yaml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Run preview-link script unit tests
+    runs-on: ubuntu-slim
+    steps:
+    - name: Check out repository
+      uses: actions/checkout@v4
+
+    - name: Set up Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+
+    # No dependencies to install: the tests use Node's built-in `node:test`
+    # runner. We run from the scripts directory so the relative require paths
+    # inside the test file resolve correctly.
+    - name: Run unit tests
+      working-directory: .github/scripts
+      run: node --test
