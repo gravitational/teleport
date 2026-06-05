@@ -447,6 +447,10 @@ type LoggedInUser struct {
 	SuggestedReviewers []string `protobuf:"bytes,6,rep,name=suggested_reviewers,json=suggestedReviewers,proto3" json:"suggested_reviewers,omitempty"`
 	// requestable_roles for the given user.
 	// Only present when detailed information is queried from the auth server.
+	// Nowadays used just as a backup if the auth service does not implement
+	// ListRequestableRoles.
+	//
+	// Deprecated: Marked as deprecated in teleport/lib/teleterm/v1/cluster.proto.
 	RequestableRoles []string              `protobuf:"bytes,7,rep,name=requestable_roles,json=requestableRoles,proto3" json:"requestable_roles,omitempty"`
 	UserType         LoggedInUser_UserType `protobuf:"varint,8,opt,name=user_type,json=userType,proto3,enum=teleport.lib.teleterm.v1.LoggedInUser_UserType" json:"user_type,omitempty"`
 	// Indicates if the profile contains all required device extensions.
@@ -519,6 +523,7 @@ func (x *LoggedInUser) GetSuggestedReviewers() []string {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in teleport/lib/teleterm/v1/cluster.proto.
 func (x *LoggedInUser) GetRequestableRoles() []string {
 	if x != nil {
 		return x.RequestableRoles
@@ -1338,14 +1343,14 @@ const file_teleport_lib_teleterm_v1_cluster_proto_rawDesc = "" +
 	" \x01(\tR\fproxyVersion\x12N\n" +
 	"\x0eshow_resources\x18\v \x01(\x0e2'.teleport.lib.teleterm.v1.ShowResourcesR\rshowResources\x120\n" +
 	"\x14profile_status_error\x18\f \x01(\tR\x12profileStatusError\x12\x19\n" +
-	"\bsso_host\x18\r \x01(\tR\assoHost\"\xe7\x04\n" +
+	"\bsso_host\x18\r \x01(\tR\assoHost\"\xeb\x04\n" +
 	"\fLoggedInUser\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x14\n" +
 	"\x05roles\x18\x02 \x03(\tR\x05roles\x12/\n" +
 	"\x03acl\x18\x04 \x01(\v2\x1d.teleport.lib.teleterm.v1.ACLR\x03acl\x12'\n" +
 	"\x0factive_requests\x18\x05 \x03(\tR\x0eactiveRequests\x12/\n" +
-	"\x13suggested_reviewers\x18\x06 \x03(\tR\x12suggestedReviewers\x12+\n" +
-	"\x11requestable_roles\x18\a \x03(\tR\x10requestableRoles\x12L\n" +
+	"\x13suggested_reviewers\x18\x06 \x03(\tR\x12suggestedReviewers\x12/\n" +
+	"\x11requestable_roles\x18\a \x03(\tB\x02\x18\x01R\x10requestableRoles\x12L\n" +
 	"\tuser_type\x18\b \x01(\x0e2/.teleport.lib.teleterm.v1.LoggedInUser.UserTypeR\buserType\x12*\n" +
 	"\x11is_device_trusted\x18\t \x01(\bR\x0fisDeviceTrusted\x12]\n" +
 	"\x1atrusted_device_requirement\x18\n" +
