@@ -283,37 +283,13 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	// force client auth if given
 	cfg.TLS.ClientAuth = tls.VerifyClientCertIfGiven
 
-	// WriteTimeout is set so net/http uses it as the TLS handshake deadline
-	// (min of ReadHeaderTimeout, ReadTimeout, WriteTimeout).
-	// This bounds the pre-authentication goroutine hold time.
-	// The outer handler clears the per-request write deadline so
-	// long-running watch / exec / portforward streams aren't terminated by the same WriteTimeout.
 	tracingHandler := httplib.MakeTracingHandler(limiter, teleport.ComponentKube)
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
-			log.ErrorContext(r.Context(), "failed to reset response write deadline", "error", err)
-		}
-		tracingHandler.ServeHTTP(w, r)
-	})
-
+	kubeHTTPserver := newKubeHTTPServer(tracingHandler, log, cfg.TLS, cfg.IngressReporter)
 	server := &TLSServer{
 		fwd:             fwd,
 		TLSServerConfig: cfg,
-		Server: &http.Server{
-			Handler:           handler,
-			ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
-			// ReadTimeout is deliberately unset so long-running watch streams aren't terminated.
-			// WriteTimeout is set only to drive the TLS handshake deadline above.
-			// The outer handler resets the per-request write deadline.
-			WriteTimeout: defaults.HandshakeReadDeadline,
-			IdleTimeout:  apidefaults.DefaultIdleTimeout,
-			TLSConfig:    cfg.TLS,
-			ConnState:    ingress.HTTPConnStateReporter(ingress.Kube, cfg.IngressReporter),
-			ConnContext: func(ctx context.Context, c net.Conn) context.Context {
-				return authz.ContextWithClientAddrs(ctx, c.RemoteAddr(), c.LocalAddr())
-			},
-		},
-		heartbeats: make(map[string]*srv.HeartbeatV2),
+		Server:          kubeHTTPserver,
+		heartbeats:      make(map[string]*srv.HeartbeatV2),
 		monitoredKubeClusters: monitoredKubeClusters{
 			static: fwd.kubeClusters(),
 		},
@@ -329,6 +305,35 @@ func NewTLSServer(cfg TLSServerConfig) (*TLSServer, error) {
 	}
 
 	return server, nil
+}
+
+// newKubeHTTPServer builds the kube proxy's *http.Server.
+func newKubeHTTPServer(inner http.Handler, log *slog.Logger, tlsCfg *tls.Config, reporter *ingress.Reporter) *http.Server {
+	return &http.Server{
+		Handler:           newTimeoutResetHandler(inner, log),
+		ReadHeaderTimeout: apidefaults.DefaultIOTimeout * 2,
+		// WriteTimeout drives the TLS handshake deadline via net/http's
+		// tlsHandshakeTimeout = min(ReadHeaderTimeout, ReadTimeout, WriteTimeout) formula,
+		// bounding the pre-authentication goroutine hold time.
+		WriteTimeout: defaults.HandshakeReadDeadline,
+		IdleTimeout:  apidefaults.DefaultIdleTimeout,
+		TLSConfig:    tlsCfg,
+		ConnState:    ingress.HTTPConnStateReporter(ingress.Kube, reporter),
+		ConnContext: func(ctx context.Context, c net.Conn) context.Context {
+			return authz.ContextWithClientAddrs(ctx, c.RemoteAddr(), c.LocalAddr())
+		},
+	}
+}
+
+// newTimeoutResetHandler wraps next so that the per-request write deadline
+// (set by net/http from Server.WriteTimeout) is cleared before next runs.
+func newTimeoutResetHandler(next http.Handler, log *slog.Logger) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := http.NewResponseController(w).SetWriteDeadline(time.Time{}); err != nil {
+			log.ErrorContext(r.Context(), "failed to reset response write deadline", "error", err)
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 // ServeOption is a functional option for the multiplexer.
