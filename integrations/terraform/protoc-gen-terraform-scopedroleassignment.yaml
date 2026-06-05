@@ -30,12 +30,12 @@ injected_fields:
 exclude_fields:
   - "ScopedRoleAssignment.metadata.id"
   - "ScopedRoleAssignment.metadata.revision"
+  - "ScopedRoleAssignment.metadata.expires"
   # Usage tracking is server-side only
   - "ScopedRoleAssignment.status"
 
 # These fields will be marked as Computed: true
 computed_fields:
-  - "ScopedRoleAssignment.metadata.expires"
   - "ScopedRoleAssignment.metadata.namespace"
   - "ScopedRoleAssignment.kind"
 

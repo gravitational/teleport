@@ -39,7 +39,6 @@ exclude_fields:
 # These fields will be marked as Computed: true
 computed_fields:
   # Metadata
-  - "AppAuthConfig.metadata.expires"
   - "AppAuthConfig.metadata.namespace"
   - "AppAuthConfig.kind"
 
