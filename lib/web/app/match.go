@@ -48,6 +48,29 @@ func MatchUnshuffled(ctx context.Context, cluster reversetunnelclient.Cluster, f
 // Matcher allows matching on different properties of an app server.
 type Matcher func(readonly.AppServer) bool
 
+// MatchAppServerForRoute matches an app server against routing information,
+// typically from a certificate. It matches on whichever of name and public
+// address are provided:
+//
+//   - When both are set both must match. This is what disambiguates multiple apps
+//     that share a public address: the app name uniquely identifies an app within
+//     the cluster, and the public address is also verified as a safety check.
+//   - An empty field is not checked, so this both supports name-only and addr-only
+//     resolution.
+//   - If both are empty, nothing matches.
+func MatchAppServerForRoute(name, publicAddr string) Matcher {
+	return func(appServer readonly.AppServer) bool {
+		app := appServer.GetApp()
+		if publicAddr != "" && app.GetPublicAddr() != publicAddr {
+			return false
+		}
+		if name != "" && app.GetName() != name {
+			return false
+		}
+		return name != "" || publicAddr != ""
+	}
+}
+
 // MatchPublicAddr matches on the public address of an application.
 func MatchPublicAddr(publicAddr string) Matcher {
 	return func(appServer readonly.AppServer) bool {

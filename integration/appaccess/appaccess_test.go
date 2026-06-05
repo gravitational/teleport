@@ -26,6 +26,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -96,6 +97,63 @@ func TestAppAccess(t *testing.T) {
 
 	// This test should go last because it stops/starts app servers.
 	t.Run("TestAppServersHA", bind(pack, testServersHA))
+}
+
+// TestAppAccessRoutingByName tests the scenario where two apps share a
+// public address but have distinct names. A session routed (by name) to one app
+// must always reach that app and never the other.
+func TestAppAccessRoutingByName(t *testing.T) {
+	const sharedPublicAddr = "dup.example.com"
+
+	appOneMessage := "app-one-" + uuid.NewString()
+	appTwoMessage := "app-two-" + uuid.NewString()
+
+	appOneServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, appOneMessage)
+	}))
+	t.Cleanup(appOneServer.Close)
+	appTwoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, appTwoMessage)
+	}))
+	t.Cleanup(appTwoServer.Close)
+
+	// Both apps share a public address but have different names and labels.
+	pack := SetupWithOptions(t, AppTestOptions{
+		ExtraRootApps: []servicecfg.App{
+			{
+				Name:         "dup-app-1",
+				URI:          appOneServer.URL,
+				PublicAddr:   sharedPublicAddr,
+				StaticLabels: map[string]string{"app_name": "dup-app-1"},
+			},
+			{
+				Name:         "dup-app-2",
+				URI:          appTwoServer.URL,
+				PublicAddr:   sharedPublicAddr,
+				StaticLabels: map[string]string{"app_name": "dup-app-2"},
+			},
+		},
+	})
+
+	for _, tc := range []struct {
+		appName     string
+		wantMessage string
+	}{
+		{appName: "dup-app-1", wantMessage: appOneMessage},
+		{appName: "dup-app-2", wantMessage: appTwoMessage},
+	} {
+		t.Run(tc.appName, func(t *testing.T) {
+			cookies := pack.CreateAppSessionCookiesForApp(t, tc.appName, sharedPublicAddr, pack.rootAppClusterName)
+
+			for range 20 {
+				status, body, err := pack.MakeRequest(cookies, http.MethodGet, "/")
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, status)
+				require.Equal(t, tc.wantMessage, strings.TrimSpace(body),
+					"request must only ever be routed to %q", tc.appName)
+			}
+		})
+	}
 }
 
 // testForward tests that requests get forwarded to the target application

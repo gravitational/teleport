@@ -419,6 +419,41 @@ func (p *Pack) CreateAppSessionCookies(t *testing.T, publicAddr, clusterName str
 	}
 }
 
+// CreateAppSessionCookiesForApp is like CreateAppSessionCookies but routes the
+// session to a specific app by name, which is required to disambiguate apps
+// that share a public address.
+func (p *Pack) CreateAppSessionCookiesForApp(t *testing.T, appName, publicAddr, clusterName string) []*http.Cookie {
+	require.NotEmpty(t, p.webCookie)
+	require.NotEmpty(t, p.webToken)
+
+	casReq, err := json.Marshal(web.CreateAppSessionRequest{
+		ResolveAppParams: web.ResolveAppParams{
+			AppName:     appName,
+			PublicAddr:  publicAddr,
+			ClusterName: clusterName,
+		},
+	})
+	require.NoError(t, err)
+	statusCode, body, err := p.makeWebapiRequest(http.MethodPost, "sessions/app", casReq)
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, statusCode)
+
+	var casResp *web.CreateAppSessionResponse
+	err = json.Unmarshal(body, &casResp)
+	require.NoError(t, err)
+
+	return []*http.Cookie{
+		{
+			Name:  app.CookieName,
+			Value: casResp.CookieValue,
+		},
+		{
+			Name:  app.SubjectCookieName,
+			Value: casResp.SubjectCookieValue,
+		},
+	}
+}
+
 // CreateAppSessionWithClientCert creates an application session with the root
 // cluster and returns the client cert that can be used for an application
 // request.

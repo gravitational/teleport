@@ -329,12 +329,12 @@ func TestMatchApplicationServers(t *testing.T) {
 	authClient := &mockAuthClient{
 		clusterName: clusterName,
 		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
-		// Three app servers with same public addr from our session, and three
-		// that won't match.
+		// Three app servers (HA replicas of the same app, so same name and
+		// public addr) that match our session, and three that won't match.
 		appServers: []types.AppServer{
-			createAppServer(t, publicAddr),
-			createAppServer(t, publicAddr),
-			createAppServer(t, publicAddr),
+			createNamedAppServer(t, "testapp", publicAddr),
+			createNamedAppServer(t, "testapp", publicAddr),
+			createNamedAppServer(t, "testapp", publicAddr),
 			createAppServer(t, "random.example.com"),
 			createAppServer(t, "random2.example.com"),
 			createAppServer(t, "random3.example.com"),
@@ -373,6 +373,63 @@ func TestMatchApplicationServers(t *testing.T) {
 	require.Equal(t, expectedContent, content)
 }
 
+func TestNewSessionRoutesByAppName(t *testing.T) {
+	ctx := t.Context()
+	clusterName := "test-cluster"
+	const sharedAddr = "demoqa.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{sharedAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+
+	// Two app servers share a public address but have different names. The
+	// session certificate is routed to "test-app-1".
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, sharedAddr, "test-app-1"),
+		appServers: []types.AppServer{
+			createNamedAppServer(t, "test-app-1", sharedAddr),
+			createNamedAppServer(t, "test-app-2", sharedAddr),
+		},
+		caKey:  key,
+		caCert: cert,
+	}
+
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+	}
+
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
+		Clock:                 fakeClock,
+		AuthClient:            authClient,
+		AccessPoint:           authClient,
+		ClusterGetter:         tunnel,
+		CipherSuites:          utils.DefaultCipherSuites(),
+		IntegrationAppHandler: &mockIntegrationAppHandler{},
+	})
+	require.NoError(t, err)
+
+	// newSession shuffles the matched servers, so run a bunch of iterations
+	// to verify that we're always routed to the app encoded in the cert
+	for range 100 {
+		session, err := appHandler.newSession(ctx, authClient.appSession)
+		require.NoError(t, err)
+
+		var routedNames []string
+		for _, s := range session.tr.c.servers {
+			routedNames = append(routedNames, s.GetApp().GetName())
+		}
+		require.Equal(t, []string{"test-app-1"}, routedNames,
+			"session must only route to the app named in the certificate")
+	}
+}
+
 func TestHealthCheckAppServer(t *testing.T) {
 	ctx := context.Background()
 	clusterName := "test-cluster"
@@ -396,7 +453,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 			desc:       "match and online services",
 			publicAddr: "valid.example.com",
 			appServersFunc: func(t *testing.T, _ *reversetunnelclient.FakeCluster) []types.AppServer {
-				return []types.AppServer{createAppServer(t, "valid.example.com")}
+				return []types.AppServer{createNamedAppServer(t, "testapp", "valid.example.com")}
 			},
 			expectedTunnelCalls: 1,
 			expectErr:           require.NoError,
@@ -405,7 +462,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 			desc:       "match and but no online services",
 			publicAddr: "valid.example.com",
 			appServersFunc: func(t *testing.T, cluster *reversetunnelclient.FakeCluster) []types.AppServer {
-				appServer := createAppServer(t, "valid.example.com")
+				appServer := createNamedAppServer(t, "testapp", "valid.example.com")
 				cluster.OfflineTunnels = map[string]struct{}{
 					fmt.Sprintf("%s.%s", appServer.GetHostID(), clusterName): {},
 				}
@@ -451,7 +508,7 @@ func TestHealthCheckAppServer(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			err = appHandler.HealthCheckAppServer(ctx, tc.publicAddr, clusterName)
+			err = appHandler.HealthCheckAppServer(ctx, "testapp", tc.publicAddr, clusterName)
 			tc.expectErr(t, err)
 			require.Equal(t, int64(tc.expectedTunnelCalls), fakeCluster.DialCount())
 		})
@@ -759,6 +816,30 @@ func createAppKeyCertPair(t *testing.T, clock *clockwork.FakeClock, caKey, caCer
 	return privateKey, cert
 }
 
+// createNamedAppServer is like createAppServer but lets the caller pick the app
+// name, which is required to exercise routing between multiple apps that share a
+// public address.
+func createNamedAppServer(t *testing.T, appName, publicAddr string) types.AppServer {
+	appServer, err := types.NewAppServerV3(
+		types.Metadata{Name: appName},
+		types.AppServerSpecV3{
+			HostID: uuid.New().String(),
+			App: &types.AppV3{
+				Metadata: types.Metadata{
+					Name:   appName,
+					Labels: map[string]string{"app_name": appName},
+				},
+				Spec: types.AppSpecV3{
+					URI:        "localhost",
+					PublicAddr: publicAddr,
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+	return appServer
+}
+
 func createAppServer(t *testing.T, publicAddr string) types.AppServer {
 	appName := uuid.New().String()
 	appServer, err := types.NewAppServerV3(
@@ -953,7 +1034,7 @@ func TestHandlerAuthenticate(t *testing.T) {
 		clusterName: clusterName,
 		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
 		appServers: []types.AppServer{
-			createAppServer(t, publicAddr),
+			createNamedAppServer(t, "testapp", publicAddr),
 		},
 		caKey:  key,
 		caCert: cert,

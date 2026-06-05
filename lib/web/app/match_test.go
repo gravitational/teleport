@@ -19,71 +19,112 @@
 package app
 
 import (
-	"context"
-	"net"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
-func mustNewAppServer(t *testing.T, origin string) func() types.AppServer {
-	t.Helper()
-	return func() types.AppServer {
-		app, err := types.NewAppV3(
-			types.Metadata{
-				Name:      "test-app",
-				Namespace: defaults.Namespace,
-				Labels: map[string]string{
-					types.OriginLabel: origin,
+func TestMatchAppServerForRoute(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		desc string
+
+		appName string
+		appAddr string
+
+		name string
+		addr string
+
+		wantMatch bool
+	}{
+		{
+			desc:      "all match",
+			appName:   "foo",
+			appAddr:   "foo.example.com",
+			name:      "foo",
+			addr:      "foo.example.com",
+			wantMatch: true,
+		},
+		{
+			desc:      "fallback no name (match)",
+			appName:   "foo",
+			appAddr:   "foo.example.com",
+			name:      "",
+			addr:      "foo.example.com",
+			wantMatch: true,
+		},
+		{
+			desc:      "fallback no name (mismatch)",
+			appName:   "foo",
+			appAddr:   "foo.example.com",
+			name:      "",
+			addr:      "bar.example.com",
+			wantMatch: false,
+		},
+		{
+			desc:      "different name",
+			appName:   "foo",
+			appAddr:   "foo.example.com",
+			name:      "bar",
+			addr:      "foo.example.com",
+			wantMatch: false,
+		},
+		{
+			desc:      "different addr",
+			appName:   "foo",
+			appAddr:   "foo.example.com",
+			name:      "foo",
+			addr:      "bar.example.com",
+			wantMatch: false,
+		},
+		{
+			desc:      "name only (match)",
+			appName:   "foo",
+			appAddr:   "foo.example.com",
+			name:      "foo",
+			addr:      "",
+			wantMatch: true,
+		},
+		{
+			desc:      "name only (mismatch)",
+			appName:   "foo",
+			appAddr:   "foo.example.com",
+			name:      "bar",
+			addr:      "",
+			wantMatch: false,
+		},
+		{
+			desc:      "neither name nor addr matches nothing",
+			appName:   "foo",
+			appAddr:   "foo.example.com",
+			name:      "",
+			addr:      "",
+			wantMatch: false,
+		},
+	} {
+		t.Run(test.desc, func(t *testing.T) {
+			appServer, err := types.NewAppServerV3(
+				types.Metadata{Name: test.appName},
+				types.AppServerSpecV3{
+					HostID: "test-host-id",
+					App: &types.AppV3{
+						Metadata: types.Metadata{Name: test.appName},
+						Spec: types.AppSpecV3{
+							PublicAddr: test.appAddr,
+							URI:        "http://localhost:12345",
+						},
+					},
 				},
-			},
-			types.AppSpecV3{
-				URI: "https://app.localhost",
-			},
-		)
-		require.NoError(t, err)
+			)
+			require.NoError(t, err)
 
-		appServer, err := types.NewAppServerV3FromApp(app, "localhost", "123")
-		require.NoError(t, err)
-
-		return appServer
+			require.Equal(
+				t,
+				test.wantMatch,
+				MatchAppServerForRoute(test.name, test.addr)(appServer),
+			)
+		})
 	}
-}
-
-type mockClusterGetter struct {
-	reversetunnelclient.ClusterGetter
-	cluster *mockCluster
-}
-
-func (p *mockClusterGetter) Cluster(context.Context, string) (reversetunnelclient.Cluster, error) {
-	return p.cluster, nil
-}
-
-type mockCluster struct {
-	reversetunnelclient.Cluster
-	dialErr error
-}
-
-func (r *mockCluster) Dial(_ reversetunnelclient.DialParams) (net.Conn, error) {
-	if r.dialErr != nil {
-		return nil, r.dialErr
-	}
-
-	return &mockDialConn{}, nil
-}
-
-func (r *mockCluster) GetName() string {
-	return "mockCluster"
-}
-
-type mockDialConn struct {
-	net.Conn
-}
-
-func (c *mockDialConn) Close() error {
-	return nil
 }

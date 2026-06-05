@@ -224,7 +224,7 @@ func New(ctx context.Context, c *Config) (*Server, error) {
 		closeContext:  closeContext,
 	}
 
-	s.c.ConnectionsHandler.SetApplicationsProvider(s.GetAppByPublicAddress)
+	s.c.ConnectionsHandler.SetApplicationsProvider(s.GetApp)
 
 	callClose = false
 	return s, nil
@@ -654,21 +654,22 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	s.c.ConnectionsHandler.HandleConnection(conn)
 }
 
-// GetAppByPublicAddress returns an application matching the public address. If multiple
-// matching applications exist, the first one is returned. Random selection
-// (or round robin) does not need to occur here because they will all point
-// to the same target address. Random selection (or round robin) occurs at the
-// web proxy to load balance requests to the application service.
-func (s *Server) GetAppByPublicAddress(ctx context.Context, publicAddr string) (types.Application, error) {
+// GetApp returns an application matching the name and public address.
+// The app name, when present, disambiguates apps that share a public address.
+func (s *Server) GetApp(ctx context.Context, appName, publicAddr string) (types.Application, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	// don't call s.getApps() as this will call RLock and potentially deadlock.
-	for _, a := range s.apps {
-		if publicAddr == a.GetPublicAddr() {
-			return s.appWithUpdatedLabelsLocked(a), nil
+
+	for _, app := range s.apps {
+		if app.GetPublicAddr() != publicAddr {
+			continue
 		}
+		if appName != "" && app.GetName() != appName {
+			continue
+		}
+		return s.appWithUpdatedLabelsLocked(app), nil
 	}
-	return nil, trace.NotFound("no application at %v found", publicAddr)
+	return nil, trace.NotFound("no application %s at %s found", appName, publicAddr)
 }
 
 // appWithUpdatedLabelsLocked will inject updated dynamic and cloud labels into

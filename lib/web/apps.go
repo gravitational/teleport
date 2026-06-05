@@ -149,7 +149,7 @@ func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p htt
 	// coming from the WebUI.
 	if h.healthCheckAppServer != nil && !app.HasClientCert(r) {
 		h.logger.DebugContext(r.Context(), "Ensuring proxy can handle requests for application", "app", result.App.GetName())
-		err := h.healthCheckAppServer(r.Context(), result.App.GetPublicAddr(), result.ClusterName)
+		err := h.healthCheckAppServer(r.Context(), result.App.GetName(), result.App.GetPublicAddr(), result.ClusterName)
 		if err != nil {
 			return nil, trace.ConnectionProblem(err, "Unable to serve application requests. Please try again. If the issue persists, verify if the Application Services are connected to Teleport.")
 		}
@@ -247,10 +247,8 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	// from the application launcher in the Web UI) then directly exactly resolve the
 	// application that the caller is requesting. If it does not, do best effort FQDN resolution.
 	switch {
-	case params.AppName != "" && params.ClusterName != "":
-		server, appClusterName, err = h.resolveAppByName(ctx, proxy, params.AppName, params.ClusterName)
-	case params.PublicAddr != "" && params.ClusterName != "":
-		server, appClusterName, err = h.resolveDirect(ctx, proxy, params.PublicAddr, params.ClusterName)
+	case params.ClusterName != "" && (params.AppName != "" || params.PublicAddr != ""):
+		server, appClusterName, err = h.resolveAppByName(ctx, proxy, params.AppName, params.PublicAddr, params.ClusterName)
 	case params.FQDNHint != "":
 		server, appClusterName, err = app.ResolveFQDN(ctx, proxy, h.auth.clusterName, h.proxyDNSNames(), params.FQDNHint)
 	default:
@@ -274,41 +272,22 @@ func (h *Handler) resolveApp(ctx context.Context, scx *SessionContext, params Re
 	}, nil
 }
 
-// resolveAppByName will take an application name and cluster name and exactly resolves
-// the application and the server on which it is running.
-func (h *Handler) resolveAppByName(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, appName string, clusterName string) (types.AppServer, string, error) {
+// resolveAppByName will take a cluster name, public address, and optional app name in order to
+// locate the application and the server on which it is running.
+// The app name, if provided, is used to disambiguate multiple apps with the same public addr.
+func (h *Handler) resolveAppByName(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, appName, publicAddr, clusterName string) (types.AppServer, string, error) {
 	clusterClient, err := clusterGetter.Cluster(ctx, clusterName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchName(appName))
+	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchAppServerForRoute(appName, publicAddr))
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	if len(servers) == 0 {
-		return nil, "", trace.NotFound("failed to match applications with name %s", appName)
-	}
-
-	return servers[rand.N(len(servers))], clusterName, nil
-}
-
-// resolveDirect takes a public address and cluster name and exactly resolves
-// the application and the server on which it is running.
-func (h *Handler) resolveDirect(ctx context.Context, clusterGetter reversetunnelclient.ClusterGetter, publicAddr string, clusterName string) (types.AppServer, string, error) {
-	clusterClient, err := clusterGetter.Cluster(ctx, clusterName)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	servers, err := app.MatchUnshuffled(ctx, clusterClient, app.MatchPublicAddr(publicAddr))
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	if len(servers) == 0 {
-		return nil, "", trace.NotFound("failed to match applications with public addr %s", publicAddr)
+		return nil, "", trace.NotFound("failed to match applications with addr %s and name %q", publicAddr, appName)
 	}
 
 	return servers[rand.N(len(servers))], clusterName, nil

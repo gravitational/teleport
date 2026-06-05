@@ -5587,17 +5587,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		connectionsHandler.SetApplicationsProvider(func(ctx context.Context, publicAddr string) (types.Application, error) {
-			allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(ctx, webapp.MatchPublicAddr(publicAddr))
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			if len(allAppServers) == 0 {
-				return nil, trace.NotFound("no app found for endpoint %q", publicAddr)
-			}
-			// TODO(okraport): determine if we should shuffle app servers here.
-			return allAppServers[0].GetApp(), nil
-		})
+		connectionsHandler.SetApplicationsProvider(
+			func(ctx context.Context, appName, publicAddr string) (types.Application, error) {
+				allAppServers, err := appServerWatcher.CurrentResourcesWithFilter(
+					ctx, webapp.MatchAppServerForRoute(appName, publicAddr))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				if len(allAppServers) == 0 {
+					return nil, trace.NotFound("no app %s found for endpoint %q", appName, publicAddr)
+				}
+				// TODO(okraport): determine if we should shuffle app servers here.
+				return allAppServers[0].GetApp(), nil
+			})
 
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
 			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
