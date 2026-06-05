@@ -104,6 +104,11 @@ func createEntraIDPlugin(ctx context.Context, authClient authclient.ClientI, plu
 	return trace.Wrap(err)
 }
 
+func updateEntraIDPlugin(ctx context.Context, authClient authclient.ClientI, plugin *types.PluginV1) error {
+	_, err := authClient.PluginsClient().UpdatePlugin(ctx, &pluginspb.UpdatePluginRequest{Plugin: plugin})
+	return trace.Wrap(err)
+}
+
 func listEntraIDUsers(ctx context.Context, authClient authclient.ClientI) ([]string, error) {
 	resp, err := authClient.ListUsers(ctx, usersv1.ListUsersRequest_builder{
 		WithSecrets: false,

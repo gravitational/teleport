@@ -7,6 +7,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -420,4 +422,217 @@ type denyAclDeletion struct {
 func (d *denyAclDeletion) DeleteAccessList(ctx context.Context, name string) error {
 	d.calls++
 	return accesslists.ErrDeniedAccessListDeletion
+}
+
+func TestFilterOutCyclicMemberships(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	ignore := []cmp.Option{
+		cmpopts.IgnoreFields(accesslist.Status{}, "OwnerOf", "MemberOf"),
+		cmpopts.IgnoreFields(accesslist.AccessListMemberSpec{}, "Joined"),
+	}
+
+	tests := []struct {
+		name             string
+		teleportAclMap   map[string]*accessListWithMembers
+		entraAclMap      map[string]*accessListWithMembers
+		want             map[string]*accessListWithMembers
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			name: "self cycle",
+			entraAclMap: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listA"}), // cycle
+			},
+			want: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{}), // removed listA member
+			},
+			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorIs(t, err, accesslists.ErrCyclicMembership)
+			},
+		},
+		{
+			name: "removes member that introduces cycle",
+			entraAclMap: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listB"}),
+				"listB": newAccessListWithMembers("listB", []string{"listC"}),
+				"listC": newAccessListWithMembers("listC", []string{"listA", "listD"}), // cycle
+				"listD": newAccessListWithMembers("listD", []string{}),
+			},
+			want: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listB"}),
+				"listB": newAccessListWithMembers("listB", []string{"listC"}),
+				"listC": newAccessListWithMembers("listC", []string{"listD"}), // removed listA
+				"listD": newAccessListWithMembers("listD", []string{}),
+			},
+			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorIs(t, err, accesslists.ErrCyclicMembership)
+				require.ErrorContains(t, err, "listA")
+			},
+		},
+		{
+			name: "long chain of 5",
+			entraAclMap: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listB"}),
+				"listB": newAccessListWithMembers("listB", []string{"listC"}),
+				"listC": newAccessListWithMembers("listC", []string{"listD"}),
+				"listD": newAccessListWithMembers("listD", []string{"listE"}),
+				"listE": newAccessListWithMembers("listE", []string{"listA"}), // cycle
+			},
+			want: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listB"}),
+				"listB": newAccessListWithMembers("listB", []string{"listC"}),
+				"listC": newAccessListWithMembers("listC", []string{"listD"}),
+				"listD": newAccessListWithMembers("listD", []string{"listE"}),
+				"listE": newAccessListWithMembers("listE", []string{}), // removed listA
+			},
+			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorIs(t, err, accesslists.ErrCyclicMembership)
+				require.ErrorContains(t, err, "listA")
+			},
+		},
+		{
+			name: "removes all members that introduces cycle",
+			entraAclMap: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listB"}),
+				"listB": newAccessListWithMembers("listB", []string{"listA"}), // cycle
+				"listC": newAccessListWithMembers("listC", []string{"listD"}),
+				"listD": newAccessListWithMembers("listD", []string{"listC"}), // cycle
+			},
+			want: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listB"}),
+				"listB": newAccessListWithMembers("listB", []string{}), // removed cycle
+				"listC": newAccessListWithMembers("listC", []string{"listD"}),
+				"listD": newAccessListWithMembers("listD", []string{}), // removed cycle
+			},
+			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorIs(t, err, accesslists.ErrCyclicMembership)
+				require.ErrorContains(t, err, "listC")
+				require.ErrorContains(t, err, "listA")
+			},
+		},
+		{
+			name: "acl order agnostic",
+			entraAclMap: map[string]*accessListWithMembers{
+				"listB": newAccessListWithMembers("listB", []string{"listA"}),
+				"listA": newAccessListWithMembers("listA", []string{"listB"}), // cycle
+			},
+			want: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listB"}),
+				"listB": newAccessListWithMembers("listB", []string{}), // removed cycle
+			},
+			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorIs(t, err, accesslists.ErrCyclicMembership)
+				require.ErrorContains(t, err, "listB")
+			},
+		},
+		{
+			name: "member order agnostic",
+			entraAclMap: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listC", "listB"}), // cycle
+				"listB": newAccessListWithMembers("listB", []string{"listA"}),
+				"listC": newAccessListWithMembers("listC", []string{}),
+			},
+			want: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listB", "listC"}),
+				"listB": newAccessListWithMembers("listB", []string{}),
+				"listC": newAccessListWithMembers("listC", []string{}), // removed listA
+			},
+			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorIs(t, err, accesslists.ErrCyclicMembership)
+				require.ErrorContains(t, err, "listA")
+			},
+		},
+		{
+			name: "existing membership preserved",
+			teleportAclMap: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{}),
+				"listB": newAccessListWithMembers("listB", []string{"listA", "listC"}),
+				"listC": newAccessListWithMembers("listC", []string{}),
+			},
+			entraAclMap: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listB"}), // introduces cycle
+				"listB": newAccessListWithMembers("listB", []string{"listA", "listC"}),
+				"listC": newAccessListWithMembers("listC", []string{}),
+			},
+			want: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{}),                 // removed listB
+				"listB": newAccessListWithMembers("listB", []string{"listA", "listC"}), // existing edge preserved
+				"listC": newAccessListWithMembers("listC", []string{}),
+			},
+			errAssertionFunc: func(t require.TestingT, err error, _ ...any) {
+				require.ErrorIs(t, err, accesslists.ErrCyclicMembership)
+				require.ErrorContains(t, err, "listB")
+			},
+		},
+		{
+			name: "new edge wins if older edge is simultaneously removed",
+			teleportAclMap: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{"listB"}),
+				"listB": newAccessListWithMembers("listB", []string{}),
+			},
+			entraAclMap: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{}),
+				"listB": newAccessListWithMembers("listB", []string{"listA"}),
+			},
+			want: map[string]*accessListWithMembers{
+				"listA": newAccessListWithMembers("listA", []string{}),
+				"listB": newAccessListWithMembers("listB", []string{"listA"}),
+			},
+			errAssertionFunc: require.NoError,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := filterOutCyclicMemberships(ctx, tc.entraAclMap, tc.teleportAclMap)
+			tc.errAssertionFunc(t, err)
+
+			require.Empty(t, cmp.Diff(tc.want, tc.entraAclMap, ignore...))
+		})
+	}
+}
+
+func newAccessListWithMembers(name string, memberNames []string) *accessListWithMembers {
+	al, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: name,
+		},
+		accesslist.Spec{
+			Title: fmt.Sprintf("Access List %s", name),
+			Owners: []accesslist.Owner{
+				{
+					Name: "owner-user",
+				},
+			},
+		},
+	)
+	if err != nil {
+		panic(err)
+	}
+
+	members := make([]*accesslist.AccessListMember, len(memberNames))
+	for i, memberName := range memberNames {
+		member, err := accesslist.NewAccessListMember(
+			header.Metadata{
+				Name: memberName,
+			},
+			accesslist.AccessListMemberSpec{
+				AccessList:     name,
+				Name:           memberName,
+				Joined:         time.Now().UTC(),
+				AddedBy:        teleport.UserSystem,
+				MembershipKind: accesslistv1.MembershipKind_MEMBERSHIP_KIND_LIST.String(),
+			},
+		)
+		if err != nil {
+			panic(err)
+		}
+		members[i] = member
+	}
+
+	return &accessListWithMembers{
+		AccessList: al,
+		Members:    members,
+	}
 }

@@ -280,3 +280,89 @@ func TestGroupOwnersDelta(t *testing.T) {
 			time.Second*10, time.Millisecond*30)
 	})
 }
+
+func TestResourceImportWithCyclicGroupMembersDelta(t *testing.T) {
+	ctx := t.Context()
+
+	defaultStorage := newDefaultStorage()
+	alice := defaultStorage.Users[aliceID]
+	bob := defaultStorage.Users[bobID]
+	group1 := defaultStorage.Groups[group1ID]
+	group2 := defaultStorage.Groups[group2ID]
+	group3 := defaultStorage.Groups[group3ID]
+
+	defaultStorage.GroupMembers = make(map[string][]models.GroupMember)
+	defaultStorage.GroupMembers[*group1.GetID()] = []models.GroupMember{alice}
+	defaultStorage.GroupMembers[*group2.GetID()] = []models.GroupMember{group1, alice}
+	defaultStorage.GroupMembers[*group3.GetID()] = []models.GroupMember{group1, alice, bob}
+
+	clock := clockwork.NewFakeClock()
+	env := newTestEnv(t, defaultStorage, common.WithClock(clock))
+
+	// Install the plugin, should trigger resource import on first start.
+	plugin := newDefaultPluginSpec(t)
+	settings := plugin.Spec.GetEntraId().SyncSettings
+	settings.SyncIntervals = &types.PluginEntraIDSyncIntervals{
+		Delta: "15s",
+		Full:  "1h",
+	}
+	plugin.Spec.Settings = &types.PluginSpecV1_EntraId{
+		EntraId: &types.PluginEntraIDSettings{
+			SyncSettings: settings,
+		},
+	}
+
+	err := createEntraIDPlugin(ctx, env.authClient, plugin)
+	require.NoError(t, err, "expected Entra ID plugin to be created")
+
+	// First full sync, should import all the user, group and group membership
+	// defined in [newDefaultStorage].
+	expectDefaultPluginStatus(t, env.authClient, plugin.GetName())
+	accessListClient := env.authClient.AccessListClient()
+	expectDefaultUserSync(t, env.authClient)
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			// No membership that introduces cycle and all members are expected to be imported.
+
+			gotAccesslists, err := listEntraIDAccessLists(ctx, accessListClient)
+			require.NoError(t, err)
+			require.ElementsMatch(t, []string{"group1", "group2", "group3"}, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
+
+			group1members := mustListMembers(t, ctx, gotAccesslists["group1"].GetName(), accessListClient)
+			require.ElementsMatch(t, []string{"alice@example.com"}, group1members, "expected Entra group1 members to match")
+
+			group2Members := mustListMembers(t, ctx, gotAccesslists["group2"].GetName(), accessListClient)
+			require.ElementsMatch(t, []string{gotAccesslists["group1"].GetName(), "alice@example.com"}, group2Members, "expected Entra group2 members to match")
+
+			group3Members := mustListMembers(t, ctx, gotAccesslists["group3"].GetName(), accessListClient)
+			require.ElementsMatch(t, []string{gotAccesslists["group1"].GetName(), "alice@example.com", "bob@example.com"}, group3Members, "expected Entra group3 members to match")
+		},
+		time.Second*20, time.Millisecond*30)
+
+	// group1 is already a member of group2.
+	// Now add group2 as a member of group1, creating cyclic relationship.
+	env.fakeServer.SetGroupMembers(group1ID, []models.GroupMember{group2})
+	expectPluginStatusUpdated(t, ctx, env.authClient, plugin.GetName(), clock)
+	expectDefaultUserSync(t, env.authClient)
+	require.EventuallyWithT(t,
+		func(t *assert.CollectT) {
+			gotAccesslists, err := listEntraIDAccessLists(ctx, accessListClient)
+			require.NoError(t, err)
+			require.ElementsMatch(t, []string{"group1", "group2", "group3"}, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
+
+			// Cyclic membership removal is of sorted order, and existing edge wins.
+			// Since group2 -> group1 already exists, the new edge group1 -> group2 which
+			// introduces cycle must be removed.
+			group1members := mustListMembers(t, ctx, gotAccesslists["group1"].GetName(), accessListClient)
+			require.Len(t, group1members, 1)
+
+			// No changes expected in group2.
+			group2Members := mustListMembers(t, ctx, gotAccesslists["group2"].GetName(), accessListClient)
+			require.Len(t, group2Members, 2)
+
+			// No changes expected in group3.
+			group3Members := mustListMembers(t, ctx, gotAccesslists["group3"].GetName(), accessListClient)
+			require.ElementsMatch(t, []string{gotAccesslists["group1"].GetName(), "alice@example.com", "bob@example.com"}, group3Members, "expected Entra group3 members to match")
+		},
+		time.Second*20, time.Millisecond*30)
+}

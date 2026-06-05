@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/teleport/e/tests/common"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/msgraph/models"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 func TestResourceImport(t *testing.T) {
@@ -194,6 +195,118 @@ func TestDeleteNestedAccessList(t *testing.T) {
 		time.Second*15, time.Millisecond*30)
 }
 
+func TestResourceImportWithCyclicGroupMembers(t *testing.T) {
+	ctx := t.Context()
+	defaultStorage := newDefaultStorage()
+	alice := defaultStorage.Users[aliceID]
+	bob := defaultStorage.Users[bobID]
+	group1 := defaultStorage.Groups[group1ID]
+	group2 := defaultStorage.Groups[group2ID]
+	group3 := defaultStorage.Groups[group3ID]
+
+	defaultStorage.GroupMembers = make(map[string][]models.GroupMember)
+	defaultStorage.GroupMembers[*group1.GetID()] = []models.GroupMember{group2}
+	// Create cyclic membership between group1 and group2
+	defaultStorage.GroupMembers[*group2.GetID()] = []models.GroupMember{group1}
+	defaultStorage.GroupMembers[*group3.GetID()] = []models.GroupMember{group1, alice, bob}
+
+	clock := clockwork.NewFakeClock()
+	env := newTestEnv(t, defaultStorage, common.WithClock(clock))
+
+	// Install the plugin, should trigger resource import on first start.
+	plugin := newDefaultPluginSpec(t)
+	settings := plugin.Spec.GetEntraId().SyncSettings
+	settings.SyncIntervals = &types.PluginEntraIDSyncIntervals{
+		Full: "5m",
+	}
+	plugin.Spec.Settings = &types.PluginSpecV1_EntraId{
+		EntraId: &types.PluginEntraIDSettings{
+			SyncSettings: settings,
+		},
+	}
+
+	err := createEntraIDPlugin(ctx, env.authClient, plugin)
+	require.NoError(t, err, "expected Entra ID plugin to be created")
+
+	// First full sync, should import all the user, group and group membership
+	// defined in [newDefaultStorage].
+	expectFailedPluginStatus := func(t *testing.T) {
+		t.Helper()
+
+		require.EventuallyWithT(t,
+			func(t *assert.CollectT) {
+				updatedPlugin, err := env.authClient.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+					Name: plugin.GetName(),
+				})
+				require.NoError(t, err)
+
+				status := updatedPlugin.GetStatus()
+				require.Contains(t, status.GetLastRawError(), "is already included as a Member or Owner")
+				require.Equal(t, types.PluginStatusCode_OTHER_ERROR, status.GetCode(), `expected plugin status to be "OTHER_ERROR"`)
+
+				entraStatus := status.GetEntraId()
+				require.NotNil(t, entraStatus)
+				// No changes in expected user or group import count.
+				require.Equal(t, uint32(3), entraStatus.ImportedUsers)
+				require.Equal(t, uint32(3), entraStatus.ImportedGroups)
+			},
+			time.Second*15, time.Millisecond*30, "plugin status")
+	}
+	expectFailedPluginStatus(t)
+	expectDefaultUserSync(t, env.authClient)
+
+	accessListClient := env.authClient.AccessListClient()
+	expectFilteredMembers := func(t *testing.T) {
+		t.Helper()
+
+		require.EventuallyWithT(t,
+			func(t *assert.CollectT) {
+				gotAccesslists, err := listEntraIDAccessLists(ctx, accessListClient)
+				require.NoError(t, err)
+				expectedDefaultAccessListTitles := []string{"group1", "group2", "group3"}
+				require.ElementsMatch(t, expectedDefaultAccessListTitles, slices.Collect(maps.Keys(gotAccesslists)), "expected Entra ID groups to be created")
+
+				// No changes expected in group1.
+				group1members := mustListMembers(t, ctx, gotAccesslists["group1"].GetName(), accessListClient)
+				require.Len(t, group1members, 1)
+
+				// Cyclic membership removal is of sorted order. group1 -> group2 is evaluated first.
+				// Then group2 -> group1 which introduces cycle and is removed.
+				group2Members := mustListMembers(t, ctx, gotAccesslists["group2"].GetName(), accessListClient)
+				require.Empty(t, group2Members)
+
+				// No changes expected in group3.
+				group3Members := mustListMembers(t, ctx, gotAccesslists["group3"].GetName(), accessListClient)
+				require.ElementsMatch(t, []string{gotAccesslists["group1"].GetName(), "alice@example.com", "bob@example.com"}, group3Members, "expected Entra ID group members to match")
+			},
+			time.Second*20, time.Millisecond*30)
+	}
+	expectFilteredMembers(t)
+
+	// Update plugin to trigger re-sync.
+	// This time, the sync will skip bulk collection insert and will move to reconciler.
+	pluginToUpdate, err := env.authClient.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+		Name: plugin.GetName(),
+	})
+	require.NoError(t, err)
+	settings = pluginToUpdate.Spec.GetEntraId().SyncSettings
+	settings.SyncIntervals.Full = "2h"
+	plugin.Spec.Settings = &types.PluginSpecV1_EntraId{
+		EntraId: &types.PluginEntraIDSettings{
+			SyncSettings: settings,
+		},
+	}
+	err = updateEntraIDPlugin(ctx, env.authClient, pluginToUpdate)
+	require.NoError(t, err, "expected Entra ID plugin to be updated")
+
+	// In the first sync, resources are bulk inserted. In subsequent full sync
+	// resources are upserted using reconciler. But the resource assertion
+	// must be the same between those two syncs.
+	expectFailedPluginStatus(t)
+	expectDefaultUserSync(t, env.authClient)
+	expectFilteredMembers(t)
+}
+
 func expectDefaultUserSync(t *testing.T, authClt authclient.ClientI) {
 	t.Helper()
 
@@ -328,4 +441,13 @@ func requireRoleAndTraits(t *testing.T, ctx context.Context, authClt authclient.
 	require.ElementsMatch(t, expectedRoles, user.GetRoles(), msg)
 	userGroupTraits := user.GetTraits()["http://schemas.microsoft.com/ws/2008/06/identity/claims/groups"]
 	require.ElementsMatch(t, expectedTraits, userGroupTraits, msg)
+}
+
+func mustListMembers(t *assert.CollectT, ctx context.Context, accessListName string, aclClient services.AccessLists) []string {
+	t.Helper()
+
+	members, err := listEntraIDMembers(ctx, accessListName, aclClient)
+	require.NoError(t, err)
+
+	return members
 }

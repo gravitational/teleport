@@ -508,6 +508,16 @@ func (r *Reconciler) reconcileAccessLists(ctx context.Context,
 	entraAccessListWithMembersMap, teleportAccessListsWithMembersMap map[string]*accessListWithMembers,
 ) error {
 
+	// Teleport does not support cyclic membership but Entra ID does. In order to let the
+	// valid Access Lists and members sync to Teleport, cyclic memberships are filtered.
+	// TODO(sshah): Remove filtering once cyclic membership is supported in Access List.
+	if err := filterOutCyclicMemberships(ctx, entraAccessListWithMembersMap, teleportAccessListsWithMembersMap); err != nil {
+		// filtering is best effort. If it fails, let the reconciliation step below
+		// fail with an error returned by the Access List service.
+		r.errSkippedResources.groupMembers = append(r.errSkippedResources.groupMembers, err)
+		r.logger.WarnContext(ctx, "EntraID membership validation failed, and will be skipped", "err", err)
+	}
+
 	// It's crucial to sort the members for the CompareResources func in the Reconciler.
 	sortMembers(teleportAccessListsWithMembersMap)
 	sortMembers(entraAccessListWithMembersMap)
@@ -538,6 +548,11 @@ func (r *Reconciler) reconcileAccessLists(ctx context.Context,
 
 	var alsWithNestedMembers []*accessListWithMembers
 	var nestedAccessListsToDelete []string
+	// retryableNestedAlsWithMembers collects Access Lists that could not
+	// be upserted due to transient cyclic membership errors.
+	// These Access Lists will be retried once before returning from this
+	// reconciler.
+	var retryableNestedAlsWithMembers []*accessListWithMembers
 	onUpsert := func(ctx context.Context, a *accessListWithMembers) error {
 		hasNestedMember := slices.ContainsFunc(a.Members, func(m *accesslist.AccessListMember) bool {
 			return m.Spec.MembershipKind == accesslist.MembershipKindList
@@ -554,6 +569,11 @@ func (r *Reconciler) reconcileAccessLists(ctx context.Context,
 			return nil
 		}
 		_, _, err := r.accessPoint.UpsertAccessListWithMembers(ctx, a.AccessList, a.Members)
+		if errors.Is(err, accesslists.ErrCyclicMembership) {
+			retryableNestedAlsWithMembers = append(retryableNestedAlsWithMembers, a)
+			slog.DebugContext(ctx, "Failed to upsert Access List with members, upsert will be retried", "access_list", a.AccessList.GetName(), "error", err)
+			return nil
+		}
 		return trace.Wrap(err)
 	}
 
@@ -602,6 +622,32 @@ func (r *Reconciler) reconcileAccessLists(ctx context.Context,
 		start = r.clock.Now()
 		_, _, err := r.accessPoint.UpsertAccessListWithMembers(ctx, a.AccessList, a.Members)
 		if err != nil {
+			if errors.Is(err, accesslists.ErrCyclicMembership) {
+				retryableNestedAlsWithMembers = append(retryableNestedAlsWithMembers, a)
+				slog.DebugContext(ctx, "Failed to upsert Access List with members, upsert will be retried", "access_list", a.AccessList.GetName(), "error", err)
+				continue
+			}
+			reconcileErrs = append(reconcileErrs, trace.Wrap(err))
+		}
+		r.metrics.reconciledNestedMemberDuration.Observe(r.clock.Since(start).Seconds())
+		r.metrics.reconciledNestedMemberTotal.WithLabelValues(metricLabelResultFromError(err)).Inc()
+	}
+
+	for _, a := range retryableNestedAlsWithMembers {
+		start = r.clock.Now()
+		// Retry only once. The main purpose here is to let the reconciler
+		// continue on such errors. If the user added a deep nested membership which
+		// introduces multiple cycle, it overly complicates the logic to retry
+		// and the user arguably wont have expected result due to undeterministic
+		// filtering behavior. They might want to recheck how memberships are
+		// granted instead.
+		_, _, err := r.accessPoint.UpsertAccessListWithMembers(ctx, a.AccessList, a.Members)
+		if err != nil {
+			if errors.Is(err, accesslists.ErrCyclicMembership) {
+				r.errSkippedResources.groupMembers = append(r.errSkippedResources.groupMembers, err)
+				slog.DebugContext(ctx, "Failed to upsert Access List with members on retry", "access_list", a.AccessList.GetName(), "error", err)
+				continue
+			}
 			reconcileErrs = append(reconcileErrs, trace.Wrap(err))
 		}
 		r.metrics.reconciledNestedMemberDuration.Observe(r.clock.Since(start).Seconds())

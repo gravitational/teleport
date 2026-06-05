@@ -560,3 +560,139 @@ func deleteNestedAccessLists(ctx context.Context, accessPoint accessPoint, aclTo
 
 	return trace.NewAggregate(errs...)
 }
+
+// filterOutCyclicMemberships mutates `entraAccessList` by removing members that
+// introduce cycles, e.g. listA -> listB and listB -> listA. Filtering is deterministic
+// because Access Lists and members are sorted.
+//
+// On the first sync where there are no Entra ID Access List synced to Teleport,
+// given Access Lists listA and listB with cyclic membership:
+//
+//	listA -> listB
+//	listB -> listA
+//
+// listA is evaluated before listB, so listA -> listB is accepted first.
+// listB -> listA introduces cycle and is removed.
+//
+// On a subsequent sync where Entra ID Access List and membership already exist
+// in Teleport, Access Lists and members are sorted, but existing membership wins.
+// For example, given listB -> listA membership exists in Teleport, and
+//
+//	listB -> listA
+//	listA -> listB
+//
+// is being synced from Entra ID, existing membership listB -> listA wins and
+// listA -> listB is removed.
+func filterOutCyclicMemberships(ctx context.Context, entraAccessList, teleportAccessList map[string]*accessListWithMembers) error {
+	// Access List and member collection used as a base state during validation.
+	coll := &accesslists.Collection{
+		AccessListsByName: make(map[string]*accesslist.AccessList, len(entraAccessList)),
+		// MembersByAccessList holds validated members. This is needed to detect the
+		// member edge that introduces cycle and not remove the existing valid membership.
+		MembersByAccessList: make(map[string][]*accesslist.AccessListMember, len(entraAccessList)),
+	}
+
+	// Sort members to make cyclic membership filter deterministic.
+	sortMembers(entraAccessList)
+	for name, a := range entraAccessList {
+		coll.AccessListsByName[name] = a.AccessList
+	}
+
+	aclNames := sortedAccessListNames(entraAccessList)
+	teleportMemberEdge := newMemberEdgeSet(teleportAccessList)
+	if len(teleportMemberEdge) > 0 {
+		// Seed existing Entra ID Access List memberships.
+		// This is necessary so that ValidateAccessListMember sees all the membership
+		// edges that already exists in Teleport.
+		for _, aclName := range aclNames {
+			for _, member := range entraAccessList[aclName].Members {
+				if teleportMemberEdge.contains(aclName, member.GetName()) {
+					coll.MembersByAccessList[aclName] = append(coll.MembersByAccessList[aclName], member)
+				}
+			}
+		}
+	}
+
+	var skippedMembers []error
+	for _, aclName := range aclNames {
+		entraAcl := entraAccessList[aclName]
+		currentMembers := coll.MembersByAccessList[aclName]
+
+		for _, member := range entraAcl.Members {
+			if teleportMemberEdge.contains(aclName, member.GetName()) {
+				// Skip validation for this edge because existing edge wins (and is preserved)
+				// over the new membership edge that introduces cycle.
+				continue
+			}
+
+			if err := accesslists.ValidateAccessListMember(ctx, entraAcl.AccessList, member, coll); err != nil {
+				if errors.Is(err, accesslists.ErrCyclicMembership) {
+					skippedMembers = append(skippedMembers, err)
+					continue
+				}
+				return trace.Wrap(err)
+			}
+			currentMembers = append(currentMembers, member)
+			// Update collection so the next validation edge sees the current
+			// membership edge.
+			coll.MembersByAccessList[aclName] = currentMembers
+		}
+
+		if currentMembers == nil {
+			// Instantiate if all the members for this Access List were filtered.
+			currentMembers = entraAcl.Members[:0]
+		}
+		entraAcl.Members = currentMembers
+	}
+
+	return trace.NewAggregate(skippedMembers...)
+}
+
+// sortedAccessListNames sorts Access List with their titles first and
+// falls back to sorting with resource names as a tie breaker.
+func sortedAccessListNames(in map[string]*accessListWithMembers) []string {
+	names := make([]string, 0, len(in))
+	for name := range in {
+		names = append(names, name)
+	}
+	slices.SortFunc(names, func(a, b string) int {
+		if cmp := strings.Compare(in[a].Spec.Title, in[b].Spec.Title); cmp != 0 {
+			return cmp
+		}
+		return strings.Compare(a, b)
+	})
+	return names
+}
+
+type nestedEdge struct {
+	accessList string
+	member     string
+}
+
+type nestedEdgeSet map[nestedEdge]struct{}
+
+func newMemberEdgeSet(in map[string]*accessListWithMembers) nestedEdgeSet {
+	out := make(nestedEdgeSet)
+
+	for aclName, acl := range in {
+		for _, member := range acl.Members {
+			if member.Spec.MembershipKind != accesslist.MembershipKindList {
+				continue
+			}
+			out[nestedEdge{
+				accessList: aclName,
+				member:     member.GetName(),
+			}] = struct{}{}
+		}
+	}
+
+	return out
+}
+
+func (s nestedEdgeSet) contains(acl, member string) bool {
+	_, ok := s[nestedEdge{
+		accessList: acl,
+		member:     member,
+	}]
+	return ok
+}

@@ -1396,8 +1396,9 @@ func TestNestedMembership(t *testing.T) {
 	requireMemberExists(t, env.aclSvc, al2, al3.GetName())
 	requireMemberExists(t, env.aclSvc, al3, al4.GetName())
 
-	// Let's create a cycle, by g4, going back to g1 and expect a reconciliation error.
-
+	// Let's create a cycle, by g4, going back to g1.
+	// Expect one of the membership to be filtered to
+	// break cyclic relationship.
 	graphClient.groupMembers = map[string][]models.GroupMember{
 		"g1": {g2},
 		"g2": {g3},
@@ -1406,7 +1407,9 @@ func TestNestedMembership(t *testing.T) {
 	}
 
 	_ /* result */, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
-	require.ErrorContains(t, err, "is already included as a Member or Owner in")
+	require.NoError(t, err, "cyclic membership should not cause error")
+	// One of the membership is filtered due to cyclic membership.
+	requireMembersCount(t, env.aclSvc, 3)
 }
 
 func TestRestoreDeltaLink(t *testing.T) {
