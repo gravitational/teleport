@@ -19,6 +19,7 @@
 import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
 
 import { allAccessAcl } from 'teleport/mocks/contexts';
 
@@ -47,21 +48,23 @@ test('file transfer buttons are enabled if user has access', async () => {
 function Component({ ctx }: { ctx: ConsoleContext }) {
   return (
     <MemoryRouter>
-      <ConsoleContextProvider value={ctx}>
-        <DocumentSsh
-          doc={{
-            id: 123,
-            status: 'connected',
-            kind: 'terminal',
-            serverId: '123',
-            login: 'tester',
-            latency: { client: 123, server: 2 },
-            url: 'http://localhost',
-            created: new Date(),
-          }}
-          visible={true}
-        />
-      </ConsoleContextProvider>
+      <ToastNotificationProvider>
+        <ConsoleContextProvider value={ctx}>
+          <DocumentSsh
+            doc={{
+              id: 123,
+              status: 'connected',
+              kind: 'terminal',
+              serverId: '123',
+              login: 'tester',
+              latency: { client: 123, server: 2 },
+              url: 'http://localhost',
+              created: new Date(),
+            }}
+            visible={true}
+          />
+        </ConsoleContextProvider>
+      </ToastNotificationProvider>
     </MemoryRouter>
   );
 }

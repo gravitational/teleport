@@ -54,9 +54,8 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   const termCtrlRef = useRef<XTermCtrl>(undefined);
   const elementRef = useRef<HTMLDivElement>(null);
   const toastNotifications = useToastNotifications();
-  // Keeps track of whether we've already notified the user that copying is blocked, so
-  // that the notification is only shown on the first attempt.
-  const copyBlockedNotifiedRef = useRef(false);
+  // Keeps track of the notification id so that we can ensure there is only maximum one copy block notification showing at a time.
+  const copyBlockedToastIdRef = useRef<string>(undefined);
 
   useImperativeHandle(
     ref,
@@ -78,14 +77,14 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       convertEol: props.convertEol,
       disableCopy: props.disableCopy,
       onCopyBlocked: () => {
-        if (copyBlockedNotifiedRef.current) {
-          return;
+        // Remove the previous notification before creating the new one so there's only one showing at at time.
+        if (copyBlockedToastIdRef.current) {
+          toastNotifications.remove(copyBlockedToastIdRef.current);
         }
-        copyBlockedNotifiedRef.current = true;
-        toastNotifications.add({
+        copyBlockedToastIdRef.current = toastNotifications.add({
           severity: 'warn',
           content: {
-            title: "Copy attempt blocked.",
+            title: 'Copy attempt blocked',
             description:
               "Your role doesn't permit you to copy content from the terminal.",
             isAutoRemovable: true,
