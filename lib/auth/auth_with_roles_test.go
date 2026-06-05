@@ -5017,13 +5017,12 @@ func TestGetAndList_WindowsDesktops(t *testing.T) {
 
 func TestIsLocalOrRemoteServerAction(t *testing.T) {
 	ctx := t.Context()
+	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	require.NoError(t, err)
+
 	mods := modulestest.OSSModules()
 	mods.TestFeatures.Entitlements[entitlements.K8s] = modules.EntitlementInfo{Enabled: false}
-	srv, err := authtest.NewAuthServer(authtest.AuthServerConfig{
-		Dir:     t.TempDir(),
-		Modules: mods,
-	})
-	require.NoError(t, err)
+	modulestest.SetTestModules(t, *mods)
 
 	tts := []struct {
 		name      string
@@ -5085,8 +5084,8 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
 				authCtx := authz.Context{
 					Identity: authz.RemoteBuiltinRole{
-						Role:        types.RoleNop,
-						Username:    string(types.RoleNop),
+						Role:        types.RoleProvisionToken,
+						Username:    string(types.RoleProvisionToken),
 						ClusterName: "remote-cluster",
 					},
 				}
@@ -5099,8 +5098,8 @@ func TestIsLocalOrRemoteServerAction(t *testing.T) {
 			getSrvFn: func(t *testing.T) *auth.ServerWithRoles {
 				authCtx := authz.Context{
 					Identity: authz.RemoteBuiltinRole{
-						Role:        types.RoleNop,
-						Username:    string(types.RoleNop),
+						Role:        types.RoleProvisionToken,
+						Username:    string(types.RoleProvisionToken),
 						ClusterName: "remote-cluster",
 					},
 				}
