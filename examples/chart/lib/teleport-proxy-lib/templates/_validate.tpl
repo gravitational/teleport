@@ -18,7 +18,6 @@ validate their expected inputs at render time instead.
   "disableTopologySpreadConstraints"
   "enterprise"
   "forceHAReplicas"
-  "insecureSkipProxyTLSVerify"
   "separateMongoListener"
   "separatePostgresListener"
   "validateConfigOnDeploy"
@@ -86,7 +85,6 @@ validate their expected inputs at render time instead.
   "securityContext"
   "service"
   "serviceAccount"
-  "teleportConfig"
   "tls"
 ) -}}
 {{- if and (hasKey $.Values $k) (not (kindIs "map" (index $.Values $k))) -}}
