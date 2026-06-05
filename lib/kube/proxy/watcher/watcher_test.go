@@ -97,6 +97,24 @@ func (f *fakeWatcher) closeWithError(err error) {
 	f.Close()
 }
 
+func isHealthy(w *ProxyKubeServerWatcher) bool {
+	w.rw.RLock()
+	defer w.rw.RUnlock()
+	return w.isHealthyLocked()
+}
+
+func markUnhealthy(w *ProxyKubeServerWatcher) {
+	w.rw.RLock()
+	defer w.rw.RUnlock()
+	w.nextFallbackFetch = time.Now() // ensure watcher is considered broken
+}
+
+func markHealthy(w *ProxyKubeServerWatcher) {
+	w.rw.RLock()
+	defer w.rw.RUnlock()
+	w.nextFallbackFetch = time.Time{} // reset nextFallbackFetch to simulate that the watcher is healthy again
+}
+
 // newTestKubeServer is a testing helper to create a new Kubernetes server with the given name and hostID.
 func newTestKubeServer(t *testing.T, name, hostID string) types.KubeServer {
 	t.Helper()
@@ -163,12 +181,12 @@ func testProxyKubeServerWatcherStartsWithFaultyPrimarySynctest(t *testing.T) {
 		waitCh <- w.WaitInitialization()
 	}()
 
-	require.False(t, w.hot.Load(), "Watcher starts cold")
+	require.True(t, isHealthy(w), "Watcher starts cold")
 	require.False(t, w.IsInitialized())
 
 	time.Sleep(2 * time.Second)
 	require.False(t, w.IsInitialized())
-	require.False(t, w.hot.Load(), "Watcher should not be hot since primary is failing")
+	require.False(t, isHealthy(w), "Watcher should not be hot since primary is failing")
 
 	srvs, err := w.CurrentResourcesWithFilter(ctx, noopFilter)
 	require.NoError(t, err)
@@ -240,8 +258,6 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	watcherReady := make(chan time.Time)
 	primary.On("NewWatcher", mock.Anything, mock.Anything).Return(fw, nil).WaitUntil(watcherReady).Once()
 
-	fallback.On("GetKubernetesServers", mock.Anything).Return([]types.KubeServer{}, nil).Once()
-
 	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
 		Component:      teleport.ComponentProxy,
 		AccessPoint:    primary,
@@ -262,7 +278,7 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	fw.send(types.Event{Type: types.OpInit})
 	require.NoError(t, w.WaitInitialization())
 	require.True(t, w.IsInitialized())
-	require.True(t, w.hot.Load(), "Watcher should be hot after receiving OpInit event")
+	require.True(t, isHealthy(w), "Watcher starts out healthy")
 
 	fw.send(types.Event{Type: types.OpPut, Resource: newTestKubeServer(t, "new", "host2")})
 	synctest.Wait()
@@ -329,14 +345,17 @@ func testProxyKubeServerWatcherRetryWatchAfterTimeoutSynctest(t *testing.T) {
 	fw1.closeWithError(context.DeadlineExceeded)
 	synctest.Wait()
 	// Initially the cache is still hot
-	require.True(t, w.hot.Load(), "expected watcher to be hot before primary timeout")
+	require.False(t, isHealthy(w), "the watcher is imminently unhealthy after the primary watcher fails")
+	require.False(t, w.shouldFetchFromFallback(time.Now()), "the watcher should not fetch from fallback immediately after the primary watcher fails")
 	time.Sleep(10*time.Second + time.Millisecond)
-	require.False(t, w.hot.Load(), "expected watcher to be cold after primary timeout")
+	require.False(t, isHealthy(w), "still unhealthy after primary timeout")
+	require.True(t, w.shouldFetchFromFallback(time.Now()), "watcher should fetch from fallback after primary timeout")
 
 	fw2.send(types.Event{Type: types.OpInit})
 	synctest.Wait()
 
-	require.True(t, w.hot.Load(), "expected watcher to be hot")
+	require.True(t, isHealthy(w), "expected watcher to be hot")
+	require.False(t, w.shouldFetchFromFallback(time.Now()), "watcher should now be serving from the event stream, not fallback")
 
 	noopFilter := func(k readonly.KubeServer) bool { return true }
 
@@ -379,13 +398,13 @@ func testProxyKubeServerWatcherRecoversAfterTimeoutSynctest(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(w.Close)
 
-	time.Sleep(21 * time.Millisecond)
+	time.Sleep(30 * time.Millisecond)
 
-	require.False(t, w.hot.Load())
+	require.False(t, isHealthy(w))
 	fw.send(types.Event{Type: types.OpInit})
 	synctest.Wait()
 
-	require.True(t, w.hot.Load())
+	require.True(t, isHealthy(w))
 
 	primary.AssertExpectations(t)
 	fallback.AssertExpectations(t)
@@ -423,7 +442,7 @@ func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T)
 	t.Cleanup(w.Close)
 	fw.send(types.Event{Type: types.OpInit})
 	synctest.Wait()
-	require.True(t, w.hot.Load(), "Watcher should be hot after receiving OpInit event")
+	require.True(t, isHealthy(w), "Watcher should be hot after receiving OpInit event")
 
 	for i := range numberOfEvents {
 		srv := newTestKubeServerWithRevsion(t, "foo", "host", i)
@@ -480,7 +499,7 @@ func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T)
 	fallback.On("GetKubernetesServers", mock.Anything).Return([]types.KubeServer{}, context.DeadlineExceeded).Once()
 
 	fw.closeWithError(context.DeadlineExceeded)
-	require.True(t, w.hot.Load(), "Watcher remains hot for grace period")
+	require.True(t, isHealthy(w), "Watcher remains hot for grace period")
 	synctest.Wait()
 
 	nonstale, err := w.CurrentResourcesWithFilter(ctx, noopFilter)
@@ -488,7 +507,7 @@ func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T)
 	require.Len(t, nonstale, numberOfEvents)
 
 	time.Sleep(10 * time.Second) // exceed max staleness.
-	require.False(t, w.hot.Load(), "Watcher is not hot after max staleness is exceeded")
+	require.False(t, isHealthy(w), "Watcher is not hot after max staleness is exceeded")
 
 	srvs, err = w.CurrentResourcesWithFilter(ctx, noopFilter)
 	require.Error(t, err)
@@ -507,7 +526,7 @@ func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T)
 	fw2.send(types.Event{Type: types.OpInit})
 	time.Sleep(10 * time.Second) // exceed retry staleness.
 
-	require.True(t, w.hot.Load(), "Watcher should be hot after new watcher is created and receives OpInit")
+	require.True(t, isHealthy(w), "Watcher should be hot after new watcher is created and receives OpInit")
 
 	// Calls should not be routed to fallback.
 	srvs, err = w.CurrentResourcesWithFilter(ctx, noopFilter)
@@ -549,15 +568,16 @@ func TestProxyKubeServerWatcher_MaybeFetchFromUpstreamDoesNotOverwriteHotCache(t
 		},
 	}
 
-	w.hot.Store(false)
-
+	markUnhealthy(w)
 	done := make(chan error, 1)
 	go func() {
 		done <- w.maybeFetchFromUpstream(ctx)
 	}()
 
 	<-fetchStarted
-	w.hot.Store(true)
+
+	markHealthy(w)
+
 	close(continueFetch)
 
 	require.NoError(t, <-done)
@@ -604,7 +624,7 @@ func testProxyKubeServerWatcherDiscardsBadInitEventSynctest(t *testing.T) {
 	fw2.send(types.Event{Type: types.OpInit})
 
 	time.Sleep(time.Minute) // wait long enough for retry backoff to init second watcher
-	require.True(t, w.hot.Load(), "Watcher should be hot after receiving OpInit event")
+	require.True(t, isHealthy(w), "Watcher should be hot after receiving OpInit event")
 
 	primary.AssertExpectations(t)
 	fallback.AssertExpectations(t)
@@ -651,7 +671,7 @@ func testProxyKubeServerWatcherRecoversFromFirstFetchFailSynctest(t *testing.T) 
 	fw2.send(types.Event{Type: types.OpInit})
 
 	time.Sleep(time.Minute) // wait long enough for retry backoff to init second watcher
-	require.True(t, w.hot.Load(), "Watcher should be hot after receiving OpInit event")
+	require.True(t, isHealthy(w), "Watcher should be hot after receiving OpInit event")
 
 	primary.AssertExpectations(t)
 	fallback.AssertExpectations(t)
@@ -702,41 +722,6 @@ func TestFillEventBuf_DoesNotExceedMaxBufferSize(t *testing.T) {
 	}
 }
 
-func TestProxyKubeServerWatcher_ConsumesInitEvents(t *testing.T) {
-	srv := newTestKubeServer(t, "foo", "bar")
-
-	w := &ProxyKubeServerWatcher{
-		ProxyKubeServerWatcherConfig: ProxyKubeServerWatcherConfig{
-			Logger: slog.Default(),
-		},
-		ctx:     t.Context(),
-		current: map[serverKey]types.KubeServer{},
-	}
-
-	// readN should consume OpInit events and continue processing subsequent events.
-	fw := newFakeWatcher(4)
-	t.Cleanup(func() { fw.Close() })
-	fw.send(types.Event{Type: types.OpInit})
-	fw.send(types.Event{Type: types.OpPut, Resource: srv})
-
-	err := w.readN(fw, make([]types.Event, 0, eventBufferSize), 2)
-	require.NoError(t, err)
-
-	// Both events were consumed.
-	select {
-	case event := <-fw.Events():
-		t.Fatalf("expected no remaining events, got %v", event.Type)
-	default:
-	}
-
-	// The non-init event was still applied.
-	w.rw.RLock()
-	defer w.rw.RUnlock()
-	got, ok := w.current[kubeServerKey(srv)]
-	require.True(t, ok)
-	require.Equal(t, srv, got)
-}
-
 func testProxyKubeServerWatcher_ParentContextCanceledSynctest(t *testing.T) {
 	parentCtx, cancelParent := context.WithCancel(t.Context())
 	watcherCtx, cancelWatcher := context.WithCancel(t.Context())
@@ -767,7 +752,7 @@ func testProxyKubeServerWatcher_ParentContextCanceledSynctest(t *testing.T) {
 		current: make(map[serverKey]types.KubeServer),
 	}
 
-	w.hot.Store(false)
+	markUnhealthy(w)
 
 	noopFilter := func(k readonly.KubeServer) bool { return true }
 

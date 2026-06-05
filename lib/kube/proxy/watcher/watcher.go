@@ -19,7 +19,6 @@ import (
 	"context"
 	"log/slog"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -123,9 +122,6 @@ type ProxyKubeServerWatcher struct {
 	// cancel is used to cancel the context controlling the lifetime of this instance.
 	cancel context.CancelFunc
 
-	// hot is used to indicate that the watcher is hot and can serve kube servers fed from event watcher.
-	hot atomic.Bool
-
 	// initC is closed when the watcher is initialized successfully for the first time.
 	initC    chan struct{}
 	initOnce sync.Once
@@ -133,15 +129,12 @@ type ProxyKubeServerWatcher struct {
 	// rw protects below fields
 	rw sync.RWMutex
 
-	// nextFallbackFetch is the next point in time when the watcher should attempt to fetch from the fallback getter
-	// if the primary access point is observed to be failing.
-	nextFallbackFetch time.Time
-
 	// current holds a map of the currently known servers.
 	current map[serverKey]types.KubeServer
 
-	// primaryFailureAt is the time when the primary access point was first observed to be failing.
-	primaryFailureAt time.Time
+	// nextFallbackFetch is the next point in time when the watcher should attempt to fetch from the fallback getter
+	// if the primary access point is observed to be failing.
+	nextFallbackFetch time.Time
 
 	// singleFlighter is used to suppress multiple simultaneous fetches from the fallback
 	// getter when the primary access point is observed to be failing.
@@ -187,27 +180,50 @@ func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherCo
 	return w, nil
 }
 
-// armTimeout creates the timeout timer for marking the cache as stale. If a previous
-// failure has already been marked and the cache is still hot the timeout is adjusted
-// to not exceed [ProxyKubeServerWatcherConfig.PrimaryTimeout].
-// Otherwise defaults to [ProxyKubeServerWatcherConfig.PrimaryTimeout].
-func (w *ProxyKubeServerWatcher) armTimeout() *time.Timer {
-	w.rw.RLock()
-	failureAt := w.primaryFailureAt
-	w.rw.RUnlock()
+func (w *ProxyKubeServerWatcher) isHealthyLocked() bool {
+	return w.nextFallbackFetch.IsZero()
+}
 
-	timeout := w.PrimaryTimeout
+func (w *ProxyKubeServerWatcher) shouldFetchFromFallback(now time.Time) bool {
+	w.rw.Lock()
+	defer w.rw.Unlock()
 
-	if !failureAt.IsZero() && w.hot.Load() {
-		elapsed := time.Since(failureAt)
-		if elapsed >= w.PrimaryTimeout {
-			timeout = 0
-		} else {
-			timeout = w.PrimaryTimeout - elapsed
-		}
+	if w.isHealthyLocked() {
+		return false
 	}
-	return time.NewTimer(timeout)
 
+	if now.Before(w.nextFallbackFetch) {
+		return false
+	}
+
+	// Note this includes time to acquire the lock but the interval should be much greater than that.
+	w.nextFallbackFetch = now.Add(retryutils.SeventhJitter(w.FallbackInterval))
+	return true
+}
+
+// markUnhealthyOnInitTimeout marks the watcher as unhealthy if the initial watcher creation and init process takes longer than the configured primary timeout.
+func (w *ProxyKubeServerWatcher) markUnhealthyOnInitTimeout() {
+	now := time.Now()
+
+	w.rw.Lock()
+	defer w.rw.Unlock()
+
+	if w.nextFallbackFetch.IsZero() {
+		// Watcher is considered unhealthy after the initial timeout, given we know the timeout has elapsed, set
+		// to now for immidate fetching from fallback on next check.
+		w.nextFallbackFetch = now
+	}
+}
+
+// markUnhealthyOnWatchError handles errors from the watch loop.
+func (w *ProxyKubeServerWatcher) markUnhealthyOnWatchError(err error) {
+	now := time.Now()
+	w.rw.Lock()
+	defer w.rw.Unlock()
+	if w.nextFallbackFetch.IsZero() {
+		w.nextFallbackFetch = now.Add(retryutils.SeventhJitter(w.PrimaryTimeout))
+		w.Logger.WarnContext(w.ctx, "Kube Server Watcher has failed.", "error", err, "next_fallback_fetch", w.nextFallbackFetch.Format(time.RFC3339))
+	}
 }
 
 // fillEventBuf fills the given buffer with events from the watcher channel until the buffer reaches the given maxSize, the context is canceled or the watcher is closed.
@@ -229,76 +245,83 @@ func fillEventBuf(ctx context.Context, buf []types.Event, w types.Watcher, maxSi
 	return
 }
 
-func (w *ProxyKubeServerWatcher) readN(watcher types.Watcher, buf []types.Event, n int) error {
-	var (
-		seen int
-	)
-	for seen < n {
-		select {
-		case <-watcher.Done():
-			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
-		case <-w.ctx.Done():
-			return trace.ConnectionProblem(w.ctx.Err(), "context is closing")
-		case event := <-watcher.Events():
-			buf = append(buf[:0], event)
-			buf = fillEventBuf(w.ctx, buf, watcher, eventBufferSize)
-			w.processEvents(w.ctx, buf)
-			seen += len(buf)
-			clear(buf)
-		}
-	}
-
-	return nil
-}
-
-// watch spawns a watcher on [types.KindKubeServer] and if successful, initializes the local cache and fetches events.
-func (w *ProxyKubeServerWatcher) watch() error {
+func (w *ProxyKubeServerWatcher) createWatcherAndInit() (types.Watcher, error) {
 	watcher, err := w.AccessPoint.NewWatcher(w.ctx, types.Watch{
 		Name:            w.Component,
 		MetricComponent: w.Component,
 		Kinds:           []types.WatchKind{{Kind: types.KindKubeServer}},
 	})
 	if err != nil {
-		return trace.Wrap(err, "creating a watcher")
+		return nil, trace.Wrap(err, "creating a watcher")
+	}
+
+	watcherInitTimeout := time.NewTimer(w.PrimaryTimeout)
+	defer watcherInitTimeout.Stop()
+
+	for {
+		select {
+		case <-watcher.Done():
+			return nil, trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
+		case <-w.ctx.Done():
+			return nil, trace.ConnectionProblem(w.ctx.Err(), "context is closing")
+		case event := <-watcher.Events():
+			if event.Type != types.OpInit {
+				return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
+			}
+		case <-watcherInitTimeout.C:
+			// Do not return timeout here but mark the failure and continue waiting.
+			// It's possible the watcher will recover eventually. If using the cache,
+			// on error the cache will close the watcher and we handle that separately.
+			w.markUnhealthyOnInitTimeout()
+			w.Logger.WarnContext(w.ctx, "Watcher failed to initialize within the expected time. This is an indication of a problem with the primary access point.", "timeout", w.PrimaryTimeout.String())
+			continue
+		}
+		break
+	}
+
+	return watcher, nil
+}
+
+// watch spawns a watcher on [types.KindKubeServer] and if successful, initializes the local cache and fetches events.
+func (w *ProxyKubeServerWatcher) watch() error {
+	watcher, err := w.createWatcherAndInit()
+	if err != nil {
+		return trace.Wrap(err, "creating watcher and waiting for init")
 	}
 	defer watcher.Close()
 
-	timer := w.armTimeout()
-	defer timer.Stop()
+	newCurrent, err := w.getAllKubeServers(w.ctx, w.AccessPoint)
+	if err != nil {
+		return trace.Wrap(err, "fetching from primary")
+	}
 
-	for {
+	var seen int
+	queuedEvents := len(watcher.Events())
+	eventBuf := make([]types.Event, 0, eventBufferSize)
+
+	// Catch up on queued events that happened while we were fetching the initial state, these are applied to the
+	// new state we just fetched, so we end up with a consistent view of the world at the point in time when the watcher was created.
+	for seen < queuedEvents {
 		select {
 		case <-watcher.Done():
 			return trace.ConnectionProblem(watcher.Error(), "watcher is closed: %v", watcher.Error())
 		case <-w.ctx.Done():
 			return trace.ConnectionProblem(w.ctx.Err(), "context is closing")
 		case event := <-watcher.Events():
-			if event.Type != types.OpInit {
-				return trace.BadParameter("expected init event, got %v instead", event.Type)
-			}
-		case <-timer.C:
-			// Do not return timeout here but mark the failure and continue waiting.
-			// It's possible the watcher will recover eventually. If using the cache,
-			// on error the cache will close the watcher and we handle that separately.
-			w.hot.Store(false)
-			w.Logger.WarnContext(w.ctx, "slow watcher init")
-			continue
+			eventBuf = append(eventBuf[:0], event)
+			eventBuf = fillEventBuf(w.ctx, eventBuf, watcher, eventBufferSize)
+			// no lock, events applied to local copy of the new state.
+			w.applyEventsLocked(w.ctx, newCurrent, eventBuf)
+			seen += len(eventBuf)
+			clear(eventBuf)
 		}
-		break
 	}
 
-	if err := w.fetchInitialState(w.ctx); err != nil {
-		return trace.Wrap(err, "warming up cache")
-	}
+	w.rw.Lock()
+	w.nextFallbackFetch = time.Time{} // mark as healthy
+	w.current = newCurrent
+	w.rw.Unlock()
 
-	eventBuf := make([]types.Event, 0, eventBufferSize)
-
-	if err := w.readN(watcher, eventBuf, len(watcher.Events())); err != nil {
-		return trace.Wrap(err, "warming up cache with events")
-	}
-
-	w.hot.Store(true)
-	w.primaryFailureAt = time.Time{}
 	w.initOnce.Do(func() {
 		close(w.initC)
 	})
@@ -315,7 +338,9 @@ func (w *ProxyKubeServerWatcher) watch() error {
 		case event := <-watcher.Events():
 			eventBuf = append(eventBuf[:0], event)
 			eventBuf = fillEventBuf(w.ctx, eventBuf, watcher, eventBufferSize)
-			w.processEvents(w.ctx, eventBuf)
+			w.rw.Lock()
+			w.applyEventsLocked(w.ctx, w.current, eventBuf)
+			w.rw.Unlock()
 			clear(eventBuf)
 		}
 	}
@@ -352,35 +377,14 @@ func (w *ProxyKubeServerWatcher) getAllKubeServers(ctx context.Context, getter K
 	return current, nil
 }
 
-// fetchInitialState fetches all kube servers from the primary access point and marks the watcher as initialized.
-func (w *ProxyKubeServerWatcher) fetchInitialState(ctx context.Context) error {
-	newCurrent, err := w.getAllKubeServers(ctx, w.AccessPoint)
-	if err != nil {
-		return trace.Wrap(err, "fetching from primary")
-	}
-
-	w.rw.Lock()
-	defer w.rw.Unlock()
-	w.current = newCurrent
-	return nil
-}
-
 // maybeFetchFromUpstream attempts to fetch the kube servers from the auth server if the cache is cold and
 // the next cold fetch time has been reached. This is used to throttle calls to the auth server when the cache is cold.
 func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) error {
-	if w.hot.Load() {
-		// fast path watcher is hot, no need to fetch from upstream
-		return nil
-	}
-
 	now := time.Now()
-	w.rw.Lock()
-	if now.Before(w.nextFallbackFetch) {
-		w.rw.Unlock()
+
+	if !w.shouldFetchFromFallback(now) {
 		return nil
 	}
-	w.nextFallbackFetch = now.Add(retryutils.SeventhJitter(w.FallbackInterval))
-	w.rw.Unlock()
 
 	ch := w.singleFlighter.DoChan("collection", func() (any, error) {
 		newCurrent, err := w.getAllKubeServers(w.ctx, w.FallbackGetter)
@@ -391,8 +395,8 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 		w.rw.Lock()
 		defer w.rw.Unlock()
 
-		if w.hot.Load() {
-			// Double check cache is not hot while we waited on the lock and/or fetch.
+		if w.isHealthyLocked() {
+			// If the watcher became healhy while we were fetching from the fallback use the primary data.
 			return nil, nil
 		}
 
@@ -408,20 +412,6 @@ func (w *ProxyKubeServerWatcher) maybeFetchFromUpstream(ctx context.Context) err
 	}
 }
 
-// handleWatchError handles errors from the watch loop.
-func (w *ProxyKubeServerWatcher) handleWatchError(err error) {
-	now := time.Now()
-
-	w.rw.Lock()
-	defer w.rw.Unlock()
-	if w.primaryFailureAt.IsZero() {
-		w.primaryFailureAt = now
-	} else if w.hot.Load() && time.Since(w.primaryFailureAt) >= w.PrimaryTimeout {
-		w.Logger.WarnContext(w.ctx, "Primary access point is unhealthy, falling back to auth server for kube servers.", "error", err, "failure_at", w.primaryFailureAt.String())
-		w.hot.Store(false)
-	}
-}
-
 // runWatchLoop is the main event loop of the watcher.
 func (w *ProxyKubeServerWatcher) runWatchLoop() {
 	for {
@@ -433,7 +423,7 @@ func (w *ProxyKubeServerWatcher) runWatchLoop() {
 		}
 
 		if err != nil {
-			w.handleWatchError(err)
+			w.markUnhealthyOnWatchError(err)
 		}
 
 		startedWaiting := time.Now()
@@ -451,11 +441,8 @@ func (w *ProxyKubeServerWatcher) runWatchLoop() {
 	}
 }
 
-// processEvents takes events from the watcher channel and applies them to the local cache.
-func (w *ProxyKubeServerWatcher) processEvents(ctx context.Context, events []types.Event) {
-	w.rw.Lock()
-	defer w.rw.Unlock()
-
+// applyEventsLocked takes events from the watcher channel and applies them to the given resources map
+func (w *ProxyKubeServerWatcher) applyEventsLocked(ctx context.Context, resources map[serverKey]types.KubeServer, events []types.Event) {
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindKubeServer {
 			w.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
@@ -464,7 +451,7 @@ func (w *ProxyKubeServerWatcher) processEvents(ctx context.Context, events []typ
 
 		switch event.Type {
 		case types.OpDelete:
-			delete(w.current, kubeServerDeleteKey(event.Resource))
+			delete(resources, kubeServerDeleteKey(event.Resource))
 		case types.OpPut:
 			srv, err := types.ConvertResource[types.KubeServer](event.Resource)
 			if err != nil {
@@ -475,7 +462,7 @@ func (w *ProxyKubeServerWatcher) processEvents(ctx context.Context, events []typ
 				continue
 			}
 
-			w.current[kubeServerKey(srv)] = srv
+			resources[kubeServerKey(srv)] = srv
 		default:
 			w.Logger.WarnContext(ctx, "Skipping unsupported event type", "event_type", event.Type)
 		}
