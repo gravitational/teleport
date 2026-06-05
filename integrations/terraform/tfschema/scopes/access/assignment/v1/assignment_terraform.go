@@ -27,7 +27,6 @@ import (
 	_ "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	github_com_gravitational_teleport_api_gen_proto_go_teleport_header_v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	github_com_gravitational_teleport_api_gen_proto_go_teleport_scopes_access_v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
-	github_com_gravitational_teleport_integrations_terraform_tfschema "github.com/gravitational/teleport/integrations/terraform/tfschema"
 	github_com_hashicorp_terraform_plugin_framework_attr "github.com/hashicorp/terraform-plugin-framework/attr"
 	github_com_hashicorp_terraform_plugin_framework_diag "github.com/hashicorp/terraform-plugin-framework/diag"
 	github_com_hashicorp_terraform_plugin_framework_tfsdk "github.com/hashicorp/terraform-plugin-framework/tfsdk"
@@ -66,13 +65,6 @@ func GenSchemaScopedRoleAssignment(ctx context.Context) (github_com_hashicorp_te
 					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 					Type:          github_com_hashicorp_terraform_plugin_framework_types.StringType,
 				},
-				"expires": GenSchemaTimestamp(ctx, github_com_hashicorp_terraform_plugin_framework_tfsdk.Attribute{
-					Computed:      true,
-					Description:   "expires is a global expiry time header can be set on any resource in the system.",
-					Optional:      true,
-					PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
-					Validators:    []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributeValidator{github_com_gravitational_teleport_integrations_terraform_tfschema.MustTimeBeInFuture()},
-				}),
 				"labels": {
 					Computed:      true,
 					Description:   "labels is a set of labels.",
@@ -300,13 +292,6 @@ func CopyScopedRoleAssignmentFromTerraform(_ context.Context, tf github_com_hash
 								}
 							}
 						}
-					}
-					{
-						a, ok := tf.Attrs["expires"]
-						if !ok {
-							diags.Append(attrReadMissingDiag{"ScopedRoleAssignment.metadata.expires"})
-						}
-						CopyFromTimestamp(diags, a, &obj.Expires)
 					}
 				}
 			}
@@ -688,15 +673,6 @@ func CopyScopedRoleAssignmentToTerraform(ctx context.Context, obj *github_com_gr
 								c.Unknown = false
 								tf.Attrs["labels"] = c
 							}
-						}
-					}
-					{
-						t, ok := tf.AttrTypes["expires"]
-						if !ok {
-							diags.Append(attrWriteMissingDiag{"ScopedRoleAssignment.metadata.expires"})
-						} else {
-							v := CopyToTimestamp(diags, obj.Expires, t, tf.Attrs["expires"])
-							tf.Attrs["expires"] = v
 						}
 					}
 				}
