@@ -72,10 +72,11 @@ export function Login({
       break;
   }
 
-  const title = isCustomForm ? 'Sign in' : 'Sign in to Teleport';
+  const productName = cfg.oss.getBeamsUi() ? 'Beams' : 'Teleport';
+  const title = isCustomForm ? 'Sign in' : `Sign in to ${productName}`;
   const ssoTitle = isCustomForm
     ? 'Sign in with SSO'
-    : 'Sign in to Teleport with SSO';
+    : `Sign in to ${productName} with SSO`;
 
   return (
     <>

@@ -23,6 +23,15 @@ test('basic rendering', () => {
   expect(screen.getByText(/sign in to teleport/i)).toBeInTheDocument();
 });
 
+test('renders Beams branding when beamsUi is enabled', () => {
+  jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(true);
+
+  render(<Login />);
+
+  expect(screen.getByText('Sign in to Beams')).toBeInTheDocument();
+  expect(screen.queryByText('Sign in to Teleport')).not.toBeInTheDocument();
+});
+
 test('login with redirect', async () => {
   jest.spyOn(auth, 'login').mockResolvedValue({});
 

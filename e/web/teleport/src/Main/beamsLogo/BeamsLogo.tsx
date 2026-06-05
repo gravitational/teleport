@@ -16,11 +16,10 @@
 
 import { css, useTheme } from 'styled-components';
 
+import dark from 'design/assets/images/beams-dark.svg';
+import light from 'design/assets/images/beams-light.svg';
 import Image from 'design/Image/Image';
 import { Theme } from 'design/theme';
-
-import dark from './beams-logo-dark.svg';
-import light from './beams-logo-light.svg';
 
 const image: {
   [K in Theme['type']]: string;
