@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -459,4 +460,59 @@ func (c *mockedSSHChannel) SendRequest(name string, wantReply bool, payload []by
 
 func (*mockedSSHChannel) Close() error {
 	return nil
+}
+
+func TestLocalClusterRemoveScopedConns(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	clt := &mockLocalSiteClient{}
+	watcher, err := services.NewProxyWatcher(ctx, services.ProxyWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Logger:    logtest.NewLogger(),
+			Clock:     clock,
+			Client:    clt,
+		},
+		ProxyGetter: clt,
+		ProxiesC:    make(chan []types.Server, 2),
+	})
+	require.NoError(t, err)
+	require.NoError(t, watcher.WaitInitialization())
+
+	srv := &server{
+		ctx:              ctx,
+		Config:           Config{Clock: clock},
+		localAuthClient:  clt,
+		logger:           logtest.NewLogger(),
+		offlineThreshold: time.Second,
+		proxyWatcher:     watcher,
+	}
+
+	cluster, err := newLocalSite(srv, "clustername", nil,
+		withPeriodicFunctionInterval(time.Hour),
+		withProxySyncInterval(time.Hour),
+	)
+	require.NoError(t, err)
+
+	nodeID := uuid.NewString()
+	const (
+		scope    = "my-scope"
+		connType = types.NodeTunnel
+	)
+
+	conn, err := cluster.addConn(nodeID, scope, connType, &mockRemoteConnConn{}, nil)
+	require.NoError(t, err)
+
+	key := connKey{
+		uuid:     nodeID,
+		connType: connType,
+		scope:    scopes.NormalizeForEquality(scope),
+	}
+	require.Len(t, cluster.remoteConns[key], 1)
+
+	cluster.removeRemoteConn(conn)
+
+	require.Empty(t, cluster.remoteConns[key])
+	require.NotContains(t, cluster.remoteConns, key)
 }
