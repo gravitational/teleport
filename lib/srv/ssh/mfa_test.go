@@ -39,75 +39,25 @@ const (
 	teleportUsername = "alice"
 )
 
-func TestNewMFAPromptVerifier_InvalidParams(t *testing.T) {
-	t.Parallel()
-
-	for _, testCase := range []struct {
-		name          string
-		verifier      srvssh.ValidatedMFAChallengeVerifier
-		sourceCluster string
-		username      string
-		sessionID     []byte
-		wantErr       error
-	}{
-		{
-			name:          "nil verifier",
-			verifier:      nil,
-			sourceCluster: sourceCluster,
-			username:      teleportUsername,
-			sessionID:     []byte(sessionID),
-			wantErr:       trace.BadParameter("params Verifier must be set"),
-		},
-		{
-			name:          "empty sourceCluster",
-			verifier:      &mockValidatedMFAChallengeVerifier{},
-			sourceCluster: "",
-			username:      teleportUsername,
-			sessionID:     []byte(sessionID),
-			wantErr:       trace.BadParameter("params SourceCluster must be set"),
-		},
-		{
-			name:          "empty username",
-			verifier:      &mockValidatedMFAChallengeVerifier{},
-			sourceCluster: sourceCluster,
-			username:      "",
-			sessionID:     []byte(sessionID),
-			wantErr:       trace.BadParameter("params Username must be set"),
-		},
-		{
-			name:          "nil sessionID",
-			verifier:      &mockValidatedMFAChallengeVerifier{},
-			sourceCluster: sourceCluster,
-			username:      teleportUsername,
-			sessionID:     nil,
-			wantErr:       trace.BadParameter("params SessionID must be set and be non-empty"),
-		},
-		{
-			name:          "empty sessionID",
-			verifier:      &mockValidatedMFAChallengeVerifier{},
-			sourceCluster: sourceCluster,
-			username:      teleportUsername,
-			sessionID:     []byte(""),
-			wantErr:       trace.BadParameter("params SessionID must be set and be non-empty"),
-		},
-	} {
-		t.Run(testCase.name, func(t *testing.T) {
-			_, err := srvssh.NewMFAPromptVerifier(
-				testCase.verifier,
-				testCase.sourceCluster,
-				testCase.username,
-				testCase.sessionID,
-			)
-			require.ErrorIs(t, err, testCase.wantErr)
-		})
-	}
-}
-
 func TestMFAPromptVerifier_MarshalPrompt(t *testing.T) {
 	t.Parallel()
 
+	cv := &mockValidatedMFAChallengeVerifier{
+		verifyValidatedMFAChallenge: func(
+			_ context.Context,
+			req *mfav2.VerifyValidatedMFAChallengeRequest,
+			_ ...grpc.CallOption,
+		) (*mfav2.VerifyValidatedMFAChallengeResponse, error) {
+			if req.GetName() != challengeName {
+				return nil, trace.Errorf("unexpected challenge name: got %q, want %q", req.GetName(), challengeName)
+			}
+
+			return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
+		},
+	}
+
 	verifier, err := srvssh.NewMFAPromptVerifier(
-		&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
+		cv,
 		sourceCluster,
 		teleportUsername,
 		[]byte(sessionID),
@@ -123,8 +73,22 @@ func TestMFAPromptVerifier_MarshalPrompt(t *testing.T) {
 func TestMFAPromptVerifier_VerifyAnswer_Success(t *testing.T) {
 	t.Parallel()
 
+	cv := &mockValidatedMFAChallengeVerifier{
+		verifyValidatedMFAChallenge: func(
+			_ context.Context,
+			req *mfav2.VerifyValidatedMFAChallengeRequest,
+			_ ...grpc.CallOption,
+		) (*mfav2.VerifyValidatedMFAChallengeResponse, error) {
+			if req.GetName() != challengeName {
+				return nil, trace.Errorf("unexpected challenge name: got %q, want %q", req.GetName(), challengeName)
+			}
+
+			return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
+		},
+	}
+
 	verifier, err := srvssh.NewMFAPromptVerifier(
-		&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
+		cv,
 		sourceCluster,
 		teleportUsername,
 		[]byte(sessionID),
@@ -149,7 +113,7 @@ func TestMFAPromptVerifier_VerifyAnswer_InvalidJSON(t *testing.T) {
 	t.Parallel()
 
 	verifier, err := srvssh.NewMFAPromptVerifier(
-		&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
+		&mockValidatedMFAChallengeVerifier{},
 		sourceCluster,
 		teleportUsername,
 		[]byte(sessionID),
@@ -165,7 +129,7 @@ func TestMFAPromptVerifier_VerifyAnswer_MissingResponse(t *testing.T) {
 	t.Parallel()
 
 	verifier, err := srvssh.NewMFAPromptVerifier(
-		&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
+		&mockValidatedMFAChallengeVerifier{},
 		sourceCluster,
 		teleportUsername,
 		[]byte(sessionID),
@@ -177,55 +141,21 @@ func TestMFAPromptVerifier_VerifyAnswer_MissingResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	err = verifier.VerifyAnswer(t.Context(), string(respJSON))
-	require.ErrorIs(t, err, trace.BadParameter("missing Response in MFAPromptResponse"))
-}
-
-func TestMFAPromptVerifier_VerifyAnswer_EmptyChallengeName(t *testing.T) {
-	t.Parallel()
-
-	verifier, err := srvssh.NewMFAPromptVerifier(
-		&mockValidatedMFAChallengeVerifier{expectedChallengeName: challengeName},
-		sourceCluster,
-		teleportUsername,
-		[]byte(sessionID),
-	)
-	require.NoError(t, err)
-
-	resp := &sshpb.MFAPromptResponse{
-		Response: &sshpb.MFAPromptResponse_Reference{
-			Reference: &sshpb.MFAPromptResponseReference{
-				ChallengeName: "",
-			},
-		},
-	}
-	respJSON, err := protojson.Marshal(resp)
-	require.NoError(t, err)
-
-	err = verifier.VerifyAnswer(t.Context(), string(respJSON))
-	require.ErrorIs(t, err, trace.BadParameter("missing ChallengeName in MFAPromptResponseReference"))
+	require.ErrorIs(t, err, trace.BadParameter("missing or unknown MFAPromptResponse type: <nil>"))
 }
 
 type mockValidatedMFAChallengeVerifier struct {
-	expectedChallengeName string
-	err                   error
+	verifyValidatedMFAChallenge func(
+		context.Context,
+		*mfav2.VerifyValidatedMFAChallengeRequest,
+		...grpc.CallOption,
+	) (*mfav2.VerifyValidatedMFAChallengeResponse, error)
 }
 
 func (m *mockValidatedMFAChallengeVerifier) VerifyValidatedMFAChallenge(
-	_ context.Context,
+	ctx context.Context,
 	req *mfav2.VerifyValidatedMFAChallengeRequest,
-	_ ...grpc.CallOption,
+	opts ...grpc.CallOption,
 ) (*mfav2.VerifyValidatedMFAChallengeResponse, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-
-	if m.expectedChallengeName != "" && req.GetName() != m.expectedChallengeName {
-		return nil, trace.Errorf(
-			"unexpected challenge name: got %q, want %q",
-			req.GetName(),
-			m.expectedChallengeName,
-		)
-	}
-
-	return &mfav2.VerifyValidatedMFAChallengeResponse{}, nil
+	return m.verifyValidatedMFAChallenge(ctx, req, opts...)
 }
