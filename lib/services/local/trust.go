@@ -872,101 +872,62 @@ func (s *CA) GetTunnelConnections(ctx context.Context, clusterName string) ([]ty
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
-	startKey := backend.ExactKey(tunnelConnectionsPrefix, clusterName)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conns := make([]types.TunnelConnection, len(result.Items))
-	for i, item := range result.Items {
-		conn, err := services.UnmarshalTunnelConnection(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		conns[i] = conn
-	}
-
-	return conns, nil
+	conns, err := stream.Collect(s.rangeTunnelConnections(ctx, clusterName, ""))
+	return conns, trace.Wrap(err)
 }
 
 // ListTunnelConnections returns a page of tunnel connections, optionally
 // filtered to a single cluster.
-func (s *CA) ListTunnelConnections(
-	ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter,
-) ([]types.TunnelConnection, string, error) {
-	clusterName := filter.GetClusterName()
+func (s *CA) ListTunnelConnections(ctx context.Context, pageSize int, pageToken string, filter *trustpb.ListTunnelConnectionsFilter) ([]types.TunnelConnection, string, error) {
+	return generic.CollectPageAndCursor(
+		s.rangeTunnelConnections(ctx, filter.GetClusterName(), pageToken),
+		pageSize,
+		func(tc types.TunnelConnection) string {
+			return tc.GetClusterName() + backend.SeparatorString + tc.GetName()
+		},
+	)
+}
 
-	var prefix backend.Key
-	if clusterName != "" {
-		prefix = backend.ExactKey(tunnelConnectionsPrefix, clusterName)
-	} else {
-		prefix = backend.ExactKey(tunnelConnectionsPrefix)
-	}
-
-	rangeStart := prefix
-	if pageToken != "" {
-		rangeStart = backend.NewKey(tunnelConnectionsPrefix).AppendKey(backend.KeyFromString(pageToken))
-	}
-	rangeEnd := backend.RangeEnd(prefix)
-
-	if pageSize <= 0 || pageSize > defaults.DefaultChunkSize {
-		pageSize = defaults.DefaultChunkSize
-	}
-
-	conns := make([]types.TunnelConnection, 0, pageSize)
-	next := ""
-	for item, err := range s.Backend.Items(ctx, backend.ItemsParams{
-		StartKey: rangeStart,
-		EndKey:   rangeEnd,
-	}) {
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-
+// rangeTunnelConnections returns tunnel connection resources starting from the
+// given page token, optionally restricted to a single cluster.
+func (s *CA) rangeTunnelConnections(ctx context.Context, clusterName, pageToken string) iter.Seq2[types.TunnelConnection, error] {
+	mapFn := func(item backend.Item) (types.TunnelConnection, bool) {
 		conn, err := services.UnmarshalTunnelConnection(item.Value,
 			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
+			services.WithRevision(item.Revision))
 		if err != nil {
-			s.logger.WarnContext(ctx, "Skipping item during ListTunnelConnections because conversion from backend item failed", "key", item.Key, "error", err)
-			continue
+			s.logger.WarnContext(ctx, "Failed to unmarshal tunnel connection from backend item",
+				"key", item.Key,
+				"error", err,
+			)
+			return nil, false
 		}
-
-		if len(conns) == pageSize {
-			// First good item beyond the requested page size becomes the next
-			// token.
-			next = conn.GetClusterName() + backend.SeparatorString + conn.GetName()
-			break
-		}
-		conns = append(conns, conn)
+		return conn, true
 	}
-	return conns, next, nil
+
+	prefix := backend.ExactKey(tunnelConnectionsPrefix)
+	if clusterName != "" {
+		prefix = backend.ExactKey(tunnelConnectionsPrefix, clusterName)
+	}
+	startKey := prefix
+	if pageToken != "" {
+		startKey = backend.NewKey(tunnelConnectionsPrefix).AppendKey(backend.KeyFromString(pageToken))
+	}
+	endKey := backend.RangeEnd(prefix)
+
+	return stream.FilterMap(
+		s.Backend.Items(ctx, backend.ItemsParams{
+			StartKey: startKey,
+			EndKey:   endKey,
+		}),
+		mapFn,
+	)
 }
 
 // GetAllTunnelConnections returns all tunnel connections
 func (s *CA) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error) {
-	startKey := backend.ExactKey(tunnelConnectionsPrefix)
-	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	conns := make([]types.TunnelConnection, len(result.Items))
-	for i, item := range result.Items {
-		conn, err := services.UnmarshalTunnelConnection(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		conns[i] = conn
-	}
-
-	return conns, nil
+	conns, err := stream.Collect(s.rangeTunnelConnections(ctx, "", ""))
+	return conns, trace.Wrap(err)
 }
 
 // DeleteTunnelConnection deletes tunnel connection by name

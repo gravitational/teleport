@@ -485,10 +485,11 @@ func TestPresenceService_ListRemoteClusters(t *testing.T) {
 	require.Len(t, rcs, 10)
 }
 
-// TestCA_ListTunnelConnections_CorruptItem ensures that a single malformed
-// tunnel connection in the backend is skipped without truncating pagination -
-// i.e. every well-formed connection after the corrupt one is still returned.
-func TestCA_ListTunnelConnections_CorruptItem(t *testing.T) {
+// TestCA_TunnelConnections_CorruptItem ensures that a single malformed tunnel
+// connection in the backend is skipped rather than failing or truncating the
+// read. For List* this means pagination is not cut short; for Get*/GetAll* this
+// means the bad item is skipped instead of erroring the whole call.
+func TestCA_TunnelConnections_CorruptItem(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
@@ -554,6 +555,24 @@ func TestCA_ListTunnelConnections_CorruptItem(t *testing.T) {
 		pageToken = next
 	}
 	require.Equal(t, want, got)
+
+	// GetTunnelConnections and GetAllTunnelConnections skip the corrupt item
+	// rather than returning an error.
+	conns, err := trustService.GetTunnelConnections(ctx, cluster)
+	require.NoError(t, err)
+	gotNames := make([]string, 0, len(conns))
+	for _, c := range conns {
+		gotNames = append(gotNames, c.GetName())
+	}
+	require.ElementsMatch(t, want, gotNames)
+
+	allConns, err := trustService.GetAllTunnelConnections(ctx)
+	require.NoError(t, err)
+	gotNames = gotNames[:0]
+	for _, c := range allConns {
+		gotNames = append(gotNames, c.GetName())
+	}
+	require.ElementsMatch(t, want, gotNames)
 }
 
 func TestTrustedClusterCRUD(t *testing.T) {
