@@ -395,9 +395,9 @@ func validateRoleExpressions(r types.Role) error {
 
 		// Trait templates in mcp.tools
 		if mcp := r.GetMCPPermissions(condition.condition); mcp != nil {
-			for _, tool := range mcp.Tools {
+			for i, tool := range mcp.Tools {
 				if _, err := parse.NewTraitsTemplateExpression(tool); err != nil {
-					errs = append(errs, trace.BadParameter("parsing %s.mcp.tools expression: %v", condition.name, err))
+					errs = append(errs, trace.BadParameter("parsing %s.mcp.tools[%d] %q: %v", condition.name, i, tool, err))
 				}
 			}
 		}

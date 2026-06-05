@@ -1263,7 +1263,7 @@ func TestValidateRole(t *testing.T) {
 				"parsing allow.impersonate.users expression",
 				"parsing allow.impersonate.roles expression",
 				"parsing allow.github_permissions[0].organizations expression",
-				"parsing allow.mcp.tools expression",
+				`parsing allow.mcp.tools[0] "{{email.localz(external.email)}}"`,
 				"parsing deny.logins expression",
 				"parsing deny.windows_desktop_logins expression",
 				"parsing deny.aws_role_arns expression",
