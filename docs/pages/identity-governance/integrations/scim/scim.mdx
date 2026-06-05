@@ -20,15 +20,6 @@ live in Teleport, group membership is dynamically managed by SCIM Provider via S
 membership. This ensures users have up-to-date access aligned with organizational
 policies.
 
-<Admonition type="tip">
-
-Teleport uses the name and email attributes provisioned through SCIM to show a
-human-readable [display
-name](../../../reference/access-controls/user-types.mdx#display-names) for the
-user in the Web UI.
-
-</Admonition>
-
 ## How it works
 
 The SCIM integration uses a 1:1 mapping between SCIM group and Teleport
@@ -125,3 +116,9 @@ SCIM configuration may differ depending on your IdP. The integration has been of
 - [SailPoint Teleport SCIM connector setup](./sailpoint.mdx)
 
 In case of other SCIM providers, please refer to their documentation for setting up a SCIM integration.
+
+<Admonition type="tip">
+Teleport can use provisioned SCIM name and email attributes to show [display
+names](../../../reference/access-controls/user-display-names.mdx) in the
+Web UI.
+</Admonition>
