@@ -263,6 +263,14 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return unstableAccessChecker.CheckAccessToRemoteCluster(cluster)
 	}
 
+	// originClusterName == "" is a special case for backward compatibility
+	// with older clients that do not send origin cluster name.
+	// In this case we assume the user is local.
+	clusterQualifiedUsername := unmappedIdentity.Username
+	if certAuthority.GetClusterName() == "" || certAuthority.GetClusterName() != clusterName.GetClusterName() {
+		clusterQualifiedUsername = services.UsernameForRemoteCluster(unmappedIdentity.Username, certAuthority.GetClusterName())
+	}
+
 	return IdentityContext{
 		UnmappedIdentity:                    unmappedIdentity,
 		AccessPermit:                        accessPermit,
@@ -272,25 +280,21 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		CertAuthority:                       certAuthority,
 		UnstableSessionJoiningAccessChecker: unstableAccessChecker,
 		UnstableClusterAccessChecker:        unstableClusterAccessChecker,
-		TeleportUser: services.UsernameForCluster(services.UsernameForClusterConfig{
-			User:              unmappedIdentity.Username,
-			OriginClusterName: certAuthority.GetClusterName(),
-			LocalClusterName:  clusterName.GetClusterName(),
-		}),
-		RouteToCluster:          unmappedIdentity.RouteToCluster,
-		UnmappedRoles:           unmappedIdentity.Roles,
-		CertValidBefore:         certValidBefore,
-		Impersonator:            unmappedIdentity.Impersonator,
-		ActiveRequests:          unmappedIdentity.ActiveRequests,
-		DisallowReissue:         unmappedIdentity.DisallowReissue,
-		Renewable:               unmappedIdentity.Renewable,
-		BotName:                 unmappedIdentity.BotName,
-		BotInstanceID:           unmappedIdentity.BotInstanceID,
-		JoinToken:               unmappedIdentity.JoinToken,
-		PreviousIdentityExpires: unmappedIdentity.PreviousIdentityExpires,
-		OriginClusterName:       certAuthority.GetClusterName(),
-		MappedRoles:             accessInfo.Roles,
-		Traits:                  accessInfo.Traits,
+		TeleportUser:                        clusterQualifiedUsername,
+		RouteToCluster:                      unmappedIdentity.RouteToCluster,
+		UnmappedRoles:                       unmappedIdentity.Roles,
+		CertValidBefore:                     certValidBefore,
+		Impersonator:                        unmappedIdentity.Impersonator,
+		ActiveRequests:                      unmappedIdentity.ActiveRequests,
+		DisallowReissue:                     unmappedIdentity.DisallowReissue,
+		Renewable:                           unmappedIdentity.Renewable,
+		BotName:                             unmappedIdentity.BotName,
+		BotInstanceID:                       unmappedIdentity.BotInstanceID,
+		JoinToken:                           unmappedIdentity.JoinToken,
+		PreviousIdentityExpires:             unmappedIdentity.PreviousIdentityExpires,
+		OriginClusterName:                   certAuthority.GetClusterName(),
+		MappedRoles:                         accessInfo.Roles,
+		Traits:                              accessInfo.Traits,
 	}, nil
 }
 
