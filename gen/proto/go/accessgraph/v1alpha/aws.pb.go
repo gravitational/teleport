@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/aws.proto
 
+//go:build !protoopaque
+
 package accessgraphv1alpha
 
 import (
@@ -30,7 +32,6 @@ import (
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -87,11 +88,6 @@ func (x UsersPermissionsBoundaryType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use UsersPermissionsBoundaryType.Descriptor instead.
-func (UsersPermissionsBoundaryType) EnumDescriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{0}
-}
-
 // RolePermissionsBoundaryType is the type of the permissions boundary.
 type RolePermissionsBoundaryType int32
 
@@ -138,14 +134,9 @@ func (x RolePermissionsBoundaryType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use RolePermissionsBoundaryType.Descriptor instead.
-func (RolePermissionsBoundaryType) EnumDescriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{1}
-}
-
 // AWSResourceList is a list of AWS resources supported by the access graph.
 type AWSResourceList struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Resources     []*AWSResource         `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -176,11 +167,6 @@ func (x *AWSResourceList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSResourceList.ProtoReflect.Descriptor instead.
-func (*AWSResourceList) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AWSResourceList) GetResources() []*AWSResource {
 	if x != nil {
 		return x.Resources
@@ -188,9 +174,27 @@ func (x *AWSResourceList) GetResources() []*AWSResource {
 	return nil
 }
 
+func (x *AWSResourceList) SetResources(v []*AWSResource) {
+	x.Resources = v
+}
+
+type AWSResourceList_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Resources []*AWSResource
+}
+
+func (b0 AWSResourceList_builder) Build() *AWSResourceList {
+	m0 := &AWSResourceList{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	return m0
+}
+
 // AWSResource is a list of AWS resources supported by the access graph.
 type AWSResource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Resource:
 	//
 	//	*AWSResource_User
@@ -242,11 +246,6 @@ func (x *AWSResource) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSResource.ProtoReflect.Descriptor instead.
-func (*AWSResource) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *AWSResource) GetResource() isAWSResource_Resource {
@@ -445,6 +444,686 @@ func (x *AWSResource) GetKmsKey() *AWSKMSKeyV1 {
 	return nil
 }
 
+func (x *AWSResource) SetUser(v *AWSUserV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_User{v}
+}
+
+func (x *AWSResource) SetGroup(v *AWSGroupV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_Group{v}
+}
+
+func (x *AWSResource) SetUserInlinePolicy(v *AWSUserInlinePolicyV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_UserInlinePolicy{v}
+}
+
+func (x *AWSResource) SetUserGroups(v *AWSUserGroupsV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_UserGroups{v}
+}
+
+func (x *AWSResource) SetInstance(v *AWSInstanceV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_Instance{v}
+}
+
+func (x *AWSResource) SetPolicy(v *AWSPolicyV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_Policy{v}
+}
+
+func (x *AWSResource) SetUserAttachedPolicies(v *AWSUserAttachedPolicies) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_UserAttachedPolicies{v}
+}
+
+func (x *AWSResource) SetGroupAttachedPolicies(v *AWSGroupAttachedPolicies) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_GroupAttachedPolicies{v}
+}
+
+func (x *AWSResource) SetGroupInlinePolicy(v *AWSGroupInlinePolicyV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_GroupInlinePolicy{v}
+}
+
+func (x *AWSResource) SetS3Bucket(v *AWSS3BucketV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_S3Bucket{v}
+}
+
+func (x *AWSResource) SetRole(v *AWSRoleV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_Role{v}
+}
+
+func (x *AWSResource) SetRoleInlinePolicy(v *AWSRoleInlinePolicyV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_RoleInlinePolicy{v}
+}
+
+func (x *AWSResource) SetRoleAttachedPolicies(v *AWSRoleAttachedPolicies) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_RoleAttachedPolicies{v}
+}
+
+func (x *AWSResource) SetInstanceProfile(v *AWSInstanceProfileV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_InstanceProfile{v}
+}
+
+func (x *AWSResource) SetEksCluster(v *AWSEKSClusterV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_EksCluster{v}
+}
+
+func (x *AWSResource) SetEksClusterAccessEntry(v *AWSEKSClusterAccessEntryV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_EksClusterAccessEntry{v}
+}
+
+func (x *AWSResource) SetEksClusterAssociatedPolicy(v *AWSEKSAssociatedAccessPolicyV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_EksClusterAssociatedPolicy{v}
+}
+
+func (x *AWSResource) SetRds(v *AWSRDSDatabaseV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_Rds{v}
+}
+
+func (x *AWSResource) SetSamlProvider(v *AWSSAMLProviderV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_SamlProvider{v}
+}
+
+func (x *AWSResource) SetOidcProvider(v *AWSOIDCProviderV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_OidcProvider{v}
+}
+
+func (x *AWSResource) SetKmsKey(v *AWSKMSKeyV1) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &AWSResource_KmsKey{v}
+}
+
+func (x *AWSResource) HasResource() bool {
+	if x == nil {
+		return false
+	}
+	return x.Resource != nil
+}
+
+func (x *AWSResource) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_User)
+	return ok
+}
+
+func (x *AWSResource) HasGroup() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_Group)
+	return ok
+}
+
+func (x *AWSResource) HasUserInlinePolicy() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_UserInlinePolicy)
+	return ok
+}
+
+func (x *AWSResource) HasUserGroups() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_UserGroups)
+	return ok
+}
+
+func (x *AWSResource) HasInstance() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_Instance)
+	return ok
+}
+
+func (x *AWSResource) HasPolicy() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_Policy)
+	return ok
+}
+
+func (x *AWSResource) HasUserAttachedPolicies() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_UserAttachedPolicies)
+	return ok
+}
+
+func (x *AWSResource) HasGroupAttachedPolicies() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_GroupAttachedPolicies)
+	return ok
+}
+
+func (x *AWSResource) HasGroupInlinePolicy() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_GroupInlinePolicy)
+	return ok
+}
+
+func (x *AWSResource) HasS3Bucket() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_S3Bucket)
+	return ok
+}
+
+func (x *AWSResource) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_Role)
+	return ok
+}
+
+func (x *AWSResource) HasRoleInlinePolicy() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_RoleInlinePolicy)
+	return ok
+}
+
+func (x *AWSResource) HasRoleAttachedPolicies() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_RoleAttachedPolicies)
+	return ok
+}
+
+func (x *AWSResource) HasInstanceProfile() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_InstanceProfile)
+	return ok
+}
+
+func (x *AWSResource) HasEksCluster() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_EksCluster)
+	return ok
+}
+
+func (x *AWSResource) HasEksClusterAccessEntry() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_EksClusterAccessEntry)
+	return ok
+}
+
+func (x *AWSResource) HasEksClusterAssociatedPolicy() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_EksClusterAssociatedPolicy)
+	return ok
+}
+
+func (x *AWSResource) HasRds() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_Rds)
+	return ok
+}
+
+func (x *AWSResource) HasSamlProvider() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_SamlProvider)
+	return ok
+}
+
+func (x *AWSResource) HasOidcProvider() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_OidcProvider)
+	return ok
+}
+
+func (x *AWSResource) HasKmsKey() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*AWSResource_KmsKey)
+	return ok
+}
+
+func (x *AWSResource) ClearResource() {
+	x.Resource = nil
+}
+
+func (x *AWSResource) ClearUser() {
+	if _, ok := x.Resource.(*AWSResource_User); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearGroup() {
+	if _, ok := x.Resource.(*AWSResource_Group); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearUserInlinePolicy() {
+	if _, ok := x.Resource.(*AWSResource_UserInlinePolicy); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearUserGroups() {
+	if _, ok := x.Resource.(*AWSResource_UserGroups); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearInstance() {
+	if _, ok := x.Resource.(*AWSResource_Instance); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearPolicy() {
+	if _, ok := x.Resource.(*AWSResource_Policy); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearUserAttachedPolicies() {
+	if _, ok := x.Resource.(*AWSResource_UserAttachedPolicies); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearGroupAttachedPolicies() {
+	if _, ok := x.Resource.(*AWSResource_GroupAttachedPolicies); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearGroupInlinePolicy() {
+	if _, ok := x.Resource.(*AWSResource_GroupInlinePolicy); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearS3Bucket() {
+	if _, ok := x.Resource.(*AWSResource_S3Bucket); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearRole() {
+	if _, ok := x.Resource.(*AWSResource_Role); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearRoleInlinePolicy() {
+	if _, ok := x.Resource.(*AWSResource_RoleInlinePolicy); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearRoleAttachedPolicies() {
+	if _, ok := x.Resource.(*AWSResource_RoleAttachedPolicies); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearInstanceProfile() {
+	if _, ok := x.Resource.(*AWSResource_InstanceProfile); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearEksCluster() {
+	if _, ok := x.Resource.(*AWSResource_EksCluster); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearEksClusterAccessEntry() {
+	if _, ok := x.Resource.(*AWSResource_EksClusterAccessEntry); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearEksClusterAssociatedPolicy() {
+	if _, ok := x.Resource.(*AWSResource_EksClusterAssociatedPolicy); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearRds() {
+	if _, ok := x.Resource.(*AWSResource_Rds); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearSamlProvider() {
+	if _, ok := x.Resource.(*AWSResource_SamlProvider); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearOidcProvider() {
+	if _, ok := x.Resource.(*AWSResource_OidcProvider); ok {
+		x.Resource = nil
+	}
+}
+
+func (x *AWSResource) ClearKmsKey() {
+	if _, ok := x.Resource.(*AWSResource_KmsKey); ok {
+		x.Resource = nil
+	}
+}
+
+const AWSResource_Resource_not_set_case case_AWSResource_Resource = 0
+const AWSResource_User_case case_AWSResource_Resource = 1
+const AWSResource_Group_case case_AWSResource_Resource = 2
+const AWSResource_UserInlinePolicy_case case_AWSResource_Resource = 3
+const AWSResource_UserGroups_case case_AWSResource_Resource = 4
+const AWSResource_Instance_case case_AWSResource_Resource = 5
+const AWSResource_Policy_case case_AWSResource_Resource = 6
+const AWSResource_UserAttachedPolicies_case case_AWSResource_Resource = 7
+const AWSResource_GroupAttachedPolicies_case case_AWSResource_Resource = 8
+const AWSResource_GroupInlinePolicy_case case_AWSResource_Resource = 9
+const AWSResource_S3Bucket_case case_AWSResource_Resource = 10
+const AWSResource_Role_case case_AWSResource_Resource = 11
+const AWSResource_RoleInlinePolicy_case case_AWSResource_Resource = 12
+const AWSResource_RoleAttachedPolicies_case case_AWSResource_Resource = 13
+const AWSResource_InstanceProfile_case case_AWSResource_Resource = 14
+const AWSResource_EksCluster_case case_AWSResource_Resource = 15
+const AWSResource_EksClusterAccessEntry_case case_AWSResource_Resource = 16
+const AWSResource_EksClusterAssociatedPolicy_case case_AWSResource_Resource = 17
+const AWSResource_Rds_case case_AWSResource_Resource = 18
+const AWSResource_SamlProvider_case case_AWSResource_Resource = 19
+const AWSResource_OidcProvider_case case_AWSResource_Resource = 20
+const AWSResource_KmsKey_case case_AWSResource_Resource = 21
+
+func (x *AWSResource) WhichResource() case_AWSResource_Resource {
+	if x == nil {
+		return AWSResource_Resource_not_set_case
+	}
+	switch x.Resource.(type) {
+	case *AWSResource_User:
+		return AWSResource_User_case
+	case *AWSResource_Group:
+		return AWSResource_Group_case
+	case *AWSResource_UserInlinePolicy:
+		return AWSResource_UserInlinePolicy_case
+	case *AWSResource_UserGroups:
+		return AWSResource_UserGroups_case
+	case *AWSResource_Instance:
+		return AWSResource_Instance_case
+	case *AWSResource_Policy:
+		return AWSResource_Policy_case
+	case *AWSResource_UserAttachedPolicies:
+		return AWSResource_UserAttachedPolicies_case
+	case *AWSResource_GroupAttachedPolicies:
+		return AWSResource_GroupAttachedPolicies_case
+	case *AWSResource_GroupInlinePolicy:
+		return AWSResource_GroupInlinePolicy_case
+	case *AWSResource_S3Bucket:
+		return AWSResource_S3Bucket_case
+	case *AWSResource_Role:
+		return AWSResource_Role_case
+	case *AWSResource_RoleInlinePolicy:
+		return AWSResource_RoleInlinePolicy_case
+	case *AWSResource_RoleAttachedPolicies:
+		return AWSResource_RoleAttachedPolicies_case
+	case *AWSResource_InstanceProfile:
+		return AWSResource_InstanceProfile_case
+	case *AWSResource_EksCluster:
+		return AWSResource_EksCluster_case
+	case *AWSResource_EksClusterAccessEntry:
+		return AWSResource_EksClusterAccessEntry_case
+	case *AWSResource_EksClusterAssociatedPolicy:
+		return AWSResource_EksClusterAssociatedPolicy_case
+	case *AWSResource_Rds:
+		return AWSResource_Rds_case
+	case *AWSResource_SamlProvider:
+		return AWSResource_SamlProvider_case
+	case *AWSResource_OidcProvider:
+		return AWSResource_OidcProvider_case
+	case *AWSResource_KmsKey:
+		return AWSResource_KmsKey_case
+	default:
+		return AWSResource_Resource_not_set_case
+	}
+}
+
+type AWSResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Resource:
+	// user is an AWS user.
+	User *AWSUserV1
+	// group is an AWS group.
+	Group *AWSGroupV1
+	// user_inline_policy is a policy that is inlined to an AWS user.
+	UserInlinePolicy *AWSUserInlinePolicyV1
+	// user_groups is a list of AWS groups that an AWS user belongs to.
+	UserGroups *AWSUserGroupsV1
+	// instance is an AWS instance.
+	Instance *AWSInstanceV1
+	// policy is an AWS policy.
+	Policy *AWSPolicyV1
+	// user_attached_policies is a list of AWS policies that are attached to an
+	// AWS user.
+	UserAttachedPolicies *AWSUserAttachedPolicies
+	// group_attached_policies is a list of AWS policies that are attached to an
+	// AWS group.
+	GroupAttachedPolicies *AWSGroupAttachedPolicies
+	// group_inline_policy is a policy that is inlined to an AWS group.
+	GroupInlinePolicy *AWSGroupInlinePolicyV1
+	// s3_bucket is an AWS S3 bucket.
+	S3Bucket *AWSS3BucketV1
+	// role is an AWS role.
+	Role *AWSRoleV1
+	// role_inline_policy is a policy that is inlined to an AWS role.
+	RoleInlinePolicy *AWSRoleInlinePolicyV1
+	// role_attached_policies is a list of AWS policies that are attached to an
+	// AWS role.
+	RoleAttachedPolicies *AWSRoleAttachedPolicies
+	// instance_profile is an AWS instance profile.
+	InstanceProfile *AWSInstanceProfileV1
+	// eks_cluster is an AWS EKS cluster.
+	EksCluster *AWSEKSClusterV1
+	// eks_cluster_access_entry is an access entry for a cluster.
+	EksClusterAccessEntry *AWSEKSClusterAccessEntryV1
+	// eks_cluster_associated_policy is an associated policy for a single cluster.
+	EksClusterAssociatedPolicy *AWSEKSAssociatedAccessPolicyV1
+	// rds is an AWS RDS database.
+	Rds *AWSRDSDatabaseV1
+	// saml_provider is an AWS IAM SAML Identity Provider
+	SamlProvider *AWSSAMLProviderV1
+	// oidc_provider is an AWS IAM OpenID Connect Identity Provider
+	OidcProvider *AWSOIDCProviderV1
+	// kms_key is an AWS KMS key.
+	KmsKey *AWSKMSKeyV1
+	// -- end of Resource
+}
+
+func (b0 AWSResource_builder) Build() *AWSResource {
+	m0 := &AWSResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.User != nil {
+		x.Resource = &AWSResource_User{b.User}
+	}
+	if b.Group != nil {
+		x.Resource = &AWSResource_Group{b.Group}
+	}
+	if b.UserInlinePolicy != nil {
+		x.Resource = &AWSResource_UserInlinePolicy{b.UserInlinePolicy}
+	}
+	if b.UserGroups != nil {
+		x.Resource = &AWSResource_UserGroups{b.UserGroups}
+	}
+	if b.Instance != nil {
+		x.Resource = &AWSResource_Instance{b.Instance}
+	}
+	if b.Policy != nil {
+		x.Resource = &AWSResource_Policy{b.Policy}
+	}
+	if b.UserAttachedPolicies != nil {
+		x.Resource = &AWSResource_UserAttachedPolicies{b.UserAttachedPolicies}
+	}
+	if b.GroupAttachedPolicies != nil {
+		x.Resource = &AWSResource_GroupAttachedPolicies{b.GroupAttachedPolicies}
+	}
+	if b.GroupInlinePolicy != nil {
+		x.Resource = &AWSResource_GroupInlinePolicy{b.GroupInlinePolicy}
+	}
+	if b.S3Bucket != nil {
+		x.Resource = &AWSResource_S3Bucket{b.S3Bucket}
+	}
+	if b.Role != nil {
+		x.Resource = &AWSResource_Role{b.Role}
+	}
+	if b.RoleInlinePolicy != nil {
+		x.Resource = &AWSResource_RoleInlinePolicy{b.RoleInlinePolicy}
+	}
+	if b.RoleAttachedPolicies != nil {
+		x.Resource = &AWSResource_RoleAttachedPolicies{b.RoleAttachedPolicies}
+	}
+	if b.InstanceProfile != nil {
+		x.Resource = &AWSResource_InstanceProfile{b.InstanceProfile}
+	}
+	if b.EksCluster != nil {
+		x.Resource = &AWSResource_EksCluster{b.EksCluster}
+	}
+	if b.EksClusterAccessEntry != nil {
+		x.Resource = &AWSResource_EksClusterAccessEntry{b.EksClusterAccessEntry}
+	}
+	if b.EksClusterAssociatedPolicy != nil {
+		x.Resource = &AWSResource_EksClusterAssociatedPolicy{b.EksClusterAssociatedPolicy}
+	}
+	if b.Rds != nil {
+		x.Resource = &AWSResource_Rds{b.Rds}
+	}
+	if b.SamlProvider != nil {
+		x.Resource = &AWSResource_SamlProvider{b.SamlProvider}
+	}
+	if b.OidcProvider != nil {
+		x.Resource = &AWSResource_OidcProvider{b.OidcProvider}
+	}
+	if b.KmsKey != nil {
+		x.Resource = &AWSResource_KmsKey{b.KmsKey}
+	}
+	return m0
+}
+
+type case_AWSResource_Resource protoreflect.FieldNumber
+
+func (x case_AWSResource_Resource) String() string {
+	md := file_accessgraph_v1alpha_aws_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAWSResource_Resource interface {
 	isAWSResource_Resource()
 }
@@ -601,7 +1280,7 @@ func (*AWSResource_KmsKey) isAWSResource_Resource() {}
 
 // AWSUserInlinePolicyV1 is a policy that is inlined to an AWS user.
 type AWSUserInlinePolicyV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// policy_name is the name of the policy.
 	PolicyName string `protobuf:"bytes,1,opt,name=policy_name,json=policyName,proto3" json:"policy_name,omitempty"`
 	// policy_document is the JSON document that defines the policy.
@@ -639,11 +1318,6 @@ func (x *AWSUserInlinePolicyV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSUserInlinePolicyV1.ProtoReflect.Descriptor instead.
-func (*AWSUserInlinePolicyV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *AWSUserInlinePolicyV1) GetPolicyName() string {
 	if x != nil {
 		return x.PolicyName
@@ -672,9 +1346,63 @@ func (x *AWSUserInlinePolicyV1) GetUser() *AWSUserV1 {
 	return nil
 }
 
+func (x *AWSUserInlinePolicyV1) SetPolicyName(v string) {
+	x.PolicyName = v
+}
+
+func (x *AWSUserInlinePolicyV1) SetPolicyDocument(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PolicyDocument = v
+}
+
+func (x *AWSUserInlinePolicyV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSUserInlinePolicyV1) SetUser(v *AWSUserV1) {
+	x.User = v
+}
+
+func (x *AWSUserInlinePolicyV1) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	return x.User != nil
+}
+
+func (x *AWSUserInlinePolicyV1) ClearUser() {
+	x.User = nil
+}
+
+type AWSUserInlinePolicyV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// policy_name is the name of the policy.
+	PolicyName string
+	// policy_document is the JSON document that defines the policy.
+	PolicyDocument []byte
+	// account_id is the ID of the AWS account that the user belongs to.
+	AccountId string
+	// user is the user who the policy is attached to.
+	User *AWSUserV1
+}
+
+func (b0 AWSUserInlinePolicyV1_builder) Build() *AWSUserInlinePolicyV1 {
+	m0 := &AWSUserInlinePolicyV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PolicyName = b.PolicyName
+	x.PolicyDocument = b.PolicyDocument
+	x.AccountId = b.AccountId
+	x.User = b.User
+	return m0
+}
+
 // AWSPolicyV1 is an AWS policy.
 type AWSPolicyV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// arn is the ARN of the AWS policy.
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// created_at is the time when the AWS policy was created.
@@ -727,11 +1455,6 @@ func (x *AWSPolicyV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSPolicyV1.ProtoReflect.Descriptor instead.
-func (*AWSPolicyV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *AWSPolicyV1) GetArn() string {
@@ -818,9 +1541,131 @@ func (x *AWSPolicyV1) GetPolicyDocument() []byte {
 	return nil
 }
 
+func (x *AWSPolicyV1) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSPolicyV1) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *AWSPolicyV1) SetDefaultVersionId(v string) {
+	x.DefaultVersionId = v
+}
+
+func (x *AWSPolicyV1) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *AWSPolicyV1) SetIsAttachable(v bool) {
+	x.IsAttachable = v
+}
+
+func (x *AWSPolicyV1) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *AWSPolicyV1) SetPolicyId(v string) {
+	x.PolicyId = v
+}
+
+func (x *AWSPolicyV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSPolicyV1) SetUpdatedAt(v *timestamppb.Timestamp) {
+	x.UpdatedAt = v
+}
+
+func (x *AWSPolicyV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSPolicyV1) SetPolicyName(v string) {
+	x.PolicyName = v
+}
+
+func (x *AWSPolicyV1) SetPolicyDocument(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PolicyDocument = v
+}
+
+func (x *AWSPolicyV1) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *AWSPolicyV1) HasUpdatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.UpdatedAt != nil
+}
+
+func (x *AWSPolicyV1) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+func (x *AWSPolicyV1) ClearUpdatedAt() {
+	x.UpdatedAt = nil
+}
+
+type AWSPolicyV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// arn is the ARN of the AWS policy.
+	Arn string
+	// created_at is the time when the AWS policy was created.
+	CreatedAt *timestamppb.Timestamp
+	// default_version_id is the ID of the default version of the policy.
+	DefaultVersionId string
+	// description is the description of the policy.
+	Description string
+	// is_attachable indicates whether the policy can be attached to an AWS
+	// resource.
+	IsAttachable bool
+	// path is the path of the policy.
+	Path string
+	// policy_id is the ID of the policy.
+	PolicyId string
+	// tags is the list of tags that are attached to the policy.
+	Tags []*AWSTag
+	// update_at is the time when the policy was last updated.
+	UpdatedAt *timestamppb.Timestamp
+	// account_id is the ID of the AWS account that the policy belongs to.
+	AccountId string
+	// policty_name is the name of the policy.
+	PolicyName string
+	// policy_document is the JSON document that defines the policy.
+	PolicyDocument []byte
+}
+
+func (b0 AWSPolicyV1_builder) Build() *AWSPolicyV1 {
+	m0 := &AWSPolicyV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.CreatedAt = b.CreatedAt
+	x.DefaultVersionId = b.DefaultVersionId
+	x.Description = b.Description
+	x.IsAttachable = b.IsAttachable
+	x.Path = b.Path
+	x.PolicyId = b.PolicyId
+	x.Tags = b.Tags
+	x.UpdatedAt = b.UpdatedAt
+	x.AccountId = b.AccountId
+	x.PolicyName = b.PolicyName
+	x.PolicyDocument = b.PolicyDocument
+	return m0
+}
+
 // AWSGroupV1 is a group of AWS users.
 type AWSGroupV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// arn is the ARN of the AWS group.
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// created_at is the time when the AWS group was created.
@@ -860,11 +1705,6 @@ func (x *AWSGroupV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSGroupV1.ProtoReflect.Descriptor instead.
-func (*AWSGroupV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *AWSGroupV1) GetArn() string {
@@ -909,9 +1749,74 @@ func (x *AWSGroupV1) GetAccountId() string {
 	return ""
 }
 
+func (x *AWSGroupV1) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSGroupV1) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *AWSGroupV1) SetGroupId(v string) {
+	x.GroupId = v
+}
+
+func (x *AWSGroupV1) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AWSGroupV1) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *AWSGroupV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSGroupV1) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *AWSGroupV1) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+type AWSGroupV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// arn is the ARN of the AWS group.
+	Arn string
+	// created_at is the time when the AWS group was created.
+	CreatedAt *timestamppb.Timestamp
+	// group_id is the ID of the AWS group.
+	GroupId string
+	// name is the name of the AWS group.
+	Name string
+	// path is the path of the AWS group.
+	Path string
+	// account_id is the ID of the AWS account that the group belongs to.
+	AccountId string
+}
+
+func (b0 AWSGroupV1_builder) Build() *AWSGroupV1 {
+	m0 := &AWSGroupV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.CreatedAt = b.CreatedAt
+	x.GroupId = b.GroupId
+	x.Name = b.Name
+	x.Path = b.Path
+	x.AccountId = b.AccountId
+	return m0
+}
+
 // AWSUserGroupsV1 is a list of AWS groups that an AWS user belongs to.
 type AWSUserGroupsV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// user is the AWS user.
 	User *AWSUserV1 `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// groups is the list of AWS groups that the user belongs to.
@@ -945,11 +1850,6 @@ func (x *AWSUserGroupsV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSUserGroupsV1.ProtoReflect.Descriptor instead.
-func (*AWSUserGroupsV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *AWSUserGroupsV1) GetUser() *AWSUserV1 {
 	if x != nil {
 		return x.User
@@ -964,9 +1864,46 @@ func (x *AWSUserGroupsV1) GetGroups() []*AWSGroupV1 {
 	return nil
 }
 
+func (x *AWSUserGroupsV1) SetUser(v *AWSUserV1) {
+	x.User = v
+}
+
+func (x *AWSUserGroupsV1) SetGroups(v []*AWSGroupV1) {
+	x.Groups = v
+}
+
+func (x *AWSUserGroupsV1) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	return x.User != nil
+}
+
+func (x *AWSUserGroupsV1) ClearUser() {
+	x.User = nil
+}
+
+type AWSUserGroupsV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// user is the AWS user.
+	User *AWSUserV1
+	// groups is the list of AWS groups that the user belongs to.
+	Groups []*AWSGroupV1
+}
+
+func (b0 AWSUserGroupsV1_builder) Build() *AWSUserGroupsV1 {
+	m0 := &AWSUserGroupsV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.User = b.User
+	x.Groups = b.Groups
+	return m0
+}
+
 // AWSUserV1 is an AWS user.
 type AWSUserV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// arn is the ARN of the AWS user.
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// created_at is the time when the AWS user was created.
@@ -1012,11 +1949,6 @@ func (x *AWSUserV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSUserV1.ProtoReflect.Descriptor instead.
-func (*AWSUserV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AWSUserV1) GetArn() string {
@@ -1082,9 +2014,117 @@ func (x *AWSUserV1) GetAccountId() string {
 	return ""
 }
 
+func (x *AWSUserV1) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSUserV1) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *AWSUserV1) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *AWSUserV1) SetUserId(v string) {
+	x.UserId = v
+}
+
+func (x *AWSUserV1) SetUserName(v string) {
+	x.UserName = v
+}
+
+func (x *AWSUserV1) SetPasswordLastUsed(v *timestamppb.Timestamp) {
+	x.PasswordLastUsed = v
+}
+
+func (x *AWSUserV1) SetPermissionsBoundary(v *UsersPermissionsBoundaryV1) {
+	x.PermissionsBoundary = v
+}
+
+func (x *AWSUserV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSUserV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSUserV1) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *AWSUserV1) HasPasswordLastUsed() bool {
+	if x == nil {
+		return false
+	}
+	return x.PasswordLastUsed != nil
+}
+
+func (x *AWSUserV1) HasPermissionsBoundary() bool {
+	if x == nil {
+		return false
+	}
+	return x.PermissionsBoundary != nil
+}
+
+func (x *AWSUserV1) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+func (x *AWSUserV1) ClearPasswordLastUsed() {
+	x.PasswordLastUsed = nil
+}
+
+func (x *AWSUserV1) ClearPermissionsBoundary() {
+	x.PermissionsBoundary = nil
+}
+
+type AWSUserV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// arn is the ARN of the AWS user.
+	Arn string
+	// created_at is the time when the AWS user was created.
+	CreatedAt *timestamppb.Timestamp
+	// path is the path of the AWS user.
+	Path string
+	// user_id is the ID of the AWS user.
+	UserId string
+	// user_name is the name of the AWS user.
+	UserName string
+	// password_last_used is the time when the user last used their password.
+	PasswordLastUsed *timestamppb.Timestamp
+	// permissions_boundary is the permissions boundary of the user.
+	PermissionsBoundary *UsersPermissionsBoundaryV1
+	// tags is the list of tags that are attached to the user.
+	Tags []*AWSTag
+	// account_id is the ID of the AWS account that the user belongs to.
+	AccountId string
+}
+
+func (b0 AWSUserV1_builder) Build() *AWSUserV1 {
+	m0 := &AWSUserV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.CreatedAt = b.CreatedAt
+	x.Path = b.Path
+	x.UserId = b.UserId
+	x.UserName = b.UserName
+	x.PasswordLastUsed = b.PasswordLastUsed
+	x.PermissionsBoundary = b.PermissionsBoundary
+	x.Tags = b.Tags
+	x.AccountId = b.AccountId
+	return m0
+}
+
 // AWSTag is a tag that is attached to an AWS resource.
 type AWSTag struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// key is the key of the tag.
 	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	// value is the value of the tag.
@@ -1118,11 +2158,6 @@ func (x *AWSTag) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSTag.ProtoReflect.Descriptor instead.
-func (*AWSTag) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *AWSTag) GetKey() string {
 	if x != nil {
 		return x.Key
@@ -1137,9 +2172,46 @@ func (x *AWSTag) GetValue() *wrapperspb.StringValue {
 	return nil
 }
 
+func (x *AWSTag) SetKey(v string) {
+	x.Key = v
+}
+
+func (x *AWSTag) SetValue(v *wrapperspb.StringValue) {
+	x.Value = v
+}
+
+func (x *AWSTag) HasValue() bool {
+	if x == nil {
+		return false
+	}
+	return x.Value != nil
+}
+
+func (x *AWSTag) ClearValue() {
+	x.Value = nil
+}
+
+type AWSTag_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// key is the key of the tag.
+	Key string
+	// value is the value of the tag.
+	Value *wrapperspb.StringValue
+}
+
+func (b0 AWSTag_builder) Build() *AWSTag {
+	m0 := &AWSTag{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Key = b.Key
+	x.Value = b.Value
+	return m0
+}
+
 // UsersPermissionsBoundaryV1 is the permissions boundary of a user.
 type UsersPermissionsBoundaryV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// permissions_boundary_arn is the ARN of the permissions boundary.
 	PermissionsBoundaryArn string `protobuf:"bytes,1,opt,name=permissions_boundary_arn,json=permissionsBoundaryArn,proto3" json:"permissions_boundary_arn,omitempty"`
 	// permissions_boundary_type is the ARN of the permissions boundary.
@@ -1173,11 +2245,6 @@ func (x *UsersPermissionsBoundaryV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UsersPermissionsBoundaryV1.ProtoReflect.Descriptor instead.
-func (*UsersPermissionsBoundaryV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *UsersPermissionsBoundaryV1) GetPermissionsBoundaryArn() string {
 	if x != nil {
 		return x.PermissionsBoundaryArn
@@ -1192,9 +2259,35 @@ func (x *UsersPermissionsBoundaryV1) GetPermissionsBoundaryType() UsersPermissio
 	return UsersPermissionsBoundaryType_USERS_PERMISSIONS_BOUNDARY_TYPE_UNSPECIFIED
 }
 
+func (x *UsersPermissionsBoundaryV1) SetPermissionsBoundaryArn(v string) {
+	x.PermissionsBoundaryArn = v
+}
+
+func (x *UsersPermissionsBoundaryV1) SetPermissionsBoundaryType(v UsersPermissionsBoundaryType) {
+	x.PermissionsBoundaryType = v
+}
+
+type UsersPermissionsBoundaryV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// permissions_boundary_arn is the ARN of the permissions boundary.
+	PermissionsBoundaryArn string
+	// permissions_boundary_type is the ARN of the permissions boundary.
+	PermissionsBoundaryType UsersPermissionsBoundaryType
+}
+
+func (b0 UsersPermissionsBoundaryV1_builder) Build() *UsersPermissionsBoundaryV1 {
+	m0 := &UsersPermissionsBoundaryV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PermissionsBoundaryArn = b.PermissionsBoundaryArn
+	x.PermissionsBoundaryType = b.PermissionsBoundaryType
+	return m0
+}
+
 // AWSInstanceV1 is an AWS instance.
 type AWSInstanceV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// instance_id is the ID of the AWS instance.
 	InstanceId string `protobuf:"bytes,1,opt,name=instance_id,json=instanceId,proto3" json:"instance_id,omitempty"`
 	// launch_time is the time when the instance was launched.
@@ -1240,11 +2333,6 @@ func (x *AWSInstanceV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSInstanceV1.ProtoReflect.Descriptor instead.
-func (*AWSInstanceV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *AWSInstanceV1) GetInstanceId() string {
@@ -1303,10 +2391,113 @@ func (x *AWSInstanceV1) GetLaunchKeyName() *wrapperspb.StringValue {
 	return nil
 }
 
+func (x *AWSInstanceV1) SetInstanceId(v string) {
+	x.InstanceId = v
+}
+
+func (x *AWSInstanceV1) SetLaunchTime(v *timestamppb.Timestamp) {
+	x.LaunchTime = v
+}
+
+func (x *AWSInstanceV1) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *AWSInstanceV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSInstanceV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSInstanceV1) SetPublicDnsName(v string) {
+	x.PublicDnsName = v
+}
+
+func (x *AWSInstanceV1) SetIamInstanceProfileArn(v *wrapperspb.StringValue) {
+	x.IamInstanceProfileArn = v
+}
+
+func (x *AWSInstanceV1) SetLaunchKeyName(v *wrapperspb.StringValue) {
+	x.LaunchKeyName = v
+}
+
+func (x *AWSInstanceV1) HasLaunchTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.LaunchTime != nil
+}
+
+func (x *AWSInstanceV1) HasIamInstanceProfileArn() bool {
+	if x == nil {
+		return false
+	}
+	return x.IamInstanceProfileArn != nil
+}
+
+func (x *AWSInstanceV1) HasLaunchKeyName() bool {
+	if x == nil {
+		return false
+	}
+	return x.LaunchKeyName != nil
+}
+
+func (x *AWSInstanceV1) ClearLaunchTime() {
+	x.LaunchTime = nil
+}
+
+func (x *AWSInstanceV1) ClearIamInstanceProfileArn() {
+	x.IamInstanceProfileArn = nil
+}
+
+func (x *AWSInstanceV1) ClearLaunchKeyName() {
+	x.LaunchKeyName = nil
+}
+
+type AWSInstanceV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// instance_id is the ID of the AWS instance.
+	InstanceId string
+	// launch_time is the time when the instance was launched.
+	LaunchTime *timestamppb.Timestamp
+	// region is the region of the AWS instance.
+	Region string
+	// account_id is the ID of the AWS account that the instance belongs to.
+	AccountId string
+	// tags is the list of tags that are attached to the instance.
+	Tags []*AWSTag
+	// public_dns_name is the public DNS name of the instance.
+	PublicDnsName string
+	// iam_instance_profile_arn is the ARN of the IAM instance profile that is
+	// associated with the instance.
+	IamInstanceProfileArn *wrapperspb.StringValue
+	// launch_key_name is the name of the key pair that is used to launch the
+	// instance.
+	LaunchKeyName *wrapperspb.StringValue
+}
+
+func (b0 AWSInstanceV1_builder) Build() *AWSInstanceV1 {
+	m0 := &AWSInstanceV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.InstanceId = b.InstanceId
+	x.LaunchTime = b.LaunchTime
+	x.Region = b.Region
+	x.AccountId = b.AccountId
+	x.Tags = b.Tags
+	x.PublicDnsName = b.PublicDnsName
+	x.IamInstanceProfileArn = b.IamInstanceProfileArn
+	x.LaunchKeyName = b.LaunchKeyName
+	return m0
+}
+
 // AWSUserAttachedPolicies is a list of AWS policies that are attached to an
 // AWS user.
 type AWSUserAttachedPolicies struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// user is the AWS user.
 	User *AWSUserV1 `protobuf:"bytes,1,opt,name=user,proto3" json:"user,omitempty"`
 	// policies is the list of AWS policies that are attached to the user.
@@ -1342,11 +2533,6 @@ func (x *AWSUserAttachedPolicies) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSUserAttachedPolicies.ProtoReflect.Descriptor instead.
-func (*AWSUserAttachedPolicies) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *AWSUserAttachedPolicies) GetUser() *AWSUserV1 {
 	if x != nil {
 		return x.User
@@ -1368,9 +2554,53 @@ func (x *AWSUserAttachedPolicies) GetAccountId() string {
 	return ""
 }
 
+func (x *AWSUserAttachedPolicies) SetUser(v *AWSUserV1) {
+	x.User = v
+}
+
+func (x *AWSUserAttachedPolicies) SetPolicies(v []*AttachedPolicyV1) {
+	x.Policies = v
+}
+
+func (x *AWSUserAttachedPolicies) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSUserAttachedPolicies) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	return x.User != nil
+}
+
+func (x *AWSUserAttachedPolicies) ClearUser() {
+	x.User = nil
+}
+
+type AWSUserAttachedPolicies_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// user is the AWS user.
+	User *AWSUserV1
+	// policies is the list of AWS policies that are attached to the user.
+	Policies []*AttachedPolicyV1
+	// account_id is the ID of the AWS account that the user belongs to.
+	AccountId string
+}
+
+func (b0 AWSUserAttachedPolicies_builder) Build() *AWSUserAttachedPolicies {
+	m0 := &AWSUserAttachedPolicies{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.User = b.User
+	x.Policies = b.Policies
+	x.AccountId = b.AccountId
+	return m0
+}
+
 // AttachedPolicyV1 is a AWS policy identifier.
 type AttachedPolicyV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// policy_name is the name of the policy.
 	PolicyName string `protobuf:"bytes,1,opt,name=policy_name,json=policyName,proto3" json:"policy_name,omitempty"`
 	// arn is the ARN of the policy.
@@ -1404,11 +2634,6 @@ func (x *AttachedPolicyV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AttachedPolicyV1.ProtoReflect.Descriptor instead.
-func (*AttachedPolicyV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *AttachedPolicyV1) GetPolicyName() string {
 	if x != nil {
 		return x.PolicyName
@@ -1423,10 +2648,36 @@ func (x *AttachedPolicyV1) GetArn() string {
 	return ""
 }
 
+func (x *AttachedPolicyV1) SetPolicyName(v string) {
+	x.PolicyName = v
+}
+
+func (x *AttachedPolicyV1) SetArn(v string) {
+	x.Arn = v
+}
+
+type AttachedPolicyV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// policy_name is the name of the policy.
+	PolicyName string
+	// arn is the ARN of the policy.
+	Arn string
+}
+
+func (b0 AttachedPolicyV1_builder) Build() *AttachedPolicyV1 {
+	m0 := &AttachedPolicyV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PolicyName = b.PolicyName
+	x.Arn = b.Arn
+	return m0
+}
+
 // AWSGroupAttachedPolicies is a list of AWS policies that are attached to an
 // AWS group.
 type AWSGroupAttachedPolicies struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// group is the AWS group.
 	Group *AWSGroupV1 `protobuf:"bytes,1,opt,name=group,proto3" json:"group,omitempty"`
 	// policies is the list of AWS policies that are attached to the group.
@@ -1462,11 +2713,6 @@ func (x *AWSGroupAttachedPolicies) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSGroupAttachedPolicies.ProtoReflect.Descriptor instead.
-func (*AWSGroupAttachedPolicies) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *AWSGroupAttachedPolicies) GetGroup() *AWSGroupV1 {
 	if x != nil {
 		return x.Group
@@ -1488,9 +2734,53 @@ func (x *AWSGroupAttachedPolicies) GetAccountId() string {
 	return ""
 }
 
+func (x *AWSGroupAttachedPolicies) SetGroup(v *AWSGroupV1) {
+	x.Group = v
+}
+
+func (x *AWSGroupAttachedPolicies) SetPolicies(v []*AttachedPolicyV1) {
+	x.Policies = v
+}
+
+func (x *AWSGroupAttachedPolicies) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSGroupAttachedPolicies) HasGroup() bool {
+	if x == nil {
+		return false
+	}
+	return x.Group != nil
+}
+
+func (x *AWSGroupAttachedPolicies) ClearGroup() {
+	x.Group = nil
+}
+
+type AWSGroupAttachedPolicies_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// group is the AWS group.
+	Group *AWSGroupV1
+	// policies is the list of AWS policies that are attached to the group.
+	Policies []*AttachedPolicyV1
+	// account_id is the ID of the AWS account that the group belongs to.
+	AccountId string
+}
+
+func (b0 AWSGroupAttachedPolicies_builder) Build() *AWSGroupAttachedPolicies {
+	m0 := &AWSGroupAttachedPolicies{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Group = b.Group
+	x.Policies = b.Policies
+	x.AccountId = b.AccountId
+	return m0
+}
+
 // AWSGroupInlinePolicyV1 is a policy that is inlined to an AWS Group.
 type AWSGroupInlinePolicyV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// policy_name is the name of the policy.
 	PolicyName string `protobuf:"bytes,1,opt,name=policy_name,json=policyName,proto3" json:"policy_name,omitempty"`
 	// group is the AWS group.
@@ -1528,11 +2818,6 @@ func (x *AWSGroupInlinePolicyV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSGroupInlinePolicyV1.ProtoReflect.Descriptor instead.
-func (*AWSGroupInlinePolicyV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *AWSGroupInlinePolicyV1) GetPolicyName() string {
 	if x != nil {
 		return x.PolicyName
@@ -1561,9 +2846,63 @@ func (x *AWSGroupInlinePolicyV1) GetAccountId() string {
 	return ""
 }
 
+func (x *AWSGroupInlinePolicyV1) SetPolicyName(v string) {
+	x.PolicyName = v
+}
+
+func (x *AWSGroupInlinePolicyV1) SetGroup(v *AWSGroupV1) {
+	x.Group = v
+}
+
+func (x *AWSGroupInlinePolicyV1) SetPolicyDocument(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PolicyDocument = v
+}
+
+func (x *AWSGroupInlinePolicyV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSGroupInlinePolicyV1) HasGroup() bool {
+	if x == nil {
+		return false
+	}
+	return x.Group != nil
+}
+
+func (x *AWSGroupInlinePolicyV1) ClearGroup() {
+	x.Group = nil
+}
+
+type AWSGroupInlinePolicyV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// policy_name is the name of the policy.
+	PolicyName string
+	// group is the AWS group.
+	Group *AWSGroupV1
+	// policy_document is the JSON document that defines the policy.
+	PolicyDocument []byte
+	// account_id is the ID of the AWS account that the group belongs to.
+	AccountId string
+}
+
+func (b0 AWSGroupInlinePolicyV1_builder) Build() *AWSGroupInlinePolicyV1 {
+	m0 := &AWSGroupInlinePolicyV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PolicyName = b.PolicyName
+	x.Group = b.Group
+	x.PolicyDocument = b.PolicyDocument
+	x.AccountId = b.AccountId
+	return m0
+}
+
 // AWSS3BucketV1 is an AWS S3 bucket.
 type AWSS3BucketV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the AWS S3 bucket.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// account_id is the ID of the AWS account that the S3 bucket belongs to.
@@ -1603,11 +2942,6 @@ func (x *AWSS3BucketV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSS3BucketV1.ProtoReflect.Descriptor instead.
-func (*AWSS3BucketV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *AWSS3BucketV1) GetName() string {
@@ -1652,9 +2986,66 @@ func (x *AWSS3BucketV1) GetTags() []*AWSTag {
 	return nil
 }
 
+func (x *AWSS3BucketV1) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AWSS3BucketV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSS3BucketV1) SetPolicyDocument(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PolicyDocument = v
+}
+
+func (x *AWSS3BucketV1) SetIsPublic(v bool) {
+	x.IsPublic = v
+}
+
+func (x *AWSS3BucketV1) SetAcls(v []*AWSS3BucketACL) {
+	x.Acls = v
+}
+
+func (x *AWSS3BucketV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+type AWSS3BucketV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the AWS S3 bucket.
+	Name string
+	// account_id is the ID of the AWS account that the S3 bucket belongs to.
+	AccountId string
+	// policy_document is the JSON document that defines the policy.
+	PolicyDocument []byte
+	// is_public indicates whether the S3 bucket is public.
+	IsPublic bool
+	// acl is the ACL of the S3 bucket.
+	Acls []*AWSS3BucketACL
+	// tags is the list of tags that are attached to the S3 bucket.
+	Tags []*AWSTag
+}
+
+func (b0 AWSS3BucketV1_builder) Build() *AWSS3BucketV1 {
+	m0 := &AWSS3BucketV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.AccountId = b.AccountId
+	x.PolicyDocument = b.PolicyDocument
+	x.IsPublic = b.IsPublic
+	x.Acls = b.Acls
+	x.Tags = b.Tags
+	return m0
+}
+
 // AWSS3BucketACL is the ACL of an AWS S3 bucket.
 type AWSS3BucketACL struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// grantee is the grantee of the ACL.
 	Grantee *AWSS3BucketACLGrantee `protobuf:"bytes,1,opt,name=grantee,proto3" json:"grantee,omitempty"`
 	// permission is the permission of the ACL.
@@ -1688,11 +3079,6 @@ func (x *AWSS3BucketACL) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSS3BucketACL.ProtoReflect.Descriptor instead.
-func (*AWSS3BucketACL) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *AWSS3BucketACL) GetGrantee() *AWSS3BucketACLGrantee {
 	if x != nil {
 		return x.Grantee
@@ -1707,9 +3093,46 @@ func (x *AWSS3BucketACL) GetPermission() string {
 	return ""
 }
 
+func (x *AWSS3BucketACL) SetGrantee(v *AWSS3BucketACLGrantee) {
+	x.Grantee = v
+}
+
+func (x *AWSS3BucketACL) SetPermission(v string) {
+	x.Permission = v
+}
+
+func (x *AWSS3BucketACL) HasGrantee() bool {
+	if x == nil {
+		return false
+	}
+	return x.Grantee != nil
+}
+
+func (x *AWSS3BucketACL) ClearGrantee() {
+	x.Grantee = nil
+}
+
+type AWSS3BucketACL_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// grantee is the grantee of the ACL.
+	Grantee *AWSS3BucketACLGrantee
+	// permission is the permission of the ACL.
+	Permission string
+}
+
+func (b0 AWSS3BucketACL_builder) Build() *AWSS3BucketACL {
+	m0 := &AWSS3BucketACL{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Grantee = b.Grantee
+	x.Permission = b.Permission
+	return m0
+}
+
 // AWSS3BucketACLGrantee is the grantee of an ACL.
 type AWSS3BucketACLGrantee struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// display_name is the name of the grantee.
 	DisplayName string `protobuf:"bytes,1,opt,name=display_name,json=displayName,proto3" json:"display_name,omitempty"`
 	// id is the ID of the grantee.
@@ -1749,11 +3172,6 @@ func (x *AWSS3BucketACLGrantee) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSS3BucketACLGrantee.ProtoReflect.Descriptor instead.
-func (*AWSS3BucketACLGrantee) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *AWSS3BucketACLGrantee) GetDisplayName() string {
 	if x != nil {
 		return x.DisplayName
@@ -1789,9 +3207,56 @@ func (x *AWSS3BucketACLGrantee) GetUri() string {
 	return ""
 }
 
+func (x *AWSS3BucketACLGrantee) SetDisplayName(v string) {
+	x.DisplayName = v
+}
+
+func (x *AWSS3BucketACLGrantee) SetId(v string) {
+	x.Id = v
+}
+
+func (x *AWSS3BucketACLGrantee) SetEmailAddress(v string) {
+	x.EmailAddress = v
+}
+
+func (x *AWSS3BucketACLGrantee) SetType(v string) {
+	x.Type = v
+}
+
+func (x *AWSS3BucketACLGrantee) SetUri(v string) {
+	x.Uri = v
+}
+
+type AWSS3BucketACLGrantee_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// display_name is the name of the grantee.
+	DisplayName string
+	// id is the ID of the grantee.
+	Id string
+	// email_address is the email address of the grantee.
+	EmailAddress string
+	// type is the type of the grantee.
+	Type string
+	// uri is the URI of the grantee.
+	Uri string
+}
+
+func (b0 AWSS3BucketACLGrantee_builder) Build() *AWSS3BucketACLGrantee {
+	m0 := &AWSS3BucketACLGrantee{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DisplayName = b.DisplayName
+	x.Id = b.Id
+	x.EmailAddress = b.EmailAddress
+	x.Type = b.Type
+	x.Uri = b.Uri
+	return m0
+}
+
 // AWSRoleV1 is an AWS role.
 type AWSRoleV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// arn is the ARN of the AWS role.
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// assume_role_policy_document is the JSON document that defines the trust
@@ -1844,11 +3309,6 @@ func (x *AWSRoleV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSRoleV1.ProtoReflect.Descriptor instead.
-func (*AWSRoleV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AWSRoleV1) GetArn() string {
@@ -1935,9 +3395,153 @@ func (x *AWSRoleV1) GetAccountId() string {
 	return ""
 }
 
+func (x *AWSRoleV1) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSRoleV1) SetAssumeRolePolicyDocument(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.AssumeRolePolicyDocument = v
+}
+
+func (x *AWSRoleV1) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *AWSRoleV1) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *AWSRoleV1) SetMaxSessionDuration(v *durationpb.Duration) {
+	x.MaxSessionDuration = v
+}
+
+func (x *AWSRoleV1) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *AWSRoleV1) SetPermissionsBoundary(v *RolePermissionsBoundaryV1) {
+	x.PermissionsBoundary = v
+}
+
+func (x *AWSRoleV1) SetRoleId(v string) {
+	x.RoleId = v
+}
+
+func (x *AWSRoleV1) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AWSRoleV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSRoleV1) SetRoleLastUsed(v *RoleLastUsedV1) {
+	x.RoleLastUsed = v
+}
+
+func (x *AWSRoleV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSRoleV1) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *AWSRoleV1) HasMaxSessionDuration() bool {
+	if x == nil {
+		return false
+	}
+	return x.MaxSessionDuration != nil
+}
+
+func (x *AWSRoleV1) HasPermissionsBoundary() bool {
+	if x == nil {
+		return false
+	}
+	return x.PermissionsBoundary != nil
+}
+
+func (x *AWSRoleV1) HasRoleLastUsed() bool {
+	if x == nil {
+		return false
+	}
+	return x.RoleLastUsed != nil
+}
+
+func (x *AWSRoleV1) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+func (x *AWSRoleV1) ClearMaxSessionDuration() {
+	x.MaxSessionDuration = nil
+}
+
+func (x *AWSRoleV1) ClearPermissionsBoundary() {
+	x.PermissionsBoundary = nil
+}
+
+func (x *AWSRoleV1) ClearRoleLastUsed() {
+	x.RoleLastUsed = nil
+}
+
+type AWSRoleV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// arn is the ARN of the AWS role.
+	Arn string
+	// assume_role_policy_document is the JSON document that defines the trust
+	// policy for the role.
+	AssumeRolePolicyDocument []byte
+	// created_at is the time when the role was created.
+	CreatedAt *timestamppb.Timestamp
+	// description is the description of the role.
+	Description string
+	// max_session_duration is the maximum session duration of the role.
+	MaxSessionDuration *durationpb.Duration
+	// path is the path of the role.
+	Path string
+	// permissions_boundary is the permissions boundary of the role.
+	PermissionsBoundary *RolePermissionsBoundaryV1
+	// role_id is the ID of the role.
+	RoleId string
+	// name is the name of the role.
+	Name string
+	// tags is the list of tags that are attached to the role.
+	Tags []*AWSTag
+	// role_last_used is the last used information of the role.
+	RoleLastUsed *RoleLastUsedV1
+	// account_id is the ID of the AWS account that the role belongs to.
+	AccountId string
+}
+
+func (b0 AWSRoleV1_builder) Build() *AWSRoleV1 {
+	m0 := &AWSRoleV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.AssumeRolePolicyDocument = b.AssumeRolePolicyDocument
+	x.CreatedAt = b.CreatedAt
+	x.Description = b.Description
+	x.MaxSessionDuration = b.MaxSessionDuration
+	x.Path = b.Path
+	x.PermissionsBoundary = b.PermissionsBoundary
+	x.RoleId = b.RoleId
+	x.Name = b.Name
+	x.Tags = b.Tags
+	x.RoleLastUsed = b.RoleLastUsed
+	x.AccountId = b.AccountId
+	return m0
+}
+
 // RolePermissionsBoundaryV1 is the permissions boundary of a role.
 type RolePermissionsBoundaryV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// permissions_boundary_arn is the ARN of the permissions boundary.
 	PermissionsBoundaryArn string `protobuf:"bytes,1,opt,name=permissions_boundary_arn,json=permissionsBoundaryArn,proto3" json:"permissions_boundary_arn,omitempty"`
 	// permissions_boundary_type is the ARN of the permissions boundary.
@@ -1971,11 +3575,6 @@ func (x *RolePermissionsBoundaryV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RolePermissionsBoundaryV1.ProtoReflect.Descriptor instead.
-func (*RolePermissionsBoundaryV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *RolePermissionsBoundaryV1) GetPermissionsBoundaryArn() string {
 	if x != nil {
 		return x.PermissionsBoundaryArn
@@ -1990,9 +3589,35 @@ func (x *RolePermissionsBoundaryV1) GetPermissionsBoundaryType() RolePermissions
 	return RolePermissionsBoundaryType_ROLE_PERMISSIONS_BOUNDARY_TYPE_UNSPECIFIED
 }
 
+func (x *RolePermissionsBoundaryV1) SetPermissionsBoundaryArn(v string) {
+	x.PermissionsBoundaryArn = v
+}
+
+func (x *RolePermissionsBoundaryV1) SetPermissionsBoundaryType(v RolePermissionsBoundaryType) {
+	x.PermissionsBoundaryType = v
+}
+
+type RolePermissionsBoundaryV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// permissions_boundary_arn is the ARN of the permissions boundary.
+	PermissionsBoundaryArn string
+	// permissions_boundary_type is the ARN of the permissions boundary.
+	PermissionsBoundaryType RolePermissionsBoundaryType
+}
+
+func (b0 RolePermissionsBoundaryV1_builder) Build() *RolePermissionsBoundaryV1 {
+	m0 := &RolePermissionsBoundaryV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PermissionsBoundaryArn = b.PermissionsBoundaryArn
+	x.PermissionsBoundaryType = b.PermissionsBoundaryType
+	return m0
+}
+
 // RoleLastUsedV1 is the last used information of a role.
 type RoleLastUsedV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// last_used_date is the date when the role was last used.
 	LastUsedDate *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=last_used_date,json=lastUsedDate,proto3" json:"last_used_date,omitempty"`
 	// region is the region where the role was last used.
@@ -2026,11 +3651,6 @@ func (x *RoleLastUsedV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RoleLastUsedV1.ProtoReflect.Descriptor instead.
-func (*RoleLastUsedV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *RoleLastUsedV1) GetLastUsedDate() *timestamppb.Timestamp {
 	if x != nil {
 		return x.LastUsedDate
@@ -2045,9 +3665,46 @@ func (x *RoleLastUsedV1) GetRegion() string {
 	return ""
 }
 
+func (x *RoleLastUsedV1) SetLastUsedDate(v *timestamppb.Timestamp) {
+	x.LastUsedDate = v
+}
+
+func (x *RoleLastUsedV1) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *RoleLastUsedV1) HasLastUsedDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastUsedDate != nil
+}
+
+func (x *RoleLastUsedV1) ClearLastUsedDate() {
+	x.LastUsedDate = nil
+}
+
+type RoleLastUsedV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// last_used_date is the date when the role was last used.
+	LastUsedDate *timestamppb.Timestamp
+	// region is the region where the role was last used.
+	Region string
+}
+
+func (b0 RoleLastUsedV1_builder) Build() *RoleLastUsedV1 {
+	m0 := &RoleLastUsedV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LastUsedDate = b.LastUsedDate
+	x.Region = b.Region
+	return m0
+}
+
 // AWSRoleInlinePolicyV1 is a policy that is inlined to an AWS Role.
 type AWSRoleInlinePolicyV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// policy_name is the name of the policy.
 	PolicyName string `protobuf:"bytes,1,opt,name=policy_name,json=policyName,proto3" json:"policy_name,omitempty"`
 	// policy_document is the JSON document that defines the policy.
@@ -2085,11 +3742,6 @@ func (x *AWSRoleInlinePolicyV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSRoleInlinePolicyV1.ProtoReflect.Descriptor instead.
-func (*AWSRoleInlinePolicyV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *AWSRoleInlinePolicyV1) GetPolicyName() string {
 	if x != nil {
 		return x.PolicyName
@@ -2118,10 +3770,64 @@ func (x *AWSRoleInlinePolicyV1) GetAwsRole() *AWSRoleV1 {
 	return nil
 }
 
+func (x *AWSRoleInlinePolicyV1) SetPolicyName(v string) {
+	x.PolicyName = v
+}
+
+func (x *AWSRoleInlinePolicyV1) SetPolicyDocument(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PolicyDocument = v
+}
+
+func (x *AWSRoleInlinePolicyV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSRoleInlinePolicyV1) SetAwsRole(v *AWSRoleV1) {
+	x.AwsRole = v
+}
+
+func (x *AWSRoleInlinePolicyV1) HasAwsRole() bool {
+	if x == nil {
+		return false
+	}
+	return x.AwsRole != nil
+}
+
+func (x *AWSRoleInlinePolicyV1) ClearAwsRole() {
+	x.AwsRole = nil
+}
+
+type AWSRoleInlinePolicyV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// policy_name is the name of the policy.
+	PolicyName string
+	// policy_document is the JSON document that defines the policy.
+	PolicyDocument []byte
+	// account_id is the ID of the AWS account that the role belongs to.
+	AccountId string
+	// aws_role is the role name of the AWS role that the policy is attached to.
+	AwsRole *AWSRoleV1
+}
+
+func (b0 AWSRoleInlinePolicyV1_builder) Build() *AWSRoleInlinePolicyV1 {
+	m0 := &AWSRoleInlinePolicyV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PolicyName = b.PolicyName
+	x.PolicyDocument = b.PolicyDocument
+	x.AccountId = b.AccountId
+	x.AwsRole = b.AwsRole
+	return m0
+}
+
 // AWSRoleAttachedPolicies is a list of AWS policies that are attached to an
 // AWS role.
 type AWSRoleAttachedPolicies struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// policies is the list of AWS policies that are attached to the role.
 	Policies []*AttachedPolicyV1 `protobuf:"bytes,2,rep,name=policies,proto3" json:"policies,omitempty"`
 	// account_id is the ID of the AWS account that the role belongs to.
@@ -2157,11 +3863,6 @@ func (x *AWSRoleAttachedPolicies) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSRoleAttachedPolicies.ProtoReflect.Descriptor instead.
-func (*AWSRoleAttachedPolicies) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{21}
-}
-
 func (x *AWSRoleAttachedPolicies) GetPolicies() []*AttachedPolicyV1 {
 	if x != nil {
 		return x.Policies
@@ -2183,9 +3884,53 @@ func (x *AWSRoleAttachedPolicies) GetAwsRole() *AWSRoleV1 {
 	return nil
 }
 
+func (x *AWSRoleAttachedPolicies) SetPolicies(v []*AttachedPolicyV1) {
+	x.Policies = v
+}
+
+func (x *AWSRoleAttachedPolicies) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSRoleAttachedPolicies) SetAwsRole(v *AWSRoleV1) {
+	x.AwsRole = v
+}
+
+func (x *AWSRoleAttachedPolicies) HasAwsRole() bool {
+	if x == nil {
+		return false
+	}
+	return x.AwsRole != nil
+}
+
+func (x *AWSRoleAttachedPolicies) ClearAwsRole() {
+	x.AwsRole = nil
+}
+
+type AWSRoleAttachedPolicies_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// policies is the list of AWS policies that are attached to the role.
+	Policies []*AttachedPolicyV1
+	// account_id is the ID of the AWS account that the role belongs to.
+	AccountId string
+	// aws_role is the AWS role.
+	AwsRole *AWSRoleV1
+}
+
+func (b0 AWSRoleAttachedPolicies_builder) Build() *AWSRoleAttachedPolicies {
+	m0 := &AWSRoleAttachedPolicies{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Policies = b.Policies
+	x.AccountId = b.AccountId
+	x.AwsRole = b.AwsRole
+	return m0
+}
+
 // AWSInstanceProfileV1 is an AWS instance profile.
 type AWSInstanceProfileV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// arn is the ARN of the AWS instance profile.
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// created_at is the time when the instance profile was created.
@@ -2230,11 +3975,6 @@ func (x *AWSInstanceProfileV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSInstanceProfileV1.ProtoReflect.Descriptor instead.
-func (*AWSInstanceProfileV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *AWSInstanceProfileV1) GetArn() string {
@@ -2293,9 +4033,89 @@ func (x *AWSInstanceProfileV1) GetAccountId() string {
 	return ""
 }
 
+func (x *AWSInstanceProfileV1) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSInstanceProfileV1) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *AWSInstanceProfileV1) SetInstanceProfileId(v string) {
+	x.InstanceProfileId = v
+}
+
+func (x *AWSInstanceProfileV1) SetInstanceProfileName(v string) {
+	x.InstanceProfileName = v
+}
+
+func (x *AWSInstanceProfileV1) SetPath(v string) {
+	x.Path = v
+}
+
+func (x *AWSInstanceProfileV1) SetRoles(v []*AWSRoleV1) {
+	x.Roles = v
+}
+
+func (x *AWSInstanceProfileV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSInstanceProfileV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSInstanceProfileV1) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *AWSInstanceProfileV1) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+type AWSInstanceProfileV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// arn is the ARN of the AWS instance profile.
+	Arn string
+	// created_at is the time when the instance profile was created.
+	CreatedAt *timestamppb.Timestamp
+	// instance_profile_id is the ID of the instance profile.
+	InstanceProfileId string
+	// instance_profile_name is the name of the instance profile.
+	InstanceProfileName string
+	// path is the path of the instance profile.
+	Path string
+	// roles is the list of roles that are associated with the instance profile.
+	Roles []*AWSRoleV1
+	// tags is the list of tags that are attached to the instance profile.
+	Tags []*AWSTag
+	// account_id is the ID of the AWS account that the instance profile belongs
+	// to.
+	AccountId string
+}
+
+func (b0 AWSInstanceProfileV1_builder) Build() *AWSInstanceProfileV1 {
+	m0 := &AWSInstanceProfileV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.CreatedAt = b.CreatedAt
+	x.InstanceProfileId = b.InstanceProfileId
+	x.InstanceProfileName = b.InstanceProfileName
+	x.Path = b.Path
+	x.Roles = b.Roles
+	x.Tags = b.Tags
+	x.AccountId = b.AccountId
+	return m0
+}
+
 // AWSEKSClusterV1 represents an AWS EKS cluster.
 type AWSEKSClusterV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the cluster name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// arn is the cluster arn
@@ -2340,11 +4160,6 @@ func (x *AWSEKSClusterV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSEKSClusterV1.ProtoReflect.Descriptor instead.
-func (*AWSEKSClusterV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *AWSEKSClusterV1) GetName() string {
@@ -2403,9 +4218,89 @@ func (x *AWSEKSClusterV1) GetAccountId() string {
 	return ""
 }
 
+func (x *AWSEKSClusterV1) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AWSEKSClusterV1) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSEKSClusterV1) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *AWSEKSClusterV1) SetStatus(v string) {
+	x.Status = v
+}
+
+func (x *AWSEKSClusterV1) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *AWSEKSClusterV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSEKSClusterV1) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *AWSEKSClusterV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSEKSClusterV1) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *AWSEKSClusterV1) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+type AWSEKSClusterV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the cluster name.
+	Name string
+	// arn is the cluster arn
+	Arn string
+	// created_at is the time when the instance profile was created.
+	CreatedAt *timestamppb.Timestamp
+	// status is the cluster status.
+	Status string
+	// version is the Kubernetes version that the cluster runs.
+	Version string
+	// tags is the list of tags that are attached to the instance profile.
+	Tags []*AWSTag
+	// region is the region where the cluster is located.
+	Region string
+	// account_id is the ID of the AWS account that the instance profile belongs
+	// to.
+	AccountId string
+}
+
+func (b0 AWSEKSClusterV1_builder) Build() *AWSEKSClusterV1 {
+	m0 := &AWSEKSClusterV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Arn = b.Arn
+	x.CreatedAt = b.CreatedAt
+	x.Status = b.Status
+	x.Version = b.Version
+	x.Tags = b.Tags
+	x.Region = b.Region
+	x.AccountId = b.AccountId
+	return m0
+}
+
 // AWSEKSClusterAccessEntriesV1 represents an EKS cluster Access Entry.
 type AWSEKSClusterAccessEntryV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// cluster is the EKS cluster.
 	Cluster *AWSEKSClusterV1 `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
 	// access_entry_arn is the ARN of the access entry.
@@ -2454,11 +4349,6 @@ func (x *AWSEKSClusterAccessEntryV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSEKSClusterAccessEntryV1.ProtoReflect.Descriptor instead.
-func (*AWSEKSClusterAccessEntryV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *AWSEKSClusterAccessEntryV1) GetCluster() *AWSEKSClusterV1 {
@@ -2531,9 +4421,125 @@ func (x *AWSEKSClusterAccessEntryV1) GetAccountId() string {
 	return ""
 }
 
+func (x *AWSEKSClusterAccessEntryV1) SetCluster(v *AWSEKSClusterV1) {
+	x.Cluster = v
+}
+
+func (x *AWSEKSClusterAccessEntryV1) SetAccessEntryArn(v string) {
+	x.AccessEntryArn = v
+}
+
+func (x *AWSEKSClusterAccessEntryV1) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *AWSEKSClusterAccessEntryV1) SetKubernetesGroups(v []string) {
+	x.KubernetesGroups = v
+}
+
+func (x *AWSEKSClusterAccessEntryV1) SetModifiedAt(v *timestamppb.Timestamp) {
+	x.ModifiedAt = v
+}
+
+func (x *AWSEKSClusterAccessEntryV1) SetPrincipalArn(v string) {
+	x.PrincipalArn = v
+}
+
+func (x *AWSEKSClusterAccessEntryV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSEKSClusterAccessEntryV1) SetType(v string) {
+	x.Type = v
+}
+
+func (x *AWSEKSClusterAccessEntryV1) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *AWSEKSClusterAccessEntryV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSEKSClusterAccessEntryV1) HasCluster() bool {
+	if x == nil {
+		return false
+	}
+	return x.Cluster != nil
+}
+
+func (x *AWSEKSClusterAccessEntryV1) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *AWSEKSClusterAccessEntryV1) HasModifiedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.ModifiedAt != nil
+}
+
+func (x *AWSEKSClusterAccessEntryV1) ClearCluster() {
+	x.Cluster = nil
+}
+
+func (x *AWSEKSClusterAccessEntryV1) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+func (x *AWSEKSClusterAccessEntryV1) ClearModifiedAt() {
+	x.ModifiedAt = nil
+}
+
+type AWSEKSClusterAccessEntryV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// cluster is the EKS cluster.
+	Cluster *AWSEKSClusterV1
+	// access_entry_arn is the ARN of the access entry.
+	AccessEntryArn string
+	// created_at is the time when the instance profile was created.
+	CreatedAt *timestamppb.Timestamp
+	// kubernetes_groups is the list of groups from which the principal will inherit its permissions.
+	KubernetesGroups []string
+	// created_at is the time when the instance profile was created.
+	ModifiedAt *timestamppb.Timestamp
+	// principal is the ARN of the IAM principal for the access entry.
+	PrincipalArn string
+	// tags is the list of tags that are attached to the instance profile.
+	Tags []*AWSTag
+	// type represents the type of the access entry.
+	Type string
+	// username is the name of the Kubernetes user.
+	Username string
+	// account_id is the ID of the AWS account that the instance profile belongs
+	// to.
+	AccountId string
+}
+
+func (b0 AWSEKSClusterAccessEntryV1_builder) Build() *AWSEKSClusterAccessEntryV1 {
+	m0 := &AWSEKSClusterAccessEntryV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cluster = b.Cluster
+	x.AccessEntryArn = b.AccessEntryArn
+	x.CreatedAt = b.CreatedAt
+	x.KubernetesGroups = b.KubernetesGroups
+	x.ModifiedAt = b.ModifiedAt
+	x.PrincipalArn = b.PrincipalArn
+	x.Tags = b.Tags
+	x.Type = b.Type
+	x.Username = b.Username
+	x.AccountId = b.AccountId
+	return m0
+}
+
 // AWSEKSAssociatedAccessPolicyV1 identifies an access policy association.
 type AWSEKSAssociatedAccessPolicyV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// cluster is the EKS cluster.
 	Cluster *AWSEKSClusterV1 `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
 	// principal_arn is the principal that the associated access policy insides.
@@ -2577,11 +4583,6 @@ func (x *AWSEKSAssociatedAccessPolicyV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSEKSAssociatedAccessPolicyV1.ProtoReflect.Descriptor instead.
-func (*AWSEKSAssociatedAccessPolicyV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *AWSEKSAssociatedAccessPolicyV1) GetCluster() *AWSEKSClusterV1 {
@@ -2633,9 +4634,116 @@ func (x *AWSEKSAssociatedAccessPolicyV1) GetAccountId() string {
 	return ""
 }
 
+func (x *AWSEKSAssociatedAccessPolicyV1) SetCluster(v *AWSEKSClusterV1) {
+	x.Cluster = v
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) SetPrincipalArn(v string) {
+	x.PrincipalArn = v
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) SetScope(v *AWSEKSAccessScopeV1) {
+	x.Scope = v
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) SetAssociatedAt(v *timestamppb.Timestamp) {
+	x.AssociatedAt = v
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) SetModifiedAt(v *timestamppb.Timestamp) {
+	x.ModifiedAt = v
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) SetPolicyArn(v string) {
+	x.PolicyArn = v
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) HasCluster() bool {
+	if x == nil {
+		return false
+	}
+	return x.Cluster != nil
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) HasScope() bool {
+	if x == nil {
+		return false
+	}
+	return x.Scope != nil
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) HasAssociatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.AssociatedAt != nil
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) HasModifiedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.ModifiedAt != nil
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) ClearCluster() {
+	x.Cluster = nil
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) ClearScope() {
+	x.Scope = nil
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) ClearAssociatedAt() {
+	x.AssociatedAt = nil
+}
+
+func (x *AWSEKSAssociatedAccessPolicyV1) ClearModifiedAt() {
+	x.ModifiedAt = nil
+}
+
+type AWSEKSAssociatedAccessPolicyV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// cluster is the EKS cluster.
+	Cluster *AWSEKSClusterV1
+	// principal_arn is the principal that the associated access policy insides.
+	PrincipalArn string
+	// scope restricts the access policy.
+	Scope *AWSEKSAccessScopeV1
+	// associated_at is the date and time the AccessPolicy was associated with an AccessEntry.
+	AssociatedAt *timestamppb.Timestamp
+	// modified_at is the last modification to the object.
+	ModifiedAt *timestamppb.Timestamp
+	// policy_arn is the ARN of the AccessPolicy.
+	// Managed by AWS.
+	PolicyArn string
+	// account_id is the ID of the AWS account that the instance profile belongs
+	// to.
+	AccountId string
+}
+
+func (b0 AWSEKSAssociatedAccessPolicyV1_builder) Build() *AWSEKSAssociatedAccessPolicyV1 {
+	m0 := &AWSEKSAssociatedAccessPolicyV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cluster = b.Cluster
+	x.PrincipalArn = b.PrincipalArn
+	x.Scope = b.Scope
+	x.AssociatedAt = b.AssociatedAt
+	x.ModifiedAt = b.ModifiedAt
+	x.PolicyArn = b.PolicyArn
+	x.AccountId = b.AccountId
+	return m0
+}
+
 // AWSEKSAccessScope identifies the scope to which the AssociatedAccessPolicy applies.
 type AWSEKSAccessScopeV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// namespaces is the list of namespaces to scope the policy into.
 	Namespaces []string `protobuf:"bytes,1,rep,name=namespaces,proto3" json:"namespaces,omitempty"`
 	// type identifies which scope type was configured.
@@ -2669,11 +4777,6 @@ func (x *AWSEKSAccessScopeV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSEKSAccessScopeV1.ProtoReflect.Descriptor instead.
-func (*AWSEKSAccessScopeV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{26}
-}
-
 func (x *AWSEKSAccessScopeV1) GetNamespaces() []string {
 	if x != nil {
 		return x.Namespaces
@@ -2688,9 +4791,35 @@ func (x *AWSEKSAccessScopeV1) GetType() string {
 	return ""
 }
 
+func (x *AWSEKSAccessScopeV1) SetNamespaces(v []string) {
+	x.Namespaces = v
+}
+
+func (x *AWSEKSAccessScopeV1) SetType(v string) {
+	x.Type = v
+}
+
+type AWSEKSAccessScopeV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// namespaces is the list of namespaces to scope the policy into.
+	Namespaces []string
+	// type identifies which scope type was configured.
+	Type string
+}
+
+func (b0 AWSEKSAccessScopeV1_builder) Build() *AWSEKSAccessScopeV1 {
+	m0 := &AWSEKSAccessScopeV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Namespaces = b.Namespaces
+	x.Type = b.Type
+	return m0
+}
+
 // AWSRDSDatabaseV1 defines the database details.
 type AWSRDSDatabaseV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// arn is the instance ARN.
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// status is the instance status.
@@ -2739,11 +4868,6 @@ func (x *AWSRDSDatabaseV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSRDSDatabaseV1.ProtoReflect.Descriptor instead.
-func (*AWSRDSDatabaseV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{27}
 }
 
 func (x *AWSRDSDatabaseV1) GetArn() string {
@@ -2816,9 +4940,114 @@ func (x *AWSRDSDatabaseV1) GetResourceId() string {
 	return ""
 }
 
+func (x *AWSRDSDatabaseV1) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSRDSDatabaseV1) SetStatus(v string) {
+	x.Status = v
+}
+
+func (x *AWSRDSDatabaseV1) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AWSRDSDatabaseV1) SetEngineDetails(v *AWSRDSEngineV1) {
+	x.EngineDetails = v
+}
+
+func (x *AWSRDSDatabaseV1) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *AWSRDSDatabaseV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSRDSDatabaseV1) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *AWSRDSDatabaseV1) SetIsCluster(v bool) {
+	x.IsCluster = v
+}
+
+func (x *AWSRDSDatabaseV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSRDSDatabaseV1) SetResourceId(v string) {
+	x.ResourceId = v
+}
+
+func (x *AWSRDSDatabaseV1) HasEngineDetails() bool {
+	if x == nil {
+		return false
+	}
+	return x.EngineDetails != nil
+}
+
+func (x *AWSRDSDatabaseV1) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *AWSRDSDatabaseV1) ClearEngineDetails() {
+	x.EngineDetails = nil
+}
+
+func (x *AWSRDSDatabaseV1) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+type AWSRDSDatabaseV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// arn is the instance ARN.
+	Arn string
+	// status is the instance status.
+	Status string
+	// name is the instance name.
+	Name string
+	// engine_details describes the database engine details.
+	EngineDetails *AWSRDSEngineV1
+	// created_at is the time when the db instance was created.
+	CreatedAt *timestamppb.Timestamp
+	// tags is the list of tags that are attached to the instance profile.
+	Tags []*AWSTag
+	// region is the database region location
+	Region string
+	// is_cluster indicates if the database is a cluster.
+	IsCluster bool
+	// account_id is the ID of the AWS account that the instance profile belongs
+	// to.
+	AccountId string
+	// resource_id is the RDS unique resource id.
+	ResourceId string
+}
+
+func (b0 AWSRDSDatabaseV1_builder) Build() *AWSRDSDatabaseV1 {
+	m0 := &AWSRDSDatabaseV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.Status = b.Status
+	x.Name = b.Name
+	x.EngineDetails = b.EngineDetails
+	x.CreatedAt = b.CreatedAt
+	x.Tags = b.Tags
+	x.Region = b.Region
+	x.IsCluster = b.IsCluster
+	x.AccountId = b.AccountId
+	x.ResourceId = b.ResourceId
+	return m0
+}
+
 // AWSRDSEngineV1 defines the database engine details
 type AWSRDSEngineV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// engine is the engine the database runs.
 	Engine string `protobuf:"bytes,1,opt,name=engine,proto3" json:"engine,omitempty"`
 	// version holds the version information.
@@ -2852,11 +5081,6 @@ func (x *AWSRDSEngineV1) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSRDSEngineV1.ProtoReflect.Descriptor instead.
-func (*AWSRDSEngineV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{28}
-}
-
 func (x *AWSRDSEngineV1) GetEngine() string {
 	if x != nil {
 		return x.Engine
@@ -2871,9 +5095,35 @@ func (x *AWSRDSEngineV1) GetVersion() string {
 	return ""
 }
 
+func (x *AWSRDSEngineV1) SetEngine(v string) {
+	x.Engine = v
+}
+
+func (x *AWSRDSEngineV1) SetVersion(v string) {
+	x.Version = v
+}
+
+type AWSRDSEngineV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// engine is the engine the database runs.
+	Engine string
+	// version holds the version information.
+	Version string
+}
+
+func (b0 AWSRDSEngineV1_builder) Build() *AWSRDSEngineV1 {
+	m0 := &AWSRDSEngineV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Engine = b.Engine
+	x.Version = b.Version
+	return m0
+}
+
 // AWSSAMLProviderV1 defines the SAML identity provider details.
 type AWSSAMLProviderV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// arn is the provider ARN.
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// created_at is the time when the SAML provider was created.
@@ -2917,11 +5167,6 @@ func (x *AWSSAMLProviderV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSSAMLProviderV1.ProtoReflect.Descriptor instead.
-func (*AWSSAMLProviderV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{29}
 }
 
 func (x *AWSSAMLProviderV1) GetArn() string {
@@ -2980,9 +5225,99 @@ func (x *AWSSAMLProviderV1) GetSigningCertificates() []string {
 	return nil
 }
 
+func (x *AWSSAMLProviderV1) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSSAMLProviderV1) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *AWSSAMLProviderV1) SetValidUntil(v *timestamppb.Timestamp) {
+	x.ValidUntil = v
+}
+
+func (x *AWSSAMLProviderV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSSAMLProviderV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSSAMLProviderV1) SetEntityId(v string) {
+	x.EntityId = v
+}
+
+func (x *AWSSAMLProviderV1) SetSsoUrls(v []string) {
+	x.SsoUrls = v
+}
+
+func (x *AWSSAMLProviderV1) SetSigningCertificates(v []string) {
+	x.SigningCertificates = v
+}
+
+func (x *AWSSAMLProviderV1) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *AWSSAMLProviderV1) HasValidUntil() bool {
+	if x == nil {
+		return false
+	}
+	return x.ValidUntil != nil
+}
+
+func (x *AWSSAMLProviderV1) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+func (x *AWSSAMLProviderV1) ClearValidUntil() {
+	x.ValidUntil = nil
+}
+
+type AWSSAMLProviderV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// arn is the provider ARN.
+	Arn string
+	// created_at is the time when the SAML provider was created.
+	CreatedAt *timestamppb.Timestamp
+	// valid_until is the expiration date and time for the SAML provider.
+	ValidUntil *timestamppb.Timestamp
+	// tags is the list of tags that are attached to the SAML provider.
+	Tags []*AWSTag
+	// account_id is the ID of the AWS account that the provider belongs to.
+	AccountId string
+	// entity_id is the SAML entity ID for this provider.
+	EntityId string
+	// sso_urls is a list of single sign-on service URLs for this identity provider.
+	SsoUrls []string
+	// signing_certificates is a list of signing certificates for this identity provider.
+	SigningCertificates []string
+}
+
+func (b0 AWSSAMLProviderV1_builder) Build() *AWSSAMLProviderV1 {
+	m0 := &AWSSAMLProviderV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.CreatedAt = b.CreatedAt
+	x.ValidUntil = b.ValidUntil
+	x.Tags = b.Tags
+	x.AccountId = b.AccountId
+	x.EntityId = b.EntityId
+	x.SsoUrls = b.SsoUrls
+	x.SigningCertificates = b.SigningCertificates
+	return m0
+}
+
 // AWSOIDCProviderV1 defines the OIDC identity provider details.
 type AWSOIDCProviderV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// arn is the provider ARN.
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// created_at is the time when the OIDC provider was created.
@@ -3024,11 +5359,6 @@ func (x *AWSOIDCProviderV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSOIDCProviderV1.ProtoReflect.Descriptor instead.
-func (*AWSOIDCProviderV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{30}
 }
 
 func (x *AWSOIDCProviderV1) GetArn() string {
@@ -3080,9 +5410,81 @@ func (x *AWSOIDCProviderV1) GetUrl() string {
 	return ""
 }
 
+func (x *AWSOIDCProviderV1) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSOIDCProviderV1) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *AWSOIDCProviderV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSOIDCProviderV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSOIDCProviderV1) SetClientIds(v []string) {
+	x.ClientIds = v
+}
+
+func (x *AWSOIDCProviderV1) SetThumbprints(v []string) {
+	x.Thumbprints = v
+}
+
+func (x *AWSOIDCProviderV1) SetUrl(v string) {
+	x.Url = v
+}
+
+func (x *AWSOIDCProviderV1) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *AWSOIDCProviderV1) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+type AWSOIDCProviderV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// arn is the provider ARN.
+	Arn string
+	// created_at is the time when the OIDC provider was created.
+	CreatedAt *timestamppb.Timestamp
+	// tags is the list of tags that are attached to the SAML provider.
+	Tags []*AWSTag
+	// account_id is the ID of the AWS account that the provider belongs to.
+	AccountId string
+	// client_ids is a list of client IDs (audiences) associated with this OIDC provider.
+	ClientIds []string
+	// thumbprints is a list of certificate thumbprints for this OIDC provider.
+	Thumbprints []string
+	// url is the URL for this OIDC provider.
+	Url string
+}
+
+func (b0 AWSOIDCProviderV1_builder) Build() *AWSOIDCProviderV1 {
+	m0 := &AWSOIDCProviderV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.CreatedAt = b.CreatedAt
+	x.Tags = b.Tags
+	x.AccountId = b.AccountId
+	x.ClientIds = b.ClientIds
+	x.Thumbprints = b.Thumbprints
+	x.Url = b.Url
+	return m0
+}
+
 // AWSKMSKeyV1 defines the KMS key details.
 type AWSKMSKeyV1 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// arn is the key ARN.
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// created_at is the time when the key was created.
@@ -3132,11 +5534,6 @@ func (x *AWSKMSKeyV1) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AWSKMSKeyV1.ProtoReflect.Descriptor instead.
-func (*AWSKMSKeyV1) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_aws_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *AWSKMSKeyV1) GetArn() string {
@@ -3200,6 +5597,99 @@ func (x *AWSKMSKeyV1) GetHsmClusterId() string {
 		return x.HsmClusterId
 	}
 	return ""
+}
+
+func (x *AWSKMSKeyV1) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AWSKMSKeyV1) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *AWSKMSKeyV1) SetTags(v []*AWSTag) {
+	x.Tags = v
+}
+
+func (x *AWSKMSKeyV1) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AWSKMSKeyV1) SetAliases(v []string) {
+	x.Aliases = v
+}
+
+func (x *AWSKMSKeyV1) SetPolicyDocument(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PolicyDocument = v
+}
+
+func (x *AWSKMSKeyV1) SetRegion(v string) {
+	x.Region = v
+}
+
+func (x *AWSKMSKeyV1) SetMultiRegionKeyType(v string) {
+	x.MultiRegionKeyType = v
+}
+
+func (x *AWSKMSKeyV1) SetHsmClusterId(v string) {
+	x.HsmClusterId = v
+}
+
+func (x *AWSKMSKeyV1) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *AWSKMSKeyV1) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+type AWSKMSKeyV1_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// arn is the key ARN.
+	Arn string
+	// created_at is the time when the key was created.
+	CreatedAt *timestamppb.Timestamp
+	// tags is the list of tags that are attached to the key.
+	Tags []*AWSTag
+	// account_id is the ID of the AWS account that the key belongs to.
+	AccountId string
+	// aliases is the list of aliases that are attached to the key.
+	// they are prefixed with "alias/", for example "alias/my-key-alias".
+	Aliases []string
+	// policy_document is the JSON document that defines the Key Policy. Every KMS
+	// key must have exactly one key policy.
+	PolicyDocument []byte
+	// region is the AWS region that the key belongs to. For multi-region keys,
+	// this is the region where the current key, primary or replica, is located.
+	Region string
+	// multi_region_key_type is the type of the multi-region key.
+	// It is set to "PRIMARY", "REPLICA" or left empty for single region keys.
+	MultiRegionKeyType string
+	// hsm_cluster_id is the ID of the HSM cluster that the key belongs to, if any.
+	HsmClusterId string
+}
+
+func (b0 AWSKMSKeyV1_builder) Build() *AWSKMSKeyV1 {
+	m0 := &AWSKMSKeyV1{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.CreatedAt = b.CreatedAt
+	x.Tags = b.Tags
+	x.AccountId = b.AccountId
+	x.Aliases = b.Aliases
+	x.PolicyDocument = b.PolicyDocument
+	x.Region = b.Region
+	x.MultiRegionKeyType = b.MultiRegionKeyType
+	x.HsmClusterId = b.HsmClusterId
+	return m0
 }
 
 var File_accessgraph_v1alpha_aws_proto protoreflect.FileDescriptor
@@ -3498,18 +5988,6 @@ const file_accessgraph_v1alpha_aws_proto_rawDesc = "" +
 	"\x1bRolePermissionsBoundaryType\x12.\n" +
 	"*ROLE_PERMISSIONS_BOUNDARY_TYPE_UNSPECIFIED\x10\x00\x12>\n" +
 	":ROLE_PERMISSIONS_BOUNDARY_TYPE_PERMISSIONS_BOUNDARY_POLICY\x10\x01BWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
-
-var (
-	file_accessgraph_v1alpha_aws_proto_rawDescOnce sync.Once
-	file_accessgraph_v1alpha_aws_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1alpha_aws_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1alpha_aws_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1alpha_aws_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_aws_proto_rawDesc), len(file_accessgraph_v1alpha_aws_proto_rawDesc)))
-	})
-	return file_accessgraph_v1alpha_aws_proto_rawDescData
-}
 
 var file_accessgraph_v1alpha_aws_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_accessgraph_v1alpha_aws_proto_msgTypes = make([]protoimpl.MessageInfo, 32)

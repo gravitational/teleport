@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/label/v1/label.proto
 
+//go:build !protoopaque
+
 package labelv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // Label represents a single label key along with a set of possible values for it.
 type Label struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the label.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The values associated with the label.
@@ -71,11 +72,6 @@ func (x *Label) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Label.ProtoReflect.Descriptor instead.
-func (*Label) Descriptor() ([]byte, []int) {
-	return file_teleport_label_v1_label_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *Label) GetName() string {
 	if x != nil {
 		return x.Name
@@ -90,6 +86,32 @@ func (x *Label) GetValues() []string {
 	return nil
 }
 
+func (x *Label) SetName(v string) {
+	x.Name = v
+}
+
+func (x *Label) SetValues(v []string) {
+	x.Values = v
+}
+
+type Label_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the label.
+	Name string
+	// The values associated with the label.
+	Values []string
+}
+
+func (b0 Label_builder) Build() *Label {
+	m0 := &Label{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Values = b.Values
+	return m0
+}
+
 var File_teleport_label_v1_label_proto protoreflect.FileDescriptor
 
 const file_teleport_label_v1_label_proto_rawDesc = "" +
@@ -98,18 +120,6 @@ const file_teleport_label_v1_label_proto_rawDesc = "" +
 	"\x05Label\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12\x16\n" +
 	"\x06values\x18\x02 \x03(\tR\x06valuesBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1;labelv1b\x06proto3"
-
-var (
-	file_teleport_label_v1_label_proto_rawDescOnce sync.Once
-	file_teleport_label_v1_label_proto_rawDescData []byte
-)
-
-func file_teleport_label_v1_label_proto_rawDescGZIP() []byte {
-	file_teleport_label_v1_label_proto_rawDescOnce.Do(func() {
-		file_teleport_label_v1_label_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_label_v1_label_proto_rawDesc), len(file_teleport_label_v1_label_proto_rawDesc)))
-	})
-	return file_teleport_label_v1_label_proto_rawDescData
-}
 
 var file_teleport_label_v1_label_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_label_v1_label_proto_goTypes = []any{

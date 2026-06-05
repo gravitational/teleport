@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/tpm.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 // Encapsulates the value of a PCR at a point at time.
 // See https://pkg.go.dev/github.com/google/go-attestation/attest#PCR
 type TPMPCR struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// the PCR index in the PCR bank
 	Index int32 `protobuf:"varint,1,opt,name=index,proto3" json:"index,omitempty"`
 	// the digest currently held in the PCR
@@ -75,11 +76,6 @@ func (x *TPMPCR) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMPCR.ProtoReflect.Descriptor instead.
-func (*TPMPCR) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_tpm_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *TPMPCR) GetIndex() int32 {
 	if x != nil {
 		return x.Index
@@ -101,11 +97,48 @@ func (x *TPMPCR) GetDigestAlg() uint64 {
 	return 0
 }
 
+func (x *TPMPCR) SetIndex(v int32) {
+	x.Index = v
+}
+
+func (x *TPMPCR) SetDigest(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Digest = v
+}
+
+func (x *TPMPCR) SetDigestAlg(v uint64) {
+	x.DigestAlg = v
+}
+
+type TPMPCR_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// the PCR index in the PCR bank
+	Index int32
+	// the digest currently held in the PCR
+	Digest []byte
+	// the hash algorithm used to produce the digest in this PCR bank. This value
+	// is the underlying value of the Go crypto.Hash type.
+	DigestAlg uint64
+}
+
+func (b0 TPMPCR_builder) Build() *TPMPCR {
+	m0 := &TPMPCR{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Index = b.Index
+	x.Digest = b.Digest
+	x.DigestAlg = b.DigestAlg
+	return m0
+}
+
 // Encapsulates the result of a quote operation against the TPM over a PCR
 // using an attestation key.
 // See https://pkg.go.dev/github.com/google/go-attestation/attest#Quote
 type TPMQuote struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Quote         []byte                 `protobuf:"bytes,1,opt,name=quote,proto3" json:"quote,omitempty"`
 	Signature     []byte                 `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -137,11 +170,6 @@ func (x *TPMQuote) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMQuote.ProtoReflect.Descriptor instead.
-func (*TPMQuote) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_tpm_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *TPMQuote) GetQuote() []byte {
 	if x != nil {
 		return x.Quote
@@ -156,12 +184,42 @@ func (x *TPMQuote) GetSignature() []byte {
 	return nil
 }
 
+func (x *TPMQuote) SetQuote(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Quote = v
+}
+
+func (x *TPMQuote) SetSignature(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Signature = v
+}
+
+type TPMQuote_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Quote     []byte
+	Signature []byte
+}
+
+func (b0 TPMQuote_builder) Build() *TPMQuote {
+	m0 := &TPMQuote{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Quote = b.Quote
+	x.Signature = b.Signature
+	return m0
+}
+
 // The quotes, PCRs and event log from a TPM that attest to the booted state
 // of the machine.
 // See https://pkg.go.dev/github.com/google/go-attestation/attest#PlatformParameters
 // Excludes TPMVersion and Public since these are already known values.
 type TPMPlatformParameters struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Quotes        []*TPMQuote            `protobuf:"bytes,1,rep,name=quotes,proto3" json:"quotes,omitempty"`
 	Pcrs          []*TPMPCR              `protobuf:"bytes,2,rep,name=pcrs,proto3" json:"pcrs,omitempty"`
 	EventLog      []byte                 `protobuf:"bytes,3,opt,name=event_log,json=eventLog,proto3" json:"event_log,omitempty"`
@@ -194,11 +252,6 @@ func (x *TPMPlatformParameters) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMPlatformParameters.ProtoReflect.Descriptor instead.
-func (*TPMPlatformParameters) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_tpm_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *TPMPlatformParameters) GetQuotes() []*TPMQuote {
 	if x != nil {
 		return x.Quotes
@@ -220,13 +273,46 @@ func (x *TPMPlatformParameters) GetEventLog() []byte {
 	return nil
 }
 
+func (x *TPMPlatformParameters) SetQuotes(v []*TPMQuote) {
+	x.Quotes = v
+}
+
+func (x *TPMPlatformParameters) SetPcrs(v []*TPMPCR) {
+	x.Pcrs = v
+}
+
+func (x *TPMPlatformParameters) SetEventLog(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.EventLog = v
+}
+
+type TPMPlatformParameters_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Quotes   []*TPMQuote
+	Pcrs     []*TPMPCR
+	EventLog []byte
+}
+
+func (b0 TPMPlatformParameters_builder) Build() *TPMPlatformParameters {
+	m0 := &TPMPlatformParameters{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Quotes = b.Quotes
+	x.Pcrs = b.Pcrs
+	x.EventLog = b.EventLog
+	return m0
+}
+
 // Holds the record of a TPM platform attestation, including the platform
 // parameters sent by the device and the nonce the server generated. This allows
 // a historical platform attestation to be revalidated and allows us to compare
 // the incoming state of a device (e.g during authentication) against the
 // historical state in order to detect potentially malicious actions.
 type TPMPlatformAttestation struct {
-	state              protoimpl.MessageState `protogen:"open.v1"`
+	state              protoimpl.MessageState `protogen:"hybrid.v1"`
 	Nonce              []byte                 `protobuf:"bytes,1,opt,name=nonce,proto3" json:"nonce,omitempty"`
 	PlatformParameters *TPMPlatformParameters `protobuf:"bytes,2,opt,name=platform_parameters,json=platformParameters,proto3" json:"platform_parameters,omitempty"`
 	unknownFields      protoimpl.UnknownFields
@@ -258,11 +344,6 @@ func (x *TPMPlatformAttestation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TPMPlatformAttestation.ProtoReflect.Descriptor instead.
-func (*TPMPlatformAttestation) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_tpm_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *TPMPlatformAttestation) GetNonce() []byte {
 	if x != nil {
 		return x.Nonce
@@ -275,6 +356,44 @@ func (x *TPMPlatformAttestation) GetPlatformParameters() *TPMPlatformParameters 
 		return x.PlatformParameters
 	}
 	return nil
+}
+
+func (x *TPMPlatformAttestation) SetNonce(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Nonce = v
+}
+
+func (x *TPMPlatformAttestation) SetPlatformParameters(v *TPMPlatformParameters) {
+	x.PlatformParameters = v
+}
+
+func (x *TPMPlatformAttestation) HasPlatformParameters() bool {
+	if x == nil {
+		return false
+	}
+	return x.PlatformParameters != nil
+}
+
+func (x *TPMPlatformAttestation) ClearPlatformParameters() {
+	x.PlatformParameters = nil
+}
+
+type TPMPlatformAttestation_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Nonce              []byte
+	PlatformParameters *TPMPlatformParameters
+}
+
+func (b0 TPMPlatformAttestation_builder) Build() *TPMPlatformAttestation {
+	m0 := &TPMPlatformAttestation{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Nonce = b.Nonce
+	x.PlatformParameters = b.PlatformParameters
+	return m0
 }
 
 var File_teleport_devicetrust_v1_tpm_proto protoreflect.FileDescriptor
@@ -297,18 +416,6 @@ const file_teleport_devicetrust_v1_tpm_proto_rawDesc = "" +
 	"\x16TPMPlatformAttestation\x12\x14\n" +
 	"\x05nonce\x18\x01 \x01(\fR\x05nonce\x12_\n" +
 	"\x13platform_parameters\x18\x02 \x01(\v2..teleport.devicetrust.v1.TPMPlatformParametersR\x12platformParametersBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_tpm_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_tpm_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_tpm_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_tpm_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_tpm_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_tpm_proto_rawDesc), len(file_teleport_devicetrust_v1_tpm_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_tpm_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_tpm_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_devicetrust_v1_tpm_proto_goTypes = []any{

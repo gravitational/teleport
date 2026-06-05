@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/trust/v1/trust_service.proto
 
+//go:build !protoopaque
+
 package trustv1
 
 import (
@@ -28,7 +30,6 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -41,7 +42,7 @@ const (
 
 // Request for UpsertTrustedCluster.
 type UpsertTrustedClusterRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// TrustedCluster specifies a Trusted Cluster resource.
 	TrustedCluster *types.TrustedClusterV2 `protobuf:"bytes,1,opt,name=trusted_cluster,json=trustedCluster,proto3" json:"trusted_cluster,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -73,11 +74,6 @@ func (x *UpsertTrustedClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertTrustedClusterRequest.ProtoReflect.Descriptor instead.
-func (*UpsertTrustedClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *UpsertTrustedClusterRequest) GetTrustedCluster() *types.TrustedClusterV2 {
 	if x != nil {
 		return x.TrustedCluster
@@ -85,9 +81,39 @@ func (x *UpsertTrustedClusterRequest) GetTrustedCluster() *types.TrustedClusterV
 	return nil
 }
 
+func (x *UpsertTrustedClusterRequest) SetTrustedCluster(v *types.TrustedClusterV2) {
+	x.TrustedCluster = v
+}
+
+func (x *UpsertTrustedClusterRequest) HasTrustedCluster() bool {
+	if x == nil {
+		return false
+	}
+	return x.TrustedCluster != nil
+}
+
+func (x *UpsertTrustedClusterRequest) ClearTrustedCluster() {
+	x.TrustedCluster = nil
+}
+
+type UpsertTrustedClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TrustedCluster specifies a Trusted Cluster resource.
+	TrustedCluster *types.TrustedClusterV2
+}
+
+func (b0 UpsertTrustedClusterRequest_builder) Build() *UpsertTrustedClusterRequest {
+	m0 := &UpsertTrustedClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TrustedCluster = b.TrustedCluster
+	return m0
+}
+
 // Request for CreateTrustedCluster.
 type CreateTrustedClusterRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// TrustedCluster specifies a Trusted Cluster resource.
 	TrustedCluster *types.TrustedClusterV2 `protobuf:"bytes,1,opt,name=trusted_cluster,json=trustedCluster,proto3" json:"trusted_cluster,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -119,11 +145,6 @@ func (x *CreateTrustedClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateTrustedClusterRequest.ProtoReflect.Descriptor instead.
-func (*CreateTrustedClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CreateTrustedClusterRequest) GetTrustedCluster() *types.TrustedClusterV2 {
 	if x != nil {
 		return x.TrustedCluster
@@ -131,9 +152,39 @@ func (x *CreateTrustedClusterRequest) GetTrustedCluster() *types.TrustedClusterV
 	return nil
 }
 
+func (x *CreateTrustedClusterRequest) SetTrustedCluster(v *types.TrustedClusterV2) {
+	x.TrustedCluster = v
+}
+
+func (x *CreateTrustedClusterRequest) HasTrustedCluster() bool {
+	if x == nil {
+		return false
+	}
+	return x.TrustedCluster != nil
+}
+
+func (x *CreateTrustedClusterRequest) ClearTrustedCluster() {
+	x.TrustedCluster = nil
+}
+
+type CreateTrustedClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TrustedCluster specifies a Trusted Cluster resource.
+	TrustedCluster *types.TrustedClusterV2
+}
+
+func (b0 CreateTrustedClusterRequest_builder) Build() *CreateTrustedClusterRequest {
+	m0 := &CreateTrustedClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TrustedCluster = b.TrustedCluster
+	return m0
+}
+
 // Request for UpdateTrustedCluster.
 type UpdateTrustedClusterRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// TrustedCluster specifies a Trusted Cluster resource.
 	TrustedCluster *types.TrustedClusterV2 `protobuf:"bytes,1,opt,name=trusted_cluster,json=trustedCluster,proto3" json:"trusted_cluster,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -165,11 +216,6 @@ func (x *UpdateTrustedClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateTrustedClusterRequest.ProtoReflect.Descriptor instead.
-func (*UpdateTrustedClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpdateTrustedClusterRequest) GetTrustedCluster() *types.TrustedClusterV2 {
 	if x != nil {
 		return x.TrustedCluster
@@ -177,9 +223,39 @@ func (x *UpdateTrustedClusterRequest) GetTrustedCluster() *types.TrustedClusterV
 	return nil
 }
 
+func (x *UpdateTrustedClusterRequest) SetTrustedCluster(v *types.TrustedClusterV2) {
+	x.TrustedCluster = v
+}
+
+func (x *UpdateTrustedClusterRequest) HasTrustedCluster() bool {
+	if x == nil {
+		return false
+	}
+	return x.TrustedCluster != nil
+}
+
+func (x *UpdateTrustedClusterRequest) ClearTrustedCluster() {
+	x.TrustedCluster = nil
+}
+
+type UpdateTrustedClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TrustedCluster specifies a Trusted Cluster resource.
+	TrustedCluster *types.TrustedClusterV2
+}
+
+func (b0 UpdateTrustedClusterRequest_builder) Build() *UpdateTrustedClusterRequest {
+	m0 := &UpdateTrustedClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TrustedCluster = b.TrustedCluster
+	return m0
+}
+
 // Request for GetCertAuthority
 type GetCertAuthorityRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Type of certificate authority.
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// The domain for the certificate authority.
@@ -215,11 +291,6 @@ func (x *GetCertAuthorityRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetCertAuthorityRequest.ProtoReflect.Descriptor instead.
-func (*GetCertAuthorityRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *GetCertAuthorityRequest) GetType() string {
 	if x != nil {
 		return x.Type
@@ -241,9 +312,42 @@ func (x *GetCertAuthorityRequest) GetIncludeKey() bool {
 	return false
 }
 
+func (x *GetCertAuthorityRequest) SetType(v string) {
+	x.Type = v
+}
+
+func (x *GetCertAuthorityRequest) SetDomain(v string) {
+	x.Domain = v
+}
+
+func (x *GetCertAuthorityRequest) SetIncludeKey(v bool) {
+	x.IncludeKey = v
+}
+
+type GetCertAuthorityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Type of certificate authority.
+	Type string
+	// The domain for the certificate authority.
+	Domain string
+	// Whether the private key should be included in the response.
+	IncludeKey bool
+}
+
+func (b0 GetCertAuthorityRequest_builder) Build() *GetCertAuthorityRequest {
+	m0 := &GetCertAuthorityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.Domain = b.Domain
+	x.IncludeKey = b.IncludeKey
+	return m0
+}
+
 // Request for GetCertAuthorities
 type GetCertAuthoritiesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Type of certificate authority.
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// Whether the private key should be included in the response.
@@ -277,11 +381,6 @@ func (x *GetCertAuthoritiesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetCertAuthoritiesRequest.ProtoReflect.Descriptor instead.
-func (*GetCertAuthoritiesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *GetCertAuthoritiesRequest) GetType() string {
 	if x != nil {
 		return x.Type
@@ -296,9 +395,35 @@ func (x *GetCertAuthoritiesRequest) GetIncludeKey() bool {
 	return false
 }
 
+func (x *GetCertAuthoritiesRequest) SetType(v string) {
+	x.Type = v
+}
+
+func (x *GetCertAuthoritiesRequest) SetIncludeKey(v bool) {
+	x.IncludeKey = v
+}
+
+type GetCertAuthoritiesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Type of certificate authority.
+	Type string
+	// Whether the private key should be included in the response.
+	IncludeKey bool
+}
+
+func (b0 GetCertAuthoritiesRequest_builder) Build() *GetCertAuthoritiesRequest {
+	m0 := &GetCertAuthoritiesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.IncludeKey = b.IncludeKey
+	return m0
+}
+
 // Response for GetCertAuthorities
 type GetCertAuthoritiesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The matching certificate authorities.
 	CertAuthoritiesV2 []*types.CertAuthorityV2 `protobuf:"bytes,1,rep,name=cert_authorities_v2,json=certAuthoritiesV2,proto3" json:"cert_authorities_v2,omitempty"`
 	unknownFields     protoimpl.UnknownFields
@@ -330,11 +455,6 @@ func (x *GetCertAuthoritiesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetCertAuthoritiesResponse.ProtoReflect.Descriptor instead.
-func (*GetCertAuthoritiesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *GetCertAuthoritiesResponse) GetCertAuthoritiesV2() []*types.CertAuthorityV2 {
 	if x != nil {
 		return x.CertAuthoritiesV2
@@ -342,9 +462,28 @@ func (x *GetCertAuthoritiesResponse) GetCertAuthoritiesV2() []*types.CertAuthori
 	return nil
 }
 
+func (x *GetCertAuthoritiesResponse) SetCertAuthoritiesV2(v []*types.CertAuthorityV2) {
+	x.CertAuthoritiesV2 = v
+}
+
+type GetCertAuthoritiesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The matching certificate authorities.
+	CertAuthoritiesV2 []*types.CertAuthorityV2
+}
+
+func (b0 GetCertAuthoritiesResponse_builder) Build() *GetCertAuthoritiesResponse {
+	m0 := &GetCertAuthoritiesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CertAuthoritiesV2 = b.CertAuthoritiesV2
+	return m0
+}
+
 // Request for DeleteCertAuthority
 type DeleteCertAuthorityRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Type of certificate authority.
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// The domain for the certificate authority.
@@ -378,11 +517,6 @@ func (x *DeleteCertAuthorityRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteCertAuthorityRequest.ProtoReflect.Descriptor instead.
-func (*DeleteCertAuthorityRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteCertAuthorityRequest) GetType() string {
 	if x != nil {
 		return x.Type
@@ -397,9 +531,35 @@ func (x *DeleteCertAuthorityRequest) GetDomain() string {
 	return ""
 }
 
+func (x *DeleteCertAuthorityRequest) SetType(v string) {
+	x.Type = v
+}
+
+func (x *DeleteCertAuthorityRequest) SetDomain(v string) {
+	x.Domain = v
+}
+
+type DeleteCertAuthorityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Type of certificate authority.
+	Type string
+	// The domain for the certificate authority.
+	Domain string
+}
+
+func (b0 DeleteCertAuthorityRequest_builder) Build() *DeleteCertAuthorityRequest {
+	m0 := &DeleteCertAuthorityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.Domain = b.Domain
+	return m0
+}
+
 // Request for UpsertCertAuthority
 type UpsertCertAuthorityRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The certificate authority to create or update.
 	CertAuthority *types.CertAuthorityV2 `protobuf:"bytes,1,opt,name=cert_authority,json=certAuthority,proto3" json:"cert_authority,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -431,11 +591,6 @@ func (x *UpsertCertAuthorityRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertCertAuthorityRequest.ProtoReflect.Descriptor instead.
-func (*UpsertCertAuthorityRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *UpsertCertAuthorityRequest) GetCertAuthority() *types.CertAuthorityV2 {
 	if x != nil {
 		return x.CertAuthority
@@ -443,9 +598,39 @@ func (x *UpsertCertAuthorityRequest) GetCertAuthority() *types.CertAuthorityV2 {
 	return nil
 }
 
+func (x *UpsertCertAuthorityRequest) SetCertAuthority(v *types.CertAuthorityV2) {
+	x.CertAuthority = v
+}
+
+func (x *UpsertCertAuthorityRequest) HasCertAuthority() bool {
+	if x == nil {
+		return false
+	}
+	return x.CertAuthority != nil
+}
+
+func (x *UpsertCertAuthorityRequest) ClearCertAuthority() {
+	x.CertAuthority = nil
+}
+
+type UpsertCertAuthorityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The certificate authority to create or update.
+	CertAuthority *types.CertAuthorityV2
+}
+
+func (b0 UpsertCertAuthorityRequest_builder) Build() *UpsertCertAuthorityRequest {
+	m0 := &UpsertCertAuthorityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CertAuthority = b.CertAuthority
+	return m0
+}
+
 // Request for RotateCertAuthority.
 type RotateCertAuthorityRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Type is a certificate authority type, if omitted, both user and host CA
 	// will be rotated.
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
@@ -495,11 +680,6 @@ func (x *RotateCertAuthorityRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RotateCertAuthorityRequest.ProtoReflect.Descriptor instead.
-func (*RotateCertAuthorityRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *RotateCertAuthorityRequest) GetType() string {
 	if x != nil {
 		return x.Type
@@ -535,9 +715,88 @@ func (x *RotateCertAuthorityRequest) GetSchedule() *RotationSchedule {
 	return nil
 }
 
+func (x *RotateCertAuthorityRequest) SetType(v string) {
+	x.Type = v
+}
+
+func (x *RotateCertAuthorityRequest) SetGracePeriod(v *durationpb.Duration) {
+	x.GracePeriod = v
+}
+
+func (x *RotateCertAuthorityRequest) SetTargetPhase(v string) {
+	x.TargetPhase = v
+}
+
+func (x *RotateCertAuthorityRequest) SetMode(v string) {
+	x.Mode = v
+}
+
+func (x *RotateCertAuthorityRequest) SetSchedule(v *RotationSchedule) {
+	x.Schedule = v
+}
+
+func (x *RotateCertAuthorityRequest) HasGracePeriod() bool {
+	if x == nil {
+		return false
+	}
+	return x.GracePeriod != nil
+}
+
+func (x *RotateCertAuthorityRequest) HasSchedule() bool {
+	if x == nil {
+		return false
+	}
+	return x.Schedule != nil
+}
+
+func (x *RotateCertAuthorityRequest) ClearGracePeriod() {
+	x.GracePeriod = nil
+}
+
+func (x *RotateCertAuthorityRequest) ClearSchedule() {
+	x.Schedule = nil
+}
+
+type RotateCertAuthorityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Type is a certificate authority type, if omitted, both user and host CA
+	// will be rotated.
+	Type string
+	// GracePeriod is used to generate cert rotation schedule that defines
+	// times at which different rotation phases will be applied by the auth server
+	// in auto mode. It is not used in manual rotation mode.
+	// If omitted, default value is set, if 0 is supplied, it is interpreted as
+	// forcing rotation of all certificate authorities with no grace period,
+	// all existing users and hosts will have to re-login and re-added
+	// into the cluster.
+	GracePeriod *durationpb.Duration
+	// TargetPhase sets desired rotation phase to move to, if not set
+	// will be set automatically, it is a required argument
+	// for manual rotation.
+	TargetPhase string
+	// Mode sets manual or auto rotation mode.
+	Mode string
+	// Schedule is an optional rotation schedule,
+	// autogenerated based on GracePeriod parameter if not set.
+	Schedule *RotationSchedule
+}
+
+func (b0 RotateCertAuthorityRequest_builder) Build() *RotateCertAuthorityRequest {
+	m0 := &RotateCertAuthorityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.GracePeriod = b.GracePeriod
+	x.TargetPhase = b.TargetPhase
+	x.Mode = b.Mode
+	x.Schedule = b.Schedule
+	return m0
+}
+
 // RotationSchedule is a rotation schedule setting time switches for different phases.
 type RotationSchedule struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// UpdateClients specifies time to switch to the "Update clients" phase
 	UpdateClients *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=update_clients,json=updateClients,proto3" json:"update_clients,omitempty"`
 	// UpdateServers specifies time to switch to the "Update servers" phase.
@@ -573,11 +832,6 @@ func (x *RotationSchedule) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RotationSchedule.ProtoReflect.Descriptor instead.
-func (*RotationSchedule) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *RotationSchedule) GetUpdateClients() *timestamppb.Timestamp {
 	if x != nil {
 		return x.UpdateClients
@@ -599,9 +853,75 @@ func (x *RotationSchedule) GetStandby() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *RotationSchedule) SetUpdateClients(v *timestamppb.Timestamp) {
+	x.UpdateClients = v
+}
+
+func (x *RotationSchedule) SetUpdateServers(v *timestamppb.Timestamp) {
+	x.UpdateServers = v
+}
+
+func (x *RotationSchedule) SetStandby(v *timestamppb.Timestamp) {
+	x.Standby = v
+}
+
+func (x *RotationSchedule) HasUpdateClients() bool {
+	if x == nil {
+		return false
+	}
+	return x.UpdateClients != nil
+}
+
+func (x *RotationSchedule) HasUpdateServers() bool {
+	if x == nil {
+		return false
+	}
+	return x.UpdateServers != nil
+}
+
+func (x *RotationSchedule) HasStandby() bool {
+	if x == nil {
+		return false
+	}
+	return x.Standby != nil
+}
+
+func (x *RotationSchedule) ClearUpdateClients() {
+	x.UpdateClients = nil
+}
+
+func (x *RotationSchedule) ClearUpdateServers() {
+	x.UpdateServers = nil
+}
+
+func (x *RotationSchedule) ClearStandby() {
+	x.Standby = nil
+}
+
+type RotationSchedule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// UpdateClients specifies time to switch to the "Update clients" phase
+	UpdateClients *timestamppb.Timestamp
+	// UpdateServers specifies time to switch to the "Update servers" phase.
+	UpdateServers *timestamppb.Timestamp
+	// Standby specifies time to switch to the "Standby" phase.
+	Standby *timestamppb.Timestamp
+}
+
+func (b0 RotationSchedule_builder) Build() *RotationSchedule {
+	m0 := &RotationSchedule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UpdateClients = b.UpdateClients
+	x.UpdateServers = b.UpdateServers
+	x.Standby = b.Standby
+	return m0
+}
+
 // Response for RotateCertAuthority.
 type RotateCertAuthorityResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -631,14 +951,21 @@ func (x *RotateCertAuthorityResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RotateCertAuthorityResponse.ProtoReflect.Descriptor instead.
-func (*RotateCertAuthorityResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{10}
+type RotateCertAuthorityResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RotateCertAuthorityResponse_builder) Build() *RotateCertAuthorityResponse {
+	m0 := &RotateCertAuthorityResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request for RotateExternalCertAuthority.
 type RotateExternalCertAuthorityRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The certificate authority to rotate.
 	CertAuthority *types.CertAuthorityV2 `protobuf:"bytes,1,opt,name=cert_authority,json=certAuthority,proto3" json:"cert_authority,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -670,11 +997,6 @@ func (x *RotateExternalCertAuthorityRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RotateExternalCertAuthorityRequest.ProtoReflect.Descriptor instead.
-func (*RotateExternalCertAuthorityRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *RotateExternalCertAuthorityRequest) GetCertAuthority() *types.CertAuthorityV2 {
 	if x != nil {
 		return x.CertAuthority
@@ -682,9 +1004,39 @@ func (x *RotateExternalCertAuthorityRequest) GetCertAuthority() *types.CertAutho
 	return nil
 }
 
+func (x *RotateExternalCertAuthorityRequest) SetCertAuthority(v *types.CertAuthorityV2) {
+	x.CertAuthority = v
+}
+
+func (x *RotateExternalCertAuthorityRequest) HasCertAuthority() bool {
+	if x == nil {
+		return false
+	}
+	return x.CertAuthority != nil
+}
+
+func (x *RotateExternalCertAuthorityRequest) ClearCertAuthority() {
+	x.CertAuthority = nil
+}
+
+type RotateExternalCertAuthorityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The certificate authority to rotate.
+	CertAuthority *types.CertAuthorityV2
+}
+
+func (b0 RotateExternalCertAuthorityRequest_builder) Build() *RotateExternalCertAuthorityRequest {
+	m0 := &RotateExternalCertAuthorityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CertAuthority = b.CertAuthority
+	return m0
+}
+
 // Response for RotateExternalCertAuthority.
 type RotateExternalCertAuthorityResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -714,14 +1066,21 @@ func (x *RotateExternalCertAuthorityResponse) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RotateExternalCertAuthorityResponse.ProtoReflect.Descriptor instead.
-func (*RotateExternalCertAuthorityResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{12}
+type RotateExternalCertAuthorityResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RotateExternalCertAuthorityResponse_builder) Build() *RotateExternalCertAuthorityResponse {
+	m0 := &RotateExternalCertAuthorityResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GenerateHostCertRequest is the request for GenerateHostCert.
 type GenerateHostCertRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// key is the SSH public key that the certificate should include.
 	Key []byte `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	// host_id is the ID of the host the certificate should include.
@@ -763,11 +1122,6 @@ func (x *GenerateHostCertRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GenerateHostCertRequest.ProtoReflect.Descriptor instead.
-func (*GenerateHostCertRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *GenerateHostCertRequest) GetKey() []byte {
@@ -819,9 +1173,84 @@ func (x *GenerateHostCertRequest) GetTtl() *durationpb.Duration {
 	return nil
 }
 
+func (x *GenerateHostCertRequest) SetKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Key = v
+}
+
+func (x *GenerateHostCertRequest) SetHostId(v string) {
+	x.HostId = v
+}
+
+func (x *GenerateHostCertRequest) SetNodeName(v string) {
+	x.NodeName = v
+}
+
+func (x *GenerateHostCertRequest) SetPrincipals(v []string) {
+	x.Principals = v
+}
+
+func (x *GenerateHostCertRequest) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *GenerateHostCertRequest) SetRole(v string) {
+	x.Role = v
+}
+
+func (x *GenerateHostCertRequest) SetTtl(v *durationpb.Duration) {
+	x.Ttl = v
+}
+
+func (x *GenerateHostCertRequest) HasTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ttl != nil
+}
+
+func (x *GenerateHostCertRequest) ClearTtl() {
+	x.Ttl = nil
+}
+
+type GenerateHostCertRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// key is the SSH public key that the certificate should include.
+	Key []byte
+	// host_id is the ID of the host the certificate should include.
+	HostId string
+	// node_name is the name of the node the certificate should include.
+	NodeName string
+	// principals is a list of principals that the certificate should include.
+	Principals []string
+	// cluster_name is a list of principals that the certificate should include.
+	ClusterName string
+	// role is a system role assigned to the host that will be included on the certificate.
+	Role string
+	// ttl is the duration the certificate will be valid for. This may be zero for indefinite.
+	Ttl *durationpb.Duration
+}
+
+func (b0 GenerateHostCertRequest_builder) Build() *GenerateHostCertRequest {
+	m0 := &GenerateHostCertRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Key = b.Key
+	x.HostId = b.HostId
+	x.NodeName = b.NodeName
+	x.Principals = b.Principals
+	x.ClusterName = b.ClusterName
+	x.Role = b.Role
+	x.Ttl = b.Ttl
+	return m0
+}
+
 // GenerateHostCertResponse is the response for GenerateHostCert.
 type GenerateHostCertResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ssh_certificate is the encoded bytes of the SSH certificate generated by the RPC.
 	SshCertificate []byte `protobuf:"bytes,1,opt,name=ssh_certificate,json=sshCertificate,proto3" json:"ssh_certificate,omitempty"`
 	unknownFields  protoimpl.UnknownFields
@@ -853,11 +1282,6 @@ func (x *GenerateHostCertResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateHostCertResponse.ProtoReflect.Descriptor instead.
-func (*GenerateHostCertResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *GenerateHostCertResponse) GetSshCertificate() []byte {
 	if x != nil {
 		return x.SshCertificate
@@ -865,9 +1289,31 @@ func (x *GenerateHostCertResponse) GetSshCertificate() []byte {
 	return nil
 }
 
+func (x *GenerateHostCertResponse) SetSshCertificate(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.SshCertificate = v
+}
+
+type GenerateHostCertResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ssh_certificate is the encoded bytes of the SSH certificate generated by the RPC.
+	SshCertificate []byte
+}
+
+func (b0 GenerateHostCertResponse_builder) Build() *GenerateHostCertResponse {
+	m0 := &GenerateHostCertResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SshCertificate = b.SshCertificate
+	return m0
+}
+
 // ListTrustedClustersRequest is the request for ListTrustedClusters.
 type ListTrustedClustersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -902,11 +1348,6 @@ func (x *ListTrustedClustersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListTrustedClustersRequest.ProtoReflect.Descriptor instead.
-func (*ListTrustedClustersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *ListTrustedClustersRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -921,9 +1362,36 @@ func (x *ListTrustedClustersRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListTrustedClustersRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListTrustedClustersRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListTrustedClustersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListTrustedClustersRequest_builder) Build() *ListTrustedClustersRequest {
+	m0 := &ListTrustedClustersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListTrustedClustersResponse is the response for ListTrustedClusters.
 type ListTrustedClustersResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// TrustedClusters is a list of Trusted Cluster resources.
 	TrustedClusters []*types.TrustedClusterV2 `protobuf:"bytes,1,rep,name=trusted_clusters,json=trustedClusters,proto3" json:"trusted_clusters,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -958,11 +1426,6 @@ func (x *ListTrustedClustersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListTrustedClustersResponse.ProtoReflect.Descriptor instead.
-func (*ListTrustedClustersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_trust_v1_trust_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *ListTrustedClustersResponse) GetTrustedClusters() []*types.TrustedClusterV2 {
 	if x != nil {
 		return x.TrustedClusters
@@ -975,6 +1438,33 @@ func (x *ListTrustedClustersResponse) GetNextPageToken() string {
 		return x.NextPageToken
 	}
 	return ""
+}
+
+func (x *ListTrustedClustersResponse) SetTrustedClusters(v []*types.TrustedClusterV2) {
+	x.TrustedClusters = v
+}
+
+func (x *ListTrustedClustersResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListTrustedClustersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TrustedClusters is a list of Trusted Cluster resources.
+	TrustedClusters []*types.TrustedClusterV2
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListTrustedClustersResponse_builder) Build() *ListTrustedClustersResponse {
+	m0 := &ListTrustedClustersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.TrustedClusters = b.TrustedClusters
+	x.NextPageToken = b.NextPageToken
+	return m0
 }
 
 var File_teleport_trust_v1_trust_service_proto protoreflect.FileDescriptor
@@ -1049,18 +1539,6 @@ const file_teleport_trust_v1_trust_service_proto_rawDesc = "" +
 	"\x14CreateTrustedCluster\x12..teleport.trust.v1.CreateTrustedClusterRequest\x1a\x17.types.TrustedClusterV2\x12_\n" +
 	"\x14UpdateTrustedCluster\x12..teleport.trust.v1.UpdateTrustedClusterRequest\x1a\x17.types.TrustedClusterV2\x12t\n" +
 	"\x13ListTrustedClusters\x12-.teleport.trust.v1.ListTrustedClustersRequest\x1a..teleport.trust.v1.ListTrustedClustersResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1;trustv1b\x06proto3"
-
-var (
-	file_teleport_trust_v1_trust_service_proto_rawDescOnce sync.Once
-	file_teleport_trust_v1_trust_service_proto_rawDescData []byte
-)
-
-func file_teleport_trust_v1_trust_service_proto_rawDescGZIP() []byte {
-	file_teleport_trust_v1_trust_service_proto_rawDescOnce.Do(func() {
-		file_teleport_trust_v1_trust_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_trust_v1_trust_service_proto_rawDesc), len(file_teleport_trust_v1_trust_service_proto_rawDesc)))
-	})
-	return file_teleport_trust_v1_trust_service_proto_rawDescData
-}
 
 var file_teleport_trust_v1_trust_service_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_teleport_trust_v1_trust_service_proto_goTypes = []any{

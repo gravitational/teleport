@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/device.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -92,11 +93,6 @@ func (x DeviceAttestationType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use DeviceAttestationType.Descriptor instead.
-func (DeviceAttestationType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_device_proto_rawDescGZIP(), []int{0}
-}
-
 // DeviceEnrollStatus represents the enrollment status of a device.
 type DeviceEnrollStatus int32
 
@@ -144,16 +140,11 @@ func (x DeviceEnrollStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use DeviceEnrollStatus.Descriptor instead.
-func (DeviceEnrollStatus) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_device_proto_rawDescGZIP(), []int{1}
-}
-
 // Device represents a registered device.
 // Registered devices may be enrolled. Enrolled devices are allowed to perform
 // device-aware actions.
 type Device struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// API version of the Device definition, present for compatibility with
 	// types.DeviceV1.
 	// Always "v1".
@@ -234,11 +225,6 @@ func (x *Device) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Device.ProtoReflect.Descriptor instead.
-func (*Device) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_device_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Device) GetApiVersion() string {
@@ -332,9 +318,205 @@ func (x *Device) GetOwner() string {
 	return ""
 }
 
+func (x *Device) SetApiVersion(v string) {
+	x.ApiVersion = v
+}
+
+func (x *Device) SetId(v string) {
+	x.Id = v
+}
+
+func (x *Device) SetOsType(v OSType) {
+	x.OsType = v
+}
+
+func (x *Device) SetAssetTag(v string) {
+	x.AssetTag = v
+}
+
+func (x *Device) SetCreateTime(v *timestamppb.Timestamp) {
+	x.CreateTime = v
+}
+
+func (x *Device) SetUpdateTime(v *timestamppb.Timestamp) {
+	x.UpdateTime = v
+}
+
+func (x *Device) SetEnrollToken(v *DeviceEnrollToken) {
+	x.EnrollToken = v
+}
+
+func (x *Device) SetEnrollStatus(v DeviceEnrollStatus) {
+	x.EnrollStatus = v
+}
+
+func (x *Device) SetCredential(v *DeviceCredential) {
+	x.Credential = v
+}
+
+func (x *Device) SetCollectedData(v []*DeviceCollectedData) {
+	x.CollectedData = v
+}
+
+func (x *Device) SetSource(v *DeviceSource) {
+	x.Source = v
+}
+
+func (x *Device) SetProfile(v *DeviceProfile) {
+	x.Profile = v
+}
+
+func (x *Device) SetOwner(v string) {
+	x.Owner = v
+}
+
+func (x *Device) HasCreateTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreateTime != nil
+}
+
+func (x *Device) HasUpdateTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.UpdateTime != nil
+}
+
+func (x *Device) HasEnrollToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.EnrollToken != nil
+}
+
+func (x *Device) HasCredential() bool {
+	if x == nil {
+		return false
+	}
+	return x.Credential != nil
+}
+
+func (x *Device) HasSource() bool {
+	if x == nil {
+		return false
+	}
+	return x.Source != nil
+}
+
+func (x *Device) HasProfile() bool {
+	if x == nil {
+		return false
+	}
+	return x.Profile != nil
+}
+
+func (x *Device) ClearCreateTime() {
+	x.CreateTime = nil
+}
+
+func (x *Device) ClearUpdateTime() {
+	x.UpdateTime = nil
+}
+
+func (x *Device) ClearEnrollToken() {
+	x.EnrollToken = nil
+}
+
+func (x *Device) ClearCredential() {
+	x.Credential = nil
+}
+
+func (x *Device) ClearSource() {
+	x.Source = nil
+}
+
+func (x *Device) ClearProfile() {
+	x.Profile = nil
+}
+
+type Device_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// API version of the Device definition, present for compatibility with
+	// types.DeviceV1.
+	// Always "v1".
+	ApiVersion string
+	// Unique device identifier.
+	// System managed.
+	Id string
+	// Device operating system.
+	// Required.
+	OsType OSType
+	// Device inventory identifier.
+	// Takes different meanings depending on the device and operating system.
+	// For macOS devices it is the device serial number.
+	// Required.
+	AssetTag string
+	// Create time.
+	// System managed.
+	CreateTime *timestamppb.Timestamp
+	// Last update time.
+	// System managed.
+	UpdateTime *timestamppb.Timestamp
+	// Enrollment token for the device.
+	// Only present in situations where device creation and enrollment are rolled
+	// into a single operation.
+	// Transient.
+	EnrollToken *DeviceEnrollToken
+	// Enrollment status of the device.
+	// May be changed to DEVICE_ENROLL_STATUS_NOT_ENROLLED at any time to
+	// forcefully unenroll a device (server-side only).
+	// System managed.
+	EnrollStatus DeviceEnrollStatus
+	// Currently enrolled device credential.
+	// Manually unenrolling a device clears the credential.
+	// System managed.
+	Credential *DeviceCredential
+	// Device data collected during enrollment and device authentication.
+	// Enrollment data is always present, while authentication data is capped at N
+	// most recent events.
+	// Only present in certain read modes.
+	// Transient.
+	CollectedData []*DeviceCollectedData
+	// Source of the device.
+	// Devices managed directly via Teleport (`tctl`, Web UI, etc) have no
+	// assigned source.
+	Source *DeviceSource
+	// Device information acquired from an external source.
+	Profile *DeviceProfile
+	// Device owner.
+	// Usually the owner is the same user who performed the enrollment ceremony.
+	// May be empty for legacy devices (Teleport v13.2 and older).
+	// Manually unenrolling a device clears the owner.
+	// System-managed.
+	Owner string
+}
+
+func (b0 Device_builder) Build() *Device {
+	m0 := &Device{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ApiVersion = b.ApiVersion
+	x.Id = b.Id
+	x.OsType = b.OsType
+	x.AssetTag = b.AssetTag
+	x.CreateTime = b.CreateTime
+	x.UpdateTime = b.UpdateTime
+	x.EnrollToken = b.EnrollToken
+	x.EnrollStatus = b.EnrollStatus
+	x.Credential = b.Credential
+	x.CollectedData = b.CollectedData
+	x.Source = b.Source
+	x.Profile = b.Profile
+	x.Owner = b.Owner
+	return m0
+}
+
 // DeviceCredential represents the current enrolled public key of a device.
 type DeviceCredential struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Unique identifier of the credential, defined client-side.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Device public key marshaled as a PKIX, ASN.1 DER. Used only on MacOS.
@@ -375,11 +557,6 @@ func (x *DeviceCredential) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeviceCredential.ProtoReflect.Descriptor instead.
-func (*DeviceCredential) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_device_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *DeviceCredential) GetId() string {
 	if x != nil {
 		return x.Id
@@ -413,6 +590,60 @@ func (x *DeviceCredential) GetTpmAkPublic() []byte {
 		return x.TpmAkPublic
 	}
 	return nil
+}
+
+func (x *DeviceCredential) SetId(v string) {
+	x.Id = v
+}
+
+func (x *DeviceCredential) SetPublicKeyDer(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicKeyDer = v
+}
+
+func (x *DeviceCredential) SetDeviceAttestationType(v DeviceAttestationType) {
+	x.DeviceAttestationType = v
+}
+
+func (x *DeviceCredential) SetTpmEkcertSerial(v string) {
+	x.TpmEkcertSerial = v
+}
+
+func (x *DeviceCredential) SetTpmAkPublic(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.TpmAkPublic = v
+}
+
+type DeviceCredential_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Unique identifier of the credential, defined client-side.
+	Id string
+	// Device public key marshaled as a PKIX, ASN.1 DER. Used only on MacOS.
+	PublicKeyDer []byte
+	// The degree to which the device credential is attested.
+	DeviceAttestationType DeviceAttestationType
+	// For TPM devices, the serial number of the TPM endorsement certificate.
+	TpmEkcertSerial string
+	// For TPM devices, the encoded TPMT_PUBLIC structure containing the
+	// attestation public key and signing parameters.
+	TpmAkPublic []byte
+}
+
+func (b0 DeviceCredential_builder) Build() *DeviceCredential {
+	m0 := &DeviceCredential{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.PublicKeyDer = b.PublicKeyDer
+	x.DeviceAttestationType = b.DeviceAttestationType
+	x.TpmEkcertSerial = b.TpmEkcertSerial
+	x.TpmAkPublic = b.TpmAkPublic
+	return m0
 }
 
 var File_teleport_devicetrust_v1_device_proto protoreflect.FileDescriptor
@@ -455,18 +686,6 @@ const file_teleport_devicetrust_v1_device_proto_rawDesc = "" +
 	" DEVICE_ENROLL_STATUS_UNSPECIFIED\x10\x00\x12%\n" +
 	"!DEVICE_ENROLL_STATUS_NOT_ENROLLED\x10\x01\x12!\n" +
 	"\x1dDEVICE_ENROLL_STATUS_ENROLLED\x10\x02BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_device_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_device_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_device_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_device_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_device_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_device_proto_rawDesc), len(file_teleport_devicetrust_v1_device_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_device_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_device_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_devicetrust_v1_device_proto_msgTypes = make([]protoimpl.MessageInfo, 2)

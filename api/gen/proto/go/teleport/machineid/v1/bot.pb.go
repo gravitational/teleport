@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/machineid/v1/bot.proto
 
+//go:build !protoopaque
+
 package machineidv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // A Bot is a Teleport identity intended to be used by Machines. The Bot
 // resource defines a Bot and configures its properties.
 type Bot struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Differentiates variations of the same kind. All resources should
@@ -86,11 +87,6 @@ func (x *Bot) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Bot.ProtoReflect.Descriptor instead.
-func (*Bot) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *Bot) GetKind() string {
@@ -142,9 +138,107 @@ func (x *Bot) GetScope() string {
 	return ""
 }
 
+func (x *Bot) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *Bot) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *Bot) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *Bot) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *Bot) SetSpec(v *BotSpec) {
+	x.Spec = v
+}
+
+func (x *Bot) SetStatus(v *BotStatus) {
+	x.Status = v
+}
+
+func (x *Bot) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *Bot) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *Bot) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *Bot) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *Bot) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *Bot) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *Bot) ClearStatus() {
+	x.Status = nil
+}
+
+type Bot_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented.
+	Kind string
+	// Differentiates variations of the same kind. All resources should
+	// contain one, even if it is never populated.
+	SubKind string
+	// The version of the resource being represented.
+	Version string
+	// Common metadata that all resources share.
+	Metadata *v1.Metadata
+	// The configured properties of a Bot.
+	Spec *BotSpec
+	// Fields that are set by the server as results of operations. These should
+	// not be modified by users.
+	Status *BotStatus
+	// The scope of the Bot. If unset, the Bot is unscoped (classic behavior) and
+	// if set, the Bot is scoped. When the Bot is scoped, the `spec.roles`,
+	// `spec.traits` and `spec.max_session_ttl` fields must not be set.
+	Scope string
+}
+
+func (b0 Bot_builder) Build() *Bot {
+	m0 := &Bot{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	x.Scope = b.Scope
+	return m0
+}
+
 // Trait is an individual trait that will be applied to the bot user.
 type Trait struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the trait. This is what allows the trait to be queried in
 	// role templates.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -179,11 +273,6 @@ func (x *Trait) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Trait.ProtoReflect.Descriptor instead.
-func (*Trait) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *Trait) GetName() string {
 	if x != nil {
 		return x.Name
@@ -198,9 +287,36 @@ func (x *Trait) GetValues() []string {
 	return nil
 }
 
+func (x *Trait) SetName(v string) {
+	x.Name = v
+}
+
+func (x *Trait) SetValues(v []string) {
+	x.Values = v
+}
+
+type Trait_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the trait. This is what allows the trait to be queried in
+	// role templates.
+	Name string
+	// The values associated with the named trait.
+	Values []string
+}
+
+func (b0 Trait_builder) Build() *Trait {
+	m0 := &Trait{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Values = b.Values
+	return m0
+}
+
 // The configured properties of a Bot.
 type BotSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The roles that the bot should be able to impersonate.
 	//
 	// Cannot be set for a scoped Bot.
@@ -248,11 +364,6 @@ func (x *BotSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BotSpec.ProtoReflect.Descriptor instead.
-func (*BotSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *BotSpec) GetRoles() []string {
 	if x != nil {
 		return x.Roles
@@ -274,10 +385,66 @@ func (x *BotSpec) GetMaxSessionTtl() *durationpb.Duration {
 	return nil
 }
 
+func (x *BotSpec) SetRoles(v []string) {
+	x.Roles = v
+}
+
+func (x *BotSpec) SetTraits(v []*Trait) {
+	x.Traits = v
+}
+
+func (x *BotSpec) SetMaxSessionTtl(v *durationpb.Duration) {
+	x.MaxSessionTtl = v
+}
+
+func (x *BotSpec) HasMaxSessionTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.MaxSessionTtl != nil
+}
+
+func (x *BotSpec) ClearMaxSessionTtl() {
+	x.MaxSessionTtl = nil
+}
+
+type BotSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The roles that the bot should be able to impersonate.
+	//
+	// Cannot be set for a scoped Bot.
+	Roles []string
+	// The traits that will be associated with the bot for the purposes of role
+	// templating.
+	//
+	// Where multiple specified with the same name, these will be merged by the
+	// server.
+	//
+	// Cannot be set for a scoped Bot.
+	Traits []*Trait
+	// The max session TTL value for the bot's internal role. Unless specified,
+	// bots may not request a value beyond the default maximum TTL of 12 hours.
+	// This value may not be larger than 7 days (168 hours).
+	//
+	// Cannot be set for a scoped Bot.
+	MaxSessionTtl *durationpb.Duration
+}
+
+func (b0 BotSpec_builder) Build() *BotSpec {
+	m0 := &BotSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Roles = b.Roles
+	x.Traits = b.Traits
+	x.MaxSessionTtl = b.MaxSessionTtl
+	return m0
+}
+
 // Fields that are set by the server as results of operations. These should not
 // be modified by users.
 type BotStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the user associated with the bot.
 	UserName string `protobuf:"bytes,1,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
 	// The name of the role associated with the bot.
@@ -311,11 +478,6 @@ func (x *BotStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BotStatus.ProtoReflect.Descriptor instead.
-func (*BotStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_machineid_v1_bot_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *BotStatus) GetUserName() string {
 	if x != nil {
 		return x.UserName
@@ -328,6 +490,32 @@ func (x *BotStatus) GetRoleName() string {
 		return x.RoleName
 	}
 	return ""
+}
+
+func (x *BotStatus) SetUserName(v string) {
+	x.UserName = v
+}
+
+func (x *BotStatus) SetRoleName(v string) {
+	x.RoleName = v
+}
+
+type BotStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the user associated with the bot.
+	UserName string
+	// The name of the role associated with the bot.
+	RoleName string
+}
+
+func (b0 BotStatus_builder) Build() *BotStatus {
+	m0 := &BotStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserName = b.UserName
+	x.RoleName = b.RoleName
+	return m0
 }
 
 var File_teleport_machineid_v1_bot_proto protoreflect.FileDescriptor
@@ -353,18 +541,6 @@ const file_teleport_machineid_v1_bot_proto_rawDesc = "" +
 	"\tBotStatus\x12\x1b\n" +
 	"\tuser_name\x18\x01 \x01(\tR\buserName\x12\x1b\n" +
 	"\trole_name\x18\x03 \x01(\tR\broleNameJ\x04\b\x02\x10\x03R\trole_roleBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1;machineidv1b\x06proto3"
-
-var (
-	file_teleport_machineid_v1_bot_proto_rawDescOnce sync.Once
-	file_teleport_machineid_v1_bot_proto_rawDescData []byte
-)
-
-func file_teleport_machineid_v1_bot_proto_rawDescGZIP() []byte {
-	file_teleport_machineid_v1_bot_proto_rawDescOnce.Do(func() {
-		file_teleport_machineid_v1_bot_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_machineid_v1_bot_proto_rawDesc), len(file_teleport_machineid_v1_bot_proto_rawDesc)))
-	})
-	return file_teleport_machineid_v1_bot_proto_rawDescData
-}
 
 var file_teleport_machineid_v1_bot_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_machineid_v1_bot_proto_goTypes = []any{

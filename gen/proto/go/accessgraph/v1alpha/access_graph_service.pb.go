@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/access_graph_service.proto
 
+//go:build !protoopaque
+
 package accessgraphv1alpha
 
 import (
@@ -32,7 +34,6 @@ import (
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -92,14 +93,9 @@ func (x KubeAuditLogCursor_KubeAuditLogSource) Number() protoreflect.EnumNumber 
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use KubeAuditLogCursor_KubeAuditLogSource.Descriptor instead.
-func (KubeAuditLogCursor_KubeAuditLogSource) EnumDescriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{47, 0}
-}
-
 // QueryRequest is a request to query the access graph.
 type QueryRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// query is a SQL query.
 	Query         string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -131,11 +127,6 @@ func (x *QueryRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use QueryRequest.ProtoReflect.Descriptor instead.
-func (*QueryRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *QueryRequest) GetQuery() string {
 	if x != nil {
 		return x.Query
@@ -143,9 +134,28 @@ func (x *QueryRequest) GetQuery() string {
 	return ""
 }
 
+func (x *QueryRequest) SetQuery(v string) {
+	x.Query = v
+}
+
+type QueryRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// query is a SQL query.
+	Query string
+}
+
+func (b0 QueryRequest_builder) Build() *QueryRequest {
+	m0 := &QueryRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Query = b.Query
+	return m0
+}
+
 // QueryResponse is a response to a query.
 type QueryResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// nodes is a list of nodes returned by the query. The response may contain only nodes.
 	Nodes []*Node `protobuf:"bytes,1,rep,name=nodes,proto3" json:"nodes,omitempty"`
 	// edges is a list of edges returned by the query.
@@ -179,11 +189,6 @@ func (x *QueryResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use QueryResponse.ProtoReflect.Descriptor instead.
-func (*QueryResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *QueryResponse) GetNodes() []*Node {
 	if x != nil {
 		return x.Nodes
@@ -198,9 +203,35 @@ func (x *QueryResponse) GetEdges() []*Edge {
 	return nil
 }
 
+func (x *QueryResponse) SetNodes(v []*Node) {
+	x.Nodes = v
+}
+
+func (x *QueryResponse) SetEdges(v []*Edge) {
+	x.Edges = v
+}
+
+type QueryResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// nodes is a list of nodes returned by the query. The response may contain only nodes.
+	Nodes []*Node
+	// edges is a list of edges returned by the query.
+	Edges []*Edge
+}
+
+func (b0 QueryResponse_builder) Build() *QueryResponse {
+	m0 := &QueryResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Nodes = b.Nodes
+	x.Edges = b.Edges
+	return m0
+}
+
 // GetFileRequest is a request to get a file.
 type GetFileRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// filepath is a path to the file.
 	Filepath      string `protobuf:"bytes,1,opt,name=filepath,proto3" json:"filepath,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -232,11 +263,6 @@ func (x *GetFileRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetFileRequest.ProtoReflect.Descriptor instead.
-func (*GetFileRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GetFileRequest) GetFilepath() string {
 	if x != nil {
 		return x.Filepath
@@ -244,9 +270,28 @@ func (x *GetFileRequest) GetFilepath() string {
 	return ""
 }
 
+func (x *GetFileRequest) SetFilepath(v string) {
+	x.Filepath = v
+}
+
+type GetFileRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// filepath is a path to the file.
+	Filepath string
+}
+
+func (b0 GetFileRequest_builder) Build() *GetFileRequest {
+	m0 := &GetFileRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Filepath = b.Filepath
+	return m0
+}
+
 // GetFileResponse is a response to a file request.
 type GetFileResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// data is a raw file content.
 	Data          []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -278,11 +323,6 @@ func (x *GetFileResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetFileResponse.ProtoReflect.Descriptor instead.
-func (*GetFileResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *GetFileResponse) GetData() []byte {
 	if x != nil {
 		return x.Data
@@ -290,10 +330,32 @@ func (x *GetFileResponse) GetData() []byte {
 	return nil
 }
 
+func (x *GetFileResponse) SetData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Data = v
+}
+
+type GetFileResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// data is a raw file content.
+	Data []byte
+}
+
+func (b0 GetFileResponse_builder) Build() *GetFileResponse {
+	m0 := &GetFileResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Data = b.Data
+	return m0
+}
+
 // EventsStreamRequest is a request to send commands to the access graph.
 // This command is used to sync the access graph with the Teleport database state.
 type EventsStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// operation contains the desired operation
 	//
 	// Types that are valid to be assigned to Operation:
@@ -331,11 +393,6 @@ func (x *EventsStreamRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EventsStreamRequest.ProtoReflect.Descriptor instead.
-func (*EventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *EventsStreamRequest) GetOperation() isEventsStreamRequest_Operation {
@@ -390,6 +447,213 @@ func (x *EventsStreamRequest) GetExcludeAccessListMembers() *ExcludeAccessListsM
 	return nil
 }
 
+func (x *EventsStreamRequest) SetSync(v *SyncOperation) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EventsStreamRequest_Sync{v}
+}
+
+func (x *EventsStreamRequest) SetUpsert(v *ResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EventsStreamRequest_Upsert{v}
+}
+
+func (x *EventsStreamRequest) SetDelete(v *ResourceHeaderList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EventsStreamRequest_Delete{v}
+}
+
+func (x *EventsStreamRequest) SetAccessListsMembers(v *AccessListsMembers) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EventsStreamRequest_AccessListsMembers{v}
+}
+
+func (x *EventsStreamRequest) SetExcludeAccessListMembers(v *ExcludeAccessListsMembers) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EventsStreamRequest_ExcludeAccessListMembers{v}
+}
+
+func (x *EventsStreamRequest) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *EventsStreamRequest) HasSync() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EventsStreamRequest_Sync)
+	return ok
+}
+
+func (x *EventsStreamRequest) HasUpsert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EventsStreamRequest_Upsert)
+	return ok
+}
+
+func (x *EventsStreamRequest) HasDelete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EventsStreamRequest_Delete)
+	return ok
+}
+
+func (x *EventsStreamRequest) HasAccessListsMembers() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EventsStreamRequest_AccessListsMembers)
+	return ok
+}
+
+func (x *EventsStreamRequest) HasExcludeAccessListMembers() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EventsStreamRequest_ExcludeAccessListMembers)
+	return ok
+}
+
+func (x *EventsStreamRequest) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *EventsStreamRequest) ClearSync() {
+	if _, ok := x.Operation.(*EventsStreamRequest_Sync); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *EventsStreamRequest) ClearUpsert() {
+	if _, ok := x.Operation.(*EventsStreamRequest_Upsert); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *EventsStreamRequest) ClearDelete() {
+	if _, ok := x.Operation.(*EventsStreamRequest_Delete); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *EventsStreamRequest) ClearAccessListsMembers() {
+	if _, ok := x.Operation.(*EventsStreamRequest_AccessListsMembers); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *EventsStreamRequest) ClearExcludeAccessListMembers() {
+	if _, ok := x.Operation.(*EventsStreamRequest_ExcludeAccessListMembers); ok {
+		x.Operation = nil
+	}
+}
+
+const EventsStreamRequest_Operation_not_set_case case_EventsStreamRequest_Operation = 0
+const EventsStreamRequest_Sync_case case_EventsStreamRequest_Operation = 1
+const EventsStreamRequest_Upsert_case case_EventsStreamRequest_Operation = 2
+const EventsStreamRequest_Delete_case case_EventsStreamRequest_Operation = 3
+const EventsStreamRequest_AccessListsMembers_case case_EventsStreamRequest_Operation = 4
+const EventsStreamRequest_ExcludeAccessListMembers_case case_EventsStreamRequest_Operation = 5
+
+func (x *EventsStreamRequest) WhichOperation() case_EventsStreamRequest_Operation {
+	if x == nil {
+		return EventsStreamRequest_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *EventsStreamRequest_Sync:
+		return EventsStreamRequest_Sync_case
+	case *EventsStreamRequest_Upsert:
+		return EventsStreamRequest_Upsert_case
+	case *EventsStreamRequest_Delete:
+		return EventsStreamRequest_Delete_case
+	case *EventsStreamRequest_AccessListsMembers:
+		return EventsStreamRequest_AccessListsMembers_case
+	case *EventsStreamRequest_ExcludeAccessListMembers:
+		return EventsStreamRequest_ExcludeAccessListMembers_case
+	default:
+		return EventsStreamRequest_Operation_not_set_case
+	}
+}
+
+type EventsStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// operation contains the desired operation
+
+	// Fields of oneof Operation:
+	// sync is a command to sync the access graph with the Teleport database state.
+	// it's issued once Teleport finishes syncing all resources with the database.
+	Sync *SyncOperation
+	// upsert is a command to put a resource into the access graph or update it.
+	Upsert *ResourceList
+	// delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+	Delete *ResourceHeaderList
+	// access_lists_members is a command to upsert access lists members.
+	// It's issued when a user is added to an access list or when their membership is updated.
+	// It's also issued when a user membership expires but the user remains in the access list.
+	// In that case, the state of the user reflects the expiration reason.
+	AccessListsMembers *AccessListsMembers
+	// exclude_access_list_members is a command to exclude access lists members
+	// when they are manually removed from the access list.
+	// If their membership remains but it's expired, they are not excluded
+	// from the access list but they don't receive any access - in that case,
+	// the request is [access_lists_members].
+	ExcludeAccessListMembers *ExcludeAccessListsMembers
+	// -- end of Operation
+}
+
+func (b0 EventsStreamRequest_builder) Build() *EventsStreamRequest {
+	m0 := &EventsStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Sync != nil {
+		x.Operation = &EventsStreamRequest_Sync{b.Sync}
+	}
+	if b.Upsert != nil {
+		x.Operation = &EventsStreamRequest_Upsert{b.Upsert}
+	}
+	if b.Delete != nil {
+		x.Operation = &EventsStreamRequest_Delete{b.Delete}
+	}
+	if b.AccessListsMembers != nil {
+		x.Operation = &EventsStreamRequest_AccessListsMembers{b.AccessListsMembers}
+	}
+	if b.ExcludeAccessListMembers != nil {
+		x.Operation = &EventsStreamRequest_ExcludeAccessListMembers{b.ExcludeAccessListMembers}
+	}
+	return m0
+}
+
+type case_EventsStreamRequest_Operation protoreflect.FieldNumber
+
+func (x case_EventsStreamRequest_Operation) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[4].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEventsStreamRequest_Operation interface {
 	isEventsStreamRequest_Operation()
 }
@@ -440,7 +704,7 @@ func (*EventsStreamRequest_ExcludeAccessListMembers) isEventsStreamRequest_Opera
 // EventsStreamV2Request is a request to send commands to the access graph.
 // This command is used to sync the access graph with the Teleport database state.
 type EventsStreamV2Request struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// operation contains the desired operation
 	//
 	// Types that are valid to be assigned to Operation:
@@ -478,11 +742,6 @@ func (x *EventsStreamV2Request) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use EventsStreamV2Request.ProtoReflect.Descriptor instead.
-func (*EventsStreamV2Request) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *EventsStreamV2Request) GetOperation() isEventsStreamV2Request_Operation {
@@ -537,6 +796,213 @@ func (x *EventsStreamV2Request) GetExcludeAccessListMembers() *ExcludeAccessList
 	return nil
 }
 
+func (x *EventsStreamV2Request) SetSync(v *SyncOperation) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EventsStreamV2Request_Sync{v}
+}
+
+func (x *EventsStreamV2Request) SetUpsert(v *ResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EventsStreamV2Request_Upsert{v}
+}
+
+func (x *EventsStreamV2Request) SetDelete(v *ResourceHeaderList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EventsStreamV2Request_Delete{v}
+}
+
+func (x *EventsStreamV2Request) SetAccessListsMembers(v *AccessListsMembers) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EventsStreamV2Request_AccessListsMembers{v}
+}
+
+func (x *EventsStreamV2Request) SetExcludeAccessListMembers(v *ExcludeAccessListsMembers) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EventsStreamV2Request_ExcludeAccessListMembers{v}
+}
+
+func (x *EventsStreamV2Request) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *EventsStreamV2Request) HasSync() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EventsStreamV2Request_Sync)
+	return ok
+}
+
+func (x *EventsStreamV2Request) HasUpsert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EventsStreamV2Request_Upsert)
+	return ok
+}
+
+func (x *EventsStreamV2Request) HasDelete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EventsStreamV2Request_Delete)
+	return ok
+}
+
+func (x *EventsStreamV2Request) HasAccessListsMembers() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EventsStreamV2Request_AccessListsMembers)
+	return ok
+}
+
+func (x *EventsStreamV2Request) HasExcludeAccessListMembers() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EventsStreamV2Request_ExcludeAccessListMembers)
+	return ok
+}
+
+func (x *EventsStreamV2Request) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *EventsStreamV2Request) ClearSync() {
+	if _, ok := x.Operation.(*EventsStreamV2Request_Sync); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *EventsStreamV2Request) ClearUpsert() {
+	if _, ok := x.Operation.(*EventsStreamV2Request_Upsert); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *EventsStreamV2Request) ClearDelete() {
+	if _, ok := x.Operation.(*EventsStreamV2Request_Delete); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *EventsStreamV2Request) ClearAccessListsMembers() {
+	if _, ok := x.Operation.(*EventsStreamV2Request_AccessListsMembers); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *EventsStreamV2Request) ClearExcludeAccessListMembers() {
+	if _, ok := x.Operation.(*EventsStreamV2Request_ExcludeAccessListMembers); ok {
+		x.Operation = nil
+	}
+}
+
+const EventsStreamV2Request_Operation_not_set_case case_EventsStreamV2Request_Operation = 0
+const EventsStreamV2Request_Sync_case case_EventsStreamV2Request_Operation = 1
+const EventsStreamV2Request_Upsert_case case_EventsStreamV2Request_Operation = 2
+const EventsStreamV2Request_Delete_case case_EventsStreamV2Request_Operation = 3
+const EventsStreamV2Request_AccessListsMembers_case case_EventsStreamV2Request_Operation = 4
+const EventsStreamV2Request_ExcludeAccessListMembers_case case_EventsStreamV2Request_Operation = 5
+
+func (x *EventsStreamV2Request) WhichOperation() case_EventsStreamV2Request_Operation {
+	if x == nil {
+		return EventsStreamV2Request_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *EventsStreamV2Request_Sync:
+		return EventsStreamV2Request_Sync_case
+	case *EventsStreamV2Request_Upsert:
+		return EventsStreamV2Request_Upsert_case
+	case *EventsStreamV2Request_Delete:
+		return EventsStreamV2Request_Delete_case
+	case *EventsStreamV2Request_AccessListsMembers:
+		return EventsStreamV2Request_AccessListsMembers_case
+	case *EventsStreamV2Request_ExcludeAccessListMembers:
+		return EventsStreamV2Request_ExcludeAccessListMembers_case
+	default:
+		return EventsStreamV2Request_Operation_not_set_case
+	}
+}
+
+type EventsStreamV2Request_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// operation contains the desired operation
+
+	// Fields of oneof Operation:
+	// sync is a command to sync the access graph with the Teleport database state.
+	// it's issued once Teleport finishes syncing all resources with the database.
+	Sync *SyncOperation
+	// upsert is a command to put a resource into the access graph or update it.
+	Upsert *ResourceList
+	// delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+	Delete *ResourceHeaderList
+	// access_lists_members is a command to upsert access lists members.
+	// It's issued when a user is added to an access list or when their membership is updated.
+	// It's also issued when a user membership expires but the user remains in the access list.
+	// In that case, the state of the user reflects the expiration reason.
+	AccessListsMembers *AccessListsMembers
+	// exclude_access_list_members is a command to exclude access lists members
+	// when they are manually removed from the access list.
+	// If their membership remains but it's expired, they are not excluded
+	// from the access list but they don't receive any access - in that case,
+	// the request is [access_lists_members].
+	ExcludeAccessListMembers *ExcludeAccessListsMembers
+	// -- end of Operation
+}
+
+func (b0 EventsStreamV2Request_builder) Build() *EventsStreamV2Request {
+	m0 := &EventsStreamV2Request{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Sync != nil {
+		x.Operation = &EventsStreamV2Request_Sync{b.Sync}
+	}
+	if b.Upsert != nil {
+		x.Operation = &EventsStreamV2Request_Upsert{b.Upsert}
+	}
+	if b.Delete != nil {
+		x.Operation = &EventsStreamV2Request_Delete{b.Delete}
+	}
+	if b.AccessListsMembers != nil {
+		x.Operation = &EventsStreamV2Request_AccessListsMembers{b.AccessListsMembers}
+	}
+	if b.ExcludeAccessListMembers != nil {
+		x.Operation = &EventsStreamV2Request_ExcludeAccessListMembers{b.ExcludeAccessListMembers}
+	}
+	return m0
+}
+
+type case_EventsStreamV2Request_Operation protoreflect.FieldNumber
+
+func (x case_EventsStreamV2Request_Operation) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[5].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEventsStreamV2Request_Operation interface {
 	isEventsStreamV2Request_Operation()
 }
@@ -587,7 +1053,7 @@ func (*EventsStreamV2Request_ExcludeAccessListMembers) isEventsStreamV2Request_O
 // SyncOperation is a command that Teleport sends to the access graph service
 // at the end of the sync process.
 type SyncOperation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -617,14 +1083,21 @@ func (x *SyncOperation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SyncOperation.ProtoReflect.Descriptor instead.
-func (*SyncOperation) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{6}
+type SyncOperation_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 SyncOperation_builder) Build() *SyncOperation {
+	m0 := &SyncOperation{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // EventsStreamResponse is the response from EventsStream.
 type EventsStreamResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -654,14 +1127,21 @@ func (x *EventsStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EventsStreamResponse.ProtoReflect.Descriptor instead.
-func (*EventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{7}
+type EventsStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 EventsStreamResponse_builder) Build() *EventsStreamResponse {
+	m0 := &EventsStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // EventsStreamV2Response is the response from EventsStreamV2.
 type EventsStreamV2Response struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// action is a action that should be performed by Teleport on behalf of the access graph service.
 	//
 	// Types that are valid to be assigned to Action:
@@ -698,11 +1178,6 @@ func (x *EventsStreamV2Response) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EventsStreamV2Response.ProtoReflect.Descriptor instead.
-func (*EventsStreamV2Response) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *EventsStreamV2Response) GetAction() isEventsStreamV2Response_Action {
 	if x != nil {
 		return x.Action
@@ -728,6 +1203,116 @@ func (x *EventsStreamV2Response) GetUsageEvent() *UsageEvent {
 	return nil
 }
 
+func (x *EventsStreamV2Response) SetEvent(v *AuditEvent) {
+	if v == nil {
+		x.Action = nil
+		return
+	}
+	x.Action = &EventsStreamV2Response_Event{v}
+}
+
+func (x *EventsStreamV2Response) SetUsageEvent(v *UsageEvent) {
+	if v == nil {
+		x.Action = nil
+		return
+	}
+	x.Action = &EventsStreamV2Response_UsageEvent{v}
+}
+
+func (x *EventsStreamV2Response) HasAction() bool {
+	if x == nil {
+		return false
+	}
+	return x.Action != nil
+}
+
+func (x *EventsStreamV2Response) HasEvent() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Action.(*EventsStreamV2Response_Event)
+	return ok
+}
+
+func (x *EventsStreamV2Response) HasUsageEvent() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Action.(*EventsStreamV2Response_UsageEvent)
+	return ok
+}
+
+func (x *EventsStreamV2Response) ClearAction() {
+	x.Action = nil
+}
+
+func (x *EventsStreamV2Response) ClearEvent() {
+	if _, ok := x.Action.(*EventsStreamV2Response_Event); ok {
+		x.Action = nil
+	}
+}
+
+func (x *EventsStreamV2Response) ClearUsageEvent() {
+	if _, ok := x.Action.(*EventsStreamV2Response_UsageEvent); ok {
+		x.Action = nil
+	}
+}
+
+const EventsStreamV2Response_Action_not_set_case case_EventsStreamV2Response_Action = 0
+const EventsStreamV2Response_Event_case case_EventsStreamV2Response_Action = 1
+const EventsStreamV2Response_UsageEvent_case case_EventsStreamV2Response_Action = 2
+
+func (x *EventsStreamV2Response) WhichAction() case_EventsStreamV2Response_Action {
+	if x == nil {
+		return EventsStreamV2Response_Action_not_set_case
+	}
+	switch x.Action.(type) {
+	case *EventsStreamV2Response_Event:
+		return EventsStreamV2Response_Event_case
+	case *EventsStreamV2Response_UsageEvent:
+		return EventsStreamV2Response_UsageEvent_case
+	default:
+		return EventsStreamV2Response_Action_not_set_case
+	}
+}
+
+type EventsStreamV2Response_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// action is a action that should be performed by Teleport on behalf of the access graph service.
+
+	// Fields of oneof Action:
+	// event is a audit event that should be logged by Teleport.
+	Event *AuditEvent
+	// usage_event is a usage event to be submitted to the auth server, as an analog of
+	// AuthService.SubmitUsageEvent.
+	UsageEvent *UsageEvent
+	// -- end of Action
+}
+
+func (b0 EventsStreamV2Response_builder) Build() *EventsStreamV2Response {
+	m0 := &EventsStreamV2Response{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Event != nil {
+		x.Action = &EventsStreamV2Response_Event{b.Event}
+	}
+	if b.UsageEvent != nil {
+		x.Action = &EventsStreamV2Response_UsageEvent{b.UsageEvent}
+	}
+	return m0
+}
+
+type case_EventsStreamV2Response_Action protoreflect.FieldNumber
+
+func (x case_EventsStreamV2Response_Action) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[8].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEventsStreamV2Response_Action interface {
 	isEventsStreamV2Response_Action()
 }
@@ -749,7 +1334,7 @@ func (*EventsStreamV2Response_UsageEvent) isEventsStreamV2Response_Action() {}
 
 // AuditEvent is an event that should be logged by Teleport.
 type AuditEvent struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Event:
 	//
 	//	*AuditEvent_AccessPathChanged
@@ -783,11 +1368,6 @@ func (x *AuditEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuditEvent.ProtoReflect.Descriptor instead.
-func (*AuditEvent) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *AuditEvent) GetEvent() isAuditEvent_Event {
 	if x != nil {
 		return x.Event
@@ -804,6 +1384,83 @@ func (x *AuditEvent) GetAccessPathChanged() *AccessPathChanged {
 	return nil
 }
 
+func (x *AuditEvent) SetAccessPathChanged(v *AccessPathChanged) {
+	if v == nil {
+		x.Event = nil
+		return
+	}
+	x.Event = &AuditEvent_AccessPathChanged{v}
+}
+
+func (x *AuditEvent) HasEvent() bool {
+	if x == nil {
+		return false
+	}
+	return x.Event != nil
+}
+
+func (x *AuditEvent) HasAccessPathChanged() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Event.(*AuditEvent_AccessPathChanged)
+	return ok
+}
+
+func (x *AuditEvent) ClearEvent() {
+	x.Event = nil
+}
+
+func (x *AuditEvent) ClearAccessPathChanged() {
+	if _, ok := x.Event.(*AuditEvent_AccessPathChanged); ok {
+		x.Event = nil
+	}
+}
+
+const AuditEvent_Event_not_set_case case_AuditEvent_Event = 0
+const AuditEvent_AccessPathChanged_case case_AuditEvent_Event = 1
+
+func (x *AuditEvent) WhichEvent() case_AuditEvent_Event {
+	if x == nil {
+		return AuditEvent_Event_not_set_case
+	}
+	switch x.Event.(type) {
+	case *AuditEvent_AccessPathChanged:
+		return AuditEvent_AccessPathChanged_case
+	default:
+		return AuditEvent_Event_not_set_case
+	}
+}
+
+type AuditEvent_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Event:
+	// access_path_changed is an event that should be logged when the access path changes.
+	AccessPathChanged *AccessPathChanged
+	// -- end of Event
+}
+
+func (b0 AuditEvent_builder) Build() *AuditEvent {
+	m0 := &AuditEvent{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.AccessPathChanged != nil {
+		x.Event = &AuditEvent_AccessPathChanged{b.AccessPathChanged}
+	}
+	return m0
+}
+
+type case_AuditEvent_Event protoreflect.FieldNumber
+
+func (x case_AuditEvent_Event) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[9].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAuditEvent_Event interface {
 	isAuditEvent_Event()
 }
@@ -817,7 +1474,7 @@ func (*AuditEvent_AccessPathChanged) isAuditEvent_Event() {}
 
 // UsageEvent is a usage event that access graph can submit to teleport
 type UsageEvent struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Event:
 	//
 	//	*UsageEvent_GraphSize
@@ -852,11 +1509,6 @@ func (x *UsageEvent) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UsageEvent.ProtoReflect.Descriptor instead.
-func (*UsageEvent) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *UsageEvent) GetEvent() isUsageEvent_Event {
 	if x != nil {
 		return x.Event
@@ -880,6 +1532,113 @@ func (x *UsageEvent) GetAuditLogsIngested() *v1alpha.IdentitySecurityAuditLogsIn
 		}
 	}
 	return nil
+}
+
+func (x *UsageEvent) SetGraphSize(v *v1alpha.IdentitySecurityGraphSizeEvent) {
+	if v == nil {
+		x.Event = nil
+		return
+	}
+	x.Event = &UsageEvent_GraphSize{v}
+}
+
+func (x *UsageEvent) SetAuditLogsIngested(v *v1alpha.IdentitySecurityAuditLogsIngestedEvent) {
+	if v == nil {
+		x.Event = nil
+		return
+	}
+	x.Event = &UsageEvent_AuditLogsIngested{v}
+}
+
+func (x *UsageEvent) HasEvent() bool {
+	if x == nil {
+		return false
+	}
+	return x.Event != nil
+}
+
+func (x *UsageEvent) HasGraphSize() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Event.(*UsageEvent_GraphSize)
+	return ok
+}
+
+func (x *UsageEvent) HasAuditLogsIngested() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Event.(*UsageEvent_AuditLogsIngested)
+	return ok
+}
+
+func (x *UsageEvent) ClearEvent() {
+	x.Event = nil
+}
+
+func (x *UsageEvent) ClearGraphSize() {
+	if _, ok := x.Event.(*UsageEvent_GraphSize); ok {
+		x.Event = nil
+	}
+}
+
+func (x *UsageEvent) ClearAuditLogsIngested() {
+	if _, ok := x.Event.(*UsageEvent_AuditLogsIngested); ok {
+		x.Event = nil
+	}
+}
+
+const UsageEvent_Event_not_set_case case_UsageEvent_Event = 0
+const UsageEvent_GraphSize_case case_UsageEvent_Event = 1
+const UsageEvent_AuditLogsIngested_case case_UsageEvent_Event = 2
+
+func (x *UsageEvent) WhichEvent() case_UsageEvent_Event {
+	if x == nil {
+		return UsageEvent_Event_not_set_case
+	}
+	switch x.Event.(type) {
+	case *UsageEvent_GraphSize:
+		return UsageEvent_GraphSize_case
+	case *UsageEvent_AuditLogsIngested:
+		return UsageEvent_AuditLogsIngested_case
+	default:
+		return UsageEvent_Event_not_set_case
+	}
+}
+
+type UsageEvent_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Event:
+	// graph_size provides the size of a provider's graph
+	GraphSize *v1alpha.IdentitySecurityGraphSizeEvent
+	// audit_logs_ingested provides a count of new audit logs ingested by a provider.
+	AuditLogsIngested *v1alpha.IdentitySecurityAuditLogsIngestedEvent
+	// -- end of Event
+}
+
+func (b0 UsageEvent_builder) Build() *UsageEvent {
+	m0 := &UsageEvent{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.GraphSize != nil {
+		x.Event = &UsageEvent_GraphSize{b.GraphSize}
+	}
+	if b.AuditLogsIngested != nil {
+		x.Event = &UsageEvent_AuditLogsIngested{b.AuditLogsIngested}
+	}
+	return m0
+}
+
+type case_UsageEvent_Event protoreflect.FieldNumber
+
+func (x case_UsageEvent_Event) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[10].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
 }
 
 type isUsageEvent_Event interface {
@@ -935,7 +1694,7 @@ func (*UsageEvent_AuditLogsIngested) isUsageEvent_Event() {}
 //   - `events` includes `resume_state` for persistent progress tracking.
 //   - `bulk_sync` allows purging state for old, completed bulk export dates.
 type AuditLogStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Action:
 	//
 	//	*AuditLogStreamRequest_Config
@@ -969,11 +1728,6 @@ func (x *AuditLogStreamRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AuditLogStreamRequest.ProtoReflect.Descriptor instead.
-func (*AuditLogStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *AuditLogStreamRequest) GetAction() isAuditLogStreamRequest_Action {
@@ -1010,6 +1764,140 @@ func (x *AuditLogStreamRequest) GetBulkSync() *BulkResumeStateSync {
 	return nil
 }
 
+func (x *AuditLogStreamRequest) SetConfig(v *AuditLogConfig) {
+	if v == nil {
+		x.Action = nil
+		return
+	}
+	x.Action = &AuditLogStreamRequest_Config{v}
+}
+
+func (x *AuditLogStreamRequest) SetEvents(v *AuditLogEvents) {
+	if v == nil {
+		x.Action = nil
+		return
+	}
+	x.Action = &AuditLogStreamRequest_Events{v}
+}
+
+func (x *AuditLogStreamRequest) SetBulkSync(v *BulkResumeStateSync) {
+	if v == nil {
+		x.Action = nil
+		return
+	}
+	x.Action = &AuditLogStreamRequest_BulkSync{v}
+}
+
+func (x *AuditLogStreamRequest) HasAction() bool {
+	if x == nil {
+		return false
+	}
+	return x.Action != nil
+}
+
+func (x *AuditLogStreamRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Action.(*AuditLogStreamRequest_Config)
+	return ok
+}
+
+func (x *AuditLogStreamRequest) HasEvents() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Action.(*AuditLogStreamRequest_Events)
+	return ok
+}
+
+func (x *AuditLogStreamRequest) HasBulkSync() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Action.(*AuditLogStreamRequest_BulkSync)
+	return ok
+}
+
+func (x *AuditLogStreamRequest) ClearAction() {
+	x.Action = nil
+}
+
+func (x *AuditLogStreamRequest) ClearConfig() {
+	if _, ok := x.Action.(*AuditLogStreamRequest_Config); ok {
+		x.Action = nil
+	}
+}
+
+func (x *AuditLogStreamRequest) ClearEvents() {
+	if _, ok := x.Action.(*AuditLogStreamRequest_Events); ok {
+		x.Action = nil
+	}
+}
+
+func (x *AuditLogStreamRequest) ClearBulkSync() {
+	if _, ok := x.Action.(*AuditLogStreamRequest_BulkSync); ok {
+		x.Action = nil
+	}
+}
+
+const AuditLogStreamRequest_Action_not_set_case case_AuditLogStreamRequest_Action = 0
+const AuditLogStreamRequest_Config_case case_AuditLogStreamRequest_Action = 1
+const AuditLogStreamRequest_Events_case case_AuditLogStreamRequest_Action = 2
+const AuditLogStreamRequest_BulkSync_case case_AuditLogStreamRequest_Action = 3
+
+func (x *AuditLogStreamRequest) WhichAction() case_AuditLogStreamRequest_Action {
+	if x == nil {
+		return AuditLogStreamRequest_Action_not_set_case
+	}
+	switch x.Action.(type) {
+	case *AuditLogStreamRequest_Config:
+		return AuditLogStreamRequest_Config_case
+	case *AuditLogStreamRequest_Events:
+		return AuditLogStreamRequest_Events_case
+	case *AuditLogStreamRequest_BulkSync:
+		return AuditLogStreamRequest_BulkSync_case
+	default:
+		return AuditLogStreamRequest_Action_not_set_case
+	}
+}
+
+type AuditLogStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Action:
+	Config   *AuditLogConfig
+	Events   *AuditLogEvents
+	BulkSync *BulkResumeStateSync
+	// -- end of Action
+}
+
+func (b0 AuditLogStreamRequest_builder) Build() *AuditLogStreamRequest {
+	m0 := &AuditLogStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Config != nil {
+		x.Action = &AuditLogStreamRequest_Config{b.Config}
+	}
+	if b.Events != nil {
+		x.Action = &AuditLogStreamRequest_Events{b.Events}
+	}
+	if b.BulkSync != nil {
+		x.Action = &AuditLogStreamRequest_BulkSync{b.BulkSync}
+	}
+	return m0
+}
+
+type case_AuditLogStreamRequest_Action protoreflect.FieldNumber
+
+func (x case_AuditLogStreamRequest_Action) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[11].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAuditLogStreamRequest_Action interface {
 	isAuditLogStreamRequest_Action()
 }
@@ -1034,7 +1922,7 @@ func (*AuditLogStreamRequest_BulkSync) isAuditLogStreamRequest_Action() {}
 
 // AuditLogConfig is the configuration for exporting audit logs.
 type AuditLogConfig struct {
-	state     protoimpl.MessageState `protogen:"open.v1"`
+	state     protoimpl.MessageState `protogen:"hybrid.v1"`
 	StartDate *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=start_date,json=startDate,proto3" json:"start_date,omitempty"` // Start date for exporting audit logs.
 	// teleport_cluster is the teleport cluster name this audit log config refers to.
 	TeleportCluster string `protobuf:"bytes,2,opt,name=teleport_cluster,json=teleportCluster,proto3" json:"teleport_cluster,omitempty"`
@@ -1067,11 +1955,6 @@ func (x *AuditLogConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuditLogConfig.ProtoReflect.Descriptor instead.
-func (*AuditLogConfig) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *AuditLogConfig) GetStartDate() *timestamppb.Timestamp {
 	if x != nil {
 		return x.StartDate
@@ -1086,12 +1969,48 @@ func (x *AuditLogConfig) GetTeleportCluster() string {
 	return ""
 }
 
+func (x *AuditLogConfig) SetStartDate(v *timestamppb.Timestamp) {
+	x.StartDate = v
+}
+
+func (x *AuditLogConfig) SetTeleportCluster(v string) {
+	x.TeleportCluster = v
+}
+
+func (x *AuditLogConfig) HasStartDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartDate != nil
+}
+
+func (x *AuditLogConfig) ClearStartDate() {
+	x.StartDate = nil
+}
+
+type AuditLogConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	StartDate *timestamppb.Timestamp
+	// teleport_cluster is the teleport cluster name this audit log config refers to.
+	TeleportCluster string
+}
+
+func (b0 AuditLogConfig_builder) Build() *AuditLogConfig {
+	m0 := &AuditLogConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.StartDate = b.StartDate
+	x.TeleportCluster = b.TeleportCluster
+	return m0
+}
+
 // AuditLogEvents bundles a batch of unstructured audit log events with the
 // appropriate resume state information for the type of events being sent
 // ('search' or 'bulk'). This allows the server to persist the client's
 // progress.
 type AuditLogEvents struct {
-	state  protoimpl.MessageState  `protogen:"open.v1"`
+	state  protoimpl.MessageState  `protogen:"hybrid.v1"`
 	Events []*v1.EventUnstructured `protobuf:"bytes,1,rep,name=events,proto3" json:"events,omitempty"` // Batch of audit log events.
 	// Types that are valid to be assigned to ResumeState:
 	//
@@ -1127,11 +2046,6 @@ func (x *AuditLogEvents) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AuditLogEvents.ProtoReflect.Descriptor instead.
-func (*AuditLogEvents) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *AuditLogEvents) GetEvents() []*v1.EventUnstructured {
 	if x != nil {
 		return x.Events
@@ -1164,6 +2078,117 @@ func (x *AuditLogEvents) GetBulkResumeStateUpdate() *BulkResumeStateUpdate {
 	return nil
 }
 
+func (x *AuditLogEvents) SetEvents(v []*v1.EventUnstructured) {
+	x.Events = v
+}
+
+func (x *AuditLogEvents) SetSearchResumeState(v *SearchResumeState) {
+	if v == nil {
+		x.ResumeState = nil
+		return
+	}
+	x.ResumeState = &AuditLogEvents_SearchResumeState{v}
+}
+
+func (x *AuditLogEvents) SetBulkResumeStateUpdate(v *BulkResumeStateUpdate) {
+	if v == nil {
+		x.ResumeState = nil
+		return
+	}
+	x.ResumeState = &AuditLogEvents_BulkResumeStateUpdate{v}
+}
+
+func (x *AuditLogEvents) HasResumeState() bool {
+	if x == nil {
+		return false
+	}
+	return x.ResumeState != nil
+}
+
+func (x *AuditLogEvents) HasSearchResumeState() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.ResumeState.(*AuditLogEvents_SearchResumeState)
+	return ok
+}
+
+func (x *AuditLogEvents) HasBulkResumeStateUpdate() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.ResumeState.(*AuditLogEvents_BulkResumeStateUpdate)
+	return ok
+}
+
+func (x *AuditLogEvents) ClearResumeState() {
+	x.ResumeState = nil
+}
+
+func (x *AuditLogEvents) ClearSearchResumeState() {
+	if _, ok := x.ResumeState.(*AuditLogEvents_SearchResumeState); ok {
+		x.ResumeState = nil
+	}
+}
+
+func (x *AuditLogEvents) ClearBulkResumeStateUpdate() {
+	if _, ok := x.ResumeState.(*AuditLogEvents_BulkResumeStateUpdate); ok {
+		x.ResumeState = nil
+	}
+}
+
+const AuditLogEvents_ResumeState_not_set_case case_AuditLogEvents_ResumeState = 0
+const AuditLogEvents_SearchResumeState_case case_AuditLogEvents_ResumeState = 2
+const AuditLogEvents_BulkResumeStateUpdate_case case_AuditLogEvents_ResumeState = 3
+
+func (x *AuditLogEvents) WhichResumeState() case_AuditLogEvents_ResumeState {
+	if x == nil {
+		return AuditLogEvents_ResumeState_not_set_case
+	}
+	switch x.ResumeState.(type) {
+	case *AuditLogEvents_SearchResumeState:
+		return AuditLogEvents_SearchResumeState_case
+	case *AuditLogEvents_BulkResumeStateUpdate:
+		return AuditLogEvents_BulkResumeStateUpdate_case
+	default:
+		return AuditLogEvents_ResumeState_not_set_case
+	}
+}
+
+type AuditLogEvents_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Events []*v1.EventUnstructured
+	// Fields of oneof ResumeState:
+	SearchResumeState     *SearchResumeState
+	BulkResumeStateUpdate *BulkResumeStateUpdate
+	// -- end of ResumeState
+}
+
+func (b0 AuditLogEvents_builder) Build() *AuditLogEvents {
+	m0 := &AuditLogEvents{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Events = b.Events
+	if b.SearchResumeState != nil {
+		x.ResumeState = &AuditLogEvents_SearchResumeState{b.SearchResumeState}
+	}
+	if b.BulkResumeStateUpdate != nil {
+		x.ResumeState = &AuditLogEvents_BulkResumeStateUpdate{b.BulkResumeStateUpdate}
+	}
+	return m0
+}
+
+type case_AuditLogEvents_ResumeState protoreflect.FieldNumber
+
+func (x case_AuditLogEvents_ResumeState) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[13].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAuditLogEvents_ResumeState interface {
 	isAuditLogEvents_ResumeState()
 }
@@ -1189,7 +2214,7 @@ func (*AuditLogEvents_BulkResumeStateUpdate) isAuditLogEvents_ResumeState() {}
 //   - Sent by the server *to the client* on stream initiation
 //     (`AuditLogResponse`) if the client should resume in 'search' mode.
 type SearchResumeState struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// start_key is a key used as cursor indicating where the *next* search for
 	// events should begin.
 	StartKey string `protobuf:"bytes,1,opt,name=start_key,json=startKey,proto3" json:"start_key,omitempty"`
@@ -1232,11 +2257,6 @@ func (x *SearchResumeState) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SearchResumeState.ProtoReflect.Descriptor instead.
-func (*SearchResumeState) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *SearchResumeState) GetStartKey() string {
 	if x != nil {
 		return x.StartKey
@@ -1258,12 +2278,63 @@ func (x *SearchResumeState) GetLastEventTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *SearchResumeState) SetStartKey(v string) {
+	x.StartKey = v
+}
+
+func (x *SearchResumeState) SetLastEventId(v string) {
+	x.LastEventId = v
+}
+
+func (x *SearchResumeState) SetLastEventTime(v *timestamppb.Timestamp) {
+	x.LastEventTime = v
+}
+
+func (x *SearchResumeState) HasLastEventTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastEventTime != nil
+}
+
+func (x *SearchResumeState) ClearLastEventTime() {
+	x.LastEventTime = nil
+}
+
+type SearchResumeState_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// start_key is a key used as cursor indicating where the *next* search for
+	// events should begin.
+	StartKey string
+	// last_event_id is the ID of the most recent event processed for this
+	// specific `start_key` as of the last fetch. It is empty if this `start_key`
+	// has not yet been used for a search.
+	LastEventId string
+	// last_event_time is the timestamp of the last event successfully processed,
+	// it corresponds to last_event_id if not empty. The clients can leave
+	// last_event_time empty in requests as the server infers it from the last
+	// event in the batch. last_event_time MUST be set by the server in the
+	// initial `AuditLogResponse`.
+	LastEventTime *timestamppb.Timestamp
+}
+
+func (b0 SearchResumeState_builder) Build() *SearchResumeState {
+	m0 := &SearchResumeState{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.StartKey = b.StartKey
+	x.LastEventId = b.LastEventId
+	x.LastEventTime = b.LastEventTime
+	return m0
+}
+
 // BulkResumeStateUpdate provides an incremental update to the server about the
 // client's progress within a specific chunk of a bulk export for a given date.
 // It is sent by the client along with batches of 'bulk' type events. A single
 // batch of bulk events is assumed to be sequential and belong to one chunk.
 type BulkResumeStateUpdate struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Date          *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`            // UTC date of chunk, normalized to 00:00:00.
 	Chunk         string                 `protobuf:"bytes,2,opt,name=chunk,proto3" json:"chunk,omitempty"`          // Chunk identifier within the date.
 	Cursor        string                 `protobuf:"bytes,3,opt,name=cursor,proto3" json:"cursor,omitempty"`        // Position *after* the last event processed in this chunk.
@@ -1297,11 +2368,6 @@ func (x *BulkResumeStateUpdate) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BulkResumeStateUpdate.ProtoReflect.Descriptor instead.
-func (*BulkResumeStateUpdate) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *BulkResumeStateUpdate) GetDate() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Date
@@ -1330,6 +2396,53 @@ func (x *BulkResumeStateUpdate) GetCompleted() bool {
 	return false
 }
 
+func (x *BulkResumeStateUpdate) SetDate(v *timestamppb.Timestamp) {
+	x.Date = v
+}
+
+func (x *BulkResumeStateUpdate) SetChunk(v string) {
+	x.Chunk = v
+}
+
+func (x *BulkResumeStateUpdate) SetCursor(v string) {
+	x.Cursor = v
+}
+
+func (x *BulkResumeStateUpdate) SetCompleted(v bool) {
+	x.Completed = v
+}
+
+func (x *BulkResumeStateUpdate) HasDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.Date != nil
+}
+
+func (x *BulkResumeStateUpdate) ClearDate() {
+	x.Date = nil
+}
+
+type BulkResumeStateUpdate_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Date      *timestamppb.Timestamp
+	Chunk     string
+	Cursor    string
+	Completed bool
+}
+
+func (b0 BulkResumeStateUpdate_builder) Build() *BulkResumeStateUpdate {
+	m0 := &BulkResumeStateUpdate{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Date = b.Date
+	x.Chunk = b.Chunk
+	x.Cursor = b.Cursor
+	x.Completed = b.Completed
+	return m0
+}
+
 // BulkResumeStateSync is a request sent by the client to the server,
 // independently of sending log events, to manage the overall state of bulk
 // exports. It informs the server which export dates are still considered
@@ -1337,7 +2450,7 @@ func (x *BulkResumeStateUpdate) GetCompleted() bool {
 // for dates that are no longer active and are older than the most recent
 // active date.
 type BulkResumeStateSync struct {
-	state         protoimpl.MessageState   `protogen:"open.v1"`
+	state         protoimpl.MessageState   `protogen:"hybrid.v1"`
 	ActiveDates   []*timestamppb.Timestamp `protobuf:"bytes,1,rep,name=active_dates,json=activeDates,proto3" json:"active_dates,omitempty"` // UTC date normalized to 00:00:00.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1368,16 +2481,29 @@ func (x *BulkResumeStateSync) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BulkResumeStateSync.ProtoReflect.Descriptor instead.
-func (*BulkResumeStateSync) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *BulkResumeStateSync) GetActiveDates() []*timestamppb.Timestamp {
 	if x != nil {
 		return x.ActiveDates
 	}
 	return nil
+}
+
+func (x *BulkResumeStateSync) SetActiveDates(v []*timestamppb.Timestamp) {
+	x.ActiveDates = v
+}
+
+type BulkResumeStateSync_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	ActiveDates []*timestamppb.Timestamp
+}
+
+func (b0 BulkResumeStateSync_builder) Build() *BulkResumeStateSync {
+	m0 := &BulkResumeStateSync{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ActiveDates = b.ActiveDates
+	return m0
 }
 
 // AuditLogStreamResponse is sent from the server to the client over the
@@ -1386,7 +2512,7 @@ func (x *BulkResumeStateSync) GetActiveDates() []*timestamppb.Timestamp {
 // 1. The effective `AuditLogConfig`.
 // 2. The starting resume state (`SearchResumeState`, `BulkResumeState`, or Empty` if none).
 type AuditLogStreamResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to State:
 	//
 	//	*AuditLogStreamResponse_AuditLogConfig
@@ -1421,11 +2547,6 @@ func (x *AuditLogStreamResponse) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AuditLogStreamResponse.ProtoReflect.Descriptor instead.
-func (*AuditLogStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *AuditLogStreamResponse) GetState() isAuditLogStreamResponse_State {
@@ -1471,6 +2592,169 @@ func (x *AuditLogStreamResponse) GetBulkResumeState() *BulkResumeState {
 	return nil
 }
 
+func (x *AuditLogStreamResponse) SetAuditLogConfig(v *AuditLogConfig) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &AuditLogStreamResponse_AuditLogConfig{v}
+}
+
+func (x *AuditLogStreamResponse) SetNoResumeState(v *emptypb.Empty) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &AuditLogStreamResponse_NoResumeState{v}
+}
+
+func (x *AuditLogStreamResponse) SetSearchResumeState(v *SearchResumeState) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &AuditLogStreamResponse_SearchResumeState{v}
+}
+
+func (x *AuditLogStreamResponse) SetBulkResumeState(v *BulkResumeState) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &AuditLogStreamResponse_BulkResumeState{v}
+}
+
+func (x *AuditLogStreamResponse) HasState() bool {
+	if x == nil {
+		return false
+	}
+	return x.State != nil
+}
+
+func (x *AuditLogStreamResponse) HasAuditLogConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*AuditLogStreamResponse_AuditLogConfig)
+	return ok
+}
+
+func (x *AuditLogStreamResponse) HasNoResumeState() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*AuditLogStreamResponse_NoResumeState)
+	return ok
+}
+
+func (x *AuditLogStreamResponse) HasSearchResumeState() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*AuditLogStreamResponse_SearchResumeState)
+	return ok
+}
+
+func (x *AuditLogStreamResponse) HasBulkResumeState() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*AuditLogStreamResponse_BulkResumeState)
+	return ok
+}
+
+func (x *AuditLogStreamResponse) ClearState() {
+	x.State = nil
+}
+
+func (x *AuditLogStreamResponse) ClearAuditLogConfig() {
+	if _, ok := x.State.(*AuditLogStreamResponse_AuditLogConfig); ok {
+		x.State = nil
+	}
+}
+
+func (x *AuditLogStreamResponse) ClearNoResumeState() {
+	if _, ok := x.State.(*AuditLogStreamResponse_NoResumeState); ok {
+		x.State = nil
+	}
+}
+
+func (x *AuditLogStreamResponse) ClearSearchResumeState() {
+	if _, ok := x.State.(*AuditLogStreamResponse_SearchResumeState); ok {
+		x.State = nil
+	}
+}
+
+func (x *AuditLogStreamResponse) ClearBulkResumeState() {
+	if _, ok := x.State.(*AuditLogStreamResponse_BulkResumeState); ok {
+		x.State = nil
+	}
+}
+
+const AuditLogStreamResponse_State_not_set_case case_AuditLogStreamResponse_State = 0
+const AuditLogStreamResponse_AuditLogConfig_case case_AuditLogStreamResponse_State = 1
+const AuditLogStreamResponse_NoResumeState_case case_AuditLogStreamResponse_State = 2
+const AuditLogStreamResponse_SearchResumeState_case case_AuditLogStreamResponse_State = 3
+const AuditLogStreamResponse_BulkResumeState_case case_AuditLogStreamResponse_State = 4
+
+func (x *AuditLogStreamResponse) WhichState() case_AuditLogStreamResponse_State {
+	if x == nil {
+		return AuditLogStreamResponse_State_not_set_case
+	}
+	switch x.State.(type) {
+	case *AuditLogStreamResponse_AuditLogConfig:
+		return AuditLogStreamResponse_AuditLogConfig_case
+	case *AuditLogStreamResponse_NoResumeState:
+		return AuditLogStreamResponse_NoResumeState_case
+	case *AuditLogStreamResponse_SearchResumeState:
+		return AuditLogStreamResponse_SearchResumeState_case
+	case *AuditLogStreamResponse_BulkResumeState:
+		return AuditLogStreamResponse_BulkResumeState_case
+	default:
+		return AuditLogStreamResponse_State_not_set_case
+	}
+}
+
+type AuditLogStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof State:
+	AuditLogConfig    *AuditLogConfig
+	NoResumeState     *emptypb.Empty
+	SearchResumeState *SearchResumeState
+	BulkResumeState   *BulkResumeState
+	// -- end of State
+}
+
+func (b0 AuditLogStreamResponse_builder) Build() *AuditLogStreamResponse {
+	m0 := &AuditLogStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.AuditLogConfig != nil {
+		x.State = &AuditLogStreamResponse_AuditLogConfig{b.AuditLogConfig}
+	}
+	if b.NoResumeState != nil {
+		x.State = &AuditLogStreamResponse_NoResumeState{b.NoResumeState}
+	}
+	if b.SearchResumeState != nil {
+		x.State = &AuditLogStreamResponse_SearchResumeState{b.SearchResumeState}
+	}
+	if b.BulkResumeState != nil {
+		x.State = &AuditLogStreamResponse_BulkResumeState{b.BulkResumeState}
+	}
+	return m0
+}
+
+type case_AuditLogStreamResponse_State protoreflect.FieldNumber
+
+func (x case_AuditLogStreamResponse_State) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[17].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAuditLogStreamResponse_State interface {
 	isAuditLogStreamResponse_State()
 }
@@ -1504,7 +2788,7 @@ func (*AuditLogStreamResponse_BulkResumeState) isAuditLogStreamResponse_State() 
 // (within `AuditLogResponse`) to allow the client to resume bulk exporting
 // accurately.
 type BulkResumeState struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Dates         []*BulkResumeDate      `protobuf:"bytes,2,rep,name=dates,proto3" json:"dates,omitempty"` // List of resume states, one for each relevant date.
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1535,11 +2819,6 @@ func (x *BulkResumeState) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BulkResumeState.ProtoReflect.Descriptor instead.
-func (*BulkResumeState) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *BulkResumeState) GetDates() []*BulkResumeDate {
 	if x != nil {
 		return x.Dates
@@ -1547,10 +2826,28 @@ func (x *BulkResumeState) GetDates() []*BulkResumeDate {
 	return nil
 }
 
+func (x *BulkResumeState) SetDates(v []*BulkResumeDate) {
+	x.Dates = v
+}
+
+type BulkResumeState_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Dates []*BulkResumeDate
+}
+
+func (b0 BulkResumeState_builder) Build() *BulkResumeState {
+	m0 := &BulkResumeState{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Dates = b.Dates
+	return m0
+}
+
 // BulkResumeDate details the bulk export resume state for a *single* specific
 // date.
 type BulkResumeDate struct {
-	state           protoimpl.MessageState `protogen:"open.v1"`
+	state           protoimpl.MessageState `protogen:"hybrid.v1"`
 	Date            *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`                                                                                                               // UTC date normalized to 00:00:00.
 	CompletedChunks []string               `protobuf:"bytes,2,rep,name=completed_chunks,json=completedChunks,proto3" json:"completed_chunks,omitempty"`                                                                  // Fully exported chunks for this date; skip on resume.
 	ChunkCursors    map[string]string      `protobuf:"bytes,3,rep,name=chunk_cursors,json=chunkCursors,proto3" json:"chunk_cursors,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"` // Cursors for resuming incomplete chunks (chunk_id -> cursor).
@@ -1583,11 +2880,6 @@ func (x *BulkResumeDate) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use BulkResumeDate.ProtoReflect.Descriptor instead.
-func (*BulkResumeDate) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *BulkResumeDate) GetDate() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Date
@@ -1609,9 +2901,50 @@ func (x *BulkResumeDate) GetChunkCursors() map[string]string {
 	return nil
 }
 
+func (x *BulkResumeDate) SetDate(v *timestamppb.Timestamp) {
+	x.Date = v
+}
+
+func (x *BulkResumeDate) SetCompletedChunks(v []string) {
+	x.CompletedChunks = v
+}
+
+func (x *BulkResumeDate) SetChunkCursors(v map[string]string) {
+	x.ChunkCursors = v
+}
+
+func (x *BulkResumeDate) HasDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.Date != nil
+}
+
+func (x *BulkResumeDate) ClearDate() {
+	x.Date = nil
+}
+
+type BulkResumeDate_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Date            *timestamppb.Timestamp
+	CompletedChunks []string
+	ChunkCursors    map[string]string
+}
+
+func (b0 BulkResumeDate_builder) Build() *BulkResumeDate {
+	m0 := &BulkResumeDate{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Date = b.Date
+	x.CompletedChunks = b.CompletedChunks
+	x.ChunkCursors = b.ChunkCursors
+	return m0
+}
+
 // RegisterRequest is the request for Register.
 type RegisterRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// host_ca_pem is deprecated. Use host_ca_pems instead.
 	//
 	// Deprecated: Marked as deprecated in accessgraph/v1alpha/access_graph_service.proto.
@@ -1655,11 +2988,6 @@ func (x *RegisterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RegisterRequest.ProtoReflect.Descriptor instead.
-func (*RegisterRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{20}
-}
-
 // Deprecated: Marked as deprecated in accessgraph/v1alpha/access_graph_service.proto.
 func (x *RegisterRequest) GetHostCaPem() []byte {
 	if x != nil {
@@ -1682,9 +3010,54 @@ func (x *RegisterRequest) GetHostCaPems() [][]byte {
 	return nil
 }
 
+// Deprecated: Marked as deprecated in accessgraph/v1alpha/access_graph_service.proto.
+func (x *RegisterRequest) SetHostCaPem(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.HostCaPem = v
+}
+
+func (x *RegisterRequest) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *RegisterRequest) SetHostCaPems(v [][]byte) {
+	x.HostCaPems = v
+}
+
+type RegisterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// host_ca_pem is deprecated. Use host_ca_pems instead.
+	//
+	// Deprecated: Marked as deprecated in accessgraph/v1alpha/access_graph_service.proto.
+	HostCaPem []byte
+	// ClusterName is the self-submitted name of the Teleport cluster (usually a FQDN).
+	// This may not uniquely identify the cluster, and is only used to make identification easier for debugging purposes.
+	ClusterName string
+	// host_ca_pems contains one or more Teleport Host CA certificates in PEM format that will be used to authenticate
+	// this Teleport cluster (tenant) with the Access Graph service. During normal operation, this contains a single
+	// Host CA certificate. During Host CA rotation or if the cluster uses HSM with single key per auth, this may contain
+	// multiple certificates (e.g., both the active and additional/incoming CA). These certificates are used to verify
+	// client authentication for all subsequent RPC calls to the Access Graph service after registration. To update the
+	// set of trusted Host CAs after registration, use the ReplaceCAs RPC method instead.
+	HostCaPems [][]byte
+}
+
+func (b0 RegisterRequest_builder) Build() *RegisterRequest {
+	m0 := &RegisterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.HostCaPem = b.HostCaPem
+	x.ClusterName = b.ClusterName
+	x.HostCaPems = b.HostCaPems
+	return m0
+}
+
 // RegisterResponse is the response for Register.
 type RegisterResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1714,14 +3087,21 @@ func (x *RegisterResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RegisterResponse.ProtoReflect.Descriptor instead.
-func (*RegisterResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{21}
+type RegisterResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RegisterResponse_builder) Build() *RegisterResponse {
+	m0 := &RegisterResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // ReplaceCAsRequest is the request for ReplaceCAs.
 type ReplaceCAsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	HostCaPem     [][]byte               `protobuf:"bytes,1,rep,name=host_ca_pem,json=hostCaPem,proto3" json:"host_ca_pem,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -1752,11 +3132,6 @@ func (x *ReplaceCAsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReplaceCAsRequest.ProtoReflect.Descriptor instead.
-func (*ReplaceCAsRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{22}
-}
-
 func (x *ReplaceCAsRequest) GetHostCaPem() [][]byte {
 	if x != nil {
 		return x.HostCaPem
@@ -1764,9 +3139,27 @@ func (x *ReplaceCAsRequest) GetHostCaPem() [][]byte {
 	return nil
 }
 
+func (x *ReplaceCAsRequest) SetHostCaPem(v [][]byte) {
+	x.HostCaPem = v
+}
+
+type ReplaceCAsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	HostCaPem [][]byte
+}
+
+func (b0 ReplaceCAsRequest_builder) Build() *ReplaceCAsRequest {
+	m0 := &ReplaceCAsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.HostCaPem = b.HostCaPem
+	return m0
+}
+
 // ReplaceCAsResponse is the response for ReplaceCAs.
 type ReplaceCAsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1796,15 +3189,22 @@ func (x *ReplaceCAsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReplaceCAsResponse.ProtoReflect.Descriptor instead.
-func (*ReplaceCAsResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{23}
+type ReplaceCAsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 ReplaceCAsResponse_builder) Build() *ReplaceCAsResponse {
+	m0 := &ReplaceCAsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // AWSEventsStreamRequest is a request to send commands to the AWS importer.
 // This command is used to sync the access graph with the AWS database state.
 type AWSEventsStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// operation contains the desired operation
 	//
 	// Types that are valid to be assigned to Operation:
@@ -1842,11 +3242,6 @@ func (x *AWSEventsStreamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSEventsStreamRequest.ProtoReflect.Descriptor instead.
-func (*AWSEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{24}
-}
-
 func (x *AWSEventsStreamRequest) GetOperation() isAWSEventsStreamRequest_Operation {
 	if x != nil {
 		return x.Operation
@@ -1881,6 +3276,146 @@ func (x *AWSEventsStreamRequest) GetDelete() *AWSResourceList {
 	return nil
 }
 
+func (x *AWSEventsStreamRequest) SetSync(v *AWSSyncOperation) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &AWSEventsStreamRequest_Sync{v}
+}
+
+func (x *AWSEventsStreamRequest) SetUpsert(v *AWSResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &AWSEventsStreamRequest_Upsert{v}
+}
+
+func (x *AWSEventsStreamRequest) SetDelete(v *AWSResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &AWSEventsStreamRequest_Delete{v}
+}
+
+func (x *AWSEventsStreamRequest) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *AWSEventsStreamRequest) HasSync() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*AWSEventsStreamRequest_Sync)
+	return ok
+}
+
+func (x *AWSEventsStreamRequest) HasUpsert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*AWSEventsStreamRequest_Upsert)
+	return ok
+}
+
+func (x *AWSEventsStreamRequest) HasDelete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*AWSEventsStreamRequest_Delete)
+	return ok
+}
+
+func (x *AWSEventsStreamRequest) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *AWSEventsStreamRequest) ClearSync() {
+	if _, ok := x.Operation.(*AWSEventsStreamRequest_Sync); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *AWSEventsStreamRequest) ClearUpsert() {
+	if _, ok := x.Operation.(*AWSEventsStreamRequest_Upsert); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *AWSEventsStreamRequest) ClearDelete() {
+	if _, ok := x.Operation.(*AWSEventsStreamRequest_Delete); ok {
+		x.Operation = nil
+	}
+}
+
+const AWSEventsStreamRequest_Operation_not_set_case case_AWSEventsStreamRequest_Operation = 0
+const AWSEventsStreamRequest_Sync_case case_AWSEventsStreamRequest_Operation = 1
+const AWSEventsStreamRequest_Upsert_case case_AWSEventsStreamRequest_Operation = 2
+const AWSEventsStreamRequest_Delete_case case_AWSEventsStreamRequest_Operation = 3
+
+func (x *AWSEventsStreamRequest) WhichOperation() case_AWSEventsStreamRequest_Operation {
+	if x == nil {
+		return AWSEventsStreamRequest_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *AWSEventsStreamRequest_Sync:
+		return AWSEventsStreamRequest_Sync_case
+	case *AWSEventsStreamRequest_Upsert:
+		return AWSEventsStreamRequest_Upsert_case
+	case *AWSEventsStreamRequest_Delete:
+		return AWSEventsStreamRequest_Delete_case
+	default:
+		return AWSEventsStreamRequest_Operation_not_set_case
+	}
+}
+
+type AWSEventsStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// operation contains the desired operation
+
+	// Fields of oneof Operation:
+	// sync is a command to sync the access graph with the Teleport database state.
+	// it's issued once Teleport finishes syncing all resources with the database.
+	Sync *AWSSyncOperation
+	// upsert is a command to put a resource into the access graph or update it.
+	Upsert *AWSResourceList
+	// delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+	Delete *AWSResourceList
+	// -- end of Operation
+}
+
+func (b0 AWSEventsStreamRequest_builder) Build() *AWSEventsStreamRequest {
+	m0 := &AWSEventsStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Sync != nil {
+		x.Operation = &AWSEventsStreamRequest_Sync{b.Sync}
+	}
+	if b.Upsert != nil {
+		x.Operation = &AWSEventsStreamRequest_Upsert{b.Upsert}
+	}
+	if b.Delete != nil {
+		x.Operation = &AWSEventsStreamRequest_Delete{b.Delete}
+	}
+	return m0
+}
+
+type case_AWSEventsStreamRequest_Operation protoreflect.FieldNumber
+
+func (x case_AWSEventsStreamRequest_Operation) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[24].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAWSEventsStreamRequest_Operation interface {
 	isAWSEventsStreamRequest_Operation()
 }
@@ -1910,7 +3445,7 @@ func (*AWSEventsStreamRequest_Delete) isAWSEventsStreamRequest_Operation() {}
 // AWSSyncOperation is a command that Teleport sends to the access graph service
 // at the end of the sync process.
 type AWSSyncOperation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1940,14 +3475,21 @@ func (x *AWSSyncOperation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSSyncOperation.ProtoReflect.Descriptor instead.
-func (*AWSSyncOperation) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{25}
+type AWSSyncOperation_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 AWSSyncOperation_builder) Build() *AWSSyncOperation {
+	m0 := &AWSSyncOperation{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // AWSEventsStreamResponse is the response from AWSEventsStream.
 type AWSEventsStreamResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1977,14 +3519,21 @@ func (x *AWSEventsStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSEventsStreamResponse.ProtoReflect.Descriptor instead.
-func (*AWSEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{26}
+type AWSEventsStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 AWSEventsStreamResponse_builder) Build() *AWSEventsStreamResponse {
+	m0 := &AWSEventsStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GitlabEventsStreamRequest is a request to send commands to the Gitlab importer.
 type GitlabEventsStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// operation contains the desired operation
 	//
 	// Types that are valid to be assigned to Operation:
@@ -2022,11 +3571,6 @@ func (x *GitlabEventsStreamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitlabEventsStreamRequest.ProtoReflect.Descriptor instead.
-func (*GitlabEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{27}
-}
-
 func (x *GitlabEventsStreamRequest) GetOperation() isGitlabEventsStreamRequest_Operation {
 	if x != nil {
 		return x.Operation
@@ -2061,6 +3605,146 @@ func (x *GitlabEventsStreamRequest) GetDelete() *GitlabResourceList {
 	return nil
 }
 
+func (x *GitlabEventsStreamRequest) SetSync(v *GitlabSyncOperation) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &GitlabEventsStreamRequest_Sync{v}
+}
+
+func (x *GitlabEventsStreamRequest) SetUpsert(v *GitlabResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &GitlabEventsStreamRequest_Upsert{v}
+}
+
+func (x *GitlabEventsStreamRequest) SetDelete(v *GitlabResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &GitlabEventsStreamRequest_Delete{v}
+}
+
+func (x *GitlabEventsStreamRequest) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *GitlabEventsStreamRequest) HasSync() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*GitlabEventsStreamRequest_Sync)
+	return ok
+}
+
+func (x *GitlabEventsStreamRequest) HasUpsert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*GitlabEventsStreamRequest_Upsert)
+	return ok
+}
+
+func (x *GitlabEventsStreamRequest) HasDelete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*GitlabEventsStreamRequest_Delete)
+	return ok
+}
+
+func (x *GitlabEventsStreamRequest) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *GitlabEventsStreamRequest) ClearSync() {
+	if _, ok := x.Operation.(*GitlabEventsStreamRequest_Sync); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *GitlabEventsStreamRequest) ClearUpsert() {
+	if _, ok := x.Operation.(*GitlabEventsStreamRequest_Upsert); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *GitlabEventsStreamRequest) ClearDelete() {
+	if _, ok := x.Operation.(*GitlabEventsStreamRequest_Delete); ok {
+		x.Operation = nil
+	}
+}
+
+const GitlabEventsStreamRequest_Operation_not_set_case case_GitlabEventsStreamRequest_Operation = 0
+const GitlabEventsStreamRequest_Sync_case case_GitlabEventsStreamRequest_Operation = 1
+const GitlabEventsStreamRequest_Upsert_case case_GitlabEventsStreamRequest_Operation = 2
+const GitlabEventsStreamRequest_Delete_case case_GitlabEventsStreamRequest_Operation = 3
+
+func (x *GitlabEventsStreamRequest) WhichOperation() case_GitlabEventsStreamRequest_Operation {
+	if x == nil {
+		return GitlabEventsStreamRequest_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *GitlabEventsStreamRequest_Sync:
+		return GitlabEventsStreamRequest_Sync_case
+	case *GitlabEventsStreamRequest_Upsert:
+		return GitlabEventsStreamRequest_Upsert_case
+	case *GitlabEventsStreamRequest_Delete:
+		return GitlabEventsStreamRequest_Delete_case
+	default:
+		return GitlabEventsStreamRequest_Operation_not_set_case
+	}
+}
+
+type GitlabEventsStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// operation contains the desired operation
+
+	// Fields of oneof Operation:
+	// sync is a command to sync the access graph with the Teleport database state.
+	// it's issued once Teleport finishes syncing all resources with the database.
+	Sync *GitlabSyncOperation
+	// upsert is a command to put a resource into the access graph or update it.
+	Upsert *GitlabResourceList
+	// delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+	Delete *GitlabResourceList
+	// -- end of Operation
+}
+
+func (b0 GitlabEventsStreamRequest_builder) Build() *GitlabEventsStreamRequest {
+	m0 := &GitlabEventsStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Sync != nil {
+		x.Operation = &GitlabEventsStreamRequest_Sync{b.Sync}
+	}
+	if b.Upsert != nil {
+		x.Operation = &GitlabEventsStreamRequest_Upsert{b.Upsert}
+	}
+	if b.Delete != nil {
+		x.Operation = &GitlabEventsStreamRequest_Delete{b.Delete}
+	}
+	return m0
+}
+
+type case_GitlabEventsStreamRequest_Operation protoreflect.FieldNumber
+
+func (x case_GitlabEventsStreamRequest_Operation) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[27].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isGitlabEventsStreamRequest_Operation interface {
 	isGitlabEventsStreamRequest_Operation()
 }
@@ -2089,7 +3773,7 @@ func (*GitlabEventsStreamRequest_Delete) isGitlabEventsStreamRequest_Operation()
 
 // GitlabEventsStreamResponse is the response from GitlabEventsStream.
 type GitlabEventsStreamResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2119,14 +3803,21 @@ func (x *GitlabEventsStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitlabEventsStreamResponse.ProtoReflect.Descriptor instead.
-func (*GitlabEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{28}
+type GitlabEventsStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GitlabEventsStreamResponse_builder) Build() *GitlabEventsStreamResponse {
+	m0 := &GitlabEventsStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // EntraEventsStreamRequest is a request to send commands to the Gitlab importer.
 type EntraEventsStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// operation contains the desired operation
 	//
 	// Types that are valid to be assigned to Operation:
@@ -2164,11 +3855,6 @@ func (x *EntraEventsStreamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EntraEventsStreamRequest.ProtoReflect.Descriptor instead.
-func (*EntraEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{29}
-}
-
 func (x *EntraEventsStreamRequest) GetOperation() isEntraEventsStreamRequest_Operation {
 	if x != nil {
 		return x.Operation
@@ -2203,6 +3889,146 @@ func (x *EntraEventsStreamRequest) GetDelete() *EntraResourceList {
 	return nil
 }
 
+func (x *EntraEventsStreamRequest) SetSync(v *EntraSyncOperation) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EntraEventsStreamRequest_Sync{v}
+}
+
+func (x *EntraEventsStreamRequest) SetUpsert(v *EntraResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EntraEventsStreamRequest_Upsert{v}
+}
+
+func (x *EntraEventsStreamRequest) SetDelete(v *EntraResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &EntraEventsStreamRequest_Delete{v}
+}
+
+func (x *EntraEventsStreamRequest) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *EntraEventsStreamRequest) HasSync() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EntraEventsStreamRequest_Sync)
+	return ok
+}
+
+func (x *EntraEventsStreamRequest) HasUpsert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EntraEventsStreamRequest_Upsert)
+	return ok
+}
+
+func (x *EntraEventsStreamRequest) HasDelete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*EntraEventsStreamRequest_Delete)
+	return ok
+}
+
+func (x *EntraEventsStreamRequest) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *EntraEventsStreamRequest) ClearSync() {
+	if _, ok := x.Operation.(*EntraEventsStreamRequest_Sync); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *EntraEventsStreamRequest) ClearUpsert() {
+	if _, ok := x.Operation.(*EntraEventsStreamRequest_Upsert); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *EntraEventsStreamRequest) ClearDelete() {
+	if _, ok := x.Operation.(*EntraEventsStreamRequest_Delete); ok {
+		x.Operation = nil
+	}
+}
+
+const EntraEventsStreamRequest_Operation_not_set_case case_EntraEventsStreamRequest_Operation = 0
+const EntraEventsStreamRequest_Sync_case case_EntraEventsStreamRequest_Operation = 1
+const EntraEventsStreamRequest_Upsert_case case_EntraEventsStreamRequest_Operation = 2
+const EntraEventsStreamRequest_Delete_case case_EntraEventsStreamRequest_Operation = 3
+
+func (x *EntraEventsStreamRequest) WhichOperation() case_EntraEventsStreamRequest_Operation {
+	if x == nil {
+		return EntraEventsStreamRequest_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *EntraEventsStreamRequest_Sync:
+		return EntraEventsStreamRequest_Sync_case
+	case *EntraEventsStreamRequest_Upsert:
+		return EntraEventsStreamRequest_Upsert_case
+	case *EntraEventsStreamRequest_Delete:
+		return EntraEventsStreamRequest_Delete_case
+	default:
+		return EntraEventsStreamRequest_Operation_not_set_case
+	}
+}
+
+type EntraEventsStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// operation contains the desired operation
+
+	// Fields of oneof Operation:
+	// sync is a command to sync the access graph with the Teleport database state.
+	// it's issued once Teleport finishes syncing all resources with the database.
+	Sync *EntraSyncOperation
+	// upsert is a command to put a resource into the access graph or update it.
+	Upsert *EntraResourceList
+	// delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+	Delete *EntraResourceList
+	// -- end of Operation
+}
+
+func (b0 EntraEventsStreamRequest_builder) Build() *EntraEventsStreamRequest {
+	m0 := &EntraEventsStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Sync != nil {
+		x.Operation = &EntraEventsStreamRequest_Sync{b.Sync}
+	}
+	if b.Upsert != nil {
+		x.Operation = &EntraEventsStreamRequest_Upsert{b.Upsert}
+	}
+	if b.Delete != nil {
+		x.Operation = &EntraEventsStreamRequest_Delete{b.Delete}
+	}
+	return m0
+}
+
+type case_EntraEventsStreamRequest_Operation protoreflect.FieldNumber
+
+func (x case_EntraEventsStreamRequest_Operation) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[29].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isEntraEventsStreamRequest_Operation interface {
 	isEntraEventsStreamRequest_Operation()
 }
@@ -2231,7 +4057,7 @@ func (*EntraEventsStreamRequest_Delete) isEntraEventsStreamRequest_Operation() {
 
 // EntraEventsStreamResponse is the response from GitlabEventsStream.
 type EntraEventsStreamResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2261,14 +4087,21 @@ func (x *EntraEventsStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EntraEventsStreamResponse.ProtoReflect.Descriptor instead.
-func (*EntraEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{30}
+type EntraEventsStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 EntraEventsStreamResponse_builder) Build() *EntraEventsStreamResponse {
+	m0 := &EntraEventsStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // AzureEventsStreamRequest is a request to send commands to the Azure importer
 type AzureEventsStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Operation:
 	//
 	//	*AzureEventsStreamRequest_Sync
@@ -2302,11 +4135,6 @@ func (x *AzureEventsStreamRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AzureEventsStreamRequest.ProtoReflect.Descriptor instead.
-func (*AzureEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{31}
 }
 
 func (x *AzureEventsStreamRequest) GetOperation() isAzureEventsStreamRequest_Operation {
@@ -2343,6 +4171,144 @@ func (x *AzureEventsStreamRequest) GetDelete() *AzureResourceList {
 	return nil
 }
 
+func (x *AzureEventsStreamRequest) SetSync(v *AzureSyncOperation) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &AzureEventsStreamRequest_Sync{v}
+}
+
+func (x *AzureEventsStreamRequest) SetUpsert(v *AzureResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &AzureEventsStreamRequest_Upsert{v}
+}
+
+func (x *AzureEventsStreamRequest) SetDelete(v *AzureResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &AzureEventsStreamRequest_Delete{v}
+}
+
+func (x *AzureEventsStreamRequest) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *AzureEventsStreamRequest) HasSync() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*AzureEventsStreamRequest_Sync)
+	return ok
+}
+
+func (x *AzureEventsStreamRequest) HasUpsert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*AzureEventsStreamRequest_Upsert)
+	return ok
+}
+
+func (x *AzureEventsStreamRequest) HasDelete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*AzureEventsStreamRequest_Delete)
+	return ok
+}
+
+func (x *AzureEventsStreamRequest) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *AzureEventsStreamRequest) ClearSync() {
+	if _, ok := x.Operation.(*AzureEventsStreamRequest_Sync); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *AzureEventsStreamRequest) ClearUpsert() {
+	if _, ok := x.Operation.(*AzureEventsStreamRequest_Upsert); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *AzureEventsStreamRequest) ClearDelete() {
+	if _, ok := x.Operation.(*AzureEventsStreamRequest_Delete); ok {
+		x.Operation = nil
+	}
+}
+
+const AzureEventsStreamRequest_Operation_not_set_case case_AzureEventsStreamRequest_Operation = 0
+const AzureEventsStreamRequest_Sync_case case_AzureEventsStreamRequest_Operation = 1
+const AzureEventsStreamRequest_Upsert_case case_AzureEventsStreamRequest_Operation = 2
+const AzureEventsStreamRequest_Delete_case case_AzureEventsStreamRequest_Operation = 3
+
+func (x *AzureEventsStreamRequest) WhichOperation() case_AzureEventsStreamRequest_Operation {
+	if x == nil {
+		return AzureEventsStreamRequest_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *AzureEventsStreamRequest_Sync:
+		return AzureEventsStreamRequest_Sync_case
+	case *AzureEventsStreamRequest_Upsert:
+		return AzureEventsStreamRequest_Upsert_case
+	case *AzureEventsStreamRequest_Delete:
+		return AzureEventsStreamRequest_Delete_case
+	default:
+		return AzureEventsStreamRequest_Operation_not_set_case
+	}
+}
+
+type AzureEventsStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Operation:
+	// sync is a command to sync the access graph with the Teleport database state.
+	// it's issued once Teleport finishes syncing all resources with the database.
+	Sync *AzureSyncOperation
+	// upsert is a command to put a resource into the access graph or update it.
+	Upsert *AzureResourceList
+	// delete is a command to delete a resource from the access graph when it's deleted from Teleport.
+	Delete *AzureResourceList
+	// -- end of Operation
+}
+
+func (b0 AzureEventsStreamRequest_builder) Build() *AzureEventsStreamRequest {
+	m0 := &AzureEventsStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Sync != nil {
+		x.Operation = &AzureEventsStreamRequest_Sync{b.Sync}
+	}
+	if b.Upsert != nil {
+		x.Operation = &AzureEventsStreamRequest_Upsert{b.Upsert}
+	}
+	if b.Delete != nil {
+		x.Operation = &AzureEventsStreamRequest_Delete{b.Delete}
+	}
+	return m0
+}
+
+type case_AzureEventsStreamRequest_Operation protoreflect.FieldNumber
+
+func (x case_AzureEventsStreamRequest_Operation) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[31].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAzureEventsStreamRequest_Operation interface {
 	isAzureEventsStreamRequest_Operation()
 }
@@ -2372,7 +4338,7 @@ func (*AzureEventsStreamRequest_Delete) isAzureEventsStreamRequest_Operation() {
 // AzureSyncOperation is a command that Teleport sends to the access graph service
 // at the end of the sync process.
 type AzureSyncOperation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2402,14 +4368,21 @@ func (x *AzureSyncOperation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AzureSyncOperation.ProtoReflect.Descriptor instead.
-func (*AzureSyncOperation) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{32}
+type AzureSyncOperation_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 AzureSyncOperation_builder) Build() *AzureSyncOperation {
+	m0 := &AzureSyncOperation{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // AzureEventsStreamResponse is a response from AzureEventsStream
 type AzureEventsStreamResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2439,14 +4412,21 @@ func (x *AzureEventsStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AzureEventsStreamResponse.ProtoReflect.Descriptor instead.
-func (*AzureEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{33}
+type AzureEventsStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 AzureEventsStreamResponse_builder) Build() *AzureEventsStreamResponse {
+	m0 := &AzureEventsStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // NetIQEventsStreamRequest is a request to send commands to the NetIQ importer
 type NetIQEventsStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Operation:
 	//
 	//	*NetIQEventsStreamRequest_Sync
@@ -2480,11 +4460,6 @@ func (x *NetIQEventsStreamRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NetIQEventsStreamRequest.ProtoReflect.Descriptor instead.
-func (*NetIQEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{34}
 }
 
 func (x *NetIQEventsStreamRequest) GetOperation() isNetIQEventsStreamRequest_Operation {
@@ -2521,6 +4496,143 @@ func (x *NetIQEventsStreamRequest) GetDelete() *NetIQResourceList {
 	return nil
 }
 
+func (x *NetIQEventsStreamRequest) SetSync(v *NetIQSyncOperation) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &NetIQEventsStreamRequest_Sync{v}
+}
+
+func (x *NetIQEventsStreamRequest) SetUpsert(v *NetIQResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &NetIQEventsStreamRequest_Upsert{v}
+}
+
+func (x *NetIQEventsStreamRequest) SetDelete(v *NetIQResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &NetIQEventsStreamRequest_Delete{v}
+}
+
+func (x *NetIQEventsStreamRequest) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *NetIQEventsStreamRequest) HasSync() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*NetIQEventsStreamRequest_Sync)
+	return ok
+}
+
+func (x *NetIQEventsStreamRequest) HasUpsert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*NetIQEventsStreamRequest_Upsert)
+	return ok
+}
+
+func (x *NetIQEventsStreamRequest) HasDelete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*NetIQEventsStreamRequest_Delete)
+	return ok
+}
+
+func (x *NetIQEventsStreamRequest) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *NetIQEventsStreamRequest) ClearSync() {
+	if _, ok := x.Operation.(*NetIQEventsStreamRequest_Sync); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *NetIQEventsStreamRequest) ClearUpsert() {
+	if _, ok := x.Operation.(*NetIQEventsStreamRequest_Upsert); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *NetIQEventsStreamRequest) ClearDelete() {
+	if _, ok := x.Operation.(*NetIQEventsStreamRequest_Delete); ok {
+		x.Operation = nil
+	}
+}
+
+const NetIQEventsStreamRequest_Operation_not_set_case case_NetIQEventsStreamRequest_Operation = 0
+const NetIQEventsStreamRequest_Sync_case case_NetIQEventsStreamRequest_Operation = 1
+const NetIQEventsStreamRequest_Upsert_case case_NetIQEventsStreamRequest_Operation = 2
+const NetIQEventsStreamRequest_Delete_case case_NetIQEventsStreamRequest_Operation = 3
+
+func (x *NetIQEventsStreamRequest) WhichOperation() case_NetIQEventsStreamRequest_Operation {
+	if x == nil {
+		return NetIQEventsStreamRequest_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *NetIQEventsStreamRequest_Sync:
+		return NetIQEventsStreamRequest_Sync_case
+	case *NetIQEventsStreamRequest_Upsert:
+		return NetIQEventsStreamRequest_Upsert_case
+	case *NetIQEventsStreamRequest_Delete:
+		return NetIQEventsStreamRequest_Delete_case
+	default:
+		return NetIQEventsStreamRequest_Operation_not_set_case
+	}
+}
+
+type NetIQEventsStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Operation:
+	// sync is a command to sync the access graph with the NetIQ state.
+	Sync *NetIQSyncOperation
+	// upsert is a command to put a resource into the access graph or update it.
+	Upsert *NetIQResourceList
+	// delete is a command to delete a resource from the access graph when it's deleted.
+	Delete *NetIQResourceList
+	// -- end of Operation
+}
+
+func (b0 NetIQEventsStreamRequest_builder) Build() *NetIQEventsStreamRequest {
+	m0 := &NetIQEventsStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Sync != nil {
+		x.Operation = &NetIQEventsStreamRequest_Sync{b.Sync}
+	}
+	if b.Upsert != nil {
+		x.Operation = &NetIQEventsStreamRequest_Upsert{b.Upsert}
+	}
+	if b.Delete != nil {
+		x.Operation = &NetIQEventsStreamRequest_Delete{b.Delete}
+	}
+	return m0
+}
+
+type case_NetIQEventsStreamRequest_Operation protoreflect.FieldNumber
+
+func (x case_NetIQEventsStreamRequest_Operation) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[34].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isNetIQEventsStreamRequest_Operation interface {
 	isNetIQEventsStreamRequest_Operation()
 }
@@ -2549,7 +4661,7 @@ func (*NetIQEventsStreamRequest_Delete) isNetIQEventsStreamRequest_Operation() {
 // NetIQSyncOperation is a command that Teleport sends to the access graph service
 // at the end of the sync process.
 type NetIQSyncOperation struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2579,14 +4691,21 @@ func (x *NetIQSyncOperation) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQSyncOperation.ProtoReflect.Descriptor instead.
-func (*NetIQSyncOperation) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{35}
+type NetIQSyncOperation_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 NetIQSyncOperation_builder) Build() *NetIQSyncOperation {
+	m0 := &NetIQSyncOperation{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // NetIQEventsStreamResponse is a response from NetIQEventsStream
 type NetIQEventsStreamResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2616,9 +4735,16 @@ func (x *NetIQEventsStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQEventsStreamResponse.ProtoReflect.Descriptor instead.
-func (*NetIQEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{36}
+type NetIQEventsStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 NetIQEventsStreamResponse_builder) Build() *NetIQEventsStreamResponse {
+	m0 := &NetIQEventsStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // AWSCloudTrailStreamRequest is sent from the client to the server over the
@@ -2637,7 +4763,7 @@ func (*NetIQEventsStreamResponse) Descriptor() ([]byte, []int) {
 // - State Management:
 //   - `events` includes `resume_state` for persistent progress tracking.
 type AWSCloudTrailStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Action:
 	//
 	//	*AWSCloudTrailStreamRequest_Config
@@ -2672,11 +4798,6 @@ func (x *AWSCloudTrailStreamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSCloudTrailStreamRequest.ProtoReflect.Descriptor instead.
-func (*AWSCloudTrailStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{37}
-}
-
 func (x *AWSCloudTrailStreamRequest) GetAction() isAWSCloudTrailStreamRequest_Action {
 	if x != nil {
 		return x.Action
@@ -2702,6 +4823,111 @@ func (x *AWSCloudTrailStreamRequest) GetEventsFile() *AWSCloudTrailEventsFile {
 	return nil
 }
 
+func (x *AWSCloudTrailStreamRequest) SetConfig(v *AWSCloudTrailConfig) {
+	if v == nil {
+		x.Action = nil
+		return
+	}
+	x.Action = &AWSCloudTrailStreamRequest_Config{v}
+}
+
+func (x *AWSCloudTrailStreamRequest) SetEventsFile(v *AWSCloudTrailEventsFile) {
+	if v == nil {
+		x.Action = nil
+		return
+	}
+	x.Action = &AWSCloudTrailStreamRequest_EventsFile{v}
+}
+
+func (x *AWSCloudTrailStreamRequest) HasAction() bool {
+	if x == nil {
+		return false
+	}
+	return x.Action != nil
+}
+
+func (x *AWSCloudTrailStreamRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Action.(*AWSCloudTrailStreamRequest_Config)
+	return ok
+}
+
+func (x *AWSCloudTrailStreamRequest) HasEventsFile() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Action.(*AWSCloudTrailStreamRequest_EventsFile)
+	return ok
+}
+
+func (x *AWSCloudTrailStreamRequest) ClearAction() {
+	x.Action = nil
+}
+
+func (x *AWSCloudTrailStreamRequest) ClearConfig() {
+	if _, ok := x.Action.(*AWSCloudTrailStreamRequest_Config); ok {
+		x.Action = nil
+	}
+}
+
+func (x *AWSCloudTrailStreamRequest) ClearEventsFile() {
+	if _, ok := x.Action.(*AWSCloudTrailStreamRequest_EventsFile); ok {
+		x.Action = nil
+	}
+}
+
+const AWSCloudTrailStreamRequest_Action_not_set_case case_AWSCloudTrailStreamRequest_Action = 0
+const AWSCloudTrailStreamRequest_Config_case case_AWSCloudTrailStreamRequest_Action = 1
+const AWSCloudTrailStreamRequest_EventsFile_case case_AWSCloudTrailStreamRequest_Action = 2
+
+func (x *AWSCloudTrailStreamRequest) WhichAction() case_AWSCloudTrailStreamRequest_Action {
+	if x == nil {
+		return AWSCloudTrailStreamRequest_Action_not_set_case
+	}
+	switch x.Action.(type) {
+	case *AWSCloudTrailStreamRequest_Config:
+		return AWSCloudTrailStreamRequest_Config_case
+	case *AWSCloudTrailStreamRequest_EventsFile:
+		return AWSCloudTrailStreamRequest_EventsFile_case
+	default:
+		return AWSCloudTrailStreamRequest_Action_not_set_case
+	}
+}
+
+type AWSCloudTrailStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Action:
+	Config     *AWSCloudTrailConfig
+	EventsFile *AWSCloudTrailEventsFile
+	// -- end of Action
+}
+
+func (b0 AWSCloudTrailStreamRequest_builder) Build() *AWSCloudTrailStreamRequest {
+	m0 := &AWSCloudTrailStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Config != nil {
+		x.Action = &AWSCloudTrailStreamRequest_Config{b.Config}
+	}
+	if b.EventsFile != nil {
+		x.Action = &AWSCloudTrailStreamRequest_EventsFile{b.EventsFile}
+	}
+	return m0
+}
+
+type case_AWSCloudTrailStreamRequest_Action protoreflect.FieldNumber
+
+func (x case_AWSCloudTrailStreamRequest_Action) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[37].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAWSCloudTrailStreamRequest_Action interface {
 	isAWSCloudTrailStreamRequest_Action()
 }
@@ -2720,7 +4946,7 @@ func (*AWSCloudTrailStreamRequest_EventsFile) isAWSCloudTrailStreamRequest_Actio
 
 // AWSCloudTrailEventsFile holds the cloudtrail file.
 type AWSCloudTrailEventsFile struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Gzipped json encoded s3 payload.
 	Payload []byte `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
 	// The AWS account id of the account where the log is originated from.
@@ -2754,11 +4980,6 @@ func (x *AWSCloudTrailEventsFile) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSCloudTrailEventsFile.ProtoReflect.Descriptor instead.
-func (*AWSCloudTrailEventsFile) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{38}
-}
-
 func (x *AWSCloudTrailEventsFile) GetPayload() []byte {
 	if x != nil {
 		return x.Payload
@@ -2773,9 +4994,38 @@ func (x *AWSCloudTrailEventsFile) GetAwsAccountId() string {
 	return ""
 }
 
+func (x *AWSCloudTrailEventsFile) SetPayload(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Payload = v
+}
+
+func (x *AWSCloudTrailEventsFile) SetAwsAccountId(v string) {
+	x.AwsAccountId = v
+}
+
+type AWSCloudTrailEventsFile_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Gzipped json encoded s3 payload.
+	Payload []byte
+	// The AWS account id of the account where the log is originated from.
+	AwsAccountId string
+}
+
+func (b0 AWSCloudTrailEventsFile_builder) Build() *AWSCloudTrailEventsFile {
+	m0 := &AWSCloudTrailEventsFile{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Payload = b.Payload
+	x.AwsAccountId = b.AwsAccountId
+	return m0
+}
+
 // AWSCloudTrailConfig is the configuration for exporting AWS audit logs.
 type AWSCloudTrailConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2805,9 +5055,16 @@ func (x *AWSCloudTrailConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSCloudTrailConfig.ProtoReflect.Descriptor instead.
-func (*AWSCloudTrailConfig) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{39}
+type AWSCloudTrailConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 AWSCloudTrailConfig_builder) Build() *AWSCloudTrailConfig {
+	m0 := &AWSCloudTrailConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // AWSCloudTrailStreamResponse is sent from the server to the client over the
@@ -2816,7 +5073,7 @@ func (*AWSCloudTrailConfig) Descriptor() ([]byte, []int) {
 // 1. The effective `AWSCloudTrailConfig`.
 // 2. The starting resume state `AWSCloudTrailResumeState`.
 type AWSCloudTrailStreamResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to State:
 	//
 	//	*AWSCloudTrailStreamResponse_CloudTrailConfig
@@ -2851,11 +5108,6 @@ func (x *AWSCloudTrailStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSCloudTrailStreamResponse.ProtoReflect.Descriptor instead.
-func (*AWSCloudTrailStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{40}
-}
-
 func (x *AWSCloudTrailStreamResponse) GetState() isAWSCloudTrailStreamResponse_State {
 	if x != nil {
 		return x.State
@@ -2881,6 +5133,111 @@ func (x *AWSCloudTrailStreamResponse) GetResumeState() *AWSCloudTrailResumeState
 	return nil
 }
 
+func (x *AWSCloudTrailStreamResponse) SetCloudTrailConfig(v *AWSCloudTrailConfig) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &AWSCloudTrailStreamResponse_CloudTrailConfig{v}
+}
+
+func (x *AWSCloudTrailStreamResponse) SetResumeState(v *AWSCloudTrailResumeState) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &AWSCloudTrailStreamResponse_ResumeState{v}
+}
+
+func (x *AWSCloudTrailStreamResponse) HasState() bool {
+	if x == nil {
+		return false
+	}
+	return x.State != nil
+}
+
+func (x *AWSCloudTrailStreamResponse) HasCloudTrailConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*AWSCloudTrailStreamResponse_CloudTrailConfig)
+	return ok
+}
+
+func (x *AWSCloudTrailStreamResponse) HasResumeState() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*AWSCloudTrailStreamResponse_ResumeState)
+	return ok
+}
+
+func (x *AWSCloudTrailStreamResponse) ClearState() {
+	x.State = nil
+}
+
+func (x *AWSCloudTrailStreamResponse) ClearCloudTrailConfig() {
+	if _, ok := x.State.(*AWSCloudTrailStreamResponse_CloudTrailConfig); ok {
+		x.State = nil
+	}
+}
+
+func (x *AWSCloudTrailStreamResponse) ClearResumeState() {
+	if _, ok := x.State.(*AWSCloudTrailStreamResponse_ResumeState); ok {
+		x.State = nil
+	}
+}
+
+const AWSCloudTrailStreamResponse_State_not_set_case case_AWSCloudTrailStreamResponse_State = 0
+const AWSCloudTrailStreamResponse_CloudTrailConfig_case case_AWSCloudTrailStreamResponse_State = 1
+const AWSCloudTrailStreamResponse_ResumeState_case case_AWSCloudTrailStreamResponse_State = 2
+
+func (x *AWSCloudTrailStreamResponse) WhichState() case_AWSCloudTrailStreamResponse_State {
+	if x == nil {
+		return AWSCloudTrailStreamResponse_State_not_set_case
+	}
+	switch x.State.(type) {
+	case *AWSCloudTrailStreamResponse_CloudTrailConfig:
+		return AWSCloudTrailStreamResponse_CloudTrailConfig_case
+	case *AWSCloudTrailStreamResponse_ResumeState:
+		return AWSCloudTrailStreamResponse_ResumeState_case
+	default:
+		return AWSCloudTrailStreamResponse_State_not_set_case
+	}
+}
+
+type AWSCloudTrailStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof State:
+	CloudTrailConfig *AWSCloudTrailConfig
+	ResumeState      *AWSCloudTrailResumeState
+	// -- end of State
+}
+
+func (b0 AWSCloudTrailStreamResponse_builder) Build() *AWSCloudTrailStreamResponse {
+	m0 := &AWSCloudTrailStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.CloudTrailConfig != nil {
+		x.State = &AWSCloudTrailStreamResponse_CloudTrailConfig{b.CloudTrailConfig}
+	}
+	if b.ResumeState != nil {
+		x.State = &AWSCloudTrailStreamResponse_ResumeState{b.ResumeState}
+	}
+	return m0
+}
+
+type case_AWSCloudTrailStreamResponse_State protoreflect.FieldNumber
+
+func (x case_AWSCloudTrailStreamResponse_State) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[40].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isAWSCloudTrailStreamResponse_State interface {
 	isAWSCloudTrailStreamResponse_State()
 }
@@ -2900,7 +5257,7 @@ func (*AWSCloudTrailStreamResponse_ResumeState) isAWSCloudTrailStreamResponse_St
 // AWSCloudTrailResumeState is currently a placeholder to align with AuditLog
 // and GitHub RPCs, and to allow for later resume state implementation.
 type AWSCloudTrailResumeState struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -2930,14 +5287,21 @@ func (x *AWSCloudTrailResumeState) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSCloudTrailResumeState.ProtoReflect.Descriptor instead.
-func (*AWSCloudTrailResumeState) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{41}
+type AWSCloudTrailResumeState_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 AWSCloudTrailResumeState_builder) Build() *AWSCloudTrailResumeState {
+	m0 := &AWSCloudTrailResumeState{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // AWSCloudTrailEventResource identifies the AWS resource by name and type.
 type AWSCloudTrailEventResource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the resource referenced by the event returned. These are user-created
 	// names whose values will depend on the environment. For example, the resource
 	// name might be "auto-scaling-test-group" for an Auto Scaling Group or "i-1234567"
@@ -2979,11 +5343,6 @@ func (x *AWSCloudTrailEventResource) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AWSCloudTrailEventResource.ProtoReflect.Descriptor instead.
-func (*AWSCloudTrailEventResource) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{42}
-}
-
 func (x *AWSCloudTrailEventResource) GetName() string {
 	if x != nil {
 		return x.Name
@@ -2998,13 +5357,47 @@ func (x *AWSCloudTrailEventResource) GetType() string {
 	return ""
 }
 
+func (x *AWSCloudTrailEventResource) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AWSCloudTrailEventResource) SetType(v string) {
+	x.Type = v
+}
+
+type AWSCloudTrailEventResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the resource referenced by the event returned. These are user-created
+	// names whose values will depend on the environment. For example, the resource
+	// name might be "auto-scaling-test-group" for an Auto Scaling Group or "i-1234567"
+	// for an EC2 Instance.
+	Name string
+	// The type of a resource referenced by the event returned. When the resource
+	// type cannot be determined, null is returned. Some examples of resource types
+	// are: Instance for EC2, Trail for CloudTrail, DBInstance for Amazon RDS, and
+	// AccessKey for IAM. To learn more about how to look up and filter events by
+	// the resource types supported for a service, see Filtering CloudTrail Events
+	// (https://docs.aws.amazon.com/awscloudtrail/latest/userguide/view-cloudtrail-events-console.html#filtering-cloudtrail-events).
+	Type string
+}
+
+func (b0 AWSCloudTrailEventResource_builder) Build() *AWSCloudTrailEventResource {
+	m0 := &AWSCloudTrailEventResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Type = b.Type
+	return m0
+}
+
 // KubeAuditLogStreamRequest is sent from the client (Teleport) to the server
 // (access graph) over the bi-directional KubeAuditLogStream. It encapsulates
 // distinct client actions for sending batches of Kubernetes audit log events
 // and managing the persistent resume state maintained by the access graph
 // server.
 type KubeAuditLogStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Action:
 	//
 	//	*KubeAuditLogStreamRequest_Config
@@ -3038,11 +5431,6 @@ func (x *KubeAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use KubeAuditLogStreamRequest.ProtoReflect.Descriptor instead.
-func (*KubeAuditLogStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{43}
 }
 
 func (x *KubeAuditLogStreamRequest) GetAction() isKubeAuditLogStreamRequest_Action {
@@ -3079,6 +5467,140 @@ func (x *KubeAuditLogStreamRequest) GetEvents() *KubeAuditLogEvents {
 	return nil
 }
 
+func (x *KubeAuditLogStreamRequest) SetConfig(v *KubeAuditLogConfig) {
+	if v == nil {
+		x.Action = nil
+		return
+	}
+	x.Action = &KubeAuditLogStreamRequest_Config{v}
+}
+
+func (x *KubeAuditLogStreamRequest) SetNewStream(v *KubeAuditLogNewStream) {
+	if v == nil {
+		x.Action = nil
+		return
+	}
+	x.Action = &KubeAuditLogStreamRequest_NewStream{v}
+}
+
+func (x *KubeAuditLogStreamRequest) SetEvents(v *KubeAuditLogEvents) {
+	if v == nil {
+		x.Action = nil
+		return
+	}
+	x.Action = &KubeAuditLogStreamRequest_Events{v}
+}
+
+func (x *KubeAuditLogStreamRequest) HasAction() bool {
+	if x == nil {
+		return false
+	}
+	return x.Action != nil
+}
+
+func (x *KubeAuditLogStreamRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Action.(*KubeAuditLogStreamRequest_Config)
+	return ok
+}
+
+func (x *KubeAuditLogStreamRequest) HasNewStream() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Action.(*KubeAuditLogStreamRequest_NewStream)
+	return ok
+}
+
+func (x *KubeAuditLogStreamRequest) HasEvents() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Action.(*KubeAuditLogStreamRequest_Events)
+	return ok
+}
+
+func (x *KubeAuditLogStreamRequest) ClearAction() {
+	x.Action = nil
+}
+
+func (x *KubeAuditLogStreamRequest) ClearConfig() {
+	if _, ok := x.Action.(*KubeAuditLogStreamRequest_Config); ok {
+		x.Action = nil
+	}
+}
+
+func (x *KubeAuditLogStreamRequest) ClearNewStream() {
+	if _, ok := x.Action.(*KubeAuditLogStreamRequest_NewStream); ok {
+		x.Action = nil
+	}
+}
+
+func (x *KubeAuditLogStreamRequest) ClearEvents() {
+	if _, ok := x.Action.(*KubeAuditLogStreamRequest_Events); ok {
+		x.Action = nil
+	}
+}
+
+const KubeAuditLogStreamRequest_Action_not_set_case case_KubeAuditLogStreamRequest_Action = 0
+const KubeAuditLogStreamRequest_Config_case case_KubeAuditLogStreamRequest_Action = 1
+const KubeAuditLogStreamRequest_NewStream_case case_KubeAuditLogStreamRequest_Action = 2
+const KubeAuditLogStreamRequest_Events_case case_KubeAuditLogStreamRequest_Action = 3
+
+func (x *KubeAuditLogStreamRequest) WhichAction() case_KubeAuditLogStreamRequest_Action {
+	if x == nil {
+		return KubeAuditLogStreamRequest_Action_not_set_case
+	}
+	switch x.Action.(type) {
+	case *KubeAuditLogStreamRequest_Config:
+		return KubeAuditLogStreamRequest_Config_case
+	case *KubeAuditLogStreamRequest_NewStream:
+		return KubeAuditLogStreamRequest_NewStream_case
+	case *KubeAuditLogStreamRequest_Events:
+		return KubeAuditLogStreamRequest_Events_case
+	default:
+		return KubeAuditLogStreamRequest_Action_not_set_case
+	}
+}
+
+type KubeAuditLogStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Action:
+	Config    *KubeAuditLogConfig
+	NewStream *KubeAuditLogNewStream
+	Events    *KubeAuditLogEvents
+	// -- end of Action
+}
+
+func (b0 KubeAuditLogStreamRequest_builder) Build() *KubeAuditLogStreamRequest {
+	m0 := &KubeAuditLogStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Config != nil {
+		x.Action = &KubeAuditLogStreamRequest_Config{b.Config}
+	}
+	if b.NewStream != nil {
+		x.Action = &KubeAuditLogStreamRequest_NewStream{b.NewStream}
+	}
+	if b.Events != nil {
+		x.Action = &KubeAuditLogStreamRequest_Events{b.Events}
+	}
+	return m0
+}
+
+type case_KubeAuditLogStreamRequest_Action protoreflect.FieldNumber
+
+func (x case_KubeAuditLogStreamRequest_Action) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[43].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isKubeAuditLogStreamRequest_Action interface {
 	isKubeAuditLogStreamRequest_Action()
 }
@@ -3109,7 +5631,7 @@ func (*KubeAuditLogStreamRequest_Events) isKubeAuditLogStreamRequest_Action() {}
 // Currently there is no configuration exchanged. This message is present for
 // future expansion.
 type KubeAuditLogConfig struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3139,9 +5661,16 @@ func (x *KubeAuditLogConfig) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KubeAuditLogConfig.ProtoReflect.Descriptor instead.
-func (*KubeAuditLogConfig) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{44}
+type KubeAuditLogConfig_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 KubeAuditLogConfig_builder) Build() *KubeAuditLogConfig {
+	m0 := &KubeAuditLogConfig{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // KubeAuditLogNewStream identifies a log source and cluster that the client
@@ -3149,7 +5678,7 @@ func (*KubeAuditLogConfig) Descriptor() ([]byte, []int) {
 // KubeAuditLogResumeState message indicating where to resume streaming
 // logs from.
 type KubeAuditLogNewStream struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Initial       *KubeAuditLogCursor    `protobuf:"bytes,1,opt,name=initial,proto3" json:"initial,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -3180,11 +5709,6 @@ func (x *KubeAuditLogNewStream) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KubeAuditLogNewStream.ProtoReflect.Descriptor instead.
-func (*KubeAuditLogNewStream) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{45}
-}
-
 func (x *KubeAuditLogNewStream) GetInitial() *KubeAuditLogCursor {
 	if x != nil {
 		return x.Initial
@@ -3192,9 +5716,38 @@ func (x *KubeAuditLogNewStream) GetInitial() *KubeAuditLogCursor {
 	return nil
 }
 
+func (x *KubeAuditLogNewStream) SetInitial(v *KubeAuditLogCursor) {
+	x.Initial = v
+}
+
+func (x *KubeAuditLogNewStream) HasInitial() bool {
+	if x == nil {
+		return false
+	}
+	return x.Initial != nil
+}
+
+func (x *KubeAuditLogNewStream) ClearInitial() {
+	x.Initial = nil
+}
+
+type KubeAuditLogNewStream_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Initial *KubeAuditLogCursor
+}
+
+func (b0 KubeAuditLogNewStream_builder) Build() *KubeAuditLogNewStream {
+	m0 := &KubeAuditLogNewStream{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Initial = b.Initial
+	return m0
+}
+
 // KubeAuditLogEvents is a chunk of Kubernetes apiserver audit logs.
 type KubeAuditLogEvents struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// event is a Kubernetes audit log event represented as a struct so as to
 	// not depend on the Kubernetes proto files. Additionally, the audit log
 	// events are typically received as JSON, not protobufs.
@@ -3234,11 +5787,6 @@ func (x *KubeAuditLogEvents) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KubeAuditLogEvents.ProtoReflect.Descriptor instead.
-func (*KubeAuditLogEvents) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{46}
-}
-
 func (x *KubeAuditLogEvents) GetEvents() []*structpb.Struct {
 	if x != nil {
 		return x.Events
@@ -3253,12 +5801,55 @@ func (x *KubeAuditLogEvents) GetCursor() *KubeAuditLogCursor {
 	return nil
 }
 
+func (x *KubeAuditLogEvents) SetEvents(v []*structpb.Struct) {
+	x.Events = v
+}
+
+func (x *KubeAuditLogEvents) SetCursor(v *KubeAuditLogCursor) {
+	x.Cursor = v
+}
+
+func (x *KubeAuditLogEvents) HasCursor() bool {
+	if x == nil {
+		return false
+	}
+	return x.Cursor != nil
+}
+
+func (x *KubeAuditLogEvents) ClearCursor() {
+	x.Cursor = nil
+}
+
+type KubeAuditLogEvents_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// event is a Kubernetes audit log event represented as a struct so as to
+	// not depend on the Kubernetes proto files. Additionally, the audit log
+	// events are typically received as JSON, not protobufs.
+	// package k8s.io.apiserver.pkg.apis.audit.v1 at
+	// https://github.com/kubernetes/apiserver/blob/master/pkg/apis/audit/v1/generated.proto
+	Events []*structpb.Struct
+	// cursor is the position in the event stream of the last event in the
+	// event field. It can be sent back to Teleport when a stream is
+	// reconnected to resume the event stream from the end of this chunk.
+	Cursor *KubeAuditLogCursor
+}
+
+func (b0 KubeAuditLogEvents_builder) Build() *KubeAuditLogEvents {
+	m0 := &KubeAuditLogEvents{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Events = b.Events
+	x.Cursor = b.Cursor
+	return m0
+}
+
 // KubeAuditLogCursor is a position in a stream of KubeAuditLogEvents for
 // resuming a stream of events after an interrupted connection. Each batch
 // of events has a cursor referring to the last event of the batch. The
 // cursor can be sent to Teleport when resuming a connection.
 type KubeAuditLogCursor struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// log_source is where the logs are coming from that this cursor is for.
 	LogSource KubeAuditLogCursor_KubeAuditLogSource `protobuf:"varint,1,opt,name=log_source,json=logSource,proto3,enum=accessgraph.v1alpha.KubeAuditLogCursor_KubeAuditLogSource" json:"log_source,omitempty"`
 	// cluster_id is an opaque identifier for the Kubernetes cluster that this
@@ -3308,11 +5899,6 @@ func (x *KubeAuditLogCursor) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KubeAuditLogCursor.ProtoReflect.Descriptor instead.
-func (*KubeAuditLogCursor) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{47}
-}
-
 func (x *KubeAuditLogCursor) GetLogSource() KubeAuditLogCursor_KubeAuditLogSource {
 	if x != nil {
 		return x.LogSource
@@ -3341,12 +5927,75 @@ func (x *KubeAuditLogCursor) GetLastEventTime() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *KubeAuditLogCursor) SetLogSource(v KubeAuditLogCursor_KubeAuditLogSource) {
+	x.LogSource = v
+}
+
+func (x *KubeAuditLogCursor) SetClusterId(v string) {
+	x.ClusterId = v
+}
+
+func (x *KubeAuditLogCursor) SetEventId(v string) {
+	x.EventId = v
+}
+
+func (x *KubeAuditLogCursor) SetLastEventTime(v *timestamppb.Timestamp) {
+	x.LastEventTime = v
+}
+
+func (x *KubeAuditLogCursor) HasLastEventTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastEventTime != nil
+}
+
+func (x *KubeAuditLogCursor) ClearLastEventTime() {
+	x.LastEventTime = nil
+}
+
+type KubeAuditLogCursor_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// log_source is where the logs are coming from that this cursor is for.
+	LogSource KubeAuditLogCursor_KubeAuditLogSource
+	// cluster_id is an opaque identifier for the Kubernetes cluster that this
+	// cursor refers to. The ID should be interpreted based on the cluster type.
+	ClusterId string
+	// event_id is the ID of the last event of a batch of events that a cursor
+	// refers to. It is an opaque value interpreted according to the log_source
+	// of the cursor. When sent as part of a KubeAuditLogNewStream message, it
+	// will be empty. When sent as part of a KubeAuditLogResumeState, it may be
+	// empty to indicate that there is no resume state cursor.
+	EventId string
+	// last_event_time is the timestamp of the last event of a batch of events
+	// that a cursor refers to. If the event_id is sufficient to resume streaming
+	// events for a log source then this field may be omitted. When sent as part
+	// of a KubeAuditLogNewStream message, it may contain the timestamp from which
+	// the client intends to stream logs. The KubeAuditLogResumeState may contain
+	// a different time, indicating the timestamp from which it should start,
+	// either because it is a resumption of an existing stream or because the
+	// server is overriding the start timestamp for a new stream.
+	LastEventTime *timestamppb.Timestamp
+}
+
+func (b0 KubeAuditLogCursor_builder) Build() *KubeAuditLogCursor {
+	m0 := &KubeAuditLogCursor{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LogSource = b.LogSource
+	x.ClusterId = b.ClusterId
+	x.EventId = b.EventId
+	x.LastEventTime = b.LastEventTime
+	return m0
+}
+
 // KubeAuditLogStreamResponse is sent from the server (access graph) to the
 // client (Teleport) over th bi-directional KubeAuditLogStream. It is used to
 // convey the resume state of the log streams that access graph is processing
 // the logs for.
 type KubeAuditLogStreamResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to State:
 	//
 	//	*KubeAuditLogStreamResponse_Config
@@ -3381,11 +6030,6 @@ func (x *KubeAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KubeAuditLogStreamResponse.ProtoReflect.Descriptor instead.
-func (*KubeAuditLogStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{48}
-}
-
 func (x *KubeAuditLogStreamResponse) GetState() isKubeAuditLogStreamResponse_State {
 	if x != nil {
 		return x.State
@@ -3411,6 +6055,111 @@ func (x *KubeAuditLogStreamResponse) GetResumeState() *KubeAuditLogResumeState {
 	return nil
 }
 
+func (x *KubeAuditLogStreamResponse) SetConfig(v *KubeAuditLogConfig) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &KubeAuditLogStreamResponse_Config{v}
+}
+
+func (x *KubeAuditLogStreamResponse) SetResumeState(v *KubeAuditLogResumeState) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &KubeAuditLogStreamResponse_ResumeState{v}
+}
+
+func (x *KubeAuditLogStreamResponse) HasState() bool {
+	if x == nil {
+		return false
+	}
+	return x.State != nil
+}
+
+func (x *KubeAuditLogStreamResponse) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*KubeAuditLogStreamResponse_Config)
+	return ok
+}
+
+func (x *KubeAuditLogStreamResponse) HasResumeState() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*KubeAuditLogStreamResponse_ResumeState)
+	return ok
+}
+
+func (x *KubeAuditLogStreamResponse) ClearState() {
+	x.State = nil
+}
+
+func (x *KubeAuditLogStreamResponse) ClearConfig() {
+	if _, ok := x.State.(*KubeAuditLogStreamResponse_Config); ok {
+		x.State = nil
+	}
+}
+
+func (x *KubeAuditLogStreamResponse) ClearResumeState() {
+	if _, ok := x.State.(*KubeAuditLogStreamResponse_ResumeState); ok {
+		x.State = nil
+	}
+}
+
+const KubeAuditLogStreamResponse_State_not_set_case case_KubeAuditLogStreamResponse_State = 0
+const KubeAuditLogStreamResponse_Config_case case_KubeAuditLogStreamResponse_State = 1
+const KubeAuditLogStreamResponse_ResumeState_case case_KubeAuditLogStreamResponse_State = 2
+
+func (x *KubeAuditLogStreamResponse) WhichState() case_KubeAuditLogStreamResponse_State {
+	if x == nil {
+		return KubeAuditLogStreamResponse_State_not_set_case
+	}
+	switch x.State.(type) {
+	case *KubeAuditLogStreamResponse_Config:
+		return KubeAuditLogStreamResponse_Config_case
+	case *KubeAuditLogStreamResponse_ResumeState:
+		return KubeAuditLogStreamResponse_ResumeState_case
+	default:
+		return KubeAuditLogStreamResponse_State_not_set_case
+	}
+}
+
+type KubeAuditLogStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof State:
+	Config      *KubeAuditLogConfig
+	ResumeState *KubeAuditLogResumeState
+	// -- end of State
+}
+
+func (b0 KubeAuditLogStreamResponse_builder) Build() *KubeAuditLogStreamResponse {
+	m0 := &KubeAuditLogStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Config != nil {
+		x.State = &KubeAuditLogStreamResponse_Config{b.Config}
+	}
+	if b.ResumeState != nil {
+		x.State = &KubeAuditLogStreamResponse_ResumeState{b.ResumeState}
+	}
+	return m0
+}
+
+type case_KubeAuditLogStreamResponse_State protoreflect.FieldNumber
+
+func (x case_KubeAuditLogStreamResponse_State) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[48].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isKubeAuditLogStreamResponse_State interface {
 	isKubeAuditLogStreamResponse_State()
 }
@@ -3430,7 +6179,7 @@ func (*KubeAuditLogStreamResponse_ResumeState) isKubeAuditLogStreamResponse_Stat
 // KubeAuditLogResumeState is the response to the KubeAuditLogNewStream request
 // and contains the cursor for the resume state of that Kubernetes cluster.
 type KubeAuditLogResumeState struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// cursor is a resumption cursor for a new stream, sent in response to
 	// a KubeAuditLogNewStream request. If the log_source and cluster_id sent
 	// in the new stream request are unknown to the server, this cursor
@@ -3469,11 +6218,6 @@ func (x *KubeAuditLogResumeState) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KubeAuditLogResumeState.ProtoReflect.Descriptor instead.
-func (*KubeAuditLogResumeState) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{49}
-}
-
 func (x *KubeAuditLogResumeState) GetCursor() *KubeAuditLogCursor {
 	if x != nil {
 		return x.Cursor
@@ -3481,10 +6225,47 @@ func (x *KubeAuditLogResumeState) GetCursor() *KubeAuditLogCursor {
 	return nil
 }
 
+func (x *KubeAuditLogResumeState) SetCursor(v *KubeAuditLogCursor) {
+	x.Cursor = v
+}
+
+func (x *KubeAuditLogResumeState) HasCursor() bool {
+	if x == nil {
+		return false
+	}
+	return x.Cursor != nil
+}
+
+func (x *KubeAuditLogResumeState) ClearCursor() {
+	x.Cursor = nil
+}
+
+type KubeAuditLogResumeState_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// cursor is a resumption cursor for a new stream, sent in response to
+	// a KubeAuditLogNewStream request. If the log_source and cluster_id sent
+	// in the new stream request are unknown to the server, this cursor
+	// may not contain a position to resume from. However the timestamp in
+	// the cursor should be set to what was received in the KubeAuditLogNewStream
+	// message if it is not to be overridden, or it should be replaced with
+	// a different initial start timestamp if Access Graph (server) wants to
+	// override that.
+	Cursor *KubeAuditLogCursor
+}
+
+func (b0 KubeAuditLogResumeState_builder) Build() *KubeAuditLogResumeState {
+	m0 := &KubeAuditLogResumeState{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cursor = b.Cursor
+	return m0
+}
+
 // GitHubAuditLogStreamRequest represents a client message in the GitHubAuditLogStream,
 // containing either initial configuration or a batch of GitHub audit log events.
 type GitHubAuditLogStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Operation:
 	//
 	//	*GitHubAuditLogStreamRequest_Config
@@ -3519,11 +6300,6 @@ func (x *GitHubAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitHubAuditLogStreamRequest.ProtoReflect.Descriptor instead.
-func (*GitHubAuditLogStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{50}
-}
-
 func (x *GitHubAuditLogStreamRequest) GetOperation() isGitHubAuditLogStreamRequest_Operation {
 	if x != nil {
 		return x.Operation
@@ -3549,6 +6325,111 @@ func (x *GitHubAuditLogStreamRequest) GetAuditLog() *GitHubAuditLogV1 {
 	return nil
 }
 
+func (x *GitHubAuditLogStreamRequest) SetConfig(v *GitHubConfigV1) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &GitHubAuditLogStreamRequest_Config{v}
+}
+
+func (x *GitHubAuditLogStreamRequest) SetAuditLog(v *GitHubAuditLogV1) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &GitHubAuditLogStreamRequest_AuditLog{v}
+}
+
+func (x *GitHubAuditLogStreamRequest) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *GitHubAuditLogStreamRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*GitHubAuditLogStreamRequest_Config)
+	return ok
+}
+
+func (x *GitHubAuditLogStreamRequest) HasAuditLog() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*GitHubAuditLogStreamRequest_AuditLog)
+	return ok
+}
+
+func (x *GitHubAuditLogStreamRequest) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *GitHubAuditLogStreamRequest) ClearConfig() {
+	if _, ok := x.Operation.(*GitHubAuditLogStreamRequest_Config); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *GitHubAuditLogStreamRequest) ClearAuditLog() {
+	if _, ok := x.Operation.(*GitHubAuditLogStreamRequest_AuditLog); ok {
+		x.Operation = nil
+	}
+}
+
+const GitHubAuditLogStreamRequest_Operation_not_set_case case_GitHubAuditLogStreamRequest_Operation = 0
+const GitHubAuditLogStreamRequest_Config_case case_GitHubAuditLogStreamRequest_Operation = 1
+const GitHubAuditLogStreamRequest_AuditLog_case case_GitHubAuditLogStreamRequest_Operation = 2
+
+func (x *GitHubAuditLogStreamRequest) WhichOperation() case_GitHubAuditLogStreamRequest_Operation {
+	if x == nil {
+		return GitHubAuditLogStreamRequest_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *GitHubAuditLogStreamRequest_Config:
+		return GitHubAuditLogStreamRequest_Config_case
+	case *GitHubAuditLogStreamRequest_AuditLog:
+		return GitHubAuditLogStreamRequest_AuditLog_case
+	default:
+		return GitHubAuditLogStreamRequest_Operation_not_set_case
+	}
+}
+
+type GitHubAuditLogStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Operation:
+	Config   *GitHubConfigV1
+	AuditLog *GitHubAuditLogV1
+	// -- end of Operation
+}
+
+func (b0 GitHubAuditLogStreamRequest_builder) Build() *GitHubAuditLogStreamRequest {
+	m0 := &GitHubAuditLogStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Config != nil {
+		x.Operation = &GitHubAuditLogStreamRequest_Config{b.Config}
+	}
+	if b.AuditLog != nil {
+		x.Operation = &GitHubAuditLogStreamRequest_AuditLog{b.AuditLog}
+	}
+	return m0
+}
+
+type case_GitHubAuditLogStreamRequest_Operation protoreflect.FieldNumber
+
+func (x case_GitHubAuditLogStreamRequest_Operation) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[50].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isGitHubAuditLogStreamRequest_Operation interface {
 	isGitHubAuditLogStreamRequest_Operation()
 }
@@ -3571,7 +6452,7 @@ func (*GitHubAuditLogStreamRequest_AuditLog) isGitHubAuditLogStreamRequest_Opera
 // 1. The effective `GitHubConfigV1`.
 // 2. The starting resume state `GitHubAuditLogV1Cursor`.
 type GitHubAuditLogStreamResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to State:
 	//
 	//	*GitHubAuditLogStreamResponse_GithubConfig
@@ -3606,11 +6487,6 @@ func (x *GitHubAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitHubAuditLogStreamResponse.ProtoReflect.Descriptor instead.
-func (*GitHubAuditLogStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{51}
-}
-
 func (x *GitHubAuditLogStreamResponse) GetState() isGitHubAuditLogStreamResponse_State {
 	if x != nil {
 		return x.State
@@ -3636,6 +6512,111 @@ func (x *GitHubAuditLogStreamResponse) GetAuditLogResumeState() *GitHubAuditLogV
 	return nil
 }
 
+func (x *GitHubAuditLogStreamResponse) SetGithubConfig(v *GitHubConfigV1) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &GitHubAuditLogStreamResponse_GithubConfig{v}
+}
+
+func (x *GitHubAuditLogStreamResponse) SetAuditLogResumeState(v *GitHubAuditLogV1Cursor) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &GitHubAuditLogStreamResponse_AuditLogResumeState{v}
+}
+
+func (x *GitHubAuditLogStreamResponse) HasState() bool {
+	if x == nil {
+		return false
+	}
+	return x.State != nil
+}
+
+func (x *GitHubAuditLogStreamResponse) HasGithubConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*GitHubAuditLogStreamResponse_GithubConfig)
+	return ok
+}
+
+func (x *GitHubAuditLogStreamResponse) HasAuditLogResumeState() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*GitHubAuditLogStreamResponse_AuditLogResumeState)
+	return ok
+}
+
+func (x *GitHubAuditLogStreamResponse) ClearState() {
+	x.State = nil
+}
+
+func (x *GitHubAuditLogStreamResponse) ClearGithubConfig() {
+	if _, ok := x.State.(*GitHubAuditLogStreamResponse_GithubConfig); ok {
+		x.State = nil
+	}
+}
+
+func (x *GitHubAuditLogStreamResponse) ClearAuditLogResumeState() {
+	if _, ok := x.State.(*GitHubAuditLogStreamResponse_AuditLogResumeState); ok {
+		x.State = nil
+	}
+}
+
+const GitHubAuditLogStreamResponse_State_not_set_case case_GitHubAuditLogStreamResponse_State = 0
+const GitHubAuditLogStreamResponse_GithubConfig_case case_GitHubAuditLogStreamResponse_State = 1
+const GitHubAuditLogStreamResponse_AuditLogResumeState_case case_GitHubAuditLogStreamResponse_State = 2
+
+func (x *GitHubAuditLogStreamResponse) WhichState() case_GitHubAuditLogStreamResponse_State {
+	if x == nil {
+		return GitHubAuditLogStreamResponse_State_not_set_case
+	}
+	switch x.State.(type) {
+	case *GitHubAuditLogStreamResponse_GithubConfig:
+		return GitHubAuditLogStreamResponse_GithubConfig_case
+	case *GitHubAuditLogStreamResponse_AuditLogResumeState:
+		return GitHubAuditLogStreamResponse_AuditLogResumeState_case
+	default:
+		return GitHubAuditLogStreamResponse_State_not_set_case
+	}
+}
+
+type GitHubAuditLogStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof State:
+	GithubConfig        *GitHubConfigV1
+	AuditLogResumeState *GitHubAuditLogV1Cursor
+	// -- end of State
+}
+
+func (b0 GitHubAuditLogStreamResponse_builder) Build() *GitHubAuditLogStreamResponse {
+	m0 := &GitHubAuditLogStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.GithubConfig != nil {
+		x.State = &GitHubAuditLogStreamResponse_GithubConfig{b.GithubConfig}
+	}
+	if b.AuditLogResumeState != nil {
+		x.State = &GitHubAuditLogStreamResponse_AuditLogResumeState{b.AuditLogResumeState}
+	}
+	return m0
+}
+
+type case_GitHubAuditLogStreamResponse_State protoreflect.FieldNumber
+
+func (x case_GitHubAuditLogStreamResponse_State) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[51].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isGitHubAuditLogStreamResponse_State interface {
 	isGitHubAuditLogStreamResponse_State()
 }
@@ -3656,7 +6637,7 @@ func (*GitHubAuditLogStreamResponse_AuditLogResumeState) isGitHubAuditLogStreamR
 // specifying an upsert, delete, or sync operation for GitHub resource states
 // (ex.: repositories, user roles, tokens).
 type GitHubEventsStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// operation contains the desired operation
 	//
 	// Types that are valid to be assigned to Operation:
@@ -3694,11 +6675,6 @@ func (x *GitHubEventsStreamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitHubEventsStreamRequest.ProtoReflect.Descriptor instead.
-func (*GitHubEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{52}
-}
-
 func (x *GitHubEventsStreamRequest) GetOperation() isGitHubEventsStreamRequest_Operation {
 	if x != nil {
 		return x.Operation
@@ -3733,6 +6709,142 @@ func (x *GitHubEventsStreamRequest) GetSync() *GithubSync {
 	return nil
 }
 
+func (x *GitHubEventsStreamRequest) SetUpsert(v *GithubResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &GitHubEventsStreamRequest_Upsert{v}
+}
+
+func (x *GitHubEventsStreamRequest) SetDelete(v *GithubResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &GitHubEventsStreamRequest_Delete{v}
+}
+
+func (x *GitHubEventsStreamRequest) SetSync(v *GithubSync) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &GitHubEventsStreamRequest_Sync{v}
+}
+
+func (x *GitHubEventsStreamRequest) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *GitHubEventsStreamRequest) HasUpsert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*GitHubEventsStreamRequest_Upsert)
+	return ok
+}
+
+func (x *GitHubEventsStreamRequest) HasDelete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*GitHubEventsStreamRequest_Delete)
+	return ok
+}
+
+func (x *GitHubEventsStreamRequest) HasSync() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*GitHubEventsStreamRequest_Sync)
+	return ok
+}
+
+func (x *GitHubEventsStreamRequest) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *GitHubEventsStreamRequest) ClearUpsert() {
+	if _, ok := x.Operation.(*GitHubEventsStreamRequest_Upsert); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *GitHubEventsStreamRequest) ClearDelete() {
+	if _, ok := x.Operation.(*GitHubEventsStreamRequest_Delete); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *GitHubEventsStreamRequest) ClearSync() {
+	if _, ok := x.Operation.(*GitHubEventsStreamRequest_Sync); ok {
+		x.Operation = nil
+	}
+}
+
+const GitHubEventsStreamRequest_Operation_not_set_case case_GitHubEventsStreamRequest_Operation = 0
+const GitHubEventsStreamRequest_Upsert_case case_GitHubEventsStreamRequest_Operation = 1
+const GitHubEventsStreamRequest_Delete_case case_GitHubEventsStreamRequest_Operation = 2
+const GitHubEventsStreamRequest_Sync_case case_GitHubEventsStreamRequest_Operation = 3
+
+func (x *GitHubEventsStreamRequest) WhichOperation() case_GitHubEventsStreamRequest_Operation {
+	if x == nil {
+		return GitHubEventsStreamRequest_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *GitHubEventsStreamRequest_Upsert:
+		return GitHubEventsStreamRequest_Upsert_case
+	case *GitHubEventsStreamRequest_Delete:
+		return GitHubEventsStreamRequest_Delete_case
+	case *GitHubEventsStreamRequest_Sync:
+		return GitHubEventsStreamRequest_Sync_case
+	default:
+		return GitHubEventsStreamRequest_Operation_not_set_case
+	}
+}
+
+type GitHubEventsStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// operation contains the desired operation
+
+	// Fields of oneof Operation:
+	Upsert *GithubResourceList
+	Delete *GithubResourceList
+	Sync   *GithubSync
+	// -- end of Operation
+}
+
+func (b0 GitHubEventsStreamRequest_builder) Build() *GitHubEventsStreamRequest {
+	m0 := &GitHubEventsStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Upsert != nil {
+		x.Operation = &GitHubEventsStreamRequest_Upsert{b.Upsert}
+	}
+	if b.Delete != nil {
+		x.Operation = &GitHubEventsStreamRequest_Delete{b.Delete}
+	}
+	if b.Sync != nil {
+		x.Operation = &GitHubEventsStreamRequest_Sync{b.Sync}
+	}
+	return m0
+}
+
+type case_GitHubEventsStreamRequest_Operation protoreflect.FieldNumber
+
+func (x case_GitHubEventsStreamRequest_Operation) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[52].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isGitHubEventsStreamRequest_Operation interface {
 	isGitHubEventsStreamRequest_Operation()
 }
@@ -3758,7 +6870,7 @@ func (*GitHubEventsStreamRequest_Sync) isGitHubEventsStreamRequest_Operation() {
 // GitHubEventsStreamResponse is an empty server message in the GitHubEventsStream,
 // serving as an acknowledgment and allowing for future addition of response data.
 type GitHubEventsStreamResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -3788,15 +6900,22 @@ func (x *GitHubEventsStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GitHubEventsStreamResponse.ProtoReflect.Descriptor instead.
-func (*GitHubEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{53}
+type GitHubEventsStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GitHubEventsStreamResponse_builder) Build() *GitHubEventsStreamResponse {
+	m0 := &GitHubEventsStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // OktaAuditLogStreamRequest represents a client message in the OktaAuditLogStream,
 // containing either initial configuration or a batch of Okta audit log events.
 type OktaAuditLogStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Operation:
 	//
 	//	*OktaAuditLogStreamRequest_Config
@@ -3831,11 +6950,6 @@ func (x *OktaAuditLogStreamRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaAuditLogStreamRequest.ProtoReflect.Descriptor instead.
-func (*OktaAuditLogStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{54}
-}
-
 func (x *OktaAuditLogStreamRequest) GetOperation() isOktaAuditLogStreamRequest_Operation {
 	if x != nil {
 		return x.Operation
@@ -3861,6 +6975,111 @@ func (x *OktaAuditLogStreamRequest) GetAuditLog() *OktaAuditLogV1 {
 	return nil
 }
 
+func (x *OktaAuditLogStreamRequest) SetConfig(v *OktaConfigV1) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &OktaAuditLogStreamRequest_Config{v}
+}
+
+func (x *OktaAuditLogStreamRequest) SetAuditLog(v *OktaAuditLogV1) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &OktaAuditLogStreamRequest_AuditLog{v}
+}
+
+func (x *OktaAuditLogStreamRequest) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *OktaAuditLogStreamRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*OktaAuditLogStreamRequest_Config)
+	return ok
+}
+
+func (x *OktaAuditLogStreamRequest) HasAuditLog() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*OktaAuditLogStreamRequest_AuditLog)
+	return ok
+}
+
+func (x *OktaAuditLogStreamRequest) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *OktaAuditLogStreamRequest) ClearConfig() {
+	if _, ok := x.Operation.(*OktaAuditLogStreamRequest_Config); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *OktaAuditLogStreamRequest) ClearAuditLog() {
+	if _, ok := x.Operation.(*OktaAuditLogStreamRequest_AuditLog); ok {
+		x.Operation = nil
+	}
+}
+
+const OktaAuditLogStreamRequest_Operation_not_set_case case_OktaAuditLogStreamRequest_Operation = 0
+const OktaAuditLogStreamRequest_Config_case case_OktaAuditLogStreamRequest_Operation = 1
+const OktaAuditLogStreamRequest_AuditLog_case case_OktaAuditLogStreamRequest_Operation = 2
+
+func (x *OktaAuditLogStreamRequest) WhichOperation() case_OktaAuditLogStreamRequest_Operation {
+	if x == nil {
+		return OktaAuditLogStreamRequest_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *OktaAuditLogStreamRequest_Config:
+		return OktaAuditLogStreamRequest_Config_case
+	case *OktaAuditLogStreamRequest_AuditLog:
+		return OktaAuditLogStreamRequest_AuditLog_case
+	default:
+		return OktaAuditLogStreamRequest_Operation_not_set_case
+	}
+}
+
+type OktaAuditLogStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Operation:
+	Config   *OktaConfigV1
+	AuditLog *OktaAuditLogV1
+	// -- end of Operation
+}
+
+func (b0 OktaAuditLogStreamRequest_builder) Build() *OktaAuditLogStreamRequest {
+	m0 := &OktaAuditLogStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Config != nil {
+		x.Operation = &OktaAuditLogStreamRequest_Config{b.Config}
+	}
+	if b.AuditLog != nil {
+		x.Operation = &OktaAuditLogStreamRequest_AuditLog{b.AuditLog}
+	}
+	return m0
+}
+
+type case_OktaAuditLogStreamRequest_Operation protoreflect.FieldNumber
+
+func (x case_OktaAuditLogStreamRequest_Operation) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[54].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isOktaAuditLogStreamRequest_Operation interface {
 	isOktaAuditLogStreamRequest_Operation()
 }
@@ -3880,7 +7099,7 @@ func (*OktaAuditLogStreamRequest_AuditLog) isOktaAuditLogStreamRequest_Operation
 // OktaAuditLogStreamResponse represents a server message in the OktaAuditLogStream,
 // providing either the effective export configuration or an Okta audit log resume cursor.
 type OktaAuditLogStreamResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to State:
 	//
 	//	*OktaAuditLogStreamResponse_Config
@@ -3915,11 +7134,6 @@ func (x *OktaAuditLogStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaAuditLogStreamResponse.ProtoReflect.Descriptor instead.
-func (*OktaAuditLogStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{55}
-}
-
 func (x *OktaAuditLogStreamResponse) GetState() isOktaAuditLogStreamResponse_State {
 	if x != nil {
 		return x.State
@@ -3945,6 +7159,111 @@ func (x *OktaAuditLogStreamResponse) GetAuditLogResumeState() *OktaAuditLogV1Cur
 	return nil
 }
 
+func (x *OktaAuditLogStreamResponse) SetConfig(v *OktaConfigV1) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &OktaAuditLogStreamResponse_Config{v}
+}
+
+func (x *OktaAuditLogStreamResponse) SetAuditLogResumeState(v *OktaAuditLogV1Cursor) {
+	if v == nil {
+		x.State = nil
+		return
+	}
+	x.State = &OktaAuditLogStreamResponse_AuditLogResumeState{v}
+}
+
+func (x *OktaAuditLogStreamResponse) HasState() bool {
+	if x == nil {
+		return false
+	}
+	return x.State != nil
+}
+
+func (x *OktaAuditLogStreamResponse) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*OktaAuditLogStreamResponse_Config)
+	return ok
+}
+
+func (x *OktaAuditLogStreamResponse) HasAuditLogResumeState() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.State.(*OktaAuditLogStreamResponse_AuditLogResumeState)
+	return ok
+}
+
+func (x *OktaAuditLogStreamResponse) ClearState() {
+	x.State = nil
+}
+
+func (x *OktaAuditLogStreamResponse) ClearConfig() {
+	if _, ok := x.State.(*OktaAuditLogStreamResponse_Config); ok {
+		x.State = nil
+	}
+}
+
+func (x *OktaAuditLogStreamResponse) ClearAuditLogResumeState() {
+	if _, ok := x.State.(*OktaAuditLogStreamResponse_AuditLogResumeState); ok {
+		x.State = nil
+	}
+}
+
+const OktaAuditLogStreamResponse_State_not_set_case case_OktaAuditLogStreamResponse_State = 0
+const OktaAuditLogStreamResponse_Config_case case_OktaAuditLogStreamResponse_State = 1
+const OktaAuditLogStreamResponse_AuditLogResumeState_case case_OktaAuditLogStreamResponse_State = 2
+
+func (x *OktaAuditLogStreamResponse) WhichState() case_OktaAuditLogStreamResponse_State {
+	if x == nil {
+		return OktaAuditLogStreamResponse_State_not_set_case
+	}
+	switch x.State.(type) {
+	case *OktaAuditLogStreamResponse_Config:
+		return OktaAuditLogStreamResponse_Config_case
+	case *OktaAuditLogStreamResponse_AuditLogResumeState:
+		return OktaAuditLogStreamResponse_AuditLogResumeState_case
+	default:
+		return OktaAuditLogStreamResponse_State_not_set_case
+	}
+}
+
+type OktaAuditLogStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof State:
+	Config              *OktaConfigV1
+	AuditLogResumeState *OktaAuditLogV1Cursor
+	// -- end of State
+}
+
+func (b0 OktaAuditLogStreamResponse_builder) Build() *OktaAuditLogStreamResponse {
+	m0 := &OktaAuditLogStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Config != nil {
+		x.State = &OktaAuditLogStreamResponse_Config{b.Config}
+	}
+	if b.AuditLogResumeState != nil {
+		x.State = &OktaAuditLogStreamResponse_AuditLogResumeState{b.AuditLogResumeState}
+	}
+	return m0
+}
+
+type case_OktaAuditLogStreamResponse_State protoreflect.FieldNumber
+
+func (x case_OktaAuditLogStreamResponse_State) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[55].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isOktaAuditLogStreamResponse_State interface {
 	isOktaAuditLogStreamResponse_State()
 }
@@ -3964,7 +7283,7 @@ func (*OktaAuditLogStreamResponse_AuditLogResumeState) isOktaAuditLogStreamRespo
 // OktaEventsStreamRequest is a client message for the OktaEventsStream,
 // specifying an upsert, delete, or sync operation for Okta resource states (ex.: users, groups, roles).
 type OktaEventsStreamRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Operation:
 	//
 	//	*OktaEventsStreamRequest_Upsert
@@ -3998,11 +7317,6 @@ func (x *OktaEventsStreamRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use OktaEventsStreamRequest.ProtoReflect.Descriptor instead.
-func (*OktaEventsStreamRequest) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{56}
 }
 
 func (x *OktaEventsStreamRequest) GetOperation() isOktaEventsStreamRequest_Operation {
@@ -4039,6 +7353,140 @@ func (x *OktaEventsStreamRequest) GetSync() *OktaSync {
 	return nil
 }
 
+func (x *OktaEventsStreamRequest) SetUpsert(v *OktaResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &OktaEventsStreamRequest_Upsert{v}
+}
+
+func (x *OktaEventsStreamRequest) SetDelete(v *OktaResourceList) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &OktaEventsStreamRequest_Delete{v}
+}
+
+func (x *OktaEventsStreamRequest) SetSync(v *OktaSync) {
+	if v == nil {
+		x.Operation = nil
+		return
+	}
+	x.Operation = &OktaEventsStreamRequest_Sync{v}
+}
+
+func (x *OktaEventsStreamRequest) HasOperation() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operation != nil
+}
+
+func (x *OktaEventsStreamRequest) HasUpsert() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*OktaEventsStreamRequest_Upsert)
+	return ok
+}
+
+func (x *OktaEventsStreamRequest) HasDelete() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*OktaEventsStreamRequest_Delete)
+	return ok
+}
+
+func (x *OktaEventsStreamRequest) HasSync() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operation.(*OktaEventsStreamRequest_Sync)
+	return ok
+}
+
+func (x *OktaEventsStreamRequest) ClearOperation() {
+	x.Operation = nil
+}
+
+func (x *OktaEventsStreamRequest) ClearUpsert() {
+	if _, ok := x.Operation.(*OktaEventsStreamRequest_Upsert); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *OktaEventsStreamRequest) ClearDelete() {
+	if _, ok := x.Operation.(*OktaEventsStreamRequest_Delete); ok {
+		x.Operation = nil
+	}
+}
+
+func (x *OktaEventsStreamRequest) ClearSync() {
+	if _, ok := x.Operation.(*OktaEventsStreamRequest_Sync); ok {
+		x.Operation = nil
+	}
+}
+
+const OktaEventsStreamRequest_Operation_not_set_case case_OktaEventsStreamRequest_Operation = 0
+const OktaEventsStreamRequest_Upsert_case case_OktaEventsStreamRequest_Operation = 1
+const OktaEventsStreamRequest_Delete_case case_OktaEventsStreamRequest_Operation = 2
+const OktaEventsStreamRequest_Sync_case case_OktaEventsStreamRequest_Operation = 3
+
+func (x *OktaEventsStreamRequest) WhichOperation() case_OktaEventsStreamRequest_Operation {
+	if x == nil {
+		return OktaEventsStreamRequest_Operation_not_set_case
+	}
+	switch x.Operation.(type) {
+	case *OktaEventsStreamRequest_Upsert:
+		return OktaEventsStreamRequest_Upsert_case
+	case *OktaEventsStreamRequest_Delete:
+		return OktaEventsStreamRequest_Delete_case
+	case *OktaEventsStreamRequest_Sync:
+		return OktaEventsStreamRequest_Sync_case
+	default:
+		return OktaEventsStreamRequest_Operation_not_set_case
+	}
+}
+
+type OktaEventsStreamRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Operation:
+	Upsert *OktaResourceList
+	Delete *OktaResourceList
+	Sync   *OktaSync
+	// -- end of Operation
+}
+
+func (b0 OktaEventsStreamRequest_builder) Build() *OktaEventsStreamRequest {
+	m0 := &OktaEventsStreamRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Upsert != nil {
+		x.Operation = &OktaEventsStreamRequest_Upsert{b.Upsert}
+	}
+	if b.Delete != nil {
+		x.Operation = &OktaEventsStreamRequest_Delete{b.Delete}
+	}
+	if b.Sync != nil {
+		x.Operation = &OktaEventsStreamRequest_Sync{b.Sync}
+	}
+	return m0
+}
+
+type case_OktaEventsStreamRequest_Operation protoreflect.FieldNumber
+
+func (x case_OktaEventsStreamRequest_Operation) String() string {
+	md := file_accessgraph_v1alpha_access_graph_service_proto_msgTypes[56].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isOktaEventsStreamRequest_Operation interface {
 	isOktaEventsStreamRequest_Operation()
 }
@@ -4064,7 +7512,7 @@ func (*OktaEventsStreamRequest_Sync) isOktaEventsStreamRequest_Operation() {}
 // OktaEventsStreamResponse is an empty server message in the GitHubEventsStream,
 // serving as an acknowledgment and allowing for future addition of response data.
 type OktaEventsStreamResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -4094,9 +7542,16 @@ func (x *OktaEventsStreamResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaEventsStreamResponse.ProtoReflect.Descriptor instead.
-func (*OktaEventsStreamResponse) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP(), []int{57}
+type OktaEventsStreamResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 OktaEventsStreamResponse_builder) Build() *OktaEventsStreamResponse {
+	m0 := &OktaEventsStreamResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_accessgraph_v1alpha_access_graph_service_proto protoreflect.FileDescriptor
@@ -4319,18 +7774,6 @@ const file_accessgraph_v1alpha_access_graph_service_proto_rawDesc = "" +
 	"\x12GitHubEventsStream\x12..accessgraph.v1alpha.GitHubEventsStreamRequest\x1a/.accessgraph.v1alpha.GitHubEventsStreamResponse(\x010\x01\x12y\n" +
 	"\x12OktaAuditLogStream\x12..accessgraph.v1alpha.OktaAuditLogStreamRequest\x1a/.accessgraph.v1alpha.OktaAuditLogStreamResponse(\x010\x01\x12s\n" +
 	"\x10OktaEventsStream\x12,.accessgraph.v1alpha.OktaEventsStreamRequest\x1a-.accessgraph.v1alpha.OktaEventsStreamResponse(\x010\x01BWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
-
-var (
-	file_accessgraph_v1alpha_access_graph_service_proto_rawDescOnce sync.Once
-	file_accessgraph_v1alpha_access_graph_service_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1alpha_access_graph_service_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1alpha_access_graph_service_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1alpha_access_graph_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_access_graph_service_proto_rawDesc), len(file_accessgraph_v1alpha_access_graph_service_proto_rawDesc)))
-	})
-	return file_accessgraph_v1alpha_access_graph_service_proto_rawDescData
-}
 
 var file_accessgraph_v1alpha_access_graph_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_accessgraph_v1alpha_access_graph_service_proto_msgTypes = make([]protoimpl.MessageInfo, 59)

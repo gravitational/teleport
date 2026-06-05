@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/scopes/access/v1/role.proto
 
+//go:build !protoopaque
+
 package accessv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -41,7 +42,7 @@ const (
 // features tailored to the usecases of scoped access and scoped access administration. Scoped roles may be
 // assigned to the same user multiple times at various scopes. Scoped roles do not contain deny rules.
 type ScopedRole struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// SubKind is the resource sub-kind.
@@ -81,11 +82,6 @@ func (x *ScopedRole) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ScopedRole.ProtoReflect.Descriptor instead.
-func (*ScopedRole) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *ScopedRole) GetKind() string {
@@ -130,6 +126,82 @@ func (x *ScopedRole) GetSpec() *ScopedRoleSpec {
 	return nil
 }
 
+func (x *ScopedRole) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *ScopedRole) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *ScopedRole) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *ScopedRole) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *ScopedRole) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *ScopedRole) SetSpec(v *ScopedRoleSpec) {
+	x.Spec = v
+}
+
+func (x *ScopedRole) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *ScopedRole) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *ScopedRole) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *ScopedRole) ClearSpec() {
+	x.Spec = nil
+}
+
+type ScopedRole_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the resource kind.
+	Kind string
+	// SubKind is the resource sub-kind.
+	SubKind string
+	// Version is the resource version.
+	Version string
+	// Metadata contains the resource metadata.
+	Metadata *v1.Metadata
+	// Scope is the scope of the role resource.
+	Scope string
+	// Spec is the role specification.
+	Spec *ScopedRoleSpec
+}
+
+func (b0 ScopedRole_builder) Build() *ScopedRole {
+	m0 := &ScopedRole{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Scope = b.Scope
+	x.Spec = b.Spec
+	return m0
+}
+
 // ScopedRoleSpec is the specification of a scoped role. Note that this type and all of its
 // members are required to have presence enabled for all non-sequence fields (enforced by unit
 // tests in lib/scopes/access). In practice, this means that scalar values should be declared
@@ -142,7 +214,7 @@ func (x *ScopedRole) GetSpec() *ScopedRoleSpec {
 // to minimize top-level keys and promote grouping of related controls together in sub-blocks,
 // typically organized by the access protocol they relate to.
 type ScopedRoleSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AssignableScopes is a list of scopes to which this role can be assigned.
 	AssignableScopes []string `protobuf:"bytes,1,rep,name=assignable_scopes,json=assignableScopes,proto3" json:"assignable_scopes,omitempty"`
 	// Defaults specifies default values for controls common across multiple protocols. If the same control
@@ -184,11 +256,6 @@ func (x *ScopedRoleSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ScopedRoleSpec.ProtoReflect.Descriptor instead.
-func (*ScopedRoleSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ScopedRoleSpec) GetAssignableScopes() []string {
 	if x != nil {
 		return x.AssignableScopes
@@ -224,10 +291,92 @@ func (x *ScopedRoleSpec) GetKube() *ScopedRoleKube {
 	return nil
 }
 
+func (x *ScopedRoleSpec) SetAssignableScopes(v []string) {
+	x.AssignableScopes = v
+}
+
+func (x *ScopedRoleSpec) SetDefaults(v *ScopedRoleDefaults) {
+	x.Defaults = v
+}
+
+func (x *ScopedRoleSpec) SetRules(v []*ScopedRule) {
+	x.Rules = v
+}
+
+func (x *ScopedRoleSpec) SetSsh(v *ScopedRoleSSH) {
+	x.Ssh = v
+}
+
+func (x *ScopedRoleSpec) SetKube(v *ScopedRoleKube) {
+	x.Kube = v
+}
+
+func (x *ScopedRoleSpec) HasDefaults() bool {
+	if x == nil {
+		return false
+	}
+	return x.Defaults != nil
+}
+
+func (x *ScopedRoleSpec) HasSsh() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ssh != nil
+}
+
+func (x *ScopedRoleSpec) HasKube() bool {
+	if x == nil {
+		return false
+	}
+	return x.Kube != nil
+}
+
+func (x *ScopedRoleSpec) ClearDefaults() {
+	x.Defaults = nil
+}
+
+func (x *ScopedRoleSpec) ClearSsh() {
+	x.Ssh = nil
+}
+
+func (x *ScopedRoleSpec) ClearKube() {
+	x.Kube = nil
+}
+
+type ScopedRoleSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AssignableScopes is a list of scopes to which this role can be assigned.
+	AssignableScopes []string
+	// Defaults specifies default values for controls common across multiple protocols. If the same control
+	// specified in defaults is also specified in a protocol block, the value in the protocol block takes
+	// precedence.
+	Defaults *ScopedRoleDefaults
+	// Rules describes basic resource:verb permissions (e.g. scoped_role:read).
+	Rules []*ScopedRule
+	// Ssh specifies controls that govern SSH access.
+	Ssh *ScopedRoleSSH
+	// The kubernetes specific configuration for a scoped role.
+	Kube *ScopedRoleKube
+}
+
+func (b0 ScopedRoleSpec_builder) Build() *ScopedRoleSpec {
+	m0 := &ScopedRoleSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AssignableScopes = b.AssignableScopes
+	x.Defaults = b.Defaults
+	x.Rules = b.Rules
+	x.Ssh = b.Ssh
+	x.Kube = b.Kube
+	return m0
+}
+
 // ScopedRoleDefaults provides fallback values for controls shared across multiple protocols.
 // A control in a protocol-specific block takes precedence over the value specified here.
 type ScopedRoleDefaults struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClientIdleTimeout sets the default idle timeout for access sessions across all protocols
 	// that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
 	ClientIdleTimeout string `protobuf:"bytes,1,opt,name=client_idle_timeout,json=clientIdleTimeout,proto3" json:"client_idle_timeout,omitempty"`
@@ -260,16 +409,31 @@ func (x *ScopedRoleDefaults) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ScopedRoleDefaults.ProtoReflect.Descriptor instead.
-func (*ScopedRoleDefaults) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ScopedRoleDefaults) GetClientIdleTimeout() string {
 	if x != nil {
 		return x.ClientIdleTimeout
 	}
 	return ""
+}
+
+func (x *ScopedRoleDefaults) SetClientIdleTimeout(v string) {
+	x.ClientIdleTimeout = v
+}
+
+type ScopedRoleDefaults_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClientIdleTimeout sets the default idle timeout for access sessions across all protocols
+	// that do not specify their own value. Must be a valid Go duration string (e.g. "30m", "1h").
+	ClientIdleTimeout string
+}
+
+func (b0 ScopedRoleDefaults_builder) Build() *ScopedRoleDefaults {
+	m0 := &ScopedRoleDefaults{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClientIdleTimeout = b.ClientIdleTimeout
+	return m0
 }
 
 // ScopedRoleSSH groups all scoped role fields relevant to SSH access. Fields within the SSH block
@@ -278,7 +442,7 @@ func (x *ScopedRoleDefaults) GetClientIdleTimeout() string {
 // to the SSH access it permits, but defaults and global or scope-bound controls may also affect the nature of
 // the resulting access.
 type ScopedRoleSSH struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Logins is the list of OS logins this role permits on matching nodes.
 	Logins []string `protobuf:"bytes,1,rep,name=logins,proto3" json:"logins,omitempty"`
 	// Labels is the set of node labels used to dynamically select which nodes this role applies to.
@@ -331,11 +495,6 @@ func (x *ScopedRoleSSH) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ScopedRoleSSH.ProtoReflect.Descriptor instead.
-func (*ScopedRoleSSH) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *ScopedRoleSSH) GetLogins() []string {
@@ -408,13 +567,166 @@ func (x *ScopedRoleSSH) GetFileCopy() bool {
 	return false
 }
 
+func (x *ScopedRoleSSH) SetLogins(v []string) {
+	x.Logins = v
+}
+
+func (x *ScopedRoleSSH) SetLabels(v []*v11.Label) {
+	x.Labels = v
+}
+
+func (x *ScopedRoleSSH) SetClientIdleTimeout(v string) {
+	x.ClientIdleTimeout = v
+}
+
+func (x *ScopedRoleSSH) SetPermitX11Forwarding(v bool) {
+	x.PermitX11Forwarding = &v
+}
+
+func (x *ScopedRoleSSH) SetForwardAgent(v bool) {
+	x.ForwardAgent = &v
+}
+
+func (x *ScopedRoleSSH) SetPortForwarding(v *SSHPortForwarding) {
+	x.PortForwarding = v
+}
+
+func (x *ScopedRoleSSH) SetHostUserCreation(v *CreateHostUser) {
+	x.HostUserCreation = v
+}
+
+func (x *ScopedRoleSSH) SetMaxSessions(v int64) {
+	x.MaxSessions = &v
+}
+
+func (x *ScopedRoleSSH) SetHostSudoers(v []string) {
+	x.HostSudoers = v
+}
+
+func (x *ScopedRoleSSH) SetFileCopy(v bool) {
+	x.FileCopy = &v
+}
+
+func (x *ScopedRoleSSH) HasPermitX11Forwarding() bool {
+	if x == nil {
+		return false
+	}
+	return x.PermitX11Forwarding != nil
+}
+
+func (x *ScopedRoleSSH) HasForwardAgent() bool {
+	if x == nil {
+		return false
+	}
+	return x.ForwardAgent != nil
+}
+
+func (x *ScopedRoleSSH) HasPortForwarding() bool {
+	if x == nil {
+		return false
+	}
+	return x.PortForwarding != nil
+}
+
+func (x *ScopedRoleSSH) HasHostUserCreation() bool {
+	if x == nil {
+		return false
+	}
+	return x.HostUserCreation != nil
+}
+
+func (x *ScopedRoleSSH) HasMaxSessions() bool {
+	if x == nil {
+		return false
+	}
+	return x.MaxSessions != nil
+}
+
+func (x *ScopedRoleSSH) HasFileCopy() bool {
+	if x == nil {
+		return false
+	}
+	return x.FileCopy != nil
+}
+
+func (x *ScopedRoleSSH) ClearPermitX11Forwarding() {
+	x.PermitX11Forwarding = nil
+}
+
+func (x *ScopedRoleSSH) ClearForwardAgent() {
+	x.ForwardAgent = nil
+}
+
+func (x *ScopedRoleSSH) ClearPortForwarding() {
+	x.PortForwarding = nil
+}
+
+func (x *ScopedRoleSSH) ClearHostUserCreation() {
+	x.HostUserCreation = nil
+}
+
+func (x *ScopedRoleSSH) ClearMaxSessions() {
+	x.MaxSessions = nil
+}
+
+func (x *ScopedRoleSSH) ClearFileCopy() {
+	x.FileCopy = nil
+}
+
+type ScopedRoleSSH_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Logins is the list of OS logins this role permits on matching nodes.
+	Logins []string
+	// Labels is the set of node labels used to dynamically select which nodes this role applies to.
+	Labels []*v11.Label
+	// ClientIdleTimeout overrides the defaults block idle timeout specifically for SSH sessions.
+	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
+	// (or global default) applies.
+	ClientIdleTimeout string
+	// PermitX11Forwarding, when true, authorizes use of X11 forwarding over SSH sessions.
+	// If not set, X11 forwarding is not permitted.
+	PermitX11Forwarding *bool
+	// ForwardAgent enables SSH agent forwarding.
+	ForwardAgent *bool
+	// SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
+	PortForwarding *SSHPortForwarding
+	// HostUserCreation configures the creation of host users.
+	HostUserCreation *CreateHostUser
+	// MaxSessions defines the maximum number of
+	// concurrent sessions per connection.
+	MaxSessions *int64
+	// Sudoers is a list of entries to include in a users sudoer file
+	HostSudoers []string
+	// FileCopy indicates whether remote file operations via SCP or SFTP are allowed
+	// over an SSH session. It defaults to allowing the user to download and upload files by default.
+	FileCopy *bool
+}
+
+func (b0 ScopedRoleSSH_builder) Build() *ScopedRoleSSH {
+	m0 := &ScopedRoleSSH{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Logins = b.Logins
+	x.Labels = b.Labels
+	x.ClientIdleTimeout = b.ClientIdleTimeout
+	x.PermitX11Forwarding = b.PermitX11Forwarding
+	x.ForwardAgent = b.ForwardAgent
+	x.PortForwarding = b.PortForwarding
+	x.HostUserCreation = b.HostUserCreation
+	x.MaxSessions = b.MaxSessions
+	x.HostSudoers = b.HostSudoers
+	x.FileCopy = b.FileCopy
+	return m0
+}
+
 // The group of all scoped role fields relevant to kube access. Fields within the kube block
 // encompass selection criteria and preconditions for access, as well as the controls to be applied in
 // cases where access is permitted. A kube block is the primary source of truth for controls to be applied
 // to the kube access it permits, but defaults and global or scope-bound controls may also affect the nature of
 // the resulting access.
 type ScopedRoleKube struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The map of kubernetes cluster labels used for RBAC.
 	Labels []*v11.Label `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty"`
 	// The list of kubernetes groups this role allows.
@@ -454,11 +766,6 @@ func (x *ScopedRoleKube) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ScopedRoleKube.ProtoReflect.Descriptor instead.
-func (*ScopedRoleKube) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ScopedRoleKube) GetLabels() []*v11.Label {
 	if x != nil {
 		return x.Labels
@@ -487,10 +794,52 @@ func (x *ScopedRoleKube) GetClientIdleTimeout() string {
 	return ""
 }
 
+func (x *ScopedRoleKube) SetLabels(v []*v11.Label) {
+	x.Labels = v
+}
+
+func (x *ScopedRoleKube) SetGroups(v []string) {
+	x.Groups = v
+}
+
+func (x *ScopedRoleKube) SetUsers(v []string) {
+	x.Users = v
+}
+
+func (x *ScopedRoleKube) SetClientIdleTimeout(v string) {
+	x.ClientIdleTimeout = v
+}
+
+type ScopedRoleKube_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The map of kubernetes cluster labels used for RBAC.
+	Labels []*v11.Label
+	// The list of kubernetes groups this role allows.
+	Groups []string
+	// An optional list of impersonatable kubernetes users this role allows.
+	Users []string
+	// Overrides the defaults block idle timeout specifically for kube sessions.
+	// Must be a valid Go duration string (e.g. "30m", "1h"). If empty, the defaults block value
+	// (or global default) applies.
+	ClientIdleTimeout string
+}
+
+func (b0 ScopedRoleKube_builder) Build() *ScopedRoleKube {
+	m0 := &ScopedRoleKube{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Labels = b.Labels
+	x.Groups = b.Groups
+	x.Users = b.Users
+	x.ClientIdleTimeout = b.ClientIdleTimeout
+	return m0
+}
+
 // ScopedRule maps resources to verbs. This is the underlying type used to describe
 // permissions like 'scoped_role:read' or 'scoped_role_assignment:create'.
 type ScopedRule struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Resources is a list of resource kinds (e.g. 'scoped_token') that the below verbs apply to.
 	Resources []string `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	// Verbs is the list of action verbs (e.g. 'read') that apply to the above resources.
@@ -524,11 +873,6 @@ func (x *ScopedRule) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ScopedRule.ProtoReflect.Descriptor instead.
-func (*ScopedRule) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ScopedRule) GetResources() []string {
 	if x != nil {
 		return x.Resources
@@ -543,9 +887,35 @@ func (x *ScopedRule) GetVerbs() []string {
 	return nil
 }
 
+func (x *ScopedRule) SetResources(v []string) {
+	x.Resources = v
+}
+
+func (x *ScopedRule) SetVerbs(v []string) {
+	x.Verbs = v
+}
+
+type ScopedRule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Resources is a list of resource kinds (e.g. 'scoped_token') that the below verbs apply to.
+	Resources []string
+	// Verbs is the list of action verbs (e.g. 'read') that apply to the above resources.
+	Verbs []string
+}
+
+func (b0 ScopedRule_builder) Build() *ScopedRule {
+	m0 := &ScopedRule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	x.Verbs = b.Verbs
+	return m0
+}
+
 // SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.
 type SSHPortForwarding struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Allow for local port forwarding.
 	Local *SSHLocalPortForwarding `protobuf:"bytes,1,opt,name=local,proto3" json:"local,omitempty"`
 	// Allow for remote port forwarding.
@@ -579,11 +949,6 @@ func (x *SSHPortForwarding) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SSHPortForwarding.ProtoReflect.Descriptor instead.
-func (*SSHPortForwarding) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *SSHPortForwarding) GetLocal() *SSHLocalPortForwarding {
 	if x != nil {
 		return x.Local
@@ -598,9 +963,57 @@ func (x *SSHPortForwarding) GetRemote() *SSHRemotePortForwarding {
 	return nil
 }
 
+func (x *SSHPortForwarding) SetLocal(v *SSHLocalPortForwarding) {
+	x.Local = v
+}
+
+func (x *SSHPortForwarding) SetRemote(v *SSHRemotePortForwarding) {
+	x.Remote = v
+}
+
+func (x *SSHPortForwarding) HasLocal() bool {
+	if x == nil {
+		return false
+	}
+	return x.Local != nil
+}
+
+func (x *SSHPortForwarding) HasRemote() bool {
+	if x == nil {
+		return false
+	}
+	return x.Remote != nil
+}
+
+func (x *SSHPortForwarding) ClearLocal() {
+	x.Local = nil
+}
+
+func (x *SSHPortForwarding) ClearRemote() {
+	x.Remote = nil
+}
+
+type SSHPortForwarding_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Allow for local port forwarding.
+	Local *SSHLocalPortForwarding
+	// Allow for remote port forwarding.
+	Remote *SSHRemotePortForwarding
+}
+
+func (b0 SSHPortForwarding_builder) Build() *SSHPortForwarding {
+	m0 := &SSHPortForwarding{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Local = b.Local
+	x.Remote = b.Remote
+	return m0
+}
+
 // SSHLocalPortForwarding configures access controls for local SSH port forwarding.
 type SSHLocalPortForwarding struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Enabled       *bool                  `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -631,11 +1044,6 @@ func (x *SSHLocalPortForwarding) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SSHLocalPortForwarding.ProtoReflect.Descriptor instead.
-func (*SSHLocalPortForwarding) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *SSHLocalPortForwarding) GetEnabled() bool {
 	if x != nil && x.Enabled != nil {
 		return *x.Enabled
@@ -643,9 +1051,38 @@ func (x *SSHLocalPortForwarding) GetEnabled() bool {
 	return false
 }
 
+func (x *SSHLocalPortForwarding) SetEnabled(v bool) {
+	x.Enabled = &v
+}
+
+func (x *SSHLocalPortForwarding) HasEnabled() bool {
+	if x == nil {
+		return false
+	}
+	return x.Enabled != nil
+}
+
+func (x *SSHLocalPortForwarding) ClearEnabled() {
+	x.Enabled = nil
+}
+
+type SSHLocalPortForwarding_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Enabled *bool
+}
+
+func (b0 SSHLocalPortForwarding_builder) Build() *SSHLocalPortForwarding {
+	m0 := &SSHLocalPortForwarding{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Enabled = b.Enabled
+	return m0
+}
+
 // SSHRemotePortForwarding configures access controls for remote SSH port forwarding.
 type SSHRemotePortForwarding struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Enabled       *bool                  `protobuf:"varint,1,opt,name=enabled,proto3,oneof" json:"enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -676,11 +1113,6 @@ func (x *SSHRemotePortForwarding) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SSHRemotePortForwarding.ProtoReflect.Descriptor instead.
-func (*SSHRemotePortForwarding) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *SSHRemotePortForwarding) GetEnabled() bool {
 	if x != nil && x.Enabled != nil {
 		return *x.Enabled
@@ -688,9 +1120,38 @@ func (x *SSHRemotePortForwarding) GetEnabled() bool {
 	return false
 }
 
+func (x *SSHRemotePortForwarding) SetEnabled(v bool) {
+	x.Enabled = &v
+}
+
+func (x *SSHRemotePortForwarding) HasEnabled() bool {
+	if x == nil {
+		return false
+	}
+	return x.Enabled != nil
+}
+
+func (x *SSHRemotePortForwarding) ClearEnabled() {
+	x.Enabled = nil
+}
+
+type SSHRemotePortForwarding_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Enabled *bool
+}
+
+func (b0 SSHRemotePortForwarding_builder) Build() *SSHRemotePortForwarding {
+	m0 := &SSHRemotePortForwarding{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Enabled = b.Enabled
+	return m0
+}
+
 // CreateHostUser configures what types of host user creation are allowed by a role.
 type CreateHostUser struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Mode specifies how the host user should be created.
 	Mode string `protobuf:"bytes,1,opt,name=mode,proto3" json:"mode,omitempty"`
 	// Groups is a list of host groups to add the user to.
@@ -726,11 +1187,6 @@ func (x *CreateHostUser) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateHostUser.ProtoReflect.Descriptor instead.
-func (*CreateHostUser) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_access_v1_role_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *CreateHostUser) GetMode() string {
 	if x != nil {
 		return x.Mode
@@ -750,6 +1206,39 @@ func (x *CreateHostUser) GetShell() string {
 		return x.Shell
 	}
 	return ""
+}
+
+func (x *CreateHostUser) SetMode(v string) {
+	x.Mode = v
+}
+
+func (x *CreateHostUser) SetGroups(v []string) {
+	x.Groups = v
+}
+
+func (x *CreateHostUser) SetShell(v string) {
+	x.Shell = v
+}
+
+type CreateHostUser_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Mode specifies how the host user should be created.
+	Mode string
+	// Groups is a list of host groups to add the user to.
+	Groups []string
+	// Shell is the shell to set for the user.
+	Shell string
+}
+
+func (b0 CreateHostUser_builder) Build() *CreateHostUser {
+	m0 := &CreateHostUser{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Mode = b.Mode
+	x.Groups = b.Groups
+	x.Shell = b.Shell
+	return m0
 }
 
 var File_teleport_scopes_access_v1_role_proto protoreflect.FileDescriptor
@@ -814,18 +1303,6 @@ const file_teleport_scopes_access_v1_role_proto_rawDesc = "" +
 	"\x04mode\x18\x01 \x01(\tR\x04mode\x12\x16\n" +
 	"\x06groups\x18\x02 \x03(\tR\x06groups\x12\x14\n" +
 	"\x05shell\x18\x03 \x01(\tR\x05shellBWZUgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1;accessv1b\x06proto3"
-
-var (
-	file_teleport_scopes_access_v1_role_proto_rawDescOnce sync.Once
-	file_teleport_scopes_access_v1_role_proto_rawDescData []byte
-)
-
-func file_teleport_scopes_access_v1_role_proto_rawDescGZIP() []byte {
-	file_teleport_scopes_access_v1_role_proto_rawDescOnce.Do(func() {
-		file_teleport_scopes_access_v1_role_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_scopes_access_v1_role_proto_rawDesc), len(file_teleport_scopes_access_v1_role_proto_rawDesc)))
-	})
-	return file_teleport_scopes_access_v1_role_proto_rawDescData
-}
 
 var file_teleport_scopes_access_v1_role_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_scopes_access_v1_role_proto_goTypes = []any{
