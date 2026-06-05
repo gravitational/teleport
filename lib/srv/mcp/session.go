@@ -222,7 +222,7 @@ func (s *sessionHandler) onClientNotification(serverRequestWriter mcputils.Messa
 
 func (s *sessionHandler) onClientRequest(clientResponseWriter, serverRequestWriter mcputils.MessageWriter) mcputils.HandleRequestFunc {
 	return func(ctx context.Context, request *mcputils.JSONRPCRequest) error {
-		sanitizeParamsName(request)
+		sanitizeMCPRequestParams(request)
 		errMsg := s.processClientRequest(ctx, request)
 		if errMsg != nil {
 			// Respond immediately

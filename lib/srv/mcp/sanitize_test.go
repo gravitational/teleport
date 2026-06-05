@@ -47,7 +47,7 @@ func Test_sanitizeParamsNameRaw_preserves_number_precision(t *testing.T) {
 	require.NotContains(t, string(corrupted), bigNumber)
 
 	// Now verify that sanitization does not corrupt.
-	sanitized, err := sanitizeRawRequest(request)
+	sanitized, err := sanitizeRawMCPRequest(request)
 	require.NoError(t, err)
 
 	require.Contains(t, string(sanitized), preciseFloat)
@@ -57,9 +57,9 @@ func Test_sanitizeParamsNameRaw_preserves_number_precision(t *testing.T) {
 func Test_sanitizeRawRequest_returns_same_slice_when_unmodified(t *testing.T) {
 	t.Parallel()
 
-	request := []byte(`{"jsonrpc":"2.0","id":1,"method":"ping"}`)
+	request := []byte(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"test_tool"}}`)
 
-	sanitized, err := sanitizeRawRequest(request)
+	sanitized, err := sanitizeRawMCPRequest(request)
 	require.NoError(t, err)
 
 	require.Equal(t, request, sanitized)

@@ -29,6 +29,7 @@ import (
 )
 
 const (
+	IDKey         = "id"
 	MethodKey     = "method"
 	ParamsKey     = "params"
 	ParamsNameKey = "name"

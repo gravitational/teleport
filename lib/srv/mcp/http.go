@@ -208,7 +208,7 @@ func (t *streamableHTTPTransport) handleMCPMessage(r *http.Request) (*http.Respo
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("invalid request body %v", err)
 	}
-	reqBody, err = sanitizeRawRequest(reqBody)
+	reqBody, err = sanitizeRawMCPRequest(reqBody)
 	if err != nil {
 		t.emitInvalidHTTPRequest(t.parentCtx, r)
 		return nil, trace.BadParameter("invalid request body %v", err)
