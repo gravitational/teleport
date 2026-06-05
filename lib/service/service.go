@@ -139,6 +139,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/s3sessions"
 	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/h2websocket"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/integrations/awsra"
 	"github.com/gravitational/teleport/lib/integrations/externalauditstorage"
@@ -174,6 +175,7 @@ import (
 	alpnproxyauth "github.com/gravitational/teleport/lib/srv/alpnproxy/auth"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/app"
+	appcommon "github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/srv/db"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/ingress"
@@ -5674,14 +5676,25 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			return trace.Wrap(err)
 		}
 
+		// h2websocket.Wrap sits outside the middleware chain because the
+		// inner middlewares gate on http.Hijacker, which an HTTP/2
+		// ResponseWriter does not implement. Wrapping outside also lets
+		// XFF, tracing, and the limiter observe the synthetic HTTP/1.1
+		// request the bridge produces from an RFC 8441 extended CONNECT.
+		webChain := utils.ChainHTTPMiddlewares(
+			webHandler,
+			limiter.MakeMiddleware(proxyLimiter),
+			httplib.MakeTracingMiddleware(teleport.ComponentProxy),
+			makeXForwardedForMiddleware(cfg),
+		)
 		webServer, err = web.NewServer(web.ServerConfig{
 			Server: &http.Server{
-				Handler: utils.ChainHTTPMiddlewares(
-					webHandler,
-					limiter.MakeMiddleware(proxyLimiter),
-					httplib.MakeTracingMiddleware(teleport.ComponentProxy),
-					makeXForwardedForMiddleware(cfg),
-				),
+				// ReservedTeleportIdentityHeaders excludes generic
+				// X-Forwarded-* so the XFF middleware further down the
+				// chain still sees them.
+				Handler: h2websocket.Wrap(webChain, h2websocket.Options{
+					ReservedHeaders: appcommon.ReservedTeleportIdentityHeaders,
+				}),
 				// Note: read/write timeouts *should not* be set here because it
 				// will break some application access use-cases.
 				ReadHeaderTimeout: defaults.ReadHeadersTimeout,
@@ -6421,6 +6434,11 @@ func (process *TeleportProcess) initMinimalReverseTunnel(listeners *proxyListene
 
 	log := process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentReverseTunnelServer, process.id))
 
+	// The minimal reverse-tunnel listener intentionally skips
+	// h2websocket.Wrap: it only serves /webapi/find and
+	// /webapi/host/credentials, neither of which negotiates WebSocket.
+	// Any future WebSocket route added here must add the wrap and the
+	// matching ReservedTeleportIdentityHeaders list.
 	minimalWebServer, err := web.NewServer(web.ServerConfig{
 		Server: &http.Server{
 			Handler:           httplib.MakeTracingHandler(minimalProxyLimiter, teleport.ComponentProxy),
