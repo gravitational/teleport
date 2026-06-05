@@ -32,28 +32,20 @@ import (
 
 // GenSchemaBoolOptions returns Terraform schema for BoolOption type
 func GenSchemaBoolOption(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional:      true,
-		Type:          types.BoolType,
-		Description:   attr.Description,
-		Computed:      attr.Computed,
-		PlanModifiers: attr.PlanModifiers,
-	}
+	attr.Optional = true
+	attr.Type = types.BoolType
+	return attr
 }
 
 // GenSchemaTraits returns Terraform schema for Traits type
 func GenSchemaTraits(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional: true,
-		Type: types.MapType{
-			ElemType: types.ListType{
-				ElemType: types.StringType,
-			},
+	attr.Optional = true
+	attr.Type = types.MapType{
+		ElemType: types.ListType{
+			ElemType: types.StringType,
 		},
-		Description:        attr.Description,
-		DeprecationMessage: attr.DeprecationMessage,
-		Validators:         attr.Validators,
 	}
+	return attr
 }
 
 // GenSchemaBoolOptions returns Terraform schema for Labels type
@@ -68,10 +60,13 @@ func CopyFromBoolOption(diags diag.Diagnostics, tf attr.Value, o **apitypes.Bool
 		return
 	}
 
-	if !v.Null && !v.Unknown {
-		value := apitypes.BoolOption{Value: v.Value}
-		*o = &value
+	if v.IsNull() || v.IsUnknown() {
+		*o = nil
+		return
 	}
+
+	value := apitypes.BoolOption{Value: v.Value}
+	*o = &value
 }
 
 func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Type, v attr.Value) attr.Value {
@@ -79,6 +74,7 @@ func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Typ
 	if !ok {
 		value = types.Bool{}
 	}
+	value.Unknown = false
 
 	if o == nil {
 		value.Null = true
@@ -86,7 +82,6 @@ func CopyToBoolOption(diags diag.Diagnostics, o *apitypes.BoolOption, t attr.Typ
 	}
 
 	value.Null = false
-	value.Unknown = false
 	value.Value = o.Value
 
 	return value
@@ -96,6 +91,11 @@ func CopyFromLabels(diags diag.Diagnostics, v attr.Value, o *apitypes.Labels) {
 	value, ok := v.(types.Map)
 	if !ok {
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.Map", v))
+		return
+	}
+
+	if value.IsNull() || value.IsUnknown() {
+		*o = nil
 		return
 	}
 
@@ -129,9 +129,8 @@ func CopyToLabels(diags diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr
 		value = types.Map{ElemType: typ.ElemType}
 	}
 
-	if value.Elems == nil {
-		value.Elems = make(map[string]attr.Value, len(o))
-	}
+	value.ElemType = typ.ElemType
+	value.Elems = make(map[string]attr.Value, len(o))
 
 	for k, l := range o {
 		row := types.List{
@@ -146,6 +145,8 @@ func CopyToLabels(diags diag.Diagnostics, o apitypes.Labels, t attr.Type, v attr
 		value.Elems[k] = row
 	}
 
+	value.Null = false
+	value.Unknown = false
 	return value
 }
 
@@ -153,6 +154,11 @@ func CopyFromTraits(diags diag.Diagnostics, v attr.Value, o *wrappers.Traits) {
 	value, ok := v.(types.Map)
 	if !ok {
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.Map", v))
+		return
+	}
+
+	if value.IsNull() || value.IsUnknown() {
+		*o = nil
 		return
 	}
 
@@ -186,9 +192,8 @@ func CopyToTraits(diags diag.Diagnostics, o wrappers.Traits, t attr.Type, v attr
 		value = types.Map{ElemType: typ.ElemType}
 	}
 
-	if value.Elems == nil {
-		value.Elems = make(map[string]attr.Value, len(o))
-	}
+	value.ElemType = typ.ElemType
+	value.Elems = make(map[string]attr.Value, len(o))
 
 	for k, l := range o {
 		row := types.List{
@@ -203,18 +208,18 @@ func CopyToTraits(diags diag.Diagnostics, o wrappers.Traits, t attr.Type, v attr
 		value.Elems[k] = row
 	}
 
+	value.Null = false
+	value.Unknown = false
 	return value
 }
 
 // GenSchemaStrings returns Terraform schema for Strings type
 func GenSchemaStrings(_ context.Context, attr tfsdk.Attribute) tfsdk.Attribute {
-	return tfsdk.Attribute{
-		Optional: true,
-		Type: types.ListType{
-			ElemType: types.StringType,
-		},
-		Description: attr.Description,
+	attr.Optional = true
+	attr.Type = types.ListType{
+		ElemType: types.StringType,
 	}
+	return attr
 }
 
 // CopyFromStrings converts from a Terraform value into a Teleport wrappers.Strings
@@ -223,6 +228,11 @@ func CopyFromStrings(diags diag.Diagnostics, v attr.Value, o *wrappers.Strings) 
 	value, ok := v.(types.List)
 	if !ok {
 		diags.AddError("Error reading from Terraform object", fmt.Sprintf("Can not convert %T to types.List", v))
+		return
+	}
+
+	if value.IsNull() || value.IsUnknown() {
+		*o = nil
 		return
 	}
 
@@ -247,9 +257,8 @@ func CopyToStrings(diags diag.Diagnostics, o wrappers.Strings, t attr.Type, v at
 		value = types.List{ElemType: typ.ElemType}
 	}
 
-	if value.Elems == nil {
-		value.Elems = make([]attr.Value, len(o))
-	}
+	value.ElemType = typ.ElemType
+	value.Elems = make([]attr.Value, len(o))
 
 	for k, l := range o {
 		value.Elems[k] = types.String{
@@ -257,5 +266,7 @@ func CopyToStrings(diags diag.Diagnostics, o wrappers.Strings, t attr.Type, v at
 		}
 	}
 
+	value.Null = false
+	value.Unknown = false
 	return value
 }
