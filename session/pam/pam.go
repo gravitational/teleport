@@ -515,7 +515,8 @@ func (p *PAM) readStream(echo bool) (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	return text, nil
+	// Trim trailing newlines from the response.
+	return strings.TrimRight(text, "\r\n"), nil
 }
 
 // codeToError returns a human readable string from the PAM error.
