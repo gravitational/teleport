@@ -74,6 +74,29 @@ func newWorkloadIdentity(name string) *workloadidentityv1pb.WorkloadIdentity {
 	}
 }
 
+// createWorkloadIdentities creates the given identities (keyed by name, valued
+// by SPIFFE ID) in the backend and blocks until the cache has observed all of
+// them. Names must be unique.
+func createWorkloadIdentities(t *testing.T, ctx context.Context, p *testPack, ids map[string]string) {
+	t.Helper()
+	for name, spiffeID := range ids {
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+			Kind:     types.KindWorkloadIdentity,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{Name: name},
+			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
+				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{Id: spiffeID},
+			},
+		})
+		require.NoError(t, err, "failed to create WorkloadIdentity %q", name)
+	}
+
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "", false))
+		require.Len(t, results, len(ids))
+	}, 10*time.Second, 100*time.Millisecond)
+}
+
 func TestWorkloadIdentity(t *testing.T) {
 	t.Parallel()
 
@@ -97,97 +120,6 @@ func TestWorkloadIdentity(t *testing.T) {
 	})
 }
 
-// TestWorkloadIdentityCacheSorting tests that cache items are sorted.
-func TestWorkloadIdentityCacheSorting(t *testing.T) {
-	t.Parallel()
-
-	ctx := t.Context()
-
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	rs := []struct {
-		name     string
-		spiffeID string
-	}{
-		{"test-workload-identity-1", "/test/spiffe/2"},
-		{"test-workload-identity-3", "/test/spiffe/1"},
-		{"test-workload-identity-2", "/test/spiffe/3"},
-		{"Test-workload-identity-4", "/Test/spiffe/2"},
-		{"Test-workload-identity-5", "/Test/spiffe/1"},
-		{"Test-workload-identity-6", "/Test/spiffe/3"},
-	}
-
-	for _, r := range rs {
-		id := &workloadidentityv1pb.WorkloadIdentity{
-			Kind:    types.KindWorkloadIdentity,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: r.name,
-			},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-					Id: r.spiffeID,
-				},
-			},
-		}
-
-		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, id)
-		require.NoError(t, err, "failed to create WorkloadIdentity %q", r.name)
-	}
-
-	// Let the cache catch up
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "", false))
-		require.Len(t, results, 6)
-	}, 10*time.Second, 100*time.Millisecond)
-
-	t.Run("sort ascending by spiffe_id", func(t *testing.T) {
-		results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "spiffe_id", false))
-		require.Len(t, results, 6)
-		assert.Equal(t, "/Test/spiffe/1", results[0].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/test/spiffe/1", results[1].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/Test/spiffe/2", results[2].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/test/spiffe/2", results[3].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/Test/spiffe/3", results[4].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/test/spiffe/3", results[5].GetSpec().GetSpiffe().GetId())
-	})
-
-	t.Run("sort descending by spiffe_id", func(t *testing.T) {
-		results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "spiffe_id", true))
-		require.Len(t, results, 6)
-		assert.Equal(t, "/test/spiffe/3", results[0].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/Test/spiffe/3", results[1].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/test/spiffe/2", results[2].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/Test/spiffe/2", results[3].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/test/spiffe/1", results[4].GetSpec().GetSpiffe().GetId())
-		assert.Equal(t, "/Test/spiffe/1", results[5].GetSpec().GetSpiffe().GetId())
-	})
-
-	t.Run("sort ascending by name", func(t *testing.T) {
-		// empty sort should default to name:asc
-		results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "", false))
-		require.Len(t, results, 6)
-		assert.Equal(t, "Test-workload-identity-4", results[0].GetMetadata().GetName())
-		assert.Equal(t, "Test-workload-identity-5", results[1].GetMetadata().GetName())
-		assert.Equal(t, "Test-workload-identity-6", results[2].GetMetadata().GetName())
-		assert.Equal(t, "test-workload-identity-1", results[3].GetMetadata().GetName())
-		assert.Equal(t, "test-workload-identity-2", results[4].GetMetadata().GetName())
-		assert.Equal(t, "test-workload-identity-3", results[5].GetMetadata().GetName())
-	})
-
-	t.Run("sort descending by name", func(t *testing.T) {
-		results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "name", true))
-		require.Len(t, results, 6)
-		assert.Equal(t, "test-workload-identity-3", results[0].GetMetadata().GetName())
-		assert.Equal(t, "test-workload-identity-2", results[1].GetMetadata().GetName())
-		assert.Equal(t, "test-workload-identity-1", results[2].GetMetadata().GetName())
-		assert.Equal(t, "Test-workload-identity-6", results[3].GetMetadata().GetName())
-		assert.Equal(t, "Test-workload-identity-5", results[4].GetMetadata().GetName())
-		assert.Equal(t, "Test-workload-identity-4", results[5].GetMetadata().GetName())
-	})
-}
-
 // TestWorkloadIdentityCacheRange tests that RangeWorkloadIdentities iterates in
 // the requested order and honours range bounds.
 func TestWorkloadIdentityCacheRange(t *testing.T) {
@@ -198,49 +130,17 @@ func TestWorkloadIdentityCacheRange(t *testing.T) {
 	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	rs := []struct {
-		name     string
-		spiffeID string
-	}{
-		{"test-workload-identity-1", "/test/spiffe/2"},
-		{"test-workload-identity-3", "/test/spiffe/1"},
-		{"test-workload-identity-2", "/test/spiffe/3"},
-		{"Test-workload-identity-4", "/Test/spiffe/2"},
-		{"Test-workload-identity-5", "/Test/spiffe/1"},
-		{"Test-workload-identity-6", "/Test/spiffe/3"},
-	}
-
-	for _, r := range rs {
-		id := &workloadidentityv1pb.WorkloadIdentity{
-			Kind:    types.KindWorkloadIdentity,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: r.name,
-			},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-					Id: r.spiffeID,
-				},
-			},
-		}
-
-		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, id)
-		require.NoError(t, err, "failed to create WorkloadIdentity %q", r.name)
-	}
-
-	// Let the cache catch up.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "", false))
-		require.Len(t, results, 6)
-	}, 10*time.Second, 100*time.Millisecond)
+	createWorkloadIdentities(t, ctx, p, map[string]string{
+		"test-workload-identity-1": "/test/spiffe/2",
+		"test-workload-identity-3": "/test/spiffe/1",
+		"test-workload-identity-2": "/test/spiffe/3",
+		"Test-workload-identity-4": "/Test/spiffe/2",
+		"Test-workload-identity-5": "/Test/spiffe/1",
+		"Test-workload-identity-6": "/Test/spiffe/3",
+	})
 
 	collectRange := func(t *testing.T, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) []*workloadidentityv1pb.WorkloadIdentity {
-		var out []*workloadidentityv1pb.WorkloadIdentity
-		for wi, err := range p.cache.RangeWorkloadIdentities(ctx, start, end, sortField, sortDesc) {
-			require.NoError(t, err)
-			out = append(out, wi)
-		}
-		return out
+		return collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, start, end, sortField, sortDesc))
 	}
 
 	names := func(in []*workloadidentityv1pb.WorkloadIdentity) []string {
@@ -351,25 +251,11 @@ func TestWorkloadIdentityCacheRangePagination(t *testing.T) {
 	// Create identities whose spiffe_id ordering deliberately differs from their
 	// name ordering (a permutation), so spiffe_id sorting is genuinely tested.
 	const n = 12
+	ids := make(map[string]string, n)
 	for i := range n {
-		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
-			Kind:    types.KindWorkloadIdentity,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{Name: fmt.Sprintf("wi-%02d", i)},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-					Id: fmt.Sprintf("/id-%02d", (i*7)%n),
-				},
-			},
-		})
-		require.NoError(t, err)
+		ids[fmt.Sprintf("wi-%02d", i)] = fmt.Sprintf("/id-%02d", (i*7)%n)
 	}
-
-	// Let the cache catch up so reads are served from the in-memory store.
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "", false))
-		require.Len(t, results, n)
-	}, 10*time.Second, 100*time.Millisecond)
+	createWorkloadIdentities(t, ctx, p, ids)
 
 	paginate := func(t *testing.T, sortField services.WorkloadIdentitySortField, sortDesc bool) []*workloadidentityv1pb.WorkloadIdentity {
 		var fetched []*workloadidentityv1pb.WorkloadIdentity
@@ -440,25 +326,9 @@ func TestWorkloadIdentityCacheFallback(t *testing.T) {
 	})
 	t.Cleanup(p.Close)
 
-	_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
-		Kind:    types.KindWorkloadIdentity,
-		Version: types.V1,
-		Metadata: &headerv1.Metadata{
-			Name: "test-workload-identity-1",
-		},
-		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-				Id: "/test/spiffe/1",
-			},
-		},
+	createWorkloadIdentities(t, ctx, p, map[string]string{
+		"test-workload-identity-1": "/test/spiffe/1",
 	})
-	require.NoError(t, err)
-
-	// Let the cache catch up
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "", false))
-		require.Len(t, results, 1)
-	}, 10*time.Second, 100*time.Millisecond)
 
 	// The upstream backend only supports name-ascending iteration, so a range
 	// served from the unhealthy cache is constrained to that ordering.
@@ -490,49 +360,18 @@ func TestWorkloadIdentityCaseSensitiveName(t *testing.T) {
 
 	ctx := t.Context()
 
-	p := newTestPack(t, func(cfg Config) Config {
-		return ForAuth(cfg)
-	})
+	p := newTestPack(t, ForAuth)
 	t.Cleanup(p.Close)
 
-	{
-		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
-			Kind:    types.KindWorkloadIdentity,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "TEST-WORKLOAD-IDENTITY-1",
-			},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-					Id: "/test/spiffe/1",
-				},
-			},
-		})
-		require.NoError(t, err)
-	}
+	createWorkloadIdentities(t, ctx, p, map[string]string{
+		"TEST-WORKLOAD-IDENTITY-1": "/test/spiffe/1",
+		"test-workload-identity-1": "/test/spiffe/1",
+	})
 
-	{
-		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
-			Kind:    types.KindWorkloadIdentity,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "test-workload-identity-1",
-			},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
-					Id: "/test/spiffe/1",
-				},
-			},
-		})
-		require.NoError(t, err)
-	}
-
-	// Let the cache catch up
-	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "name", true))
-		require.Len(t, results, 2)
-
-		require.Equal(t, "test-workload-identity-1", results[0].Metadata.Name)
-		require.Equal(t, "TEST-WORKLOAD-IDENTITY-1", results[1].Metadata.Name)
-	}, 10*time.Second, 100*time.Millisecond)
+	// Name index keys are case sensitive: in descending order the lowercase
+	// name sorts before the uppercase one.
+	results := collectWorkloadIdentities(t, p.cache.RangeWorkloadIdentities(ctx, "", "", "name", true))
+	require.Len(t, results, 2)
+	require.Equal(t, "test-workload-identity-1", results[0].Metadata.Name)
+	require.Equal(t, "TEST-WORKLOAD-IDENTITY-1", results[1].Metadata.Name)
 }
