@@ -168,7 +168,15 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 	items := s.cache.RangeWorkloadIdentities(ctx, req.GetPageToken(), "", sortField, req.GetSortDesc())
 	if searchTerm := req.GetFilterSearchTerm(); searchTerm != "" {
 		items = stream.FilterMap(items, func(wi *workloadidentityv1pb.WorkloadIdentity) (*workloadidentityv1pb.WorkloadIdentity, bool) {
-			return wi, matchWorkloadIdentity(wi, searchTerm)
+			values := []string{
+				wi.GetMetadata().GetName(),
+				wi.GetSpec().GetSpiffe().GetId(),
+				wi.GetSpec().GetSpiffe().GetHint(),
+			}
+
+			return wi, slices.ContainsFunc(values, func(val string) bool {
+				return strings.Contains(strings.ToLower(val), strings.ToLower(searchTerm))
+			})
 		})
 	}
 
@@ -181,27 +189,6 @@ func (s *ResourceService) ListWorkloadIdentitiesV2(
 		WorkloadIdentities: resources,
 		NextPageToken:      nextToken,
 	}, nil
-}
-
-// matchWorkloadIdentity reports whether the WorkloadIdentity matches the given
-// search term across its name, SPIFFE ID and hint.
-func matchWorkloadIdentity(item *workloadidentityv1pb.WorkloadIdentity, filterSearchTerm string) bool {
-	if item == nil {
-		return false
-	}
-	if filterSearchTerm == "" {
-		return true
-	}
-
-	values := []string{
-		item.GetMetadata().GetName(),
-		item.GetSpec().GetSpiffe().GetId(),
-		item.GetSpec().GetSpiffe().GetHint(),
-	}
-
-	return slices.ContainsFunc(values, func(val string) bool {
-		return strings.Contains(strings.ToLower(val), strings.ToLower(filterSearchTerm))
-	})
 }
 
 // DeleteWorkloadIdentity deletes a WorkloadIdentity by name.
