@@ -62,4 +62,4 @@ spec:
     {{- end }}
   {{- end }}
 {{- end }}
-{{- end }}
+{{- end }}{{/* ingress */}}
