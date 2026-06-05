@@ -290,6 +290,10 @@ const cfg = {
       models: '/v1/webapi/sites/:clusterId/inference/models',
       model: '/v1/webapi/sites/:clusterId/inference/models/:name',
     },
+
+    beams: {
+      list: '/v1/webapi/sites/:clusterId/beams',
+    },
   },
 
   getNonExactRoutes() {
@@ -732,6 +736,19 @@ const cfg = {
 
   getBeamsFeedbackRoute() {
     return generatePath(cfg.routes.beamsFeedback);
+  },
+
+  getBeamsUrl(req: { action: 'list' } & { clusterId?: string }) {
+    const { clusterId = cfg.oss.proxyCluster } = req;
+    switch (req.action) {
+      case 'list':
+        return generatePath(cfg.api.beams.list, {
+          clusterId,
+        });
+      default:
+        req.action satisfies never;
+        return '';
+    }
   },
 
   init(json: object) {

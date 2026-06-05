@@ -167,9 +167,11 @@ func testListBeamsWithPaging(t *testing.T) {
 
 			endpoint := webPack.clt.Endpoint("webapi", "sites", clusterName, "beams")
 
+			sortField := ternary(enableCache, "expires", "name")
+
 			resp, err := webPack.clt.Get(ctx, endpoint, url.Values{
 				"page_size":  []string{"2"},
-				"sort_field": []string{"name"},
+				"sort_field": []string{sortField},
 				"sort_dir":   []string{"asc"},
 			})
 			require.NoError(t, err)
@@ -201,7 +203,7 @@ func testListBeamsWithPaging(t *testing.T) {
 			resp, err = webPack.clt.Get(ctx, endpoint, url.Values{
 				"page_size":  []string{"2"},
 				"page_token": []string{firstPage.NextPageToken},
-				"sort_field": []string{"name"},
+				"sort_field": []string{sortField},
 				"sort_dir":   []string{"asc"},
 			})
 			require.NoError(t, err)
