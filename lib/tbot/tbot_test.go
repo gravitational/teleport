@@ -60,6 +60,7 @@ import (
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -70,6 +71,7 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
@@ -1710,8 +1712,35 @@ func TestScopedBotSSH(t *testing.T) {
 		require.NoError(t, tc.AddKeyRing(keyRing))
 		require.NoError(t, tc.AddTrustedCA(ctx, hostCA))
 
+		startTime := time.Now()
+
 		require.NoError(t, tc.SSH(ctx, []string{"echo hello"}))
 		require.Equal(t, "hello\n", stdout.String())
+
+		auditEvents := helpers.WaitForAuditEventTypeWithBackoff(
+			t,
+			process.GetAuthServer(),
+			startTime,
+			events.SessionStartEvent,
+		)
+
+		require.Len(t, auditEvents, 1)
+		auditEvent := auditEvents[0]
+
+		require.IsType(t, &apievents.SessionStart{}, auditEvent)
+		sessionStart := auditEvent.(*apievents.SessionStart)
+
+		assert.Equal(t, botName, sessionStart.BotName)
+
+		expectedScopePin := apievents.ScopePin{
+			Scope: scopeName,
+			Assignments: map[string]*apievents.ScopePinnedAssignments{
+				scopeName: {
+					Roles: []string{scopedRoleName},
+				},
+			},
+		}
+		assert.Equal(t, &expectedScopePin, sessionStart.ScopePin)
 	})
 }
 
