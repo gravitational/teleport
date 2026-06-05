@@ -30,6 +30,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 )
 
@@ -140,6 +141,11 @@ func TestFindOrRecoverSessionEnd(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	userMeta := apievents.UserMetadata{User: "alice", Login: "root"}
+	remoteUserMeta := apievents.UserMetadata{
+		User:            services.UsernameForRemoteCluster("alice", "leaf"),
+		Login:           "root",
+		UserClusterName: "leaf",
+	}
 	sessionMeta := apievents.SessionMetadata{SessionID: string(sessionID)}
 	serverMeta := apievents.ServerMetadata{ServerID: "srv-1", ServerHostname: "host-1"}
 	connMeta := apievents.ConnectionMetadata{LocalAddr: "127.0.0.1:3022", RemoteAddr: "10.0.0.1:9999"}
@@ -285,6 +291,41 @@ func TestFindOrRecoverSessionEnd(t *testing.T) {
 			},
 		},
 		{
+			name: "SSH/cross-cluster end recovered",
+			evts: []apievents.AuditEvent{
+				&apievents.SessionStart{
+					Metadata:           apievents.Metadata{Type: events.SessionStartEvent, Time: startTime, ClusterName: clusterName},
+					UserMetadata:       remoteUserMeta,
+					SessionMetadata:    sessionMeta,
+					ServerMetadata:     serverMeta,
+					ConnectionMetadata: connMeta,
+					TerminalSize:       "80:25",
+				},
+				&apievents.SessionPrint{Metadata: apievents.Metadata{Type: events.SessionPrintEvent, Time: lastTime}},
+			},
+			check: func(t *testing.T, gotEnd apievents.AuditEvent, emitted []apievents.AuditEvent) {
+				t.Helper()
+				recovered, ok := gotEnd.(*apievents.SessionEnd)
+				require.True(t, ok)
+				assert.Equal(t, events.SessionEndEvent, recovered.Type)
+				assert.Equal(t, events.SessionEndCode, recovered.Code)
+				assert.Equal(t, remoteUserMeta, recovered.UserMetadata)
+				assert.Equal(t, sessionMeta, recovered.SessionMetadata)
+				assert.Equal(t, serverMeta, recovered.ServerMetadata)
+				assert.Equal(t, connMeta, recovered.ConnectionMetadata)
+				assert.True(t, recovered.Interactive)
+				assert.Equal(t, lastTime, recovered.EndTime)
+				// Participants must carry the remote-prefixed usernames verbatim
+				// (matching UserMetadata.User), so downstream authz/lookup can
+				// resolve participants by the same identity the session ran under.
+				assert.ElementsMatch(t,
+					[]string{"remote-alice-leaf"},
+					recovered.Participants,
+				)
+				assert.Len(t, emitted, 1)
+			},
+		},
+		{
 			name: "Windows Desktop/end already exists",
 			evts: []apievents.AuditEvent{
 				&apievents.WindowsDesktopSessionStart{
@@ -330,6 +371,34 @@ func TestFindOrRecoverSessionEnd(t *testing.T) {
 				assert.Equal(t, "CORP", recovered.Domain)
 				assert.True(t, recovered.Recorded)
 				assert.Equal(t, lastTime, recovered.EndTime)
+				assert.Len(t, emitted, 1)
+			},
+		},
+		{
+			name: "Windows Desktop/cross-cluster end recovered",
+			evts: []apievents.AuditEvent{
+				&apievents.WindowsDesktopSessionStart{
+					Metadata:        apievents.Metadata{Type: events.WindowsDesktopSessionStartEvent, Time: startTime, ClusterName: clusterName},
+					UserMetadata:    remoteUserMeta,
+					SessionMetadata: sessionMeta,
+					DesktopName:     "mydesktop",
+					Domain:          "CORP",
+				},
+				&apievents.SessionPrint{Metadata: apievents.Metadata{Type: events.SessionPrintEvent, Time: lastTime}},
+			},
+			check: func(t *testing.T, gotEnd apievents.AuditEvent, emitted []apievents.AuditEvent) {
+				t.Helper()
+				recovered, ok := gotEnd.(*apievents.WindowsDesktopSessionEnd)
+				require.True(t, ok)
+				assert.Equal(t, events.WindowsDesktopSessionEndEvent, recovered.Type)
+				assert.Equal(t, events.DesktopSessionEndCode, recovered.Code)
+				assert.Equal(t, remoteUserMeta, recovered.UserMetadata)
+				assert.Equal(t, sessionMeta, recovered.SessionMetadata)
+				assert.Equal(t, "mydesktop (recovered)", recovered.DesktopName)
+				assert.Equal(t, "CORP", recovered.Domain)
+				assert.True(t, recovered.Recorded)
+				assert.Equal(t, lastTime, recovered.EndTime)
+				assert.Equal(t, []string{"remote-alice-leaf"}, recovered.Participants)
 				assert.Len(t, emitted, 1)
 			},
 		},
@@ -382,6 +451,34 @@ func TestFindOrRecoverSessionEnd(t *testing.T) {
 				assert.Equal(t, connMeta, recovered.ConnectionMetadata)
 				assert.Equal(t, startTime, recovered.StartTime)
 				assert.Equal(t, lastTime, recovered.EndTime)
+				assert.Len(t, emitted, 1)
+			},
+		},
+		{
+			name: "Database/cross-cluster end recovered",
+			evts: []apievents.AuditEvent{
+				&apievents.DatabaseSessionStart{
+					Metadata:           apievents.Metadata{Type: events.DatabaseSessionStartEvent, Time: startTime, ClusterName: clusterName},
+					UserMetadata:       remoteUserMeta,
+					SessionMetadata:    sessionMeta,
+					DatabaseMetadata:   dbMeta,
+					ConnectionMetadata: connMeta,
+				},
+				&apievents.DatabaseSessionQuery{Metadata: apievents.Metadata{Type: events.DatabaseSessionQueryEvent, Time: lastTime}},
+			},
+			check: func(t *testing.T, gotEnd apievents.AuditEvent, emitted []apievents.AuditEvent) {
+				t.Helper()
+				recovered, ok := gotEnd.(*apievents.DatabaseSessionEnd)
+				require.True(t, ok)
+				assert.Equal(t, events.DatabaseSessionEndEvent, recovered.Type)
+				assert.Equal(t, events.DatabaseSessionEndCode, recovered.Code)
+				assert.Equal(t, remoteUserMeta, recovered.UserMetadata)
+				assert.Equal(t, sessionMeta, recovered.SessionMetadata)
+				assert.Equal(t, dbMeta, recovered.DatabaseMetadata)
+				assert.Equal(t, connMeta, recovered.ConnectionMetadata)
+				assert.Equal(t, startTime, recovered.StartTime)
+				assert.Equal(t, lastTime, recovered.EndTime)
+				assert.Equal(t, []string{"remote-alice-leaf"}, recovered.Participants)
 				assert.Len(t, emitted, 1)
 			},
 		},

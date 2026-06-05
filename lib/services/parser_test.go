@@ -1099,7 +1099,7 @@ func TestSessionTrackerRBAC(t *testing.T) {
 			},
 			{
 				ID:      uuid.New().String(),
-				User:    "alice",
+				User:    UsernameForRemoteCluster("alice", remoteCluster),
 				Cluster: remoteCluster,
 				Mode:    string(types.SessionObserverMode),
 			},
@@ -1142,6 +1142,12 @@ func TestSessionTrackerRBAC(t *testing.T) {
 			name:        "observer participant, same cluster",
 			username:    "bob",
 			userCluster: localCluster,
+			checkAccess: require.True,
+		},
+		{
+			name:        "observer participant, remote cluster",
+			username:    "alice",
+			userCluster: remoteCluster,
 			checkAccess: require.True,
 		},
 		{
