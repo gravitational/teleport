@@ -57,11 +57,9 @@ exclude_fields:
 # These fields will be marked as Computed: true
 computed_fields:
     - "AccessList.header.kind"
-    - "AccessList.header.metadata.expires"
     - "AccessList.header.metadata.namespace"
     - "AccessList.spec.audit.next_audit_date"
     - "Member.header.kind"
-    - "Member.header.metadata.expires"
     - "Member.header.metadata.namespace"
     - "Member.spec.name"
     - "Member.spec.joined"
