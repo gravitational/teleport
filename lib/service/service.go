@@ -6874,6 +6874,16 @@ func (process *TeleportProcess) initApps() {
 			})
 		}
 
+		scopePin := conn.ScopePin()
+		agentScope := conn.Scope()
+		resolvedScope := agentScope
+		if scopePin.GetScope() != "" {
+			resolvedScope = scopePin.GetScope()
+		}
+		if scopePin != nil {
+			agentScope = ""
+		}
+
 		// Loop over each application and create a server.
 		var applications types.Apps
 		for _, app := range process.Config.Apps.Apps {
@@ -6923,7 +6933,7 @@ func (process *TeleportProcess) initApps() {
 				MCP:                   app.MCP,
 				LLM:                   app.LLM,
 				TLS:                   app.TLS,
-			})
+			}, types.WithScope(resolvedScope))
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -7043,6 +7053,8 @@ func (process *TeleportProcess) initApps() {
 			ConnectionsHandler:          connectionsHandler,
 			InventoryHandle:             process.inventoryHandle,
 			IgnoreAppsWithCommandLabels: runningOnBeams,
+			Scope:                       agentScope,
+			ScopePin:                    scopePin,
 		})
 		if err != nil {
 			return trace.Wrap(err)

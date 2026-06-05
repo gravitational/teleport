@@ -120,3 +120,20 @@ func TestNewAppServerForAWSOIDCIntegration(t *testing.T) {
 		})
 	}
 }
+
+// TestAppServerV3Scope verifies the AppServerWithScope option and GetScope accessor.
+func TestAppServerV3Scope(t *testing.T) {
+	t.Parallel()
+
+	app, err := NewAppV3(Metadata{Name: "myapp"}, AppSpecV3{URI: "https://example.com"})
+	require.NoError(t, err)
+
+	t.Run("set via AppServerWithScope", func(t *testing.T) {
+		server, err := NewAppServerV3(Metadata{Name: "myapp"}, AppServerSpecV3{
+			HostID: "host-1",
+			App:    app,
+		}, AppServerWithScope("/staging/test"))
+		require.NoError(t, err)
+		require.Equal(t, "/staging/test", server.GetScope())
+	})
+}

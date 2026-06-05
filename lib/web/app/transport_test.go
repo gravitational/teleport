@@ -578,3 +578,40 @@ func Test_isAppServerDialable(t *testing.T) {
 		})
 	}
 }
+
+func Test_dialAppServer_setsTargetScope(t *testing.T) {
+	t.Parallel()
+
+	app, err := types.NewAppV3(
+		types.Metadata{Name: "test-app"},
+		types.AppSpecV3{URI: "https://app.localhost"},
+	)
+	require.NoError(t, err)
+
+	t.Run("scope threaded into dial params", func(t *testing.T) {
+		appServer, err := types.NewAppServerV3(
+			types.Metadata{Name: "test-app"},
+			types.AppServerSpecV3{HostID: "host-1", App: app},
+			types.AppServerWithScope("/staging/test"),
+		)
+		require.NoError(t, err)
+
+		cluster := &mockCluster{}
+		_, err = dialAppServer(t.Context(), cluster, appServer)
+		require.NoError(t, err)
+		require.Equal(t, "/staging/test", cluster.dialParamsReceived.TargetScope)
+	})
+
+	t.Run("empty scope by default", func(t *testing.T) {
+		appServer, err := types.NewAppServerV3(
+			types.Metadata{Name: "test-app"},
+			types.AppServerSpecV3{HostID: "host-1", App: app},
+		)
+		require.NoError(t, err)
+
+		cluster := &mockCluster{}
+		_, err = dialAppServer(t.Context(), cluster, appServer)
+		require.NoError(t, err)
+		require.Empty(t, cluster.dialParamsReceived.TargetScope)
+	})
+}

@@ -976,6 +976,7 @@ func showJoinInstructions(ctx context.Context, in joinInstructionsInput) error {
 				"app_name":        in.appName,
 				"app_uri":         in.appURI,
 				"app_public_addr": appPublicAddr,
+				"secret":          in.tokenSecret,
 			})
 	case in.roles.Include(types.RoleDatabase):
 		proxies, err := clientutils.CollectWithFallback(ctx, in.client.ListProxyServers, func(context.Context) ([]types.Server, error) {
