@@ -40,6 +40,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
@@ -1648,14 +1649,25 @@ func (s *Server) startAzureServerDiscovery() {
 			s.updateDiscoveryConfigStatus(sm.discoveryConfigs()...)
 		}),
 		server.WithPerInstanceHookFn(func(instanceGroups []*server.AzureInstances) {
+			// Process instance groups concurrently. Each group's own install
+			// concurrency is bounded inside req.Run; shared state (sm, vmTasks)
+			// is guarded below.
+			var g errgroup.Group
+			var mu sync.Mutex
 			for _, group := range instanceGroups {
-				fgKey := fetcherGroupKey{
-					discoveryConfigName: group.DiscoveryConfigName,
-					integration:         group.Integration,
-				}
-				results := s.installAzureServers(group, vmTasks)
-				sm.add(fgKey, results)
+				g.Go(func() error {
+					fgKey := fetcherGroupKey{
+						discoveryConfigName: group.DiscoveryConfigName,
+						integration:         group.Integration,
+					}
+					results := s.installAzureServers(group, vmTasks)
+					mu.Lock()
+					sm.add(fgKey, results)
+					mu.Unlock()
+					return nil
+				})
 			}
+			_ = g.Wait()
 		}),
 		server.WithPostFetchHookFn[*server.AzureInstances](func() {
 			// refresh the fetchers after every iteration to avoid stale config

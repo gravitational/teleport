@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/sync/errgroup"
+	"golang.org/x/sync/semaphore"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
@@ -68,11 +69,21 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 	}
 	g, ctx := errgroup.WithContext(ctx)
 
-	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
-	// hundreds of nodes at once.
-	// TODO (Tener): increase limit/make it configurable.
-	const azureParallelInstallLimit = 10
+	// Bound how many installs run (and wait for results) at once.
+	const azureParallelInstallLimit = 1000
 	g.SetLimit(azureParallelInstallLimit)
+
+	// Bound how many commands are dispatched (BeginCreateOrUpdate) concurrently,
+	// independently of how many results we wait on. Dispatch is fast, so this
+	// just avoids hammering the Azure API when many installs start together.
+	const azureDispatchLimit = 50
+	dispatchLimit := semaphore.NewWeighted(azureDispatchLimit)
+	acquireDispatch := func(ctx context.Context) (func(), error) {
+		if err := dispatchLimit.Acquire(ctx, 1); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return func() { dispatchLimit.Release(1) }, nil
+	}
 
 	for _, inst := range req.Instances {
 		g.Go(func() error {
@@ -88,6 +99,7 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 				Script:                      script,
 				UniformScaleSetName:         inst.UniformScaleSetName,
 				UniformScaleSetVMInstanceID: inst.UniformScaleSetVMInstanceID,
+				AcquireDispatch:             acquireDispatch,
 			}
 
 			commandResult, apiError := client.Run(ctx, runRequest)

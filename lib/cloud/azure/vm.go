@@ -418,6 +418,11 @@ type RunCommandRequest struct {
 	UniformScaleSetVMInstanceID string
 	// Script is the shell script to be executed in the virtual machine.
 	Script string
+	// AcquireDispatch, if set, is called to acquire a slot before the run
+	// command is dispatched (BeginCreateOrUpdate); the returned func is invoked
+	// once dispatch completes. Callers use it to bound dispatch concurrency
+	// without the client owning that policy.
+	AcquireDispatch func(ctx context.Context) (release func(), err error)
 }
 
 func (r RunCommandRequest) isUniformVMSS() bool {
@@ -516,7 +521,16 @@ func (c *runCommandClient) Run(ctx context.Context, req RunCommandRequest) (*Run
 }
 
 func (c *runCommandClient) regularVirtualMachineRunCommand(ctx context.Context, req RunCommandRequest, runCommand armcompute.VirtualMachineRunCommand) (*armcompute.VirtualMachineRunCommandProperties, error) {
+	release := func() {}
+	if req.AcquireDispatch != nil {
+		var err error
+		release, err = req.AcquireDispatch(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	poller, err := c.virtualMachineRunCommandsAPI.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.VMName, runCommandName, runCommand, nil)
+	release()
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
@@ -539,7 +553,16 @@ func (c *runCommandClient) regularVirtualMachineRunCommand(ctx context.Context, 
 }
 
 func (c *runCommandClient) uniformScaleSetVirtualMachineRunCommand(ctx context.Context, req RunCommandRequest, runCommand armcompute.VirtualMachineRunCommand) (*armcompute.VirtualMachineRunCommandProperties, error) {
+	release := func() {}
+	if req.AcquireDispatch != nil {
+		var err error
+		release, err = req.AcquireDispatch(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 	poller, err := c.scaleSetVMRunCommandsAPI.BeginCreateOrUpdate(ctx, req.ResourceGroup, req.UniformScaleSetName, req.UniformScaleSetVMInstanceID, runCommandName, runCommand, nil)
+	release()
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
