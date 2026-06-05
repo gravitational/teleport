@@ -15,6 +15,5 @@ dependencies:
     alias: operator
   - name: teleport-proxy-lib
     version: *version
-    alias: proxy
   - name: teleport-util-lib
     version: *version
