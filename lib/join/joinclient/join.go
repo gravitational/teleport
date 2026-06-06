@@ -22,6 +22,7 @@ import (
 	"crypto/x509"
 	"encoding/pem"
 	"errors"
+	"fmt"
 	"os"
 
 	"github.com/gravitational/trace"
@@ -179,10 +180,25 @@ func joinViaProxy(ctx context.Context, params JoinParams, proxyAddr string) (*Jo
 		},
 	)
 	if err != nil {
-		return nil, &connectionError{trace.Wrap(err, "building proxy client")}
+		errMsg := fmt.Sprintf("building proxy client using %s", proxyAddr)
+		if hint := authjoin.ProxyServerHTTPListenPortHint(proxyAddr); hint != "" {
+			errMsg += ". " + hint
+		}
+		return nil, &connectionError{trace.Wrap(err, errMsg)}
 	}
 	defer conn.Close()
-	return joinWithClient(ctx, params, joinv1.NewClientFromConn(conn))
+	result, err := joinWithClient(ctx, params, joinv1.NewClientFromConn(conn))
+	if err != nil {
+		if isConnectionError(err) {
+			errMsg := fmt.Sprintf("building proxy client using %s", proxyAddr)
+			if hint := authjoin.ProxyServerHTTPListenPortHint(proxyAddr); hint != "" {
+				errMsg += ". " + hint
+			}
+			return nil, &connectionError{trace.Wrap(err, errMsg)}
+		}
+		return nil, trace.Wrap(err)
+	}
+	return result, nil
 }
 
 func joinViaAuth(ctx context.Context, params JoinParams) (*JoinResult, error) {
