@@ -143,3 +143,20 @@ func TestUpsertServer(t *testing.T) {
 		})
 	}
 }
+
+// TestTokensRegisterReturnsTooOldError verifies that the re-added /tokens/register
+// route returns an explicit "too old" error rather than a 404, so that outdated
+// clients using the deprecated legacy join endpoint get an actionable message.
+func TestTokensRegisterReturnsTooOldError(t *testing.T) {
+	t.Parallel()
+
+	handler, err := auth.NewAPIServer(&auth.APIConfig{})
+	require.NoError(t, err)
+
+	req := httptest.NewRequest(http.MethodPost, "/v1/tokens/register", nil)
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusForbidden, rr.Code)
+	require.Contains(t, rr.Body.String(), "this client is too old to join the cluster")
+}

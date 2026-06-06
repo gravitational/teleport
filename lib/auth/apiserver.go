@@ -30,6 +30,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -171,6 +172,17 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/reversetunnels", httpMigratedHandler)
 	srv.GET("/:version/reversetunnels", httpMigratedHandler)
 	srv.DELETE("/:version/reversetunnels/:domain", httpMigratedHandler)
+
+	// Return an explicit "too old" error rather than a 404, so that outdated clients
+	// using the deprecated legacy join endpoint get an actionable message.
+	srv.POST("/:version/tokens/register", httplib.MakeHandler(func(
+		w http.ResponseWriter, r *http.Request, p httprouter.Params,
+	) (any, error) {
+		return nil, trace.AccessDenied(
+			"this client is too old to join the cluster, please upgrade to at least v%d.0.0",
+			teleport.MinClientSemVer().Major,
+		)
+	}))
 
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
