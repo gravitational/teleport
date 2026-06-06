@@ -1,9 +1,10 @@
-# Those 4 vars are not exposed to the user.
+# These 6 vars are not exposed to the user.
 releaseName: ""
 releaseNamespace: ""
 versionServerOverride: false
 version: ""
 baseImage: ""
+containerName: "teleport"
 
 versionServer: "https://{{ .Values.proxyAddr }}/v1/webapi/automaticupgrades/channel"
 releaseChannel: "stable/cloud"
