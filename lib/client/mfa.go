@@ -171,13 +171,22 @@ func (tc *TeleportClient) NewRedirectorMFACeremony(ctx context.Context) (mfa.Cal
 	return sso.NewCLIMFACeremony(rd), nil
 }
 
-func (tc *TeleportClient) AddMFA(ctx context.Context, rdc mfa.RegistrationCeremonyConfig) (bool, error) {
+type AddMFAResult = mfa.CeremonyRegisterResult
+
+// AddMFA performs a registration ceremony and adds a new device if successful.
+// The returned [AddMFAResult] is always valid to allow resuming the process
+// with the same configuration in case if an error occurs.
+func (tc *TeleportClient) AddMFA(ctx context.Context, rdc mfa.RegistrationCeremonyConfig) (AddMFAResult, error) {
+	res := AddMFAResult{
+		DeviceAdded:   false,
+		UpdatedConfig: rdc,
+	}
 	c, err := tc.NewMFACeremony(ctx)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 	// Unconditionally allow registering MFA devices.
 	tc.allowRegisteringMFADevicesForCeremony(c)
-	added, err := c.Register(ctx, rdc)
-	return added, trace.Wrap(err)
+	res, err = c.Register(ctx, rdc)
+	return res, trace.Wrap(err)
 }

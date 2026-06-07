@@ -660,13 +660,13 @@ func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationProm
 // RunRegister registers a new MFA device on the client side.
 func (c *CLIPrompt) RunRegister(
 	ctx context.Context, config mfa.RegistrationPromptConfig, regChal *proto.MFARegisterChallenge,
-) (*mfa.RegistrationResult, error) {
+) (*mfa.PromptRunRegisterResult, error) {
 	// Prompt for registration.
 	resp, callback, err := c.promptRegisterChallenge(ctx, c.cfg.ProxyAddress, config.DeviceType, regChal)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &mfa.RegistrationResult{
+	return &mfa.PromptRunRegisterResult{
 		Response:  resp,
 		Callbacks: callback,
 	}, nil

@@ -214,7 +214,12 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		}
 	}
 
-	_, err = tc.AddMFA(ctx, config)
+	err = client.RetryWithRelogin(ctx, tc, func() error {
+		res, err := tc.AddMFA(ctx, config)
+		// Reuse the config to spare the user from answering the same questions.
+		config = res.UpdatedConfig
+		return trace.Wrap(err)
+	})
 	if err != nil {
 		return trace.Wrap(err)
 	}

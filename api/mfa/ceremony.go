@@ -104,13 +104,13 @@ func (c *Ceremony) Run(
 	if !ok {
 		return nil, trace.Wrap(authErr)
 	}
-	added, err := c.Register(ctx, RegistrationCeremonyConfig{
+	regRes, err := c.Register(ctx, RegistrationCeremonyConfig{
 		Reason: reason,
 	})
 	if err != nil {
 		return nil, trace.NewAggregate(authErr, err)
 	}
-	if !added {
+	if !regRes.DeviceAdded {
 		return nil, trace.Wrap(authErr)
 	}
 
@@ -251,16 +251,20 @@ type RegistrationCeremonyConfig struct {
 }
 
 // Register interacts with user to register an MFA device on the client side
-// and adds the device to Teleport backend. Returns true if the device was
-// added, and false if it was not (for example, the user refused to register
-// it).
-func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConfig) (bool, error) {
+// and adds the device to Teleport backend. The returned
+// [CeremonyRegisterResult] is always valid to allow resuming the process with
+// the same configuration in case if an error occurs.
+func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConfig) (CeremonyRegisterResult, error) {
+	res := CeremonyRegisterResult{
+		DeviceAdded:   false,
+		UpdatedConfig: config,
+	}
 	if c.CreateRegisterChallenge == nil {
-		return false, trace.BadParameter("mfa ceremony must have CreateRegisterChallenge set in order to begin")
+		return res, trace.BadParameter("mfa ceremony must have CreateRegisterChallenge set in order to begin")
 	}
 
 	if c.AddMFADevice == nil {
-		return false, trace.BadParameter("mfa ceremony must have AddMFADevice set in order to begin")
+		return res, trace.BadParameter("mfa ceremony must have AddMFADevice set in order to begin")
 	}
 
 	regPrompt := c.PromptConstructor()
@@ -273,14 +277,14 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 	// Query for missing data to register the device.
 	updatedPromptConfig, err := regPrompt.AskRegister(ctx, promptConfig)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 	if updatedPromptConfig == nil {
 		// No device has been registered.
-		return false, nil
+		return res, nil
 	}
 	promptConfig = *updatedPromptConfig
-	config = updatedPromptConfig.RegistrationCeremonyConfig
+	res.UpdatedConfig = updatedPromptConfig.RegistrationCeremonyConfig
 
 	mfaResp, err := c.Authenticate(ctx, &proto.CreateAuthenticateChallengeRequest{
 		ChallengeExtensions: &mfav1.ChallengeExtensions{
@@ -288,40 +292,40 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 		},
 	})
 	if err != nil {
-		return false, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 
 	devTypePB := map[MFADeviceType]proto.DeviceType{
 		MFADeviceTypeTOTP:     proto.DeviceType_DEVICE_TYPE_TOTP,
 		MFADeviceTypeWebauthn: proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
 		MFADeviceTypeTouchID:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-	}[config.DeviceType]
+	}[res.UpdatedConfig.DeviceType]
 	// Sanity check.
 	if devTypePB == proto.DeviceType_DEVICE_TYPE_UNSPECIFIED {
-		return false, trace.BadParameter("unexpected device type: %q", config.DeviceType)
+		return res, trace.BadParameter("unexpected device type: %q", res.UpdatedConfig.DeviceType)
 	}
 
 	regChal, err := c.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
 		ExistingMFAResponse: mfaResp,
 		DeviceType:          devTypePB,
-		DeviceUsage:         config.DeviceUsage,
+		DeviceUsage:         res.UpdatedConfig.DeviceUsage,
 	})
 	if err != nil {
-		return false, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 
 	result, err := regPrompt.RunRegister(ctx, promptConfig, regChal)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 
 	// Add the registered device to the backend.
 	if err = c.AddMFADevice(ctx, result.Response, promptConfig.RegistrationCeremonyConfig); err != nil {
 		result.Callbacks.Rollback()
-		return false, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 	if err := result.Callbacks.Confirm(); err != nil {
-		return false, trace.Wrap(err)
+		return res, trace.Wrap(err)
 	}
 
 	// Failure to notify doesn't justify making it an error, so just log it and
@@ -329,7 +333,17 @@ func (c *Ceremony) Register(ctx context.Context, config RegistrationCeremonyConf
 	if err = regPrompt.NotifyRegistrationSuccess(ctx, promptConfig); err != nil {
 		slog.ErrorContext(ctx, "Unable to notify about registration success", "error", err)
 	}
-	return true, nil
+	res.DeviceAdded = true
+	return res, nil
+}
+
+// CeremonyRegisterResult is a result of an [Ceremony.Register] function.
+type CeremonyRegisterResult struct {
+	// DeviceAdded is true if the device was added, and false if it was not (for
+	// example, the user refused to register it).
+	DeviceAdded bool
+	// UpdatedConfig holds the (potentially) updated configuration.
+	UpdatedConfig RegistrationCeremonyConfig
 }
 
 // CeremonyFn is a function that will carry out an MFA ceremony.

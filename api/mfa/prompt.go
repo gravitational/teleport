@@ -45,8 +45,8 @@ type RegistrationCallbacks interface {
 	Confirm() error
 }
 
-// RegistrationResult contains the result of a [Prompt.AskRegister] call.
-type RegistrationResult struct {
+// PromptRunRegisterResult contains the result of a [Prompt.RunRegister] call.
+type PromptRunRegisterResult struct {
 	// Response is the registration challenge response from the MFA device.
 	Response *proto.MFARegisterResponse
 	// Callbacks contain functions that need to be called depending on the result
@@ -76,7 +76,7 @@ type Prompt interface {
 	// RunRegister registers a new MFA device on the client side.
 	RunRegister(
 		ctx context.Context, config RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
-	) (*RegistrationResult, error)
+	) (*PromptRunRegisterResult, error)
 	// NotifyRegistrationSuccess notifies the user that the device registration
 	// was successful.
 	NotifyRegistrationSuccess(ctx context.Context, config RegistrationPromptConfig) error
@@ -99,7 +99,7 @@ func (f PromptFunc) AskRegister(ctx context.Context, config RegistrationPromptCo
 // RunRegister is not implemented.
 func (f PromptFunc) RunRegister(
 	ctx context.Context, config RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
-) (*RegistrationResult, error) {
+) (*PromptRunRegisterResult, error) {
 	return nil, trace.NotImplemented("MFA device registration not supported")
 }
 

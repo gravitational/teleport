@@ -180,7 +180,7 @@ func (f *mfaPrompt) AskRegister(
 // RunRegister is not implemented.
 func (f *mfaPrompt) RunRegister(
 	ctx context.Context, config mfa.RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
-) (*mfa.RegistrationResult, error) {
+) (*mfa.PromptRunRegisterResult, error) {
 	return nil, trace.NotImplemented("not supported")
 }
 

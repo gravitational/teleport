@@ -33,7 +33,7 @@ import (
 
 type mockPrompt struct {
 	authResponse         *proto.MFAAuthenticateResponse
-	regResult            *mfa.RegistrationResult
+	regResult            *mfa.PromptRunRegisterResult
 	askedToRegister      bool
 	notifiedAboutSuccess bool
 }
@@ -57,7 +57,7 @@ func (m *mockPrompt) AskRegister(
 
 func (m *mockPrompt) RunRegister(
 	ctx context.Context, config mfa.RegistrationPromptConfig, challenge *proto.MFARegisterChallenge,
-) (*mfa.RegistrationResult, error) {
+) (*mfa.PromptRunRegisterResult, error) {
 	return m.regResult, nil
 }
 
@@ -416,7 +416,7 @@ func TestMFACeremony_Registration(t *testing.T) {
 			callbacks := mockRegistrationCallbacks{}
 			mp := mockPrompt{
 				authResponse: &proto.MFAAuthenticateResponse{},
-				regResult: &mfa.RegistrationResult{
+				regResult: &mfa.PromptRunRegisterResult{
 					Callbacks: &callbacks,
 					Response: &proto.MFARegisterResponse{
 						Response: &proto.MFARegisterResponse_Webauthn{
