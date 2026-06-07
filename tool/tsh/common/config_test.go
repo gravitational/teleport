@@ -19,6 +19,7 @@
 package common
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -60,4 +61,39 @@ Host *.test-cluster !localhost
 	})
 	require.NoError(t, err)
 	require.Equal(t, want, sb.String())
+}
+
+func TestIsNonInteractiveWriter(t *testing.T) {
+	t.Parallel()
+
+	t.Run("pipe", func(t *testing.T) {
+		reader, writer, err := os.Pipe()
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, writer.Close())
+			require.NoError(t, reader.Close())
+		})
+
+		require.True(t, isNonInteractiveWriter(writer))
+	})
+
+	t.Run("redirected to file", func(t *testing.T) {
+		file, err := os.CreateTemp(t.TempDir(), "stdout-*")
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, file.Close())
+		})
+
+		require.True(t, isNonInteractiveWriter(file))
+	})
+
+	t.Run("character device", func(t *testing.T) {
+		file, err := os.OpenFile(os.DevNull, os.O_WRONLY, 0)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			require.NoError(t, file.Close())
+		})
+
+		require.False(t, isNonInteractiveWriter(file))
+	})
 }
