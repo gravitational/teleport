@@ -1422,6 +1422,25 @@ func TestValidateRole(t *testing.T) {
 				`join_sessions[0]: invalid participant mode "random"`,
 			},
 		},
+		{
+			name: "all errors are aggregated",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Logins: []string{"{{badfunc(x)}}"},
+					Request: &types.AccessRequestConditions{
+						SearchAsRoles: []string{types.Wildcard},
+					},
+					JoinSessions: []*types.SessionJoinPolicy{{
+						Kinds: []string{"random_kind"},
+					}},
+				},
+			},
+			expectErrorContains: []string{
+				"parsing allow.logins expression",
+				"wildcard is not allowed in allow.request.search_as_roles",
+				`join_sessions[0]: invalid session kind "random_kind"`,
+			},
+		},
 	}
 
 	for _, tc := range tests {

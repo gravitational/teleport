@@ -258,19 +258,17 @@ func ValidateRole(r types.Role) error {
 		return trace.Wrap(err)
 	}
 
+	var errs []error
 	if err := validateRoleExpressions(r); err != nil {
-		return trace.Wrap(err)
+		errs = append(errs, err)
 	}
-
 	if err := validateRoleWildcards(r); err != nil {
-		return trace.Wrap(err)
+		errs = append(errs, err)
 	}
-
 	if err := validateSessionPolicies(r); err != nil {
-		return trace.Wrap(err)
+		errs = append(errs, err)
 	}
-
-	return nil
+	return trace.NewAggregate(errs...)
 }
 
 // validateRoleExpressions validates all expression and predicate syntax in a role.
