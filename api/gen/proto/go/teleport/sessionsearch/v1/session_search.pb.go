@@ -223,8 +223,10 @@ type SearchSessionSummariesRequest struct {
 	// batch_token resumes a previous search from a known cursor position.
 	// Set this to the next_batch_token returned in a prior BatchComplete message
 	// to continue from where an earlier stream left off.
-	// The token encodes the complete search state of the original request;
-	// all other filter fields in this message are ignored when batch_token is set.
+	// The token is only a cursor: it does not encode the search filters, so all
+	// other filter fields (start_time, end_time, ...) must be set to the same
+	// values as the original request when batch_token is set. Resuming with a
+	// different time range than the original search is rejected.
 	// An empty value starts a new search from the beginning.
 	BatchToken string `protobuf:"bytes,14,opt,name=batch_token,json=batchToken,proto3" json:"batch_token,omitempty"`
 	// search_mode controls which search strategy to apply when search_queries
@@ -558,8 +560,10 @@ type SearchSessionSummariesRequest_builder struct {
 	// batch_token resumes a previous search from a known cursor position.
 	// Set this to the next_batch_token returned in a prior BatchComplete message
 	// to continue from where an earlier stream left off.
-	// The token encodes the complete search state of the original request;
-	// all other filter fields in this message are ignored when batch_token is set.
+	// The token is only a cursor: it does not encode the search filters, so all
+	// other filter fields (start_time, end_time, ...) must be set to the same
+	// values as the original request when batch_token is set. Resuming with a
+	// different time range than the original search is rejected.
 	// An empty value starts a new search from the beginning.
 	BatchToken string
 	// search_mode controls which search strategy to apply when search_queries
