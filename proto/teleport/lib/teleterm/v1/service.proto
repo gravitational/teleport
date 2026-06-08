@@ -190,6 +190,10 @@ service TerminalService {
   // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
   // It only registers file system handlers for processing file system-related TDP events.
   rpc SetSharedDirectoryForDesktopSession(SetSharedDirectoryForDesktopSessionRequest) returns (SetSharedDirectoryForDesktopSessionResponse);
+
+  // This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+  // It only registers file system handlers for processing file system-related TDP events.
+  rpc UnshareDirectoryForDesktopSession(UnshareDirectoryForDesktopSessionRequest) returns (UnshareDirectoryForDesktopSessionResponse);
 }
 
 message EmptyResponse {}
@@ -744,7 +748,21 @@ message SetSharedDirectoryForDesktopSessionRequest {
   string login = 2;
   // Path to share with a remote machine. Must be a directory.
   string path = 3;
+  // Unique identifier for the shared directory instance.
+  uint32 id = 4;
 }
 
 // Response for SetSharedDirectoryForDesktopSession.
 message SetSharedDirectoryForDesktopSessionResponse {}
+
+// Request for SetSharedDirectoryForDesktopSession.
+message UnshareDirectoryForDesktopSessionRequest {
+  // URI of the desktop.
+  string desktop_uri = 1;
+  // Login for the desktop session.
+  string login = 2;
+  // Unique identifier for the shared directory instance to be unshared.
+  uint32 id = 4;
+}
+
+message UnshareDirectoryForDesktopSessionResponse {}

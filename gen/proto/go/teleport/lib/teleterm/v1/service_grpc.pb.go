@@ -79,6 +79,7 @@ const (
 	TerminalService_GetApp_FullMethodName                              = "/teleport.lib.teleterm.v1.TerminalService/GetApp"
 	TerminalService_ConnectToDesktop_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/ConnectToDesktop"
 	TerminalService_SetSharedDirectoryForDesktopSession_FullMethodName = "/teleport.lib.teleterm.v1.TerminalService/SetSharedDirectoryForDesktopSession"
+	TerminalService_UnshareDirectoryForDesktopSession_FullMethodName   = "/teleport.lib.teleterm.v1.TerminalService/UnshareDirectoryForDesktopSession"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -227,6 +228,9 @@ type TerminalServiceClient interface {
 	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
 	// It only registers file system handlers for processing file system-related TDP events.
 	SetSharedDirectoryForDesktopSession(ctx context.Context, in *SetSharedDirectoryForDesktopSessionRequest, opts ...grpc.CallOption) (*SetSharedDirectoryForDesktopSessionResponse, error)
+	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+	// It only registers file system handlers for processing file system-related TDP events.
+	UnshareDirectoryForDesktopSession(ctx context.Context, in *UnshareDirectoryForDesktopSessionRequest, opts ...grpc.CallOption) (*UnshareDirectoryForDesktopSessionResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -682,6 +686,16 @@ func (c *terminalServiceClient) SetSharedDirectoryForDesktopSession(ctx context.
 	return out, nil
 }
 
+func (c *terminalServiceClient) UnshareDirectoryForDesktopSession(ctx context.Context, in *UnshareDirectoryForDesktopSessionRequest, opts ...grpc.CallOption) (*UnshareDirectoryForDesktopSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(UnshareDirectoryForDesktopSessionResponse)
+	err := c.cc.Invoke(ctx, TerminalService_UnshareDirectoryForDesktopSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility.
@@ -828,6 +842,9 @@ type TerminalServiceServer interface {
 	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
 	// It only registers file system handlers for processing file system-related TDP events.
 	SetSharedDirectoryForDesktopSession(context.Context, *SetSharedDirectoryForDesktopSessionRequest) (*SetSharedDirectoryForDesktopSessionResponse, error)
+	// This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+	// It only registers file system handlers for processing file system-related TDP events.
+	UnshareDirectoryForDesktopSession(context.Context, *UnshareDirectoryForDesktopSessionRequest) (*UnshareDirectoryForDesktopSessionResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -966,6 +983,9 @@ func (UnimplementedTerminalServiceServer) ConnectToDesktop(grpc.BidiStreamingSer
 }
 func (UnimplementedTerminalServiceServer) SetSharedDirectoryForDesktopSession(context.Context, *SetSharedDirectoryForDesktopSessionRequest) (*SetSharedDirectoryForDesktopSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SetSharedDirectoryForDesktopSession not implemented")
+}
+func (UnimplementedTerminalServiceServer) UnshareDirectoryForDesktopSession(context.Context, *UnshareDirectoryForDesktopSessionRequest) (*UnshareDirectoryForDesktopSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method UnshareDirectoryForDesktopSession not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 func (UnimplementedTerminalServiceServer) testEmbeddedByValue()                         {}
@@ -1733,6 +1753,24 @@ func _TerminalService_SetSharedDirectoryForDesktopSession_Handler(srv interface{
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_UnshareDirectoryForDesktopSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(UnshareDirectoryForDesktopSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).UnshareDirectoryForDesktopSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_UnshareDirectoryForDesktopSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).UnshareDirectoryForDesktopSession(ctx, req.(*UnshareDirectoryForDesktopSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1899,6 +1937,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SetSharedDirectoryForDesktopSession",
 			Handler:    _TerminalService_SetSharedDirectoryForDesktopSession_Handler,
+		},
+		{
+			MethodName: "UnshareDirectoryForDesktopSession",
+			Handler:    _TerminalService_UnshareDirectoryForDesktopSession_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

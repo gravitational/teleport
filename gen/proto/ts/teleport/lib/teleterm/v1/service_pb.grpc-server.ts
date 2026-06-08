@@ -21,6 +21,8 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 //
+import { UnshareDirectoryForDesktopSessionResponse } from "./service_pb";
+import { UnshareDirectoryForDesktopSessionRequest } from "./service_pb";
 import { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
 import { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
 import { ConnectToDesktopResponse } from "./service_pb";
@@ -417,6 +419,13 @@ export interface ITerminalService extends grpc.UntypedServiceImplementation {
      * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
      */
     setSharedDirectoryForDesktopSession: grpc.handleUnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
+    /**
+     * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+     * It only registers file system handlers for processing file system-related TDP events.
+     *
+     * @generated from protobuf rpc: UnshareDirectoryForDesktopSession(teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionResponse);
+     */
+    unshareDirectoryForDesktopSession: grpc.handleUnaryCall<UnshareDirectoryForDesktopSessionRequest, UnshareDirectoryForDesktopSessionResponse>;
 }
 /**
  * @grpc/grpc-js definition for the protobuf service teleport.lib.teleterm.v1.TerminalService.
@@ -859,5 +868,15 @@ export const terminalServiceDefinition: grpc.ServiceDefinition<ITerminalService>
         requestDeserialize: bytes => SetSharedDirectoryForDesktopSessionRequest.fromBinary(bytes),
         responseSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionResponse.toBinary(value)),
         requestSerialize: value => Buffer.from(SetSharedDirectoryForDesktopSessionRequest.toBinary(value))
+    },
+    unshareDirectoryForDesktopSession: {
+        path: "/teleport.lib.teleterm.v1.TerminalService/UnshareDirectoryForDesktopSession",
+        originalName: "UnshareDirectoryForDesktopSession",
+        requestStream: false,
+        responseStream: false,
+        responseDeserialize: bytes => UnshareDirectoryForDesktopSessionResponse.fromBinary(bytes),
+        requestDeserialize: bytes => UnshareDirectoryForDesktopSessionRequest.fromBinary(bytes),
+        responseSerialize: value => Buffer.from(UnshareDirectoryForDesktopSessionResponse.toBinary(value)),
+        requestSerialize: value => Buffer.from(UnshareDirectoryForDesktopSessionRequest.toBinary(value))
     }
 };

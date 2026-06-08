@@ -24,6 +24,8 @@
 import type { RpcTransport } from "@protobuf-ts/runtime-rpc";
 import type { ServiceInfo } from "@protobuf-ts/runtime-rpc";
 import { TerminalService } from "./service_pb";
+import type { UnshareDirectoryForDesktopSessionResponse } from "./service_pb";
+import type { UnshareDirectoryForDesktopSessionRequest } from "./service_pb";
 import type { SetSharedDirectoryForDesktopSessionResponse } from "./service_pb";
 import type { SetSharedDirectoryForDesktopSessionRequest } from "./service_pb";
 import type { ConnectToDesktopResponse } from "./service_pb";
@@ -424,6 +426,13 @@ export interface ITerminalServiceClient {
      * @generated from protobuf rpc: SetSharedDirectoryForDesktopSession(teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse);
      */
     setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>;
+    /**
+     * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+     * It only registers file system handlers for processing file system-related TDP events.
+     *
+     * @generated from protobuf rpc: UnshareDirectoryForDesktopSession(teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionResponse);
+     */
+    unshareDirectoryForDesktopSession(input: UnshareDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<UnshareDirectoryForDesktopSessionRequest, UnshareDirectoryForDesktopSessionResponse>;
 }
 /**
  * TerminalService is used by the Electron app to communicate with the tsh daemon.
@@ -876,5 +885,15 @@ export class TerminalServiceClient implements ITerminalServiceClient, ServiceInf
     setSharedDirectoryForDesktopSession(input: SetSharedDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse> {
         const method = this.methods[42], opt = this._transport.mergeOptions(options);
         return stackIntercept<SetSharedDirectoryForDesktopSessionRequest, SetSharedDirectoryForDesktopSessionResponse>("unary", this._transport, method, opt, input);
+    }
+    /**
+     * This RPC does not automatically share the directory with the server (it does not send a SharedDirectoryAnnounce message).
+     * It only registers file system handlers for processing file system-related TDP events.
+     *
+     * @generated from protobuf rpc: UnshareDirectoryForDesktopSession(teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionRequest) returns (teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionResponse);
+     */
+    unshareDirectoryForDesktopSession(input: UnshareDirectoryForDesktopSessionRequest, options?: RpcOptions): UnaryCall<UnshareDirectoryForDesktopSessionRequest, UnshareDirectoryForDesktopSessionResponse> {
+        const method = this.methods[43], opt = this._transport.mergeOptions(options);
+        return stackIntercept<UnshareDirectoryForDesktopSessionRequest, UnshareDirectoryForDesktopSessionResponse>("unary", this._transport, method, opt, input);
     }
 }

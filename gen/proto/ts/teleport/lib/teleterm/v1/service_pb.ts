@@ -1336,6 +1336,12 @@ export interface SetSharedDirectoryForDesktopSessionRequest {
      * @generated from protobuf field: string path = 3;
      */
     path: string;
+    /**
+     * Unique identifier for the shared directory instance.
+     *
+     * @generated from protobuf field: uint32 id = 4;
+     */
+    id: number;
 }
 /**
  * Response for SetSharedDirectoryForDesktopSession.
@@ -1343,6 +1349,36 @@ export interface SetSharedDirectoryForDesktopSessionRequest {
  * @generated from protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
  */
 export interface SetSharedDirectoryForDesktopSessionResponse {
+}
+/**
+ * Request for SetSharedDirectoryForDesktopSession.
+ *
+ * @generated from protobuf message teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionRequest
+ */
+export interface UnshareDirectoryForDesktopSessionRequest {
+    /**
+     * URI of the desktop.
+     *
+     * @generated from protobuf field: string desktop_uri = 1;
+     */
+    desktopUri: string;
+    /**
+     * Login for the desktop session.
+     *
+     * @generated from protobuf field: string login = 2;
+     */
+    login: string;
+    /**
+     * Unique identifier for the shared directory instance to be unshared.
+     *
+     * @generated from protobuf field: uint32 id = 4;
+     */
+    id: number;
+}
+/**
+ * @generated from protobuf message teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionResponse
+ */
+export interface UnshareDirectoryForDesktopSessionResponse {
 }
 /**
  * PasswordlessPrompt describes different prompts we need from users
@@ -5759,7 +5795,8 @@ class SetSharedDirectoryForDesktopSessionRequest$Type extends MessageType<SetSha
         super("teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionRequest", [
             { no: 1, name: "desktop_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
             { no: 2, name: "login", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
-            { no: 3, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+            { no: 3, name: "path", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
         ]);
     }
     create(value?: PartialMessage<SetSharedDirectoryForDesktopSessionRequest>): SetSharedDirectoryForDesktopSessionRequest {
@@ -5767,6 +5804,7 @@ class SetSharedDirectoryForDesktopSessionRequest$Type extends MessageType<SetSha
         message.desktopUri = "";
         message.login = "";
         message.path = "";
+        message.id = 0;
         if (value !== undefined)
             reflectionMergePartial<SetSharedDirectoryForDesktopSessionRequest>(this, message, value);
         return message;
@@ -5784,6 +5822,9 @@ class SetSharedDirectoryForDesktopSessionRequest$Type extends MessageType<SetSha
                     break;
                 case /* string path */ 3:
                     message.path = reader.string();
+                    break;
+                case /* uint32 id */ 4:
+                    message.id = reader.uint32();
                     break;
                 default:
                     let u = options.readUnknownField;
@@ -5806,6 +5847,9 @@ class SetSharedDirectoryForDesktopSessionRequest$Type extends MessageType<SetSha
         /* string path = 3; */
         if (message.path !== "")
             writer.tag(3, WireType.LengthDelimited).string(message.path);
+        /* uint32 id = 4; */
+        if (message.id !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.id);
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
@@ -5841,6 +5885,94 @@ class SetSharedDirectoryForDesktopSessionResponse$Type extends MessageType<SetSh
  * @generated MessageType for protobuf message teleport.lib.teleterm.v1.SetSharedDirectoryForDesktopSessionResponse
  */
 export const SetSharedDirectoryForDesktopSessionResponse = new SetSharedDirectoryForDesktopSessionResponse$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UnshareDirectoryForDesktopSessionRequest$Type extends MessageType<UnshareDirectoryForDesktopSessionRequest> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionRequest", [
+            { no: 1, name: "desktop_uri", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "login", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 4, name: "id", kind: "scalar", T: 13 /*ScalarType.UINT32*/ }
+        ]);
+    }
+    create(value?: PartialMessage<UnshareDirectoryForDesktopSessionRequest>): UnshareDirectoryForDesktopSessionRequest {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.desktopUri = "";
+        message.login = "";
+        message.id = 0;
+        if (value !== undefined)
+            reflectionMergePartial<UnshareDirectoryForDesktopSessionRequest>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UnshareDirectoryForDesktopSessionRequest): UnshareDirectoryForDesktopSessionRequest {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string desktop_uri */ 1:
+                    message.desktopUri = reader.string();
+                    break;
+                case /* string login */ 2:
+                    message.login = reader.string();
+                    break;
+                case /* uint32 id */ 4:
+                    message.id = reader.uint32();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: UnshareDirectoryForDesktopSessionRequest, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string desktop_uri = 1; */
+        if (message.desktopUri !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.desktopUri);
+        /* string login = 2; */
+        if (message.login !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.login);
+        /* uint32 id = 4; */
+        if (message.id !== 0)
+            writer.tag(4, WireType.Varint).uint32(message.id);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionRequest
+ */
+export const UnshareDirectoryForDesktopSessionRequest = new UnshareDirectoryForDesktopSessionRequest$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class UnshareDirectoryForDesktopSessionResponse$Type extends MessageType<UnshareDirectoryForDesktopSessionResponse> {
+    constructor() {
+        super("teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionResponse", []);
+    }
+    create(value?: PartialMessage<UnshareDirectoryForDesktopSessionResponse>): UnshareDirectoryForDesktopSessionResponse {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        if (value !== undefined)
+            reflectionMergePartial<UnshareDirectoryForDesktopSessionResponse>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: UnshareDirectoryForDesktopSessionResponse): UnshareDirectoryForDesktopSessionResponse {
+        return target ?? this.create();
+    }
+    internalBinaryWrite(message: UnshareDirectoryForDesktopSessionResponse, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message teleport.lib.teleterm.v1.UnshareDirectoryForDesktopSessionResponse
+ */
+export const UnshareDirectoryForDesktopSessionResponse = new UnshareDirectoryForDesktopSessionResponse$Type();
 /**
  * @generated ServiceType for protobuf service teleport.lib.teleterm.v1.TerminalService
  */
@@ -5887,5 +6019,6 @@ export const TerminalService = new ServiceType("teleport.lib.teleterm.v1.Termina
     { name: "AuthenticateWebDevice", options: {}, I: AuthenticateWebDeviceRequest, O: AuthenticateWebDeviceResponse },
     { name: "GetApp", options: {}, I: GetAppRequest, O: GetAppResponse },
     { name: "ConnectToDesktop", serverStreaming: true, clientStreaming: true, options: {}, I: ConnectToDesktopRequest, O: ConnectToDesktopResponse },
-    { name: "SetSharedDirectoryForDesktopSession", options: {}, I: SetSharedDirectoryForDesktopSessionRequest, O: SetSharedDirectoryForDesktopSessionResponse }
+    { name: "SetSharedDirectoryForDesktopSession", options: {}, I: SetSharedDirectoryForDesktopSessionRequest, O: SetSharedDirectoryForDesktopSessionResponse },
+    { name: "UnshareDirectoryForDesktopSession", options: {}, I: UnshareDirectoryForDesktopSessionRequest, O: UnshareDirectoryForDesktopSessionResponse }
 ]);
