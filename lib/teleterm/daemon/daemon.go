@@ -1287,7 +1287,7 @@ func (s *Service) ClearStaleCachedClientsForRoot(clusterURI uri.ResourceURI) err
 // SetSharedDirectoryForDesktopSession opens a directory for a desktop session and enables file system operations for it.
 // If there is no active desktop session associated with the specified desktop_uri and login,
 // an error is returned.
-func (s *Service) SetSharedDirectoryForDesktopSession(_ context.Context, desktopURI uri.ResourceURI, login, path string) error {
+func (s *Service) SetSharedDirectoryForDesktopSession(_ context.Context, desktopURI uri.ResourceURI, login, path string, id uint32) error {
 	s.desktopSessionsMu.Lock()
 	defer s.desktopSessionsMu.Unlock()
 
@@ -1296,7 +1296,19 @@ func (s *Service) SetSharedDirectoryForDesktopSession(_ context.Context, desktop
 		return trace.BadParameter("there is no desktop session for desktop %s and login %q", desktopURI, login)
 	}
 
-	err := session.SetSharedDirectory(path)
+	err := session.SetSharedDirectory(path, id)
+	return trace.Wrap(err)
+}
+
+func (s *Service) UnshareDirectoryForDesktopSession(ctx context.Context, desktopURI uri.ResourceURI, login string, id uint32) error {
+	s.desktopSessionsMu.Lock()
+	defer s.desktopSessionsMu.Unlock()
+
+	session, ok := s.desktopSessions[desktopSessionKey(desktopURI, login)]
+	if !ok {
+		return trace.BadParameter("there is no desktop session for desktop %s and login %q", desktopURI, login)
+	}
+	err := session.UnshareDirectory(id)
 	return trace.Wrap(err)
 }
 

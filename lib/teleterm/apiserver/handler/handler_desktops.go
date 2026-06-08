@@ -76,6 +76,19 @@ func (s *Handler) SetSharedDirectoryForDesktopSession(ctx context.Context, in *a
 		return &api.SetSharedDirectoryForDesktopSessionResponse{}, trace.Wrap(err)
 	}
 
-	err = s.DaemonService.SetSharedDirectoryForDesktopSession(ctx, parsed, in.GetLogin(), in.GetPath())
+	err = s.DaemonService.SetSharedDirectoryForDesktopSession(ctx, parsed, in.GetLogin(), in.GetPath(), in.GetId())
 	return &api.SetSharedDirectoryForDesktopSessionResponse{}, trace.Wrap(err)
+}
+
+// UnshareDirectoryForDesktopSession removes/unshares a previously shared directory for a desktop session.
+// If there is no active desktop session associated with the specified desktop_uri and login,
+// an error is returned.
+func (s *Handler) UnshareDirectoryForDesktopSession(ctx context.Context, in *api.UnshareDirectoryForDesktopSessionRequest) (*api.UnshareDirectoryForDesktopSessionResponse, error) {
+	parsed, err := uri.Parse(in.GetDesktopUri())
+	if err != nil {
+		return &api.UnshareDirectoryForDesktopSessionResponse{}, trace.Wrap(err)
+	}
+
+	err = s.DaemonService.UnshareDirectoryForDesktopSession(ctx, parsed, in.GetLogin(), in.GetId())
+	return &api.UnshareDirectoryForDesktopSessionResponse{}, trace.Wrap(err)
 }

@@ -30,31 +30,38 @@ var desktopURI = uri.NewClusterURI("foo").AppendWindowsDesktop("bar")
 var login = "admin"
 
 func TestSetDirectory(t *testing.T) {
+	const directoryID = 1
 	path := t.TempDir()
 	session, err := NewSession(desktopURI, login)
 	require.NoError(t, err)
 
 	// Clean state, share the directory.
-	err = session.SetSharedDirectory(path)
+	err = session.SetSharedDirectory(path, directoryID)
 	require.NoError(t, err)
 
-	// Attempt to share another directory.
-	err = session.SetSharedDirectory("any_path")
+	// Attempt to share another directory with the same ID.
+	err = session.SetSharedDirectory("any_path", directoryID)
 	require.True(t, trace.IsAlreadyExists(err))
+
+	// Attempt to share another directory with the same name,
+	// but different ID.
+	err = session.SetSharedDirectory("any_path", 2)
+	require.NoError(t, err)
 }
 
 func TestGetDirectory(t *testing.T) {
+	const directoryID = 1
 	path := t.TempDir()
 	session, err := NewSession(desktopURI, login)
 	require.NoError(t, err)
 
-	_, err = session.GetDirectoryAccess()
+	_, err = session.GetDirectoryAccess(directoryID)
 	require.True(t, trace.IsNotFound(err))
 
-	err = session.SetSharedDirectory(path)
+	err = session.SetSharedDirectory(path, directoryID)
 	require.NoError(t, err)
 
-	access, err := session.GetDirectoryAccess()
+	access, err := session.GetDirectoryAccess(directoryID)
 	require.NoError(t, err)
 	resolvedPath, err := filepath.EvalSymlinks(path)
 	require.NoError(t, err)
