@@ -903,7 +903,13 @@ func TestItemsNotIn(t *testing.T) {
 			name:      "everything delivered returns empty",
 			all:       mk(1, 2, 3),
 			delivered: mk(1, 2, 3),
-			want:      mk(),
+			want:      nil,
+		},
+		{
+			name:      "more delivered than all does not panic",
+			all:       mk(1, 9),
+			delivered: mk(1, 2, 3, 4, 5),
+			want:      mk(9),
 		},
 	}
 
