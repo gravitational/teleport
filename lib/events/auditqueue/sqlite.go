@@ -667,7 +667,7 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 	}
 	defer rows.Close()
 
-	var exhausted []any
+	var exhaustedEventIDs []any
 	for rows.Next() {
 		var id int64
 		var attempts int
@@ -675,7 +675,7 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 			return 0, trace.Wrap(err)
 		}
 		if attempts >= q.maxAttempts {
-			exhausted = append(exhausted, id)
+			exhaustedEventIDs = append(exhaustedEventIDs, id)
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -684,17 +684,17 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 
 	// If no events have exhausted their attempts, then we can skip the rest of
 	// the function.
-	if len(exhausted) == 0 {
+	if len(exhaustedEventIDs) == 0 {
 		return 0, trace.Wrap(tx.Commit())
 	}
 
 	// Copy exhausted rows into audit_dead_letter then delete them from
 	// audit_queue.
-	exhaustedPlaceholders := placeholders(len(exhausted))
+	exhaustedPlaceholders := placeholders(len(exhaustedEventIDs))
 
-	insertArgs := make([]any, 0, len(exhausted)+1)
+	insertArgs := make([]any, 0, len(exhaustedEventIDs)+1)
 	insertArgs = append(insertArgs, time.Now().Unix())
-	insertArgs = append(insertArgs, exhausted...)
+	insertArgs = append(insertArgs, exhaustedEventIDs...)
 	if _, err := tx.ExecContext(q.ctx,
 		"INSERT INTO audit_dead_letter (payload, failed_at) "+
 			"SELECT payload, ? FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
@@ -705,12 +705,12 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 
 	if _, err := tx.ExecContext(q.ctx,
 		"DELETE FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
-		exhausted...,
+		exhaustedEventIDs...,
 	); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	return len(exhausted), trace.Wrap(tx.Commit())
+	return len(exhaustedEventIDs), trace.Wrap(tx.Commit())
 }
 
 // deadLetterSweepLoop periodically re-attempts delivery of dead-letter events
