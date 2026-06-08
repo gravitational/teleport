@@ -138,6 +138,15 @@ plugins:
       - apilevelMteleport/secreports/v1/secreports_service.proto=API_HYBRID
       - apilevelMteleport/sessionsearch/v1/session_search.proto=API_HYBRID
       - apilevelMteleport/stableunixusers/v1/stableunixusers.proto=API_HYBRID
+      - apilevelMteleport/subca/v1/cert_authority_override.proto=API_HYBRID
+      - apilevelMteleport/subca/v1/cert_authority_override_id.proto=API_HYBRID
+      - apilevelMteleport/subca/v1/certificate_override.proto=API_HYBRID
+      - apilevelMteleport/subca/v1/certificate_override_id.proto=API_HYBRID
+      - apilevelMteleport/subca/v1/crl.proto=API_HYBRID
+      - apilevelMteleport/subca/v1/csr.proto=API_HYBRID
+      - apilevelMteleport/subca/v1/distinguished_name.proto=API_HYBRID
+      - apilevelMteleport/subca/v1/public_key_hash.proto=API_HYBRID
+      - apilevelMteleport/subca/v1/subca_service.proto=API_HYBRID
       - apilevelMteleport/summarizer/v1/summarizer.proto=API_HYBRID
       - apilevelMteleport/summarizer/v1/summarizer_service.proto=API_HYBRID
       - apilevelMteleport/trait/v1/trait.proto=API_HYBRID

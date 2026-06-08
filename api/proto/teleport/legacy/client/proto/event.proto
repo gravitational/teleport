@@ -37,6 +37,7 @@ import "teleport/recordingencryption/v1/recording_encryption.proto";
 import "teleport/scopes/access/v1/assignment.proto";
 import "teleport/scopes/access/v1/role.proto";
 import "teleport/secreports/v1/secreports.proto";
+import "teleport/subca/v1/cert_authority_override.proto";
 import "teleport/summarizer/v1/summarizer.proto";
 import "teleport/userloginstate/v1/userloginstate.proto";
 import "teleport/userprovisioning/v2/statichostuser.proto";
@@ -238,6 +239,8 @@ message Event {
     types.PluginV1 plugin = 84;
     // AutoUpdateAgentReport is a resource for counting connected bot instances.
     teleport.autoupdate.v1.AutoUpdateBotInstanceReport AutoUpdateBotInstanceReport = 85;
+    // CertAuthorityOverride allows admins to override Teleport CA certificates.
+    teleport.subca.v1.CertAuthorityOverride CertAuthorityOverride = 90;
     // InferenceModel is a resource for defining inference models.
     teleport.summarizer.v1.InferenceModel InferenceModel = 91;
     // InferenceSecret is a resource for defining inference secrets.

@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -169,6 +170,23 @@ func TestSessionStartEvent(t *testing.T) {
 			require.Empty(t, cmp.Diff(test.exp(), *startEvent))
 		})
 	}
+
+	t.Run("audit emits CAOverride details", func(t *testing.T) {
+		t.Parallel()
+
+		_, audit := setup(testDesktop)
+
+		const aPublicKeyHash = "6fbd7ba3f34c526f5d6d8ea2659f9fb5ca031712ee588ce35941d568742d44ed"
+		audit.caOverrideDetails = &events.CAOverrideCertificateDetails{
+			Active:        true,
+			PublicKeyHash: aPublicKeyHash,
+		}
+
+		got := audit.makeSessionStart(nil)
+		if diff := cmp.Diff(audit.caOverrideDetails, got.CAOverride, protocmp.Transform()); diff != "" {
+			t.Errorf("CAOverrideDetails mismatch (-want +got)\n%s", diff)
+		}
+	})
 }
 
 func TestSessionEndEvent(t *testing.T) {

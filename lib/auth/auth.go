@@ -644,6 +644,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		}
 	}
 
+	if cfg.SubCAService == nil {
+		var err error
+		cfg.SubCAService, err = local.NewSubCAService(local.SubCAServiceParams{
+			Backend: cfg.Backend,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SubCAService")
+		}
+	}
+
 	services := &Services{
 		TrustInternal:                   cfg.Trust,
 		PresenceInternal:                cfg.Presence,
@@ -706,6 +716,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		ScopedTokenService:              cfg.ScopedTokenService,
 		WorkloadClusterService:          cfg.WorkloadClusterService,
 		Beams:                           cfg.Beams,
+		SubCAService:                    cfg.SubCAService,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -1008,6 +1019,7 @@ type Services struct {
 	services.ScopedTokenService
 	services.WorkloadClusterService
 	services.Beams
+	services.SubCAService
 }
 
 // awsOrganizationsClientGetterWithCache returns an AWS Organizations client getter with caching.
