@@ -170,7 +170,17 @@ func (f *Forwarder) ephemeralContainersLocal(authCtx *authContext, sess *cluster
 		return trace.Wrap(err)
 	}
 
-	if err := f.createWaitingContainer(req.Context(), ephemeralContName, authCtx, podPatch, reqPatchType); err != nil {
+	// Resolve the impersonation identity that the caller's headers select.
+	// Stored on the waiting container so the watch path can replay the same impersonation later,
+	// when the original request headers are gone.
+	kubeUser, kubeGroups, err := computeAndValidateImpersonatedPrincipals(
+		authCtx.kubeUsers, authCtx.kubeGroups, authCtx.User.GetName(), req.Header,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := f.createWaitingContainer(req.Context(), ephemeralContName, authCtx, podPatch, reqPatchType, kubeUser, kubeGroups); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -214,6 +224,20 @@ func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
 	return patchedPod, ephemeralContName, nil
 }
 
+// impersonationHeadersFromWaitingContainer materialises Impersonate-User/Impersonate-Group headers
+// from the impersonation captured when the waiting container was created,
+// so getPodForEphemeralPatch can re-apply the same choice on the watch path where no live request headers exist.
+func impersonationHeadersFromWaitingContainer(waitingCont *kubewaitingcontainerpb.KubernetesWaitingContainer) http.Header {
+	headers := http.Header{}
+	if user := waitingCont.GetSpec().GetKubernetesUser(); user != "" {
+		headers.Set(ImpersonateUserHeader, user)
+	}
+	for _, group := range waitingCont.GetSpec().GetKubernetesGroups() {
+		headers.Add(ImpersonateGroupHeader, group)
+	}
+	return headers
+}
+
 // getPodForEphemeralPatch fetches the target pod using a Kubernetes client
 // that impersonates the requesting user's `kubernetes_users` / `kubernetes_groups`.
 // The Kubernetes API server therefore enforces RBAC on the user's mapped identity for this read, even though
@@ -237,17 +261,19 @@ func (f *Forwarder) getPodForEphemeralPatch(
 	return pod, nil
 }
 
-func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContName string, authCtx *authContext, podPatch []byte, patchType apimachinerytypes.PatchType) error {
+func (f *Forwarder) createWaitingContainer(ctx context.Context, ephemeralContName string, authCtx *authContext, podPatch []byte, patchType apimachinerytypes.PatchType, kubeUser string, kubeGroups []string) error {
 	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer(
 		ephemeralContName,
 		kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
-			Username:      authCtx.User.GetName(),
-			Cluster:       authCtx.kubeClusterName,
-			Namespace:     authCtx.metaResource.requestedResource.namespace,
-			PodName:       authCtx.metaResource.requestedResource.resourceName,
-			ContainerName: ephemeralContName,
-			Patch:         podPatch,
-			PatchType:     string(patchType),
+			Username:         authCtx.User.GetName(),
+			Cluster:          authCtx.kubeClusterName,
+			Namespace:        authCtx.metaResource.requestedResource.namespace,
+			PodName:          authCtx.metaResource.requestedResource.resourceName,
+			ContainerName:    ephemeralContName,
+			Patch:            podPatch,
+			PatchType:        string(patchType),
+			KubernetesUser:   kubeUser,
+			KubernetesGroups: kubeGroups,
 		}.Build())
 	if err != nil {
 		return trace.Wrap(err)
@@ -344,7 +370,7 @@ func (f *Forwarder) getPatchedPodEvent(ctx context.Context, sess *clusterSession
 	pod, err := f.getPodForEphemeralPatch(
 		ctx,
 		&sess.authContext,
-		nil,
+		impersonationHeadersFromWaitingContainer(waitingCont),
 		waitingCont.GetSpec().GetNamespace(),
 		waitingCont.GetSpec().GetPodName(),
 	)
