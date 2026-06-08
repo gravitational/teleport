@@ -491,6 +491,7 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 	for _, tt := range tests {
 		for _, scope := range []string{"", scopedTestScope} {
 			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
 				const errorCode = http.StatusForbidden
 
 				kubeMock, err := testingkubemock.NewKubeAPIMock(
