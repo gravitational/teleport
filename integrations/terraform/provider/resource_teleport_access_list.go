@@ -286,6 +286,8 @@ func (r resourceTeleportAccessList) Update(ctx context.Context, req tfsdk.Update
 
 	accessListResource = accessListI
 	
+	accessList = convert.ToProto(accessListResource)
+
 	diags = schemav1.CopyAccessListToTerraform(ctx, accessList, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
