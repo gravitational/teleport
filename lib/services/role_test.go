@@ -1441,6 +1441,39 @@ func TestValidateRole(t *testing.T) {
 				`join_sessions[0]: invalid session kind "random_kind"`,
 			},
 		},
+		{
+			name: "all access predicate errors are aggregated",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						Thresholds: []types.AccessReviewThreshold{
+							{Filter: `containz(reviewer.roles, "x")`},
+							{Filter: `equalz(reviewer.name, "alice")`},
+						},
+						MaxDuration: types.Duration(30 * 24 * time.Hour),
+					},
+					ReviewRequests: &types.AccessReviewConditions{
+						Where: `containz(reviewer.roles, "y")`,
+					},
+				},
+				Deny: types.RoleConditions{
+					Request: &types.AccessRequestConditions{
+						Thresholds: []types.AccessReviewThreshold{{Filter: ""}},
+					},
+					ReviewRequests: &types.AccessReviewConditions{
+						Where: `containz(reviewer.roles, "z")`,
+					},
+				},
+			},
+			expectErrorContains: []string{
+				"deny.request cannot contain thresholds",
+				"invalid threshold predicate at allow.request.thresholds[0]",
+				"invalid threshold predicate at allow.request.thresholds[1]",
+				"invalid review predicate at allow.review_requests.where",
+				"invalid review predicate at deny.review_requests.where",
+				"max access duration must be less than or equal to",
+			},
+		},
 	}
 
 	for _, tc := range tests {
