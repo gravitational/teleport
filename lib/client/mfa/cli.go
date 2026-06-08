@@ -591,7 +591,7 @@ func (c *CLIPrompt) promptBrowser(ctx context.Context, chal *proto.MFAAuthentica
 func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
 	// If there's no interactive terminal, it makes no sense to attempt
 	// registration; this would only result in the process hanging forever.
-	if !utils.IsTerminal(c.stdout()) {
+	if !c.stdin().IsTerminal() {
 		return nil, nil
 	}
 

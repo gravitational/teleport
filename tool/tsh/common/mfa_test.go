@@ -234,6 +234,13 @@ func TestTshMFAAddNativePlatformAuthenticator(t *testing.T) {
 	ctx := t.Context()
 	process, alice, tshHome := setupMFAAddTestUser(t)
 
+	// Register an empty fake reader to pretend that we are on a terminal.
+	oldStdin := prompt.Stdin()
+	t.Cleanup(func() {
+		prompt.SetStdin(oldStdin)
+	})
+	prompt.SetStdin(prompt.NewFakeReader())
+
 	ctxWithTimeout, cancel := context.WithTimeout(ctx, time.Minute)
 	defer cancel()
 

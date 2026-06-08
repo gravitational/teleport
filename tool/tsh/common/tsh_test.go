@@ -957,7 +957,14 @@ func TestLoginScopeChangeClearsAgentKeys(t *testing.T) {
 }
 
 func TestRelogin(t *testing.T) {
-	t.Parallel()
+	// Can't run in parallel because we're overriding `prompt.Stdin()`
+
+	// Register an empty fake reader to pretend that we are on a terminal.
+	oldStdin := prompt.Stdin()
+	t.Cleanup(func() {
+		prompt.SetStdin(oldStdin)
+	})
+	prompt.SetStdin(prompt.NewFakeReader())
 
 	tmpHomePath := t.TempDir()
 
@@ -2847,11 +2854,10 @@ func TestSSHAddingMFA(t *testing.T) {
 	otpKey := base32.StdEncoding.EncodeToString([]byte("foobar"))
 
 	testCases := []struct {
-		name      string
-		extraArgs []string
-		withOTP   bool
-		stdinFn   func() *prompt.FakeReader
-		assertFn  func(t *testing.T, stdout string, err error)
+		name     string
+		withOTP  bool
+		stdinFn  func() *prompt.FakeReader
+		assertFn func(t *testing.T, stdout string, err error)
 	}{
 		{
 			name: "refuse to create device",
@@ -2868,9 +2874,12 @@ func TestSSHAddingMFA(t *testing.T) {
 			},
 		},
 		{
-			name:      "--no-add-mfa flag skips registration prompt",
-			extraArgs: []string{"--no-add-mfa"},
-			stdinFn:   func() *prompt.FakeReader { return prompt.NewFakeReader() },
+			name: "skips registration prompt if input is not a terminal",
+			stdinFn: func() *prompt.FakeReader {
+				r := prompt.NewFakeReader()
+				r.Terminal = false
+				return r
+			},
 			assertFn: func(t *testing.T, stdout string, err error) {
 				var exiterr *common.ExitCodeError
 				require.ErrorAs(t, err, &exiterr)
@@ -2984,12 +2993,9 @@ func TestSSHAddingMFA(t *testing.T) {
 				"ssh",
 				"--debug",
 				"--insecure",
-			}
-			args = append(args, tc.extraArgs...)
-			args = append(args,
 				fmt.Sprintf("%s@%s", localUser.Username, sshHostname),
 				"echo", greeting,
-			)
+			}
 
 			err = Run(ctx, args,
 				setHomePath(tmpHomePath),
@@ -3116,7 +3122,6 @@ func TestSSHAccessRequestAndAddingMFA(t *testing.T) {
 			"ssh",
 			"--insecure",
 			"--disable-access-request",
-			"--no-add-mfa",
 			fmt.Sprintf("%s@%s", localUser.Username, sshHostname),
 		}, setHomePath(tmpHomePath), func(cf *CLIConf) error {
 			cf.overrideStderr = &output
