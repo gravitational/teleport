@@ -19,12 +19,14 @@ package webclient
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
 	"testing"
+	"testing/iotest"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
@@ -110,110 +112,183 @@ func TestPlainHttpFallback(t *testing.T) {
 	}
 }
 
-func TestPingError(t *testing.T) {
+func TestErrorFromUnsuccessfulResponse(t *testing.T) {
 	t.Parallel()
 
-	testCases := []struct {
+	const (
+		endpoint  = "/webapi/ping"
+		proxyAddr = "proxy.example.com:443"
+	)
+
+	cases := []struct {
 		desc        string
 		statusCode  int
 		contentType string
-		writeBody   func(t *testing.T, w http.ResponseWriter)
-		errContains string
+		body        string
+		bodyReadErr bool
+		errContains []string
+		errExcludes []string
 	}{
 		{
-			desc:        "unsuccessful response",
+			desc:        "structured error message",
 			statusCode:  http.StatusInternalServerError,
 			contentType: "application/json",
-			writeBody: func(t *testing.T, w http.ResponseWriter) {
-				err := json.NewEncoder(w).Encode(PingErrorResponse{Error: PingError{Message: "lorem ipsum"}})
-				require.NoError(t, err)
-			},
-			errContains: "lorem ipsum",
+			body:        `{"error":{"message":"something went wrong"}}`,
+			errContains: []string{"something went wrong", "returned HTTP 500"},
 		},
 		{
-			desc:        "mangled response",
+			desc:        "control sequences in server message are escaped",
+			statusCode:  http.StatusBadGateway,
+			contentType: "application/json",
+			body:        "{\"error\":{\"message\":\"evil\\u001b[2Jspoof\"}}",
+			errContains: []string{"returned HTTP 502", `evil\x1b[2Jspoof`},
+			errExcludes: []string{"\x1b"},
+		},
+		{
+			desc:        "long server message is truncated",
 			statusCode:  http.StatusInternalServerError,
 			contentType: "application/json",
-			writeBody: func(t *testing.T, w http.ResponseWriter) {
-				_, err := w.Write([]byte("mangled lorem ipsum"))
-				require.NoError(t, err)
-			},
-			errContains: "/webapi/ping returned a 500 JSON response; is proxy reachable?",
+			body:        `{"error":{"message":"` + strings.Repeat("a", 300) + `"}}`,
+			errContains: []string{"returned HTTP 500", strings.Repeat("a", 256) + "…"},
+			errExcludes: []string{strings.Repeat("a", 257)},
 		},
 		{
-			// Something in front of the proxy responded with its own non-JSON error
-			// page.
+			desc:        "structured error without message",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "application/json",
+			body:        `{"error":{"message":""}}`,
+			errContains: []string{"HTTP 500 JSON response with no error message", "the proxy may be unhealthy"},
+		},
+		{
+			desc:        "unparseable JSON body",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "application/json",
+			body:        "mangled",
+			errContains: []string{"unparseable HTTP 500 JSON response", `"mangled"`, "the proxy may be unhealthy"},
+		},
+		{
+			desc:        "oversized JSON body is bounded and unparseable",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "application/json",
+			body:        `{"error":{"message":"` + strings.Repeat("a", maxErrorResponseBodyBytes) + `"}}`,
+			errContains: []string{"unparseable HTTP 500 JSON response"},
+			errExcludes: []string{strings.Repeat("a", maxErrorResponseBodyBytes)},
+		},
+		{
 			desc:        "non-JSON content type",
+			statusCode:  http.StatusBadGateway,
+			contentType: "text/html; charset=utf-8",
+			body:        "<html><body>error 502 from load balancer</body></html>",
+			errContains: []string{"returned HTTP 502", "error 502 from load balancer", "the proxy may be unhealthy"},
+		},
+		{
+			desc:        "missing content type",
+			statusCode:  http.StatusBadGateway,
+			contentType: "",
+			body:        "bad gateway",
+			errContains: []string{"returned HTTP 502", "bad gateway", "the proxy may be unhealthy"},
+		},
+		{
+			desc:        "non-JSON 404",
+			statusCode:  http.StatusNotFound,
+			contentType: "text/html; charset=utf-8",
+			body:        "<html><body>not found</body></html>",
+			errContains: []string{"returned HTTP 404", `is "https://` + proxyAddr + `" a Teleport proxy?`, "not found"},
+		},
+		{
+			desc:        "unparseable JSON 404",
+			statusCode:  http.StatusNotFound,
+			contentType: "application/json",
+			body:        "mangled",
+			errContains: []string{"unparseable HTTP 404 JSON response", `a Teleport proxy?`},
+		},
+		{
+			desc:        "rate limited",
+			statusCode:  http.StatusTooManyRequests,
+			contentType: "text/html; charset=utf-8",
+			body:        "slow down",
+			errContains: []string{"returned HTTP 429", "rate-limiting"},
+		},
+		{
+			desc:        "body read error",
 			statusCode:  http.StatusInternalServerError,
-			contentType: "text/html; charset=utf-8",
-			writeBody: func(t *testing.T, w http.ResponseWriter) {
-				_, err := w.Write([]byte("<html><body>error 502</body></html>"))
-				require.NoError(t, err)
-			},
-			errContains: "/webapi/ping returned a 500 response; is proxy reachable?",
-		},
-		{
-			// A 404 on /webapi/ping suggests the address isn't a Teleport server at
-			// all rather than the proxy being unreachable.
-			desc:        "non-JSON 404 response",
-			statusCode:  http.StatusNotFound,
-			contentType: "text/html; charset=utf-8",
-			writeBody: func(t *testing.T, w http.ResponseWriter) {
-				_, err := w.Write([]byte("<html><body>not found</body></html>"))
-				require.NoError(t, err)
-			},
-			errContains: `/webapi/ping returned a 404 response; is "https://`,
-		},
-		{
-			// 404 + application/json but the body isn't parseable. The help text
-			// should still reflect that the address probably isn't a Teleport server.
-			desc:        "mangled 404 response",
-			statusCode:  http.StatusNotFound,
 			contentType: "application/json",
-			writeBody: func(t *testing.T, w http.ResponseWriter) {
-				_, err := w.Write([]byte("mangled lorem ipsum"))
-				require.NoError(t, err)
-			},
-			errContains: `/webapi/ping returned a 404 JSON response; is "https://`,
-		},
-		{
-			// 200 but a body that doesn't decode into PingResponse.
-			// In theory, we could check Content-Type on success too, but what if
-			// there's a deployment behind something that mangles Content-Type?
-			// Checking Content-Type on success would introduce a regression and make
-			// it impossible for users to log in.
-			desc:        "mangled 200 response",
-			statusCode:  http.StatusOK,
-			contentType: "application/json",
-			writeBody: func(t *testing.T, w http.ResponseWriter) {
-				_, err := w.Write([]byte("mangled lorem ipsum"))
-				require.NoError(t, err)
-			},
-			errContains: `cannot parse server ping response; is "https://`,
+			bodyReadErr: true,
+			errContains: []string{"reading the HTTP 500 response body", "check the network connection"},
 		},
 	}
 
-	for _, testCase := range testCases {
-		t.Run(testCase.desc, func(t *testing.T) {
-			handler := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-				if req.RequestURI != "/webapi/ping" {
-					w.WriteHeader(http.StatusNotFound)
-					return
-				}
-
-				w.Header().Set("Content-Type", testCase.contentType)
-				w.WriteHeader(testCase.statusCode)
-				testCase.writeBody(t, w)
-			})
-			httpSvr := httptest.NewServer(handler)
-			defer httpSvr.Close()
-			proxyAddr := httpSvr.Listener.Addr().String()
-
-			_, err := Ping(
-				&Config{Context: context.Background(), ProxyAddr: proxyAddr, Insecure: true})
-			require.ErrorContains(t, err, testCase.errContains)
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			header := http.Header{}
+			if tc.contentType != "" {
+				header.Set("Content-Type", tc.contentType)
+			}
+			var body io.Reader = strings.NewReader(tc.body)
+			if tc.bodyReadErr {
+				body = iotest.ErrReader(io.ErrUnexpectedEOF)
+			}
+			resp := &http.Response{
+				StatusCode: tc.statusCode,
+				Header:     header,
+				Body:       io.NopCloser(body),
+			}
+			err := errorFromUnsuccessfulResponse(context.Background(), endpoint, proxyAddr, resp)
+			for _, want := range tc.errContains {
+				require.ErrorContains(t, err, want)
+			}
+			for _, unwanted := range tc.errExcludes {
+				require.NotContains(t, err.Error(), unwanted)
+			}
 		})
 	}
+}
+
+func TestPingUnsuccessfulResponse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("routes non-200 to helper", func(t *testing.T) {
+		proxyAddr := startProxy(t, "/webapi/ping", http.StatusInternalServerError, "application/json", "mangled")
+		_, err := Ping(&Config{Context: context.Background(), ProxyAddr: proxyAddr, Insecure: true})
+		require.ErrorContains(t, err, "/webapi/ping returned an unparseable HTTP 500 JSON response")
+	})
+
+	t.Run("unparseable 200 response", func(t *testing.T) {
+		proxyAddr := startProxy(t, "/webapi/ping", http.StatusOK, "application/json", "mangled")
+		_, err := Ping(&Config{Context: context.Background(), ProxyAddr: proxyAddr, Insecure: true})
+		require.ErrorContains(t, err, "cannot parse server ping response")
+	})
+}
+
+func TestFindUnsuccessfulResponse(t *testing.T) {
+	t.Parallel()
+
+	t.Run("routes non-200 to helper", func(t *testing.T) {
+		proxyAddr := startProxy(t, "/webapi/find", http.StatusInternalServerError, "application/json", "mangled")
+		_, err := Find(&Config{Context: context.Background(), ProxyAddr: proxyAddr, Insecure: true})
+		require.ErrorContains(t, err, "/webapi/find returned an unparseable HTTP 500 JSON response")
+	})
+
+	t.Run("unparseable 200 response", func(t *testing.T) {
+		proxyAddr := startProxy(t, "/webapi/find", http.StatusOK, "application/json", "mangled")
+		_, err := Find(&Config{Context: context.Background(), ProxyAddr: proxyAddr, Insecure: true})
+		require.ErrorContains(t, err, "cannot parse server find response")
+	})
+}
+
+func startProxy(t *testing.T, wantPath string, status int, contentType, body string) string {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != wantPath {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", contentType)
+		w.WriteHeader(status)
+		_, _ = io.WriteString(w, body)
+	}))
+	t.Cleanup(srv.Close)
+	return srv.Listener.Addr().String()
 }
 
 func TestTunnelAddr(t *testing.T) {
