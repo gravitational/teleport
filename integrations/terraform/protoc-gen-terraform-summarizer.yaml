@@ -97,6 +97,7 @@ computed_fields:
   - "Classifier.kind"
   - "Classifier.metadata.namespace"
   - "RetrievalModel.kind"
+  - "RetrievalModel.metadata"
   - "RetrievalModel.metadata.namespace"
 
 # These fields will be marked as Required: true
