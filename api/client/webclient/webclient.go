@@ -22,7 +22,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -193,6 +192,81 @@ func Find(cfg *Config) (*PingResponse, error) {
 	return findWithClient(cfg, clt)
 }
 
+// maxErrorResponseBodyBytes bounds how much of a non-200 response body is read
+// so a misbehaving upstream cannot make the client buffer an arbitrarily large
+// body just to build an error message.
+const maxErrorResponseBodyBytes = 4096
+
+// errorFromUnsuccessfulResponse builds an actionable error describing why a
+// request returned an unsuccessful HTTP status. The HTTP status and the
+// response body are surfaced so the caller can tell whether the proxy,
+// an intermediary, or a wrong address produced the failure.
+func errorFromUnsuccessfulResponse(ctx context.Context, endpoint, proxyAddr string, resp *http.Response) error {
+	slog.DebugContext(ctx, "Received unsuccessful response", "endpoint", endpoint, "code", resp.StatusCode)
+
+	target := "https://" + proxyAddr
+	reqURL := target + endpoint
+
+	var helpMessage string
+	switch {
+	case resp.StatusCode == http.StatusTooManyRequests:
+		helpMessage = "the server is rate-limiting requests, try again shortly"
+	case resp.StatusCode >= 500:
+		helpMessage = "the proxy may be unhealthy or temporarily unavailable"
+	default:
+		// A 4xx (most commonly 404) usually means proxyAddr is not a Teleport
+		// proxy, or something other than the proxy answered.
+		helpMessage = fmt.Sprintf("is %q a Teleport proxy?", target)
+	}
+
+	// A non-200 response is not necessarily from the proxy, something in front
+	// of it (a load balancer, a tunnel like Cloudflare, etc.) can return its own
+	// error page, which is untrusted and may be arbitrarily large.
+	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorResponseBodyBytes))
+	if err != nil {
+		return trace.Wrap(err, "reading the HTTP %d response body from %s; check the network connection", resp.StatusCode, reqURL)
+	}
+
+	if contentType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type")); contentType != "application/json" {
+		slog.DebugContext(ctx, "Response is not JSON", "url", reqURL, "content_type", contentType, "body", string(bodyBytes), "error", err)
+		return trace.Errorf("%s returned HTTP %d%s; %s", reqURL, resp.StatusCode, snippetSuffix(bodyBytes), helpMessage)
+	}
+
+	errResp := &PingErrorResponse{}
+	if err := json.Unmarshal(bodyBytes, errResp); err != nil {
+		slog.DebugContext(ctx, "Could not parse response body", "url", reqURL, "body", string(bodyBytes), "error", err)
+		return trace.Errorf("%s returned an unparseable HTTP %d JSON response%s; %s", reqURL, resp.StatusCode, snippetSuffix(bodyBytes), helpMessage)
+	}
+
+	if errResp.Error.Message == "" {
+		return trace.Errorf("%s returned an HTTP %d JSON response with no error message; %s", reqURL, resp.StatusCode, helpMessage)
+	}
+
+	// The message may come from an intermediary rather than the proxy, so route
+	// it through snippetSuffix like any other untrusted text.
+	return trace.Errorf("%s returned HTTP %d%s", reqURL, resp.StatusCode, snippetSuffix([]byte(errResp.Error.Message)))
+}
+
+// snippetSuffix returns a single-line, quoted excerpt of the given text
+// formatted as an appendable error suffix: `: "…"` with the leading delimiter
+// included, or "" for empty text or whitespace only so callers can concatenate
+// it unconditionally.
+func snippetSuffix(text []byte) string {
+	s := strings.Join(strings.Fields(string(text)), " ")
+	if s == "" {
+		return ""
+	}
+	// Long enough to be useful for diagnosis, short enough not to flood the terminal.
+	const maxLen = 256
+	if len(s) > maxLen {
+		s = s[:maxLen] + "…"
+	}
+	// The %q is load-bearing, not cosmetic. The text is untrusted input and the
+	// result is printed to a terminal, so control bytes must be escaped rather
+	// than emitted raw (do not replace it with plain concatenation).
+	return fmt.Sprintf(": %q", s)
+}
+
 func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	ctx, span := cfg.TraceProvider.Tracer("webclient").Start(cfg.Context, "webclient/Find")
 	defer span.End()
@@ -222,9 +296,14 @@ func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	}
 
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, errorFromUnsuccessfulResponse(req.Context(), endpoint.Path, cfg.ProxyAddr, resp)
+	}
+
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(err, "cannot parse server find response; is %q a Teleport proxy?", "https://"+cfg.ProxyAddr)
 	}
 
 	return pr, nil
@@ -278,42 +357,12 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		slog.DebugContext(req.Context(), "Received unsuccessful ping response", "code", resp.StatusCode)
-
-		bodyBytes, err := io.ReadAll(resp.Body)
-		if err != nil {
-			return nil, trace.Wrap(err, "could not read ping response body; check the network connection")
-		}
-
-		helpQuestion := "is proxy reachable?"
-		if resp.StatusCode == http.StatusNotFound {
-			// More often than not, a 404 from /webapi/ping is going to indicate
-			// that cfg.ProxyAddr is not a Teleport server in the first place.
-			helpQuestion = fmt.Sprintf("is %q a Teleport server?", "https://"+cfg.ProxyAddr)
-		}
-
-		// A non-200 response is not necessarily from the proxy. Something in front
-		// of it (a load balancer, a tunnel like Cloudflare, etc.) can return its
-		// own non-JSON error page.
-		// Only attempt to parse the body as JSON when the Content-Type says so.
-		if contentType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type")); contentType != "application/json" {
-			slog.DebugContext(req.Context(), "Ping response is not JSON", "content_type", contentType, "body", string(bodyBytes), "error", err)
-
-			return nil, trace.Errorf("/webapi/ping returned a %d response; %s", resp.StatusCode, helpQuestion)
-		}
-
-		errResp := &PingErrorResponse{}
-		if err := json.Unmarshal(bodyBytes, errResp); err != nil {
-			slog.DebugContext(req.Context(), "Could not parse ping response body", "body", string(bodyBytes), "error", err)
-			return nil, trace.Errorf("/webapi/ping returned a %d JSON response; %s", resp.StatusCode, helpQuestion)
-		}
-
-		return nil, trace.Wrap(errors.New(errResp.Error.Message), "proxy service returned unsuccessful ping response; Teleport cluster auth may be misconfigured")
+		return nil, errorFromUnsuccessfulResponse(req.Context(), endpoint.Path, cfg.ProxyAddr, resp)
 	}
 
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
-		return nil, trace.Wrap(err, "cannot parse server ping response; is %q a Teleport server?", "https://"+cfg.ProxyAddr)
+		return nil, trace.Wrap(err, "cannot parse server ping response; is %q a Teleport proxy?", "https://"+cfg.ProxyAddr)
 	}
 
 	return pr, nil
