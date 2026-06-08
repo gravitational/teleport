@@ -104,7 +104,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 			// resolver is also the address of the web listener which also
 			// allows ALPN-tagged connections to the auth without further
 			// wrapping
-			t.Log.DebugContext(ctx, "Dialing auth directly")
+			t.Log.DebugContext(ctx, "Connecting to the Auth Server through a proxy using an unwrapped connection")
 			dialer := proxy.DialerFromEnvironment(addr.Addr, opts...)
 			return dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, t.ClientConfig.Timeout)
 		}
