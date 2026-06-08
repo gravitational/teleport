@@ -106,10 +106,11 @@ function DesktopSessionComponent(props: {
             logger
           );
         },
-        () =>
+        (id: number) =>
           shareDirectoryInTshd(appCtx.mainProcessClient, {
             desktopUri,
             login,
+            id,
           }),
         { mode: 'tdpb' }
       )
@@ -228,6 +229,7 @@ async function shareDirectoryInTshd(
   target: {
     desktopUri: string;
     login: string;
+    id: number;
   }
 ): Promise<SharedDirectoryAccess> {
   const directoryName =

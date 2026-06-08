@@ -184,7 +184,7 @@ export class TdpClient extends EventEmitter<EventMap> {
 
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
-    selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
+    selectSharedDirectory: (id: number) => Promise<SharedDirectoryAccess>,
     private policy: ConnectPolicy = { mode: 'tdp' }
   ) {
     super();
@@ -1038,7 +1038,9 @@ class SharedDirectoryManager {
   private sharedDirectories: Map<number, SharedDirectoryAccess>;
 
   constructor(
-    private selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
+    private selectSharedDirectory: (
+      id: number
+    ) => Promise<SharedDirectoryAccess>,
     private logger: Logger,
     private maxDirectories: number = 10
   ) {
@@ -1082,11 +1084,15 @@ class SharedDirectoryManager {
       throw Error('Maximum allowed shared directories reached');
     }
 
-    let directory = await this.selectSharedDirectory();
     const id = this.deviceId.acquire();
     if (id === undefined) {
       throw Error('Error acquiring identifier for shared directory');
     }
+
+    let directory = await this.selectSharedDirectory(id).catch(e => {
+      this.deviceId.release(id);
+      throw e;
+    });
 
     this.sharedDirectories.set(id, directory);
     this.logger.info(

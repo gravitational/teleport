@@ -210,6 +210,7 @@ export type MainProcessClient = {
   selectDirectoryForDesktopSession(args: {
     desktopUri: string;
     login: string;
+    id: number;
   }): Promise<string>;
   changeAppUpdatesManagingCluster(
     clusterUri: RootClusterUri | undefined

@@ -665,7 +665,7 @@ end run
 
     ipcHandle(
       MainProcessIpc.SelectDirectoryForDesktopSession,
-      async (_, args: { desktopUri: string; login: string }) => {
+      async (_, args: { desktopUri: string; login: string; id: number }) => {
         const value = await dialog.showOpenDialog({
           properties: ['openDirectory'],
         });
@@ -682,6 +682,7 @@ end run
           desktopUri: args.desktopUri,
           login: args.login,
           path: dirPath,
+          id: args.id,
         });
 
         return path.basename(dirPath);
