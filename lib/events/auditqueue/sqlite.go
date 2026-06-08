@@ -774,11 +774,32 @@ func (q *sqliteQueue) ackDeadLetter(items []Item) error {
 // expireDeadLetter deletes dead-letter rows older than the configured TTL.
 func (q *sqliteQueue) expireDeadLetter() {
 	cutoff := time.Now().Add(-q.deadLetterTTL).Unix()
-	if _, err := q.db.ExecContext(q.ctx,
-		"DELETE FROM audit_dead_letter WHERE failed_at < ?", cutoff); err != nil && q.ctx.Err() == nil {
+	result, err := q.db.ExecContext(q.ctx,
+		"DELETE FROM audit_dead_letter WHERE failed_at < ?", cutoff)
+	if err != nil {
+		if q.ctx.Err() == nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to expire dead-letter audit events.",
+				"error", err,
+			)
+		}
+		return
+	}
+
+	numExpired, err := result.RowsAffected()
+	if err != nil {
 		slog.ErrorContext(q.ctx,
-			"Failed to expire dead-letter audit events.",
+			"Failed to read number of expired dead-letter audit events.",
 			"error", err,
+		)
+		return
+	}
+	if numExpired > 0 {
+		deadLetterExpired.Add(float64(numExpired))
+		slog.WarnContext(q.ctx,
+			"Permanently dropped dead-letter audit events that exceeded their TTL.",
+			"count", numExpired,
+			"dead_letter_ttl", q.deadLetterTTL,
 		)
 	}
 }

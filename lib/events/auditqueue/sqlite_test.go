@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 
@@ -857,7 +858,12 @@ func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, dlItems, 1, "row should exist before expiry")
 
+	beforeExpired := testutil.ToFloat64(deadLetterExpired)
+
 	q.expireDeadLetter()
+
+	require.InDelta(t, beforeExpired+1, testutil.ToFloat64(deadLetterExpired), 0.0001,
+		"deadLetterExpired counter should increment by the number of expired rows")
 
 	dlItems, err = q.fetchDeadLetter(10)
 	require.NoError(t, err)
