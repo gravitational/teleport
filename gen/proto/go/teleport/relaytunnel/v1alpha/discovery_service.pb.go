@@ -20,13 +20,14 @@
 // 	protoc        (unknown)
 // source: teleport/relaytunnel/v1alpha/discovery_service.proto
 
+//go:build !protoopaque
+
 package relaytunnelv1alpha
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 
 // request message for DiscoveryService.Discover
 type DiscoverRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -69,14 +70,21 @@ func (x *DiscoverRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DiscoverRequest.ProtoReflect.Descriptor instead.
-func (*DiscoverRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDescGZIP(), []int{0}
+type DiscoverRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DiscoverRequest_builder) Build() *DiscoverRequest {
+	m0 := &DiscoverRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // response message for DiscoveryService.Discover
 type DiscoverResponse struct {
-	state                 protoimpl.MessageState `protogen:"open.v1"`
+	state                 protoimpl.MessageState `protogen:"hybrid.v1"`
 	RelayGroup            string                 `protobuf:"bytes,1,opt,name=relay_group,json=relayGroup,proto3" json:"relay_group,omitempty"`
 	TargetConnectionCount int32                  `protobuf:"varint,2,opt,name=target_connection_count,json=targetConnectionCount,proto3" json:"target_connection_count,omitempty"`
 	// the list of api/types.TunnelTypes supported by this Relay group; if empty,
@@ -111,11 +119,6 @@ func (x *DiscoverResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DiscoverResponse.ProtoReflect.Descriptor instead.
-func (*DiscoverResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *DiscoverResponse) GetRelayGroup() string {
 	if x != nil {
 		return x.RelayGroup
@@ -137,6 +140,38 @@ func (x *DiscoverResponse) GetSupportedTunnelTypes() []string {
 	return nil
 }
 
+func (x *DiscoverResponse) SetRelayGroup(v string) {
+	x.RelayGroup = v
+}
+
+func (x *DiscoverResponse) SetTargetConnectionCount(v int32) {
+	x.TargetConnectionCount = v
+}
+
+func (x *DiscoverResponse) SetSupportedTunnelTypes(v []string) {
+	x.SupportedTunnelTypes = v
+}
+
+type DiscoverResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	RelayGroup            string
+	TargetConnectionCount int32
+	// the list of api/types.TunnelTypes supported by this Relay group; if empty,
+	// it should be treated as containing only types.NodeTunnel ("node")
+	SupportedTunnelTypes []string
+}
+
+func (b0 DiscoverResponse_builder) Build() *DiscoverResponse {
+	m0 := &DiscoverResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RelayGroup = b.RelayGroup
+	x.TargetConnectionCount = b.TargetConnectionCount
+	x.SupportedTunnelTypes = b.SupportedTunnelTypes
+	return m0
+}
+
 var File_teleport_relaytunnel_v1alpha_discovery_service_proto protoreflect.FileDescriptor
 
 const file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDesc = "" +
@@ -150,18 +185,6 @@ const file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDesc = "" +
 	"\x16supported_tunnel_types\x18\x03 \x03(\tR\x14supportedTunnelTypes2}\n" +
 	"\x10DiscoveryService\x12i\n" +
 	"\bDiscover\x12-.teleport.relaytunnel.v1alpha.DiscoverRequest\x1a..teleport.relaytunnel.v1alpha.DiscoverResponseB`Z^github.com/gravitational/teleport/gen/proto/go/teleport/relaytunnel/v1alpha;relaytunnelv1alphab\x06proto3"
-
-var (
-	file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDescOnce sync.Once
-	file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDescData []byte
-)
-
-func file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDescGZIP() []byte {
-	file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDescOnce.Do(func() {
-		file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDesc), len(file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDesc)))
-	})
-	return file_teleport_relaytunnel_v1alpha_discovery_service_proto_rawDescData
-}
 
 var file_teleport_relaytunnel_v1alpha_discovery_service_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_relaytunnel_v1alpha_discovery_service_proto_goTypes = []any{
