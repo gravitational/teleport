@@ -278,13 +278,13 @@ func itemFromCertAuthorityOverride(resource *subcav1.CertAuthorityOverride) (*ba
 	}
 
 	key := newCAOverridesPrefix().AppendKey(backend.NewKey(
-		resource.GetMetadata().Name,
+		resource.GetMetadata().GetName(),
 		resource.GetSubKind(),
 	))
 	return &backend.Item{
 		Key:      key,
 		Value:    value,
 		Expires:  expires,
-		Revision: resource.GetMetadata().Revision,
+		Revision: resource.GetMetadata().GetRevision(),
 	}, nil
 }
