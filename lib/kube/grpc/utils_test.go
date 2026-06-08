@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/inventory"
@@ -370,8 +371,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		},
 	})
 	require.NoError(t, err)
-	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")
-	require.Equal(t, testCtx.KubeServer.Server.WriteTimeout, time.Duration(0), "kube server write timeout must be 0")
+	require.Equal(t, time.Duration(0), testCtx.KubeServer.Server.ReadTimeout, "kube server read timeout must be 0 to keep long-running watch streams alive")
+	require.Equal(t, defaults.HandshakeReadDeadline, testCtx.KubeServer.Server.WriteTimeout, "kube server write timeout must be HandshakeReadDeadline; it caps the TLS handshake while the outer handler resets the per-request write deadline")
 
 	testCtx.startKubeServices(t)
 	// Explicitly send a heartbeat for any configured clusters.
