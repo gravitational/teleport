@@ -223,7 +223,7 @@ that were sent.
 ## desktop.directory.write (TDP06I/W)
 
 This event is part of the directory sharing feature, and is emitted when
-Teleport reads writes from the remote desktop to a file on the user's local
+Teleport writes from the remote desktop to a file on the user's local
 machine.
 
 In order to avoid capturing sensitive data, the event only records the offset
@@ -239,7 +239,7 @@ that were written.
   "directory_id": 2,
   "directory_name": "local-files",
   "ei": 0,
-  "event": "desktop.directory.read",
+  "event": "desktop.directory.write",
   "file_path": "powershell-scripts/a-script.ps1", // relative path from the root of the shared directory (local-files in this case)
   "length": 734, // the number of bytes written
   "offset": 0, // the offset from the start of the file from which the write began
