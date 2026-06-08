@@ -273,7 +273,7 @@ func (w *ProxyKubeServerWatcher) createWatcherAndInit() (types.Watcher, error) {
 			// It's possible the watcher will recover eventually. If using the cache,
 			// on error the cache will close the watcher and we handle that separately.
 			w.markUnhealthyOnInitTimeout()
-			w.Logger.WarnContext(w.ctx, "Watcher failed to initialize within the expected time. This is an indication of a problem with the primary access point.", "timeout", w.PrimaryTimeout.String())
+			w.Logger.WarnContext(w.ctx, "Watcher failed to initialize within the expected time.", "timeout", w.PrimaryTimeout.String())
 			continue
 		}
 		break
@@ -311,7 +311,10 @@ func (w *ProxyKubeServerWatcher) watch() error {
 			eventBuf = append(eventBuf[:0], event)
 			eventBuf = fillEventBuf(w.ctx, eventBuf, watcher, eventBufferSize)
 			// no lock, events applied to local copy of the new state.
-			w.applyEventsLocked(w.ctx, newCurrent, eventBuf)
+			err := w.applyEventsLocked(w.ctx, newCurrent, eventBuf)
+			if err != nil {
+				return trace.Wrap(err, "applying events to new state")
+			}
 			seen += len(eventBuf)
 			clear(eventBuf)
 		}
@@ -339,8 +342,11 @@ func (w *ProxyKubeServerWatcher) watch() error {
 			eventBuf = append(eventBuf[:0], event)
 			eventBuf = fillEventBuf(w.ctx, eventBuf, watcher, eventBufferSize)
 			w.rw.Lock()
-			w.applyEventsLocked(w.ctx, w.current, eventBuf)
+			err := w.applyEventsLocked(w.ctx, w.current, eventBuf)
 			w.rw.Unlock()
+			if err != nil {
+				return trace.Wrap(err, "applying events")
+			}
 			clear(eventBuf)
 		}
 	}
@@ -422,6 +428,10 @@ func (w *ProxyKubeServerWatcher) runWatchLoop() {
 		default:
 		}
 
+		if w.ctx.Err() != nil {
+			return
+		}
+
 		if err != nil {
 			w.markUnhealthyOnWatchError(err)
 		}
@@ -442,7 +452,7 @@ func (w *ProxyKubeServerWatcher) runWatchLoop() {
 }
 
 // applyEventsLocked takes events from the watcher channel and applies them to the given resources map
-func (w *ProxyKubeServerWatcher) applyEventsLocked(ctx context.Context, resources map[serverKey]types.KubeServer, events []types.Event) {
+func (w *ProxyKubeServerWatcher) applyEventsLocked(ctx context.Context, resources map[serverKey]types.KubeServer, events []types.Event) error {
 	for _, event := range events {
 		if event.Resource == nil || event.Resource.GetKind() != types.KindKubeServer {
 			w.Logger.WarnContext(ctx, "Received unexpected event", "event", logutils.StringerAttr(event))
@@ -465,8 +475,11 @@ func (w *ProxyKubeServerWatcher) applyEventsLocked(ctx context.Context, resource
 			resources[kubeServerKey(srv)] = srv
 		default:
 			w.Logger.WarnContext(ctx, "Skipping unsupported event type", "event_type", event.Type)
+			return trace.BadParameter("unsupported event type: %v", event.Type)
 		}
 	}
+
+	return nil
 }
 
 // Done returns a channel that signals resource watcher closure.
