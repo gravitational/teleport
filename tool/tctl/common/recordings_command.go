@@ -30,6 +30,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -284,26 +285,6 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 		return trace.Wrap(err)
 	}
 
-	// fetcher is defined early so it can be used both for resume and for normal pagination.
-	fetcher := recordingstui.BatchFetcher(func(ctx context.Context, token string) ([]*sessionsearchv1pb.SessionSummary, string, error) {
-		// When BatchToken is set the server ignores all other filter fields per the proto contract.
-		batchStream, err := searchClient.SearchSessionSummaries(ctx, &sessionsearchv1pb.SearchSessionSummariesRequest{
-			BatchToken: token,
-		})
-		if err != nil {
-			return nil, "", trace.Wrap(err)
-		}
-		return collectStream(batchStream)
-	})
-
-	if c.searchResumeToken != "" {
-		sessions, nextToken, err := fetcher(ctx, c.searchResumeToken)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return trace.Wrap(showSessionSummaries(ctx, sessions, nextToken, c.searchFormat, c.stdout, tc.SummarizerServiceClient(), fetcher))
-	}
-
 	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), c.searchFromUTC, c.searchToUTC, "")
 	if err != nil {
 		return trace.Wrap(err)
@@ -359,23 +340,37 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 		req.SearchMode = mode
 	}
 
-	stream, err := searchClient.SearchSessionSummaries(ctx, req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	sessions, nextToken, err := collectStream(stream)
+	// fetcher resends the full request with the batch token set. It is used for
+	// both the first page (empty or resume token) and subsequent "load more"
+	// pages. The batch token is only a cursor: the server requires and applies
+	// the filter fields (start_time, end_time, ...) on every request, so the
+	// original request must be replayed each time rather than sending the token
+	// alone.
+	fetcher := recordingstui.BatchFetcher(func(ctx context.Context, token string) ([]*sessionsearchv1pb.SessionSummary, string, error) {
+		pageReq := proto.CloneOf(req)
+		pageReq.BatchToken = token
+		stream, err := searchClient.SearchSessionSummaries(ctx, pageReq)
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+		return collectStream(stream)
+	})
+
+	// c.searchResumeToken is empty for a fresh search and set when resuming a
+	// previous one; either way the first page is just a fetch with that token.
+	sessions, nextToken, err := fetcher(ctx, c.searchResumeToken)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(showSessionSummaries(ctx, sessions, nextToken, c.searchFormat, c.stdout, tc.SummarizerServiceClient(), fetcher))
+	return trace.Wrap(showSessionSummaries(ctx, sessions, nextToken, c.searchFormat, c.stdout, tc.SummarizerServiceClient(), fetcher, resumeCommand))
 }
 
 // maxJSONYAMLSessions is the maximum number of sessions collected before truncating
 // structured (JSON/YAML) output and printing a --resume-token hint to stderr.
-const maxJSONYAMLSessions = 500
+const maxJSONYAMLSessions = 100
 
-func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.SessionSummary, nextToken, format string, w io.Writer, summaryGetter recordingstui.SummaryGetter, fetcher recordingstui.BatchFetcher) error {
+func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.SessionSummary, nextToken, format string, w io.Writer, summaryGetter recordingstui.SummaryGetter, fetcher recordingstui.BatchFetcher, resumeCmd func(token string) string) error {
 	switch format {
 	case teleport.JSON, teleport.YAML:
 		// Paginate automatically up to maxJSONYAMLSessions for structured output.
@@ -389,7 +384,7 @@ func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.Ses
 			nextToken = tok
 		}
 		if nextToken != "" {
-			fmt.Fprintf(os.Stderr, "Showing %d sessions (more available). Resume with: --resume-token %q\n", len(all), nextToken)
+			fmt.Fprintf(os.Stderr, "Showing %d sessions (more available). Resume with:\n  %s\n", len(all), resumeCmd(nextToken))
 		}
 		if format == teleport.JSON {
 			return trace.Wrap(utils.WriteJSONArray(w, all))
@@ -402,6 +397,68 @@ func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.Ses
 		}
 		return recordingstui.RunSearchTUI(ctx, sessions, nextToken, summaryGetter, fetcher)
 	}
+}
+
+// resumeCommand renders a replayable command for the given resume token by
+// reusing the exact arguments of the current invocation (os.Args) and rewriting
+// only the resume token, replaced in place when already present or appended
+// otherwise. All other flags (including any time range the user passed) are
+// preserved verbatim.
+func resumeCommand(token string) string {
+	args := append([]string(nil), os.Args...)
+	if len(args) > 0 {
+		args[0] = filepath.Base(args[0])
+	}
+	args = replaceOrAppendFlag(args, []string{"--resume-token"}, "--resume-token", token)
+
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = shellQuote(a)
+	}
+	return strings.Join(quoted, " ")
+}
+
+// replaceOrAppendFlag removes every occurrence of the given flag names (in both
+// "--flag value" and "--flag=value" forms) from args, then appends
+// "canonical value" so the flag ends up set exactly once to value. The multiple
+// names allow collapsing aliases (e.g. --from and --from-utc) onto a single
+// canonical flag.
+func replaceOrAppendFlag(args, names []string, canonical, value string) []string {
+	match := func(arg string) (isFlag, inlineValue bool) {
+		for _, n := range names {
+			if arg == n {
+				return true, false
+			}
+			if strings.HasPrefix(arg, n+"=") {
+				return true, true
+			}
+		}
+		return false, false
+	}
+	out := make([]string, 0, len(args)+2)
+	for i := 0; i < len(args); i++ {
+		isFlag, inline := match(args[i])
+		if !isFlag {
+			out = append(out, args[i])
+			continue
+		}
+		if !inline {
+			i++ // skip the value token that follows "--flag value"
+		}
+	}
+	return append(out, canonical, value)
+}
+
+// shellQuote wraps s in single quotes when it contains characters that a shell
+// would otherwise interpret, so the rendered resume command can be pasted as-is.
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	if !strings.ContainsAny(s, " \t\n'\"\\$`*?(){}[]|&;<>~#!") {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.ResourceProperties, error) {

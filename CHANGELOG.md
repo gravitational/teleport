@@ -1,5 +1,32 @@
 # Changelog
 
+## 18.9.0-rc.1 (06/05/26)
+
+### Device Bound Session Credentials for App Access
+
+Application access session cookies are now compatible with Google's Device Bound
+Session Credentials, adding a layer of protection against session hijacking and
+cookie theft.
+
+### High-DPI support for Windows desktop sessions
+
+Remote desktop sessions now support high-DPI mode, improving the clarity and
+quality of the display rendering on supported displays.
+
+### Sub-CA
+
+Teleport now supports operating as a sub-CA of an external root for the Windows
+Desktop and Database Client CAs. Subsequent releases will extend support for
+other CAs.
+
+### Other fixes and improvements
+
+* Outdated agents joining via the legacy Auth HTTP endpoint now receive an explicit "client too old" error instead of a confusing 404. [#67532](https://github.com/gravitational/teleport/pull/67532)
+* Rename --from/--to to --from-utc/--to-utc on `recordings search` to match the `recordings ls` flag naming convention. [#67502](https://github.com/gravitational/teleport/pull/67502)
+* Improved performance and reduced resource usage of the auth service for clusters with large numbers of registered applications with per-session MFA enabled. [#67471](https://github.com/gravitational/teleport/pull/67471)
+* Prevented ssh users from being able to cancel other users' remote port forwards. [#67442](https://github.com/gravitational/teleport/pull/67442)
+* Improved application server resolution times for large number of applications. [#62585](https://github.com/gravitational/teleport/pull/62585)
+
 ## 18.8.3 (06/03/26)
 
 * Fixed minor formatting bug on `tsh request show` output. [#67447](https://github.com/gravitational/teleport/pull/67447)

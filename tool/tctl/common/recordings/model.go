@@ -43,6 +43,7 @@ type palette struct {
 	accent  lipgloss.TerminalColor
 	section lipgloss.TerminalColor
 	faint   lipgloss.TerminalColor
+	danger  lipgloss.TerminalColor
 }
 
 func buildPalette() palette {
@@ -50,6 +51,7 @@ func buildPalette() palette {
 		accent:  lipgloss.AdaptiveColor{Light: "#512FC9", Dark: "#9F85FF"},
 		section: lipgloss.AdaptiveColor{Light: "#512FC9", Dark: "#9F85FF"},
 		faint:   lipgloss.AdaptiveColor{Light: "243", Dark: "240"},
+		danger:  lipgloss.AdaptiveColor{Light: "#CC0000", Dark: "#FF6B6B"},
 	}
 }
 
@@ -98,8 +100,8 @@ type model struct {
 	help   help.Model
 	keys   keyMap
 
-	// popup is non-nil while the summary popup is active.
-	popup *summaryPopupModel
+	// popup is non-nil while a popup (summary or error) is active.
+	popup tea.Model
 
 	// summaryGetter is forwarded to the popup on Enter.
 	summaryGetter SummaryGetter
@@ -173,12 +175,12 @@ func (m *model) Init() tea.Cmd {
 func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	if m.popup != nil {
 		switch msg.(type) {
-		case closeSummaryMsg:
+		case closePopupMsg:
 			m.popup = nil
 			return m, nil
 		}
 		updated, cmd := m.popup.Update(msg)
-		m.popup = updated.(*summaryPopupModel)
+		m.popup = updated
 		return m, cmd
 	}
 
@@ -196,6 +198,9 @@ func (m *model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.loadingMore = false
 		if msg.err != nil {
 			m.setLoadMoreItem(loadMoreItem{fetchErr: true})
+			// Surface the error in a popup; the sentinel keeps its "(retry)"
+			// label so the user can retry after dismissing the popup.
+			m.popup = newErrorPopupModel(msg.err, m.palette, m.width, m.height)
 			return m, nil
 		}
 		// Rebuild item list: all current items except the loadMoreItem sentinel.
