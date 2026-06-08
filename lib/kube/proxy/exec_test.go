@@ -20,7 +20,6 @@ package proxy
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"io"
 	"net/http"
@@ -75,7 +74,7 @@ func TestExecKubeService(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -446,6 +445,7 @@ func generateExecRequest(cfg generateExecRequestConfig) (*rest.Request, error) {
 }
 
 func TestExecMissingGETPermissionError(t *testing.T) {
+	t.Parallel()
 	const (
 		errorMessage = "pods \"api-1\" is forbidden: User \"bar\" cannot %s resource " +
 			"\"pods/exec\" in API group \"\" in the namespace \"ns\""
@@ -465,27 +465,11 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 			},
 		},
 		{
-			name:         "missing get permission - scoped",
-			errorMessage: fmt.Sprintf(errorMessage, "get"),
-			errorInspector: func(t *testing.T, err error) {
-				require.Contains(t, err.Error(), kubernetes130BreakingChangeHint)
-			},
-			scope: scopedTestScope,
-		},
-		{
 			name:         "missing create permission",
 			errorMessage: fmt.Sprintf(errorMessage, "create"),
 			errorInspector: func(t *testing.T, err error) {
 				require.NotContains(t, err.Error(), kubernetes130BreakingChangeHint)
 			},
-		},
-		{
-			name:         "missing create permission - scoped",
-			errorMessage: fmt.Sprintf(errorMessage, "create"),
-			errorInspector: func(t *testing.T, err error) {
-				require.NotContains(t, err.Error(), kubernetes130BreakingChangeHint)
-			},
-			scope: scopedTestScope,
 		},
 		{
 			name:         "missing get permission interactive session",
@@ -496,15 +480,6 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 			interactive: true,
 		},
 		{
-			name:         "missing get permission interactive session - scoped",
-			errorMessage: fmt.Sprintf(errorMessage, "get"),
-			errorInspector: func(t *testing.T, err error) {
-				require.Contains(t, err.Error(), kubernetes130BreakingChangeHint)
-			},
-			interactive: true,
-			scope:       scopedTestScope,
-		},
-		{
 			name:         "missing create permission interactive session",
 			errorMessage: fmt.Sprintf(errorMessage, "create"),
 			errorInspector: func(t *testing.T, err error) {
@@ -512,157 +487,150 @@ func TestExecMissingGETPermissionError(t *testing.T) {
 			},
 			interactive: true,
 		},
-		{
-			name:         "missing create permission interactive session - scoped",
-			errorMessage: fmt.Sprintf(errorMessage, "create"),
-			errorInspector: func(t *testing.T, err error) {
-				require.NotContains(t, err.Error(), kubernetes130BreakingChangeHint)
-			},
-			interactive: true,
-			scope:       scopedTestScope,
-		},
 	}
 	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			const errorCode = http.StatusForbidden
+		for _, scope := range []string{"", scopedTestScope} {
+			t.Run(tt.name, func(t *testing.T) {
+				const errorCode = http.StatusForbidden
 
-			kubeMock, err := testingkubemock.NewKubeAPIMock(
-				testingkubemock.WithExecError(
-					metav1.Status{
-						Status:  metav1.StatusFailure,
-						Message: tt.errorMessage,
-						Reason:  metav1.StatusReasonForbidden,
-						Code:    errorCode,
-					},
-				),
-			)
-			require.NoError(t, err)
-			t.Cleanup(func() { kubeMock.Close() })
-			var (
-				execEvent  *apievents.Exec
-				eventsLock sync.Mutex
-			)
+				kubeMock, err := testingkubemock.NewKubeAPIMock(
+					testingkubemock.WithExecError(
+						metav1.Status{
+							Status:  metav1.StatusFailure,
+							Message: tt.errorMessage,
+							Reason:  metav1.StatusReasonForbidden,
+							Code:    errorCode,
+						},
+					),
+				)
+				require.NoError(t, err)
+				t.Cleanup(func() { kubeMock.Close() })
+				var (
+					execEvent  *apievents.Exec
+					eventsLock sync.Mutex
+				)
 
-			// creates a Kubernetes service with a configured cluster pointing to mock api server
-			testCtx := SetupTestContext(
-				context.Background(),
-				t,
-				TestConfig{
-					Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
-					OnEvent: func(evt apievents.AuditEvent) {
-						eventsLock.Lock()
-						defer eventsLock.Unlock()
-						if exec, ok := evt.(*apievents.Exec); ok {
-							execEvent = exec
-						}
-					},
-					Scope: tt.scope,
-					ScopesFeatures: scopes.Features{
-						Enabled:         true,
-						AgentPinEnabled: true,
-					},
-				},
-			)
-
-			t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
-
-			// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
-			user, _ := testCtx.CreateUserAndRole(
-				testCtx.Context,
-				t,
-				username,
-				RoleSpec{
-					Name:       roleName,
-					KubeUsers:  roleKubeUsers,
-					KubeGroups: roleKubeGroups,
-				})
-
-			// generate a kube client with user certs for auth
-			_, userRestConfig := testCtx.GenTestKubeClientTLSCert(
-				t,
-				user.GetName(),
-				kubeCluster,
-			)
-
-			scopedUser, scopedUserRole := testCtx.CreateUserAndScopedRole(
-				t,
-				"scoped-"+username,
-				scopedTestScope,
-				&accessv1.ScopedRoleSpec{
-					AssignableScopes: []string{scopedTestScope},
-					Kube: &accessv1.ScopedRoleKube{
-						Users:  roleKubeUsers,
-						Groups: roleKubeGroups,
-						Labels: []*labelv1.Label{
-							{
-								Name:   types.Wildcard,
-								Values: []string{types.Wildcard},
-							},
+				// creates a Kubernetes service with a configured cluster pointing to mock api server
+				testCtx := SetupTestContext(
+					t.Context(),
+					t,
+					TestConfig{
+						Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+						OnEvent: func(evt apievents.AuditEvent) {
+							eventsLock.Lock()
+							defer eventsLock.Unlock()
+							if exec, ok := evt.(*apievents.Exec); ok {
+								execEvent = exec
+							}
+						},
+						Scope: scope,
+						ScopesFeatures: scopes.Features{
+							Enabled:         true,
+							AgentPinEnabled: true,
 						},
 					},
-				})
+				)
 
-			waitForSRACache(t, testCtx.TLSServer, scopedUserRole)
+				t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
 
-			_, scopedUserRestConfig := testCtx.GenTestKubeClientTLSCert(
-				t,
-				scopedUser.GetName(),
-				kubeCluster,
-				func(i *tlsca.Identity) {
-					i.ScopePin = testCtx.GetScopePinForUser(t, scopedUser.GetName(), scopedTestScope)
-				},
-			)
-			var streamOpts remotecommand.StreamOptions
-			if !tt.interactive {
-				streamOpts = remotecommand.StreamOptions{
-					Stdin:  nil,
-					Stdout: &bytes.Buffer{},
-					Stderr: &bytes.Buffer{},
-					Tty:    false,
+				// create a user with access to kubernetes (kubernetes_user and kubernetes_groups specified)
+				user, _ := testCtx.CreateUserAndRole(
+					testCtx.Context,
+					t,
+					username,
+					RoleSpec{
+						Name:       roleName,
+						KubeUsers:  roleKubeUsers,
+						KubeGroups: roleKubeGroups,
+					})
+
+				// generate a kube client with user certs for auth
+				_, userRestConfig := testCtx.GenTestKubeClientTLSCert(
+					t,
+					user.GetName(),
+					kubeCluster,
+				)
+
+				scopedUser, scopedUserRole := testCtx.CreateUserAndScopedRole(
+					t,
+					"scoped-"+username,
+					scopedTestScope,
+					&accessv1.ScopedRoleSpec{
+						AssignableScopes: []string{scopedTestScope},
+						Kube: &accessv1.ScopedRoleKube{
+							Users:  roleKubeUsers,
+							Groups: roleKubeGroups,
+							Labels: []*labelv1.Label{
+								{
+									Name:   types.Wildcard,
+									Values: []string{types.Wildcard},
+								},
+							},
+						},
+					})
+
+				waitForSRACache(t, testCtx.TLSServer, scopedUserRole)
+
+				_, scopedUserRestConfig := testCtx.GenTestKubeClientTLSCert(
+					t,
+					scopedUser.GetName(),
+					kubeCluster,
+					func(i *tlsca.Identity) {
+						i.ScopePin = testCtx.GetScopePinForUser(t, scopedUser.GetName(), scopedTestScope)
+					},
+				)
+				var streamOpts remotecommand.StreamOptions
+				if !tt.interactive {
+					streamOpts = remotecommand.StreamOptions{
+						Stdin:  nil,
+						Stdout: &bytes.Buffer{},
+						Stderr: &bytes.Buffer{},
+						Tty:    false,
+					}
+				} else {
+					stdinReader, _ := io.Pipe()
+					t.Cleanup(func() { stdinReader.Close() })
+					streamOpts = remotecommand.StreamOptions{
+						Stdin:  stdinReader,
+						Stdout: &bytes.Buffer{},
+						Stderr: nil,
+						Tty:    true,
+					}
 				}
-			} else {
-				stdinReader, _ := io.Pipe()
-				t.Cleanup(func() { stdinReader.Close() })
-				streamOpts = remotecommand.StreamOptions{
-					Stdin:  stdinReader,
-					Stdout: &bytes.Buffer{},
-					Stderr: nil,
-					Tty:    true,
+				req, err := generateExecRequest(
+					generateExecRequestConfig{
+						addr:          testCtx.KubeProxyAddress(),
+						podName:       podName,
+						podNamespace:  podNamespace,
+						containerName: podContainerName,
+						cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
+						options:       streamOpts,
+					},
+				)
+				require.NoError(t, err)
+				cfg := userRestConfig
+				if scope != "" {
+					cfg = scopedUserRestConfig
 				}
-			}
-			req, err := generateExecRequest(
-				generateExecRequestConfig{
-					addr:          testCtx.KubeProxyAddress(),
-					podName:       podName,
-					podNamespace:  podNamespace,
-					containerName: podContainerName,
-					cmd:           containerCommmandExecute, // placeholder for commands to execute in the dummy pod
-					options:       streamOpts,
-				},
-			)
-			require.NoError(t, err)
-			cfg := userRestConfig
-			if tt.scope != "" {
-				cfg = scopedUserRestConfig
-			}
-			exec, err := remotecommand.NewSPDYExecutor(cfg, http.MethodPost, req.URL())
-			require.NoError(t, err)
-			err = exec.StreamWithContext(testCtx.Context, streamOpts)
-			require.Error(t, err)
-			tt.errorInspector(t, err)
+				exec, err := remotecommand.NewSPDYExecutor(cfg, http.MethodPost, req.URL())
+				require.NoError(t, err)
+				err = exec.StreamWithContext(testCtx.Context, streamOpts)
+				require.Error(t, err)
+				tt.errorInspector(t, err)
 
-			require.Eventually(t, func() bool {
+				require.Eventually(t, func() bool {
+					eventsLock.Lock()
+					defer eventsLock.Unlock()
+					return execEvent != nil
+				}, 5*time.Second, 100*time.Millisecond, "expected exec event to be recorded")
+
 				eventsLock.Lock()
-				defer eventsLock.Unlock()
-				return execEvent != nil
-			}, 5*time.Second, 100*time.Millisecond, "expected exec event to be recorded")
-
-			eventsLock.Lock()
-			require.Equal(t, events.ExecFailureCode, execEvent.Code)
-			require.Equal(t, "403", execEvent.ExitCode)
-			require.NotEmpty(t, execEvent.Error)
-			eventsLock.Unlock()
-		})
+				require.Equal(t, events.ExecFailureCode, execEvent.Code)
+				require.Equal(t, "403", execEvent.ExitCode)
+				require.NotEmpty(t, execEvent.Error)
+				eventsLock.Unlock()
+			})
+		}
 	}
 }
 
@@ -705,7 +673,7 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 
 	// creates a Kubernetes service with a configured cluster pointing to mock api server
 	testCtx := SetupTestContext(
-		context.Background(),
+		t.Context(),
 		t,
 		TestConfig{
 			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
@@ -792,7 +760,7 @@ func TestExecWebsocketEndToEndErrReturn(t *testing.T) {
 
 			exec, err := remotecommand.NewSPDYExecutor(userRestConfig, http.MethodPost, req.URL())
 			require.NoError(t, err)
-			err = exec.StreamWithContext(context.Background(), streamOpts)
+			err = exec.StreamWithContext(t.Context(), streamOpts)
 			require.Error(t, err)
 			require.Contains(t, err.Error(), kubernetes130BreakingChangeHint)
 

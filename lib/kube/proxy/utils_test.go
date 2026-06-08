@@ -546,8 +546,8 @@ func (c *TestContext) CreateUserAndRoleVersion(ctx context.Context, t *testing.T
 	return c.CreateUserWithTraitsAndRoleVersion(ctx, t, username, nil, roleVersion, roleSpec)
 }
 
-// CreateUserAndRoleVersion creates a Teleport user and a scoped role assigned
-// to them
+// CreateUserScopedRole creates a Teleport user and a scoped role assigned
+// to them.
 func (c *TestContext) CreateUserAndScopedRole(t *testing.T, username, scope string, roleSpec *accessv1.ScopedRoleSpec) (types.User, *accessv1.CreateScopedRoleAssignmentResponse) {
 	user, err := authtest.CreateUser(t.Context(), c.TLSServer.Auth(), username)
 	require.NoError(t, err)
