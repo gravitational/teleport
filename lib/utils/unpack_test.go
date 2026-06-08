@@ -20,7 +20,10 @@ package utils
 
 import (
 	"archive/tar"
+	"bytes"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -146,4 +149,28 @@ func TestSanitizeTarPath(t *testing.T) {
 		err := sanitizeTarPath(tt.header, "/tmp")
 		require.Equal(t, err != nil, tt.expectError, comment)
 	}
+}
+
+func TestExtractStripsSetuid(t *testing.T) {
+	t.Parallel()
+
+	var buf bytes.Buffer
+	tw := tar.NewWriter(&buf)
+	require.NoError(t, tw.WriteHeader(&tar.Header{
+		Name:     "evil",
+		Mode:     0o6755, // setuid + setgid + rwxr-xr-x
+		Size:     3,
+		Typeflag: tar.TypeReg,
+	}))
+	_, err := tw.Write([]byte("abc"))
+	require.NoError(t, err)
+	require.NoError(t, tw.Close())
+
+	dir := t.TempDir()
+	require.NoError(t, Extract(&buf, dir))
+
+	info, err := os.Stat(filepath.Join(dir, "evil"))
+	require.NoError(t, err)
+	require.Zero(t, info.Mode()&(os.ModeSetuid|os.ModeSetgid|os.ModeSticky),
+		"extracted file must not carry setuid/setgid/sticky bits from the archive, got %v", info.Mode())
 }

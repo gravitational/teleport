@@ -135,7 +135,7 @@ func extractFile(tarball *tar.Reader, header *tar.Header, dir string, dirMode os
 	case tar.TypeDir:
 		return withDir(filepath.Join(dir, header.Name), dirMode, nil)
 	case tar.TypeBlock, tar.TypeChar, tar.TypeReg, tar.TypeFifo:
-		return writeFile(filepath.Join(dir, header.Name), tarball, header.FileInfo().Mode(), dirMode)
+		return writeFile(filepath.Join(dir, header.Name), tarball, header.FileInfo().Mode().Perm(), dirMode)
 	case tar.TypeLink:
 		return writeHardLink(filepath.Join(dir, header.Name), filepath.Join(dir, header.Linkname), dirMode)
 	case tar.TypeSymlink:
