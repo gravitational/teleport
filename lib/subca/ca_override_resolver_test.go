@@ -205,21 +205,21 @@ func TestCAOverrideResolver_ApplyOverrides(t *testing.T) {
 		cert5, err := tlsutils.ParseCertificatePEM(ca1Cert5)
 		require.NoError(t, err)
 
-		ca1Override, err = subCA.CreateCertAuthorityOverride(t.Context(), &subcav1.CertAuthorityOverride{
+		ca1Override, err = subCA.CreateCertAuthorityOverride(t.Context(), subcav1.CertAuthorityOverride_builder{
 			Kind:    types.KindCertAuthorityOverride,
 			SubKind: string(ca1Type),
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: env.ClusterName,
-			},
-			Spec: &subcav1.CertAuthorityOverrideSpec{
+			}.Build(),
+			Spec: subcav1.CertAuthorityOverrideSpec_builder{
 				CertificateOverrides: []*subcav1.CertificateOverride{
 					env.NewDisabledCertificateOverride(t, cert2, nil),
 					env.NewDisabledCertificateOverride(t, cert4, nil),
 					env.NewDisabledCertificateOverride(t, cert5, nil),
 				},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -247,14 +247,14 @@ func TestCAOverrideResolver_ApplyOverrides(t *testing.T) {
 	// - (cert4 remains disabled)
 	var ca1Override2, ca1Override5 []byte
 	{
-		ca1Override.Spec.CertificateOverrides[0].Disabled = false
-		ca1Override.Spec.CertificateOverrides[2].Disabled = false
+		ca1Override.GetSpec().GetCertificateOverrides()[0].SetDisabled(false)
+		ca1Override.GetSpec().GetCertificateOverrides()[2].SetDisabled(false)
 		var err error
 		_, err = subCA.UpdateCertAuthorityOverride(t.Context(), ca1Override)
 		require.NoError(t, err)
 
-		ca1Override2 = []byte(ca1Override.Spec.CertificateOverrides[0].Certificate)
-		ca1Override5 = []byte(ca1Override.Spec.CertificateOverrides[2].Certificate)
+		ca1Override2 = []byte(ca1Override.GetSpec().GetCertificateOverrides()[0].GetCertificate())
+		ca1Override5 = []byte(ca1Override.GetSpec().GetCertificateOverrides()[2].GetCertificate())
 	}
 
 	// Fetch CA2 certificates.
@@ -442,15 +442,15 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 	}
 
 	// Prepare and test an "empty" CA override.
-	caOverride, err := subCA.CreateCertAuthorityOverride(t.Context(), &subcav1.CertAuthorityOverride{
+	caOverride, err := subCA.CreateCertAuthorityOverride(t.Context(), subcav1.CertAuthorityOverride_builder{
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(ca.GetType()),
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: ca.GetClusterName(),
-		},
+		}.Build(),
 		Spec: &subcav1.CertAuthorityOverrideSpec{},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	caID := types.CertAuthorityOverrideID{
@@ -479,16 +479,16 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 	//   - (o3 doesn't exist)
 	//   - o4: target caCert4, enabled, has chain
 	o1 := env.NewDisabledCertificateOverride(t, caCert1, nil)
-	o1.Disabled = false
+	o1.SetDisabled(false)
 	o2 := env.NewDisabledCertificateOverride(t, caCert2, nil)
 	o4 := env.NewDisabledCertificateOverride(t, caCert4, nil)
-	o4.Disabled = false
-	o4.Chain = caChain.LeafToRootPEMs()[:caChainLen-1] // skip root
-	caOverride.Spec.CertificateOverrides = []*subcav1.CertificateOverride{
+	o4.SetDisabled(false)
+	o4.SetChain(caChain.LeafToRootPEMs()[:caChainLen-1]) // skip root
+	caOverride.GetSpec().SetCertificateOverrides([]*subcav1.CertificateOverride{
 		o1,
 		o2,
 		o4,
-	}
+	})
 	_, err = subCA.UpdateCertAuthorityOverride(t.Context(), caOverride)
 	require.NoError(t, err)
 
@@ -522,10 +522,10 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 			want: &subca.CalculateOverrideResult{
 				// caCert1 is targeted by o1.
 				OverrideActive: true,
-				PublicKeyHash:  o1.PublicKey,
-				CACertificate:  subca.Certificate{PEM: []byte(o1.Certificate)},
+				PublicKeyHash:  o1.GetPublicKey(),
+				CACertificate:  subca.Certificate{PEM: []byte(o1.GetCertificate())},
 				CAChain: []subca.Certificate{
-					{PEM: []byte(o1.Certificate)},
+					{PEM: []byte(o1.GetCertificate())},
 				},
 			},
 		},
@@ -536,12 +536,12 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 			want: &subca.CalculateOverrideResult{
 				// caCert4 is targeted by o4.
 				OverrideActive: true,
-				PublicKeyHash:  o4.PublicKey,
-				CACertificate:  subca.Certificate{PEM: []byte(o4.Certificate)},
+				PublicKeyHash:  o4.GetPublicKey(),
+				CACertificate:  subca.Certificate{PEM: []byte(o4.GetCertificate())},
 				CAChain: []subca.Certificate{
-					{PEM: []byte(o4.Certificate)},
-					{PEM: []byte(o4.Chain[0])},
-					{PEM: []byte(o4.Chain[1])},
+					{PEM: []byte(o4.GetCertificate())},
+					{PEM: []byte(o4.GetChain()[0])},
+					{PEM: []byte(o4.GetChain()[1])},
 				},
 			},
 		},

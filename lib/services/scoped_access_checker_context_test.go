@@ -33,10 +33,10 @@ func TestScopedAccessCheckerContextRiskyAuthorizeUnpinnedRead(t *testing.T) {
 	ctx := t.Context()
 	checkerContext, err := NewScopedAccessCheckerContext(ctx, &AccessInfo{
 		Username: "alice",
-		ScopePin: &scopesv1.Pin{
+		ScopePin: scopesv1.Pin_builder{
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/test/scope",
-		},
+		}.Build(),
 	}, "test-cluster", emptyScopedRoleReader{})
 	require.NoError(t, err)
 
@@ -98,13 +98,13 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 	const pinScope = "/test/scope"
 
 	newAgentPin := func(scope string, role types.SystemRole) *scopesv1.Pin {
-		return &scopesv1.Pin{
+		return scopesv1.Pin_builder{
 			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 			Scope: scope,
-			SystemRoles: &scopesv1.SystemRoles{
+			SystemRoles: scopesv1.SystemRoles_builder{
 				Primary: role.String(),
-			},
-		}
+			}.Build(),
+		}.Build()
 	}
 
 	t.Run("constructor rejects nil pin", func(t *testing.T) {

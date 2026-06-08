@@ -94,38 +94,38 @@ func TestJoinToken(t *testing.T) {
 	require.NoError(t, authService.Auth().UpsertToken(t.Context(), token2))
 
 	// generate scoped tokens
-	scopedToken1 := &joiningv1.ScopedToken{
+	scopedToken1 := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
 		Scope:   "/aa",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "scoped1",
-		},
-		Spec: &joiningv1.ScopedTokenSpec{
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
 			AssignedScope: "/aa/bb",
 			Roles:         []string{types.RoleNode.String()},
 			JoinMethod:    string(types.JoinMethodToken),
 			UsageMode:     string(joining.TokenUsageModeUnlimited),
-		},
-		Status: &joiningv1.ScopedTokenStatus{
+		}.Build(),
+		Status: joiningv1.ScopedTokenStatus_builder{
 			Secret: "secret",
-		},
-	}
+		}.Build(),
+	}.Build()
 	scopedToken2 := proto.CloneOf(scopedToken1)
-	scopedToken2.Spec.AssignedScope = "/aa/cc"
-	scopedToken2.Metadata.Name = "scoped2"
+	scopedToken2.GetSpec().SetAssignedScope("/aa/cc")
+	scopedToken2.GetMetadata().SetName("scoped2")
 
 	scopedToken3 := proto.CloneOf(scopedToken1)
-	scopedToken3.Metadata.Name = "scoped3"
+	scopedToken3.GetMetadata().SetName("scoped3")
 
 	singleUseToken := proto.CloneOf(scopedToken1)
-	singleUseToken.Spec.UsageMode = string(joining.TokenUsageModeSingle)
-	singleUseToken.Metadata.Name = "scoped-single-use-1"
+	singleUseToken.GetSpec().SetUsageMode(string(joining.TokenUsageModeSingle))
+	singleUseToken.GetMetadata().SetName("scoped-single-use-1")
 
 	for _, tok := range []*joiningv1.ScopedToken{scopedToken1, scopedToken2, scopedToken3, singleUseToken} {
-		_, err = authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+		_, err = authService.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
 			Token: tok,
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -390,7 +390,7 @@ func TestJoinToken(t *testing.T) {
 		{
 			name: "join after upsert modifies assigned scope",
 			updateTokenFunc: func(token *joiningv1.ScopedToken) {
-				token.Spec.AssignedScope = "/aa/cc"
+				token.GetSpec().SetAssignedScope("/aa/cc")
 			},
 			assertRejoinExpectation: func(t *testing.T, identity *state.Identity, err error) {
 				require.Error(t, err)
@@ -399,7 +399,7 @@ func TestJoinToken(t *testing.T) {
 		{
 			name: "join after upsert preserves assigned scope",
 			updateTokenFunc: func(token *joiningv1.ScopedToken) {
-				token.Metadata.Labels = map[string]string{"env": "updated"}
+				token.GetMetadata().SetLabels(map[string]string{"env": "updated"})
 			},
 			assertRejoinExpectation: func(t *testing.T, identity *state.Identity, err error) {
 				require.NoError(t, err)
@@ -410,26 +410,26 @@ func TestJoinToken(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			token := &joiningv1.ScopedToken{
+			token := joiningv1.ScopedToken_builder{
 				Kind:    types.KindScopedToken,
 				Version: types.V1,
 				Scope:   "/aa",
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: fmt.Sprintf("upsertcheck%d", i),
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
+				}.Build(),
+				Spec: joiningv1.ScopedTokenSpec_builder{
 					AssignedScope: "/aa/bb",
 					Roles:         []string{types.RoleNode.String()},
 					JoinMethod:    string(types.JoinMethodToken),
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-				Status: &joiningv1.ScopedTokenStatus{
+				}.Build(),
+				Status: joiningv1.ScopedTokenStatus_builder{
 					Secret: "somesecret",
-				},
-			}
-			_, err := authService.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+				}.Build(),
+			}.Build()
+			_, err := authService.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
 				Token: token,
-			})
+			}.Build())
 			require.NoError(t, err)
 
 			// Join with the original assigned scope.
@@ -443,17 +443,17 @@ func TestJoinToken(t *testing.T) {
 			require.Equal(t, "/aa/bb", identity.AgentScope)
 
 			// Change and upsert token
-			fetchedRes, err := authService.Auth().GetScopedToken(t.Context(), &joiningv1.GetScopedTokenRequest{
+			fetchedRes, err := authService.Auth().GetScopedToken(t.Context(), joiningv1.GetScopedTokenRequest_builder{
 				Name:       token.GetMetadata().GetName(),
 				WithSecret: true,
-			})
+			}.Build())
 			require.NoError(t, err)
 			updatedToken := proto.CloneOf(fetchedRes.GetToken())
 			tc.updateTokenFunc(updatedToken)
 
-			_, err = authService.Auth().UpsertScopedToken(t.Context(), &joiningv1.UpsertScopedTokenRequest{
+			_, err = authService.Auth().UpsertScopedToken(t.Context(), joiningv1.UpsertScopedTokenRequest_builder{
 				Token: updatedToken,
-			})
+			}.Build())
 			require.NoError(t, err)
 
 			// Attempt to rejoin using the identity from the first join.

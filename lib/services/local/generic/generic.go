@@ -288,7 +288,6 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 	for item, err := range s.backend.Items(ctx, backend.ItemsParams{
 		StartKey: s.backendPrefix.AppendKey(backend.KeyFromString(pageToken)),
 		EndKey:   backend.RangeEnd(s.backendPrefix.ExactKey()),
-		Limit:    pageSize + 1,
 	}) {
 		if err != nil {
 			return nil, nil, "", trace.Wrap(err)

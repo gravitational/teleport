@@ -176,24 +176,24 @@ func isAccessDeniedException(err error) bool {
 // library to the Teleport protobuf representation.
 func awsToProtoKMSKey(output *kms.DescribeKeyOutput, accountID, region, keyID string) *pb.AWSKMSKeyV1 {
 	if output == nil {
-		return &pb.AWSKMSKeyV1{
+		return pb.AWSKMSKeyV1_builder{
 			Arn:       fmt.Sprintf("arn:aws:kms:%s:%s:key/%s", region, accountID, keyID),
 			Region:    region,
 			AccountId: accountID,
-		}
+		}.Build()
 	}
 	var multiRegionType string
 	if cfg := output.KeyMetadata.MultiRegionConfiguration; cfg != nil {
 		multiRegionType = string(cfg.MultiRegionKeyType)
 	}
-	return &pb.AWSKMSKeyV1{
+	return pb.AWSKMSKeyV1_builder{
 		Arn:                aws.ToString(output.KeyMetadata.Arn),
 		CreatedAt:          awsTimeToProtoTime(output.KeyMetadata.CreationDate),
 		Region:             region,
 		AccountId:          accountID,
 		HsmClusterId:       aws.ToString(output.KeyMetadata.CloudHsmClusterId),
 		MultiRegionKeyType: multiRegionType,
-	}
+	}.Build()
 }
 
 // getKMSTags fetches tags for a KMS key. Potentially access rights to tags differ
@@ -209,10 +209,10 @@ func getKMSTags(ctx context.Context, client kmsClient, keyID string) ([]*pb.AWST
 			return nil, trace.Wrap(err, "failed to list tags for key %s", keyID)
 		}
 		for _, t := range page.Tags {
-			tag := &pb.AWSTag{
+			tag := pb.AWSTag_builder{
 				Key:   aws.ToString(t.TagKey),
 				Value: strPtrToWrapper(t.TagValue),
-			}
+			}.Build()
 			tags = append(tags, tag)
 		}
 	}

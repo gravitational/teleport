@@ -83,25 +83,25 @@ func TestBotWorkloadIdentityX509(t *testing.T) {
 	role, err = rootClient.UpsertRole(ctx, role)
 	require.NoError(t, err)
 
-	workloadIdentity := &workloadidentityv1pb.WorkloadIdentity{
+	workloadIdentity := workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "foo-bar-bizz",
 			Labels: map[string]string{
 				"foo": "bar",
 			},
-		},
-		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+		}.Build(),
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
 				Id: "/valid/{{ user.bot_name }}",
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 	workloadIdentity, err = rootClient.WorkloadIdentityResourceServiceClient().
-		CreateWorkloadIdentity(ctx, &workloadidentityv1pb.CreateWorkloadIdentityRequest{
+		CreateWorkloadIdentity(ctx, workloadidentityv1pb.CreateWorkloadIdentityRequest_builder{
 			WorkloadIdentity: workloadIdentity,
-		})
+		}.Build())
 	require.NoError(t, err)
 
 	checkCRL := func(t *testing.T, tmpDir string, bundle *x509bundle.Bundle) {
@@ -257,11 +257,9 @@ func TestX509OutputService_render_TrustDomains(t *testing.T) {
 	))
 	appClientBundle.AddX509Authority(cert)
 
-	x509Cred := &workloadidentityv1pb.Credential{
-		Credential: &workloadidentityv1pb.Credential_X509Svid{
-			X509Svid: &workloadidentityv1pb.X509SVIDCredential{Cert: cert.Raw},
-		},
-	}
+	x509Cred := workloadidentityv1pb.Credential_builder{
+		X509Svid: workloadidentityv1pb.X509SVIDCredential_builder{Cert: cert.Raw}.Build(),
+	}.Build()
 
 	newService := func(dest destination.Destination) *X509OutputService {
 		return &X509OutputService{

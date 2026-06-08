@@ -30,7 +30,7 @@ import (
 
 // UpsertTunnelConnection creates or updates the provided tunnel connection.
 func (s *Service) UpsertTunnelConnection(ctx context.Context, req *trustpb.UpsertTunnelConnectionRequest) (*trustpb.UpsertTunnelConnectionResponse, error) {
-	if req.TunnelConnection == nil {
+	if !req.HasTunnelConnection() {
 		return nil, trace.BadParameter("missing tunnel connection")
 	}
 
@@ -46,7 +46,7 @@ func (s *Service) UpsertTunnelConnection(ctx context.Context, req *trustpb.Upser
 		return nil, trace.Wrap(err)
 	}
 
-	stored, err := s.backend.UpsertTunnelConnectionV2(ctx, req.TunnelConnection)
+	stored, err := s.backend.UpsertTunnelConnectionV2(ctx, req.GetTunnelConnection())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -55,18 +55,18 @@ func (s *Service) UpsertTunnelConnection(ctx context.Context, req *trustpb.Upser
 		return nil, trace.BadParameter("encountered unexpected tunnel connection type %T", stored)
 	}
 
-	return &trustpb.UpsertTunnelConnectionResponse{
+	return trustpb.UpsertTunnelConnectionResponse_builder{
 		TunnelConnection: storedV2,
-	}, nil
+	}.Build(), nil
 }
 
 // DeleteTunnelConnection removes a single tunnel connection by cluster and
 // connection name.
 func (s *Service) DeleteTunnelConnection(ctx context.Context, req *trustpb.DeleteTunnelConnectionRequest) (*emptypb.Empty, error) {
-	if req.ClusterName == "" {
+	if req.GetClusterName() == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
-	if req.ConnectionName == "" {
+	if req.GetConnectionName() == "" {
 		return nil, trace.BadParameter("missing connection name")
 	}
 
@@ -82,7 +82,7 @@ func (s *Service) DeleteTunnelConnection(ctx context.Context, req *trustpb.Delet
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteTunnelConnection(ctx, req.ClusterName, req.ConnectionName); err != nil {
+	if err := s.backend.DeleteTunnelConnection(ctx, req.GetClusterName(), req.GetConnectionName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

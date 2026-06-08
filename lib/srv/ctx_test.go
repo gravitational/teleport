@@ -51,33 +51,33 @@ func TestCheckSFTPAllowed(t *testing.T) {
 		{
 			name:                 "node disallowed",
 			nodeAllowFileCopying: false,
-			permit: &decisionpb.SSHAccessPermit{
+			permit: decisionpb.SSHAccessPermit_builder{
 				SshFileCopy: true,
-			},
+			}.Build(),
 			expectedErr: ErrNodeFileCopyingNotPermitted,
 		},
 		{
 			name:                 "node allowed",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
+			permit: decisionpb.SSHAccessPermit_builder{
 				SshFileCopy: true,
-			},
+			}.Build(),
 			expectedErr: nil,
 		},
 		{
 			name:                 "role disallowed",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
+			permit: decisionpb.SSHAccessPermit_builder{
 				SshFileCopy: false,
-			},
+			}.Build(),
 			expectedErr: errRoleFileCopyingNotPermitted,
 		},
 		{
 			name:                 "role allowed",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
+			permit: decisionpb.SSHAccessPermit_builder{
 				SshFileCopy: true,
-			},
+			}.Build(),
 			expectedErr: nil,
 		},
 		{
@@ -99,9 +99,9 @@ func TestCheckSFTPAllowed(t *testing.T) {
 		{
 			name:                 "moderated sessions enforced",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
+			permit: decisionpb.SSHAccessPermit_builder{
 				SshFileCopy: true,
-			},
+			}.Build(),
 			sessionPolicies: []*types.SessionRequirePolicy{
 				{
 					Name:   "test",
@@ -229,7 +229,7 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				TeleportUser: "alpaca",
 				Login:        "alpaca1",
 				UnmappedIdentity: &sshca.Identity{
-					ScopePin: &scopesv1.Pin{
+					ScopePin: scopesv1.Pin_builder{
 						Kind:  scopesv1.PinKind_PIN_KIND_USER,
 						Scope: "/staging",
 						AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
@@ -239,7 +239,7 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 								"/staging/green": {"staging-access"},
 							},
 						}),
-					},
+					}.Build(),
 				},
 			},
 			want: apievents.UserMetadata{
@@ -264,7 +264,7 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				BotName:       "alpaca",
 				BotInstanceID: "123-123-123",
 				UnmappedIdentity: &sshca.Identity{
-					ScopePin: &scopesv1.Pin{
+					ScopePin: scopesv1.Pin_builder{
 						Kind:  scopesv1.PinKind_PIN_KIND_USER,
 						Scope: "/staging",
 						AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
@@ -274,7 +274,7 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 								"/staging/green": {"staging-access"},
 							},
 						}),
-					},
+					}.Build(),
 				},
 			},
 			want: apievents.UserMetadata{

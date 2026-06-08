@@ -227,11 +227,11 @@ func (c *CAOverrideResolver) calculateOverride(
 
 		var chain []Certificate
 		if !skipCAChain {
-			chain = make([]Certificate, 0, len(co.CertificateOverride.Chain)+1)
+			chain = make([]Certificate, 0, len(co.CertificateOverride.GetChain())+1)
 			chain = append(chain, Certificate{
-				PEM: []byte(co.CertificateOverride.Certificate),
+				PEM: []byte(co.CertificateOverride.GetCertificate()),
 			})
-			for _, pem := range co.CertificateOverride.Chain {
+			for _, pem := range co.CertificateOverride.GetChain() {
 				chain = append(chain, Certificate{
 					PEM: []byte(pem),
 				})
@@ -242,7 +242,7 @@ func (c *CAOverrideResolver) calculateOverride(
 			OverrideActive: true,
 			PublicKeyHash:  co.PublicKey,
 			CACertificate: Certificate{
-				PEM: []byte(co.CertificateOverride.Certificate),
+				PEM: []byte(co.CertificateOverride.GetCertificate()),
 			},
 			CAChain: chain,
 		}

@@ -1134,24 +1134,24 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		scopedToken := &joiningv1.ScopedToken{
+		scopedToken := joiningv1.ScopedToken_builder{
 			Version: types.V1,
 			Kind:    types.KindScopedToken,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: st.Name,
-			},
+			}.Build(),
 			Scope: scopes.Root,
-			Spec: &joiningv1.ScopedTokenSpec{
+			Spec: joiningv1.ScopedTokenSpec_builder{
 				Roles:           roles.StringSlice(),
 				AssignedScope:   st.Scope,
 				JoinMethod:      string(types.JoinMethodToken),
 				UsageMode:       string(joining.TokenUsageModeUnlimited),
 				ImmutableLabels: immutableLabels,
-			},
-			Status: &joiningv1.ScopedTokenStatus{
+			}.Build(),
+			Status: joiningv1.ScopedTokenStatus_builder{
 				Secret: st.Secret,
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		if err := joining.StrongValidateToken(scopedToken); err != nil {
 			return nil, trace.Wrap(err)
@@ -1160,17 +1160,17 @@ func (t StaticScopedTokens) Parse() (*joiningv1.StaticScopedTokens, error) {
 		scopedTokens = append(scopedTokens, scopedToken)
 	}
 
-	return &joiningv1.StaticScopedTokens{
+	return joiningv1.StaticScopedTokens_builder{
 		Version: types.V1,
 		Kind:    types.KindStaticScopedTokens,
 		Scope:   scopes.Root,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameStaticScopedTokens,
-		},
-		Spec: &joiningv1.StaticScopedTokensSpec{
+		}.Build(),
+		Spec: joiningv1.StaticScopedTokensSpec_builder{
 			Tokens: scopedTokens,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 
 // ImmutableLabels capture yaml configuration used to generate [joiningv1.ImmutableLabels].
@@ -1185,9 +1185,9 @@ func (il *ImmutableLabels) Parse() (*joiningv1.ImmutableLabels, error) {
 		return nil, nil
 	}
 
-	return &joiningv1.ImmutableLabels{
+	return joiningv1.ImmutableLabels_builder{
 		Ssh: il.SSH,
-	}, nil
+	}.Build(), nil
 }
 
 // StaticScopedToken is a statically defined scoped token. It is meant to capture

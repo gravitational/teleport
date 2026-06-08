@@ -111,7 +111,7 @@ func createWorkloadCluster(ctx context.Context, client *authclient.Client, raw s
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("workload cluster %q has been created\n", cc.Metadata.GetName())
+	fmt.Printf("workload cluster %q has been created\n", cc.GetMetadata().GetName())
 	return nil
 }
 
@@ -124,7 +124,7 @@ func updateWorkloadCluster(ctx context.Context, client *authclient.Client, raw s
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("workload cluster %q has been updated\n", cc.Metadata.GetName())
+	fmt.Printf("workload cluster %q has been updated\n", cc.GetMetadata().GetName())
 	return nil
 }
 

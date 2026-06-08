@@ -85,9 +85,9 @@ func (c *Client) UpsertTunnelConnection(ctx context.Context, conn types.TunnelCo
 	if !ok {
 		return trace.BadParameter("unsupported tunnel connection type %T", conn)
 	}
-	_, err := c.TrustClient().UpsertTunnelConnection(ctx, &trustpb.UpsertTunnelConnectionRequest{
+	_, err := c.TrustClient().UpsertTunnelConnection(ctx, trustpb.UpsertTunnelConnectionRequest_builder{
 		TunnelConnection: connV2,
-	})
+	}.Build())
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return trace.Wrap(c.HTTPClient.upsertTunnelConnection(ctx, conn))
@@ -116,10 +116,10 @@ func (c *HTTPClient) upsertTunnelConnection(ctx context.Context, conn types.Tunn
 //
 // TODO(strideynet): DELETE IN v20.0.0
 func (c *Client) DeleteTunnelConnection(ctx context.Context, clusterName, connName string) error {
-	_, err := c.TrustClient().DeleteTunnelConnection(ctx, &trustpb.DeleteTunnelConnectionRequest{
+	_, err := c.TrustClient().DeleteTunnelConnection(ctx, trustpb.DeleteTunnelConnectionRequest_builder{
 		ClusterName:    clusterName,
 		ConnectionName: connName,
-	})
+	}.Build())
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return trace.Wrap(c.HTTPClient.deleteTunnelConnection(ctx, clusterName, connName))
@@ -179,9 +179,9 @@ func (c *Client) UpsertProxyServerWithoutReturn(ctx context.Context, s types.Ser
 	if !ok {
 		return trace.BadParameter("unsupported proxy server type %T", s)
 	}
-	_, err := c.APIClient.PresenceServiceClient().UpsertProxyServer(ctx, &presencev1.UpsertProxyServerRequest{
+	_, err := c.APIClient.PresenceServiceClient().UpsertProxyServer(ctx, presencev1.UpsertProxyServerRequest_builder{
 		Server: serverV2,
-	})
+	}.Build())
 	if err == nil {
 		return nil
 	}
@@ -213,9 +213,9 @@ func (c *HTTPClient) upsertProxyServerLegacy(ctx context.Context, s types.Server
 //
 // TODO(noah): DELETE IN v20.0.0
 func (c *Client) DeleteProxyServer(ctx context.Context, name string) error {
-	_, err := c.APIClient.PresenceServiceClient().DeleteProxyServer(ctx, &presencev1.DeleteProxyServerRequest{
+	_, err := c.APIClient.PresenceServiceClient().DeleteProxyServer(ctx, presencev1.DeleteProxyServerRequest_builder{
 		Name: name,
-	})
+	}.Build())
 	if err == nil {
 		return nil
 	}

@@ -1571,9 +1571,9 @@ func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
 	ctx := context.Background()
 	ap, err := clusterconfig.NewAccessGraphSettings(
-		&clusterconfigpb.AccessGraphSettingsSpec{
+		clusterconfigpb.AccessGraphSettingsSpec_builder{
 			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 
@@ -1587,7 +1587,7 @@ func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
 	require.Empty(t, cmp.Diff(ap, got, protocmp.Transform()))
 
 	// Validate that update only works if the revision matches.
-	got.Metadata.Revision = "123"
+	got.GetMetadata().SetRevision("123")
 	_, err = s.ConfigS.UpdateAccessGraphSettings(ctx, got)
 	require.True(t, trace.IsCompareFailed(err))
 
@@ -1595,8 +1595,8 @@ func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
 	upserted, err := s.ConfigS.UpsertAccessGraphSettings(ctx, protobuf.Clone(got).(*clusterconfigpb.AccessGraphSettings))
 	require.NoError(t, err)
 	require.NotEmpty(t, upserted.GetMetadata().GetRevision())
-	upserted.Metadata.Revision = ""
-	got.Metadata.Revision = ""
+	upserted.GetMetadata().SetRevision("")
+	got.GetMetadata().SetRevision("")
 	require.Empty(t, cmp.Diff(upserted, got, protocmp.Transform()))
 }
 
@@ -1671,31 +1671,31 @@ func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
 func (s *ServicesTestSuite) StaticScopedTokens(t *testing.T) {
 	ctx := t.Context()
 	// set static tokens
-	staticTokens := &joiningv1.StaticScopedTokens{
+	staticTokens := joiningv1.StaticScopedTokens_builder{
 		Kind:  types.KindStaticScopedTokens,
 		Scope: "/",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameStaticScopedTokens,
-		},
-		Spec: &joiningv1.StaticScopedTokensSpec{
+		}.Build(),
+		Spec: joiningv1.StaticScopedTokensSpec_builder{
 			Tokens: []*joiningv1.ScopedToken{
-				{
+				joiningv1.ScopedToken_builder{
 					Kind:  types.KindScopedToken,
 					Scope: "/",
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name:    "tok1",
 						Expires: timestamppb.New(time.Now().UTC().Add(time.Hour)),
-					},
-					Spec: &joiningv1.ScopedTokenSpec{
+					}.Build(),
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{types.RoleNode.String()},
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
 						AssignedScope: "/local",
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	err := s.LocalConfigS.SetStaticScopedTokens(ctx, staticTokens)
 	require.NoError(t, err)

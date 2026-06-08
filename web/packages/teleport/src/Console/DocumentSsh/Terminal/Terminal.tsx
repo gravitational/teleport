@@ -27,6 +27,7 @@ import styled from 'styled-components';
 
 import { Flex } from 'design';
 import { getPlatformType } from 'design/platform';
+import { useToastNotifications } from 'shared/components/ToastNotification';
 
 import { getMappedAction } from 'teleport/Console/useKeyboardNav';
 import XTermCtrl from 'teleport/lib/term/terminal';
@@ -52,6 +53,9 @@ export interface TerminalProps {
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
   const termCtrlRef = useRef<XTermCtrl>(undefined);
   const elementRef = useRef<HTMLDivElement>(null);
+  const toastNotifications = useToastNotifications();
+  // Keeps track of the notification id so that we can ensure there is only maximum one copy block notification showing at a time.
+  const copyBlockedToastIdRef = useRef<string>(undefined);
 
   useImperativeHandle(
     ref,
@@ -72,6 +76,21 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       theme: props.theme,
       convertEol: props.convertEol,
       disableCopy: props.disableCopy,
+      onCopyBlocked: () => {
+        // Remove the previous notification before creating the new one so there's only one showing at at time.
+        if (copyBlockedToastIdRef.current) {
+          toastNotifications.remove(copyBlockedToastIdRef.current);
+        }
+        copyBlockedToastIdRef.current = toastNotifications.add({
+          severity: 'warn',
+          content: {
+            title: 'Copy attempt blocked',
+            description:
+              "Your role doesn't permit you to copy content from the terminal.",
+            isAutoRemovable: true,
+          },
+        });
+      },
     });
     termCtrlRef.current = termCtrl;
 

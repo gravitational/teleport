@@ -64,9 +64,10 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 
 	// Circular references should not be allowed.
 	err := ValidateAccessListMember(ctx, acl3, acl3m1, accessListAndMembersGetter)
-	//err = hierarchy.ValidateAccessListMember(acl3.GetName(), acl3m1)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because '%s' is already included as a Member or Owner in '%s'", acl1.Spec.Title, acl3.Spec.Title, acl3.Spec.Title, acl1.Spec.Title))
+	expectedErrMsg := fmt.Sprintf("Access List '%s' can't be added as a Member of '%s' because '%s' is already included as a Member or Owner in '%s'", acl1.Spec.Title, acl3.Spec.Title, acl3.Spec.Title, acl1.Spec.Title)
+	require.ErrorContains(t, err, expectedErrMsg)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorIs(t, err, ErrCyclicMembership)
 
 	// By removing acl3 as a member of acl2, the relationship should be valid.
 	accessListAndMembersGetter.members[acl2.GetName()] = []*accesslist.AccessListMember{}
@@ -102,8 +103,10 @@ func TestAccessListHierarchyCircularRefsCheck(t *testing.T) {
 	}
 
 	err = ValidateAccessListWithMembers(ctx, nil, acl5, []*accesslist.AccessListMember{acl4m1}, accessListAndMembersGetter)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as an Owner of '%s' because '%s' is already included as a Member or Owner in '%s'", acl4.Spec.Title, acl5.Spec.Title, acl5.Spec.Title, acl4.Spec.Title))
+	expectedErrMsg = fmt.Sprintf("Access List '%s' can't be added as an Owner of '%s' because '%s' is already included as a Member or Owner in '%s'", acl4.Spec.Title, acl5.Spec.Title, acl5.Spec.Title, acl4.Spec.Title)
+	require.ErrorContains(t, err, expectedErrMsg)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorIs(t, err, ErrCyclicMembership)
 }
 
 func TestAccessListHierarchyDepthCheck(t *testing.T) {
@@ -150,8 +153,10 @@ func TestAccessListHierarchyDepthCheck(t *testing.T) {
 
 	// Validate adding this member should fail due to exceeding max depth
 	err = ValidateAccessListMember(ctx, acls[accesslist.MaxAllowedDepth], extraMember, accessListAndMembersGetter)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", acls[accesslist.MaxAllowedDepth+1].Spec.Title, acls[accesslist.MaxAllowedDepth].Spec.Title, accesslist.MaxAllowedDepth))
+	expectedErrMsg := fmt.Sprintf("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", acls[accesslist.MaxAllowedDepth+1].Spec.Title, acls[accesslist.MaxAllowedDepth].Spec.Title, accesslist.MaxAllowedDepth)
+	require.ErrorContains(t, err, expectedErrMsg)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorIs(t, err, ErrMaxNestedMembershipDepth)
 }
 
 func TestAccessListValidateWithMembers_basic(t *testing.T) {
@@ -389,8 +394,10 @@ func TestAccessListValidateWithMembers_members(t *testing.T) {
 
 	// Calling `ValidateAccessListWithMembers`, with `rootAclm1`, should fail, as it would exceed the maximum nesting depth.
 	err = ValidateAccessListWithMembers(ctx, nil, rootAcl, []*accesslist.AccessListMember{rootAclMember}, accessListAndMembersGetter)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls[0].Spec.Title, rootAcl.Spec.Title, accesslist.MaxAllowedDepth))
+	expectedErrMsg := fmt.Sprintf("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls[0].Spec.Title, rootAcl.Spec.Title, accesslist.MaxAllowedDepth)
+	require.ErrorContains(t, err, expectedErrMsg)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorIs(t, err, ErrMaxNestedMembershipDepth)
 
 	const Length = accesslist.MaxAllowedDepth/2 + 1
 
@@ -445,8 +452,10 @@ func TestAccessListValidateWithMembers_members(t *testing.T) {
 
 	// Now, we'll try to connect the two hierarchies, which should fail.
 	err = ValidateAccessListWithMembers(ctx, nil, nestedAcls1Last, []*accesslist.AccessListMember{newAccessListMember(t, nestedAcls1Last.GetName(), nestedAcls2[0].GetName(), accesslist.MembershipKindList, clock)}, accessListAndMembersGetter)
-	require.Error(t, err)
-	require.ErrorIs(t, err, trace.BadParameter("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls2[0].Spec.Title, nestedAcls1[len(nestedAcls1)-1].Spec.Title, accesslist.MaxAllowedDepth))
+	expectedErrMsg = fmt.Sprintf("Access List '%s' can't be added as a Member of '%s' because it would exceed the maximum nesting depth of %d", nestedAcls2[0].Spec.Title, nestedAcls1[len(nestedAcls1)-1].Spec.Title, accesslist.MaxAllowedDepth)
+	require.ErrorContains(t, err, expectedErrMsg)
+	require.True(t, trace.IsBadParameter(err))
+	require.ErrorIs(t, err, ErrMaxNestedMembershipDepth)
 }
 
 func Test_ValidateAccessListWithMembers_audit(t *testing.T) {

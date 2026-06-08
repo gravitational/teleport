@@ -28,20 +28,20 @@ import (
 )
 
 func newSPIFFEFederation(name string) *machineidv1.SPIFFEFederation {
-	return &machineidv1.SPIFFEFederation{
+	return machineidv1.SPIFFEFederation_builder{
 		Kind:    types.KindSPIFFEFederation,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &machineidv1.SPIFFEFederationSpec{
-			BundleSource: &machineidv1.SPIFFEFederationBundleSource{
-				HttpsWeb: &machineidv1.SPIFFEFederationBundleSourceHTTPSWeb{
+		}.Build(),
+		Spec: machineidv1.SPIFFEFederationSpec_builder{
+			BundleSource: machineidv1.SPIFFEFederationBundleSource_builder{
+				HttpsWeb: machineidv1.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 					BundleEndpointUrl: "https://example.com/bundle.json",
-				},
-			},
-		},
-	}
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 func TestSPIFFEFederations(t *testing.T) {

@@ -2040,7 +2040,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			&summarizerv1.IsEnabledRequest{},
 		)
 		if err == nil {
-			sessionSummarizerEnabled = isEnabledRes.Enabled
+			sessionSummarizerEnabled = isEnabledRes.GetEnabled()
 		}
 	})
 
@@ -3704,25 +3704,25 @@ func (h *Handler) notificationsGet(w http.ResponseWriter, r *http.Request, p htt
 	}
 	startKey := values.Get("startKey")
 
-	response, err := clt.NotificationServiceClient().ListNotifications(r.Context(), &notificationsv1.ListNotificationsRequest{
+	response, err := clt.NotificationServiceClient().ListNotifications(r.Context(), notificationsv1.ListNotificationsRequest_builder{
 		PageSize:  limit,
 		PageToken: startKey,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	var uiNotifications []ui.Notification
 
-	for _, notification := range response.Notifications {
+	for _, notification := range response.GetNotifications() {
 		uiNotif := ui.MakeNotification(notification)
 		uiNotifications = append(uiNotifications, uiNotif)
 	}
 
 	return GetNotificationsResponse{
 		Notifications:            uiNotifications,
-		NextKey:                  response.NextPageToken,
-		UserLastSeenNotification: response.UserLastSeenNotificationTimestamp.AsTime().Format(iso8601MilliFormat),
+		NextKey:                  response.GetNextPageToken(),
+		UserLastSeenNotification: response.GetUserLastSeenNotificationTimestamp().AsTime().Format(iso8601MilliFormat),
 	}, nil
 }
 
@@ -3749,19 +3749,19 @@ func (h *Handler) notificationsUpsertLastSeenTimestamp(w http.ResponseWriter, r 
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.NotificationServiceClient().UpsertUserLastSeenNotification(r.Context(), &notificationsv1.UpsertUserLastSeenNotificationRequest{
+	resp, err := clt.NotificationServiceClient().UpsertUserLastSeenNotification(r.Context(), notificationsv1.UpsertUserLastSeenNotificationRequest_builder{
 		Username: sctx.GetUser(),
-		UserLastSeenNotification: &notificationsv1.UserLastSeenNotification{
-			Status: &notificationsv1.UserLastSeenNotificationStatus{
+		UserLastSeenNotification: notificationsv1.UserLastSeenNotification_builder{
+			Status: notificationsv1.UserLastSeenNotificationStatus_builder{
 				LastSeenTime: timestamppb.New(lastSeenTime),
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &UpsertUserLastSeenNotificationRequest{
-		Time: resp.Status.LastSeenTime.AsTime().Format(iso8601MilliFormat),
+		Time: resp.GetStatus().GetLastSeenTime().AsTime().Format(iso8601MilliFormat),
 	}, nil
 }
 
@@ -3781,17 +3781,17 @@ func (h *Handler) notificationsUpsertNotificationState(w http.ResponseWriter, r 
 		return nil, trace.Wrap(err)
 	}
 
-	resp, err := clt.NotificationServiceClient().UpsertUserNotificationState(r.Context(), &notificationsv1.UpsertUserNotificationStateRequest{
+	resp, err := clt.NotificationServiceClient().UpsertUserNotificationState(r.Context(), notificationsv1.UpsertUserNotificationStateRequest_builder{
 		Username: sctx.GetUser(),
-		UserNotificationState: &notificationsv1.UserNotificationState{
-			Spec: &notificationsv1.UserNotificationStateSpec{
+		UserNotificationState: notificationsv1.UserNotificationState_builder{
+			Spec: notificationsv1.UserNotificationStateSpec_builder{
 				NotificationId: req.NotificationId,
-			},
-			Status: &notificationsv1.UserNotificationStateStatus{
+			}.Build(),
+			Status: notificationsv1.UserNotificationStateStatus_builder{
 				NotificationState: req.NotificationState,
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
