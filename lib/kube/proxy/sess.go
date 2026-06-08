@@ -1624,7 +1624,7 @@ func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, usernam
 		currentPod, err := s.forwarder.getPodForEphemeralPatch(
 			ctx,
 			&s.ctx,
-			s.req.Header,
+			impersonationHeadersFromWaitingContainer(container),
 			s.podNamespace,
 			s.podName,
 		)

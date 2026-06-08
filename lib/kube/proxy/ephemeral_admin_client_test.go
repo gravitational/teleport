@@ -34,28 +34,23 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 
+	kubewaitingcontainerpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/types/kubewaitingcontainer"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
-	"github.com/gravitational/teleport/lib/utils/set"
 )
 
-// TestGetPodForEphemeralPatch_UsesImpersonatedIdentity asserts that the pod GET issued by
-// the moderated ephemeral-container flow carries the user's impersonation headers,
-// so that the Kubernetes API server enforces RBAC on the requester's mapped kubernetes_users/kubernetes_groups
-// rather than on the proxy's admin kubeconfig.
-// The synthesised "patched" pod returned to the user therefore cannot contain spec, env,
-// or annotations that the user's mapped identity is not authorised to read.
-//
-// The test stands up a fake Kubernetes API server,
-// drives getPodForEphemeralPatch with an authContext mapped to a single kubernetes_users entry,
-// and checks that the upstream GET arrived with the matching Impersonate-User header.
+// TestGetPodForEphemeralPatch_UsesImpersonatedIdentity asserts that the pod GET
+// issued by the moderated ephemeral-container flow carries the user's Impersonate-User header,
+// so the Kubernetes API server evaluates the request against the requester's
+// mapped kubernetes_users / kubernetes_groups rather than the proxy's admin kubeconfig.
 func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 	const (
 		clusterName = "test-cluster"
-		ns          = "prod"
-		podName     = "secretive-app"
-		kubeUser    = "victim-k8s"
+		ns          = "default"
+		podName     = "test-app"
+		kubeUser    = "alice-k8s"
 	)
 
 	var (
@@ -72,9 +67,6 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 			Containers: []corev1.Container{{
 				Name:  "app",
 				Image: "registry.k8s.io/pause:3.10",
-				Env: []corev1.EnvVar{
-					{Name: "DB_PASSWORD", Value: "REDACTED-must-not-be-disclosed"},
-				},
 			}},
 		},
 	}
@@ -109,16 +101,16 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 		},
 	}
 
-	teleportUser, err := types.NewUser("victim")
+	teleportUser, err := types.NewUser("alice")
 	require.NoError(t, err)
 
 	// One kubernetes_users entry so computeAndValidateImpersonatedPrincipals
 	// picks it deterministically without consulting request headers.
 	authCtx := &authContext{
-		ScopedContext:   &authz.ScopedContext{User: teleportUser},
+		Context:         authz.Context{User: teleportUser},
 		kubeClusterName: clusterName,
-		kubeUsers:       set.New(kubeUser),
-		kubeGroups:      set.New[string](),
+		kubeUsers:       map[string]struct{}{kubeUser: {}},
+		kubeGroups:      map[string]struct{}{},
 	}
 
 	_, err = fwd.getPodForEphemeralPatch(
@@ -135,4 +127,100 @@ func TestGetPodForEphemeralPatch_UsesImpersonatedIdentity(t *testing.T) {
 	mu.Unlock()
 
 	require.Equal(t, kubeUser, got, "upstream GET must carry the user's Impersonate-User header")
+}
+
+// TestGetPatchedPodEvent_ReplaysStoredImpersonation asserts that
+// the moderated watch path uses the kubernetes_user and kubernetes_groups
+// stored on the KubernetesWaitingContainer when fetching the target pod,
+// instead of relying on the original request headers (which are not in scope on the watch path).
+// A user with multiple kubernetes_users values therefore still receives
+// the synthetic Modified event after moderator approval, rather than hanging.
+func TestGetPatchedPodEvent_ReplaysStoredImpersonation(t *testing.T) {
+	const (
+		clusterName  = "test-cluster"
+		ns           = "default"
+		podName      = "test-app"
+		chosenUser   = "alice-k8s-b"
+		alternateUsr = "alice-k8s-a"
+		chosenGroup  = "system:authenticated"
+	)
+
+	var (
+		mu             sync.Mutex
+		capturedUser   string
+		capturedGroups []string
+	)
+	fakePod := &corev1.Pod{
+		TypeMeta:   metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: metav1.ObjectMeta{Name: podName, Namespace: ns},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "app", Image: "registry.k8s.io/pause:3.10"}},
+		},
+	}
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet && strings.HasSuffix(r.URL.Path, "/pods/"+podName) {
+			mu.Lock()
+			capturedUser = r.Header.Get("Impersonate-User")
+			capturedGroups = append([]string(nil), r.Header.Values("Impersonate-Group")...)
+			mu.Unlock()
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(fakePod)
+	}))
+	t.Cleanup(srv.Close)
+
+	adminRestCfg := &rest.Config{Host: srv.URL}
+	adminClient, err := kubernetes.NewForConfig(adminRestCfg)
+	require.NoError(t, err)
+
+	fwd := &Forwarder{
+		log: logtest.NewLogger(),
+		cfg: ForwarderConfig{tracer: otel.Tracer("test")},
+		clusterDetails: map[string]*kubeDetails{
+			clusterName: {
+				kubeCreds: &staticKubeCreds{
+					kubeClient:    adminClient,
+					clientRestCfg: adminRestCfg,
+				},
+			},
+		},
+	}
+
+	teleportUser, err := types.NewUser("alice")
+	require.NoError(t, err)
+
+	// Multi-user setup: without the stored choice on the waiting container,
+	// computeAndValidateImpersonatedPrincipals would refuse to pick.
+	sess := &clusterSession{
+		authContext: authContext{
+			Context:         authz.Context{User: teleportUser},
+			kubeClusterName: clusterName,
+			kubeUsers:       map[string]struct{}{chosenUser: {}, alternateUsr: {}},
+			kubeGroups:      map[string]struct{}{chosenGroup: {}},
+		},
+		codecFactory: &globalKubeCodecs,
+	}
+
+	patch := []byte(`{"spec":{"ephemeralContainers":[{"name":"debug","image":"busybox","tty":true}]}}`)
+	waitingCont, err := kubewaitingcontainer.NewKubeWaitingContainer(
+		"debug",
+		kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
+			Username:         "alice",
+			Cluster:          clusterName,
+			Namespace:        ns,
+			PodName:          podName,
+			ContainerName:    "debug",
+			Patch:            patch,
+			PatchType:        "application/strategic-merge-patch+json",
+			KubernetesUser:   chosenUser,
+			KubernetesGroups: []string{chosenGroup},
+		}.Build(),
+	)
+	require.NoError(t, err)
+
+	_, err = fwd.getPatchedPodEvent(context.Background(), sess, waitingCont)
+	require.NoError(t, err)
+	require.Equal(t, chosenUser, capturedUser, "upstream GET must replay the stored Impersonate-User")
+	require.Equal(t, []string{chosenGroup}, capturedGroups, "upstream GET must replay the stored Impersonate-Group")
 }
