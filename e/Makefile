@@ -612,7 +612,7 @@ test-go-all:
 #
 test-go: | $(TEST_LOG_DIR)
 ifneq ("$(SUBJECT)", "")
-	$(GOTESTSUM) --junitfile  $(TEST_LOG_DIR)/unit-tests.xml --jsonfile  $(TEST_LOG_DIR)/unit-tests.json -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG) enablesynctest" $(ADDFLAGS)
+	$(GOTESTSUM) --junitfile  $(TEST_LOG_DIR)/unit-tests.xml --jsonfile  $(TEST_LOG_DIR)/unit-tests.json -- $(SUBJECT) -race -shuffle on -tags "$(PIV_TEST_TAG) $(LIBFIDO2_TEST_TAG) $(TPMSIMULATOR_TEST_TAG)" $(ADDFLAGS)
 endif
 
 # test-operator runs tests for the k8s operator with enterprise-only resource

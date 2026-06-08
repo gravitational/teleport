@@ -87,7 +87,6 @@ jobs:
       - name: Run govulncheck on all Go modules
         env:
           BRANCH: ${{ matrix.branch }}
-          GOEXPERIMENT: synctest
         run: |
           set -o pipefail
           readarray -d '' MODULE_DIRECTORY_PATHS < \
