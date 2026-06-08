@@ -273,6 +273,8 @@ func (r resourceTeleportScopedToken) Update(ctx context.Context, req tfsdk.Updat
 
 	scopedTokenResource = scopedTokenI
 	
+	scopedToken = scopedTokenResource
+
 	diags = schemav1.CopyScopedTokenToTerraform(ctx, scopedToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

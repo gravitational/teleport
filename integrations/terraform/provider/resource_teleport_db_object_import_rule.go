@@ -297,6 +297,8 @@ func (r resourceTeleportDatabaseObjectImportRule) Update(ctx context.Context, re
 
 	importRuleResource = importRuleI
 	
+	importRule = importRuleResource
+
 	diags = schemav1.CopyDatabaseObjectImportRuleToTerraform(ctx, importRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
