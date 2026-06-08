@@ -97,13 +97,13 @@ type mockScopedRoleGetter struct {
 
 func (m mockScopedRoleGetter) GetScopedRole(ctx context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
 	for _, role := range m.scopedRoles {
-		if role.Metadata.Name == req.Name {
-			return &scopedaccessv1.GetScopedRoleResponse{
+		if role.GetMetadata().GetName() == req.GetName() {
+			return scopedaccessv1.GetScopedRoleResponse_builder{
 				Role: role,
-			}, nil
+			}.Build(), nil
 		}
 	}
-	return nil, trace.NotFound("scoped role %q not found", req.Name)
+	return nil, trace.NotFound("scoped role %q not found", req.GetName())
 }
 
 type mockLoginChecker struct {
@@ -301,28 +301,28 @@ func TestRBAC(t *testing.T) {
 	_, err = server.auth.CreateRole(ctx, nodeAccessRole)
 	require.NoError(t, err)
 
-	scopedRole := &scopedaccessv1.ScopedRole{
+	scopedRole := scopedaccessv1.ScopedRole_builder{
 		Kind:     scopedaccess.KindScopedRole,
-		Metadata: &headerv1.Metadata{Name: "test"},
+		Metadata: headerv1.Metadata_builder{Name: "test"}.Build(),
 		Scope:    nodeScope,
-		Spec: &scopedaccessv1.ScopedRoleSpec{
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{nodeScope},
-			Ssh: &scopedaccessv1.ScopedRoleSSH{
+			Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 				Logins: []string{"testuser"},
 				Labels: []*labelv1.Label{
-					{Name: "test", Values: []string{"node"}},
+					labelv1.Label_builder{Name: "test", Values: []string{"node"}}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 		Version: types.V1,
-	}
-	scopePin := &scopesv1.Pin{
+	}.Build()
+	scopePin := scopesv1.Pin_builder{
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/test",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
-			nodeScope: {nodeScope: {scopedRole.Metadata.Name}},
+			nodeScope: {nodeScope: {scopedRole.GetMetadata().GetName()}},
 		}),
-	}
+	}.Build()
 
 	accessPoint := mockScopedRoleReaderGetter{
 		AccessPoint: mockCAandAuthPrefGetter{
@@ -405,120 +405,120 @@ func TestScopedRBAC(t *testing.T) {
 	serverV2.Scope = "/staging/west"
 
 	scopedRoles := []*scopedaccessv1.ScopedRole{
-		{
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "staging-west-red",
-			},
+			}.Build(),
 			Scope: "/staging/west",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "team",
 							Values: []string{"red"},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "staging-west-blue",
-			},
+			}.Build(),
 			Scope: "/staging/west",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "team",
 							Values: []string{"blue"},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "staging-east-red",
-			},
+			}.Build(),
 			Scope: "/staging/east",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/east"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "team",
 							Values: []string{"red"},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "prod-west-red",
-			},
+			}.Build(),
 			Scope: "/prod/west",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/prod/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "team",
 							Values: []string{"red"},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "staging-west-no-labels",
-			},
+			}.Build(),
 			Scope: "/staging/west",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "staging-west-wrong-login",
-			},
+			}.Build(),
 			Scope: "/staging/west",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"wronguser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "team",
 							Values: []string{"red"},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 
 	pack := newScopedAccessAuthzPack(t, serverV2, scopedRoles, types.DefaultClusterNetworkingConfig())
@@ -530,79 +530,79 @@ func TestScopedRBAC(t *testing.T) {
 	}{
 		{
 			name: "basic allow",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"staging-west-red"}},
 				}),
-			},
+			}.Build(),
 			allowed: true,
 		},
 		{
 			name: "too narrow scope",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging/west/narrow",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"staging-west-red"}},
 				}),
-			},
+			}.Build(),
 			allowed: false,
 		},
 		{
 			name: "label mismatch",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"staging-west-blue"}},
 				}),
-			},
+			}.Build(),
 			allowed: false,
 		},
 		{
 			name: "scope permission mismatch",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/east": {"/staging/east": {"staging-east-red"}},
 				}),
-			},
+			}.Build(),
 			allowed: false,
 		},
 		{
 			name: "orthogonal scope",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/prod",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/prod/west": {"/prod/west": {"prod-west-red"}},
 				}),
-			},
+			}.Build(),
 			allowed: false,
 		},
 		{
 			name: "no labels",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"staging-west-no-labels"}},
 				}),
-			},
+			}.Build(),
 			allowed: false,
 		},
 		{
 			name: "wrong login",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"staging-west-wrong-login"}},
 				}),
-			},
+			}.Build(),
 			allowed: false,
 		},
 	}
@@ -761,7 +761,7 @@ func TestCheckAgentForward(t *testing.T) {
 		{
 			name:          "access permit allows agent forwarding",
 			component:     teleport.ComponentNode,
-			accessPermit:  &decisionpb.SSHAccessPermit{ForwardAgent: true},
+			accessPermit:  decisionpb.SSHAccessPermit_builder{ForwardAgent: true}.Build(),
 			expectAllowed: true,
 		},
 		{
@@ -1024,9 +1024,9 @@ func TestRBACJoinMFA(t *testing.T) {
 			permit, err := ah.evaluateSSHAccess(ident, userCA, clusterName, node, teleport.SSHSessionJoinPrincipal)
 			tt.testError(t, err)
 			if err == nil && tt.expectPinSourceIP {
-				require.Contains(t, permit.Preconditions, &decisionpb.Precondition{
+				require.Contains(t, permit.GetPreconditions(), decisionpb.Precondition_builder{
 					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-				})
+				}.Build())
 			}
 		})
 	}
@@ -1260,24 +1260,24 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 	require.NoError(t, err)
 
 	precondsPermitRaw, err := protojson.Marshal(
-		&decisionpb.SSHAccessPermit{
+		decisionpb.SSHAccessPermit_builder{
 			Preconditions: []*decisionpb.Precondition{
-				{
+				decisionpb.Precondition_builder{
 					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA,
-				},
+				}.Build(),
 			},
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 
 	ipPinningPrecondPermitRaw, err := protojson.Marshal(
-		&decisionpb.SSHAccessPermit{
+		decisionpb.SSHAccessPermit_builder{
 			Preconditions: []*decisionpb.Precondition{
-				{
+				decisionpb.Precondition_builder{
 					Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_PIN_SOURCE_IP,
-				},
+				}.Build(),
 			},
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 
@@ -1376,13 +1376,13 @@ func TestVerifiedPublicKeyCallback(t *testing.T) {
 		ah := &AuthHandlers{}
 
 		unsupportedPermitRaw, err := protojson.Marshal(
-			&decisionpb.SSHAccessPermit{
+			decisionpb.SSHAccessPermit_builder{
 				Preconditions: []*decisionpb.Precondition{
-					{
+					decisionpb.Precondition_builder{
 						Kind: decisionpb.PreconditionKind(999),
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 		)
 		require.NoError(t, err)
 
@@ -1776,194 +1776,194 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 	// set up various scoped roles with different scoping, labels, and logins. Note that this test relies on
 	// the each role, and the above cnc, using unique timeout values so that we can tell which policy "won".
 	scopedRoles := []*scopedaccessv1.ScopedRole{
-		{
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "no-timeout",
-			},
+			}.Build(),
 			Scope: "/staging/west",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"test"},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "10m-timeout",
-			},
+			}.Build(),
 			Scope: "/staging/west",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"test"},
-						},
+						}.Build(),
 					},
 					ClientIdleTimeout: "10m",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "1h-timeout",
-			},
+			}.Build(),
 			Scope: "/staging/west",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"test"},
-						},
+						}.Build(),
 					},
 					ClientIdleTimeout: "1h",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "25m-timeout",
-			},
+			}.Build(),
 			Scope: "/staging",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"test"},
-						},
+						}.Build(),
 					},
 					ClientIdleTimeout: "25m",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "22m-timeout-general",
-			},
+			}.Build(),
 			Scope: "/staging",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"test"},
-						},
+						}.Build(),
 					},
 					ClientIdleTimeout: "22m",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "15m-timeout-specific",
-			},
+			}.Build(),
 			Scope: "/staging",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"test"},
-						},
+						}.Build(),
 					},
 					ClientIdleTimeout: "15m",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "12m-timeout-team-blue",
-			},
+			}.Build(),
 			Scope: "/staging",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "team",
 							Values: []string{"blue"},
-						},
+						}.Build(),
 					},
 					ClientIdleTimeout: "12m",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "16m-timeout",
-			},
+			}.Build(),
 			Scope: "/staging/west",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"testuser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"test"},
-						},
+						}.Build(),
 					},
 					ClientIdleTimeout: "16m",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "18m-timeout-wrong-login",
-			},
+			}.Build(),
 			Scope: "/staging",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/staging/west"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"wronguser"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"test"},
-						},
+						}.Build(),
 					},
 					ClientIdleTimeout: "18m",
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 
 	pack := newScopedAccessAuthzPack(t, serverV2, scopedRoles, netConfig)
@@ -1976,52 +1976,52 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 	}{
 		{
 			name: "no role timeout uses global default",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"no-timeout"}},
 				}),
-			},
+			}.Build(),
 			expectTimeout: 30 * time.Minute, // global default from cnc
 		},
 		{
 			name: "role timeout more restrictive than global",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"10m-timeout"}},
 				}),
-			},
+			}.Build(),
 			expectTimeout: 10 * time.Minute, // role timeout from the only applicable role
 		},
 		{
 			name: "role timeout less restrictive than global",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging/west": {"/staging/west": {"1h-timeout"}},
 				}),
-			},
+			}.Build(),
 			expectTimeout: 30 * time.Minute, // global default due to being more restrictive than role timeout
 		},
 		{
 			name: "winning role determines timeout (single-role evaluation)",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging":      {"/staging/west": {"25m-timeout"}},
 					"/staging/west": {"/staging/west": {"10m-timeout"}},
 				}),
-			},
+			}.Build(),
 			expectTimeout: 25 * time.Minute, // role assigned *from* a more ancestral/authoritative scope of origin wins
 		},
 		{
 			name: "more specific scope of effect wins (same origin)",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
@@ -2030,31 +2030,31 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 						"/staging/west": {"15m-timeout-specific"},
 					},
 				}),
-			},
+			}.Build(),
 			expectTimeout: 15 * time.Minute, // role assigned *to* a more specific scope of effect wins
 		},
 		{
 			name: "label selector mismatch causes fallback to next role",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging":      {"/staging/west": {"12m-timeout-team-blue"}},
 					"/staging/west": {"/staging/west": {"16m-timeout"}},
 				}),
-			},
+			}.Build(),
 			expectTimeout: 16 * time.Minute, // role with child scope of origin wins due to label selector mismatch
 		},
 		{
 			name: "login mismatch causes fallback to next role",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_USER,
 				Scope: "/staging",
 				AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 					"/staging":      {"/staging/west": {"18m-timeout-wrong-login"}},
 					"/staging/west": {"/staging/west": {"10m-timeout"}},
 				}),
-			},
+			}.Build(),
 			expectTimeout: 10 * time.Minute, // role with child scope of origin wins due to login mismatch
 		},
 	}
@@ -2072,7 +2072,7 @@ func TestScopedClientIdleTimeout(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, permit)
 
-			actualTimeout := permit.ClientIdleTimeout.AsDuration()
+			actualTimeout := permit.GetClientIdleTimeout().AsDuration()
 			require.Equal(t, tt.expectTimeout, actualTimeout,
 				"ClientIdleTimeout should be %v but got %v", tt.expectTimeout, actualTimeout)
 		})
@@ -2096,13 +2096,13 @@ func newScopedSSHPermitTestPack(t *testing.T, roles []*scopedaccessv1.ScopedRole
 
 	// add standard logins and labels to each role so they match the test node
 	for _, role := range roles {
-		if role.Spec.Ssh.Logins == nil {
-			role.Spec.Ssh.Logins = []string{"testuser"}
+		if role.GetSpec().GetSsh().GetLogins() == nil {
+			role.GetSpec().GetSsh().SetLogins([]string{"testuser"})
 		}
-		if role.Spec.Ssh.Labels == nil {
-			role.Spec.Ssh.Labels = []*labelv1.Label{
-				{Name: "env", Values: []string{"test"}},
-			}
+		if role.GetSpec().GetSsh().GetLabels() == nil {
+			role.GetSpec().GetSsh().SetLabels([]*labelv1.Label{
+				labelv1.Label_builder{Name: "env", Values: []string{"test"}}.Build(),
+			})
 		}
 	}
 
@@ -2110,26 +2110,26 @@ func newScopedSSHPermitTestPack(t *testing.T, roles []*scopedaccessv1.ScopedRole
 }
 
 func pinForRole(roleName string) *scopesv1.Pin {
-	return &scopesv1.Pin{
+	return scopesv1.Pin_builder{
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/staging",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 			"/staging/west": {"/staging/west": {roleName}},
 		}),
-	}
+	}.Build()
 }
 
 func baseScopedRoleForAuthz(name string) *scopedaccessv1.ScopedRole {
-	return &scopedaccessv1.ScopedRole{
+	return scopedaccessv1.ScopedRole_builder{
 		Kind:     scopedaccess.KindScopedRole,
-		Metadata: &headerv1.Metadata{Name: name},
+		Metadata: headerv1.Metadata_builder{Name: name}.Build(),
 		Scope:    "/staging/west",
-		Spec: &scopedaccessv1.ScopedRoleSpec{
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{"/staging/west"},
 			Ssh:              &scopedaccessv1.ScopedRoleSSH{},
-		},
+		}.Build(),
 		Version: types.V1,
-	}
+	}.Build()
 }
 
 func TestScopedX11Forwarding(t *testing.T) {
@@ -2137,10 +2137,10 @@ func TestScopedX11Forwarding(t *testing.T) {
 	const x11disabled = "x11-disabled"
 	const x11unset = "x11-unset"
 	enabled := baseScopedRoleForAuthz(x11enabled)
-	enabled.Spec.Ssh.PermitX11Forwarding = proto.Bool(true)
+	enabled.GetSpec().GetSsh().SetPermitX11Forwarding(true)
 
 	disabled := baseScopedRoleForAuthz(x11disabled)
-	disabled.Spec.Ssh.PermitX11Forwarding = proto.Bool(false)
+	disabled.GetSpec().GetSsh().SetPermitX11Forwarding(false)
 
 	unset := baseScopedRoleForAuthz(x11unset)
 
@@ -2159,7 +2159,7 @@ func TestScopedX11Forwarding(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.X11Forwarding)
+			require.Equal(t, tt.expect, permit.GetX11Forwarding())
 		})
 	}
 }
@@ -2170,10 +2170,10 @@ func TestScopedForwardAgent(t *testing.T) {
 	const agentUnset = "agent-unset"
 
 	enabled := baseScopedRoleForAuthz(agentEnabled)
-	enabled.Spec.Ssh.ForwardAgent = proto.Bool(true)
+	enabled.GetSpec().GetSsh().SetForwardAgent(true)
 
 	disabled := baseScopedRoleForAuthz(agentDisabled)
-	disabled.Spec.Ssh.ForwardAgent = proto.Bool(false)
+	disabled.GetSpec().GetSsh().SetForwardAgent(false)
 
 	unset := baseScopedRoleForAuthz(agentUnset)
 
@@ -2192,7 +2192,7 @@ func TestScopedForwardAgent(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.ForwardAgent)
+			require.Equal(t, tt.expect, permit.GetForwardAgent())
 		})
 	}
 }
@@ -2203,10 +2203,10 @@ func TestScopedSSHFileCopy(t *testing.T) {
 	const copyUnset = "copy-unset"
 
 	enabled := baseScopedRoleForAuthz(copyEnabled)
-	enabled.Spec.Ssh.FileCopy = proto.Bool(true)
+	enabled.GetSpec().GetSsh().SetFileCopy(true)
 
 	disabled := baseScopedRoleForAuthz(copyDisabled)
-	disabled.Spec.Ssh.FileCopy = proto.Bool(false)
+	disabled.GetSpec().GetSsh().SetFileCopy(false)
 
 	unset := baseScopedRoleForAuthz(copyUnset)
 
@@ -2225,7 +2225,7 @@ func TestScopedSSHFileCopy(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.SshFileCopy)
+			require.Equal(t, tt.expect, permit.GetSshFileCopy())
 		})
 	}
 }
@@ -2237,22 +2237,22 @@ func TestScopedSSHPortForwarding(t *testing.T) {
 	const pfUnset = "pf-unset"
 
 	bothOn := baseScopedRoleForAuthz(pfBothOn)
-	bothOn.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
-		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
-		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(true)},
-	}
+	bothOn.GetSpec().GetSsh().SetPortForwarding(scopedaccessv1.SSHPortForwarding_builder{
+		Local:  scopedaccessv1.SSHLocalPortForwarding_builder{Enabled: proto.Bool(true)}.Build(),
+		Remote: scopedaccessv1.SSHRemotePortForwarding_builder{Enabled: proto.Bool(true)}.Build(),
+	}.Build())
 
 	bothOff := baseScopedRoleForAuthz(pfBothOff)
-	bothOff.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
-		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(false)},
-		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
-	}
+	bothOff.GetSpec().GetSsh().SetPortForwarding(scopedaccessv1.SSHPortForwarding_builder{
+		Local:  scopedaccessv1.SSHLocalPortForwarding_builder{Enabled: proto.Bool(false)}.Build(),
+		Remote: scopedaccessv1.SSHRemotePortForwarding_builder{Enabled: proto.Bool(false)}.Build(),
+	}.Build())
 
 	localOnly := baseScopedRoleForAuthz(pfLocalOnly)
-	localOnly.Spec.Ssh.PortForwarding = &scopedaccessv1.SSHPortForwarding{
-		Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
-		Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(false)},
-	}
+	localOnly.GetSpec().GetSsh().SetPortForwarding(scopedaccessv1.SSHPortForwarding_builder{
+		Local:  scopedaccessv1.SSHLocalPortForwarding_builder{Enabled: proto.Bool(true)}.Build(),
+		Remote: scopedaccessv1.SSHRemotePortForwarding_builder{Enabled: proto.Bool(false)}.Build(),
+	}.Build())
 
 	unset := baseScopedRoleForAuthz(pfUnset)
 	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{bothOn, bothOff, localOnly, unset})
@@ -2271,7 +2271,7 @@ func TestScopedSSHPortForwarding(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.PortForwardMode)
+			require.Equal(t, tt.expect, permit.GetPortForwardMode())
 		})
 	}
 }
@@ -2282,10 +2282,10 @@ func TestScopedMaxSessions(t *testing.T) {
 	const sessionsUnset = "sessions-unset"
 
 	five := baseScopedRoleForAuthz(sessions5)
-	five.Spec.Ssh.MaxSessions = proto.Int64(5)
+	five.GetSpec().GetSsh().SetMaxSessions(5)
 
 	one := baseScopedRoleForAuthz(sessions1)
-	one.Spec.Ssh.MaxSessions = proto.Int64(1)
+	one.GetSpec().GetSsh().SetMaxSessions(1)
 
 	unset := baseScopedRoleForAuthz(sessionsUnset)
 
@@ -2304,7 +2304,7 @@ func TestScopedMaxSessions(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.MaxSessions)
+			require.Equal(t, tt.expect, permit.GetMaxSessions())
 		})
 	}
 }
@@ -2315,16 +2315,16 @@ func TestScopedHostUserCreation(t *testing.T) {
 	const hostUserUnset = "host-user-unset"
 
 	keep := baseScopedRoleForAuthz(hostUserKeep)
-	keep.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
+	keep.GetSpec().GetSsh().SetHostUserCreation(scopedaccessv1.CreateHostUser_builder{
 		Mode:   "keep",
 		Groups: []string{"wheel"},
 		Shell:  "/bin/bash",
-	}
+	}.Build())
 
 	off := baseScopedRoleForAuthz(hostUserOff)
-	off.Spec.Ssh.HostUserCreation = &scopedaccessv1.CreateHostUser{
+	off.GetSpec().GetSsh().SetHostUserCreation(scopedaccessv1.CreateHostUser_builder{
 		Mode: "off",
-	}
+	}.Build())
 
 	unset := baseScopedRoleForAuthz(hostUserUnset)
 
@@ -2344,9 +2344,9 @@ func TestScopedHostUserCreation(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
 			if tt.expectNil {
-				require.Nil(t, permit.HostUsersInfo)
+				require.Nil(t, permit.GetHostUsersInfo())
 			} else {
-				require.NotNil(t, permit.HostUsersInfo)
+				require.NotNil(t, permit.GetHostUsersInfo())
 			}
 		})
 	}
@@ -2358,7 +2358,7 @@ func TestHostSudoers(t *testing.T) {
 
 	present := baseScopedRoleForAuthz(sudoersPresent)
 	expectedSudoers := []string{"ALL=(ALL) NOPASSWD:ALL"}
-	present.Spec.Ssh.HostSudoers = expectedSudoers
+	present.GetSpec().GetSsh().SetHostSudoers(expectedSudoers)
 	unset := baseScopedRoleForAuthz(sudoersUnset)
 
 	pack := newScopedSSHPermitTestPack(t, []*scopedaccessv1.ScopedRole{present, unset})
@@ -2375,7 +2375,7 @@ func TestHostSudoers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			permit, err := pack.UserKeyAuthFromPin(t, tt.pin)
 			require.NoError(t, err)
-			require.Equal(t, tt.expect, permit.HostSudoers)
+			require.Equal(t, tt.expect, permit.GetHostSudoers())
 		})
 	}
 }

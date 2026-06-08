@@ -575,8 +575,8 @@ func (s *Server) close(ctx context.Context) error {
 		// Manual deletion per app is only required if the auth server
 		// doesn't support actively cleaning up app resources when the
 		// inventory control stream is terminated during shutdown.
-		if capabilities := sender.Hello().Capabilities; capabilities != nil {
-			shouldDeleteApps = shouldDeleteApps && !capabilities.AppCleanup
+		if capabilities := sender.Hello().GetCapabilities(); capabilities != nil {
+			shouldDeleteApps = shouldDeleteApps && !capabilities.GetAppCleanup()
 		}
 	}
 

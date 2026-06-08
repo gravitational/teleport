@@ -48,7 +48,7 @@ func TestEmbeddedVNet(t *testing.T) {
 		tlsCA: tlsCA,
 		clock: clockwork.NewRealClock(),
 	})
-	proxyDialOpts.InsecureSkipVerify = true
+	proxyDialOpts.SetInsecureSkipVerify(true)
 
 	clientCert, err := newClientCert(ctx,
 		tlsCA,
@@ -112,31 +112,29 @@ type testEmbeddedApplicationService struct {
 }
 
 func (s *testEmbeddedApplicationService) ResolveFQDN(ctx context.Context, fqdn string) (*vnetv1.ResolveFQDNResponse, error) {
-	return &vnetv1.ResolveFQDNResponse{
-		Match: &vnetv1.ResolveFQDNResponse_MatchedTcpApp{
-			MatchedTcpApp: &vnetv1.MatchedTCPApp{
-				AppInfo: &vnetv1.AppInfo{
-					AppKey: &vnetv1.AppKey{
-						Name: "echo-server",
+	return vnetv1.ResolveFQDNResponse_builder{
+		MatchedTcpApp: vnetv1.MatchedTCPApp_builder{
+			AppInfo: vnetv1.AppInfo_builder{
+				AppKey: vnetv1.AppKey_builder{
+					Name: "echo-server",
+				}.Build(),
+				App: &types.AppV3{
+					Spec: types.AppSpecV3{
+						URI: "tcp://this-address-does-not-matter:1234",
 					},
-					App: &types.AppV3{
-						Spec: types.AppSpecV3{
-							URI: "tcp://this-address-does-not-matter:1234",
-						},
-					},
-					Ipv4CidrRange: vnet.DefaultIPv4CIDRRange,
-					DialOptions:   s.dialOpts,
 				},
-			},
-		},
-	}, nil
+				Ipv4CidrRange: vnet.DefaultIPv4CIDRRange,
+				DialOptions:   s.dialOpts,
+			}.Build(),
+		}.Build(),
+	}.Build(), nil
 }
 
 func (s *testEmbeddedApplicationService) GetTargetOSConfiguration(ctx context.Context) (*vnetv1.TargetOSConfiguration, error) {
-	return &vnetv1.TargetOSConfiguration{
+	return vnetv1.TargetOSConfiguration_builder{
 		DnsZones:       []string{"dunder-mifflin.com"},
 		Ipv4CidrRanges: []string{vnet.DefaultIPv4CIDRRange},
-	}, nil
+	}.Build(), nil
 }
 
 func (s *testEmbeddedApplicationService) GetAppCert(context.Context, *vnetv1.AppInfo, uint16) (*tls.Certificate, error) {

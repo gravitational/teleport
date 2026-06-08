@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/fixtures"
 	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/modules"
@@ -1624,40 +1625,40 @@ func newScopedKubeAuthorizer(t *testing.T, cfg scopedKubeAuthorizerConfig) mockA
 
 	var lock *scopedaccessv1.Lock
 	if cfg.kubeLockMode != "" {
-		lock = &scopedaccessv1.Lock{Mode: string(cfg.kubeLockMode)}
+		lock = scopedaccessv1.Lock_builder{Mode: string(cfg.kubeLockMode)}.Build()
 	}
 
-	role := &scopedaccessv1.ScopedRole{
+	role := scopedaccessv1.ScopedRole_builder{
 		Kind: "scoped_role",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: scopedTestRole,
-		},
+		}.Build(),
 		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleSpec{
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{scopedTestScope},
-			Kube: &scopedaccessv1.ScopedRoleKube{
+			Kube: scopedaccessv1.ScopedRoleKube_builder{
 				Labels: []*labelv1.Label{
-					{Name: types.Wildcard, Values: []string{types.Wildcard}},
+					labelv1.Label_builder{Name: types.Wildcard, Values: []string{types.Wildcard}}.Build(),
 				},
 				Groups:                cfg.kubeGroups,
 				Users:                 cfg.kubeUsers,
 				Lock:                  lock,
 				DisconnectExpiredCert: cfg.kubeDisconnectExpired,
-			},
-		},
+			}.Build(),
+		}.Build(),
 		Version: types.V1,
-	}
+	}.Build()
 
 	reader := &fakeScopedRoleReader{
 		role: role,
 	}
 
-	pin := &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: scopedTestScope}
-	pin.AssignmentTree = pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+	pin := scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: scopedTestScope}.Build()
+	pin.SetAssignmentTree(pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 		"/": {
 			scopedTestScope: {scopedTestRole},
 		},
-	})
+	}))
 
 	checkerCtx, err := services.NewScopedAccessCheckerContext(t.Context(), &services.AccessInfo{
 		Username: cfg.user.GetName(),
@@ -1682,11 +1683,11 @@ type fakeScopedRoleReader struct {
 
 func (r *fakeScopedRoleReader) GetScopedRole(_ context.Context, req *scopedaccessv1.GetScopedRoleRequest) (*scopedaccessv1.GetScopedRoleResponse, error) {
 
-	return &scopedaccessv1.GetScopedRoleResponse{Role: r.role}, nil
+	return scopedaccessv1.GetScopedRoleResponse_builder{Role: r.role}.Build(), nil
 }
 
 func (r *fakeScopedRoleReader) ListScopedRoles(context.Context, *scopedaccessv1.ListScopedRolesRequest) (*scopedaccessv1.ListScopedRolesResponse, error) {
-	return &scopedaccessv1.ListScopedRolesResponse{Roles: []*scopedaccessv1.ScopedRole{r.role}}, nil
+	return scopedaccessv1.ListScopedRolesResponse_builder{Roles: []*scopedaccessv1.ScopedRole{r.role}}.Build(), nil
 }
 
 type mockEventClient struct {
@@ -2418,6 +2419,109 @@ func TestGOAWAYHandling_Concurrent(t *testing.T) {
 	wg.Wait()
 
 	require.Zero(t, rewindLeaks.Load(), "rewind-body error must never reach the client")
+}
+
+func TestForwarderConfig(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+	authority, err := testauthority.NewKeygen(modules.BuildOSS, clock.Now)
+	require.NoError(t, err)
+
+	authClient, err := newMockCAClient()
+	require.NoError(t, err)
+
+	lockWatcher, err := services.NewLockWatcher(t.Context(), services.LockWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: teleport.ComponentKube,
+			Client:    &mockEventClient{},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(lockWatcher.Close)
+
+	// baseCfg contains all required fields for a successful call to CheckAndSetDefaults.
+	// The mutateFn for each case should introduce the specific changes that
+	// lead to expected end states.
+	baseCfg := ForwarderConfig{
+		AuthClient:        authClient,
+		CachingAuthClient: mockAccessPoint{},
+		ScopedAuthz:       mockAuthorizer{},
+		LockWatcher:       lockWatcher,
+		Emitter:           events.NewDiscardEmitter(),
+		ClusterName:       "local",
+		Keygen:            authority,
+		DataDir:           t.TempDir(),
+		HostID:            "host-id",
+		ClusterFeatures:   fakeClusterFeatures,
+		KubeServiceType:   KubeService,
+	}
+	cases := []struct {
+		name string
+		// mutateFn accepts a value and returns a pointer so that we don't
+		// alter the baseCfg for other cases
+		mutateFn    func(cfg ForwarderConfig) *ForwarderConfig
+		expectScope string
+		expectErr   string
+	}{
+		{
+			name: "unscoped",
+		},
+		{
+			name:        "scoped with agent scope",
+			expectScope: "/test",
+			mutateFn: func(cfg ForwarderConfig) *ForwarderConfig {
+				cfg.Scope = "/test"
+				return &cfg
+			},
+		},
+		{
+			name:        "scoped with scope pin",
+			expectScope: "/test",
+			mutateFn: func(cfg ForwarderConfig) *ForwarderConfig {
+				cfg.ScopePin = scopesv1.Pin_builder{
+					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+					Scope: "/test",
+					SystemRoles: scopesv1.SystemRoles_builder{
+						Primary: types.RoleKube.String(),
+					}.Build(),
+				}.Build()
+				return &cfg
+			},
+		},
+		{
+			name: "scoped with both an agent scope and scope pin",
+			mutateFn: func(cfg ForwarderConfig) *ForwarderConfig {
+				cfg.Scope = "/test"
+				cfg.ScopePin = scopesv1.Pin_builder{
+					Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+					Scope: "/test",
+					SystemRoles: scopesv1.SystemRoles_builder{
+						Primary: types.RoleKube.String(),
+					}.Build(),
+				}.Build()
+				return &cfg
+			},
+			expectErr: "either a scope pin or a bare scope must be set for a scoped kube forwarder, not both",
+		},
+	}
+
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			cfg := baseCfg
+			if c.mutateFn != nil {
+				cfg = *c.mutateFn(cfg)
+			}
+			err := cfg.CheckAndSetDefaults()
+			if c.expectErr != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, c.expectErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, c.expectScope, cfg.GetScope())
+			}
+		})
+	}
 }
 
 // goawayServer is a fake [http2.Server] that terminates all received client

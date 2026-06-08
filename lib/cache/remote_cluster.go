@@ -240,7 +240,7 @@ func (c *Cache) GetRemoteCluster(ctx context.Context, clusterName string) (types
 
 // ListRemoteClusters returns a page of remote clusters.
 func (c *Cache) ListRemoteClusters(ctx context.Context, pageSize int, nextToken string) ([]types.RemoteCluster, string, error) {
-	_, span := c.Tracer.Start(ctx, "cache/ListRemoteClusters")
+	ctx, span := c.Tracer.Start(ctx, "cache/ListRemoteClusters")
 	defer span.End()
 
 	lister := genericLister[types.RemoteCluster, remoteClusterIndex]{

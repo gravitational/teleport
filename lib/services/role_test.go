@@ -8558,7 +8558,7 @@ func TestHostUsers_getGroups(t *testing.T) {
 			accessChecker := makeAccessCheckerWithRoleSet(tc.roles)
 			hu, err := accessChecker.HostUsers(tc.server)
 			require.NoError(t, err)
-			require.ElementsMatch(t, tc.groups, hu.Info.Groups)
+			require.ElementsMatch(t, tc.groups, hu.Info.GetGroups())
 		})
 	}
 }
@@ -9043,7 +9043,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 			if tc.canCreate {
 				require.NotEmpty(t, hu.AllowedBy)
 				require.Empty(t, hu.DeniedBy)
-				require.Equal(t, convertHostUserMode(tc.expectedMode), hu.Info.Mode)
+				require.Equal(t, convertHostUserMode(tc.expectedMode), hu.Info.GetMode())
 			} else {
 				require.NotEmpty(t, hu.DeniedBy)
 				require.Nil(t, hu.Info)
@@ -9855,13 +9855,13 @@ func TestCheckAccessWithLabelExpressions(t *testing.T) {
 		&types.WindowsDesktopV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktop}},
 		&types.WindowsDesktopServiceV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktopService}},
 		&types.UserGroupV1{ResourceHeader: types.ResourceHeader{Kind: types.KindUserGroup}},
-		types.Resource153ToResourceWithLabels(&beamsv1.Beam{
+		types.Resource153ToResourceWithLabels(beamsv1.Beam_builder{
 			Kind:    types.KindBeam,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Labels: map[string]string{},
-			},
-		}),
+			}.Build(),
+		}.Build()),
 	}
 	for _, r := range resources {
 		r.SetStaticLabels(map[string]string{"env": "prod"})

@@ -205,7 +205,7 @@ export function DesktopSession({
   const addWarning = useCallback(
     (warning: string) => {
       addAlert({
-        content: warning,
+        content: { title: 'Warning', description: warning },
         severity: 'warn',
       });
     },
@@ -219,7 +219,7 @@ export function DesktopSession({
     useCallback(
       info => {
         addAlert({
-          content: info,
+          content: { title: 'Notice', description: info },
           severity: 'info',
         });
       },

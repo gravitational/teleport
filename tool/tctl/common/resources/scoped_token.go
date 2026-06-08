@@ -119,32 +119,32 @@ func getScopedToken(ctx context.Context, client *authclient.Client, ref services
 			return nil, trace.Wrap(err)
 		}
 		if !opts.WithSecrets && token.GetStatus().GetSecret() != "" {
-			token.GetStatus().Secret = "******"
+			token.GetStatus().SetSecret("******")
 		}
 		// As a note, this seems to be dead code, these secrets are always empty
 		// if WithSecrets is unset, since the server will strip the value.
 		if !opts.WithSecrets && token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
-			token.GetStatus().GetUsage().GetBoundKeypair().RegistrationSecret = "******"
+			token.GetStatus().GetUsage().GetBoundKeypair().SetRegistrationSecret("******")
 		}
 		return &scopedTokenCollection{[]*joiningv1.ScopedToken{token}}, nil
 	}
 
 	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*joiningv1.ScopedToken, string, error) {
-		res, err := client.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{
+		res, err := client.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
 			Limit:       uint32(pageSize),
 			Cursor:      pageKey,
 			WithSecrets: opts.WithSecrets,
-		})
+		}.Build())
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		if !opts.WithSecrets {
 			for _, token := range res.GetTokens() {
 				if token.GetStatus().GetSecret() != "" {
-					token.GetStatus().Secret = "******"
+					token.GetStatus().SetSecret("******")
 				}
 				if token.GetStatus().GetUsage().GetBoundKeypair().GetRegistrationSecret() != "" {
-					token.GetStatus().GetUsage().GetBoundKeypair().RegistrationSecret = "******"
+					token.GetStatus().GetUsage().GetBoundKeypair().SetRegistrationSecret("******")
 				}
 			}
 		}
@@ -198,7 +198,7 @@ func ScopedTokenTextHelper(tokens []*joiningv1.ScopedToken, withSecrets bool) *b
 			strings.Join(t.GetSpec().GetRoles(), ","),
 			t.GetScope(),
 			t.GetSpec().GetAssignedScope(),
-			PrintMetadataLabels(t.GetMetadata().Labels),
+			PrintMetadataLabels(t.GetMetadata().GetLabels()),
 			expiry,
 		}
 		if withSecrets {

@@ -50,7 +50,12 @@ export type DeviceSource = {
   origin: DeviceOrigin;
 };
 
-export type TrustedDeviceOSType = 'Windows' | 'Linux' | 'macOS';
+export type TrustedDeviceOSType =
+  | 'Windows'
+  | 'Linux'
+  | 'macOS'
+  | 'iOS'
+  | 'iPadOS';
 
 export type TrustedDeviceResponse = {
   items: TrustedDevice[];

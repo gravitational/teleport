@@ -2879,7 +2879,7 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 
 		resource, err := kubewaitingcontainer.NewKubeWaitingContainer(
 			parts[5],
-			&kubewaitingcontainerpb.KubernetesWaitingContainerSpec{
+			kubewaitingcontainerpb.KubernetesWaitingContainerSpec_builder{
 				Username:      parts[1],
 				Cluster:       parts[2],
 				Namespace:     parts[3],
@@ -2887,7 +2887,7 @@ func (p *kubeWaitingContainerParser) parse(event backend.Event) (types.Resource,
 				ContainerName: parts[5],
 				Patch:         []byte("{}"),                       // default to empty patch. It doesn't matter for delete ops.
 				PatchType:     kubewaitingcontainer.JSONPatchType, // default to JSON patch. It doesn't matter for delete ops.
-			},
+			}.Build(),
 		)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -2966,16 +2966,16 @@ func (p *userNotificationParser) parse(event backend.Event) (types.Resource, err
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindNotification, event.Item.Key)
 		}
 
-		notification := &notificationsv1.Notification{
+		notification := notificationsv1.Notification_builder{
 			Kind:    types.KindNotification,
 			Version: types.V1,
-			Spec: &notificationsv1.NotificationSpec{
+			Spec: notificationsv1.NotificationSpec_builder{
 				Username: parts[2],
-			},
-			Metadata: &headerv1.Metadata{
+			}.Build(),
+			Metadata: headerv1.Metadata_builder{
 				Name: parts[3],
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(notification), nil
 	case types.OpPut:
@@ -3010,18 +3010,18 @@ func (p *globalNotificationParser) parse(event backend.Event) (types.Resource, e
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindGlobalNotification, event.Item.Key)
 		}
 
-		globalNotification := &notificationsv1.GlobalNotification{
+		globalNotification := notificationsv1.GlobalNotification_builder{
 			Kind:    types.KindGlobalNotification,
 			Version: types.V1,
-			Spec: &notificationsv1.GlobalNotificationSpec{
-				Notification: &notificationsv1.Notification{
+			Spec: notificationsv1.GlobalNotificationSpec_builder{
+				Notification: notificationsv1.Notification_builder{
 					Spec: &notificationsv1.NotificationSpec{},
-				},
-			},
-			Metadata: &headerv1.Metadata{
+				}.Build(),
+			}.Build(),
+			Metadata: headerv1.Metadata_builder{
 				Name: parts[2],
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(globalNotification), nil
 	case types.OpPut:
@@ -3056,17 +3056,17 @@ func (p *botInstanceParser) parse(event backend.Event) (types.Resource, error) {
 			return nil, trace.BadParameter("malformed key for %s event: %s", types.KindBotInstance, event.Item.Key)
 		}
 
-		botInstance := &machineidv1.BotInstance{
+		botInstance := machineidv1.BotInstance_builder{
 			Kind:    types.KindBotInstance,
 			Version: types.V1,
-			Spec: &machineidv1.BotInstanceSpec{
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    parts[1],
 				InstanceId: parts[2],
-			},
-			Metadata: &headerv1.Metadata{
+			}.Build(),
+			Metadata: headerv1.Metadata_builder{
 				Name: parts[2],
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(botInstance), nil
 	case types.OpPut:
@@ -3260,16 +3260,16 @@ func (p *accessGraphSecretPrivateKeyParser) parse(event backend.Event) (types.Re
 		}
 		deviceID := key.Components()[0]
 
-		privateKey := &accessgraphsecretsv1pb.PrivateKey{
+		privateKey := accessgraphsecretsv1pb.PrivateKey_builder{
 			Kind:    types.KindAccessGraphSecretPrivateKey,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: strings.TrimPrefix(key.TrimPrefix(backend.NewKey(deviceID)).String(), backend.SeparatorString),
-			},
-			Spec: &accessgraphsecretsv1pb.PrivateKeySpec{
+			}.Build(),
+			Spec: accessgraphsecretsv1pb.PrivateKeySpec_builder{
 				DeviceId: deviceID,
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(privateKey), nil
 	case types.OpPut:
@@ -3305,16 +3305,16 @@ func (p *accessGraphSecretAuthorizedKeyParser) parse(event backend.Event) (types
 		}
 		hostID := key.Components()[0]
 
-		authorizedKey := &accessgraphsecretsv1pb.AuthorizedKey{
+		authorizedKey := accessgraphsecretsv1pb.AuthorizedKey_builder{
 			Kind:    types.KindAccessGraphSecretAuthorizedKey,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: strings.TrimPrefix(key.TrimPrefix(backend.NewKey(hostID)).String(), backend.SeparatorString),
-			},
-			Spec: &accessgraphsecretsv1pb.AuthorizedKeySpec{
+			}.Build(),
+			Spec: accessgraphsecretsv1pb.AuthorizedKeySpec_builder{
 				HostId: hostID,
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		return types.Resource153ToLegacy(authorizedKey), nil
 	case types.OpPut:
@@ -3409,16 +3409,16 @@ func (p *provisioningStateParser) parse(event backend.Event) (types.Resource, er
 		downstreamID := keyComponents[0]
 		resourceID := keyComponents[1]
 
-		pseudoState := &provisioningv1.PrincipalState{
+		pseudoState := provisioningv1.PrincipalState_builder{
 			Kind:    types.KindProvisioningPrincipalState,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: resourceID,
-			},
-			Spec: &provisioningv1.PrincipalStateSpec{
+			}.Build(),
+			Spec: provisioningv1.PrincipalStateSpec_builder{
 				DownstreamId: downstreamID,
-			},
-		}
+			}.Build(),
+		}.Build()
 		return types.Resource153ToLegacy(pseudoState), nil
 
 	case types.OpPut:

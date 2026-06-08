@@ -32,6 +32,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	appauthconfigv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/appauthconfig/v1"
 	labelv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/label/v1"
@@ -70,11 +71,9 @@ func TestRetrieveJWKS(t *testing.T) {
 	t.Run("static", func(t *testing.T) {
 		t.Run("valid", func(t *testing.T) {
 			jwksRes, sigsRes, err := retrieveJWKSAppAuthConfig(
-				&appauthconfigv1.AppAuthConfigJWTSpec{
-					KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_StaticJwks{
-						StaticJwks: string(encodedJwks),
-					},
-				},
+				appauthconfigv1.AppAuthConfigJWTSpec_builder{
+					StaticJwks: proto.String(string(encodedJwks)),
+				}.Build(),
 				nil, /* httpClient */
 			)
 			require.NoError(t, err)
@@ -84,11 +83,9 @@ func TestRetrieveJWKS(t *testing.T) {
 
 		t.Run("empty", func(t *testing.T) {
 			_, _, err := retrieveJWKSAppAuthConfig(
-				&appauthconfigv1.AppAuthConfigJWTSpec{
-					KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_StaticJwks{
-						StaticJwks: "{}",
-					},
-				},
+				appauthconfigv1.AppAuthConfigJWTSpec_builder{
+					StaticJwks: proto.String("{}"),
+				}.Build(),
 				nil, /* httpClient */
 			)
 			require.Error(t, err)
@@ -136,11 +133,9 @@ func TestRetrieveJWKS(t *testing.T) {
 				t.Cleanup(func() { httpSrv.Close() })
 
 				jwks, sigs, err := retrieveJWKSAppAuthConfig(
-					&appauthconfigv1.AppAuthConfigJWTSpec{
-						KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_JwksUrl{
-							JwksUrl: httpSrv.URL,
-						},
-					},
+					appauthconfigv1.AppAuthConfigJWTSpec_builder{
+						JwksUrl: proto.String(httpSrv.URL),
+					}.Build(),
 					httpSrv.Client(),
 				)
 				tc.assertError(t, err)
@@ -162,11 +157,11 @@ func TestVerifyJWTToken(t *testing.T) {
 		assertUsername require.ValueAssertionFunc
 	}{
 		"valid token": {
-			config: &appauthconfigv1.AppAuthConfigJWTSpec{
+			config: appauthconfigv1.AppAuthConfigJWTSpec_builder{
 				Issuer:        "https://issuer-url/",
 				Audience:      "teleport",
 				UsernameClaim: "username",
-			},
+			}.Build(),
 			claims: jwt.Claims{
 				Issuer:   "https://issuer-url/",
 				Audience: []string{"teleport"},
@@ -182,10 +177,10 @@ func TestVerifyJWTToken(t *testing.T) {
 			},
 		},
 		"default username claim": {
-			config: &appauthconfigv1.AppAuthConfigJWTSpec{
+			config: appauthconfigv1.AppAuthConfigJWTSpec_builder{
 				Issuer:   "https://issuer-url/",
 				Audience: "teleport",
-			},
+			}.Build(),
 			claims: jwt.Claims{
 				Issuer:   "https://issuer-url/",
 				Audience: []string{"teleport"},
@@ -201,10 +196,10 @@ func TestVerifyJWTToken(t *testing.T) {
 			},
 		},
 		"wrong audience": {
-			config: &appauthconfigv1.AppAuthConfigJWTSpec{
+			config: appauthconfigv1.AppAuthConfigJWTSpec_builder{
 				Issuer:   "https://issuer-url/",
 				Audience: "teleport",
-			},
+			}.Build(),
 			claims: jwt.Claims{
 				Issuer:   "https://issuer-url/",
 				Audience: []string{"random-app"},
@@ -218,10 +213,10 @@ func TestVerifyJWTToken(t *testing.T) {
 			assertUsername: require.Empty,
 		},
 		"wrong issuer": {
-			config: &appauthconfigv1.AppAuthConfigJWTSpec{
+			config: appauthconfigv1.AppAuthConfigJWTSpec_builder{
 				Issuer:   "https://issuer-url/",
 				Audience: "teleport",
-			},
+			}.Build(),
 			claims: jwt.Claims{
 				Issuer:   "https://random-issuer/",
 				Audience: []string{"teleport"},
@@ -235,10 +230,10 @@ func TestVerifyJWTToken(t *testing.T) {
 			assertUsername: require.Empty,
 		},
 		"missing username claim": {
-			config: &appauthconfigv1.AppAuthConfigJWTSpec{
+			config: appauthconfigv1.AppAuthConfigJWTSpec_builder{
 				Issuer:   "https://issuer-url/",
 				Audience: "teleport",
-			},
+			}.Build(),
 			claims: jwt.Claims{
 				Issuer:   "https://issuer-url/",
 				Audience: []string{"teleport"},
@@ -250,10 +245,10 @@ func TestVerifyJWTToken(t *testing.T) {
 			assertUsername: require.Empty,
 		},
 		"missing issued at claim": {
-			config: &appauthconfigv1.AppAuthConfigJWTSpec{
+			config: appauthconfigv1.AppAuthConfigJWTSpec_builder{
 				Issuer:   "https://issuer-url/",
 				Audience: "teleport",
-			},
+			}.Build(),
 			claims: jwt.Claims{
 				Issuer:   "https://issuer-url/",
 				Audience: []string{"teleport"},
@@ -266,10 +261,10 @@ func TestVerifyJWTToken(t *testing.T) {
 			assertUsername: require.Empty,
 		},
 		"missing exp claim": {
-			config: &appauthconfigv1.AppAuthConfigJWTSpec{
+			config: appauthconfigv1.AppAuthConfigJWTSpec_builder{
 				Issuer:   "https://issuer-url/",
 				Audience: "teleport",
-			},
+			}.Build(),
 			claims: jwt.Claims{
 				Issuer:   "https://issuer-url/",
 				Audience: []string{"teleport"},
@@ -293,14 +288,14 @@ func TestVerifyJWTToken(t *testing.T) {
 	}
 
 	t.Run("token freshness", func(t *testing.T) {
-		config := &appauthconfigv1.AppAuthConfigJWTSpec{
+		config := appauthconfigv1.AppAuthConfigJWTSpec_builder{
 			Issuer:        "https://issuer-url/",
 			Audience:      "teleport",
 			UsernameClaim: "email",
-		}
+		}.Build()
 		baseClaims := jwt.Claims{
-			Issuer:   config.Issuer,
-			Audience: []string{config.Audience},
+			Issuer:   config.GetIssuer(),
+			Audience: []string{config.GetAudience()},
 		}
 		usernameClaim := struct {
 			Email string `json:"email"`
@@ -352,14 +347,12 @@ func TestCreateAppSessionWithJWT(t *testing.T) {
 	user, err := types.NewUser("user")
 	require.NoError(t, err)
 
-	config := appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{{Name: "*", Values: []string{"*"}}}, &appauthconfigv1.AppAuthConfigJWTSpec{
+	config := appauthconfig.NewAppAuthConfigJWT("test-config", []*labelv1.Label{labelv1.Label_builder{Name: "*", Values: []string{"*"}}.Build()}, appauthconfigv1.AppAuthConfigJWTSpec_builder{
 		Issuer:        issuer,
 		Audience:      audience,
 		UsernameClaim: usernameClaim,
-		KeysSource: &appauthconfigv1.AppAuthConfigJWTSpec_StaticJwks{
-			StaticJwks: string(encodedJwks),
-		},
-	})
+		StaticJwks:    proto.String(string(encodedJwks)),
+	}.Build())
 
 	assertAuditEventFailure := func(tt require.TestingT, i1 any, i2 ...any) {
 		require.IsType(t, &apievents.AppAuthConfigVerify{}, i1, i2...)
@@ -468,16 +461,16 @@ func TestCreateAppSessionWithJWT(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			_, err = svc.CreateAppSessionWithJWT(t.Context(), &appauthconfigv1.CreateAppSessionWithJWTRequest{
+			_, err = svc.CreateAppSessionWithJWT(t.Context(), appauthconfigv1.CreateAppSessionWithJWTRequest_builder{
 				ConfigName: "app-config-example",
 				Jwt:        tc.token,
-				App: &appauthconfigv1.App{
+				App: appauthconfigv1.App_builder{
 					AppName:     "mcp-app",
 					PublicAddr:  "https://proxy/mcp-app",
 					Uri:         "mcp+https://localhost/mcp",
 					ClusterName: "example",
-				},
-			})
+				}.Build(),
+			}.Build())
 			tc.assertError(t, err)
 			tc.assertAuditEvent(t, emitter.LastEvent())
 		})

@@ -52,43 +52,43 @@ func TestValidateHealthCheckConfig(t *testing.T) {
 	}{
 		{
 			name: "default is valid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "default",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "*",
 							Values: []string{"*"},
-						}},
-					},
-				},
-			},
+						}.Build()},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			requireErr: require.NoError,
 		},
 		{
 			name: "valid custom",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
+						}.Build()},
 						DbLabelsExpression: "labels.env == `prod`",
-					},
+					}.Build(),
 					Timeout:  durationpb.New(1 * time.Second),
 					Interval: durationpb.New(30 * time.Second),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: require.NoError,
 		},
 		{
@@ -98,299 +98,299 @@ func TestValidateHealthCheckConfig(t *testing.T) {
 		},
 		{
 			name: "unknown version is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: "v999",
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:  durationpb.New(time.Second),
 					Interval: durationpb.New(2 * time.Second),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains(`only version "v1" is supported`),
 		},
 		{
 			name: "mismatched kind is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindUser,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:  durationpb.New(time.Second),
 					Interval: durationpb.New(2 * time.Second),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains(`kind must be "health_check_config"`),
 		},
 		{
 			name: "missing metadata is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:  durationpb.New(time.Second),
 					Interval: durationpb.New(2 * time.Second),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("metadata is missing"),
 		},
 		{
 			name: "missing name is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:  durationpb.New(time.Second),
 					Interval: durationpb.New(2 * time.Second),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("metadata.name is missing"),
 		},
 		{
 			name: "missing spec is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
+				}.Build(),
 				Spec: nil,
-			},
+			}.Build(),
 			requireErr: errContains("spec is missing"),
 		},
 		{
 			name: "missing match section is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
 					Match:    nil,
 					Timeout:  durationpb.New(time.Second),
 					Interval: durationpb.New(2 * time.Second),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("spec.match is missing"),
 		},
 		{
 			name: "invalid label matcher",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   types.Wildcard,
 							Values: []string{"asdf"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:  durationpb.New(time.Second),
 					Interval: durationpb.New(2 * time.Second),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("invalid spec.db_labels: selector *:asdf is not supported, a wildcard label key may only be used with a wildcard label value"),
 		},
 		{
 			name: "invalid label expression matcher",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
 						DbLabelsExpression: "abc",
-					},
+					}.Build(),
 					Timeout:  durationpb.New(time.Second),
 					Interval: durationpb.New(2 * time.Second),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("invalid spec.db_labels_expression: parsing label expression"),
 		},
 		{
 			name: "timeout less than minimum is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:  durationpb.New(500 * time.Millisecond),
 					Interval: durationpb.New(5 * time.Second),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("spec.timeout must be at least"),
 		},
 		{
 			name: "interval less than minimum is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:  durationpb.New(time.Second),
 					Interval: durationpb.New(250 * time.Millisecond),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("spec.interval must be at least"),
 		},
 		{
 			name: "timeout greater than interval is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:  durationpb.New(31 * time.Second),
 					Interval: durationpb.New(30 * time.Second),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("spec.timeout (31s) must not be greater than spec.interval (30s)"),
 		},
 		{
 			name: "timeout greater than default interval is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:  durationpb.New(31 * time.Second),
 					Interval: nil,
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("spec.timeout (31s) must not be greater than the default interval (30s)"),
 		},
 		{
 			name: "interval greater than maximum is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:  durationpb.New(time.Second),
 					Interval: durationpb.New(601 * time.Second),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("spec.interval must not be greater than 10m0s"),
 		},
 		{
 			name: "healthy threshold greater than maximum is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:          durationpb.New(time.Second),
 					Interval:         durationpb.New(30 * time.Second),
 					HealthyThreshold: 11,
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("spec.healthy_threshold (11) must not be greater than 10"),
 		},
 		{
 			name: "unhealthy threshold greater than maximum is invalid",
-			in: &healthcheckconfigv1.HealthCheckConfig{
+			in: healthcheckconfigv1.HealthCheckConfig_builder{
 				Version: types.V1,
 				Kind:    types.KindHealthCheckConfig,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "example",
-				},
-				Spec: &healthcheckconfigv1.HealthCheckConfigSpec{
-					Match: &healthcheckconfigv1.Matcher{
-						DbLabels: []*labelv1.Label{{
+				}.Build(),
+				Spec: healthcheckconfigv1.HealthCheckConfigSpec_builder{
+					Match: healthcheckconfigv1.Matcher_builder{
+						DbLabels: []*labelv1.Label{labelv1.Label_builder{
 							Name:   "env",
 							Values: []string{"prod"},
-						}},
-					},
+						}.Build()},
+					}.Build(),
 					Timeout:            durationpb.New(time.Second),
 					Interval:           durationpb.New(30 * time.Second),
 					UnhealthyThreshold: 11,
-				},
-			},
+				}.Build(),
+			}.Build(),
 			requireErr: errContains("spec.unhealthy_threshold (11) must not be greater than 10"),
 		},
 		{

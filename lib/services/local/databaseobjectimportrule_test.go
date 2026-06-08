@@ -54,38 +54,38 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	require.NoError(t, err)
 
 	// Create a couple import rules.
-	importRule1, err := databaseobjectimportrule.NewDatabaseObjectImportRule("r1", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+	importRule1, err := databaseobjectimportrule.NewDatabaseObjectImportRule("r1", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 		Priority:       10,
 		DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
 		Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-			{
-				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+				Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 					TableNames: []string{"*"},
-				},
+				}.Build(),
 				AddLabels: map[string]string{
 					"dev_access":    "rw",
 					"flag_from_dev": "dummy",
 				},
-			},
+			}.Build(),
 		},
-	})
+	}.Build())
 	require.NoError(t, err)
 
-	importRule2, err := databaseobjectimportrule.NewDatabaseObjectImportRule("r2", &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+	importRule2, err := databaseobjectimportrule.NewDatabaseObjectImportRule("r2", databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 		Priority:       20,
 		DatabaseLabels: label.FromMap(map[string][]string{"env": {"prod"}}),
 		Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-			{
-				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+			databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+				Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 					TableNames: []string{"*"},
-				},
+				}.Build(),
 				AddLabels: map[string]string{
 					"dev_access":     "ro",
 					"flag_from_prod": "dummy",
 				},
-			},
+			}.Build(),
 		},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Initially we expect no import rules.
@@ -127,7 +127,7 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	require.True(t, proto.Equal(importRule2, paginatedOut[1]))
 
 	// Fetch a specific import rule.
-	importRule, err = service.GetDatabaseObjectImportRule(ctx, importRule2.Metadata.GetName())
+	importRule, err = service.GetDatabaseObjectImportRule(ctx, importRule2.GetMetadata().GetName())
 	require.NoError(t, err)
 	require.True(t, proto.Equal(importRule2, importRule))
 
@@ -140,7 +140,7 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 	// Update an import rule.
-	importRule1.Metadata.Expires = timestamppb.New(clock.Now().Add(30 * time.Minute))
+	importRule1.GetMetadata().SetExpires(timestamppb.New(clock.Now().Add(30 * time.Minute)))
 	_, err = service.UpdateDatabaseObjectImportRule(ctx, importRule1)
 	require.NoError(t, err)
 	importRule, err = service.GetDatabaseObjectImportRule(ctx, importRule1.GetMetadata().GetName())
@@ -174,36 +174,36 @@ func TestDatabaseObjectImportRuleCRUD(t *testing.T) {
 }
 
 func TestMarshalDatabaseObjectImportRuleRoundTrip(t *testing.T) {
-	spec := &databaseobjectimportrulev1.DatabaseObjectImportRuleSpec{
+	spec := databaseobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 		Priority:       30,
 		DatabaseLabels: label.FromMap(map[string][]string{"env": {"staging", "prod"}, "owner_org": {"trading"}}),
 		Mappings: []*databaseobjectimportrulev1.DatabaseObjectImportRuleMapping{
-			{
-				Scope: &databaseobjectimportrulev1.DatabaseObjectImportScope{
+			databaseobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+				Scope: databaseobjectimportrulev1.DatabaseObjectImportScope_builder{
 					SchemaNames:   []string{"public"},
 					DatabaseNames: []string{"foo", "bar", "baz"},
-				},
-				Match: &databaseobjectimportrulev1.DatabaseObjectImportMatch{
+				}.Build(),
+				Match: databaseobjectimportrulev1.DatabaseObjectImportMatch_builder{
 					TableNames:     []string{"*"},
 					ViewNames:      []string{"1", "2", "3"},
 					ProcedureNames: []string{"aaa", "bbb", "ccc"},
-				},
+				}.Build(),
 				AddLabels: map[string]string{
 					"env":          "staging",
 					"custom_label": "my_custom_value",
 				},
-			},
+			}.Build(),
 		},
-	}
-	obj := &databaseobjectimportrulev1.DatabaseObjectImportRule{
+	}.Build()
+	obj := databaseobjectimportrulev1.DatabaseObjectImportRule_builder{
 		Kind:    types.KindDatabaseObjectImportRule,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:      "import_all_staging_tables",
 			Namespace: defaults.Namespace,
-		},
+		}.Build(),
 		Spec: spec,
-	}
+	}.Build()
 
 	//nolint:staticcheck // SA1019. Using this marshaler for json compatibility.
 	out, err := services.FastMarshalProtoResourceDeprecated(obj)

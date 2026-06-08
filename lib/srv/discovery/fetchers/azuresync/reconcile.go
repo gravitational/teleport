@@ -51,9 +51,9 @@ func MergeResources(results ...*Resources) *Resources {
 
 // newResourceList creates a new resource list message
 func newResourceList() *accessgraphv1alpha.AzureResourceList {
-	return &accessgraphv1alpha.AzureResourceList{
+	return accessgraphv1alpha.AzureResourceList_builder{
 		Resources: make([]*accessgraphv1alpha.AzureResource, 0),
-	}
+	}.Build()
 }
 
 // ReconcileResults compares previously and currently fetched results and determines which resources to upsert and
@@ -67,8 +67,8 @@ func ReconcileResults(old *Resources, new *Resources) (upsert, delete *accessgra
 		reconcile(old.VirtualMachines, new.VirtualMachines, azureVmKey, azureVmWrap),
 	}
 	for _, res := range reconciledResources {
-		upsert.Resources = append(upsert.Resources, res.upsert.Resources...)
-		delete.Resources = append(delete.Resources, res.delete.Resources...)
+		upsert.SetResources(append(upsert.GetResources(), res.upsert.GetResources()...))
+		delete.SetResources(append(delete.GetResources(), res.delete.GetResources()...))
 	}
 	return upsert, delete
 }
@@ -93,7 +93,7 @@ func reconcile[T proto.Message](
 	// Delete all old items if there are no new items
 	if len(newItems) == 0 {
 		for _, item := range oldItems {
-			deleteRes.Resources = append(deleteRes.Resources, wrapFn(item))
+			deleteRes.SetResources(append(deleteRes.GetResources(), wrapFn(item)))
 		}
 		return &reconcilePair{upsertRes, deleteRes}
 	}
@@ -101,7 +101,7 @@ func reconcile[T proto.Message](
 	// Create all new items if there are no old items
 	if len(oldItems) == 0 {
 		for _, item := range newItems {
-			upsertRes.Resources = append(upsertRes.Resources, wrapFn(item))
+			upsertRes.SetResources(append(upsertRes.GetResources(), wrapFn(item)))
 		}
 		return &reconcilePair{upsertRes, deleteRes}
 	}
@@ -119,47 +119,47 @@ func reconcile[T proto.Message](
 	// Append new or modified items to the upsert list
 	for _, item := range newItems {
 		if oldItem, ok := oldMap[keyFn(item)]; !ok || !proto.Equal(oldItem, item) {
-			upsertRes.Resources = append(upsertRes.Resources, wrapFn(item))
+			upsertRes.SetResources(append(upsertRes.GetResources(), wrapFn(item)))
 		}
 	}
 
 	// Append removed items to the delete list
 	for _, item := range oldItems {
 		if _, ok := newMap[keyFn(item)]; !ok {
-			deleteRes.Resources = append(deleteRes.Resources, wrapFn(item))
+			deleteRes.SetResources(append(deleteRes.GetResources(), wrapFn(item)))
 		}
 	}
 	return &reconcilePair{upsertRes, deleteRes}
 }
 
 func azurePrincipalsKey(user *accessgraphv1alpha.AzurePrincipal) string {
-	return fmt.Sprintf("%s:%s", user.SubscriptionId, user.Id)
+	return fmt.Sprintf("%s:%s", user.GetSubscriptionId(), user.GetId())
 }
 
 func azurePrincipalsWrap(principal *accessgraphv1alpha.AzurePrincipal) *accessgraphv1alpha.AzureResource {
-	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_Principal{Principal: principal}}
+	return accessgraphv1alpha.AzureResource_builder{Principal: proto.ValueOrDefault(principal)}.Build()
 }
 
 func azureRoleAssignKey(roleAssign *accessgraphv1alpha.AzureRoleAssignment) string {
-	return fmt.Sprintf("%s:%s", roleAssign.SubscriptionId, roleAssign.Id)
+	return fmt.Sprintf("%s:%s", roleAssign.GetSubscriptionId(), roleAssign.GetId())
 }
 
 func azureRoleAssignWrap(roleAssign *accessgraphv1alpha.AzureRoleAssignment) *accessgraphv1alpha.AzureResource {
-	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_RoleAssignment{RoleAssignment: roleAssign}}
+	return accessgraphv1alpha.AzureResource_builder{RoleAssignment: proto.ValueOrDefault(roleAssign)}.Build()
 }
 
 func azureRoleDefKey(roleDef *accessgraphv1alpha.AzureRoleDefinition) string {
-	return fmt.Sprintf("%s:%s", roleDef.SubscriptionId, roleDef.Id)
+	return fmt.Sprintf("%s:%s", roleDef.GetSubscriptionId(), roleDef.GetId())
 }
 
 func azureRoleDefWrap(roleDef *accessgraphv1alpha.AzureRoleDefinition) *accessgraphv1alpha.AzureResource {
-	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_RoleDefinition{RoleDefinition: roleDef}}
+	return accessgraphv1alpha.AzureResource_builder{RoleDefinition: proto.ValueOrDefault(roleDef)}.Build()
 }
 
 func azureVmKey(vm *accessgraphv1alpha.AzureVirtualMachine) string {
-	return fmt.Sprintf("%s:%s", vm.SubscriptionId, vm.Id)
+	return fmt.Sprintf("%s:%s", vm.GetSubscriptionId(), vm.GetId())
 }
 
 func azureVmWrap(vm *accessgraphv1alpha.AzureVirtualMachine) *accessgraphv1alpha.AzureResource {
-	return &accessgraphv1alpha.AzureResource{Resource: &accessgraphv1alpha.AzureResource_VirtualMachine{VirtualMachine: vm}}
+	return accessgraphv1alpha.AzureResource_builder{VirtualMachine: proto.ValueOrDefault(vm)}.Build()
 }

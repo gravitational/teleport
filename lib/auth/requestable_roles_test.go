@@ -112,8 +112,8 @@ func TestListRequestableRoles(t *testing.T) {
 
 		// Verify that all the requestable roles were returned.
 		var receivedRoles []string
-		for _, role := range resp.Roles {
-			receivedRoles = append(receivedRoles, role.Name)
+		for _, role := range resp.GetRoles() {
+			receivedRoles = append(receivedRoles, role.GetName())
 		}
 		require.Empty(t, cmp.Diff(expectedRequestableRoles, receivedRoles))
 
@@ -122,39 +122,39 @@ func TestListRequestableRoles(t *testing.T) {
 		require.NotContains(t, receivedRoles, "user-role")
 
 		// There shouldn't be a nextKey
-		require.Empty(t, resp.NextPageToken)
+		require.Empty(t, resp.GetNextPageToken())
 	})
 
 	t.Run("list a page of requestable roles starting with a startKey", func(t *testing.T) {
 		// Get the first page of 3
-		firstPageReq := &authpb.ListRequestableRolesRequest{
+		firstPageReq := authpb.ListRequestableRolesRequest_builder{
 			PageSize: 3,
-		}
+		}.Build()
 		firstPageResp, err := client.ListRequestableRoles(userCtx, firstPageReq)
 		require.NoError(t, err)
-		require.NotEmpty(t, firstPageResp.NextPageToken)
+		require.NotEmpty(t, firstPageResp.GetNextPageToken())
 
-		secondPageReq := &authpb.ListRequestableRolesRequest{
+		secondPageReq := authpb.ListRequestableRolesRequest_builder{
 			PageSize:  3,
-			PageToken: firstPageResp.NextPageToken,
-		}
+			PageToken: firstPageResp.GetNextPageToken(),
+		}.Build()
 		secondPageResp, err := client.ListRequestableRoles(userCtx, secondPageReq)
 		require.NoError(t, err)
 
 		// Verify that the second page has the correct roles.
 		var receivedRoles []string
-		for _, role := range secondPageResp.Roles {
-			receivedRoles = append(receivedRoles, role.Name)
+		for _, role := range secondPageResp.GetRoles() {
+			receivedRoles = append(receivedRoles, role.GetName())
 		}
 		require.Empty(t, cmp.Diff(expectedRequestableRoles[3:6], receivedRoles))
 
 		// Verify there is no overlap in roles between the pages.
 		firstPageRoleNames := make(map[string]bool)
-		for _, role := range firstPageResp.Roles {
-			firstPageRoleNames[role.Name] = true
+		for _, role := range firstPageResp.GetRoles() {
+			firstPageRoleNames[role.GetName()] = true
 		}
-		for _, role := range secondPageResp.Roles {
-			require.False(t, firstPageRoleNames[role.Name])
+		for _, role := range secondPageResp.GetRoles() {
+			require.False(t, firstPageRoleNames[role.GetName()])
 		}
 	})
 
@@ -162,10 +162,10 @@ func TestListRequestableRoles(t *testing.T) {
 		limit := 3
 
 		respRoles, err := stream.Collect(clientutils.ResourcesWithPageSize(userCtx, func(ctx context.Context, pageSize int, pageToken string) ([]*authpb.ListRequestableRolesResponse_RequestableRole, string, error) {
-			req := &authpb.ListRequestableRolesRequest{
+			req := authpb.ListRequestableRolesRequest_builder{
 				PageSize:  int32(pageSize),
 				PageToken: pageToken,
-			}
+			}.Build()
 
 			resp, err := client.ListRequestableRoles(ctx, req)
 			if err != nil {
@@ -173,18 +173,18 @@ func TestListRequestableRoles(t *testing.T) {
 			}
 
 			// Verify that we got the correct page size (except for the last page).
-			if resp.NextPageToken != "" {
-				require.Len(t, resp.Roles, pageSize)
+			if resp.GetNextPageToken() != "" {
+				require.Len(t, resp.GetRoles(), pageSize)
 			}
 
-			return resp.Roles, resp.NextPageToken, nil
+			return resp.GetRoles(), resp.GetNextPageToken(), nil
 		}, limit))
 		require.NoError(t, err)
 
 		// Verify that all the requestable roles were returned.
 		var receivedRoles []string
 		for _, role := range respRoles {
-			receivedRoles = append(receivedRoles, role.Name)
+			receivedRoles = append(receivedRoles, role.GetName())
 		}
 		require.Empty(t, cmp.Diff(expectedRequestableRoles, receivedRoles))
 	})
@@ -219,25 +219,25 @@ func TestListRequestableRoles(t *testing.T) {
 		require.NoError(t, err)
 
 		// Verify that nothing is returned.
-		require.Empty(t, resp.Roles)
-		require.Empty(t, resp.NextPageToken)
+		require.Empty(t, resp.GetRoles())
+		require.Empty(t, resp.GetNextPageToken())
 	})
 
 	t.Run("list requestable roles with a search filter", func(t *testing.T) {
-		req := &authpb.ListRequestableRolesRequest{
-			Filter: &authpb.ListRequestableRolesRequest_Filter{
+		req := authpb.ListRequestableRolesRequest_builder{
+			Filter: authpb.ListRequestableRolesRequest_Filter_builder{
 				SearchKeywords: []string{"role-99"},
-			},
-		}
+			}.Build(),
+		}.Build()
 		resp, err := client.ListRequestableRoles(userCtx, req)
 		require.NoError(t, err)
 
 		// Verify that only "role-99" was returned
-		require.Len(t, resp.Roles, 1)
-		require.Equal(t, "role-99", resp.Roles[0].Name)
+		require.Len(t, resp.GetRoles(), 1)
+		require.Equal(t, "role-99", resp.GetRoles()[0].GetName())
 
 		// There shouldn't be a nextKey
-		require.Empty(t, resp.NextPageToken)
+		require.Empty(t, resp.GetNextPageToken())
 	})
 
 }

@@ -241,14 +241,14 @@ func (p *certAuthorityOverrideParser) parse(event backend.Event) (types.Resource
 		name := parts[0]
 		subKind := parts[1]
 
-		return types.Resource153ToLegacy(&subcav1.CertAuthorityOverride{
+		return types.Resource153ToLegacy(subcav1.CertAuthorityOverride_builder{
 			Kind:    types.KindCertAuthorityOverride,
 			Version: types.V1,
 			SubKind: subKind,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-		}), nil
+			}.Build(),
+		}.Build()), nil
 	case types.OpPut:
 		r, err := services.UnmarshalCertAuthorityOverride(event.Item.Value,
 			services.WithExpires(event.Item.Expires),
@@ -278,13 +278,13 @@ func itemFromCertAuthorityOverride(resource *subcav1.CertAuthorityOverride) (*ba
 	}
 
 	key := newCAOverridesPrefix().AppendKey(backend.NewKey(
-		resource.Metadata.Name,
-		resource.SubKind,
+		resource.GetMetadata().GetName(),
+		resource.GetSubKind(),
 	))
 	return &backend.Item{
 		Key:      key,
 		Value:    value,
 		Expires:  expires,
-		Revision: resource.Metadata.Revision,
+		Revision: resource.GetMetadata().GetRevision(),
 	}, nil
 }

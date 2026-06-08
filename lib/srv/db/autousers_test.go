@@ -101,24 +101,24 @@ func TestAutoUsersPostgres(t *testing.T) {
 					},
 				},
 			},
-			importRuleSpec: &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+			importRuleSpec: dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 				Priority:       0,
 				DatabaseLabels: label.FromMap(map[string][]string{"*": {"*"}}),
 				Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{
-					{
+					dbobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
 						// select three tables out of five in the public schema.
 						// see handleSchemaInfo() for the effective schema.
-						Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
+						Match: dbobjectimportrulev1.DatabaseObjectImportMatch_builder{
 							TableNames: []string{"orders", "departments", "projects"},
-						},
+						}.Build(),
 						// select public schema, skipping the hr schema.
-						Scope: &dbobjectimportrulev1.DatabaseObjectImportScope{
+						Scope: dbobjectimportrulev1.DatabaseObjectImportScope_builder{
 							SchemaNames: []string{"public"},
-						},
+						}.Build(),
 						AddLabels: map[string]string{"can_select": "true"},
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			expectedPermissions: postgres.Permissions{
 				Tables: []postgres.TablePermission{
 					{Privilege: "SELECT", Schema: "public", Table: "orders"},

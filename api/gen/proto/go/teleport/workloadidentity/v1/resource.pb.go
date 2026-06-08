@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/resource.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
@@ -27,7 +29,6 @@ import (
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -43,7 +44,7 @@ const (
 // authorization rules. is a resource that represents the configuration of a trust
 // domain federation.
 type WorkloadIdentity struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The kind of resource represented.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Differentiates variations of the same kind. All resources should
@@ -84,11 +85,6 @@ func (x *WorkloadIdentity) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentity.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentity) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *WorkloadIdentity) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -124,9 +120,79 @@ func (x *WorkloadIdentity) GetSpec() *WorkloadIdentitySpec {
 	return nil
 }
 
+func (x *WorkloadIdentity) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *WorkloadIdentity) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *WorkloadIdentity) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *WorkloadIdentity) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *WorkloadIdentity) SetSpec(v *WorkloadIdentitySpec) {
+	x.Spec = v
+}
+
+func (x *WorkloadIdentity) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *WorkloadIdentity) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *WorkloadIdentity) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *WorkloadIdentity) ClearSpec() {
+	x.Spec = nil
+}
+
+type WorkloadIdentity_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The kind of resource represented.
+	Kind string
+	// Differentiates variations of the same kind. All resources should
+	// contain one, even if it is never populated.
+	SubKind string
+	// The version of the resource being represented.
+	Version string
+	// Common metadata that all resources share.
+	Metadata *v1.Metadata
+	// The configured properties of the WorkloadIdentity
+	Spec *WorkloadIdentitySpec
+}
+
+func (b0 WorkloadIdentity_builder) Build() *WorkloadIdentity {
+	m0 := &WorkloadIdentity{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // The attribute casted to a string must be equal to the value.
 type WorkloadIdentityConditionEq struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The value to compare the attribute against.
 	Value         string `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -158,11 +224,6 @@ func (x *WorkloadIdentityConditionEq) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentityConditionEq.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentityConditionEq) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *WorkloadIdentityConditionEq) GetValue() string {
 	if x != nil {
 		return x.Value
@@ -170,9 +231,28 @@ func (x *WorkloadIdentityConditionEq) GetValue() string {
 	return ""
 }
 
+func (x *WorkloadIdentityConditionEq) SetValue(v string) {
+	x.Value = v
+}
+
+type WorkloadIdentityConditionEq_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The value to compare the attribute against.
+	Value string
+}
+
+func (b0 WorkloadIdentityConditionEq_builder) Build() *WorkloadIdentityConditionEq {
+	m0 := &WorkloadIdentityConditionEq{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Value = b.Value
+	return m0
+}
+
 // The attribute casted to a string must not be equal to the value.
 type WorkloadIdentityConditionNotEq struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The value to compare the attribute against.
 	Value         string `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -204,11 +284,6 @@ func (x *WorkloadIdentityConditionNotEq) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentityConditionNotEq.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentityConditionNotEq) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *WorkloadIdentityConditionNotEq) GetValue() string {
 	if x != nil {
 		return x.Value
@@ -216,9 +291,28 @@ func (x *WorkloadIdentityConditionNotEq) GetValue() string {
 	return ""
 }
 
+func (x *WorkloadIdentityConditionNotEq) SetValue(v string) {
+	x.Value = v
+}
+
+type WorkloadIdentityConditionNotEq_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The value to compare the attribute against.
+	Value string
+}
+
+func (b0 WorkloadIdentityConditionNotEq_builder) Build() *WorkloadIdentityConditionNotEq {
+	m0 := &WorkloadIdentityConditionNotEq{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Value = b.Value
+	return m0
+}
+
 // The attribute casted to a string must be in the list of values.
 type WorkloadIdentityConditionIn struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The list of values to compare the attribute against.
 	Values        []string `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -250,11 +344,6 @@ func (x *WorkloadIdentityConditionIn) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentityConditionIn.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentityConditionIn) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *WorkloadIdentityConditionIn) GetValues() []string {
 	if x != nil {
 		return x.Values
@@ -262,9 +351,28 @@ func (x *WorkloadIdentityConditionIn) GetValues() []string {
 	return nil
 }
 
+func (x *WorkloadIdentityConditionIn) SetValues(v []string) {
+	x.Values = v
+}
+
+type WorkloadIdentityConditionIn_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The list of values to compare the attribute against.
+	Values []string
+}
+
+func (b0 WorkloadIdentityConditionIn_builder) Build() *WorkloadIdentityConditionIn {
+	m0 := &WorkloadIdentityConditionIn{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Values = b.Values
+	return m0
+}
+
 // The attribute casted to a string must not be in the list of values.
 type WorkloadIdentityConditionNotIn struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The list of values to compare the attribute against.
 	Values        []string `protobuf:"bytes,1,rep,name=values,proto3" json:"values,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -296,11 +404,6 @@ func (x *WorkloadIdentityConditionNotIn) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentityConditionNotIn.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentityConditionNotIn) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *WorkloadIdentityConditionNotIn) GetValues() []string {
 	if x != nil {
 		return x.Values
@@ -308,9 +411,28 @@ func (x *WorkloadIdentityConditionNotIn) GetValues() []string {
 	return nil
 }
 
+func (x *WorkloadIdentityConditionNotIn) SetValues(v []string) {
+	x.Values = v
+}
+
+type WorkloadIdentityConditionNotIn_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The list of values to compare the attribute against.
+	Values []string
+}
+
+func (b0 WorkloadIdentityConditionNotIn_builder) Build() *WorkloadIdentityConditionNotIn {
+	m0 := &WorkloadIdentityConditionNotIn{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Values = b.Values
+	return m0
+}
+
 // The individual conditions that make up a rule.
 type WorkloadIdentityCondition struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the attribute to evaluate the condition against.
 	Attribute string `protobuf:"bytes,1,opt,name=attribute,proto3" json:"attribute,omitempty"`
 	// Types that are valid to be assigned to Operator:
@@ -347,11 +469,6 @@ func (x *WorkloadIdentityCondition) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use WorkloadIdentityCondition.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentityCondition) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *WorkloadIdentityCondition) GetAttribute() string {
@@ -404,6 +521,180 @@ func (x *WorkloadIdentityCondition) GetNotIn() *WorkloadIdentityConditionNotIn {
 	return nil
 }
 
+func (x *WorkloadIdentityCondition) SetAttribute(v string) {
+	x.Attribute = v
+}
+
+func (x *WorkloadIdentityCondition) SetEq(v *WorkloadIdentityConditionEq) {
+	if v == nil {
+		x.Operator = nil
+		return
+	}
+	x.Operator = &WorkloadIdentityCondition_Eq{v}
+}
+
+func (x *WorkloadIdentityCondition) SetNotEq(v *WorkloadIdentityConditionNotEq) {
+	if v == nil {
+		x.Operator = nil
+		return
+	}
+	x.Operator = &WorkloadIdentityCondition_NotEq{v}
+}
+
+func (x *WorkloadIdentityCondition) SetIn(v *WorkloadIdentityConditionIn) {
+	if v == nil {
+		x.Operator = nil
+		return
+	}
+	x.Operator = &WorkloadIdentityCondition_In{v}
+}
+
+func (x *WorkloadIdentityCondition) SetNotIn(v *WorkloadIdentityConditionNotIn) {
+	if v == nil {
+		x.Operator = nil
+		return
+	}
+	x.Operator = &WorkloadIdentityCondition_NotIn{v}
+}
+
+func (x *WorkloadIdentityCondition) HasOperator() bool {
+	if x == nil {
+		return false
+	}
+	return x.Operator != nil
+}
+
+func (x *WorkloadIdentityCondition) HasEq() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operator.(*WorkloadIdentityCondition_Eq)
+	return ok
+}
+
+func (x *WorkloadIdentityCondition) HasNotEq() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operator.(*WorkloadIdentityCondition_NotEq)
+	return ok
+}
+
+func (x *WorkloadIdentityCondition) HasIn() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operator.(*WorkloadIdentityCondition_In)
+	return ok
+}
+
+func (x *WorkloadIdentityCondition) HasNotIn() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Operator.(*WorkloadIdentityCondition_NotIn)
+	return ok
+}
+
+func (x *WorkloadIdentityCondition) ClearOperator() {
+	x.Operator = nil
+}
+
+func (x *WorkloadIdentityCondition) ClearEq() {
+	if _, ok := x.Operator.(*WorkloadIdentityCondition_Eq); ok {
+		x.Operator = nil
+	}
+}
+
+func (x *WorkloadIdentityCondition) ClearNotEq() {
+	if _, ok := x.Operator.(*WorkloadIdentityCondition_NotEq); ok {
+		x.Operator = nil
+	}
+}
+
+func (x *WorkloadIdentityCondition) ClearIn() {
+	if _, ok := x.Operator.(*WorkloadIdentityCondition_In); ok {
+		x.Operator = nil
+	}
+}
+
+func (x *WorkloadIdentityCondition) ClearNotIn() {
+	if _, ok := x.Operator.(*WorkloadIdentityCondition_NotIn); ok {
+		x.Operator = nil
+	}
+}
+
+const WorkloadIdentityCondition_Operator_not_set_case case_WorkloadIdentityCondition_Operator = 0
+const WorkloadIdentityCondition_Eq_case case_WorkloadIdentityCondition_Operator = 3
+const WorkloadIdentityCondition_NotEq_case case_WorkloadIdentityCondition_Operator = 4
+const WorkloadIdentityCondition_In_case case_WorkloadIdentityCondition_Operator = 5
+const WorkloadIdentityCondition_NotIn_case case_WorkloadIdentityCondition_Operator = 6
+
+func (x *WorkloadIdentityCondition) WhichOperator() case_WorkloadIdentityCondition_Operator {
+	if x == nil {
+		return WorkloadIdentityCondition_Operator_not_set_case
+	}
+	switch x.Operator.(type) {
+	case *WorkloadIdentityCondition_Eq:
+		return WorkloadIdentityCondition_Eq_case
+	case *WorkloadIdentityCondition_NotEq:
+		return WorkloadIdentityCondition_NotEq_case
+	case *WorkloadIdentityCondition_In:
+		return WorkloadIdentityCondition_In_case
+	case *WorkloadIdentityCondition_NotIn:
+		return WorkloadIdentityCondition_NotIn_case
+	default:
+		return WorkloadIdentityCondition_Operator_not_set_case
+	}
+}
+
+type WorkloadIdentityCondition_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the attribute to evaluate the condition against.
+	Attribute string
+	// Fields of oneof Operator:
+	// The attribute casted to a string must be equal to the value.
+	Eq *WorkloadIdentityConditionEq
+	// The attribute casted to a string must not be equal to the value.
+	NotEq *WorkloadIdentityConditionNotEq
+	// The attribute casted to a string must be in the list of values.
+	In *WorkloadIdentityConditionIn
+	// The attribute casted to a string must not be in the list of values.
+	NotIn *WorkloadIdentityConditionNotIn
+	// -- end of Operator
+}
+
+func (b0 WorkloadIdentityCondition_builder) Build() *WorkloadIdentityCondition {
+	m0 := &WorkloadIdentityCondition{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Attribute = b.Attribute
+	if b.Eq != nil {
+		x.Operator = &WorkloadIdentityCondition_Eq{b.Eq}
+	}
+	if b.NotEq != nil {
+		x.Operator = &WorkloadIdentityCondition_NotEq{b.NotEq}
+	}
+	if b.In != nil {
+		x.Operator = &WorkloadIdentityCondition_In{b.In}
+	}
+	if b.NotIn != nil {
+		x.Operator = &WorkloadIdentityCondition_NotIn{b.NotIn}
+	}
+	return m0
+}
+
+type case_WorkloadIdentityCondition_Operator protoreflect.FieldNumber
+
+func (x case_WorkloadIdentityCondition_Operator) String() string {
+	md := file_teleport_workloadidentity_v1_resource_proto_msgTypes[5].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isWorkloadIdentityCondition_Operator interface {
 	isWorkloadIdentityCondition_Operator()
 }
@@ -438,7 +729,7 @@ func (*WorkloadIdentityCondition_NotIn) isWorkloadIdentityCondition_Operator() {
 
 // An individual rule that is evaluated during the issuance of a WorkloadIdentity.
 type WorkloadIdentityRule struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The conditions that must be met for this rule to be considered passed.
 	//
 	// Mutually exclusive with expression.
@@ -477,11 +768,6 @@ func (x *WorkloadIdentityRule) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentityRule.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentityRule) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *WorkloadIdentityRule) GetConditions() []*WorkloadIdentityCondition {
 	if x != nil {
 		return x.Conditions
@@ -496,9 +782,40 @@ func (x *WorkloadIdentityRule) GetExpression() string {
 	return ""
 }
 
+func (x *WorkloadIdentityRule) SetConditions(v []*WorkloadIdentityCondition) {
+	x.Conditions = v
+}
+
+func (x *WorkloadIdentityRule) SetExpression(v string) {
+	x.Expression = v
+}
+
+type WorkloadIdentityRule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The conditions that must be met for this rule to be considered passed.
+	//
+	// Mutually exclusive with expression.
+	Conditions []*WorkloadIdentityCondition
+	// An expression written in Teleport's predicate language that must evaluate
+	// to true for this rule to be considered passed.
+	//
+	// Mutually exclusive with conditions.
+	Expression string
+}
+
+func (b0 WorkloadIdentityRule_builder) Build() *WorkloadIdentityRule {
+	m0 := &WorkloadIdentityRule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Conditions = b.Conditions
+	x.Expression = b.Expression
+	return m0
+}
+
 // The rules which are evaluated before the WorkloadIdentity can be issued.
 type WorkloadIdentityRules struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A list of rules used to determine if a WorkloadIdentity can be issued.
 	// If none are provided, it will be considered a pass. If any are provided,
 	// then at least one must pass for the rules to be considered passed.
@@ -532,11 +849,6 @@ func (x *WorkloadIdentityRules) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentityRules.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentityRules) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *WorkloadIdentityRules) GetAllow() []*WorkloadIdentityRule {
 	if x != nil {
 		return x.Allow
@@ -544,10 +856,31 @@ func (x *WorkloadIdentityRules) GetAllow() []*WorkloadIdentityRule {
 	return nil
 }
 
+func (x *WorkloadIdentityRules) SetAllow(v []*WorkloadIdentityRule) {
+	x.Allow = v
+}
+
+type WorkloadIdentityRules_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of rules used to determine if a WorkloadIdentity can be issued.
+	// If none are provided, it will be considered a pass. If any are provided,
+	// then at least one must pass for the rules to be considered passed.
+	Allow []*WorkloadIdentityRule
+}
+
+func (b0 WorkloadIdentityRules_builder) Build() *WorkloadIdentityRules {
+	m0 := &WorkloadIdentityRules{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Allow = b.Allow
+	return m0
+}
+
 // Template for an X509 Distinguished Name (DN).
 // Each field is optional, and, if provided, supports templating using attributes.
 type X509DistinguishedNameTemplate struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Common Name (CN) - 2.5.4.3
 	// If empty, the RDN will be omitted from the DN.
 	CommonName string `protobuf:"bytes,1,opt,name=common_name,json=commonName,proto3" json:"common_name,omitempty"`
@@ -586,11 +919,6 @@ func (x *X509DistinguishedNameTemplate) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use X509DistinguishedNameTemplate.ProtoReflect.Descriptor instead.
-func (*X509DistinguishedNameTemplate) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *X509DistinguishedNameTemplate) GetCommonName() string {
 	if x != nil {
 		return x.CommonName
@@ -612,9 +940,45 @@ func (x *X509DistinguishedNameTemplate) GetOrganizationalUnit() string {
 	return ""
 }
 
+func (x *X509DistinguishedNameTemplate) SetCommonName(v string) {
+	x.CommonName = v
+}
+
+func (x *X509DistinguishedNameTemplate) SetOrganization(v string) {
+	x.Organization = v
+}
+
+func (x *X509DistinguishedNameTemplate) SetOrganizationalUnit(v string) {
+	x.OrganizationalUnit = v
+}
+
+type X509DistinguishedNameTemplate_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Common Name (CN) - 2.5.4.3
+	// If empty, the RDN will be omitted from the DN.
+	CommonName string
+	// Organization (O) - 2.5.4.10
+	// If empty, the RDN will be omitted from the DN.
+	Organization string
+	// Organizational Unit (OU) - 2.5.4.11
+	// If empty, the RDN will be omitted from the DN.
+	OrganizationalUnit string
+}
+
+func (b0 X509DistinguishedNameTemplate_builder) Build() *X509DistinguishedNameTemplate {
+	m0 := &X509DistinguishedNameTemplate{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CommonName = b.CommonName
+	x.Organization = b.Organization
+	x.OrganizationalUnit = b.OrganizationalUnit
+	return m0
+}
+
 // Configuration specific to the issuance of X509-SVIDs.
 type WorkloadIdentitySPIFFEX509 struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The DNS Subject Alternative Names (SANs) that should be included in an
 	// X509-SVID issued using this WorkloadIdentity.
 	//
@@ -664,11 +1028,6 @@ func (x *WorkloadIdentitySPIFFEX509) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentitySPIFFEX509.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentitySPIFFEX509) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *WorkloadIdentitySPIFFEX509) GetDnsSans() []string {
 	if x != nil {
 		return x.DnsSans
@@ -690,9 +1049,78 @@ func (x *WorkloadIdentitySPIFFEX509) GetMaximumTtl() *durationpb.Duration {
 	return nil
 }
 
+func (x *WorkloadIdentitySPIFFEX509) SetDnsSans(v []string) {
+	x.DnsSans = v
+}
+
+func (x *WorkloadIdentitySPIFFEX509) SetSubjectTemplate(v *X509DistinguishedNameTemplate) {
+	x.SubjectTemplate = v
+}
+
+func (x *WorkloadIdentitySPIFFEX509) SetMaximumTtl(v *durationpb.Duration) {
+	x.MaximumTtl = v
+}
+
+func (x *WorkloadIdentitySPIFFEX509) HasSubjectTemplate() bool {
+	if x == nil {
+		return false
+	}
+	return x.SubjectTemplate != nil
+}
+
+func (x *WorkloadIdentitySPIFFEX509) HasMaximumTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.MaximumTtl != nil
+}
+
+func (x *WorkloadIdentitySPIFFEX509) ClearSubjectTemplate() {
+	x.SubjectTemplate = nil
+}
+
+func (x *WorkloadIdentitySPIFFEX509) ClearMaximumTtl() {
+	x.MaximumTtl = nil
+}
+
+type WorkloadIdentitySPIFFEX509_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The DNS Subject Alternative Names (SANs) that should be included in an
+	// X509-SVID issued using this WorkloadIdentity.
+	//
+	// Each entry in this list supports templating using attributes.
+	DnsSans []string
+	// Used to configure the Subject Distinguished Name (DN) of the X509-SVID.
+	//
+	// In most circumstances, it is recommended to prefer relying on the SPIFFE ID
+	// encoded in the URI SAN. However, the Subject DN may be needed to support
+	// legacy systems designed for X509 and not SPIFFE/WIMSE.
+	//
+	// If not provided, the X509-SVID will be issued with an empty Subject DN.
+	SubjectTemplate *X509DistinguishedNameTemplate
+	// Control the maximum TTL of X509-SVIDs issued using this WorkloadIdentity.
+	//
+	// If a X509-SVID is requested with a TTL greater than this value, then the
+	// returned X509-SVID will have a TTL of this value.
+	//
+	// Defaults to 24 hours. The maximum this value can be set to is 14 days.
+	MaximumTtl *durationpb.Duration
+}
+
+func (b0 WorkloadIdentitySPIFFEX509_builder) Build() *WorkloadIdentitySPIFFEX509 {
+	m0 := &WorkloadIdentitySPIFFEX509{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DnsSans = b.DnsSans
+	x.SubjectTemplate = b.SubjectTemplate
+	x.MaximumTtl = b.MaximumTtl
+	return m0
+}
+
 // Configuration specific to the issuance of JWT-SVIDs.
 type WorkloadIdentitySPIFFEJWT struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Additional claims that will be added to the JWT.
 	ExtraClaims *structpb.Struct `protobuf:"bytes,1,opt,name=extra_claims,json=extraClaims,proto3" json:"extra_claims,omitempty"`
 	// Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.
@@ -731,11 +1159,6 @@ func (x *WorkloadIdentitySPIFFEJWT) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentitySPIFFEJWT.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentitySPIFFEJWT) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *WorkloadIdentitySPIFFEJWT) GetExtraClaims() *structpb.Struct {
 	if x != nil {
 		return x.ExtraClaims
@@ -750,10 +1173,63 @@ func (x *WorkloadIdentitySPIFFEJWT) GetMaximumTtl() *durationpb.Duration {
 	return nil
 }
 
+func (x *WorkloadIdentitySPIFFEJWT) SetExtraClaims(v *structpb.Struct) {
+	x.ExtraClaims = v
+}
+
+func (x *WorkloadIdentitySPIFFEJWT) SetMaximumTtl(v *durationpb.Duration) {
+	x.MaximumTtl = v
+}
+
+func (x *WorkloadIdentitySPIFFEJWT) HasExtraClaims() bool {
+	if x == nil {
+		return false
+	}
+	return x.ExtraClaims != nil
+}
+
+func (x *WorkloadIdentitySPIFFEJWT) HasMaximumTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.MaximumTtl != nil
+}
+
+func (x *WorkloadIdentitySPIFFEJWT) ClearExtraClaims() {
+	x.ExtraClaims = nil
+}
+
+func (x *WorkloadIdentitySPIFFEJWT) ClearMaximumTtl() {
+	x.MaximumTtl = nil
+}
+
+type WorkloadIdentitySPIFFEJWT_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Additional claims that will be added to the JWT.
+	ExtraClaims *structpb.Struct
+	// Control the maximum TTL of JWT-SVIDs issued using this WorkloadIdentity.
+	//
+	// If a JWT-SVID is requested with a TTL greater than this value, then the
+	// returned JWT-SVID will have a TTL of this value.
+	//
+	// Defaults to 24 hours. The maximum this value can be set to is 24 hours.
+	MaximumTtl *durationpb.Duration
+}
+
+func (b0 WorkloadIdentitySPIFFEJWT_builder) Build() *WorkloadIdentitySPIFFEJWT {
+	m0 := &WorkloadIdentitySPIFFEJWT{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ExtraClaims = b.ExtraClaims
+	x.MaximumTtl = b.MaximumTtl
+	return m0
+}
+
 // Configuration pertaining to the issuance of SPIFFE-compatible workload
 // identity credentials.
 type WorkloadIdentitySPIFFE struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The path of the SPIFFE ID that will be issued to the workload.
 	//
 	// This should be prefixed with a forward-slash ("/").
@@ -797,11 +1273,6 @@ func (x *WorkloadIdentitySPIFFE) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentitySPIFFE.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentitySPIFFE) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *WorkloadIdentitySPIFFE) GetId() string {
 	if x != nil {
 		return x.Id
@@ -830,9 +1301,77 @@ func (x *WorkloadIdentitySPIFFE) GetJwt() *WorkloadIdentitySPIFFEJWT {
 	return nil
 }
 
+func (x *WorkloadIdentitySPIFFE) SetId(v string) {
+	x.Id = v
+}
+
+func (x *WorkloadIdentitySPIFFE) SetHint(v string) {
+	x.Hint = v
+}
+
+func (x *WorkloadIdentitySPIFFE) SetX509(v *WorkloadIdentitySPIFFEX509) {
+	x.X509 = v
+}
+
+func (x *WorkloadIdentitySPIFFE) SetJwt(v *WorkloadIdentitySPIFFEJWT) {
+	x.Jwt = v
+}
+
+func (x *WorkloadIdentitySPIFFE) HasX509() bool {
+	if x == nil {
+		return false
+	}
+	return x.X509 != nil
+}
+
+func (x *WorkloadIdentitySPIFFE) HasJwt() bool {
+	if x == nil {
+		return false
+	}
+	return x.Jwt != nil
+}
+
+func (x *WorkloadIdentitySPIFFE) ClearX509() {
+	x.X509 = nil
+}
+
+func (x *WorkloadIdentitySPIFFE) ClearJwt() {
+	x.Jwt = nil
+}
+
+type WorkloadIdentitySPIFFE_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The path of the SPIFFE ID that will be issued to the workload.
+	//
+	// This should be prefixed with a forward-slash ("/").
+	//
+	// This field supports templating using attributes.
+	Id string
+	// A freeform text field which is provided to workloads along with a
+	// credential produced by this WorkloadIdentity. This can be used to provide
+	// additional context that can be used to select between multiple credentials.
+	Hint string
+	// Configuration specific to X509-SVIDs.
+	X509 *WorkloadIdentitySPIFFEX509
+	// Configuration specific to JWT-SVIDs.
+	Jwt *WorkloadIdentitySPIFFEJWT
+}
+
+func (b0 WorkloadIdentitySPIFFE_builder) Build() *WorkloadIdentitySPIFFE {
+	m0 := &WorkloadIdentitySPIFFE{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Hint = b.Hint
+	x.X509 = b.X509
+	x.Jwt = b.Jwt
+	return m0
+}
+
 // The spec for the WorkloadIdentity resource.
 type WorkloadIdentitySpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The rules which are evaluated before the WorkloadIdentity can be issued.
 	Rules *WorkloadIdentityRules `protobuf:"bytes,1,opt,name=rules,proto3" json:"rules,omitempty"`
 	// Configuration pertaining to the issuance of SPIFFE-compatible workload
@@ -867,11 +1406,6 @@ func (x *WorkloadIdentitySpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use WorkloadIdentitySpec.ProtoReflect.Descriptor instead.
-func (*WorkloadIdentitySpec) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *WorkloadIdentitySpec) GetRules() *WorkloadIdentityRules {
 	if x != nil {
 		return x.Rules
@@ -884,6 +1418,55 @@ func (x *WorkloadIdentitySpec) GetSpiffe() *WorkloadIdentitySPIFFE {
 		return x.Spiffe
 	}
 	return nil
+}
+
+func (x *WorkloadIdentitySpec) SetRules(v *WorkloadIdentityRules) {
+	x.Rules = v
+}
+
+func (x *WorkloadIdentitySpec) SetSpiffe(v *WorkloadIdentitySPIFFE) {
+	x.Spiffe = v
+}
+
+func (x *WorkloadIdentitySpec) HasRules() bool {
+	if x == nil {
+		return false
+	}
+	return x.Rules != nil
+}
+
+func (x *WorkloadIdentitySpec) HasSpiffe() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spiffe != nil
+}
+
+func (x *WorkloadIdentitySpec) ClearRules() {
+	x.Rules = nil
+}
+
+func (x *WorkloadIdentitySpec) ClearSpiffe() {
+	x.Spiffe = nil
+}
+
+type WorkloadIdentitySpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The rules which are evaluated before the WorkloadIdentity can be issued.
+	Rules *WorkloadIdentityRules
+	// Configuration pertaining to the issuance of SPIFFE-compatible workload
+	// identity credentials.
+	Spiffe *WorkloadIdentitySPIFFE
+}
+
+func (b0 WorkloadIdentitySpec_builder) Build() *WorkloadIdentitySpec {
+	m0 := &WorkloadIdentitySpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rules = b.Rules
+	x.Spiffe = b.Spiffe
+	return m0
 }
 
 var File_teleport_workloadidentity_v1_resource_proto protoreflect.FileDescriptor
@@ -944,18 +1527,6 @@ const file_teleport_workloadidentity_v1_resource_proto_rawDesc = "" +
 	"\x14WorkloadIdentitySpec\x12I\n" +
 	"\x05rules\x18\x01 \x01(\v23.teleport.workloadidentity.v1.WorkloadIdentityRulesR\x05rules\x12L\n" +
 	"\x06spiffe\x18\x02 \x01(\v24.teleport.workloadidentity.v1.WorkloadIdentitySPIFFER\x06spiffeBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_resource_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_resource_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_resource_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_resource_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_resource_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_resource_proto_rawDesc), len(file_teleport_workloadidentity_v1_resource_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_resource_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_workloadidentity_v1_resource_proto_goTypes = []any{

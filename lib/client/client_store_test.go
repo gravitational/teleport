@@ -469,7 +469,7 @@ func TestPartialProfileStatusScope(t *testing.T) {
 			status, err := clientStore.ReadProfileStatus(p.Name())
 			require.NoError(t, err)
 			require.NotNil(t, status.ScopePin)
-			require.Equal(t, "/production", status.ScopePin.Scope)
+			require.Equal(t, "/production", status.ScopePin.GetScope())
 		})
 	})
 }

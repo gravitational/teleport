@@ -6226,7 +6226,9 @@ type DatabaseCertResponse struct {
 	// Cert and TrustChain are the certificates the client should present
 	// (tls.Config.Certificates). Pseudocode:
 	//
-	// 	tlsConfig.Certificates = append([]*tls.Certificate{resp.Cert}, resp.TrustChain...)
+	// 	tlsConfig.Certificates = []tls.Certificate{{
+	// 		Certificate: append([][]byte{resp.Cert}, resp.TrustChain...),
+	// 	}}
 	TrustChain [][]byte `protobuf:"bytes,3,rep,name=TrustChain,proto3" json:"trust_chain"`
 	// CA override details. Optional.
 	// If present then a CA override was active during certificate issuance.

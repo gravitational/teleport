@@ -54,16 +54,16 @@ type AccessMonitoringRules interface {
 
 // NewAccessMonitoringRuleWithLabels creates a new AccessMonitoringRule  with the given spec and labels.
 func NewAccessMonitoringRuleWithLabels(name string, labels map[string]string, spec *accessmonitoringrulesv1.AccessMonitoringRuleSpec) (*accessmonitoringrulesv1.AccessMonitoringRule, error) {
-	amr := &accessmonitoringrulesv1.AccessMonitoringRule{
+	amr := accessmonitoringrulesv1.AccessMonitoringRule_builder{
 		Kind:    types.KindAccessMonitoringRule,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:      name,
 			Namespace: defaults.Namespace,
 			Labels:    labels,
-		},
+		}.Build(),
 		Spec: spec,
-	}
+	}.Build()
 
 	err := ValidateAccessMonitoringRule(amr)
 	if err != nil {
@@ -74,24 +74,24 @@ func NewAccessMonitoringRuleWithLabels(name string, labels map[string]string, sp
 
 // ValidateAccessMonitoringRule checks that the provided access monitoring rule is valid.
 func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.AccessMonitoringRule) error {
-	if accessMonitoringRule.Kind != types.KindAccessMonitoringRule {
-		return trace.BadParameter("invalid kind for access monitoring rule: %q", accessMonitoringRule.Kind)
+	if accessMonitoringRule.GetKind() != types.KindAccessMonitoringRule {
+		return trace.BadParameter("invalid kind for access monitoring rule: %q", accessMonitoringRule.GetKind())
 	}
-	if accessMonitoringRule.Metadata == nil {
+	if !accessMonitoringRule.HasMetadata() {
 		return trace.BadParameter("accessMonitoringRule metadata is missing")
 	}
-	if accessMonitoringRule.Version != types.V1 {
-		return trace.BadParameter("accessMonitoringRule version %q is not supported", accessMonitoringRule.Version)
+	if accessMonitoringRule.GetVersion() != types.V1 {
+		return trace.BadParameter("accessMonitoringRule version %q is not supported", accessMonitoringRule.GetVersion())
 	}
-	if accessMonitoringRule.Spec == nil {
+	if !accessMonitoringRule.HasSpec() {
 		return trace.BadParameter("accessMonitoringRule spec is missing")
 	}
 
-	if len(accessMonitoringRule.Spec.Subjects) == 0 {
+	if len(accessMonitoringRule.GetSpec().GetSubjects()) == 0 {
 		return trace.BadParameter("accessMonitoringRule subject is missing")
 	}
 
-	if accessMonitoringRule.Spec.Condition == "" {
+	if accessMonitoringRule.GetSpec().GetCondition() == "" {
 		return trace.BadParameter("accessMonitoringRule condition is missing")
 	}
 
@@ -99,7 +99,7 @@ func ValidateAccessMonitoringRule(accessMonitoringRule *accessmonitoringrulesv1.
 		return trace.Wrap(err, "validating spec.schedules")
 	}
 
-	if accessMonitoringRule.Spec.Notification != nil && accessMonitoringRule.Spec.Notification.Name == "" {
+	if accessMonitoringRule.GetSpec().HasNotification() && accessMonitoringRule.GetSpec().GetNotification().GetName() == "" {
 		return trace.BadParameter("accessMonitoringRule notification plugin name is missing")
 	}
 
@@ -219,7 +219,7 @@ func MatchAccessMonitoringRule(rule *accessmonitoringrulesv1.AccessMonitoringRul
 		}
 	}
 	for _, subject := range subjects {
-		if ok := slices.ContainsFunc(rule.Spec.Subjects, func(s string) bool {
+		if ok := slices.ContainsFunc(rule.GetSpec().GetSubjects(), func(s string) bool {
 			return s == subject
 		}); !ok {
 			return false

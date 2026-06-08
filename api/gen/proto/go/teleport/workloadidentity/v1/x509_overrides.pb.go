@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/x509_overrides.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // credentials. This message serves as both the type used in the v1 service and
 // as the canonical v1 storage format (in protojson).
 type X509IssuerOverride struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Fixed string, "workload_identity_x509_issuer_override".
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// Fixed string, "".
@@ -78,11 +79,6 @@ func (x *X509IssuerOverride) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use X509IssuerOverride.ProtoReflect.Descriptor instead.
-func (*X509IssuerOverride) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *X509IssuerOverride) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -118,9 +114,76 @@ func (x *X509IssuerOverride) GetSpec() *X509IssuerOverrideSpec {
 	return nil
 }
 
+func (x *X509IssuerOverride) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *X509IssuerOverride) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *X509IssuerOverride) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *X509IssuerOverride) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *X509IssuerOverride) SetSpec(v *X509IssuerOverrideSpec) {
+	x.Spec = v
+}
+
+func (x *X509IssuerOverride) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *X509IssuerOverride) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *X509IssuerOverride) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *X509IssuerOverride) ClearSpec() {
+	x.Spec = nil
+}
+
+type X509IssuerOverride_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fixed string, "workload_identity_x509_issuer_override".
+	Kind string
+	// Fixed string, "".
+	SubKind string
+	// Fixed string, "v1".
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *X509IssuerOverrideSpec
+}
+
+func (b0 X509IssuerOverride_builder) Build() *X509IssuerOverride {
+	m0 := &X509IssuerOverride{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // The spec for X509IssuerOverride.
 type X509IssuerOverrideSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A list of issuer overrides. The public key of each issuer must be unique
 	// across all overrides' issuers, and should match one of the keys in the
 	// cluster's SPIFFE certificate authority.
@@ -154,11 +217,6 @@ func (x *X509IssuerOverrideSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use X509IssuerOverrideSpec.ProtoReflect.Descriptor instead.
-func (*X509IssuerOverrideSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *X509IssuerOverrideSpec) GetOverrides() []*X509IssuerOverrideSpec_Override {
 	if x != nil {
 		return x.Overrides
@@ -166,10 +224,31 @@ func (x *X509IssuerOverrideSpec) GetOverrides() []*X509IssuerOverrideSpec_Overri
 	return nil
 }
 
+func (x *X509IssuerOverrideSpec) SetOverrides(v []*X509IssuerOverrideSpec_Override) {
+	x.Overrides = v
+}
+
+type X509IssuerOverrideSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of issuer overrides. The public key of each issuer must be unique
+	// across all overrides' issuers, and should match one of the keys in the
+	// cluster's SPIFFE certificate authority.
+	Overrides []*X509IssuerOverrideSpec_Override
+}
+
+func (b0 X509IssuerOverrideSpec_builder) Build() *X509IssuerOverrideSpec {
+	m0 := &X509IssuerOverrideSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Overrides = b.Overrides
+	return m0
+}
+
 // The override for a single issuer (i.e. a single X.509 certificate in a
 // SPIFFE cert_authority).
 type X509IssuerOverrideSpec_Override struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ASN.1 DER certificate, not included by default in the chain.
 	Issuer []byte `protobuf:"bytes,1,opt,name=issuer,proto3" json:"issuer,omitempty"`
 	// ASN.1 DER certificate ordered from leaf to root as it should be presented
@@ -205,11 +284,6 @@ func (x *X509IssuerOverrideSpec_Override) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use X509IssuerOverrideSpec_Override.ProtoReflect.Descriptor instead.
-func (*X509IssuerOverrideSpec_Override) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescGZIP(), []int{1, 0}
-}
-
 func (x *X509IssuerOverrideSpec_Override) GetIssuer() []byte {
 	if x != nil {
 		return x.Issuer
@@ -222,6 +296,37 @@ func (x *X509IssuerOverrideSpec_Override) GetChain() [][]byte {
 		return x.Chain
 	}
 	return nil
+}
+
+func (x *X509IssuerOverrideSpec_Override) SetIssuer(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Issuer = v
+}
+
+func (x *X509IssuerOverrideSpec_Override) SetChain(v [][]byte) {
+	x.Chain = v
+}
+
+type X509IssuerOverrideSpec_Override_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ASN.1 DER certificate, not included by default in the chain.
+	Issuer []byte
+	// ASN.1 DER certificate ordered from leaf to root as it should be presented
+	// by a client or server in a TLS connection. Must not include self-signed
+	// roots of trust.
+	Chain [][]byte
+}
+
+func (b0 X509IssuerOverrideSpec_Override_builder) Build() *X509IssuerOverrideSpec_Override {
+	m0 := &X509IssuerOverrideSpec_Override{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Issuer = b.Issuer
+	x.Chain = b.Chain
+	return m0
 }
 
 var File_teleport_workloadidentity_v1_x509_overrides_proto protoreflect.FileDescriptor
@@ -240,18 +345,6 @@ const file_teleport_workloadidentity_v1_x509_overrides_proto_rawDesc = "" +
 	"\bOverride\x12\x16\n" +
 	"\x06issuer\x18\x01 \x01(\fR\x06issuer\x12\x14\n" +
 	"\x05chain\x18\x02 \x03(\fR\x05chainBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_x509_overrides_proto_rawDesc), len(file_teleport_workloadidentity_v1_x509_overrides_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_x509_overrides_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_x509_overrides_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_workloadidentity_v1_x509_overrides_proto_goTypes = []any{

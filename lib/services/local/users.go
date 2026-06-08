@@ -106,9 +106,9 @@ func (s *IdentityService) DeleteAllUsers(ctx context.Context) error {
 
 // ListUsers returns a page of users.
 func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersRequest) (*userspb.ListUsersResponse, error) {
-	rangeStart := backend.NewKey(webPrefix, usersPrefix).AppendKey(backend.KeyFromString(req.PageToken))
+	rangeStart := backend.NewKey(webPrefix, usersPrefix).AppendKey(backend.KeyFromString(req.GetPageToken()))
 	rangeEnd := backend.RangeEnd(backend.ExactKey(webPrefix, usersPrefix))
-	pageSize := req.PageSize
+	pageSize := req.GetPageSize()
 
 	// Adjust page size, so it can't be too large.
 	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
@@ -118,15 +118,15 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 	itemStream := s.Backend.Items(ctx, backend.ItemsParams{StartKey: rangeStart, EndKey: rangeEnd})
 
 	var userStream iter.Seq2[*types.UserV2, error]
-	if req.WithSecrets {
+	if req.GetWithSecrets() {
 		userStream = s.streamUsersWithSecrets(itemStream)
 	} else {
 		userStream = s.streamUsersWithoutSecrets(itemStream)
 	}
 
-	if req.Filter != nil {
+	if req.HasFilter() {
 		userStream = stream.FilterMap(userStream, func(user *types.UserV2) (*types.UserV2, bool) {
-			if !req.Filter.Match(user) {
+			if !req.GetFilter().Match(user) {
 				return nil, false
 			}
 
@@ -140,12 +140,12 @@ func (s *IdentityService) ListUsers(ctx context.Context, req *userspb.ListUsersR
 			return nil, trace.Wrap(err)
 		}
 
-		if len(resp.Users) >= int(pageSize) {
-			resp.NextPageToken = nextUserToken(resp.Users[len(resp.Users)-1])
+		if len(resp.GetUsers()) >= int(pageSize) {
+			resp.SetNextPageToken(nextUserToken(resp.GetUsers()[len(resp.GetUsers())-1]))
 			return &resp, nil
 		}
 
-		resp.Users = append(resp.Users, user)
+		resp.SetUsers(append(resp.GetUsers(), user))
 	}
 	return &resp, nil
 }

@@ -91,7 +91,7 @@ In this step we will configure two users on the postgres database:
 Open a terminal and:
 - install the `ibmcloud` database plugin
   ```code
-  $ ibmcloud install plugin cdb
+  $ ibmcloud plugin install cdb
   ```
 - recover the postgresql database deployment name
   ```code
@@ -278,7 +278,7 @@ teleport-auth-v17   ClusterIP      None            <none>                       
 ```
 
 Create a CNAME DNS entry pointing to the service loadbalancer.
-In out example, the DNS entry should look like:
+In our example, the DNS entry should look like:
 
 ```
 teleport.example.com. 300 IN	CNAME	45a6ca70-ca-tor.lb.appdomain.cloud.

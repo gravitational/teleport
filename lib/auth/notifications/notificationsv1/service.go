@@ -108,11 +108,11 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 // ListNotifications returns a paginated list of notifications which match the user.
 func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.ListNotificationsRequest) (*notificationsv1.ListNotificationsResponse, error) {
 	labelsMatch := func(resourceLabels map[string]string) bool {
-		if req.Filters == nil || len(req.Filters.Labels) == 0 {
+		if !req.HasFilters() || len(req.GetFilters().GetLabels()) == 0 {
 			// no labels to match against
 			return true
 		}
-		for k, v := range req.Filters.Labels {
+		for k, v := range req.GetFilters().GetLabels() {
 			if resourceLabels[k] != v {
 				return false
 			}
@@ -120,11 +120,11 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 		return true
 	}
 
-	if req.Filters != nil {
-		if req.Filters.GlobalOnly {
+	if req.HasFilters() {
+		if req.GetFilters().GetGlobalOnly() {
 			return s.listGlobalNotifications(ctx, req)
 		}
-		if req.Filters.Username != "" {
+		if req.GetFilters().GetUsername() != "" {
 			return s.listUserSpecificNotificationsForUser(ctx, req)
 		}
 
@@ -146,8 +146,8 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 			return nil, trace.Wrap(err)
 		}
 		for _, notificationState := range notificationStates {
-			if notificationState.Spec != nil && notificationState.Status != nil {
-				notificationStatesMap[notificationState.Spec.NotificationId] = notificationState.Status.GetNotificationState()
+			if notificationState.HasSpec() && notificationState.HasStatus() {
+				notificationStatesMap[notificationState.GetSpec().GetNotificationId()] = notificationState.GetStatus().GetNotificationState()
 			}
 		}
 		if nextKey == "" {
@@ -166,8 +166,8 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 		// Return true if the user hasn't dismissed this notification
 		return notificationStatesMap[n.GetMetadata().GetName()] != notificationsv1.NotificationState_NOTIFICATION_STATE_DISMISSED
 	}
-	userKey, globalKey, found := strings.Cut(req.PageToken, ",")
-	if !found && req.PageToken != "" {
+	userKey, globalKey, found := strings.Cut(req.GetPageToken(), ",")
+	if !found && req.GetPageToken() != "" {
 		return nil, trace.BadParameter("invalid page token provided")
 	}
 
@@ -222,7 +222,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 		},
 		func(globalNotification *notificationsv1.GlobalNotification) *notificationsv1.Notification {
 			notification := globalNotification.GetSpec().GetNotification()
-			notification.Metadata.Name = globalNotification.GetMetadata().GetName()
+			notification.GetMetadata().SetName(globalNotification.GetMetadata().GetName())
 			return notification
 		},
 	)
@@ -234,7 +234,7 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 		if item != nil {
 			notifications = append(notifications, item)
 		}
-		if len(notifications) == int(req.PageSize) {
+		if len(notifications) == int(req.GetPageSize()) {
 			// The nextKeys should represent the next unconsumed items in their respective lists.
 			// If the last item in this page (ie. the current item in the stream) was a user-specific notification,
 			// then the userNotificationsNextKey should be the next item in the userNotifsStream, and
@@ -280,18 +280,18 @@ func (s *Service) ListNotifications(ctx context.Context, req *notificationsv1.Li
 	// Add label to indicate notifications that the user has clicked.
 	for _, notification := range notifications {
 		if (notificationStatesMap[notification.GetMetadata().GetName()]) == notificationsv1.NotificationState_NOTIFICATION_STATE_CLICKED {
-			notification.GetMetadata().Labels[types.NotificationClickedLabel] = "true"
+			notification.GetMetadata().GetLabels()[types.NotificationClickedLabel] = "true"
 		}
 	}
 	var nextPageToken string
 	if nextUserKey != "" || nextGlobalKey != "" {
 		nextPageToken = fmt.Sprintf("%s,%s", nextUserKey, nextGlobalKey)
 	}
-	response := &notificationsv1.ListNotificationsResponse{
+	response := notificationsv1.ListNotificationsResponse_builder{
 		Notifications:                     notifications,
 		NextPageToken:                     nextPageToken,
 		UserLastSeenNotificationTimestamp: userLastSeenNotification.GetStatus().GetLastSeenTime(),
-	}
+	}.Build()
 	return response, nil
 }
 
@@ -302,25 +302,25 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 	}
 
 	// If the user is explicitly excluded by the notification, return false early.
-	if gn.Spec.ExcludeUsers != nil && slices.Contains(gn.Spec.ExcludeUsers, authCtx.User.GetName()) {
+	if gn.GetSpec().GetExcludeUsers() != nil && slices.Contains(gn.GetSpec().GetExcludeUsers(), authCtx.User.GetName()) {
 		return false
 	}
 
-	switch matcher := gn.Spec.Matcher.(type) {
-	case *notificationsv1.GlobalNotificationSpec_All:
+	switch gn.GetSpec().WhichMatcher() {
+	case notificationsv1.GlobalNotificationSpec_All_case:
 		// Always return true if the matcher is "all."
 		return true
 
-	case *notificationsv1.GlobalNotificationSpec_ByUsers:
-		userList := matcher.ByUsers.GetUsers()
+	case notificationsv1.GlobalNotificationSpec_ByUsers_case:
+		userList := gn.GetSpec().GetByUsers().GetUsers()
 		return slices.Contains(userList, authCtx.User.GetName())
 
-	case *notificationsv1.GlobalNotificationSpec_ByRoles:
-		matcherRoles := matcher.ByRoles.GetRoles()
+	case notificationsv1.GlobalNotificationSpec_ByRoles_case:
+		matcherRoles := gn.GetSpec().GetByRoles().GetRoles()
 		userRoles := authCtx.User.GetRoles()
 
 		// If MatchAllConditions is true, then userRoles must contain every role in matcherRoles.
-		if gn.Spec.MatchAllConditions {
+		if gn.GetSpec().GetMatchAllConditions() {
 			for _, matcherRole := range matcherRoles {
 				// Return false if there is any role missing.
 				if !slices.Contains(userRoles, matcherRole) {
@@ -339,8 +339,8 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 
 		return false
 
-	case *notificationsv1.GlobalNotificationSpec_ByPermissions:
-		roleConditionsList := matcher.ByPermissions.GetRoleConditions()
+	case notificationsv1.GlobalNotificationSpec_ByPermissions_case:
+		roleConditionsList := gn.GetSpec().GetByPermissions().GetRoleConditions()
 
 		var results []bool
 		for _, roleConditions := range roleConditionsList {
@@ -351,12 +351,12 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 			}
 
 			// If MatchAllConditions is false, we can exit at the first match.
-			if !gn.Spec.MatchAllConditions && match {
+			if !gn.GetSpec().GetMatchAllConditions() && match {
 				return true
 			}
 
 			// If MatchAllConditions is true, we exit at the first non-match.
-			if gn.Spec.MatchAllConditions && !match {
+			if gn.GetSpec().GetMatchAllConditions() && !match {
 				return false
 			}
 
@@ -364,7 +364,7 @@ func (s *Service) matchGlobalNotification(ctx context.Context, authCtx *authz.Co
 		}
 
 		// Return false if any of the roleConditions didn't match.
-		if gn.Spec.MatchAllConditions {
+		if gn.GetSpec().GetMatchAllConditions() {
 			return !slices.Contains(results, false)
 		}
 
@@ -477,10 +477,10 @@ func isMoreRecent(userNotification *notificationsv1.Notification, globalNotifica
 
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
 func (s *Service) UpsertUserNotificationState(ctx context.Context, req *notificationsv1.UpsertUserNotificationStateRequest) (*notificationsv1.UserNotificationState, error) {
-	if req.Username == "" {
+	if req.GetUsername() == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	if req.UserNotificationState == nil {
+	if !req.HasUserNotificationState() {
 		return nil, trace.BadParameter("missing notification state")
 	}
 
@@ -489,11 +489,11 @@ func (s *Service) UpsertUserNotificationState(ctx context.Context, req *notifica
 		return nil, trace.Wrap(err)
 	}
 	username := authCtx.User.GetName()
-	if username != req.Username {
+	if username != req.GetUsername() {
 		return nil, trace.AccessDenied("a user may only update their own notification state")
 	}
 
-	out, err := s.backend.UpsertUserNotificationState(ctx, req.Username, req.UserNotificationState)
+	out, err := s.backend.UpsertUserNotificationState(ctx, req.GetUsername(), req.GetUserNotificationState())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -503,10 +503,10 @@ func (s *Service) UpsertUserNotificationState(ctx context.Context, req *notifica
 
 // UpsertUserLastSeenNotification creates or updates a user's last seen notification timestamp.
 func (s *Service) UpsertUserLastSeenNotification(ctx context.Context, req *notificationsv1.UpsertUserLastSeenNotificationRequest) (*notificationsv1.UserLastSeenNotification, error) {
-	if req.Username == "" {
+	if req.GetUsername() == "" {
 		return nil, trace.BadParameter("missing username")
 	}
-	if req.UserLastSeenNotification == nil {
+	if !req.HasUserLastSeenNotification() {
 		return nil, trace.BadParameter("missing user last seen notification")
 	}
 
@@ -516,11 +516,11 @@ func (s *Service) UpsertUserLastSeenNotification(ctx context.Context, req *notif
 	}
 
 	username := authCtx.User.GetName()
-	if username != req.Username {
+	if username != req.GetUsername() {
 		return nil, trace.AccessDenied("a user may only update their own last seen notification timestamp")
 	}
 
-	out, err := s.backend.UpsertUserLastSeenNotification(ctx, req.Username, req.UserLastSeenNotification)
+	out, err := s.backend.UpsertUserLastSeenNotification(ctx, req.GetUsername(), req.GetUserLastSeenNotification())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -543,7 +543,7 @@ func (s *Service) CreateGlobalNotification(ctx context.Context, req *notificatio
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := s.backend.CreateGlobalNotification(ctx, req.GlobalNotification)
+	out, err := s.backend.CreateGlobalNotification(ctx, req.GetGlobalNotification())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -553,7 +553,7 @@ func (s *Service) CreateGlobalNotification(ctx context.Context, req *notificatio
 
 // CreateUserNotification creates a user-specific notification.
 func (s *Service) CreateUserNotification(ctx context.Context, req *notificationsv1.CreateUserNotificationRequest) (*notificationsv1.Notification, error) {
-	if req.Username == "" {
+	if req.GetUsername() == "" {
 		return nil, trace.BadParameter("missing username")
 	}
 
@@ -570,7 +570,7 @@ func (s *Service) CreateUserNotification(ctx context.Context, req *notifications
 		return nil, trace.Wrap(err)
 	}
 
-	out, err := s.backend.CreateUserNotification(ctx, req.Notification)
+	out, err := s.backend.CreateUserNotification(ctx, req.GetNotification())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -593,7 +593,7 @@ func (s *Service) DeleteGlobalNotification(ctx context.Context, req *notificatio
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.backend.DeleteGlobalNotification(ctx, req.NotificationId)
+	err = s.backend.DeleteGlobalNotification(ctx, req.GetNotificationId())
 	return nil, trace.Wrap(err)
 }
 
@@ -612,7 +612,7 @@ func (s *Service) DeleteUserNotification(ctx context.Context, req *notifications
 		return nil, trace.Wrap(err)
 	}
 
-	err = s.backend.DeleteUserNotification(ctx, req.Username, req.NotificationId)
+	err = s.backend.DeleteUserNotification(ctx, req.GetUsername(), req.GetNotificationId())
 	return nil, trace.Wrap(err)
 }
 
@@ -625,7 +625,7 @@ func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, req 
 
 	// If no username is provided, fetch notifications for the current user.
 	if req.GetFilters().GetUsername() == "" {
-		req.Filters.Username = authCtx.User.GetName()
+		req.GetFilters().SetUsername(authCtx.User.GetName())
 	}
 
 	// If the user is trying to fetch notifications for a different user, they need `list` permissions for `Notifications`.
@@ -668,10 +668,10 @@ func (s *Service) listUserSpecificNotificationsForUser(ctx context.Context, req 
 		}
 	}
 
-	return &notificationsv1.ListNotificationsResponse{
+	return notificationsv1.ListNotificationsResponse_builder{
 		Notifications: notifications,
 		NextPageToken: nextKey,
-	}, nil
+	}.Build(), nil
 }
 
 // listGlobalNotifications returns a paginated list of all global notifications. This is a privileged operation requiring `list` access for `Notifications` and should only be used by cluster admins.
@@ -714,7 +714,7 @@ func (s *Service) listGlobalNotifications(ctx context.Context, req *notification
 		item := stream.Item()
 		if item != nil {
 			notification := item.GetSpec().GetNotification()
-			notification.Metadata.Name = item.GetMetadata().GetName()
+			notification.GetMetadata().SetName(item.GetMetadata().GetName())
 
 			notifications = append(notifications, notification)
 
@@ -725,8 +725,8 @@ func (s *Service) listGlobalNotifications(ctx context.Context, req *notification
 		}
 	}
 
-	return &notificationsv1.ListNotificationsResponse{
+	return notificationsv1.ListNotificationsResponse_builder{
 		Notifications: notifications,
 		NextPageToken: nextKey,
-	}, nil
+	}.Build(), nil
 }

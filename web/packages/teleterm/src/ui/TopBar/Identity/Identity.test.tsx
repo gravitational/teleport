@@ -31,8 +31,6 @@ import { MockAppContext } from 'teleterm/ui/fixtures/mocks';
 
 import { IdentityContainer } from './Identity';
 
-/* oxlint-disable jest/no-standalone-expect */
-
 test.each([
   {
     name: 'device enrollment confirmation is visible if device is trusted',

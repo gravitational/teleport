@@ -40,7 +40,7 @@ type botClient struct {
 func (l botClient) Get(ctx context.Context, name string) (*machineidv1.Bot, error) {
 	resp, err := l.teleportClient.
 		BotServiceClient().
-		GetBot(ctx, &machineidv1.GetBotRequest{BotName: name})
+		GetBot(ctx, machineidv1.GetBotRequest_builder{BotName: name}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -51,7 +51,7 @@ func (l botClient) Get(ctx context.Context, name string) (*machineidv1.Bot, erro
 func (l botClient) Create(ctx context.Context, resource *machineidv1.Bot) error {
 	_, err := l.teleportClient.
 		BotServiceClient().
-		CreateBot(ctx, &machineidv1.CreateBotRequest{Bot: resource})
+		CreateBot(ctx, machineidv1.CreateBotRequest_builder{Bot: resource}.Build())
 	return trace.Wrap(err)
 }
 
@@ -59,7 +59,7 @@ func (l botClient) Create(ctx context.Context, resource *machineidv1.Bot) error 
 func (l botClient) Update(ctx context.Context, resource *machineidv1.Bot) error {
 	_, err := l.teleportClient.
 		BotServiceClient().
-		UpsertBot(ctx, &machineidv1.UpsertBotRequest{Bot: resource})
+		UpsertBot(ctx, machineidv1.UpsertBotRequest_builder{Bot: resource}.Build())
 	return trace.Wrap(err)
 }
 
@@ -67,7 +67,7 @@ func (l botClient) Update(ctx context.Context, resource *machineidv1.Bot) error 
 func (l botClient) Delete(ctx context.Context, name string) error {
 	_, err := l.teleportClient.
 		BotServiceClient().
-		DeleteBot(ctx, &machineidv1.DeleteBotRequest{BotName: name})
+		DeleteBot(ctx, machineidv1.DeleteBotRequest_builder{BotName: name}.Build())
 	return trace.Wrap(err)
 }
 

@@ -212,14 +212,14 @@ func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 
 	for _, cluster := range clusters {
 		uiEKSClusters = append(uiEKSClusters, EKSCluster{
-			Name:                 cluster.Name,
-			Region:               cluster.Region,
-			Arn:                  cluster.Arn,
-			Labels:               ui.MakeLabelsWithoutInternalPrefixes(cluster.Labels),
-			JoinLabels:           ui.MakeLabelsWithoutInternalPrefixes(cluster.JoinLabels),
-			Status:               cluster.Status,
-			EndpointPublicAccess: cluster.EndpointPublicAccess,
-			AuthenticationMode:   cluster.AuthenticationMode,
+			Name:                 cluster.GetName(),
+			Region:               cluster.GetRegion(),
+			Arn:                  cluster.GetArn(),
+			Labels:               ui.MakeLabelsWithoutInternalPrefixes(cluster.GetLabels()),
+			JoinLabels:           ui.MakeLabelsWithoutInternalPrefixes(cluster.GetJoinLabels()),
+			Status:               cluster.GetStatus(),
+			EndpointPublicAccess: cluster.GetEndpointPublicAccess(),
+			AuthenticationMode:   cluster.GetAuthenticationMode(),
 		})
 	}
 	return uiEKSClusters
@@ -526,15 +526,15 @@ type Desktop struct {
 }
 
 func MakeLinuxDesktop(linuxDesktop *linuxdesktopv1.LinuxDesktop, logins []string, requiresRequest bool) Desktop {
-	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(linuxDesktop.Metadata.Labels)
+	uiLabels := ui.MakeLabelsWithoutInternalPrefixes(linuxDesktop.GetMetadata().GetLabels())
 
 	return Desktop{
 		Kind:            linuxDesktop.GetKind(),
 		OS:              constants.LinuxOS,
-		Name:            linuxDesktop.Spec.Hostname,
-		Addr:            linuxDesktop.Spec.Addr,
+		Name:            linuxDesktop.GetSpec().GetHostname(),
+		Addr:            linuxDesktop.GetSpec().GetAddr(),
 		Labels:          uiLabels,
-		HostID:          linuxDesktop.Metadata.Name,
+		HostID:          linuxDesktop.GetMetadata().GetName(),
 		Logins:          logins,
 		RequiresRequest: requiresRequest,
 	}

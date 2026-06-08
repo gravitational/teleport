@@ -85,12 +85,12 @@ func (s *Service) generateAWSRACredentialsWithoutAuthZ(ctx context.Context, req 
 		return nil, trace.Wrap(err)
 	}
 
-	return &integrationpb.GenerateAWSRACredentialsResponse{
+	return integrationpb.GenerateAWSRACredentialsResponse_builder{
 		AccessKeyId:     awsCredentials.AccessKeyID,
 		SecretAccessKey: awsCredentials.SecretAccessKey,
 		SessionToken:    awsCredentials.SessionToken,
 		Expiration:      timestamppb.New(awsCredentials.Expiration),
-	}, nil
+	}.Build(), nil
 }
 
 func (s *Service) getAWSRolesAnywhereIntegrationSpec(ctx context.Context, integrationName string) (*types.AWSRAIntegrationSpecV1, error) {
@@ -199,12 +199,12 @@ func (s *AWSRolesAnywhereService) ListRolesAnywhereProfiles(ctx context.Context,
 	}
 	trustAnchor := spec.TrustAnchorARN
 
-	credentials, err := s.integrationService.generateAWSRACredentialsWithoutAuthZ(ctx, &integrationpb.GenerateAWSRACredentialsRequest{
+	credentials, err := s.integrationService.generateAWSRACredentialsWithoutAuthZ(ctx, integrationpb.GenerateAWSRACredentialsRequest_builder{
 		ProfileArn:                    spec.ProfileSyncConfig.ProfileARN,
 		RoleArn:                       spec.ProfileSyncConfig.RoleARN,
 		ProfileAcceptsRoleSessionName: spec.ProfileSyncConfig.ProfileAcceptsRoleSessionName,
 		SubjectName:                   authCtx.Identity.GetIdentity().Username,
-	}, trustAnchor)
+	}.Build(), trustAnchor)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -217,10 +217,10 @@ func (s *AWSRolesAnywhereService) ListRolesAnywhereProfiles(ctx context.Context,
 
 	listRolesAnywhereClient, err := awsra.NewListRolesAnywhereProfilesClient(ctx, &awsra.AWSClientConfig{
 		Credentials: awsra.Credentials{
-			AccessKeyID:     credentials.AccessKeyId,
-			SecretAccessKey: credentials.SecretAccessKey,
-			SessionToken:    credentials.SessionToken,
-			Expiration:      credentials.Expiration.AsTime(),
+			AccessKeyID:     credentials.GetAccessKeyId(),
+			SecretAccessKey: credentials.GetSecretAccessKey(),
+			SessionToken:    credentials.GetSessionToken(),
+			Expiration:      credentials.GetExpiration().AsTime(),
 			Version:         1,
 		},
 		Region: trustAnchorRegion,
@@ -239,10 +239,10 @@ func (s *AWSRolesAnywhereService) ListRolesAnywhereProfiles(ctx context.Context,
 		return nil, trace.Wrap(err)
 	}
 
-	return &integrationpb.ListRolesAnywhereProfilesResponse{
+	return integrationpb.ListRolesAnywhereProfilesResponse_builder{
 		Profiles:      profileList.Profiles,
 		NextPageToken: profileList.NextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // AWSRolesAnywherePing performs a health check for the AWS Roles Anywhere integration.
@@ -264,8 +264,8 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 
 	var trustAnchorARN, profileARN, roleARN string
 
-	switch req.Mode.(type) {
-	case *integrationpb.AWSRolesAnywherePingRequest_Integration:
+	switch req.WhichMode() {
+	case integrationpb.AWSRolesAnywherePingRequest_Integration_case:
 		spec, err := s.integrationService.getAWSRolesAnywhereIntegrationSpec(ctx, req.GetIntegration())
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -275,7 +275,7 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 		profileARN = spec.ProfileSyncConfig.ProfileARN
 		roleARN = spec.ProfileSyncConfig.RoleARN
 
-	case *integrationpb.AWSRolesAnywherePingRequest_Custom:
+	case integrationpb.AWSRolesAnywherePingRequest_Custom_case:
 		trustAnchorARN = req.GetCustom().GetTrustAnchorArn()
 		profileARN = req.GetCustom().GetProfileArn()
 		roleARN = req.GetCustom().GetRoleArn()
@@ -291,11 +291,11 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 		"role_arn", roleARN,
 	)
 
-	credentialsRequest := &integrationpb.GenerateAWSRACredentialsRequest{
+	credentialsRequest := integrationpb.GenerateAWSRACredentialsRequest_builder{
 		ProfileArn:  profileARN,
 		RoleArn:     roleARN,
 		SubjectName: authCtx.Identity.GetIdentity().Username,
-	}
+	}.Build()
 
 	trustAnchorARNParsed, err := arn.Parse(trustAnchorARN)
 	if err != nil {
@@ -310,10 +310,10 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 
 	pingClient, err := s.newPingClient(ctx, &awsra.AWSClientConfig{
 		Credentials: awsra.Credentials{
-			AccessKeyID:     credentials.AccessKeyId,
-			SecretAccessKey: credentials.SecretAccessKey,
-			SessionToken:    credentials.SessionToken,
-			Expiration:      credentials.Expiration.AsTime(),
+			AccessKeyID:     credentials.GetAccessKeyId(),
+			SecretAccessKey: credentials.GetSecretAccessKey(),
+			SessionToken:    credentials.GetSessionToken(),
+			Expiration:      credentials.GetExpiration().AsTime(),
 			Version:         1,
 		},
 		Region: trustAnchorRegion,
@@ -329,10 +329,10 @@ func (s *AWSRolesAnywhereService) AWSRolesAnywherePing(ctx context.Context, req 
 		return nil, trace.Wrap(err)
 	}
 
-	return &integrationpb.AWSRolesAnywherePingResponse{
+	return integrationpb.AWSRolesAnywherePingResponse_builder{
 		ProfileCount: int32(pingResp.EnabledProfileCounter),
 		AccountId:    pingResp.AccountID,
 		Arn:          pingResp.ARN,
 		UserId:       pingResp.UserID,
-	}, nil
+	}.Build(), nil
 }

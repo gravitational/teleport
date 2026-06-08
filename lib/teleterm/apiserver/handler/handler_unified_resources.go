@@ -22,8 +22,9 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
@@ -40,11 +41,11 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 
 	sortBy := types.SortBy{}
 	if req.GetSortBy() != nil {
-		sortBy.IsDesc = req.GetSortBy().IsDesc
-		sortBy.Field = req.GetSortBy().Field
+		sortBy.IsDesc = req.GetSortBy().GetIsDesc()
+		sortBy.Field = req.GetSortBy().GetField()
 	}
 
-	daemonResponse, err := s.DaemonService.ListUnifiedResources(ctx, clusterURI, &proto.ListUnifiedResourcesRequest{
+	daemonResponse, err := s.DaemonService.ListUnifiedResources(ctx, clusterURI, &clientproto.ListUnifiedResourcesRequest{
 		Kinds:               req.GetKinds(),
 		Limit:               req.GetLimit(),
 		StartKey:            req.GetStartKey(),
@@ -65,52 +66,40 @@ func (s *Handler) ListUnifiedResources(ctx context.Context, req *api.ListUnified
 
 	for _, resource := range daemonResponse.Resources {
 		if resource.Server != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
-				Resource: &api.PaginatedResource_Server{
-					Server: newAPIServer(*resource.Server),
-				},
+			response.SetResources(append(response.GetResources(), api.PaginatedResource_builder{
+				Server:          proto.ValueOrDefault(newAPIServer(*resource.Server)),
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}.Build()))
 		}
 		if resource.Database != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
-				Resource: &api.PaginatedResource_Database{
-					Database: newAPIDatabase(*resource.Database),
-				},
+			response.SetResources(append(response.GetResources(), api.PaginatedResource_builder{
+				Database:        proto.ValueOrDefault(newAPIDatabase(*resource.Database)),
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}.Build()))
 		}
 		if resource.Kube != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
-				Resource: &api.PaginatedResource_Kube{
-					Kube: newAPIKube(*resource.Kube),
-				},
+			response.SetResources(append(response.GetResources(), api.PaginatedResource_builder{
+				Kube:            proto.ValueOrDefault(newAPIKube(*resource.Kube)),
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}.Build()))
 		}
 		if resource.App != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
-				Resource: &api.PaginatedResource_App{
-					App: newAPIApp(*resource.App),
-				},
+			response.SetResources(append(response.GetResources(), api.PaginatedResource_builder{
+				App:             proto.ValueOrDefault(newAPIApp(*resource.App)),
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}.Build()))
 		}
 		if resource.SAMLIdPServiceProvider != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
-				Resource: &api.PaginatedResource_App{
-					App: newSAMLIdPServiceProviderAPIApp(*resource.SAMLIdPServiceProvider),
-				},
+			response.SetResources(append(response.GetResources(), api.PaginatedResource_builder{
+				App:             proto.ValueOrDefault(newSAMLIdPServiceProviderAPIApp(*resource.SAMLIdPServiceProvider)),
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}.Build()))
 		}
 		if resource.WindowsDesktop != nil {
-			response.Resources = append(response.Resources, &api.PaginatedResource{
-				Resource: &api.PaginatedResource_WindowsDesktop{
-					WindowsDesktop: newAPIWindowsDesktop(*resource.WindowsDesktop),
-				},
+			response.SetResources(append(response.GetResources(), api.PaginatedResource_builder{
+				WindowsDesktop:  proto.ValueOrDefault(newAPIWindowsDesktop(*resource.WindowsDesktop)),
 				RequiresRequest: resource.RequiresRequest,
-			})
+			}.Build()))
 		}
 	}
 
@@ -122,7 +111,7 @@ func newAPIServer(server clusters.Server) *api.Server {
 		ui.MakeLabelsWithoutInternalPrefixes(server.GetAllLabels()),
 	)
 
-	return &api.Server{
+	return api.Server_builder{
 		Uri:      server.URI.String(),
 		Tunnel:   server.GetUseTunnel(),
 		Name:     server.GetName(),
@@ -131,5 +120,5 @@ func newAPIServer(server clusters.Server) *api.Server {
 		SubKind:  server.GetSubKind(),
 		Labels:   apiLabels,
 		Logins:   server.Logins,
-	}
+	}.Build()
 }

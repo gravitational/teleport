@@ -49,6 +49,13 @@ service TrustService {
   rpc UpdateTrustedCluster(UpdateTrustedClusterRequest) returns (types.TrustedClusterV2);
   // ListTrustedClusters returns a page of current Trusted Cluster resources.
   rpc ListTrustedClusters(ListTrustedClustersRequest) returns (ListTrustedClustersResponse);
+
+  // UpsertTunnelConnection creates or updates a tunnel connection record used
+  // to advertise leaf cluster reverse tunnels to peer proxies.
+  rpc UpsertTunnelConnection(UpsertTunnelConnectionRequest) returns (UpsertTunnelConnectionResponse);
+  // DeleteTunnelConnection removes a single tunnel connection record by
+  // cluster name and connection name.
+  rpc DeleteTunnelConnection(DeleteTunnelConnectionRequest) returns (google.protobuf.Empty);
 }
 
 // Request for UpsertTrustedCluster.
@@ -193,4 +200,25 @@ message ListTrustedClustersResponse {
   // Token to retrieve the next page of results, or empty if there are no
   // more results in the list.
   string next_page_token = 2;
+}
+
+// UpsertTunnelConnectionRequest is the request for UpsertTunnelConnection.
+message UpsertTunnelConnectionRequest {
+  // TunnelConnection is the tunnel connection to create or update.
+  types.TunnelConnectionV2 tunnel_connection = 1;
+}
+
+// UpsertTunnelConnectionResponse is the response for UpsertTunnelConnection.
+message UpsertTunnelConnectionResponse {
+  // TunnelConnection is the stored tunnel connection as persisted by the
+  // backend.
+  types.TunnelConnectionV2 tunnel_connection = 1;
+}
+
+// DeleteTunnelConnectionRequest is the request for DeleteTunnelConnection.
+message DeleteTunnelConnectionRequest {
+  // ClusterName is the name of the cluster the tunnel connection belongs to.
+  string cluster_name = 1;
+  // ConnectionName is the name of the tunnel connection to delete.
+  string connection_name = 2;
 }

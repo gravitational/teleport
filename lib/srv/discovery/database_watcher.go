@@ -166,14 +166,14 @@ func (s *Server) collectRDSIssuesAsUserTasks(db types.Database, integration, dis
 			accountID:   db.GetAWS().AccountID,
 			region:      db.GetAWS().Region,
 		},
-		&usertasksv1.DiscoverRDSDatabase{
+		usertasksv1.DiscoverRDSDatabase_builder{
 			DiscoveryConfig: discoveryConfigName,
 			DiscoveryGroup:  s.DiscoveryGroup,
 			SyncTime:        timestamppb.New(s.clock.Now()),
 			Name:            databaseIdentifier,
 			IsCluster:       isCluster,
 			Engine:          engine,
-		},
+		}.Build(),
 	)
 }
 

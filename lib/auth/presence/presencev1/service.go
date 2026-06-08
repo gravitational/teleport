@@ -137,7 +137,7 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 func (s *Service) GetRemoteCluster(
 	ctx context.Context, req *presencepb.GetRemoteClusterRequest,
 ) (*types.RemoteClusterV3, error) {
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be specified")
 	}
 
@@ -149,7 +149,7 @@ func (s *Service) GetRemoteCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	rc, err := s.backend.GetRemoteCluster(ctx, req.Name)
+	rc, err := s.backend.GetRemoteCluster(ctx, req.GetName())
 	if err != nil {
 		return nil, utils.OpaqueAccessDenied(err)
 	}
@@ -184,7 +184,7 @@ func (s *Service) ListRemoteClusters(
 	}
 
 	page, nextToken, err := s.backend.ListRemoteClusters(
-		ctx, int(req.PageSize), req.PageToken,
+		ctx, int(req.GetPageSize()), req.GetPageToken(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -217,10 +217,10 @@ func (s *Service) ListRemoteClusters(
 		filteredPage = append(filteredPage, rc)
 	}
 
-	return &presencepb.ListRemoteClustersResponse{
+	return presencepb.ListRemoteClustersResponse_builder{
 		RemoteClusters: filteredPage,
 		NextPageToken:  nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // UpdateRemoteCluster updates a remote cluster.
@@ -228,9 +228,9 @@ func (s *Service) UpdateRemoteCluster(
 	ctx context.Context, req *presencepb.UpdateRemoteClusterRequest,
 ) (*types.RemoteClusterV3, error) {
 	switch {
-	case req.RemoteCluster == nil:
+	case !req.HasRemoteCluster():
 		return nil, trace.BadParameter("remote_cluster: must not be nil")
-	case req.RemoteCluster.GetName() == "":
+	case req.GetRemoteCluster().GetName() == "":
 		return nil, trace.BadParameter("remote_cluster.Metadata.Name: must be non-empty")
 	}
 
@@ -247,7 +247,7 @@ func (s *Service) UpdateRemoteCluster(
 
 	// If the update mask is empty, update the entire remote cluster.
 	if len(req.GetUpdateMask().GetPaths()) == 0 {
-		rc, err := s.backend.UpdateRemoteCluster(ctx, req.RemoteCluster)
+		rc, err := s.backend.UpdateRemoteCluster(ctx, req.GetRemoteCluster())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -266,23 +266,23 @@ func (s *Service) UpdateRemoteCluster(
 	// Otherwise, we apply the update mask to the current remote cluster using
 	// a patch operation.
 	req.GetUpdateMask().Normalize()
-	rc, err := s.backend.PatchRemoteCluster(ctx, req.RemoteCluster.GetName(), func(rc types.RemoteCluster) (types.RemoteCluster, error) {
+	rc, err := s.backend.PatchRemoteCluster(ctx, req.GetRemoteCluster().GetName(), func(rc types.RemoteCluster) (types.RemoteCluster, error) {
 		for _, path := range req.GetUpdateMask().GetPaths() {
 			switch path {
 			case "Metadata.Labels":
 				md := rc.GetMetadata()
-				md.Labels = req.RemoteCluster.GetMetadata().Labels
+				md.Labels = req.GetRemoteCluster().GetMetadata().Labels
 				rc.SetMetadata(md)
 			case "Metadata.Description":
 				md := rc.GetMetadata()
-				md.Description = req.RemoteCluster.GetMetadata().Description
+				md.Description = req.GetRemoteCluster().GetMetadata().Description
 				rc.SetMetadata(md)
 			case "Metadata.Expires":
-				rc.SetExpiry(req.RemoteCluster.Expiry())
+				rc.SetExpiry(req.GetRemoteCluster().Expiry())
 			case "Status.Connection":
-				rc.SetConnectionStatus(req.RemoteCluster.GetConnectionStatus())
+				rc.SetConnectionStatus(req.GetRemoteCluster().GetConnectionStatus())
 			case "Status.LastHeartbeat":
-				rc.SetLastHeartbeat(req.RemoteCluster.GetLastHeartbeat())
+				rc.SetLastHeartbeat(req.GetRemoteCluster().GetLastHeartbeat())
 			default:
 				return nil, trace.BadParameter("unsupported field: %q", path)
 			}
@@ -309,7 +309,7 @@ func (s *Service) UpdateRemoteCluster(
 func (s *Service) DeleteRemoteCluster(
 	ctx context.Context, req *presencepb.DeleteRemoteClusterRequest,
 ) (*emptypb.Empty, error) {
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be specified")
 	}
 
@@ -326,7 +326,7 @@ func (s *Service) DeleteRemoteCluster(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.authServer.DeleteRemoteCluster(ctx, req.Name); err != nil {
+	if err := s.authServer.DeleteRemoteCluster(ctx, req.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -346,7 +346,7 @@ func (s *Service) ListReverseTunnels(
 	}
 
 	page, nextToken, err := s.cache.ListReverseTunnels(
-		ctx, int(req.PageSize), req.PageToken,
+		ctx, int(req.GetPageSize()), req.GetPageToken(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -367,10 +367,10 @@ func (s *Service) ListReverseTunnels(
 		concretePage = append(concretePage, v3)
 	}
 
-	return &presencepb.ListReverseTunnelsResponse{
+	return presencepb.ListReverseTunnelsResponse_builder{
 		ReverseTunnels: concretePage,
 		NextPageToken:  nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // UpsertReverseTunnel upserts a reverse tunnel.
@@ -385,15 +385,15 @@ func (s *Service) UpsertReverseTunnel(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.ReverseTunnel == nil {
+	if !req.HasReverseTunnel() {
 		return nil, trace.BadParameter("reverse_tunnel: must not be nil")
 	}
 
-	if err := services.ValidateReverseTunnel(req.ReverseTunnel); err != nil {
+	if err := services.ValidateReverseTunnel(req.GetReverseTunnel()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := s.backend.UpsertReverseTunnel(ctx, req.ReverseTunnel)
+	res, err := s.backend.UpsertReverseTunnel(ctx, req.GetReverseTunnel())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -417,11 +417,11 @@ func (s *Service) DeleteReverseTunnel(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be specified")
 	}
 
-	return nil, trace.Wrap(s.backend.DeleteReverseTunnel(ctx, req.Name))
+	return nil, trace.Wrap(s.backend.DeleteReverseTunnel(ctx, req.GetName()))
 }
 
 // GetRelayServer implements [presencepb.PresenceServiceServer].
@@ -439,9 +439,9 @@ func (s *Service) GetRelayServer(ctx context.Context, req *presencepb.GetRelaySe
 		return nil, trace.Wrap(err)
 	}
 
-	return &presencepb.GetRelayServerResponse{
+	return presencepb.GetRelayServerResponse_builder{
 		RelayServer: relayServer,
-	}, nil
+	}.Build(), nil
 }
 
 // ListRelayServers implements [presencepb.PresenceServiceServer].
@@ -459,10 +459,10 @@ func (s *Service) ListRelayServers(ctx context.Context, req *presencepb.ListRela
 		return nil, trace.Wrap(err)
 	}
 
-	return &presencepb.ListRelayServersResponse{
+	return presencepb.ListRelayServersResponse_builder{
 		Relays:        relayServers,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // DeleteRelayServer implements [presencepb.PresenceServiceServer].
@@ -490,10 +490,12 @@ func (s *Service) UpsertProxyServer(
 	if srv == nil {
 		return nil, trace.BadParameter("server: must be specified")
 	}
-	// nb(noah): This forced overwrite of kind is load-bearing. You will be
-	// surprised to learn that in its current state the Proxy heartbeater will
-	// upsert the Server with Kind=Node.
-	// See https://github.com/gravitational/teleport/issues/66997
+	// Prior to v19, proxy heartbeats sent the resource with Kind=KindNode
+	// (see https://github.com/gravitational/teleport/issues/66997). v19+
+	// proxies send Kind=KindProxy; this override is retained so older proxies
+	// in mixed clusters continue to upsert correctly.
+	// TODO(strideynet): In V21.0.0, we should consider changing the behavior
+	// to reject or warn on incorrect Kind.
 	srv.Kind = types.KindProxy
 	if err := srv.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -521,9 +523,9 @@ func (s *Service) UpsertProxyServer(
 	if !ok {
 		return nil, trace.BadParameter("unsupported proxy server type %T", upserted)
 	}
-	return &presencepb.UpsertProxyServerResponse{
+	return presencepb.UpsertProxyServerResponse_builder{
 		Server: upsertedV2,
-	}, nil
+	}.Build(), nil
 }
 
 // DeleteProxyServer deletes a proxy server heartbeat by name.
@@ -538,7 +540,7 @@ func (s *Service) DeleteProxyServer(
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be specified")
 	}
 

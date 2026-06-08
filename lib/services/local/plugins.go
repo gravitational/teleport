@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"iter"
 	"log/slog"
 
 	"github.com/gravitational/trace"
@@ -27,8 +28,10 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	libplugin "github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/local/generic"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
@@ -161,39 +164,53 @@ func (s *PluginsService) GetPlugins(ctx context.Context, withSecrets bool) ([]ty
 // ListPlugins returns a paginated list of plugin instances.
 // StartKey is a resource name, which is the suffix of its key.
 func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error) {
-	if limit <= 0 {
-		limit = apidefaults.DefaultChunkSize
-	}
-	// Get at most limit+1 results to determine if there will be a next key.
-	maxLimit := limit + 1
+	return generic.CollectPageAndCursor(s.rangePlugins(ctx, startKey, "", withSecrets), limit, func(p types.Plugin) string {
+		return backend.GetPaginationKey(p)
+	})
+}
 
-	startKeyBytes := backend.NewKey(pluginsPrefix, startKey)
-	endKey := backend.RangeEnd(backend.ExactKey(pluginsPrefix))
-	result, err := s.backend.GetRange(ctx, startKeyBytes, endKey, maxLimit)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
+// rangePlugins returns plugin resources within the range [start, end).
+func (s *PluginsService) rangePlugins(ctx context.Context, start, end string, withSecrets bool) iter.Seq2[types.Plugin, error] {
+	mapFn := func(item backend.Item) (types.Plugin, bool) {
+		plugin, err := services.UnmarshalPlugin(item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision))
 
-	plugins := make([]types.Plugin, 0, len(result.Items))
-	for _, item := range result.Items {
-		plugin, err := services.UnmarshalPlugin(item.Value, services.WithExpires(item.Expires), services.WithRevision(item.Revision))
 		if err != nil {
-			slog.WarnContext(ctx, "skipping plugin resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
-			continue
+			slog.WarnContext(ctx, "Failed to unmarshal plugin",
+				"key", logutils.StringerAttr(item.Key),
+				"error", err,
+			)
+			return nil, false
 		}
+
 		if !withSecrets {
 			plugin = plugin.WithoutSecrets().(types.Plugin)
 		}
-		plugins = append(plugins, plugin)
+
+		return plugin, true
 	}
 
-	var nextKey string
-	if len(plugins) == maxLimit {
-		nextKey = backend.GetPaginationKey(plugins[len(plugins)-1])
-		plugins = plugins[:limit]
+	pluginKey := backend.NewKey(pluginsPrefix)
+	startKey := pluginKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(pluginKey)
+	if end != "" {
+		endKey = pluginKey.AppendKey(backend.KeyFromString(end)).ExactKey()
 	}
 
-	return plugins, nextKey, nil
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn, // mapping function
+		),
+		func(plugin types.Plugin) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || plugin.GetName() < end
+		})
 }
 
 // HasPluginType will return true if a plugin of the given type is registered.

@@ -35,12 +35,12 @@ func TestMarshalCrownJewelRoundTrip(t *testing.T) {
 	t.Parallel()
 
 	spec := &crownjewelv1.CrownJewelSpec{}
-	obj := &crownjewelv1.CrownJewel{
-		Metadata: &headerv1.Metadata{
+	obj := crownjewelv1.CrownJewel_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: "dummy-crown-jewel",
-		},
+		}.Build(),
 		Spec: spec,
-	}
+	}.Build()
 
 	out, err := MarshalCrownJewel(obj)
 	require.NoError(t, err)
@@ -55,44 +55,44 @@ func TestUnmarshalCrownJewel(t *testing.T) {
 	data, err := utils.ToJSON([]byte(correctCrownJewelYAML))
 	require.NoError(t, err)
 
-	expected := &crownjewelv1.CrownJewel{
+	expected := crownjewelv1.CrownJewel_builder{
 		Version: "v1",
 		Kind:    "crown_jewel",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "example-crown-jewel",
 			Labels: map[string]string{
 				"env": "example",
 			},
-		},
-		Spec: &crownjewelv1.CrownJewelSpec{
+		}.Build(),
+		Spec: crownjewelv1.CrownJewelSpec_builder{
 			Query: "SELECT * FROM nodes",
 			TeleportMatchers: []*crownjewelv1.TeleportMatcher{
-				{
+				crownjewelv1.TeleportMatcher_builder{
 					Kinds: []string{"node"},
 					Labels: []*labelv1.Label{
-						{
+						labelv1.Label_builder{
 							Name:   "abc",
 							Values: []string{"xyz"},
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 			},
 			AwsMatchers: []*crownjewelv1.AWSMatcher{
-				{
+				crownjewelv1.AWSMatcher_builder{
 					Types:   []string{"ec2"},
 					Regions: []string{"us-west-1"},
 					Tags: []*crownjewelv1.AWSTag{
-						{
+						crownjewelv1.AWSTag_builder{
 							Key: "env",
 							Values: []*wrapperspb.StringValue{
 								wrapperspb.String("prod"),
 							},
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	obj, err := UnmarshalCrownJewel(data)
 	require.NoError(t, err)

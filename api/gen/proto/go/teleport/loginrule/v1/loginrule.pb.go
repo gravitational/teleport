@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/loginrule/v1/loginrule.proto
 
+//go:build !protoopaque
+
 package loginrulev1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // LoginRule is a resource to configure rules and logic which should run during
 // Teleport user login.
 type LoginRule struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Metadata is resource metadata.
 	Metadata *types.Metadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	// Version is the resource version.
@@ -84,11 +85,6 @@ func (x *LoginRule) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use LoginRule.ProtoReflect.Descriptor instead.
-func (*LoginRule) Descriptor() ([]byte, []int) {
-	return file_teleport_loginrule_v1_loginrule_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *LoginRule) GetMetadata() *types.Metadata {
 	if x != nil {
 		return x.Metadata
@@ -124,6 +120,68 @@ func (x *LoginRule) GetTraitsExpression() string {
 	return ""
 }
 
+func (x *LoginRule) SetMetadata(v *types.Metadata) {
+	x.Metadata = v
+}
+
+func (x *LoginRule) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *LoginRule) SetPriority(v int32) {
+	x.Priority = v
+}
+
+func (x *LoginRule) SetTraitsMap(v map[string]*wrappers.StringValues) {
+	x.TraitsMap = v
+}
+
+func (x *LoginRule) SetTraitsExpression(v string) {
+	x.TraitsExpression = v
+}
+
+func (x *LoginRule) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *LoginRule) ClearMetadata() {
+	x.Metadata = nil
+}
+
+type LoginRule_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Metadata is resource metadata.
+	Metadata *types.Metadata
+	// Version is the resource version.
+	Version string
+	// Priority is the priority of the login rule relative to other login rules
+	// in the same cluster. Login rules with a lower numbered priority will be
+	// evaluated first.
+	Priority int32
+	// TraitsMap is a map of trait keys to lists of predicate expressions which
+	// should evaluate to the desired values for that trait.
+	TraitsMap map[string]*wrappers.StringValues
+	// TraitsExpression is a predicate expression which should return the
+	// desired traits for the user upon login.
+	TraitsExpression string
+}
+
+func (b0 LoginRule_builder) Build() *LoginRule {
+	m0 := &LoginRule{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Metadata = b.Metadata
+	x.Version = b.Version
+	x.Priority = b.Priority
+	x.TraitsMap = b.TraitsMap
+	x.TraitsExpression = b.TraitsExpression
+	return m0
+}
+
 var File_teleport_loginrule_v1_loginrule_proto protoreflect.FileDescriptor
 
 const file_teleport_loginrule_v1_loginrule_proto_rawDesc = "" +
@@ -139,18 +197,6 @@ const file_teleport_loginrule_v1_loginrule_proto_rawDesc = "" +
 	"\x0eTraitsMapEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12,\n" +
 	"\x05value\x18\x02 \x01(\v2\x16.wrappers.StringValuesR\x05value:\x028\x01BVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1;loginrulev1b\x06proto3"
-
-var (
-	file_teleport_loginrule_v1_loginrule_proto_rawDescOnce sync.Once
-	file_teleport_loginrule_v1_loginrule_proto_rawDescData []byte
-)
-
-func file_teleport_loginrule_v1_loginrule_proto_rawDescGZIP() []byte {
-	file_teleport_loginrule_v1_loginrule_proto_rawDescOnce.Do(func() {
-		file_teleport_loginrule_v1_loginrule_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_loginrule_v1_loginrule_proto_rawDesc), len(file_teleport_loginrule_v1_loginrule_proto_rawDesc)))
-	})
-	return file_teleport_loginrule_v1_loginrule_proto_rawDescData
-}
 
 var file_teleport_loginrule_v1_loginrule_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_loginrule_v1_loginrule_proto_goTypes = []any{

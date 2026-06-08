@@ -226,6 +226,28 @@ for a number of reasons:
   access-control logic in significant ways. Failing to isolate the scoped permission system codebase from the rest of
   teleport functionality would incur a significant burden in terms of maintainability and coordination of changes.
 
+
+### Scoped Resource Identification
+
+Within the scoping system, a resource of a given kind will be uniquely identified by the combination of its scope, and name,
+rather than by name alone. Initial MVP builds of scoped features uniquely identified resources by name alone in the interest
+of simplicity.  However, this proved unsuitable for robust cross-scope isolation.
+
+Going forward, two roles named `access` living at `/staging` and `/prod` are going to be treated as distinct, independently managed
+resources. Scope-Qualified Names (SQNs) are the standard format for expressing this composite identity concisely, taking
+the form `<scope>::<name>` (e.g. `/staging/west::myrole`).
+
+SQNs will be used wherever a scoped resource must be referenced unambiguously.  Ex:
+
+- cross-resource reference fields (such as the `role` field of a `scoped_role_assignment`)
+- `tctl` commands for scoped resource administration (e.g. `tctl rm scoped_role /staging/west::myrole`),
+- user-facing error and audit messages
+
+Following SQN adoption, we will implement true *scope namespacing*. This will involve making per-scope name uniqueness
+a reality at the storage layer s.t. `(scope, name)` becomes the new composite primary key for a scoped resource type.
+
+Namespacing and SQN adoption are WIP as of the time of writing.
+
 ### Scope Pinning
 
 Scope "pinning" is the term we will use for the process of logging into and being granted credentials for a specific scope.
@@ -521,9 +543,9 @@ spec:
   title: "west staging access"
   grants:
     scoped_roles:
-      - role: access
+      - role: /staging::access
         scope: /staging/west
-      - role: access
+      - role: /staging::access
         scope: /staging/east
 version: v1
 ---
@@ -532,7 +554,7 @@ metadata:
   name: a3e64073-8980-41aa-a7a0-dd23de40c38e
 scope: /staging
 spec:
-    access_list: 318ea8be-129c-41f4-ad95-fd830e14e3e7
+    access_list: /staging::318ea8be-129c-41f4-ad95-fd830e14e3e7
     name: alice@example.com
     membership_kind: user
 version: v1
@@ -542,7 +564,7 @@ metadata:
   name: c4c9d4b3-c57c-40de-a15e-e2425267a716
 scope: /staging
 spec:
-  access_list: 318ea8be-129c-41f4-ad95-fd830e14e3e7
+  access_list: /staging::318ea8be-129c-41f4-ad95-fd830e14e3e7
   name: bob@example.com
   membership_kind: user
 version: v1
@@ -639,14 +661,15 @@ scope: /staging
 spec:
   user: alice
   assignments:
-    - role: access
+    - role: /staging::access
       scope: /staging/west
 version: v1
 ```
 
 In the above example, the top-level `scope` field indicates the scope of the assignment resource itself. This scope determines
-what admins are able to modify the assignment. The `spec.assignments.scope` field indicates the scope at which the assigned role's
-permissions are intended to apply. Despite the assignment resource living at `/staging`, the assigned role's permissions only apply
+what admins are able to modify the assignment. The `spec.assignments.role` field references the role resource by its
+scope-qualified name. The `spec.assignments.scope` field indicates the scope at which the assigned role's permissions
+are intended to apply. Despite the assignment resource living at `/staging`, the assigned role's permissions only apply
 when accessing resources at `/staging/west`. In other words, we can think of the permissions implied by the assignment as having
 both a scope that they are applied *from* and a scope that they are applied *to*. This separation of concerns is critical as it
 allows us to express the ownership/authority of the policy separately from the intended target of the policy.
@@ -934,11 +957,11 @@ term goals have been addressed:
   agents/resources they are used to join. This will allow scoped admins to create more robust access-control policies
   by handing out tokens that are limited not just by scope, but also by label.
 
-- **Scoped Primary Keys**: This is a long-term internal refactoring goal. Initial scoping work, inkeeping with the goal of gradual
-  rollout and adoption, will be continuing to use teleport resource names as primary keys/unique identifiers. This will mean
-  that primary keys will be "first come first serve" across scopes, which results in a sub-optimal user experience. We would like
-  to move to a model where resources are uniquely identified by a combination of scope and name, allowing the same name to be
-  reused in different scopes.
+- **Scoped Primary Keys**: Scoped resources will transition to use `(scope, name)` as their composite primary key, allowing the same
+  resource name to exist independently in different scopes. The foundational work for this is actively underway. Scope-qualified
+  names (SQNs) are in the process of being adopted across configuration resources and CLI interfaces as a prerequisite. Once we
+  have updated our standards for referencing resource to unambiguously include their scopes, we will begin transitioning our backend
+  representations to be scope namespaced.
 
 - **Advanced Access Control Features**: Additional access-control types/features (e.g. access requests) will have scoping
   support or scoped equivalent introduced on a case-by-case basis.

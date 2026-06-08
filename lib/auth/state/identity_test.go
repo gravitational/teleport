@@ -55,25 +55,25 @@ func TestReadTLSIdentityFromKeyPairAgentPin(t *testing.T) {
 	}{
 		{
 			desc: "single-role agent pin",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 				Scope: "/staging",
-				SystemRoles: &scopesv1.SystemRoles{
+				SystemRoles: scopesv1.SystemRoles_builder{
 					Primary: string(types.RoleNode),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantRole: types.RoleNode,
 		},
 		{
 			desc: "multi-role instance agent pin",
-			pin: &scopesv1.Pin{
+			pin: scopesv1.Pin_builder{
 				Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 				Scope: "/staging",
-				SystemRoles: &scopesv1.SystemRoles{
+				SystemRoles: scopesv1.SystemRoles_builder{
 					Primary:    string(types.RoleInstance),
 					Additional: []string{string(types.RoleNode), string(types.RoleKube)},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantRole:        types.RoleInstance,
 			wantSystemRoles: []string{string(types.RoleNode), string(types.RoleKube)},
 		},

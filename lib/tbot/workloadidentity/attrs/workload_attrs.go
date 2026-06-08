@@ -60,7 +60,7 @@ func (a *WorkloadAttrs) LogValue() slog.Value {
 	// TODO: we should find a better way to encode workload attributes in logs
 	// than prototext which, apart from anything, injects random whitespace.
 	clone := proto.Clone(a.WorkloadAttrs).(*workloadidentityv1.WorkloadAttrs)
-	clone.Sigstore = nil
+	clone.ClearSigstore()
 
 	output := clone.String()
 	if l := len(a.WorkloadAttrs.GetSigstore().GetPayloads()); l != 0 {

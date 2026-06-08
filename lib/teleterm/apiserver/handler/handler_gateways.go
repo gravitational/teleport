@@ -34,10 +34,10 @@ import (
 // CreateGateway creates a gateway
 func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayRequest) (*api.Gateway, error) {
 	params := daemon.CreateGatewayParams{
-		TargetURI:             req.TargetUri,
-		TargetUser:            req.TargetUser,
-		TargetSubresourceName: req.TargetSubresourceName,
-		LocalPort:             req.LocalPort,
+		TargetURI:             req.GetTargetUri(),
+		TargetUser:            req.GetTargetUser(),
+		TargetSubresourceName: req.GetTargetSubresourceName(),
+		LocalPort:             req.GetLocalPort(),
 	}
 
 	gateway, err := s.DaemonService.CreateGateway(ctx, params)
@@ -67,14 +67,14 @@ func (s *Handler) ListGateways(ctx context.Context, req *api.ListGatewaysRequest
 		apiGws = append(apiGws, apiGateway)
 	}
 
-	return &api.ListGatewaysResponse{
+	return api.ListGatewaysResponse_builder{
 		Gateways: apiGws,
-	}, nil
+	}.Build(), nil
 }
 
 // RemoveGateway removes cluster gateway
 func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayRequest) (*api.EmptyResponse, error) {
-	if err := s.DaemonService.RemoveGateway(req.GatewayUri); err != nil {
+	if err := s.DaemonService.RemoveGateway(req.GetGatewayUri()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -87,7 +87,7 @@ func (s *Handler) newAPIGateway(ctx context.Context, gateway gateway.Gateway) (*
 		return nil, trace.Wrap(err)
 	}
 
-	return &api.Gateway{
+	return api.Gateway_builder{
 		Uri:                   gateway.URI().String(),
 		TargetUri:             gateway.TargetURI().String(),
 		TargetName:            gateway.TargetName(),
@@ -97,7 +97,7 @@ func (s *Handler) newAPIGateway(ctx context.Context, gateway gateway.Gateway) (*
 		LocalAddress:          gateway.LocalAddress(),
 		LocalPort:             gateway.LocalPort(),
 		GatewayCliCommand:     makeGatewayCLICommand(cmds),
-	}, nil
+	}.Build(), nil
 }
 
 func makeGatewayCLICommand(cmds cmd.Cmds) *api.GatewayCLICommand {
@@ -106,12 +106,12 @@ func makeGatewayCLICommand(cmds cmd.Cmds) *api.GatewayCLICommand {
 			strings.Join(cmds.Preview.Env, " "),
 			strings.Join(cmds.Preview.Args, " ")))
 
-	return &api.GatewayCLICommand{
+	return api.GatewayCLICommand_builder{
 		Path:    cmds.Exec.Path,
 		Args:    cmds.Exec.Args,
 		Env:     cmds.Exec.Env,
 		Preview: preview,
-	}
+	}.Build()
 }
 
 // SetGatewayTargetSubresourceName changes the TargetSubresourceName field of gateway.Gateway
@@ -119,7 +119,7 @@ func makeGatewayCLICommand(cmds cmd.Cmds) *api.GatewayCLICommand {
 //
 // In Connect this is used to update the db name of a db connection along with the CLI command.
 func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.SetGatewayTargetSubresourceNameRequest) (*api.Gateway, error) {
-	gateway, err := s.DaemonService.SetGatewayTargetSubresourceName(ctx, req.GatewayUri, req.TargetSubresourceName)
+	gateway, err := s.DaemonService.SetGatewayTargetSubresourceName(ctx, req.GetGatewayUri(), req.GetTargetSubresourceName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -134,7 +134,7 @@ func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.
 
 // SetGatewayLocalPort restarts the gateway under the new port without fetching new certs.
 func (s *Handler) SetGatewayLocalPort(ctx context.Context, req *api.SetGatewayLocalPortRequest) (*api.Gateway, error) {
-	gateway, err := s.DaemonService.SetGatewayLocalPort(req.GatewayUri, req.LocalPort)
+	gateway, err := s.DaemonService.SetGatewayLocalPort(req.GetGatewayUri(), req.GetLocalPort())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

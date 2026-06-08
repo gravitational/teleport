@@ -44,10 +44,10 @@ func TestCreateGitHubAuthRequest(t *testing.T) {
 	}
 
 	service := newService(t, checker, org1)
-	createdRequest, err := service.CreateGitHubAuthRequest(ctx, &pb.CreateGitHubAuthRequestRequest{
+	createdRequest, err := service.CreateGitHubAuthRequest(ctx, pb.CreateGitHubAuthRequestRequest_builder{
 		Request:      &types.GithubAuthRequest{},
 		Organization: org1.GetGitHub().Organization,
-	})
+	}.Build())
 	require.NoError(t, err)
 	require.NotNil(t, createdRequest)
 

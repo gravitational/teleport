@@ -124,7 +124,9 @@ func TestEnvironment(t *testing.T) {
 	require.NoError(t, err)
 	defer pamContext.Close()
 
-	require.ElementsMatch(t, pamContext.Environment(), []string{"foo=bar"})
+	env, err := pamContext.Environment()
+	require.NoError(t, err)
+	require.ElementsMatch(t, env, []string{"foo=bar"})
 }
 
 func TestSuccess(t *testing.T) {
@@ -237,8 +239,7 @@ func assertOutput(t *testing.T, got string, want []string) {
 	require.ElementsMatch(t, lines, want)
 }
 
-type discardReader struct {
-}
+type discardReader struct{}
 
 func (d *discardReader) Read(p []byte) (int, error) {
 	return len(p), nil

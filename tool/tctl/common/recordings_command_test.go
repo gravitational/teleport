@@ -19,6 +19,8 @@
 package common
 
 import (
+	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -99,4 +101,66 @@ func TestBuildSearchResourceProperties(t *testing.T) {
 		require.ErrorContains(t, err, "resource property filters can only target one session kind")
 		require.Nil(t, got)
 	})
+}
+
+// TestResumeCommand verifies that the rendered resume hint reuses the original
+// invocation's arguments verbatim and only sets the resume token.
+func TestResumeCommand(t *testing.T) {
+	defer func(orig []string) { os.Args = orig }(os.Args)
+
+	t.Run("appends token and preserves flags", func(t *testing.T) {
+		os.Args = []string{
+			"/usr/local/bin/tctl", "recordings", "search", "data exfiltration",
+			"--kind", "ssh",
+			"--from-utc", "2026-06-07",
+			"--limit", "250",
+			"--format", "json",
+		}
+
+		cmd := resumeCommand("tok-123")
+
+		// The program name is shortened and every original flag is preserved.
+		require.True(t, strings.HasPrefix(cmd, "tctl recordings search "))
+		require.Contains(t, cmd, "--kind ssh")
+		require.Contains(t, cmd, "--from-utc 2026-06-07")
+		require.Contains(t, cmd, "--limit 250")
+		require.Contains(t, cmd, "--format json")
+		require.Contains(t, cmd, "'data exfiltration'") // space-containing arg quoted
+
+		// The token is appended since it was not present originally.
+		require.Contains(t, cmd, "--resume-token tok-123")
+	})
+
+	t.Run("replaces an existing token", func(t *testing.T) {
+		os.Args = []string{"tctl", "recordings", "search", "--resume-token", "old", "--format", "yaml"}
+
+		cmd := resumeCommand("new")
+
+		require.Contains(t, cmd, "--resume-token new")
+		require.NotContains(t, cmd, "old")
+		require.Equal(t, 1, strings.Count(cmd, "--resume-token"))
+	})
+}
+
+func TestReplaceOrAppendFlag(t *testing.T) {
+	t.Run("replaces space-separated value", func(t *testing.T) {
+		got := replaceOrAppendFlag([]string{"search", "--limit", "10"}, []string{"--limit"}, "--limit", "20")
+		require.Equal(t, []string{"search", "--limit", "20"}, got)
+	})
+	t.Run("replaces inline value", func(t *testing.T) {
+		got := replaceOrAppendFlag([]string{"search", "--limit=10"}, []string{"--limit"}, "--limit", "20")
+		require.Equal(t, []string{"search", "--limit", "20"}, got)
+	})
+	t.Run("appends when absent", func(t *testing.T) {
+		got := replaceOrAppendFlag([]string{"search"}, []string{"--resume-token"}, "--resume-token", "tok")
+		require.Equal(t, []string{"search", "--resume-token", "tok"}, got)
+	})
+}
+
+func TestShellQuote(t *testing.T) {
+	require.Equal(t, "env=prod", shellQuote("env=prod"))
+	require.Equal(t, "ssh", shellQuote("ssh"))
+	require.Equal(t, "''", shellQuote(""))
+	require.Equal(t, "'data exfiltration'", shellQuote("data exfiltration"))
+	require.Equal(t, `'it'\''s'`, shellQuote("it's"))
 }

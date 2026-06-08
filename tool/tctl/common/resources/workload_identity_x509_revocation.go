@@ -54,7 +54,7 @@ func (c *workloadIdentityX509RevocationCollection) WriteText(w io.Writer, verbos
 		revokeTime := item.GetSpec().GetRevokedAt().AsTime()
 
 		rows = append(rows, []string{
-			item.Metadata.Name,
+			item.GetMetadata().GetName(),
 			revokeTime.Format(time.RFC3339),
 			expiryTime.Format(time.RFC3339),
 			item.GetSpec().GetReason(),
@@ -87,9 +87,9 @@ func getWorkloadIdentityX509Revocation(
 ) (Collection, error) {
 	c := client.WorkloadIdentityRevocationServiceClient()
 	if ref.Name != "" {
-		resource, err := c.GetWorkloadIdentityX509Revocation(ctx, &workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest{
+		resource, err := c.GetWorkloadIdentityX509Revocation(ctx, workloadidentityv1pb.GetWorkloadIdentityX509RevocationRequest_builder{
 			Name: ref.Name,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -97,10 +97,10 @@ func getWorkloadIdentityX509Revocation(
 	}
 
 	resources, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentityX509Revocation, string, error) {
-		resp, err := c.ListWorkloadIdentityX509Revocations(ctx, &workloadidentityv1pb.ListWorkloadIdentityX509RevocationsRequest{
+		resp, err := c.ListWorkloadIdentityX509Revocations(ctx, workloadidentityv1pb.ListWorkloadIdentityX509RevocationsRequest_builder{
 			PageSize:  int32(limit),
 			PageToken: pageToken,
-		})
+		}.Build())
 
 		return resp.GetWorkloadIdentityX509Revocations(), resp.GetNextPageToken(), trace.Wrap(err)
 	}))
@@ -118,9 +118,9 @@ func deleteWorkloadIdentityX509Revocation(
 ) error {
 	c := client.WorkloadIdentityRevocationServiceClient()
 	_, err := c.DeleteWorkloadIdentityX509Revocation(
-		ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
+		ctx, workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest_builder{
 			Name: ref.Name,
-		})
+		}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

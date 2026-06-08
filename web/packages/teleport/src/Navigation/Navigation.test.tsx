@@ -100,7 +100,6 @@ test('show all dashboard navigation items', async () => {
 
 describe('Beams nav category', () => {
   const originalIsDashboard = cfg.isDashboard;
-  const originalBeamsUi = cfg.beamsUi;
 
   beforeEach(() => {
     cfg.isDashboard = false;
@@ -109,7 +108,7 @@ describe('Beams nav category', () => {
 
   afterEach(() => {
     cfg.isDashboard = originalIsDashboard;
-    cfg.beamsUi = originalBeamsUi;
+    jest.restoreAllMocks();
     localStorage.clear();
   });
 
@@ -131,8 +130,8 @@ describe('Beams nav category', () => {
     );
   }
 
-  test('renders Beams above Resources when cfg.beamsUi is true', () => {
-    cfg.beamsUi = true;
+  test('renders Beams above Resources when beamsUi is true', () => {
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(true);
 
     renderNav();
 
@@ -145,8 +144,8 @@ describe('Beams nav category', () => {
     );
   });
 
-  test('renders Beams below Resources when cfg.beamsUi is false', () => {
-    cfg.beamsUi = false;
+  test('renders Beams below Resources when beamsUi is false', () => {
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(false);
 
     renderNav();
 
@@ -162,7 +161,6 @@ describe('Beams nav category', () => {
 
 describe('Beams default sticky drawer', () => {
   const originalIsDashboard = cfg.isDashboard;
-  const originalBeamsUi = cfg.beamsUi;
 
   // The drawer panel has no dedicated open/closed attribute: it slides into
   // view (translateX(0)) when open and off-screen (translateX(-100%)) when
@@ -175,12 +173,12 @@ describe('Beams default sticky drawer', () => {
 
   beforeEach(() => {
     cfg.isDashboard = false;
-    cfg.beamsUi = true;
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(true);
   });
 
   afterEach(() => {
     cfg.isDashboard = originalIsDashboard;
-    cfg.beamsUi = originalBeamsUi;
+    jest.restoreAllMocks();
   });
 
   async function mountNav({
@@ -237,8 +235,8 @@ describe('Beams default sticky drawer', () => {
     expectBeamsDrawerOpen(true);
   });
 
-  test('does not default to sticky when cfg.beamsUi is false', async () => {
-    cfg.beamsUi = false;
+  test('does not default to sticky when beamsUi is false', async () => {
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(false);
     const { updatePreferences } = await mountNav({
       drawerMode: SideNavDrawerMode.UNSPECIFIED,
     });

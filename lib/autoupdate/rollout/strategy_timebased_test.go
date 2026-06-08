@@ -48,11 +48,11 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 	targetVersion := "1.2.4"
 	fewSecondsAgo := clock.Now().Add(-5 * time.Second)
 	fewMinutesAgo := clock.Now().Add(-7 * time.Minute)
-	spec := &autoupdate.AutoUpdateAgentRolloutSpec{
+	spec := autoupdate.AutoUpdateAgentRolloutSpec_builder{
 		MaintenanceWindowDuration: durationpb.New(time.Hour),
 		StartVersion:              startVersion,
 		TargetVersion:             targetVersion,
-	}
+	}.Build()
 
 	var tests = []struct {
 		name             string
@@ -64,70 +64,70 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 		{
 			name: "unstarted -> unstarted",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   lastUpdate,
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
 					LastUpdateReason: updateReasonOutsideWindow,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "unstarted -> unstarted, with reports",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   lastUpdate,
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			reports: []*autoupdate.AutoUpdateAgentReport{
-				{
-					Metadata: &headerv1.Metadata{Name: "auth1"},
-					Spec: &autoupdate.AutoUpdateAgentReportSpec{
+				autoupdate.AutoUpdateAgentReport_builder{
+					Metadata: headerv1.Metadata_builder{Name: "auth1"}.Build(),
+					Spec: autoupdate.AutoUpdateAgentReportSpec_builder{
 						Timestamp: timestamppb.New(fewSecondsAgo),
 						Groups: map[string]*autoupdate.AutoUpdateAgentReportSpecGroup{
-							groupName: {
+							groupName: autoupdate.AutoUpdateAgentReportSpecGroup_builder{
 								Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
-									startVersion:  {Count: 5},
-									targetVersion: {Count: 5},
+									startVersion:  autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
+									targetVersion: autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
 								},
-							},
+							}.Build(),
 						},
-					},
-				},
-				{
-					Metadata: &headerv1.Metadata{Name: "auth2 (expired)"},
-					Spec: &autoupdate.AutoUpdateAgentReportSpec{
+					}.Build(),
+				}.Build(),
+				autoupdate.AutoUpdateAgentReport_builder{
+					Metadata: headerv1.Metadata_builder{Name: "auth2 (expired)"}.Build(),
+					Spec: autoupdate.AutoUpdateAgentReportSpec_builder{
 						Timestamp: timestamppb.New(fewMinutesAgo),
 						Groups: map[string]*autoupdate.AutoUpdateAgentReportSpecGroup{
-							groupName: {
+							groupName: autoupdate.AutoUpdateAgentReportSpecGroup_builder{
 								Versions: map[string]*autoupdate.AutoUpdateAgentReportSpecGroupVersion{
-									startVersion:  {Count: 5},
-									targetVersion: {Count: 5},
+									startVersion:  autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
+									targetVersion: autoupdate.AutoUpdateAgentReportSpecGroupVersion_builder{Count: 5}.Build(),
 								},
-							},
+							}.Build(),
 						},
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
@@ -136,47 +136,47 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					ConfigStartHour:  matchingStartHour,
 					PresentCount:     10,
 					UpToDateCount:    5,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "unstarted -> unstarted because rollout just changed",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   lastUpdate,
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			rolloutStartTime: timestamppb.New(clock.Now()),
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   timestamppb.New(clock.Now()),
 					LastUpdateReason: updateReasonRolloutChanged,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "unstarted -> active",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:   lastUpdate,
 					LastUpdateReason: updateReasonCreated,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(clock.Now()),
@@ -184,36 +184,36 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateReason: updateReasonInWindow,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "done -> done",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					LastUpdateTime:   lastUpdate,
 					LastUpdateReason: updateReasonOutsideWindow,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					LastUpdateTime:   lastUpdate,
 					LastUpdateReason: updateReasonOutsideWindow,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "done -> active",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					LastUpdateTime:   lastUpdate,
@@ -221,10 +221,10 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateReason: updateReasonOutsideWindow,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(clock.Now()),
@@ -232,13 +232,13 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateReason: updateReasonInWindow,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "active -> active",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        lastUpdate,
@@ -246,10 +246,10 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateReason: updateReasonInWindow,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        lastUpdate,
@@ -257,13 +257,13 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateReason: updateReasonInWindow,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "active -> done",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        lastUpdate,
@@ -271,10 +271,10 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateReason: updateReasonInWindow,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             groupName,
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					StartTime:        lastUpdate,
@@ -282,80 +282,80 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateReason: updateReasonOutsideWindow,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "rolledback is a dead end",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:            groupName + "-in-maintenance",
 					State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					LastUpdateTime:  lastUpdate,
 					ConfigDays:      canStartToday,
 					ConfigStartHour: matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:            groupName + "-out-of-maintenance",
 					State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					LastUpdateTime:  lastUpdate,
 					ConfigDays:      cannotStartToday,
 					ConfigStartHour: matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:            groupName + "-in-maintenance",
 					State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					LastUpdateTime:  lastUpdate,
 					ConfigDays:      canStartToday,
 					ConfigStartHour: matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:            groupName + "-out-of-maintenance",
 					State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					LastUpdateTime:  lastUpdate,
 					ConfigDays:      cannotStartToday,
 					ConfigStartHour: matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 		{
 			name: "mix of everything",
 			initialState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:            "new group should start",
 					State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_UNSTARTED,
 					LastUpdateTime:  lastUpdate,
 					ConfigDays:      canStartToday,
 					ConfigStartHour: matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:            "done group should start",
 					State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					LastUpdateTime:  lastUpdate,
 					StartTime:       lastUpdate,
 					ConfigDays:      canStartToday,
 					ConfigStartHour: matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:            "rolledback group should do nothing",
 					State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					LastUpdateTime:  lastUpdate,
 					ConfigDays:      canStartToday,
 					ConfigStartHour: matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:            "old group should stop",
 					State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					LastUpdateTime:  lastUpdate,
 					StartTime:       lastUpdate,
 					ConfigDays:      cannotStartToday,
 					ConfigStartHour: matchingStartHour,
-				},
+				}.Build(),
 			},
 			expectedState: []*autoupdate.AutoUpdateAgentRolloutStatusGroup{
-				{
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             "new group should start",
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(clock.Now()),
@@ -363,8 +363,8 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateReason: updateReasonInWindow,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             "done group should start",
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ACTIVE,
 					StartTime:        timestamppb.New(clock.Now()),
@@ -372,15 +372,15 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateReason: updateReasonInWindow,
 					ConfigDays:       canStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:            "rolledback group should do nothing",
 					State:           autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_ROLLEDBACK,
 					LastUpdateTime:  lastUpdate,
 					ConfigDays:      canStartToday,
 					ConfigStartHour: matchingStartHour,
-				},
-				{
+				}.Build(),
+				autoupdate.AutoUpdateAgentRolloutStatusGroup_builder{
 					Name:             "old group should stop",
 					State:            autoupdate.AutoUpdateAgentGroupState_AUTO_UPDATE_AGENT_GROUP_STATE_DONE,
 					StartTime:        lastUpdate,
@@ -388,18 +388,18 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 					LastUpdateReason: updateReasonOutsideWindow,
 					ConfigDays:       cannotStartToday,
 					ConfigStartHour:  matchingStartHour,
-				},
+				}.Build(),
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			status := &autoupdate.AutoUpdateAgentRolloutStatus{
+			status := autoupdate.AutoUpdateAgentRolloutStatus_builder{
 				Groups:    tt.initialState,
 				State:     0,
 				StartTime: tt.rolloutStartTime,
-			}
+			}.Build()
 			stubs := mockClientStubs{}
 			if tt.reports == nil {
 				stubs.reportsAnswers = []callAnswer[[]*autoupdate.AutoUpdateAgentReport]{
@@ -424,7 +424,7 @@ func Test_progressGroupsTimeBased(t *testing.T) {
 			// It's not super important for time-based, but is crucial for halt-on-error.
 			// So it's better to be more conservative and validate order never changes for
 			// both strategies.
-			require.Equal(t, tt.expectedState, status.Groups)
+			require.Equal(t, tt.expectedState, status.GetGroups())
 		})
 	}
 }

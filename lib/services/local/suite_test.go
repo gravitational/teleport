@@ -1221,6 +1221,7 @@ func (s *ServicesTestSuite) OIDCPagination(t *testing.T) {
 }
 
 func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
+	ctx := t.Context()
 	clusterName := "example.com"
 	out, err := s.TrustS.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
@@ -1234,7 +1235,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = s.TrustS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
 	out, err = s.TrustS.GetTunnelConnections(clusterName)
@@ -1250,7 +1251,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	dt = dt.Add(time.Hour)
 	conn.SetLastHeartbeat(dt)
 
-	err = s.TrustS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
 	out, err = s.TrustS.GetTunnelConnections(clusterName)
@@ -1261,12 +1262,12 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	out, err = s.TrustS.GetAllTunnelConnections()
 	require.NoError(t, err)
 	for _, tc := range out {
-		err = s.TrustS.DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
+		err = s.TrustS.DeleteTunnelConnection(ctx, tc.GetClusterName(), tc.GetName())
 		require.NoError(t, err)
 	}
 
 	// test delete individual connection
-	err = s.TrustS.UpsertTunnelConnection(conn)
+	err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
 	out, err = s.TrustS.GetTunnelConnections(clusterName)
@@ -1274,7 +1275,7 @@ func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = s.TrustS.DeleteTunnelConnection(clusterName, conn.GetName())
+	err = s.TrustS.DeleteTunnelConnection(ctx, clusterName, conn.GetName())
 	require.NoError(t, err)
 
 	out, err = s.TrustS.GetTunnelConnections(clusterName)
@@ -1570,9 +1571,9 @@ func (s *ServicesTestSuite) AuthPreference(t *testing.T) {
 func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
 	ctx := context.Background()
 	ap, err := clusterconfig.NewAccessGraphSettings(
-		&clusterconfigpb.AccessGraphSettingsSpec{
+		clusterconfigpb.AccessGraphSettingsSpec_builder{
 			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 
@@ -1586,7 +1587,7 @@ func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
 	require.Empty(t, cmp.Diff(ap, got, protocmp.Transform()))
 
 	// Validate that update only works if the revision matches.
-	got.Metadata.Revision = "123"
+	got.GetMetadata().SetRevision("123")
 	_, err = s.ConfigS.UpdateAccessGraphSettings(ctx, got)
 	require.True(t, trace.IsCompareFailed(err))
 
@@ -1594,8 +1595,8 @@ func (s *ServicesTestSuite) AccessGraphSettings(t *testing.T) {
 	upserted, err := s.ConfigS.UpsertAccessGraphSettings(ctx, protobuf.Clone(got).(*clusterconfigpb.AccessGraphSettings))
 	require.NoError(t, err)
 	require.NotEmpty(t, upserted.GetMetadata().GetRevision())
-	upserted.Metadata.Revision = ""
-	got.Metadata.Revision = ""
+	upserted.GetMetadata().SetRevision("")
+	got.GetMetadata().SetRevision("")
 	require.Empty(t, cmp.Diff(upserted, got, protocmp.Transform()))
 }
 
@@ -1670,31 +1671,31 @@ func (s *ServicesTestSuite) StaticTokens(t *testing.T) {
 func (s *ServicesTestSuite) StaticScopedTokens(t *testing.T) {
 	ctx := t.Context()
 	// set static tokens
-	staticTokens := &joiningv1.StaticScopedTokens{
+	staticTokens := joiningv1.StaticScopedTokens_builder{
 		Kind:  types.KindStaticScopedTokens,
 		Scope: "/",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameStaticScopedTokens,
-		},
-		Spec: &joiningv1.StaticScopedTokensSpec{
+		}.Build(),
+		Spec: joiningv1.StaticScopedTokensSpec_builder{
 			Tokens: []*joiningv1.ScopedToken{
-				{
+				joiningv1.ScopedToken_builder{
 					Kind:  types.KindScopedToken,
 					Scope: "/",
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name:    "tok1",
 						Expires: timestamppb.New(time.Now().UTC().Add(time.Hour)),
-					},
-					Spec: &joiningv1.ScopedTokenSpec{
+					}.Build(),
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{types.RoleNode.String()},
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
 						AssignedScope: "/local",
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	err := s.LocalConfigS.SetStaticScopedTokens(ctx, staticTokens)
 	require.NoError(t, err)
@@ -2240,7 +2241,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			kind: types.WatchKind{
 				Kind: types.KindTunnelConnection,
 			},
-			crud: func(context.Context) types.Resource {
+			crud: func(ctx context.Context) types.Resource {
 				conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
 					ClusterName:   "example.com",
 					ProxyName:     "p1",
@@ -2248,13 +2249,13 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = s.TrustS.UpsertTunnelConnection(conn)
+				err = s.TrustS.UpsertTunnelConnection(ctx, conn)
 				require.NoError(t, err)
 
 				out, err := s.TrustS.GetTunnelConnections("example.com")
 				require.NoError(t, err)
 
-				err = s.TrustS.DeleteTunnelConnection(conn.GetClusterName(), conn.GetName())
+				err = s.TrustS.DeleteTunnelConnection(ctx, conn.GetClusterName(), conn.GetName())
 				require.NoError(t, err)
 
 				return out[0]

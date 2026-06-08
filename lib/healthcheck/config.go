@@ -54,7 +54,7 @@ func newHealthCheckConfig(cfg *healthcheckconfigv1.HealthCheckConfig) *healthChe
 		interval:                cmp.Or(spec.GetInterval().AsDuration(), defaults.HealthCheckInterval),
 		healthyThreshold:        cmp.Or(spec.GetHealthyThreshold(), defaults.HealthCheckHealthyThreshold),
 		unhealthyThreshold:      cmp.Or(spec.GetUnhealthyThreshold(), defaults.HealthCheckUnhealthyThreshold),
-		disabled:                match.Disabled,
+		disabled:                match.GetDisabled(),
 		databaseLabelMatchers:   newLabelMatchers(match.GetDbLabelsExpression(), match.GetDbLabels()),
 		kubernetesLabelMatchers: newLabelMatchers(match.GetKubernetesLabelsExpression(), match.GetKubernetesLabels()),
 	}

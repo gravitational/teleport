@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/healthcheckconfig/v1/health_check_config_service.proto
 
+//go:build !protoopaque
+
 package healthcheckconfigv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // Request for CreateHealthCheckConfig.
 type CreateHealthCheckConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Config is the resource to create.
 	Config        *HealthCheckConfig `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *CreateHealthCheckConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateHealthCheckConfigRequest.ProtoReflect.Descriptor instead.
-func (*CreateHealthCheckConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateHealthCheckConfigRequest) GetConfig() *HealthCheckConfig {
 	if x != nil {
 		return x.Config
@@ -82,9 +78,39 @@ func (x *CreateHealthCheckConfigRequest) GetConfig() *HealthCheckConfig {
 	return nil
 }
 
+func (x *CreateHealthCheckConfigRequest) SetConfig(v *HealthCheckConfig) {
+	x.Config = v
+}
+
+func (x *CreateHealthCheckConfigRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.Config != nil
+}
+
+func (x *CreateHealthCheckConfigRequest) ClearConfig() {
+	x.Config = nil
+}
+
+type CreateHealthCheckConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Config is the resource to create.
+	Config *HealthCheckConfig
+}
+
+func (b0 CreateHealthCheckConfigRequest_builder) Build() *CreateHealthCheckConfigRequest {
+	m0 := &CreateHealthCheckConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Config = b.Config
+	return m0
+}
+
 // GetHealthCheckConfigRequest is a request for GetHealthCheckConfig.
 type GetHealthCheckConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the HealthCheckConfig to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -116,11 +142,6 @@ func (x *GetHealthCheckConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetHealthCheckConfigRequest.ProtoReflect.Descriptor instead.
-func (*GetHealthCheckConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetHealthCheckConfigRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -128,9 +149,28 @@ func (x *GetHealthCheckConfigRequest) GetName() string {
 	return ""
 }
 
+func (x *GetHealthCheckConfigRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetHealthCheckConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the HealthCheckConfig to retrieve.
+	Name string
+}
+
+func (b0 GetHealthCheckConfigRequest_builder) Build() *GetHealthCheckConfigRequest {
+	m0 := &GetHealthCheckConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // ListHealthCheckConfigsRequest is the request for ListHealthCheckConfigs.
 type ListHealthCheckConfigsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PageSize is the maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -165,11 +205,6 @@ func (x *ListHealthCheckConfigsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListHealthCheckConfigsRequest.ProtoReflect.Descriptor instead.
-func (*ListHealthCheckConfigsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListHealthCheckConfigsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -184,9 +219,36 @@ func (x *ListHealthCheckConfigsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListHealthCheckConfigsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListHealthCheckConfigsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListHealthCheckConfigsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PageSize is the maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// PageToken is the page token value returned from a prior list request, if any.
+	PageToken string
+}
+
+func (b0 ListHealthCheckConfigsRequest_builder) Build() *ListHealthCheckConfigsRequest {
+	m0 := &ListHealthCheckConfigsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListHealthCheckConfigsResponse is the response from ListHealthCheckConfigs.
 type ListHealthCheckConfigsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Configs is a page of health check configs.
 	Configs []*HealthCheckConfig `protobuf:"bytes,1,rep,name=configs,proto3" json:"configs,omitempty"`
 	// NextPageToken is the token that can be used to retrieve the next page of
@@ -221,11 +283,6 @@ func (x *ListHealthCheckConfigsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListHealthCheckConfigsResponse.ProtoReflect.Descriptor instead.
-func (*ListHealthCheckConfigsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListHealthCheckConfigsResponse) GetConfigs() []*HealthCheckConfig {
 	if x != nil {
 		return x.Configs
@@ -240,9 +297,36 @@ func (x *ListHealthCheckConfigsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListHealthCheckConfigsResponse) SetConfigs(v []*HealthCheckConfig) {
+	x.Configs = v
+}
+
+func (x *ListHealthCheckConfigsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListHealthCheckConfigsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Configs is a page of health check configs.
+	Configs []*HealthCheckConfig
+	// NextPageToken is the token that can be used to retrieve the next page of
+	// results or empty if there are no more pages.
+	NextPageToken string
+}
+
+func (b0 ListHealthCheckConfigsResponse_builder) Build() *ListHealthCheckConfigsResponse {
+	m0 := &ListHealthCheckConfigsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Configs = b.Configs
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request for UpdateHealthCheckConfig.
 type UpdateHealthCheckConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Config is the resource to update.
 	Config        *HealthCheckConfig `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -274,11 +358,6 @@ func (x *UpdateHealthCheckConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateHealthCheckConfigRequest.ProtoReflect.Descriptor instead.
-func (*UpdateHealthCheckConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateHealthCheckConfigRequest) GetConfig() *HealthCheckConfig {
 	if x != nil {
 		return x.Config
@@ -286,9 +365,39 @@ func (x *UpdateHealthCheckConfigRequest) GetConfig() *HealthCheckConfig {
 	return nil
 }
 
+func (x *UpdateHealthCheckConfigRequest) SetConfig(v *HealthCheckConfig) {
+	x.Config = v
+}
+
+func (x *UpdateHealthCheckConfigRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.Config != nil
+}
+
+func (x *UpdateHealthCheckConfigRequest) ClearConfig() {
+	x.Config = nil
+}
+
+type UpdateHealthCheckConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Config is the resource to update.
+	Config *HealthCheckConfig
+}
+
+func (b0 UpdateHealthCheckConfigRequest_builder) Build() *UpdateHealthCheckConfigRequest {
+	m0 := &UpdateHealthCheckConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Config = b.Config
+	return m0
+}
+
 // Request for UpsertHealthCheckConfig.
 type UpsertHealthCheckConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Config is the resource to upsert.
 	Config        *HealthCheckConfig `protobuf:"bytes,1,opt,name=config,proto3" json:"config,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -320,11 +429,6 @@ func (x *UpsertHealthCheckConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertHealthCheckConfigRequest.ProtoReflect.Descriptor instead.
-func (*UpsertHealthCheckConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpsertHealthCheckConfigRequest) GetConfig() *HealthCheckConfig {
 	if x != nil {
 		return x.Config
@@ -332,9 +436,39 @@ func (x *UpsertHealthCheckConfigRequest) GetConfig() *HealthCheckConfig {
 	return nil
 }
 
+func (x *UpsertHealthCheckConfigRequest) SetConfig(v *HealthCheckConfig) {
+	x.Config = v
+}
+
+func (x *UpsertHealthCheckConfigRequest) HasConfig() bool {
+	if x == nil {
+		return false
+	}
+	return x.Config != nil
+}
+
+func (x *UpsertHealthCheckConfigRequest) ClearConfig() {
+	x.Config = nil
+}
+
+type UpsertHealthCheckConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Config is the resource to upsert.
+	Config *HealthCheckConfig
+}
+
+func (b0 UpsertHealthCheckConfigRequest_builder) Build() *UpsertHealthCheckConfigRequest {
+	m0 := &UpsertHealthCheckConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Config = b.Config
+	return m0
+}
+
 // Request for DeleteHealthCheckConfig.
 type DeleteHealthCheckConfigRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the HealthCheckConfig to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -366,16 +500,30 @@ func (x *DeleteHealthCheckConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteHealthCheckConfigRequest.ProtoReflect.Descriptor instead.
-func (*DeleteHealthCheckConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteHealthCheckConfigRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *DeleteHealthCheckConfigRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteHealthCheckConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the HealthCheckConfig to delete.
+	Name string
+}
+
+func (b0 DeleteHealthCheckConfigRequest_builder) Build() *DeleteHealthCheckConfigRequest {
+	m0 := &DeleteHealthCheckConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
 }
 
 var File_teleport_healthcheckconfig_v1_health_check_config_service_proto protoreflect.FileDescriptor
@@ -407,18 +555,6 @@ const file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDe
 	"\x17UpdateHealthCheckConfig\x12=.teleport.healthcheckconfig.v1.UpdateHealthCheckConfigRequest\x1a0.teleport.healthcheckconfig.v1.HealthCheckConfig\x12\x8a\x01\n" +
 	"\x17UpsertHealthCheckConfig\x12=.teleport.healthcheckconfig.v1.UpsertHealthCheckConfigRequest\x1a0.teleport.healthcheckconfig.v1.HealthCheckConfig\x12p\n" +
 	"\x17DeleteHealthCheckConfig\x12=.teleport.healthcheckconfig.v1.DeleteHealthCheckConfigRequest\x1a\x16.google.protobuf.EmptyBfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/healthcheckconfig/v1;healthcheckconfigv1b\x06proto3"
-
-var (
-	file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescOnce sync.Once
-	file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescData []byte
-)
-
-func file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescGZIP() []byte {
-	file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescOnce.Do(func() {
-		file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDesc), len(file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDesc)))
-	})
-	return file_teleport_healthcheckconfig_v1_health_check_config_service_proto_rawDescData
-}
 
 var file_teleport_healthcheckconfig_v1_health_check_config_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_healthcheckconfig_v1_health_check_config_service_proto_goTypes = []any{

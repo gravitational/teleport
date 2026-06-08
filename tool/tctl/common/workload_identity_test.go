@@ -263,18 +263,18 @@ func TestWorkloadIdentityRevocation(t *testing.T) {
 		require.NoError(t, err)
 
 		require.Empty(t, cmp.Diff(
-			&workloadidentityv1pb.WorkloadIdentityX509Revocation{
+			workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
 				Kind:    types.KindWorkloadIdentityX509Revocation,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name:    "aabbccdd",
 					Expires: timestamppb.New(time.Date(2030, 2, 24, 15, 4, 0, 0, time.UTC)),
-				},
-				Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
+				}.Build(),
+				Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
 					Reason:    "compromised",
 					RevokedAt: timestamppb.New(time.Date(2024, 2, 5, 15, 4, 0, 0, time.UTC)),
-				},
-			},
+				}.Build(),
+			}.Build(),
 			resource,
 			protocmp.Transform(),
 			protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),

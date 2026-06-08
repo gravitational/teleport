@@ -213,17 +213,17 @@ func (v *TokenReviewValidator) Validate(ctx context.Context, token, clusterName 
 		)
 	}
 
-	attrs := &workloadidentityv1pb.JoinAttrsKubernetes{
+	attrs := workloadidentityv1pb.JoinAttrsKubernetes_builder{
 		Subject: reviewResult.Status.User.Username,
-		ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+		ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
 			Name:      serviceAccount,
 			Namespace: namespace,
-		},
-	}
+		}.Build(),
+	}.Build()
 	if podNamePresent && len(podName) == 1 {
-		attrs.Pod = &workloadidentityv1pb.JoinAttrsKubernetesPod{
+		attrs.SetPod(workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
 			Name: podName[0],
-		}
+		}.Build())
 	}
 
 	return &ValidationResult{
@@ -324,16 +324,16 @@ func ValidateTokenWithJWKS(
 		Raw:      claims,
 		Type:     types.KubernetesJoinTypeStaticJWKS,
 		Username: claims.Subject,
-		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+		attrs: workloadidentityv1pb.JoinAttrsKubernetes_builder{
 			Subject: claims.Subject,
-			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+			Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
 				Name: claims.Kubernetes.Pod.Name,
-			},
-			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+			}.Build(),
+			ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
 				Name:      claims.Kubernetes.ServiceAccount.Name,
 				Namespace: claims.Kubernetes.Namespace,
-			},
-		},
+			}.Build(),
+		}.Build(),
 		ServiceAccountName:      claims.Kubernetes.ServiceAccount.Name,
 		ServiceAccountNamespace: claims.Kubernetes.Namespace,
 	}, nil
@@ -392,15 +392,15 @@ func (v *KubernetesOIDCTokenValidator) ValidateToken(
 		Username:                claims.GetSubject(),
 		ServiceAccountName:      claims.Kubernetes.ServiceAccount.Name,
 		ServiceAccountNamespace: claims.Kubernetes.Namespace,
-		attrs: &workloadidentityv1pb.JoinAttrsKubernetes{
+		attrs: workloadidentityv1pb.JoinAttrsKubernetes_builder{
 			Subject: claims.GetSubject(),
-			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+			Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
 				Name: claims.Kubernetes.Pod.Name,
-			},
-			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+			}.Build(),
+			ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
 				Name:      claims.Kubernetes.ServiceAccount.Name,
 				Namespace: claims.Kubernetes.Namespace,
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}, nil
 }

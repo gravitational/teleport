@@ -57,10 +57,10 @@ func TestInitializeCache(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	mockReq := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+	mockReq := accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
 		Subjects:            []string{types.KindAccessRequest},
 		AutomaticReviewName: handler.HandlerName,
-	}
+	}.Build()
 
 	mockResp := []*accessmonitoringrulesv1.AccessMonitoringRule{
 		newApprovedRule("test-rule", "condition"),
@@ -119,7 +119,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 
 	// Test rule does not apply with invalid automatic approval name.
 	rule = newApprovedRule("test-rule", `condition`)
-	rule.Spec.AutomaticReview.Integration = "invalid"
+	rule.GetSpec().GetAutomaticReview().SetIntegration("invalid")
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -128,7 +128,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 
 	// Test rule does not apply with invalid state.
 	rule = newApprovedRule("test-rule", `condition`)
-	rule.Spec.DesiredState = "invalid"
+	rule.GetSpec().SetDesiredState("invalid")
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -137,7 +137,7 @@ func TestHandleAccessMonitoringRule(t *testing.T) {
 
 	// Test rule does not apply with invalid subject.
 	rule = newApprovedRule("test-rule", `condition`)
-	rule.Spec.Subjects = []string{"invalid"}
+	rule.GetSpec().SetSubjects([]string{"invalid"})
 	require.NoError(t, handler.HandleAccessMonitoringRule(ctx, types.Event{
 		Type:     types.OpPut,
 		Resource: types.Resource153ToResourceWithLabels(rule),
@@ -221,19 +221,19 @@ func TestScheduleRequest(t *testing.T) {
 		testRuleName,
 		`true`)
 
-	testRule.Spec.Schedules = map[string]*accessmonitoringrulesv1.Schedule{
-		"test-schedule": {
-			Time: &accessmonitoringrulesv1.TimeSchedule{
+	testRule.GetSpec().SetSchedules(map[string]*accessmonitoringrulesv1.Schedule{
+		"test-schedule": accessmonitoringrulesv1.Schedule_builder{
+			Time: accessmonitoringrulesv1.TimeSchedule_builder{
 				Shifts: []*accessmonitoringrulesv1.TimeSchedule_Shift{
-					{
+					accessmonitoringrulesv1.TimeSchedule_Shift_builder{
 						Weekday: time.Monday.String(),
 						Start:   "14:00",
 						End:     "15:00",
-					},
+					}.Build(),
 				},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	})
 
 	cache := accessmonitoring.NewCache()
 	cache.Put([]*accessmonitoringrulesv1.AccessMonitoringRule{testRule})
@@ -604,21 +604,21 @@ func newDeniedRule(name, condition string) *accessmonitoringrulesv1.AccessMonito
 }
 
 func newReviewRule(name, condition, decision string) *accessmonitoringrulesv1.AccessMonitoringRule {
-	return &accessmonitoringrulesv1.AccessMonitoringRule{
+	return accessmonitoringrulesv1.AccessMonitoringRule_builder{
 		Kind: types.KindAccessMonitoringRule,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+		}.Build(),
+		Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 			Subjects:     []string{types.KindAccessRequest},
 			Condition:    condition,
 			DesiredState: types.AccessMonitoringRuleStateReviewed,
-			AutomaticReview: &accessmonitoringrulesv1.AutomaticReview{
+			AutomaticReview: accessmonitoringrulesv1.AutomaticReview_builder{
 				Integration: handlerName,
 				Decision:    decision,
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 // mockClient is a mock implementation of the Teleport API client.
@@ -641,7 +641,7 @@ func (m *mockClient) ListAccessMonitoringRulesWithFilter(ctx context.Context, re
 	error,
 ) {
 	// Expect zero value page size for testing.
-	req.PageSize = 0
+	req.SetPageSize(0)
 
 	args := m.Called(ctx, req)
 	rules, ok := args.Get(0).([]*accessmonitoringrulesv1.AccessMonitoringRule)

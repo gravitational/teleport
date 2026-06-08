@@ -30,6 +30,7 @@ import (
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -124,6 +125,8 @@ type RecordingsCommand struct {
 	searchSeverity string
 	// searchMode controls which search strategy to use: hybrid (default), keyword, or embedding.
 	searchMode string
+	// searchResumeToken resumes a previous JSON/YAML search from a truncated result set.
+	searchResumeToken string
 
 	// stdout allows to switch standard output source for resource command. Used in tests.
 	stdout io.Writer
@@ -145,8 +148,10 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.recordingsList.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&c.recordingsSince)
 	c.recordingsSearch = recordings.Command("search", "Search session recordings using semantic and keyword queries.")
 	c.recordingsSearch.Arg("query", `Natural language description of the sessions to find (e.g. "SSH sessions exfiltrating data to external endpoints").`).StringsVar(&c.searchQuery)
-	c.recordingsSearch.Flag("from", fmt.Sprintf("Start of time range. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.searchFromUTC)
-	c.recordingsSearch.Flag("to", fmt.Sprintf("End of time range. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.searchToUTC)
+	c.recordingsSearch.Flag("from", fmt.Sprintf("Start of time range. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).Hidden().StringVar(&c.searchFromUTC)
+	c.recordingsSearch.Flag("to", fmt.Sprintf("End of time range. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).Hidden().StringVar(&c.searchToUTC)
+	c.recordingsSearch.Flag("from-utc", fmt.Sprintf("Start of time range. Format %s. Defaults to 24 hours ago.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.searchFromUTC)
+	c.recordingsSearch.Flag("to-utc", fmt.Sprintf("End of time range. Format %s. Defaults to current time.", defaults.TshTctlSessionListTimeFormat)).StringVar(&c.searchToUTC)
 	c.recordingsSearch.Flag("label", "Filter by resource labels (key=value pairs), e.g. env/prod=true,db/type=postgres.").StringVar(&c.searchLabel)
 	c.recordingsSearch.Flag("access-request", "Filter by access request ID. Can be specified multiple times.").StringsVar(&c.searchAccessRequests)
 	c.recordingsSearch.Flag("kind", "Filter by session kind (ssh, db, k8s, desktop). Can be specified multiple times.").StringsVar(&c.searchKinds)
@@ -163,6 +168,7 @@ func (c *RecordingsCommand) Initialize(app *kingpin.Application, t *tctlcfg.Glob
 	c.recordingsSearch.Flag("search-mode", "Search strategy to use when search queries are provided.").Default(searchModeHybrid).EnumVar(&c.searchMode, searchModeHybrid, searchModeKeyword, searchModeEmbedding)
 	c.recordingsSearch.Flag("limit", "Maximum number of results to return.").Default(defaults.TshTctlSessionListLimit).Uint32Var(&c.searchLimit)
 	c.recordingsSearch.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)+". Defaults to 'text'.").Default(teleport.Text).StringVar(&c.searchFormat)
+	c.recordingsSearch.Flag("resume-token", "Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).").StringVar(&c.searchResumeToken)
 
 	c.recordingsEncryption.Initialize(recordings, c.stdout)
 
@@ -275,13 +281,13 @@ loop:
 
 // SearchRecordings implements "tctl recordings search <query>".
 func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient.Client) error {
-	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), c.searchFromUTC, c.searchToUTC, "")
-	if err != nil {
+	searchClient := tc.SessionSearchServiceClient()
+	if err := checkSessionSearchEnabled(ctx, searchClient); err != nil {
 		return trace.Wrap(err)
 	}
 
-	searchClient := tc.SessionSearchServiceClient()
-	if err := checkSessionSearchEnabled(ctx, searchClient); err != nil {
+	fromUTC, toUTC, err := defaults.SearchSessionRange(clockwork.NewRealClock(), c.searchFromUTC, c.searchToUTC, "")
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -296,7 +302,7 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 	if len(c.searchQuery) > 0 {
 		search = []string{strings.Join(c.searchQuery, " ")}
 	}
-	req := &sessionsearchv1pb.SearchSessionSummariesRequest{
+	req := sessionsearchv1pb.SearchSessionSummariesRequest_builder{
 		StartTime:        timestamppb.New(fromUTC),
 		EndTime:          timestamppb.New(toUTC),
 		SearchQueries:    search,
@@ -305,67 +311,86 @@ func (c *RecordingsCommand) SearchRecordings(ctx context.Context, tc *authclient
 		Kinds:            c.searchKinds,
 		UserRoles:        c.searchRoles,
 		MaxResults:       c.searchLimit,
-	}
+	}.Build()
 	resourceProperties, err := c.buildSearchResourceProperties()
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req.ResourceProperties = resourceProperties
+	req.SetResourceProperties(resourceProperties)
 	if c.searchUsername != "" {
-		req.Username = &c.searchUsername
+		req.SetUsername(c.searchUsername)
 	}
 	if c.searchResourceKind != "" {
-		req.ResourceKind = &c.searchResourceKind
+		req.SetResourceKind(c.searchResourceKind)
 	}
 	if c.searchResourceName != "" {
-		req.ResourceName = &c.searchResourceName
+		req.SetResourceName(c.searchResourceName)
 	}
 	if c.searchSeverity != "" {
 		level, err := parseSeverity(c.searchSeverity)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.Severity = &level
+		req.SetSeverity(level)
 	}
 	if c.searchMode != "" {
 		mode, err := parseSearchMode(c.searchMode)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.SearchMode = mode
+		req.SetSearchMode(mode)
 	}
 
-	stream, err := searchClient.SearchSessionSummaries(ctx, req)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	sessions, nextToken, err := collectStream(stream)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	// fetcher resends the full request with the batch token set. It is used for
+	// both the first page (empty or resume token) and subsequent "load more"
+	// pages. The batch token is only a cursor: the server requires and applies
+	// the filter fields (start_time, end_time, ...) on every request, so the
+	// original request must be replayed each time rather than sending the token
+	// alone.
 	fetcher := recordingstui.BatchFetcher(func(ctx context.Context, token string) ([]*sessionsearchv1pb.SessionSummary, string, error) {
-		// When BatchToken is set the server ignores all other filter fields per the proto contract.
-		batchStream, err := searchClient.SearchSessionSummaries(ctx, &sessionsearchv1pb.SearchSessionSummariesRequest{
-			BatchToken: token,
-		})
+		pageReq := proto.CloneOf(req)
+		pageReq.SetBatchToken(token)
+		stream, err := searchClient.SearchSessionSummaries(ctx, pageReq)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
-		return collectStream(batchStream)
+		return collectStream(stream)
 	})
 
-	return trace.Wrap(showSessionSummaries(ctx, sessions, nextToken, c.searchFormat, c.stdout, tc.SummarizerServiceClient(), fetcher))
+	// c.searchResumeToken is empty for a fresh search and set when resuming a
+	// previous one; either way the first page is just a fetch with that token.
+	sessions, nextToken, err := fetcher(ctx, c.searchResumeToken)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(showSessionSummaries(ctx, sessions, nextToken, c.searchFormat, c.stdout, tc.SummarizerServiceClient(), fetcher, resumeCommand))
 }
 
-func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.SessionSummary, nextToken, format string, w io.Writer, summaryGetter recordingstui.SummaryGetter, fetcher recordingstui.BatchFetcher) error {
+// maxJSONYAMLSessions is the maximum number of sessions collected before truncating
+// structured (JSON/YAML) output and printing a --resume-token hint to stderr.
+const maxJSONYAMLSessions = 100
+
+func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.SessionSummary, nextToken, format string, w io.Writer, summaryGetter recordingstui.SummaryGetter, fetcher recordingstui.BatchFetcher, resumeCmd func(token string) string) error {
 	switch format {
-	case teleport.JSON:
-		// Only the first batch is output; nextToken and fetcher are unused for
-		// non-interactive formats.
-		return trace.Wrap(utils.WriteJSONArray(w, sessions))
-	case teleport.YAML:
-		return trace.Wrap(utils.WriteYAML(w, sessions))
+	case teleport.JSON, teleport.YAML:
+		// Paginate automatically up to maxJSONYAMLSessions for structured output.
+		all := sessions
+		for nextToken != "" && len(all) < maxJSONYAMLSessions {
+			more, tok, err := fetcher(ctx, nextToken)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			all = append(all, more...)
+			nextToken = tok
+		}
+		if nextToken != "" {
+			fmt.Fprintf(os.Stderr, "Showing %d sessions (more available). Resume with:\n  %s\n", len(all), resumeCmd(nextToken))
+		}
+		if format == teleport.JSON {
+			return trace.Wrap(utils.WriteJSONArray(w, all))
+		}
+		return trace.Wrap(utils.WriteYAML(w, all))
 	default:
 		if len(sessions) == 0 {
 			fmt.Fprintln(w, "No sessions found.")
@@ -373,6 +398,68 @@ func showSessionSummaries(ctx context.Context, sessions []*sessionsearchv1pb.Ses
 		}
 		return recordingstui.RunSearchTUI(ctx, sessions, nextToken, summaryGetter, fetcher)
 	}
+}
+
+// resumeCommand renders a replayable command for the given resume token by
+// reusing the exact arguments of the current invocation (os.Args) and rewriting
+// only the resume token, replaced in place when already present or appended
+// otherwise. All other flags (including any time range the user passed) are
+// preserved verbatim.
+func resumeCommand(token string) string {
+	args := append([]string(nil), os.Args...)
+	if len(args) > 0 {
+		args[0] = filepath.Base(args[0])
+	}
+	args = replaceOrAppendFlag(args, []string{"--resume-token"}, "--resume-token", token)
+
+	quoted := make([]string, len(args))
+	for i, a := range args {
+		quoted[i] = shellQuote(a)
+	}
+	return strings.Join(quoted, " ")
+}
+
+// replaceOrAppendFlag removes every occurrence of the given flag names (in both
+// "--flag value" and "--flag=value" forms) from args, then appends
+// "canonical value" so the flag ends up set exactly once to value. The multiple
+// names allow collapsing aliases (e.g. --from and --from-utc) onto a single
+// canonical flag.
+func replaceOrAppendFlag(args, names []string, canonical, value string) []string {
+	match := func(arg string) (isFlag, inlineValue bool) {
+		for _, n := range names {
+			if arg == n {
+				return true, false
+			}
+			if strings.HasPrefix(arg, n+"=") {
+				return true, true
+			}
+		}
+		return false, false
+	}
+	out := make([]string, 0, len(args)+2)
+	for i := 0; i < len(args); i++ {
+		isFlag, inline := match(args[i])
+		if !isFlag {
+			out = append(out, args[i])
+			continue
+		}
+		if !inline {
+			i++ // skip the value token that follows "--flag value"
+		}
+	}
+	return append(out, canonical, value)
+}
+
+// shellQuote wraps s in single quotes when it contains characters that a shell
+// would otherwise interpret, so the rendered resume command can be pasted as-is.
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	if !strings.ContainsAny(s, " \t\n'\"\\$`*?(){}[]|&;<>~#!") {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.ResourceProperties, error) {
@@ -398,37 +485,31 @@ func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.
 	case sshSet:
 		props := &sessionsearchv1pb.SSHProperties{}
 		if c.searchServerHostname != "" {
-			props.ServerHostname = &c.searchServerHostname
+			props.SetServerHostname(c.searchServerHostname)
 		}
 		if c.searchServerAddr != "" {
-			props.ServerAddr = &c.searchServerAddr
+			props.SetServerAddr(c.searchServerAddr)
 		}
-		return &sessionsearchv1pb.ResourceProperties{
-			Type: &sessionsearchv1pb.ResourceProperties_Ssh{
-				Ssh: props,
-			},
-		}, nil
+		return sessionsearchv1pb.ResourceProperties_builder{
+			Ssh: proto.ValueOrDefault(props),
+		}.Build(), nil
 	case kubernetesSet:
 		props := &sessionsearchv1pb.KubernetesProperties{}
 		if c.searchPodNamespace != "" {
-			props.PodNamespace = &c.searchPodNamespace
+			props.SetPodNamespace(c.searchPodNamespace)
 		}
 		if c.searchPodName != "" {
-			props.PodName = &c.searchPodName
+			props.SetPodName(c.searchPodName)
 		}
-		return &sessionsearchv1pb.ResourceProperties{
-			Type: &sessionsearchv1pb.ResourceProperties_Kubernetes{
-				Kubernetes: props,
-			},
-		}, nil
+		return sessionsearchv1pb.ResourceProperties_builder{
+			Kubernetes: proto.ValueOrDefault(props),
+		}.Build(), nil
 	case databaseSet:
-		return &sessionsearchv1pb.ResourceProperties{
-			Type: &sessionsearchv1pb.ResourceProperties_Database{
-				Database: &sessionsearchv1pb.DatabaseProperties{
-					DatabaseName: &c.searchDatabaseName,
-				},
-			},
-		}, nil
+		return sessionsearchv1pb.ResourceProperties_builder{
+			Database: sessionsearchv1pb.DatabaseProperties_builder{
+				DatabaseName: &c.searchDatabaseName,
+			}.Build(),
+		}.Build(), nil
 	default:
 		return nil, nil
 	}
@@ -470,12 +551,12 @@ func collectStream(stream sessionsearchv1pb.SessionSearchService_SearchSessionSu
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
-		switch p := resp.Payload.(type) {
-		case *sessionsearchv1pb.SearchSessionSummariesResponse_Summary:
-			sessions = append(sessions, p.Summary)
-		case *sessionsearchv1pb.SearchSessionSummariesResponse_BatchComplete_:
-			if p.BatchComplete.GetHasMore() {
-				nextToken = p.BatchComplete.GetNextBatchToken()
+		switch resp.WhichPayload() {
+		case sessionsearchv1pb.SearchSessionSummariesResponse_Summary_case:
+			sessions = append(sessions, resp.GetSummary())
+		case sessionsearchv1pb.SearchSessionSummariesResponse_BatchComplete_case:
+			if resp.GetBatchComplete().GetHasMore() {
+				nextToken = resp.GetBatchComplete().GetNextBatchToken()
 			}
 		}
 	}

@@ -82,7 +82,7 @@ func (c *scopesLSCommand) run(cf *CLIConf) error {
 
 	var assignments []*scopedaccessv1.ScopedRoleAssignment
 	if err := tc.WithRootClusterClient(ctx, func(clt authclient.ClientI) error {
-		assignments, err = stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, clt.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{
+		assignments, err = stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, clt.ScopedAccessServiceClient(), scopedaccessv1.ListScopedRoleAssignmentsRequest_builder{
 			// note that we are using the AllCallerAssignments flag here rather than just looking for
 			// our assignments by username. This flag suppresses standard scope-pinning, which allows
 			// us to see assignments in parent/orthogonal scopes. Generally, scoped commands only show
@@ -90,7 +90,7 @@ func (c *scopesLSCommand) run(cf *CLIConf) error {
 			// is specifically to discover potential 'tsh login --scope=...' targets, so we want to see
 			// everything regardless of current scope.
 			AllCallerAssignments: true,
-		}))
+		}.Build()))
 		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)

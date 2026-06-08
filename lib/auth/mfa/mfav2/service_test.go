@@ -135,9 +135,9 @@ func TestCreateValidateSessionChallenge_Webauthn(t *testing.T) {
 	wantedChallenge := mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: challengeResp.GetMfaChallenge().GetName(),
-		},
+		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload:       payload,
 			SourceCluster: sourceCluster,
@@ -244,9 +244,9 @@ func TestCreateValidateSessionChallenge_SSO(t *testing.T) {
 	wantedChallenge := mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: challengeResp.GetMfaChallenge().GetName(),
-		},
+		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload:       payload,
 			SourceCluster: sourceCluster,
@@ -666,9 +666,9 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 		mfav2.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test-challenge-1",
-			},
+			}.Build(),
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				Payload:       payload,
 				SourceCluster: sourceCluster,
@@ -679,9 +679,9 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 		mfav2.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test-challenge-2",
-			},
+			}.Build(),
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				Payload:       payload,
 				SourceCluster: sourceCluster,
@@ -692,9 +692,9 @@ func TestListValidatedMFAChallenges_Success(t *testing.T) {
 		mfav2.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test-challenge-3",
-			},
+			}.Build(),
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				Payload:       payload,
 				SourceCluster: sourceCluster,
@@ -802,9 +802,9 @@ func TestListValidatedMFAChallenges_FilterByTargetCluster(t *testing.T) {
 		mfav2.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "challenge-for-target-cluster",
-			},
+			}.Build(),
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				Payload:       payload,
 				SourceCluster: sourceCluster,
@@ -867,9 +867,9 @@ func TestReplicateValidatedMFAChallenge_Success(t *testing.T) {
 		ReplicatedChallenge: mfav2.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: chalName,
-			},
+			}.Build(),
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				Payload:       payload,
 				SourceCluster: sourceCluster,
@@ -1118,9 +1118,9 @@ func TestVerifyValidatedMFAChallenge_Success(t *testing.T) {
 		chal := mfav2.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: chalName,
-			},
+			}.Build(),
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				Payload:       payload,
 				SourceCluster: sourceCluster,
@@ -1166,9 +1166,9 @@ func TestVerifyValidatedMFAChallenge_PayloadMismatch(t *testing.T) {
 	chal := mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: chalName,
-		},
+		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload:       payload,
 			SourceCluster: sourceCluster,
@@ -1203,9 +1203,9 @@ func TestVerifyValidatedMFAChallenge_SourceClusterMismatch(t *testing.T) {
 	chal := mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: chalName,
-		},
+		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload:       payload,
 			SourceCluster: sourceCluster,

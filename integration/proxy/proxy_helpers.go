@@ -674,15 +674,15 @@ func mustFindKubePod(t *testing.T, tc *client.TeleportClient) {
 	serviceClient, err := tc.NewKubernetesServiceClient(context.Background(), tc.SiteName)
 	require.NoError(t, err)
 
-	response, err := serviceClient.ListKubernetesResources(context.Background(), &kubeproto.ListKubernetesResourcesRequest{
+	response, err := serviceClient.ListKubernetesResources(context.Background(), kubeproto.ListKubernetesResourcesRequest_builder{
 		ResourceType:        types.KindKubePod,
 		KubernetesCluster:   kubeClusterName,
 		KubernetesNamespace: metav1.NamespaceDefault,
 		TeleportCluster:     tc.SiteName,
-	})
+	}.Build())
 	require.NoError(t, err)
-	require.Len(t, response.Resources, 3)
-	require.Equal(t, types.KindKubePod, response.Resources[0].Kind)
+	require.Len(t, response.GetResources(), 3)
+	require.Equal(t, types.KindKubePod, response.GetResources()[0].Kind)
 }
 
 func mustConnectDatabaseGateway(ctx context.Context, t *testing.T, _ *daemon.Service, gw gateway.Gateway) {

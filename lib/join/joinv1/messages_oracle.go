@@ -38,9 +38,9 @@ func oracleInitFromMessage(msg *messages.OracleInit) (*joinv1.OracleInit, error)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &joinv1.OracleInit{
+	return joinv1.OracleInit_builder{
 		ClientParams: clientParams,
-	}, nil
+	}.Build(), nil
 }
 
 func oracleChallengeToMessage(req *joinv1.OracleChallenge) *messages.OracleChallenge {
@@ -50,9 +50,9 @@ func oracleChallengeToMessage(req *joinv1.OracleChallenge) *messages.OracleChall
 }
 
 func oracleChallengeFromMessage(msg *messages.OracleChallenge) *joinv1.OracleChallenge {
-	return &joinv1.OracleChallenge{
+	return joinv1.OracleChallenge_builder{
 		Challenge: msg.Challenge,
-	}
+	}.Build()
 }
 
 func oracleChallengeSolutionToMessage(req *joinv1.OracleChallengeSolution) *messages.OracleChallengeSolution {
@@ -65,10 +65,10 @@ func oracleChallengeSolutionToMessage(req *joinv1.OracleChallengeSolution) *mess
 }
 
 func oracleChallengeSolutionFromMessage(msg *messages.OracleChallengeSolution) *joinv1.OracleChallengeSolution {
-	return &joinv1.OracleChallengeSolution{
+	return joinv1.OracleChallengeSolution_builder{
 		Cert:            msg.Cert,
 		Intermediate:    msg.Intermediate,
 		Signature:       msg.Signature,
 		SignedRootCaReq: msg.SignedRootCAReq,
-	}
+	}.Build()
 }

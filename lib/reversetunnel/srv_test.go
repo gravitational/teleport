@@ -195,7 +195,7 @@ func TestServerKeyAuth(t *testing.T) {
 						Username:   con.User(),
 						Principals: []string{con.User()},
 						Roles:      []string{"dev", "admin"},
-						ScopePin:   &scopesv1.Pin{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "test"},
+						ScopePin:   scopesv1.Pin_builder{Kind: scopesv1.PinKind_PIN_KIND_USER, Scope: "test"}.Build(),
 					},
 				})
 				require.NoError(t, err)
@@ -338,13 +338,13 @@ func TestServerKeyAuth(t *testing.T) {
 					NodeName:      con.User(),
 					Identity: sshca.Identity{
 						ClusterName: "root",
-						ScopePin: &scopesv1.Pin{
+						ScopePin: scopesv1.Pin_builder{
 							Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 							Scope: "test-scope",
-							SystemRoles: &scopesv1.SystemRoles{
+							SystemRoles: scopesv1.SystemRoles_builder{
 								Primary: string(types.RoleNode),
-							},
-						},
+							}.Build(),
+						}.Build(),
 					},
 				})
 				require.NoError(t, err)

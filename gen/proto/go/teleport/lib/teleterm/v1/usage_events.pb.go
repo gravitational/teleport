@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/v1/usage_events.proto
 
+//go:build !protoopaque
+
 package teletermv1
 
 import (
@@ -28,7 +30,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 )
 
 type ReportUsageEventRequest struct {
-	state         protoimpl.MessageState             `protogen:"open.v1"`
+	state         protoimpl.MessageState             `protogen:"hybrid.v1"`
 	AuthClusterId string                             `protobuf:"bytes,1,opt,name=auth_cluster_id,json=authClusterId,proto3" json:"auth_cluster_id,omitempty"`
 	PrehogReq     *v1alpha.SubmitConnectEventRequest `protobuf:"bytes,2,opt,name=prehog_req,json=prehogReq,proto3" json:"prehog_req,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -72,11 +73,6 @@ func (x *ReportUsageEventRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportUsageEventRequest.ProtoReflect.Descriptor instead.
-func (*ReportUsageEventRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_v1_usage_events_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ReportUsageEventRequest) GetAuthClusterId() string {
 	if x != nil {
 		return x.AuthClusterId
@@ -91,6 +87,41 @@ func (x *ReportUsageEventRequest) GetPrehogReq() *v1alpha.SubmitConnectEventRequ
 	return nil
 }
 
+func (x *ReportUsageEventRequest) SetAuthClusterId(v string) {
+	x.AuthClusterId = v
+}
+
+func (x *ReportUsageEventRequest) SetPrehogReq(v *v1alpha.SubmitConnectEventRequest) {
+	x.PrehogReq = v
+}
+
+func (x *ReportUsageEventRequest) HasPrehogReq() bool {
+	if x == nil {
+		return false
+	}
+	return x.PrehogReq != nil
+}
+
+func (x *ReportUsageEventRequest) ClearPrehogReq() {
+	x.PrehogReq = nil
+}
+
+type ReportUsageEventRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	AuthClusterId string
+	PrehogReq     *v1alpha.SubmitConnectEventRequest
+}
+
+func (b0 ReportUsageEventRequest_builder) Build() *ReportUsageEventRequest {
+	m0 := &ReportUsageEventRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AuthClusterId = b.AuthClusterId
+	x.PrehogReq = b.PrehogReq
+	return m0
+}
+
 var File_teleport_lib_teleterm_v1_usage_events_proto protoreflect.FileDescriptor
 
 const file_teleport_lib_teleterm_v1_usage_events_proto_rawDesc = "" +
@@ -100,18 +131,6 @@ const file_teleport_lib_teleterm_v1_usage_events_proto_rawDesc = "" +
 	"\x0fauth_cluster_id\x18\x01 \x01(\tR\rauthClusterId\x12H\n" +
 	"\n" +
 	"prehog_req\x18\x02 \x01(\v2).prehog.v1alpha.SubmitConnectEventRequestR\tprehogReqBTZRgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_v1_usage_events_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_v1_usage_events_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_v1_usage_events_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_v1_usage_events_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_v1_usage_events_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_v1_usage_events_proto_rawDesc), len(file_teleport_lib_teleterm_v1_usage_events_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_v1_usage_events_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_v1_usage_events_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_lib_teleterm_v1_usage_events_proto_goTypes = []any{

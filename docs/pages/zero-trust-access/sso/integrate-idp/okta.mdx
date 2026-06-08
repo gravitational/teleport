@@ -207,7 +207,7 @@ spec:
   - name: groups
     roles:
     - access
-    value: dev
+    value: devs
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   cert: ""
   display: "Okta"
@@ -220,6 +220,8 @@ version: v2
 ```
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)
+
+(!docs/pages/includes/sso/saml-slo.mdx!)
 
 ### Test the connector
 
@@ -254,7 +256,7 @@ Authentication details:
   value: admins
 - name: groups
   roles:
-  - dev
+  - access
   value: devs
 
 --------------------------------------------------------------------------------

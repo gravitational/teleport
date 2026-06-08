@@ -109,7 +109,7 @@ func (c *scanKeysCommand) run(cf *CLIConf) error {
 
 	privateKeys := scanner.ScanPrivateKeys(
 		ctx,
-		deviceCred.Id,
+		deviceCred.GetId(),
 	)
 
 	printPrivateKeys(privateKeys)
@@ -159,8 +159,8 @@ func printPrivateKeys(privateKeys []secretsscanner.SSHPrivateKey) {
 	for _, pk := range privateKeys {
 		path, key := pk.Path, pk.Key
 		fmt.Printf("- SHA256 fingerprint: %q (mode: %s) at %s\n",
-			key.Spec.PublicKeyFingerprint,
-			accessgraph.DescribePublicKeyMode(key.Spec.PublicKeyMode),
+			key.GetSpec().GetPublicKeyFingerprint(),
+			accessgraph.DescribePublicKeyMode(key.GetSpec().GetPublicKeyMode()),
 			path,
 		)
 	}

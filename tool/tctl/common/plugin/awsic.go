@@ -322,7 +322,7 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args pluginServices) 
 		}
 	}
 
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin: &types.PluginV1{
 			Metadata: types.Metadata{
 				Name: apicommon.OriginAWSIdentityCenter,
@@ -351,7 +351,7 @@ func (p *PluginsCommand) InstallAWSIC(ctx context.Context, args pluginServices) 
 				},
 			},
 		},
-	}
+	}.Build()
 
 	_, err = args.plugins.CreatePlugin(ctx, req)
 	if err != nil {
@@ -381,9 +381,9 @@ func (p *PluginsCommand) initEditAWSIC(parent *kingpin.CmdClause) {
 }
 
 func (p *PluginsCommand) EditAWSIC(ctx context.Context, args pluginServices) error {
-	plugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
+	plugin, err := args.plugins.GetPlugin(ctx, pluginspb.GetPluginRequest_builder{
 		Name: p.edit.awsIC.pluginName,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -398,9 +398,9 @@ func (p *PluginsCommand) EditAWSIC(ctx context.Context, args pluginServices) err
 		icSettings.RolesSyncMode = cliArgs.rolesSyncMode
 	}
 
-	_, err = args.plugins.UpdatePlugin(ctx, &pluginspb.UpdatePluginRequest{
+	_, err = args.plugins.UpdatePlugin(ctx, pluginspb.UpdatePluginRequest_builder{
 		Plugin: plugin,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -437,10 +437,10 @@ func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args pluginServic
 	cliArgs := &p.rotateCreds.awsic
 
 	slog.InfoContext(ctx, "Fetching plugin...", "plugin_name", cliArgs.pluginName)
-	plugin, err := args.plugins.GetPlugin(ctx, &pluginspb.GetPluginRequest{
+	plugin, err := args.plugins.GetPlugin(ctx, pluginspb.GetPluginRequest_builder{
 		Name:        cliArgs.pluginName,
 		WithSecrets: true,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "fetching plugin %q", cliArgs.pluginName)
 	}
@@ -463,9 +463,9 @@ func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args pluginServic
 
 	req := pluginspb.UpdatePluginStaticCredentialsRequest{
 		Target: &pluginspb.UpdatePluginStaticCredentialsRequest_Query{
-			Query: &pluginspb.CredentialQuery{
+			Query: pluginspb.CredentialQuery_builder{
 				Labels: staticCredsRef.Labels,
-			},
+			}.Build(),
 		},
 		Credential: &types.PluginStaticCredentialsSpecV1{
 			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{

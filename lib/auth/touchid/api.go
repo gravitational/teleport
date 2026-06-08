@@ -280,10 +280,14 @@ func Register(origin string, cc *wantypes.CredentialCreation) (*Registration, er
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	x := make([]byte, 32) // x and y must have exactly 32 bytes in EC2PublicKeyData.
-	y := make([]byte, 32)
-	pubKey.X.FillBytes(x)
-	pubKey.Y.FillBytes(y)
+
+	pubKeyBytes, err := pubKey.Bytes()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// First byte is the 0x04 prefix, which can be skipped. The rest are the x and y coordinates.
+	x, y := pubKeyBytes[1:33], pubKeyBytes[33:]
 
 	pubKeyCBOR, err := cbor.Marshal(
 		&webauthncose.EC2PublicKeyData{

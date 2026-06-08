@@ -1842,14 +1842,14 @@ func TestHealthCheckConfigWatcher(t *testing.T) {
 func newHealthCheckConfig(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
 	t.Helper()
 	c, err := healthcheckconfig.NewHealthCheckConfig(name,
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
-				DbLabels: []*labelv1.Label{{
+		healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
+				DbLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
-				}},
-			},
-		},
+				}.Build()},
+			}.Build(),
+		}.Build(),
 	)
 	require.NoError(t, err)
 	return c

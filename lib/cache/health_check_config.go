@@ -55,13 +55,13 @@ func newHealthCheckConfigCollection(upstream services.HealthCheckConfigReader, w
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *healthcheckconfigv1.HealthCheckConfig {
-			return &healthcheckconfigv1.HealthCheckConfig{
+			return healthcheckconfigv1.HealthCheckConfig_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil

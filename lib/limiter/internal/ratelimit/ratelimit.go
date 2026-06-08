@@ -180,6 +180,13 @@ func (rs *RateSet) Add(period time.Duration, average int64, burst int64) error {
 	if burst <= 0 {
 		return trace.BadParameter("Invalid burst: %v", burst)
 	}
+	if int64(period) < average {
+		return trace.BadParameter(
+			"Invalid rate: period %v and average %d would require less than 1ns per token",
+			period, average,
+		)
+	}
+
 	rs.m[period] = &rate{period, average, burst}
 	return nil
 }

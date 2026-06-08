@@ -201,7 +201,7 @@ func AssignmentTreeFromMap(m map[string]map[string][]string) *scopesv1.Assignmen
 		}
 	}
 
-	return pin.AssignmentTree
+	return pin.GetAssignmentTree()
 }
 
 // AssignmentTreeIntoMap converts an assignment tree back into a nested map of the form scopeOfOrigin -> scopeOfEffect -> roles.
@@ -213,7 +213,7 @@ func AssignmentTreeIntoMap(tree *scopesv1.AssignmentNode) map[string]map[string]
 
 	out := make(map[string]map[string][]string)
 
-	for assignment := range EnumerateAllAssignments(&scopesv1.Pin{AssignmentTree: tree}) {
+	for assignment := range EnumerateAllAssignments(scopesv1.Pin_builder{AssignmentTree: tree}.Build()) {
 		if out[assignment.ScopeOfOrigin] == nil {
 			out[assignment.ScopeOfOrigin] = make(map[string][]string)
 		}
@@ -279,56 +279,56 @@ func WriteRoleAssignment(pin *scopesv1.Pin, assignment RoleAssignment) error {
 // for tests.
 func writeRoleAssignmentUnchecked(pin *scopesv1.Pin, assignment RoleAssignment) {
 	// ensure the pin's assignment tree is initialized
-	if pin.AssignmentTree == nil {
-		pin.AssignmentTree = &scopesv1.AssignmentNode{}
+	if !pin.HasAssignmentTree() {
+		pin.SetAssignmentTree(&scopesv1.AssignmentNode{})
 	}
 
 	// start at the root of the assignment tree
-	assignmentNode := pin.AssignmentTree
+	assignmentNode := pin.GetAssignmentTree()
 
 	// descend to the correct assignment node for the scope of origin
 	for segment := range scopes.DescendingSegments(assignment.ScopeOfOrigin) {
-		if assignmentNode.Children == nil {
-			assignmentNode.Children = make(map[string]*scopesv1.AssignmentNode)
+		if assignmentNode.GetChildren() == nil {
+			assignmentNode.SetChildren(make(map[string]*scopesv1.AssignmentNode))
 		}
 
-		child, ok := assignmentNode.Children[segment]
+		child, ok := assignmentNode.GetChildren()[segment]
 		if !ok {
 			child = &scopesv1.AssignmentNode{}
-			assignmentNode.Children[segment] = child
+			assignmentNode.GetChildren()[segment] = child
 		}
 
 		assignmentNode = child
 	}
 
 	// ensure the role tree is initialized for this assignment node
-	if assignmentNode.RoleTree == nil {
-		assignmentNode.RoleTree = &scopesv1.RoleNode{}
+	if !assignmentNode.HasRoleTree() {
+		assignmentNode.SetRoleTree(&scopesv1.RoleNode{})
 	}
 
 	// start at the root of the role tree for this assignment node
-	roleNode := assignmentNode.RoleTree
+	roleNode := assignmentNode.GetRoleTree()
 
 	// descend to the correct role node for the scope of effect
 	for segment := range scopes.DescendingSegments(assignment.ScopeOfEffect) {
-		if roleNode.Children == nil {
-			roleNode.Children = make(map[string]*scopesv1.RoleNode)
+		if roleNode.GetChildren() == nil {
+			roleNode.SetChildren(make(map[string]*scopesv1.RoleNode))
 		}
 
-		child, ok := roleNode.Children[segment]
+		child, ok := roleNode.GetChildren()[segment]
 		if !ok {
 			child = &scopesv1.RoleNode{}
-			roleNode.Children[segment] = child
+			roleNode.GetChildren()[segment] = child
 		}
 
 		roleNode = child
 	}
 
 	// append the role to the role list for this role node if it's not already present
-	if !slices.Contains(roleNode.Roles, assignment.RoleName) {
-		roleNode.Roles = append(roleNode.Roles, assignment.RoleName)
+	if !slices.Contains(roleNode.GetRoles(), assignment.RoleName) {
+		roleNode.SetRoles(append(roleNode.GetRoles(), assignment.RoleName))
 		// ensure the role list is sorted for deterministic iteration
-		slices.Sort(roleNode.Roles)
+		slices.Sort(roleNode.GetRoles())
 	}
 }
 
@@ -347,12 +347,12 @@ func DescendAssignmentTree(pin *scopesv1.Pin, resourceScope string) (iter.Seq[Ro
 		return nil, trace.BadParameter("invalid resource scope %q for scope pin at %q in assignment lookup (this is a bug)", resourceScope, pin.GetScope())
 	}
 	return func(yield func(RoleAssignment) bool) {
-		if pin.AssignmentTree == nil {
+		if !pin.HasAssignmentTree() {
 			return
 		}
 
 		resourceScopeSegments := scopes.Split(resourceScope)
-		yieldAssignmentNode(pin.AssignmentTree, resourceScopeSegments, 0 /*depth*/, yield)
+		yieldAssignmentNode(pin.GetAssignmentTree(), resourceScopeSegments, 0 /*depth*/, yield)
 	}, nil
 }
 
@@ -362,15 +362,15 @@ func DescendAssignmentTree(pin *scopesv1.Pin, resourceScope string) (iter.Seq[Ro
 // to preserve scope hierarchy during evaluation.
 func yieldAssignmentNode(node *scopesv1.AssignmentNode, resourceScopeSegments []string, depth int, yield func(RoleAssignment) bool) bool {
 	// first yield any matching roles from the current depth's role tree
-	if node.RoleTree != nil {
+	if node.HasRoleTree() {
 		scopeOfOrigin := scopes.Join(resourceScopeSegments[:depth]...)
-		if !yeildRoleNode(node.RoleTree, scopeOfOrigin, resourceScopeSegments, 0 /*role tree depth*/, yield) {
+		if !yeildRoleNode(node.GetRoleTree(), scopeOfOrigin, resourceScopeSegments, 0 /*role tree depth*/, yield) {
 			return false
 		}
 	}
 
 	if len(resourceScopeSegments) > depth {
-		if child, ok := node.Children[resourceScopeSegments[depth]]; ok {
+		if child, ok := node.GetChildren()[resourceScopeSegments[depth]]; ok {
 			if !yieldAssignmentNode(child, resourceScopeSegments, depth+1, yield) {
 				return false
 			}
@@ -390,19 +390,19 @@ func yieldAssignmentNode(node *scopesv1.AssignmentNode, resourceScopeSegments []
 // details on scoped role evaluation ordering and its implications.
 func yeildRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, resourceScopeSegments []string, depth int, yield func(RoleAssignment) bool) bool {
 	if len(resourceScopeSegments) > depth {
-		if child, ok := node.Children[resourceScopeSegments[depth]]; ok {
+		if child, ok := node.GetChildren()[resourceScopeSegments[depth]]; ok {
 			if !yeildRoleNode(child, scopeOfOrigin, resourceScopeSegments, depth+1, yield) {
 				return false
 			}
 		}
 	}
 
-	if len(node.Roles) == 0 {
+	if len(node.GetRoles()) == 0 {
 		return true
 	}
 
 	scopeOfEffect := scopes.Join(resourceScopeSegments[:depth]...)
-	for _, roleName := range node.Roles {
+	for _, roleName := range node.GetRoles() {
 		if !yield(RoleAssignment{
 			RoleKind:      RoleKindUser,
 			ScopeOfOrigin: scopeOfOrigin,
@@ -456,7 +456,7 @@ func GetRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint
 // getUserRolesAtEnforcementPoint yields user-assigned role assignments from the pin's assignment tree at
 // the given enforcement point.
 func getUserRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementPoint, yield func(RoleAssignment) bool) {
-	if pin.AssignmentTree == nil {
+	if !pin.HasAssignmentTree() {
 		return
 	}
 
@@ -465,9 +465,9 @@ func getUserRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementP
 	}
 
 	// navigate to the assignment node for the Scope of Origin
-	assignmentNode := pin.AssignmentTree
+	assignmentNode := pin.GetAssignmentTree()
 	for segment := range scopes.DescendingSegments(point.ScopeOfOrigin) {
-		child, ok := assignmentNode.Children[segment]
+		child, ok := assignmentNode.GetChildren()[segment]
 		if !ok {
 			// the scope of origin doesn't exist in the tree
 			return
@@ -476,13 +476,13 @@ func getUserRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementP
 	}
 
 	// navigate to the role node for the Scope of Effect within this assignment node
-	if assignmentNode.RoleTree == nil {
+	if !assignmentNode.HasRoleTree() {
 		return
 	}
 
-	roleNode := assignmentNode.RoleTree
+	roleNode := assignmentNode.GetRoleTree()
 	for segment := range scopes.DescendingSegments(point.ScopeOfEffect) {
-		child, ok := roleNode.Children[segment]
+		child, ok := roleNode.GetChildren()[segment]
 		if !ok {
 			// the scope of effect doesn't exist in the tree
 			return
@@ -492,7 +492,7 @@ func getUserRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.EnforcementP
 
 	// yield each role in the order that they are stored. it is the responsibility
 	// of pin construction logic to ensure deterministic ordering.
-	for _, roleName := range roleNode.Roles {
+	for _, roleName := range roleNode.GetRoles() {
 		if !yield(RoleAssignment{
 			RoleKind:      RoleKindUser,
 			ScopeOfOrigin: point.ScopeOfOrigin,
@@ -531,12 +531,12 @@ func getSystemRolesAtEnforcementPoint(pin *scopesv1.Pin, point scopes.Enforcemen
 // *NOTE*: this function is not suitable for being the basis of access control evaluation ordering.
 func EnumerateAllAssignments(pin *scopesv1.Pin) iter.Seq[RoleAssignment] {
 	return func(yield func(RoleAssignment) bool) {
-		if pin == nil || pin.AssignmentTree == nil {
+		if pin == nil || !pin.HasAssignmentTree() {
 			return
 		}
 
 		// Start enumeration at the root of the assignment tree with empty segment list (representing root scope)
-		enumerateAssignmentNode(pin.AssignmentTree, nil, yield)
+		enumerateAssignmentNode(pin.GetAssignmentTree(), nil, yield)
 	}
 }
 
@@ -547,14 +547,14 @@ func enumerateAssignmentNode(node *scopesv1.AssignmentNode, originSegments []str
 	scopeOfOrigin := scopes.Join(originSegments...)
 
 	// Enumerate all roles in this node's role tree
-	if node.RoleTree != nil {
-		if !enumerateRoleNode(node.RoleTree, scopeOfOrigin, nil, yield) {
+	if node.HasRoleTree() {
+		if !enumerateRoleNode(node.GetRoleTree(), scopeOfOrigin, nil, yield) {
 			return false
 		}
 	}
 
 	// Recursively enumerate all child assignment nodes
-	for segment, child := range node.Children {
+	for segment, child := range node.GetChildren() {
 		childOriginSegments := append(originSegments, segment)
 		if !enumerateAssignmentNode(child, childOriginSegments, yield) {
 			return false
@@ -571,7 +571,7 @@ func enumerateRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, effectSegm
 	scopeOfEffect := scopes.Join(effectSegments...)
 
 	// Yield all roles at this node
-	for _, roleName := range node.Roles {
+	for _, roleName := range node.GetRoles() {
 		if !yield(RoleAssignment{
 			RoleKind:      RoleKindUser,
 			ScopeOfOrigin: scopeOfOrigin,
@@ -583,7 +583,7 @@ func enumerateRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, effectSegm
 	}
 
 	// Recursively enumerate all child role nodes
-	for segment, child := range node.Children {
+	for segment, child := range node.GetChildren() {
 		childEffectSegments := append(effectSegments, segment)
 		if !enumerateRoleNode(child, scopeOfOrigin, childEffectSegments, yield) {
 			return false
@@ -621,25 +621,25 @@ func enumerateRoleNode(node *scopesv1.RoleNode, scopeOfOrigin string, effectSegm
 // solving the orthogonal ranking problem, but may be something to revisit if the scenarios where it performs better
 // end up being more common in practice than we anticipate.
 func PruneAssignmentTree(ctx context.Context, pin *scopesv1.Pin, maxBytes int) (prunedCount int) {
-	if pin == nil || pin.AssignmentTree == nil {
+	if pin == nil || !pin.HasAssignmentTree() {
 		return 0
 	}
 
 	// check if pruning is actually needed
-	initialSize := proto.Size(pin.AssignmentTree)
+	initialSize := proto.Size(pin.GetAssignmentTree())
 	if initialSize <= maxBytes {
 		return 0
 	}
 
 	// get count of assignments before pruning
-	initialCount := countAssignments(pin.AssignmentTree)
+	initialCount := countAssignments(pin.GetAssignmentTree())
 
 	currentSize := initialSize
 
 	// iteratively prune the deepest depth level until we fit within the size limit
 	for {
 		// find the deepest Scope of Origin depth currently contained in the tree
-		maxDepth := maxAssignmentDepth(pin.AssignmentTree)
+		maxDepth := maxAssignmentDepth(pin.GetAssignmentTree())
 		if maxDepth == 0 {
 			slog.WarnContext(ctx, "assignment tree exceeds prescribed size limit but will not be pruned further due to all remaining assignments originating from root scope",
 				"pin_scope", pin.GetScope(),
@@ -647,7 +647,7 @@ func PruneAssignmentTree(ctx context.Context, pin *scopesv1.Pin, maxBytes int) (
 				"current_size", currentSize,
 				"max_size", maxBytes,
 				"initial_count", initialCount,
-				"current_count", countAssignments(pin.AssignmentTree),
+				"current_count", countAssignments(pin.GetAssignmentTree()),
 			)
 			// note that the pin may still contain root level assignments. we opt not to prune
 			// those as they would render the pin (and therefore the resulting certificate)
@@ -656,9 +656,9 @@ func PruneAssignmentTree(ctx context.Context, pin *scopesv1.Pin, maxBytes int) (
 		}
 
 		// prune the tree in-place
-		pruneTreeToDepth(pin.AssignmentTree, maxDepth-1)
+		pruneTreeToDepth(pin.GetAssignmentTree(), maxDepth-1)
 
-		currentSize = proto.Size(pin.AssignmentTree)
+		currentSize = proto.Size(pin.GetAssignmentTree())
 		if currentSize <= maxBytes {
 			// we've pruned enough to fit within the size limit
 			break
@@ -666,7 +666,7 @@ func PruneAssignmentTree(ctx context.Context, pin *scopesv1.Pin, maxBytes int) (
 	}
 
 	// return total number of assignments pruned
-	return initialCount - countAssignments(pin.AssignmentTree)
+	return initialCount - countAssignments(pin.GetAssignmentTree())
 }
 
 // maxAssignmentDepth returns the maximum Scope of Origin depth present in the assignment tree.
@@ -684,7 +684,7 @@ func maxAssignmentDepth(tree *scopesv1.AssignmentNode) int {
 func maxDepthOfAssignmentNode(node *scopesv1.AssignmentNode, depth int) int {
 	// maxDepth tracks the maximum depth found among child nodes
 	maxDepth := depth
-	for _, child := range node.Children {
+	for _, child := range node.GetChildren() {
 		maxDepth = max(maxDepth, maxDepthOfAssignmentNode(child, depth+1))
 	}
 
@@ -704,12 +704,12 @@ func countAssignmentsInTree(node *scopesv1.AssignmentNode) int {
 	count := 0
 
 	// count roles in this node's role tree
-	if node.RoleTree != nil {
-		count += countRolesInTree(node.RoleTree)
+	if node.HasRoleTree() {
+		count += countRolesInTree(node.GetRoleTree())
 	}
 
 	// recursively count in children
-	for _, child := range node.Children {
+	for _, child := range node.GetChildren() {
 		count += countAssignmentsInTree(child)
 	}
 
@@ -718,10 +718,10 @@ func countAssignmentsInTree(node *scopesv1.AssignmentNode) int {
 
 // countRolesInTree recursively counts roles in a role tree node.
 func countRolesInTree(node *scopesv1.RoleNode) int {
-	count := len(node.Roles)
+	count := len(node.GetRoles())
 
 	// recursively count in children
-	for _, child := range node.Children {
+	for _, child := range node.GetChildren() {
 		count += countRolesInTree(child)
 	}
 
@@ -739,12 +739,12 @@ func pruneTreeToDepth(tree *scopesv1.AssignmentNode, maxDepth int) {
 func pruneAssignmentNodeToDepth(node *scopesv1.AssignmentNode, maxDepth, currentDepth int) {
 	if currentDepth == maxDepth {
 		// This is the last level we want to keep, remove all children
-		node.Children = nil
+		node.SetChildren(nil)
 		return
 	}
 
 	// currentDepth < maxDepth, so recursively prune children
-	for _, child := range node.Children {
+	for _, child := range node.GetChildren() {
 		pruneAssignmentNodeToDepth(child, maxDepth, currentDepth+1)
 	}
 }

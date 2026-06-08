@@ -8,11 +8,17 @@ tags:
  - zero-trust
  - infrastructure-identity
  - aws
+page_type: conceptual
 ---
 
 You can deploy the Teleport Database Service with AWS IAM credentials in one
 AWS account and use an AWS IAM role to grant Teleport access to databases in
 another AWS account.
+
+This page describes the requirements for configuring Teleport to protect
+databases across AWS accounts.
+
+## How it works
 
 When the Teleport Database Service needs to discover, configure, or retrieve
 short-lived authentication tokens for AWS databases, it uses credentials for an

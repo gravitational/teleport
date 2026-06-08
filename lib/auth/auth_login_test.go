@@ -975,69 +975,69 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 
 	// set up some scoped roles
 	scopedRoles := []*scopedaccessv1.ScopedRole{
-		{
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-a",
-			},
+			}.Build(),
 			Scope: "/aa",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"login-a"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-b",
-			},
+			}.Build(),
 			Scope: "/aa/bb",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa/bb"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"login-b"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-c",
-			},
+			}.Build(),
 			Scope: "/aa/bb/cc",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa/bb/cc"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"login-c"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-x",
-			},
+			}.Build(),
 			Scope: "/xx",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/xx"},
-				Ssh: &scopedaccessv1.ScopedRoleSSH{
+				Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 					Logins: []string{"login-x"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 
 	// Create the roles.
 	for _, role := range scopedRoles {
-		_, err := adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err := adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 			Role: role,
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -1045,26 +1045,26 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	for _, role := range scopedRoles {
 		assignmentID := uuid.NewString()
 		assignmentIDs = append(assignmentIDs, assignmentID)
-		_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-			Assignment: &scopedaccessv1.ScopedRoleAssignment{
+		_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    scopedaccess.KindScopedRoleAssignment,
 				SubKind: scopedaccess.SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: assignmentID,
-				},
+				}.Build(),
 				Scope: role.GetScope(),
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  role.GetMetadata().GetName(),
 							Scope: role.GetScope(),
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -1095,7 +1095,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 	require.NoError(t, err)
 
 	// verify that the expected scope pin is applied to ssh and tls certificates
-	expectedPin := &scopesv1.Pin{
+	expectedPin := scopesv1.Pin_builder{
 		Kind:  scopesv1.PinKind_PIN_KIND_USER,
 		Scope: "/aa/bb",
 		AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
@@ -1103,7 +1103,7 @@ func TestBasicSSHScopedLogin(t *testing.T) {
 			"/aa/bb":    {"/aa/bb": {"role-b"}},
 			"/aa/bb/cc": {"/aa/bb/cc": {"role-c"}},
 		}),
-	}
+	}.Build()
 
 	// parse and examine the ssh cert
 	sshCert, err := sshutils.ParseCertificate(authrsp.Cert)

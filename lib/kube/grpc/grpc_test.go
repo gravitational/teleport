@@ -184,7 +184,7 @@ func TestListKubernetesResources(t *testing.T) {
 				searchAsRoles: false,
 				resourceKind:  types.KindKubePod,
 			},
-			want: &proto.ListKubernetesResourcesResponse{
+			want: proto.ListKubernetesResourcesResponse_builder{
 				Resources: []*types.KubernetesResourceV1{
 					{
 						Kind:    "pod",
@@ -242,7 +242,7 @@ func TestListKubernetesResources(t *testing.T) {
 						},
 					},
 				},
-			},
+			}.Build(),
 			assertErr: require.NoError,
 		},
 		{
@@ -253,7 +253,7 @@ func TestListKubernetesResources(t *testing.T) {
 				namespace:     "dev",
 				resourceKind:  types.KindKubePod,
 			},
-			want: &proto.ListKubernetesResourcesResponse{
+			want: proto.ListKubernetesResourcesResponse_builder{
 				Resources: []*types.KubernetesResourceV1{
 					{
 						Kind: "pod",
@@ -274,7 +274,7 @@ func TestListKubernetesResources(t *testing.T) {
 						},
 					},
 				},
-			},
+			}.Build(),
 			assertErr: require.NoError,
 		},
 		{
@@ -295,7 +295,7 @@ func TestListKubernetesResources(t *testing.T) {
 				namespace:     "dev",
 				resourceKind:  types.KindKubePod,
 			},
-			want: &proto.ListKubernetesResourcesResponse{
+			want: proto.ListKubernetesResourcesResponse_builder{
 				Resources: []*types.KubernetesResourceV1{
 					{
 						Kind: "pod",
@@ -316,7 +316,7 @@ func TestListKubernetesResources(t *testing.T) {
 						},
 					},
 				},
-			},
+			}.Build(),
 			assertErr: require.NoError,
 		},
 		{
@@ -328,7 +328,7 @@ func TestListKubernetesResources(t *testing.T) {
 				searchKeywords: []string{"nginx-1"},
 				resourceKind:   types.KindKubePod,
 			},
-			want: &proto.ListKubernetesResourcesResponse{
+			want: proto.ListKubernetesResourcesResponse_builder{
 				Resources: []*types.KubernetesResourceV1{
 					{
 						Kind: "pod",
@@ -340,7 +340,7 @@ func TestListKubernetesResources(t *testing.T) {
 						},
 					},
 				},
-			},
+			}.Build(),
 			assertErr: require.NoError,
 		},
 		{
@@ -355,7 +355,7 @@ func TestListKubernetesResources(t *testing.T) {
 				},
 				resourceKind: types.KindKubePod,
 			},
-			want: &proto.ListKubernetesResourcesResponse{
+			want: proto.ListKubernetesResourcesResponse_builder{
 				TotalCount: 2,
 				Resources: []*types.KubernetesResourceV1{
 					{
@@ -377,7 +377,7 @@ func TestListKubernetesResources(t *testing.T) {
 						},
 					},
 				},
-			},
+			}.Build(),
 			assertErr: require.NoError,
 		},
 		{
@@ -393,7 +393,7 @@ func TestListKubernetesResources(t *testing.T) {
 				startKey:     "nginx-1",
 				resourceKind: types.KindKubePod,
 			},
-			want: &proto.ListKubernetesResourcesResponse{
+			want: proto.ListKubernetesResourcesResponse_builder{
 				TotalCount: 2,
 				Resources: []*types.KubernetesResourceV1{
 					{
@@ -406,7 +406,7 @@ func TestListKubernetesResources(t *testing.T) {
 						},
 					},
 				},
-			},
+			}.Build(),
 			assertErr: require.NoError,
 		},
 		{
@@ -427,7 +427,7 @@ func TestListKubernetesResources(t *testing.T) {
 				namespace:     "dev",
 				resourceKind:  types.KindKubeSecret,
 			},
-			want: &proto.ListKubernetesResourcesResponse{
+			want: proto.ListKubernetesResourcesResponse_builder{
 				Resources: []*types.KubernetesResourceV1{
 					{
 						Kind:    types.KindKubeSecret,
@@ -450,7 +450,7 @@ func TestListKubernetesResources(t *testing.T) {
 						},
 					},
 				},
-			},
+			}.Build(),
 			assertErr: require.NoError,
 		},
 		{
@@ -461,7 +461,7 @@ func TestListKubernetesResources(t *testing.T) {
 				namespace:     "dev",
 				resourceKind:  types.KindKubePod,
 			},
-			want: &proto.ListKubernetesResourcesResponse{
+			want: proto.ListKubernetesResourcesResponse_builder{
 				Resources: []*types.KubernetesResourceV1{
 					{
 						Kind: "pod",
@@ -482,7 +482,7 @@ func TestListKubernetesResources(t *testing.T) {
 						},
 					},
 				},
-			},
+			}.Build(),
 			assertErr: require.NoError,
 		},
 		{
@@ -492,7 +492,7 @@ func TestListKubernetesResources(t *testing.T) {
 				searchAsRoles: false,
 				resourceKind:  types.KindKubeSecret,
 			},
-			want: &proto.ListKubernetesResourcesResponse{
+			want: proto.ListKubernetesResourcesResponse_builder{
 				Resources: []*types.KubernetesResourceV1{
 					{
 						Kind:    types.KindKubeSecret,
@@ -550,7 +550,7 @@ func TestListKubernetesResources(t *testing.T) {
 						},
 					},
 				},
-			},
+			}.Build(),
 			assertErr: require.NoError,
 		},
 		{
@@ -560,7 +560,7 @@ func TestListKubernetesResources(t *testing.T) {
 				searchAsRoles: false,
 				resourceKind:  types.KindKubeClusterRole,
 			},
-			want: &proto.ListKubernetesResourcesResponse{
+			want: proto.ListKubernetesResourcesResponse_builder{
 				Resources: []*types.KubernetesResourceV1{
 					{
 						Kind:    types.KindKubeClusterRole,
@@ -590,7 +590,7 @@ func TestListKubernetesResources(t *testing.T) {
 						Spec: types.KubernetesResourceSpecV1{},
 					},
 				},
-			},
+			}.Build(),
 			assertErr: require.NoError,
 		},
 	}
@@ -605,7 +605,7 @@ func TestListKubernetesResources(t *testing.T) {
 
 			rsp, err := kubeClient.ListKubernetesResources(
 				context.Background(),
-				&proto.ListKubernetesResourcesRequest{
+				proto.ListKubernetesResourcesRequest_builder{
 					ResourceType:        tt.args.resourceKind,
 					Limit:               100,
 					KubernetesCluster:   kubeCluster,
@@ -615,11 +615,11 @@ func TestListKubernetesResources(t *testing.T) {
 					SearchKeywords:      tt.args.searchKeywords,
 					SortBy:              tt.args.sortBy,
 					StartKey:            tt.args.startKey,
-				},
+				}.Build(),
 			)
 			tt.assertErr(t, err)
 			if tt.want != nil {
-				for _, want := range tt.want.Resources {
+				for _, want := range tt.want.GetResources() {
 					isClusterWide := slices.Contains(types.KubernetesClusterWideResourceKinds, want.Kind)
 					// fill in defaults
 					err := want.CheckAndSetDefaults(!isClusterWide)

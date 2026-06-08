@@ -211,7 +211,7 @@ func (s *UnimplementedService) ListInferencePolicies(
 func (s *UnimplementedService) IsEnabled(
 	ctx context.Context, req *summarizerv1pb.IsEnabledRequest,
 ) (*summarizerv1pb.IsEnabledResponse, error) {
-	return &summarizerv1pb.IsEnabledResponse{Enabled: false}, nil
+	return summarizerv1pb.IsEnabledResponse_builder{Enabled: false}.Build(), nil
 }
 
 func requireEnterprise() error {

@@ -48,17 +48,17 @@ func TestIdentityConversion(t *testing.T) {
 		ClusterName: "some-cluster",
 		SystemRole:  types.RoleNode,
 		Username:    "user",
-		ScopePin: &scopesv1.Pin{
+		ScopePin: scopesv1.Pin_builder{
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
-			SystemRoles: &scopesv1.SystemRoles{
+			SystemRoles: scopesv1.SystemRoles_builder{
 				Primary:    "node",
 				Additional: []string{"proxy"},
-			},
+			}.Build(),
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"role1", "role2"}},
 			}),
-		},
+		}.Build(),
 		Impersonator:            "impersonator",
 		Principals:              []string{"login1", "login2"},
 		PermitX11Forwarding:     true,
@@ -110,12 +110,12 @@ func TestIdentityConversion(t *testing.T) {
 		HeadlessAuthenticationID: "headless-auth-id",
 		DelegationSessionID:      "delegation-session-id",
 		AgentScope:               "/foo",
-		ImmutableLabelHash: joining.HashImmutableLabels(&joiningv1.ImmutableLabels{
+		ImmutableLabelHash: joining.HashImmutableLabels(joiningv1.ImmutableLabels_builder{
 			Ssh: map[string]string{
 				"one": "1",
 				"two": "2",
 			},
-		}),
+		}.Build()),
 	}
 
 	ignores := []string{

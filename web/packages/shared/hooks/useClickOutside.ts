@@ -16,10 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { MutableRefObject, useEffect } from 'react';
+import { RefObject, useEffect } from 'react';
 
 function useClickOutside(
-  ref: MutableRefObject<Node>,
+  ref: RefObject<Node>,
   handler: (e: MouseEvent) => void
 ) {
   useEffect(() => {

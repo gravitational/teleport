@@ -59,13 +59,13 @@ func newAutoUpdateConfigCollection(upstream services.AutoUpdateServiceGetter, w 
 			return []*autoupdatev1.AutoUpdateConfig{cfg}, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *autoupdatev1.AutoUpdateConfig {
-			return &autoupdatev1.AutoUpdateConfig{
+			return autoupdatev1.AutoUpdateConfig_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil
@@ -126,13 +126,13 @@ func newAutoUpdateVersionCollection(upstream services.AutoUpdateServiceGetter, w
 			return []*autoupdatev1.AutoUpdateVersion{version}, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *autoupdatev1.AutoUpdateVersion {
-			return &autoupdatev1.AutoUpdateVersion{
+			return autoupdatev1.AutoUpdateVersion_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil
@@ -189,13 +189,13 @@ func newAutoUpdateRolloutCollection(upstream services.AutoUpdateServiceGetter, w
 			return []*autoupdatev1.AutoUpdateAgentRollout{rollout}, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *autoupdatev1.AutoUpdateAgentRollout {
-			return &autoupdatev1.AutoUpdateAgentRollout{
+			return autoupdatev1.AutoUpdateAgentRollout_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil
@@ -240,7 +240,7 @@ func newAutoUpdateAgentReportCollection(upstream services.AutoUpdateServiceGette
 			proto.CloneOf[*autoupdatev1.AutoUpdateAgentReport],
 			map[autoUpdateAgentReportIndex]func(*autoupdatev1.AutoUpdateAgentReport) string{
 				autoUpdateAgentReportNameIndex: func(r *autoupdatev1.AutoUpdateAgentReport) string {
-					return r.GetMetadata().Name
+					return r.GetMetadata().GetName()
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*autoupdatev1.AutoUpdateAgentReport, error) {
@@ -248,13 +248,13 @@ func newAutoUpdateAgentReportCollection(upstream services.AutoUpdateServiceGette
 			return out, trace.Wrap(err)
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *autoupdatev1.AutoUpdateAgentReport {
-			return &autoupdatev1.AutoUpdateAgentReport{
+			return autoupdatev1.AutoUpdateAgentReport_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil
@@ -286,7 +286,7 @@ func (c *Cache) ListAutoUpdateAgentReports(ctx context.Context, pageSize int, pa
 		index:        autoUpdateAgentReportNameIndex,
 		upstreamList: c.Config.AutoUpdateService.ListAutoUpdateAgentReports,
 		nextToken: func(t *autoupdatev1.AutoUpdateAgentReport) string {
-			return t.GetMetadata().Name
+			return t.GetMetadata().GetName()
 		},
 	}
 	out, next, err := lister.list(ctx, pageSize, pageToken)
@@ -308,7 +308,7 @@ func newAutoUpdateBotInstanceReportCollection(upstream services.AutoUpdateServic
 			proto.CloneOf[*autoupdatev1.AutoUpdateBotInstanceReport],
 			map[autoUpdateBotInstanceReportIndex]func(*autoupdatev1.AutoUpdateBotInstanceReport) string{
 				autoUpdateBotInstanceReportNameIndex: func(r *autoupdatev1.AutoUpdateBotInstanceReport) string {
-					return r.GetMetadata().Name
+					return r.GetMetadata().GetName()
 				},
 			}),
 		fetcher: func(ctx context.Context, loadSecrets bool) ([]*autoupdatev1.AutoUpdateBotInstanceReport, error) {
@@ -319,13 +319,13 @@ func newAutoUpdateBotInstanceReportCollection(upstream services.AutoUpdateServic
 			return []*autoupdatev1.AutoUpdateBotInstanceReport{report}, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *autoupdatev1.AutoUpdateBotInstanceReport {
-			return &autoupdatev1.AutoUpdateBotInstanceReport{
+			return autoupdatev1.AutoUpdateBotInstanceReport_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil

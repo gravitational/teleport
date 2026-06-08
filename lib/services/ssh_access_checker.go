@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
@@ -74,7 +75,7 @@ func (c *SSHAccessChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	ssh := c.checker.role.GetSpec().GetSsh()
 	var disconnectExpiredCert *bool
 	if ssh != nil {
-		disconnectExpiredCert = ssh.DisconnectExpiredCert
+		disconnectExpiredCert = proto.ValueOrNil(ssh.HasDisconnectExpiredCert(), ssh.GetDisconnectExpiredCert)
 	}
 	return c.checker.adjustScopedDisconnectExpiredCert(disconnectExpiredCert, disconnect)
 }
@@ -138,10 +139,10 @@ func (c *SSHAccessChecker) SSHPortForwardMode() decisionpb.SSHPortForwardMode {
 	local := c.checker.role.GetSpec().GetSsh().GetPortForwarding().GetLocal()
 
 	var denyRemote, denyLocal bool
-	if remote != nil && remote.Enabled != nil && !*remote.Enabled {
+	if remote != nil && remote.HasEnabled() && !remote.GetEnabled() {
 		denyRemote = true
 	}
-	if local != nil && local.Enabled != nil && !*local.Enabled {
+	if local != nil && local.HasEnabled() && !local.GetEnabled() {
 		denyLocal = true
 	}
 
@@ -203,10 +204,10 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 		hostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 		return &HostUsersDecision{
 			Info: nil,
-			DeniedBy: []*decisionpb.Determinant{{
+			DeniedBy: []*decisionpb.Determinant{decisionpb.Determinant_builder{
 				Kind: c.checker.role.GetKind(),
 				Name: c.checker.role.GetMetadata().GetName(),
-			}},
+			}.Build()},
 		}, nil
 	}
 
@@ -231,17 +232,17 @@ func (c *SSHAccessChecker) HostUsers(srv types.Server) (*HostUsersDecision, erro
 	}
 
 	return &HostUsersDecision{
-		Info: &decisionpb.HostUsersInfo{
+		Info: decisionpb.HostUsersInfo_builder{
 			Groups: createHostUser.GetGroups(),
 			Mode:   decisionMode,
 			Uid:    uid,
 			Gid:    gid,
 			Shell:  createHostUser.GetShell(),
-		},
-		AllowedBy: []*decisionpb.Determinant{{
+		}.Build(),
+		AllowedBy: []*decisionpb.Determinant{decisionpb.Determinant_builder{
 			Kind: c.checker.role.GetKind(),
 			Name: c.checker.role.GetMetadata().GetName(),
-		}},
+		}.Build()},
 	}, nil
 }
 
@@ -293,7 +294,7 @@ func (c *SSHAccessChecker) CanCopyFiles() bool {
 	}
 
 	ssh := c.checker.role.GetSpec().GetSsh()
-	if ssh == nil || ssh.FileCopy == nil {
+	if ssh == nil || !ssh.HasFileCopy() {
 		return true
 	}
 	return ssh.GetFileCopy()

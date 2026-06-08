@@ -34,13 +34,11 @@ func TestInferenceModelCache(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*summarizerv1.InferenceModel]{
 		newResource: func(name string) (*summarizerv1.InferenceModel, error) {
-			return summarizer.NewInferenceModel(name, &summarizerv1.InferenceModelSpec{
-				Provider: &summarizerv1.InferenceModelSpec_Openai{
-					Openai: &summarizerv1.OpenAIProvider{
-						OpenaiModelId: "gpt-4o",
-					},
-				},
-			}), nil
+			return summarizer.NewInferenceModel(name, summarizerv1.InferenceModelSpec_builder{
+				Openai: summarizerv1.OpenAIProvider_builder{
+					OpenaiModelId: "gpt-4o",
+				}.Build(),
+			}.Build()), nil
 		},
 		create: func(ctx context.Context, item *summarizerv1.InferenceModel) error {
 			_, err := p.summarizer.CreateInferenceModel(ctx, item)
@@ -60,9 +58,9 @@ func TestInferenceSecretCache(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*summarizerv1.InferenceSecret]{
 		newResource: func(name string) (*summarizerv1.InferenceSecret, error) {
-			return summarizer.NewInferenceSecret(name, &summarizerv1.InferenceSecretSpec{
+			return summarizer.NewInferenceSecret(name, summarizerv1.InferenceSecretSpec_builder{
 				Value: "super-secret-value",
-			}), nil
+			}.Build()), nil
 		},
 		create: func(ctx context.Context, item *summarizerv1.InferenceSecret) error {
 			_, err := p.summarizer.CreateInferenceSecret(ctx, item)
@@ -82,10 +80,10 @@ func TestInferencePolicyCache(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*summarizerv1.InferencePolicy]{
 		newResource: func(name string) (*summarizerv1.InferencePolicy, error) {
-			return summarizer.NewInferencePolicy(name, &summarizerv1.InferencePolicySpec{
+			return summarizer.NewInferencePolicy(name, summarizerv1.InferencePolicySpec_builder{
 				Kinds: []string{string(types.SSHSessionKind)},
 				Model: "test-model",
-			}), nil
+			}.Build()), nil
 		},
 		create: func(ctx context.Context, item *summarizerv1.InferencePolicy) error {
 			_, err := p.summarizer.CreateInferencePolicy(ctx, item)
@@ -104,15 +102,13 @@ func TestRetrievalModelCache(t *testing.T) {
 
 		testSingleton153(t, p, testSingletonFuncs153[*summarizerv1.RetrievalModel]{
 			newResource: func() *summarizerv1.RetrievalModel {
-				return summarizer.NewRetrievalModel(&summarizerv1.RetrievalModelSpec{
-					EmbeddingsProvider: &summarizerv1.RetrievalModelSpec_Openai{
-						Openai: &summarizerv1.OpenAIProvider{
-							OpenaiModelId:   "text-embedding-3-small",
-							ApiKeySecretRef: "some",
-						},
-					},
+				return summarizer.NewRetrievalModel(summarizerv1.RetrievalModelSpec_builder{
+					Openai: summarizerv1.OpenAIProvider_builder{
+						OpenaiModelId:   "text-embedding-3-small",
+						ApiKeySecretRef: "some",
+					}.Build(),
 					InferenceModelName: "some",
-				})
+				}.Build())
 			},
 			create:   p.summarizer.CreateRetrievalModel,
 			update:   p.summarizer.UpdateRetrievalModel,

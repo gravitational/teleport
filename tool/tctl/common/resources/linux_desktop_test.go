@@ -30,18 +30,18 @@ import (
 )
 
 func makeLinuxDesktop(name, addr, hostname string, labels map[string]string) *linuxdesktopv1.LinuxDesktop {
-	return &linuxdesktopv1.LinuxDesktop{
+	return linuxdesktopv1.LinuxDesktop_builder{
 		Kind:    types.KindLinuxDesktop,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:   name,
 			Labels: labels,
-		},
-		Spec: &linuxdesktopv1.LinuxDesktopSpec{
+		}.Build(),
+		Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 			Addr:     addr,
 			Hostname: hostname,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 func TestLinuxDesktopCollection_WriteText(t *testing.T) {

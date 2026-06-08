@@ -72,13 +72,13 @@ func (c *AutoEnrollCeremony) Run(ctx context.Context, devicesClient devicepb.Dev
 		return nil, trace.Wrap(err)
 	}
 
-	token, err := devicesClient.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
-		DeviceData: init.DeviceData,
-	})
+	token, err := devicesClient.CreateDeviceEnrollToken(ctx, devicepb.CreateDeviceEnrollTokenRequest_builder{
+		DeviceData: init.GetDeviceData(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err, "creating auto-token")
 	}
-	init.Token = token.Token
+	init.SetToken(token.GetToken())
 
 	dev, err := c.run(ctx, devicesClient, false /* debug */, init)
 	return dev, trace.Wrap(err)

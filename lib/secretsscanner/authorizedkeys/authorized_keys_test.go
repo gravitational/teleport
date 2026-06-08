@@ -88,19 +88,19 @@ func TestAuthorizedKeys(t *testing.T) {
 	got := client.getReqReceived()
 	require.Len(t, got, 2)
 	expected := []*accessgraphsecretsv1pb.ReportAuthorizedKeysRequest{
-		{
+		accessgraphsecretsv1pb.ReportAuthorizedKeysRequest_builder{
 			Keys:      createKeysForUsers(t, hostID),
 			Operation: accessgraphsecretsv1pb.OperationType_OPERATION_TYPE_ADD,
-		},
-		{
+		}.Build(),
+		accessgraphsecretsv1pb.ReportAuthorizedKeysRequest_builder{
 			Operation: accessgraphsecretsv1pb.OperationType_OPERATION_TYPE_SYNC,
-		},
+		}.Build(),
 	}
 	require.Empty(t, cmp.Diff(got, expected,
 		protocmp.Transform(),
 		protocmp.SortRepeated(
 			func(a, b *accessgraphsecretsv1pb.AuthorizedKey) bool {
-				return a.Metadata.Name < b.Metadata.Name
+				return a.GetMetadata().GetName() < b.GetMetadata().GetName()
 			},
 		),
 		protocmp.IgnoreFields(&headerv1.Metadata{}, "expires"),
@@ -179,12 +179,12 @@ type fakeClient struct {
 }
 
 func (f *fakeClient) GetClusterAccessGraphConfig(_ context.Context) (*clusterconfigpb.AccessGraphConfig, error) {
-	return &clusterconfigpb.AccessGraphConfig{
+	return clusterconfigpb.AccessGraphConfig_builder{
 		Enabled: true,
-		SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{
+		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfiguration_builder{
 			SshScanEnabled: true,
-		},
-	}, nil
+		}.Build(),
+	}.Build(), nil
 }
 func (f *fakeClient) AccessGraphSecretsScannerClient() accessgraphsecretsv1pb.SecretsScannerServiceClient {
 	return f
@@ -237,13 +237,13 @@ func createKeysForUsers(t *testing.T, hostID string) []*accessgraphsecretsv1pb.A
 		},
 	} {
 		for _, user := range []string{"root", "user"} {
-			at, err := accessgraph.NewAuthorizedKey(&accessgraphsecretsv1pb.AuthorizedKeySpec{
+			at, err := accessgraph.NewAuthorizedKey(accessgraphsecretsv1pb.AuthorizedKeySpec_builder{
 				HostId:         hostID,
 				HostUser:       user,
 				KeyFingerprint: k.fingerprint,
 				KeyComment:     "friel@test",
 				KeyType:        k.keyType,
-			})
+			}.Build())
 			require.NoError(t, err)
 			keys = append(keys, at)
 		}

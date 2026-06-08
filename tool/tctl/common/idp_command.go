@@ -161,10 +161,10 @@ func (t *testAttributeMapping) run(ctx context.Context, c *authclient.Client) er
 		return trace.BadParameter("users not found in file: %s", t.users)
 	}
 
-	resp, err := c.SAMLIdPClient().TestSAMLIdPAttributeMapping(ctx, &samlidpv1.TestSAMLIdPAttributeMappingRequest{
+	resp, err := c.SAMLIdPClient().TestSAMLIdPAttributeMapping(ctx, samlidpv1.TestSAMLIdPAttributeMappingRequest_builder{
 		ServiceProvider: &serviceProvider,
 		Users:           users,
-	})
+	}.Build())
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return trace.NotImplemented("the server does not support testing SAML attribute mapping")
@@ -174,21 +174,21 @@ func (t *testAttributeMapping) run(ctx context.Context, c *authclient.Client) er
 
 	switch t.outFormat {
 	case teleport.YAML:
-		if err := utils.WriteYAML(os.Stdout, resp.MappedAttributes); err != nil {
+		if err := utils.WriteYAML(os.Stdout, resp.GetMappedAttributes()); err != nil {
 			return trace.Wrap(err)
 		}
 	case teleport.JSON:
-		if err := utils.WriteJSON(os.Stdout, resp.MappedAttributes); err != nil {
+		if err := utils.WriteJSON(os.Stdout, resp.GetMappedAttributes()); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
-		for i, mappedAttribute := range resp.MappedAttributes {
+		for i, mappedAttribute := range resp.GetMappedAttributes() {
 			table := asciitable.MakeTable([]string{"Attribute Name", "Attribute Value"})
 			if i > 0 {
 				fmt.Println("---")
 			}
-			fmt.Printf("User: %s\n", mappedAttribute.Username)
-			for name, value := range mappedAttribute.MappedValues {
+			fmt.Printf("User: %s\n", mappedAttribute.GetUsername())
+			for name, value := range mappedAttribute.GetMappedValues() {
 				table.AddRow([]string{
 					name,
 					strings.Join(value.Values, ", "),

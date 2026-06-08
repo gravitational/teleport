@@ -183,7 +183,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 				},
 			},
 			tokenName:        "mytoken",
@@ -204,7 +204,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 					Instances: []string{
 						makeInstanceID("phx", "otherinstance"),
 						makeInstanceID("phx", "myinstance"),
@@ -303,7 +303,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 				},
 			},
 			tokenName:        "mytoken",
@@ -324,7 +324,7 @@ func TestJoinOracle(t *testing.T) {
 						makeCompartmentID("othercompartment"),
 						makeCompartmentID("mycompartment"),
 					},
-					Regions: []string{"otherregion", "phx"},
+					Regions: []string{"us-phoenix-1", "phx"},
 					Instances: []string{
 						makeInstanceID("phx", "otherinstance"),
 						makeInstanceID("phx", "myinstance"),
@@ -357,25 +357,25 @@ func TestJoinOracle(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, server.Auth().UpsertToken(t.Context(), token))
 
-			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(spec, &joiningv1.ScopedToken{
+			scopedToken, err := jointest.ScopedTokenFromProvisionTokenSpec(spec, joiningv1.ScopedToken_builder{
 				Scope: "/test",
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "scoped_" + token.GetName(),
-				},
-				Spec: &joiningv1.ScopedTokenSpec{
+				}.Build(),
+				Spec: joiningv1.ScopedTokenSpec_builder{
 					AssignedScope: "/test/one",
 					UsageMode:     string(joining.TokenUsageModeUnlimited),
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.NoError(t, err)
-			_, err = server.Auth().CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+			_, err = server.Auth().CreateScopedToken(t.Context(), joiningv1.CreateScopedTokenRequest_builder{
 				Token: scopedToken,
-			})
+			}.Build())
 			require.NoError(t, err)
 			t.Cleanup(func() {
-				_, err := server.Auth().DeleteScopedToken(t.Context(), &joiningv1.DeleteScopedTokenRequest{
+				_, err := server.Auth().DeleteScopedToken(t.Context(), joiningv1.DeleteScopedTokenRequest_builder{
 					Name: scopedToken.GetMetadata().GetName(),
-				})
+				}.Build())
 				require.NoError(t, err)
 			})
 

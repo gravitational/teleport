@@ -351,17 +351,17 @@ func (w *Watcher) fetchAndReportAuthorizedKeys(
 		start := i
 		end := min(i+maxKeysPerReport, len(keys))
 		if err := stream.Send(
-			&accessgraphsecretsv1pb.ReportAuthorizedKeysRequest{
+			accessgraphsecretsv1pb.ReportAuthorizedKeysRequest_builder{
 				Keys:      keys[start:end],
 				Operation: accessgraphsecretsv1pb.OperationType_OPERATION_TYPE_ADD,
-			},
+			}.Build(),
 		); err != nil {
 			return false, trace.Wrap(err)
 		}
 	}
 
 	if err := stream.Send(
-		&accessgraphsecretsv1pb.ReportAuthorizedKeysRequest{Operation: accessgraphsecretsv1pb.OperationType_OPERATION_TYPE_SYNC},
+		accessgraphsecretsv1pb.ReportAuthorizedKeysRequest_builder{Operation: accessgraphsecretsv1pb.OperationType_OPERATION_TYPE_SYNC}.Build(),
 	); err != nil {
 		return false, trace.Wrap(err)
 	}
@@ -396,13 +396,13 @@ func (w *Watcher) parseAuthorizedKeysFile(ctx context.Context, u user.User, auth
 		}
 
 		authorizedKey, err := accessgraph.NewAuthorizedKey(
-			&accessgraphsecretsv1pb.AuthorizedKeySpec{
+			accessgraphsecretsv1pb.AuthorizedKeySpec_builder{
 				HostId:         w.hostID,
 				HostUser:       u.Username,
 				KeyFingerprint: ssh.FingerprintSHA256(parsedKey),
 				KeyComment:     comment,
 				KeyType:        parsedKey.Type(),
-			},
+			}.Build(),
 		)
 		if err != nil {
 			w.logger.WarnContext(ctx, "Failed to create authorized key", "error", err)

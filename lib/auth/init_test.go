@@ -1758,7 +1758,7 @@ func TestInit_bootstrap(t *testing.T) {
 				cfg.BootstrapResources = append(
 					cfg.BootstrapResources,
 					newHealthCheckConfig(t, func(hcc *healthcheckconfigv1.HealthCheckConfig) {
-						hcc.Spec.HealthyThreshold = 9000
+						hcc.GetSpec().SetHealthyThreshold(9000)
 					}),
 				)
 			},
@@ -1906,6 +1906,18 @@ spec:
   github:
     allow:
       - repository: gravitational/example`
+	badTokenYAML = `kind: token
+version: v2
+metadata:
+  name: iam-token-without-orgid-but-ous
+  expires: "3000-01-01T00:00:00Z"
+spec:
+  roles: [Node]
+  join_method: iam
+  allow:
+   - aws_account: "123456789012"
+     aws_organizational_units:
+       include: [r-rootid]`
 	roleYAML = `kind: role
 version: v7
 metadata:
@@ -1972,6 +1984,7 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 
 	user := resourceFromYAML(t, userYAML).(types.User)
 	token := resourceFromYAML(t, tokenYAML).(types.ProvisionToken)
+	badToken := resourceFromYAML(t, badTokenYAML).(types.ProvisionToken)
 	role := resourceFromYAML(t, roleYAML).(types.Role)
 	lock := resourceFromYAML(t, lockYAML).(types.Lock)
 	clusterNetworkingConfig := resourceFromYAML(t, clusterNetworkingConfYAML).(types.ClusterNetworkingConfig)
@@ -1991,6 +2004,13 @@ func TestInit_ApplyOnStartup(t *testing.T) {
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, user)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, role)
 				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, token)
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "Apply invalid provision token",
+			modifyConfig: func(cfg *auth.InitConfig) {
+				cfg.ApplyOnStartupResources = append(cfg.ApplyOnStartupResources, badToken)
 			},
 			assertError: require.Error,
 		},
@@ -2458,9 +2478,9 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			if test.initialVersion != "" {
 				ver, err := semver.NewVersion(test.initialVersion)
 				require.NoError(t, err)
-				backendInfo, err := backendinfo.NewBackendInfo(&backendinfov1.BackendInfoSpec{
+				backendInfo, err := backendinfo.NewBackendInfo(backendinfov1.BackendInfoSpec_builder{
 					TeleportVersion: ver.String(),
-				})
+				}.Build())
 				require.NoError(t, err)
 				_, err = service.CreateBackendInfo(ctx, backendInfo)
 				require.NoError(t, err)
@@ -2513,21 +2533,21 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 	presetRule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
 	require.NotNil(t, presetRule)
 
-	customRule, err := databaseobjectimportrule.NewDatabaseObjectImportRule("dev_rule", &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+	customRule, err := databaseobjectimportrule.NewDatabaseObjectImportRule("dev_rule", dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 		Priority:       100,
 		DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
-		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{
-			Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
+		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{dbobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+			Match: dbobjectimportrulev1.DatabaseObjectImportMatch_builder{
 				TableNames: []string{"*"},
-			},
+			}.Build(),
 			AddLabels: map[string]string{
 				"env": "dev",
 			},
-			Scope: &dbobjectimportrulev1.DatabaseObjectImportScope{
+			Scope: dbobjectimportrulev1.DatabaseObjectImportScope_builder{
 				SchemaNames: []string{"public"},
-			},
-		}},
-	})
+			}.Build(),
+		}.Build()},
+	}.Build())
 	require.NoError(t, err)
 
 	tests := []struct {

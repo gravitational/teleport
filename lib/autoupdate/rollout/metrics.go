@@ -342,7 +342,7 @@ func (m *metrics) setGroupStates(groups []*autoupdatepb.AutoUpdateAgentRolloutSt
 	// Set the state for the groups specified in the rollout.
 	for i, group := range groups {
 		labels := prometheus.Labels{metricsGroupNumberLabelName: strconv.Itoa(i)}
-		m.rolloutGroupState.With(labels).Set(float64(group.State))
+		m.rolloutGroupState.With(labels).Set(float64(group.GetState()))
 	}
 
 	// If we have as many or more groups than before, no cleanup to do.

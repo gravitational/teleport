@@ -45,17 +45,17 @@ func TestRangeScopedRoles(t *testing.T) {
 
 	for i := range roleCount {
 		name := fmt.Sprintf("role-%d", i)
-		err := upstream.Put(&scopedaccessv1.ScopedRole{
+		err := upstream.Put(scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
+			}.Build(),
 			Scope: "/foo",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/foo"},
-			},
+			}.Build(),
 			Version: types.V1,
-		})
+		}.Build())
 		require.NoError(t, err)
 		expectedRoleNames = append(expectedRoleNames, name)
 	}
@@ -84,24 +84,24 @@ func TestRangeScopedRoleAssignments(t *testing.T) {
 
 	for range assignmentCount {
 		name := uuid.New().String()
-		err := upstream.Put(&scopedaccessv1.ScopedRoleAssignment{
+		err := upstream.Put(scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
+			}.Build(),
 			Scope: "/",
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: "alice",
 				Assignments: []*scopedaccessv1.Assignment{
-					{
+					scopedaccessv1.Assignment_builder{
 						Role:  "some-role",
 						Scope: "/foo",
-					},
+					}.Build(),
 				},
-			},
+			}.Build(),
 			Version: types.V1,
-		})
+		}.Build())
 		require.NoError(t, err)
 		expectedAssignmentNames = append(expectedAssignmentNames, name)
 	}

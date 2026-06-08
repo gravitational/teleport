@@ -69,25 +69,25 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 	createBotInstance := func(t *testing.T, group string, versions []string) {
 		t.Helper()
 
-		_, err = botInstanceService.CreateBotInstance(ctx, &machineidv1pb.BotInstance{
-			Metadata: &headerv1.Metadata{
+		_, err = botInstanceService.CreateBotInstance(ctx, machineidv1pb.BotInstance_builder{
+			Metadata: headerv1.Metadata_builder{
 				Expires: timestamppb.New(clock.Now().Add(1 * time.Hour)),
-			},
-			Spec: &machineidv1pb.BotInstanceSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotInstanceSpec_builder{
 				InstanceId: uuid.NewString(),
 				BotName:    "bot-1234",
-			},
-			Status: &machineidv1pb.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1pb.BotInstanceStatus_builder{
 				LatestHeartbeats: slices.Map(versions, func(v string) *machineidv1pb.BotInstanceStatusHeartbeat {
-					heartbeat := &machineidv1pb.BotInstanceStatusHeartbeat{Version: v}
+					heartbeat := machineidv1pb.BotInstanceStatusHeartbeat_builder{Version: v}.Build()
 					if group != "" {
-						heartbeat.ExternalUpdater = "kube"
-						heartbeat.UpdaterInfo = &types.UpdaterV2Info{UpdateGroup: group}
+						heartbeat.SetExternalUpdater("kube")
+						heartbeat.SetUpdaterInfo(&types.UpdaterV2Info{UpdateGroup: group})
 					}
 					return heartbeat
 				}),
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 	createBotInstance(t, "", []string{"17.0.0", "18.0.0"})
@@ -124,29 +124,29 @@ func TestAutoUpdateVersionReporter(t *testing.T) {
 	require.NoError(t, err)
 
 	diff := cmp.Diff(
-		&autoupdatev1pb.AutoUpdateBotInstanceReportSpec{
+		autoupdatev1pb.AutoUpdateBotInstanceReportSpec_builder{
 			Timestamp: timestamppb.New(clock.Now()),
 			Groups: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroup{
-				"prod": {
+				"prod": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroup_builder{
 					Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
-						"18.1.0": {Count: 1},
+						"18.1.0": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 1}.Build(),
 					},
-				},
-				"stage": {
+				}.Build(),
+				"stage": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroup_builder{
 					Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
-						"19.0.0-dev": {Count: 1},
+						"19.0.0-dev": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 1}.Build(),
 					},
-				},
+				}.Build(),
 
 				// Unmanaged (no-group) group.
-				"": {
+				"": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroup_builder{
 					Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
-						"18.0.0": {Count: 1},
-						"18.1.0": {Count: 2},
+						"18.0.0": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 1}.Build(),
+						"18.1.0": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 2}.Build(),
 					},
-				},
+				}.Build(),
 			},
-		},
+		}.Build(),
 		report.GetSpec(),
 		protocmp.Transform(),
 	)
@@ -171,30 +171,30 @@ func TestEmitInstancesMetric(t *testing.T) {
 	)
 
 	machineidv1.EmitInstancesMetric(
-		&autoupdatev1pb.AutoUpdateBotInstanceReport{
-			Spec: &autoupdatev1pb.AutoUpdateBotInstanceReportSpec{
+		autoupdatev1pb.AutoUpdateBotInstanceReport_builder{
+			Spec: autoupdatev1pb.AutoUpdateBotInstanceReportSpec_builder{
 				Groups: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroup{
-					"prod": {
+					"prod": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
-							"18.0.0": {Count: 1},
-							"19.0.0": {Count: 1},
+							"18.0.0": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 1}.Build(),
+							"19.0.0": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 1}.Build(),
 						},
-					},
-					"stage": {
+					}.Build(),
+					"stage": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
-							"18.0.0": {Count: 1},
-							"19.0.0": {Count: 1},
+							"18.0.0": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 1}.Build(),
+							"19.0.0": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 1}.Build(),
 						},
-					},
-					"": {
+					}.Build(),
+					"": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroup_builder{
 						Versions: map[string]*autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion{
-							"19.0.0": {Count: 123},
-							"20.0.0": {Count: 321},
+							"19.0.0": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 123}.Build(),
+							"20.0.0": autoupdatev1pb.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 321}.Build(),
 						},
-					},
+					}.Build(),
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 		gauge,
 	)
 

@@ -622,7 +622,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	}
 	clusterName := cn.GetClusterName()
 
-	res, err := clusterAPI.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+	res, err := clusterAPI.TrustClient().GenerateHostCert(ctx, trustpb.GenerateHostCertRequest_builder{
 		Key:         key.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
@@ -630,7 +630,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
 		Ttl:         durationpb.New(0),
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -641,7 +641,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	}
 	keyRing := &client.KeyRing{
 		SSHPrivateKey: key,
-		Cert:          res.SshCertificate,
+		Cert:          res.GetSshCertificate(),
 		TrustedCerts:  authclient.AuthoritiesToTrustedCerts(hostCAs),
 	}
 
