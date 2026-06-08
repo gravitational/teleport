@@ -27,8 +27,11 @@ import (
 type Key struct {
 	s          string
 	components []string
-	exactKey   bool
-	noEnd      bool
+	// exactKey is true if the key ends in a [Separator] and will only
+	// match child paths.
+	exactKey bool
+	// noEnd is true if there is is no end to the range of this key.
+	noEnd bool
 }
 
 const (
