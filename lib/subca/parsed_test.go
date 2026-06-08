@@ -85,8 +85,8 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 	// Used for scenarios that test invalid certificate override certificates.
 	makeInvalidCertificateFn := func(modify func(template *x509.Certificate)) func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
 		return func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-			co := ca.Spec.CertificateOverrides[0]
-			cert, err := tlsca.ParseCertificatePEM([]byte(co.Certificate))
+			co := ca.GetSpec().GetCertificateOverrides()[0]
+			cert, err := tlsca.ParseCertificatePEM([]byte(co.GetCertificate()))
 			require.NoError(t, err, "ParseCertificatePEM: override certificate")
 
 			intCA, err := env.ExternalRoot.NewIntermediateCA(&subcaenv.CAParams{
@@ -101,8 +101,8 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 			})
 			require.NoError(t, err, "NewIntermediateCA")
 
-			co.Certificate = string(intCA.CertPEM)
-			ca.Spec.CertificateOverrides = []*subcav1.CertificateOverride{co}
+			co.SetCertificate(string(intCA.CertPEM))
+			ca.GetSpec().SetCertificateOverrides([]*subcav1.CertificateOverride{co})
 		}
 	}
 
@@ -127,102 +127,102 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 		{
 			name: "OK: Minimal CA override",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Spec = &subcav1.CertAuthorityOverrideSpec{}
+				ca.SetSpec(&subcav1.CertAuthorityOverrideSpec{})
 			},
 		},
 
 		{
 			name: "empty kind",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Kind = ""
+				ca.SetKind("")
 			},
 			wantErr: "kind",
 		},
 		{
 			name: "invalid kind",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Kind = types.KindCertAuthority // wrong type
+				ca.SetKind(types.KindCertAuthority) // wrong type
 			},
 			wantErr: "kind",
 		},
 		{
 			name: "empty sub_kind",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.SubKind = ""
+				ca.SetSubKind("")
 			},
 			wantErr: "sub_kind",
 		},
 		{
 			name: "invalid sub_kind",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.SubKind = string(types.DatabaseCA) // not allowed
+				ca.SetSubKind(string(types.DatabaseCA)) // not allowed
 			},
 			wantErr: "sub_kind",
 		},
 		{
 			name: "empty version",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Version = ""
+				ca.SetVersion("")
 			},
 			wantErr: "version",
 		},
 		{
 			name: "invalid version",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Version = types.V2
+				ca.SetVersion(types.V2)
 			},
 			wantErr: "version",
 		},
 		{
 			name: "nil metadata",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Metadata = nil
+				ca.ClearMetadata()
 			},
 			wantErr: "metadata required",
 		},
 		{
 			name: "empty name",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Metadata.Name = ""
+				ca.GetMetadata().Name = ""
 			},
 			wantErr: "name/clusterName required",
 		},
 		{
 			name: "nil spec",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Spec = nil
+				ca.ClearSpec()
 			},
 			wantErr: "spec required",
 		},
 		{
 			name: "nil certificate_override",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Spec.CertificateOverrides = append(ca.Spec.CertificateOverrides, nil)
+				ca.GetSpec().SetCertificateOverrides(append(ca.GetSpec().GetCertificateOverrides(), nil))
 			},
 			wantErr: "nil certificate override",
 		},
 		{
 			name: "certificate_override: empty certificate and public key (enabled)",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Spec.CertificateOverrides[0].Certificate = ""
-				ca.Spec.CertificateOverrides[0].PublicKey = ""
-				ca.Spec.CertificateOverrides[0].Disabled = false
+				ca.GetSpec().GetCertificateOverrides()[0].SetCertificate("")
+				ca.GetSpec().GetCertificateOverrides()[0].SetPublicKey("")
+				ca.GetSpec().GetCertificateOverrides()[0].SetDisabled(false)
 			},
 			wantErr: "certificate required",
 		},
 		{
 			name: "certificate_override: empty certificate and public key (disabled)",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Spec.CertificateOverrides[0].Certificate = ""
-				ca.Spec.CertificateOverrides[0].PublicKey = ""
-				ca.Spec.CertificateOverrides[0].Disabled = true
+				ca.GetSpec().GetCertificateOverrides()[0].SetCertificate("")
+				ca.GetSpec().GetCertificateOverrides()[0].SetPublicKey("")
+				ca.GetSpec().GetCertificateOverrides()[0].SetDisabled(true)
 			},
 			wantErr: "certificate or public key required",
 		},
 		{
 			name: "certificate_override: invalid certificate",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Spec.CertificateOverrides[0].Certificate = "ceci n'est pas a certificate"
+				ca.GetSpec().GetCertificateOverrides()[0].SetCertificate("ceci n'est pas a certificate")
 			},
 			wantErr:      "expected PEM",
 			wantParseErr: true,
@@ -230,7 +230,7 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 		{
 			name: "certificate_override: invalid public key",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.Spec.CertificateOverrides[0].PublicKey = "not a valid key"
+				ca.GetSpec().GetCertificateOverrides()[0].SetPublicKey("not a valid key")
 			},
 			wantErr: "invalid public key",
 		},
@@ -238,31 +238,31 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 			name: "certificate_override: certificate and public key mismatch",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
 				// Doesn't match the Certificate field.
-				ca.Spec.CertificateOverrides[0].PublicKey = unrelatedPublicKey
+				ca.GetSpec().GetCertificateOverrides()[0].SetPublicKey(unrelatedPublicKey)
 			},
 			wantErr: "public key mismatch",
 		},
 		{
 			name: "certificate_override: chain without certificate",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.Chain = leafToRootChain
-				co.Certificate = ""
-				co.Disabled = true
+				co := ca.GetSpec().GetCertificateOverrides()[0]
+				co.SetChain(leafToRootChain)
+				co.SetCertificate("")
+				co.SetDisabled(true)
 			},
 			wantErr: "chain not allowed with an empty certificate",
 		},
 		{
 			name: "certificate_override: chain certificate invalid",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.PublicKey = ""
-				co.Chain = []string{
+				co := ca.GetSpec().GetCertificateOverrides()[0]
+				co.SetPublicKey("")
+				co.SetChain([]string{
 					leafToRootChain[0],
 					"ceci n'est pas a certificate",
 					leafToRootChain[1],
 					leafToRootChain[2],
-				}
+				})
 			},
 			wantErr:      "chain[1]: expected PEM",
 			wantParseErr: true,
@@ -270,49 +270,49 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 		{
 			name: "certificate_override: certificate included in chain",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.PublicKey = ""
-				co.Chain = append([]string{co.Certificate}, leafToRootChain...)
+				co := ca.GetSpec().GetCertificateOverrides()[0]
+				co.SetPublicKey("")
+				co.SetChain(append([]string{co.GetCertificate()}, leafToRootChain...))
 			},
 			wantErr: "override certificate should not be included",
 		},
 		{
 			name: "certificate_override: chain out of order",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.PublicKey = ""
-				co.Chain = caChain.RootToLeafPEMs() // reverse order
+				co := ca.GetSpec().GetCertificateOverrides()[0]
+				co.SetPublicKey("")
+				co.SetChain(caChain.RootToLeafPEMs()) // reverse order
 			},
 			wantErr: "chain out of order",
 		},
 		{
 			name: "certificate_override: chain signature invalid (forged CA)",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.Chain = append(
+				co := ca.GetSpec().GetCertificateOverrides()[0]
+				co.SetChain(append(
 					[]string{string(forgedExternalRoot.CertPEM)},
 					leafToRootChain[1:]...,
-				)
+				))
 			},
 			wantErr: "chain signature check failed",
 		},
 		{
 			name: "certificate_override: chain has too many entries",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.PublicKey = ""
-				co.Chain = slices.Repeat([]string{leafToRootChain[0]}, 20)
+				co := ca.GetSpec().GetCertificateOverrides()[0]
+				co.SetPublicKey("")
+				co.SetChain(slices.Repeat([]string{leafToRootChain[0]}, 20))
 			},
 			wantErr: "chain has too many entries",
 		},
 		{
 			name: "certificate_override: duplicate public key",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				ca.Spec.CertificateOverrides = append(
-					ca.Spec.CertificateOverrides,
-					&subcav1.CertificateOverride{PublicKey: co.PublicKey, Disabled: true},
-				)
+				co := ca.GetSpec().GetCertificateOverrides()[0]
+				ca.GetSpec().SetCertificateOverrides(append(
+					ca.GetSpec().GetCertificateOverrides(),
+					subcav1.CertificateOverride_builder{PublicKey: co.GetPublicKey(), Disabled: true}.Build(),
+				))
 			},
 			wantErr: "duplicate override",
 		},
@@ -320,29 +320,29 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 		{
 			name: "OK: Enabled override",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.Disabled = false
+				co := ca.GetSpec().GetCertificateOverrides()[0]
+				co.SetDisabled(false)
 			},
 		},
 		{
 			name: "OK: Override without public key",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.PublicKey = ""
+				co := ca.GetSpec().GetCertificateOverrides()[0]
+				co.SetPublicKey("")
 			},
 		},
 		{
 			name: "OK: Disabled override with only public key",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.Certificate = ""
+				co := ca.GetSpec().GetCertificateOverrides()[0]
+				co.SetCertificate("")
 			},
 		},
 		{
 			name: "OK: Override with chain",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				co := ca.Spec.CertificateOverrides[0]
-				co.Chain = leafToRootChain
+				co := ca.GetSpec().GetCertificateOverrides()[0]
+				co.SetChain(leafToRootChain)
 			},
 		},
 
@@ -453,16 +453,16 @@ func TestValidateAndParseCAOverride_ParsedResource(t *testing.T) {
 	t.Parallel()
 
 	// Use a pre-made caOverride so we have predictable certificates/public keys.
-	caOverride := &subcav1.CertAuthorityOverride{
+	caOverride := subcav1.CertAuthorityOverride_builder{
 		Kind:    "cert_authority_override",
 		SubKind: "windows",
 		Version: "v1",
 		Metadata: &headerv1.Metadata{
 			Name: "zarquon",
 		},
-		Spec: &subcav1.CertAuthorityOverrideSpec{
+		Spec: subcav1.CertAuthorityOverrideSpec_builder{
 			CertificateOverrides: []*subcav1.CertificateOverride{
-				{
+				subcav1.CertificateOverride_builder{
 					//PublicKey: "e96aa5dc0b1c238bb2201191f381f91d7f2d27eca890591de14998e5e15ce417",
 					Certificate: "-----BEGIN CERTIFICATE-----\nMIIBxzCCAWygAwIBAgIBBzAKBggqhkjOPQQDAjAxMSMwIQYDVQQDExpFWFRFUk5B\nTCBJTlRFUk1FRElBVEUgQ0EgMzEKMAgGA1UEBRMBMzAeFw0yNjA0MDcyMDM0MzRa\nFw0yNjA0MDcyMTM1MzRaMEMxEDAOBgNVBAoTB3phcnF1b24xIzAhBgNVBAMTGkVY\nVEVSTkFMIElOVEVSTUVESUFURSBDQSA3MQowCAYDVQQFEwE3MFkwEwYHKoZIzj0C\nAQYIKoZIzj0DAQcDQgAE5xcb9chZRNgg/K/AXhMQ9GMUu1wBvPo97L107e4iQ/Dp\nc+RG8ywYGHbqSXIcJP+ONOgbDaLYeSg0Y+89k1Bgg6NjMGEwDgYDVR0PAQH/BAQD\nAgGGMA8GA1UdEwEB/wQFMAMBAf8wHQYDVR0OBBYEFHC7cgHrQtquasktOLXLZRt3\nQizJMB8GA1UdIwQYMBaAFKauhVOH7awfXqv4WkNmyzsP00ucMAoGCCqGSM49BAMC\nA0kAMEYCIQCLbjjjwvTxATYa5FQCtvE/sg0z5n6zLEPuDUapmZ2bswIhAM6mljTl\nldbZY/y+1kC52QRpOWCTNGLlEQwTY0JN966I\n-----END CERTIFICATE-----\n",
 					Chain: []string{
@@ -471,14 +471,14 @@ func TestValidateAndParseCAOverride_ParsedResource(t *testing.T) {
 						"-----BEGIN CERTIFICATE-----\nMIIBhjCCASygAwIBAgIBATAKBggqhkjOPQQDAjApMRswGQYDVQQDExJFWFRFUk5B\nTCBST09UIENBIDExCjAIBgNVBAUTATEwHhcNMjYwNDA3MjAzNDM0WhcNMjYwNDA3\nMjEzNTM0WjApMRswGQYDVQQDExJFWFRFUk5BTCBST09UIENBIDExCjAIBgNVBAUT\nATEwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAARfTXGAS719qco6RuW/i9PIymfI\nRCGU6qKVEGDjHaFK6nlPod0vHxBL0GbcKNoiEVO+8VGyHYyIvqpGOtnBZCMWo0Uw\nQzAOBgNVHQ8BAf8EBAMCAYYwEgYDVR0TAQH/BAgwBgEB/wIBAjAdBgNVHQ4EFgQU\nrDLjZ4+mStwp8dfvxj/xB7VWxecwCgYIKoZIzj0EAwIDSAAwRQIhALlT/cKaQV8c\nPCfbWdb2RP3TZseQDLEyUkPeqVgvwKnDAiAWjntSrPBwRpaf7K1rB/PZs+4gXIJw\n3bRU1xKbDLGzkw==\n-----END CERTIFICATE-----\n",
 					},
 					Disabled: true,
-				},
-				{
+				}.Build(),
+				subcav1.CertificateOverride_builder{
 					PublicKey: "89B32EF334D6FA94E2A7D9B3CC122115A3A9ED19907A7F25D3FE71BBC734619D",
 					Disabled:  true,
-				},
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 	const publicKey0 = "e96aa5dc0b1c238bb2201191f381f91d7f2d27eca890591de14998e5e15ce417"
 	const chain0Key0 = "36b3cc3e289c286de54fa166ddc867058fe52f7bfc33ea04572c23b867fe2011"
 	const chain0Key1 = "8510a1fee7c494b6883a3d80ca8bee2d47535fb9b6b2650946c36845845adf40"
@@ -493,7 +493,7 @@ func TestValidateAndParseCAOverride_ParsedResource(t *testing.T) {
 
 	// Verify CertificateOverride #0.
 	co0 := parsed.CertificateOverrides[0]
-	assert.Same(t, caOverride.Spec.CertificateOverrides[0], co0.CertificateOverride, "CertificateOverride changed")
+	assert.Same(t, caOverride.GetSpec().GetCertificateOverrides()[0], co0.CertificateOverride, "CertificateOverride changed")
 	assert.Equal(t, publicKey0, co0.PublicKey, "PublicKey mismatch")
 	assert.NotNil(t, co0.Certificate, "Certificate expected")
 	assert.Equal(t, publicKey0, subca.HashCertificatePublicKey(co0.Certificate), "Certificate public key mismatch")
@@ -512,7 +512,7 @@ func TestValidateAndParseCAOverride_ParsedResource(t *testing.T) {
 
 	// Verify CertificateOverride #1.
 	co1 := parsed.CertificateOverrides[1]
-	assert.Same(t, caOverride.Spec.CertificateOverrides[1], co1.CertificateOverride, "CertificateOverride changed")
+	assert.Same(t, caOverride.GetSpec().GetCertificateOverrides()[1], co1.CertificateOverride, "CertificateOverride changed")
 	assert.Equal(t, publicKey1, co1.PublicKey, "PublicKey mismatch")
 	assert.Nil(t, co1.Certificate)
 	assert.Empty(t, co1.Chain)

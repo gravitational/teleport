@@ -222,7 +222,7 @@ func (c *CertificateStoreClient) updateCAOverrideCRLs(ctx context.Context, tc *t
 			)
 			continue
 		}
-		block, _ := pem.Decode([]byte(crlPB.Pem))
+		block, _ := pem.Decode([]byte(crlPB.GetPem()))
 		if block == nil {
 			logger.WarnContext(ctx, "Failed to decode CA override CRL PEM")
 			continue
