@@ -689,6 +689,18 @@ end run
       }
     );
 
+    ipcHandle(
+      MainProcessIpc.RemoveDirectoryForDesktopSession,
+      async (_, args: { desktopUri: string; login: string; id: number }) => {
+        const { terminalService } = await this.tshdClients;
+        await terminalService.unshareDirectoryForDesktopSession({
+          desktopUri: args.desktopUri,
+          login: args.login,
+          id: args.id,
+        });
+      }
+    );
+
     ipcMain.on(MainProcessIpc.SupportsAppUpdates, event => {
       event.returnValue = this.appUpdater.supportsUpdates();
     });

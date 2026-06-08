@@ -212,6 +212,11 @@ export type MainProcessClient = {
     login: string;
     id: number;
   }): Promise<string>;
+  removeDirectoryForDesktopSession(args: {
+    desktopUri: string;
+    login: string;
+    id: number;
+  }): Promise<void>;
   changeAppUpdatesManagingCluster(
     clusterUri: RootClusterUri | undefined
   ): Promise<void>;
@@ -368,6 +373,7 @@ export enum MainProcessIpc {
   SaveTextToFile = 'main-process-save-text-to-file',
   ForceFocusWindow = 'main-process-force-focus-window',
   SelectDirectoryForDesktopSession = 'main-process-select-directory-for-desktop-session',
+  RemoveDirectoryForDesktopSession = 'main-process-remove-directory-for-desktop-session',
   CheckForAppUpdates = 'main-process-check-for-app-updates',
   DownloadAppUpdate = 'main-process-download-app-update',
   CancelAppUpdateDownload = 'main-process-cancel-app-update-download',

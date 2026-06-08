@@ -185,8 +185,16 @@ export default function createMainProcessClient(): MainProcessClient {
     selectDirectoryForDesktopSession(args: {
       desktopUri: string;
       login: string;
+      id: number;
     }) {
       return ipcInvoke(MainProcessIpc.SelectDirectoryForDesktopSession, args);
+    },
+    removeDirectoryForDesktopSession(args: {
+      desktopUri: string;
+      login: string;
+      id: number;
+    }) {
+      return ipcInvoke(MainProcessIpc.RemoveDirectoryForDesktopSession, args);
     },
     supportsAppUpdates() {
       return ipcRenderer.sendSync(MainProcessIpc.SupportsAppUpdates);
