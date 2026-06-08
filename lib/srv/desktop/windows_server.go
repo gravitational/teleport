@@ -819,12 +819,14 @@ func (s *WindowsService) connectRDP(
 					return errInBandMFARequired
 				}
 
-				// Legacy client: MFA required but not verified, reject.
-				//
-				// CheckConditionalAccess already skipped adding this precondition if the client presented a valid
-				// per-session MFA certificate (state.MFAVerified).
+				log.DebugContext(
+					ctx,
+					"Client did not present a valid per-session MFA cert and does not support in-band MFA, rejecting",
+				)
 				return services.ErrSessionMFARequired
 			}
+
+			log.DebugContext(ctx, "MFA required and client supports in-band MFA")
 
 			sourceCluster, err := s.cfg.AccessPoint.GetClusterName(ctx)
 			if err != nil {
