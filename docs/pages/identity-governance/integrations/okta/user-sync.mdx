@@ -266,12 +266,6 @@ spec:
       - hiro@enzos-pizza.com
 ```
 
-<Admonition type="tip">
-Teleport can use synced Okta profile name and email to show [display
-names](../../../reference/access-controls/user-display-names.mdx) in the
-Web UI.
-</Admonition>
-
 Teleport administrators can then use these traits as conditions in Access Lists
 in order to grant (or deny) the Okta-derived Teleport users access to Teleport
 resources.
@@ -307,3 +301,7 @@ Application in order to make sure their status is updated in Teleport.
 After completing the guided enrollment flow for the Okta SCIM integration, you
 can proceed to the [Okta app and group sync
 integration](./app-and-group-sync.mdx).
+
+To learn how Teleport can use synced Okta profile name and email attributes in
+the Web UI, see [User Display
+Names](../../../reference/access-controls/user-display-names.mdx).
