@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -604,13 +605,11 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 	}
 
 	err := p.daemonService.NotifyApp(ctx, apiteleterm.SendNotificationRequest_builder{
-		CannotProxyVnetConnection: &apiteleterm.CannotProxyVnetConnection{
-			TargetUri:  appURI.String(),
-			RouteToApp: &apiteletermRouteToApp,
-			Reason: &apiteleterm.CannotProxyVnetConnection_InvalidLocalPort{
-				InvalidLocalPort: invalidLocalPort,
-			},
-		},
+		CannotProxyVnetConnection: apiteleterm.CannotProxyVnetConnection_builder{
+			TargetUri:        appURI.String(),
+			RouteToApp:       &apiteletermRouteToApp,
+			InvalidLocalPort: proto.ValueOrDefault(invalidLocalPort),
+		}.Build(),
 	}.Build())
 	if err != nil {
 		log.ErrorContext(ctx, "Could not notify the Electron app about invalid local port",

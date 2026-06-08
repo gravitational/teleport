@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
@@ -251,11 +252,9 @@ func (s *Service) EvaluateSSHAccess(ctx context.Context, req *decisionpb.Evaluat
 		}.Build()))
 	}
 
-	return &decisionpb.EvaluateSSHAccessResponse{
-		Decision: &decisionpb.EvaluateSSHAccessResponse_Permit{
-			Permit: permit,
-		},
-	}, nil
+	return decisionpb.EvaluateSSHAccessResponse_builder{
+		Permit: proto.ValueOrDefault(permit),
+	}.Build(), nil
 }
 
 func (s *Service) getLocalClusterName(ctx context.Context) (string, error) {

@@ -25,6 +25,7 @@ import (
 	"io"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
@@ -157,11 +158,9 @@ func (c *Ceremony) run(
 	// 1. Init.
 	init.SetCredentialId(cred.GetId())
 	init.SetDeviceData(cd)
-	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_Init{
-			Init: init,
-		},
-	}); err != nil && !errors.Is(err, io.EOF) {
+	if err := stream.Send(devicepb.AuthenticateDeviceRequest_builder{
+		Init: proto.ValueOrDefault(init),
+	}.Build()); err != nil && !errors.Is(err, io.EOF) {
 		// [io.EOF] indicates that the server has closed the stream.
 		// The client should handle the underlying error on the subsequent Recv call.
 		// All other errors are client-side errors and should be returned.
@@ -249,11 +248,9 @@ func (c *Ceremony) authenticateDeviceTPM(
 			return trace.Wrap(err)
 		}
 	}
-	err = stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
-			TpmChallengeResponse: challengeResponse,
-		},
-	})
+	err = stream.Send(devicepb.AuthenticateDeviceRequest_builder{
+		TpmChallengeResponse: proto.ValueOrDefault(challengeResponse),
+	}.Build())
 	if err != nil && !errors.Is(err, io.EOF) {
 		// [io.EOF] indicates that the server has closed the stream.
 		// The client should handle the underlying error on the subsequent Recv call.

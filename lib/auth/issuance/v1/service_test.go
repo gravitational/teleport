@@ -166,12 +166,12 @@ func TestIssueScopedBotCerts(t *testing.T) {
 	now := srv.Clock().Now()
 
 	t.Run("success", func(t *testing.T) {
-		resp, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+		resp, err := issuanceClient.IssueScopedBotCerts(ctx, issuancev1pb.IssueScopedBotCertsRequest_builder{
 			SshPublicKey: sshPubKeyBytes,
 			TlsPublicKey: tlsPubKeyPEM,
 			Ttl:          durationpb.New(requestedTTL),
-			Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-		})
+			Identity:     &issuancev1pb.UsageIdentity{},
+		}.Build())
 		require.NoError(t, err)
 		require.NotNil(t, resp.GetCerts())
 		require.NotEmpty(t, resp.GetCerts().GetSsh())
@@ -203,12 +203,12 @@ func TestIssueScopedBotCerts(t *testing.T) {
 	})
 
 	t.Run("excessive TTL rejected", func(t *testing.T) {
-		_, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+		_, err := issuanceClient.IssueScopedBotCerts(ctx, issuancev1pb.IssueScopedBotCertsRequest_builder{
 			SshPublicKey: sshPubKeyBytes,
 			TlsPublicKey: tlsPubKeyPEM,
 			Ttl:          durationpb.New(defaults.MaxRenewableCertTTL + time.Hour),
-			Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-		})
+			Identity:     &issuancev1pb.UsageIdentity{},
+		}.Build())
 		require.True(t, trace.IsBadParameter(err), "expected bad parameter for excessive TTL, got: %v", err)
 	})
 
@@ -222,11 +222,11 @@ func TestIssueScopedBotCerts(t *testing.T) {
 	})
 
 	t.Run("ssh only", func(t *testing.T) {
-		resp, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+		resp, err := issuanceClient.IssueScopedBotCerts(ctx, issuancev1pb.IssueScopedBotCertsRequest_builder{
 			SshPublicKey: sshPubKeyBytes,
 			Ttl:          durationpb.New(requestedTTL),
-			Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-		})
+			Identity:     &issuancev1pb.UsageIdentity{},
+		}.Build())
 		require.NoError(t, err)
 		require.NotNil(t, resp.GetCerts())
 		require.NotEmpty(t, resp.GetCerts().GetSsh())
@@ -234,11 +234,11 @@ func TestIssueScopedBotCerts(t *testing.T) {
 	})
 
 	t.Run("tls only", func(t *testing.T) {
-		resp, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+		resp, err := issuanceClient.IssueScopedBotCerts(ctx, issuancev1pb.IssueScopedBotCertsRequest_builder{
 			TlsPublicKey: tlsPubKeyPEM,
 			Ttl:          durationpb.New(requestedTTL),
-			Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-		})
+			Identity:     &issuancev1pb.UsageIdentity{},
+		}.Build())
 		require.NoError(t, err)
 		require.NotNil(t, resp.GetCerts())
 		require.Empty(t, resp.GetCerts().GetSsh())
@@ -246,32 +246,32 @@ func TestIssueScopedBotCerts(t *testing.T) {
 	})
 
 	t.Run("missing keys rejected", func(t *testing.T) {
-		_, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
-			Ttl:   durationpb.New(requestedTTL),
-			Usage: &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-		})
+		_, err := issuanceClient.IssueScopedBotCerts(ctx, issuancev1pb.IssueScopedBotCertsRequest_builder{
+			Ttl:      durationpb.New(requestedTTL),
+			Identity: &issuancev1pb.UsageIdentity{},
+		}.Build())
 		require.True(t, trace.IsBadParameter(err), "expected bad parameter, got: %v", err)
 		require.ErrorContains(t, err, "at least one of ssh_public_key or tls_public_key is required")
 	})
 
 	t.Run("zero ttl rejected", func(t *testing.T) {
-		_, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+		_, err := issuanceClient.IssueScopedBotCerts(ctx, issuancev1pb.IssueScopedBotCertsRequest_builder{
 			SshPublicKey: sshPubKeyBytes,
 			TlsPublicKey: tlsPubKeyPEM,
 			Ttl:          durationpb.New(0),
-			Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-		})
+			Identity:     &issuancev1pb.UsageIdentity{},
+		}.Build())
 		require.True(t, trace.IsBadParameter(err), "expected bad parameter for zero TTL, got: %v", err)
 		require.ErrorContains(t, err, "must be greater than zero")
 	})
 
 	t.Run("negative ttl rejected", func(t *testing.T) {
-		_, err := issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+		_, err := issuanceClient.IssueScopedBotCerts(ctx, issuancev1pb.IssueScopedBotCertsRequest_builder{
 			SshPublicKey: sshPubKeyBytes,
 			TlsPublicKey: tlsPubKeyPEM,
 			Ttl:          durationpb.New(-time.Hour),
-			Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-		})
+			Identity:     &issuancev1pb.UsageIdentity{},
+		}.Build())
 		require.True(t, trace.IsBadParameter(err), "expected bad parameter for negative TTL, got: %v", err)
 		require.ErrorContains(t, err, "must be greater than zero")
 	})
@@ -294,12 +294,12 @@ func TestIssueScopedBotCerts_FeatureFlagRequired(t *testing.T) {
 	require.NoError(t, err)
 
 	issuanceClient := issuancev1pb.NewIssuanceServiceClient(adminClient.GetConnection())
-	_, err = issuanceClient.IssueScopedBotCerts(ctx, &issuancev1pb.IssueScopedBotCertsRequest{
+	_, err = issuanceClient.IssueScopedBotCerts(ctx, issuancev1pb.IssueScopedBotCertsRequest_builder{
 		SshPublicKey: ssh.MarshalAuthorizedKey(sshPubKey),
 		TlsPublicKey: tlsPubKeyPEM,
 		Ttl:          durationpb.New(time.Hour),
-		Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-	})
+		Identity:     &issuancev1pb.UsageIdentity{},
+	}.Build())
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "scoping features are not enabled")
 }
@@ -376,12 +376,12 @@ func TestIssueScopedBotCerts_Unauthorized(t *testing.T) {
 	require.NoError(t, err)
 	waitForSRACache(t, srv, sraResp)
 
-	req := &issuancev1pb.IssueScopedBotCertsRequest{
+	req := issuancev1pb.IssueScopedBotCertsRequest_builder{
 		SshPublicKey: sshPubKeyBytes,
 		TlsPublicKey: tlsPubKeyPEM,
 		Ttl:          durationpb.New(time.Hour),
-		Usage:        &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-	}
+		Identity:     &issuancev1pb.UsageIdentity{},
+	}.Build()
 
 	t.Run("non-bot user without scope", func(t *testing.T) {
 		_, err := adminClient.IssuanceClient().IssueScopedBotCerts(ctx, req)

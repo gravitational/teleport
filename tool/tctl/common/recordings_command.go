@@ -490,11 +490,9 @@ func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.
 		if c.searchServerAddr != "" {
 			props.SetServerAddr(c.searchServerAddr)
 		}
-		return &sessionsearchv1pb.ResourceProperties{
-			Type: &sessionsearchv1pb.ResourceProperties_Ssh{
-				Ssh: props,
-			},
-		}, nil
+		return sessionsearchv1pb.ResourceProperties_builder{
+			Ssh: proto.ValueOrDefault(props),
+		}.Build(), nil
 	case kubernetesSet:
 		props := &sessionsearchv1pb.KubernetesProperties{}
 		if c.searchPodNamespace != "" {
@@ -503,11 +501,9 @@ func (c *RecordingsCommand) buildSearchResourceProperties() (*sessionsearchv1pb.
 		if c.searchPodName != "" {
 			props.SetPodName(c.searchPodName)
 		}
-		return &sessionsearchv1pb.ResourceProperties{
-			Type: &sessionsearchv1pb.ResourceProperties_Kubernetes{
-				Kubernetes: props,
-			},
-		}, nil
+		return sessionsearchv1pb.ResourceProperties_builder{
+			Kubernetes: proto.ValueOrDefault(props),
+		}.Build(), nil
 	case databaseSet:
 		return sessionsearchv1pb.ResourceProperties_builder{
 			Database: sessionsearchv1pb.DatabaseProperties_builder{

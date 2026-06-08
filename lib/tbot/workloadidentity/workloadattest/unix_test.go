@@ -97,7 +97,7 @@ func TestUnixAttestor_BinaryTooLarge(t *testing.T) {
 
 	att, err := attestor.Attest(ctx, os.Getpid())
 	require.NoError(t, err)
-	require.Nil(t, att.BinaryHash)
+	require.Nil(t, proto.ValueOrNil(att.HasBinaryHash(), att.GetBinaryHash))
 }
 
 type testOS struct {
