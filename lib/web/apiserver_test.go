@@ -92,6 +92,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	componentfeaturesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/componentfeatures/v1"
+	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
@@ -150,6 +151,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
+	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
 	"github.com/gravitational/teleport/lib/srv/regular"
 	"github.com/gravitational/teleport/lib/srv/transport/transportv1"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -2747,94 +2749,202 @@ func TestTerminalNoHistoryShell(t *testing.T) {
 }
 
 type windowsDesktopServiceMock struct {
-	listener net.Listener
+	listener         net.Listener
+	requireInBandMFA bool
+	sendServerHello  bool
 }
 
-func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server) *windowsDesktopServiceMock {
+func mustStartWindowsDesktopMock(t *testing.T, authClient *auth.Server, requireInBandMFA bool, sendServerHello ...bool) *windowsDesktopServiceMock {
 	l, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
+
 	t.Cleanup(func() {
 		require.NoError(t, l.Close())
 	})
+
 	authID := state.IdentityID{
 		Role:     types.RoleWindowsDesktop,
 		HostUUID: "windows_server",
 		NodeName: "windows_server",
 	}
+
 	n, err := authClient.GetClusterName(t.Context())
 	require.NoError(t, err)
+
 	dns := []string{"localhost", "127.0.0.1", desktop.WildcardServiceDNS}
 	identity, err := auth.LocalRegister(authID, authClient, nil, dns, "", nil)
 	require.NoError(t, err)
 
 	tlsConfig, err := identity.TLSConfig(nil)
 	require.NoError(t, err)
-	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
-	require.NoError(t, err)
 
-	ca, err := authClient.GetCertAuthority(context.Background(), types.CertAuthID{Type: types.UserCA, DomainName: n.GetClusterName()}, false)
+	tlsConfig.ClientAuth = tls.RequireAndVerifyClientCert
+	tlsConfig.NextProtos = []string{tdpb.ProtocolName}
+
+	ca, err := authClient.GetCertAuthority(
+		t.Context(),
+		types.CertAuthID{Type: types.UserCA, DomainName: n.GetClusterName()},
+		false,
+	)
 	require.NoError(t, err)
 
 	for _, kp := range services.GetTLSCerts(ca) {
 		require.True(t, tlsConfig.ClientCAs.AppendCertsFromPEM(kp))
 	}
 
-	wd := &windowsDesktopServiceMock{
-		listener: l,
+	sendSH := false
+	if len(sendServerHello) > 0 {
+		sendSH = sendServerHello[0]
 	}
+
+	wd := &windowsDesktopServiceMock{
+		listener:         l,
+		requireInBandMFA: requireInBandMFA,
+		sendServerHello:  sendSH,
+	}
+
 	go func() {
 		conn, err := l.Accept()
 		if err != nil {
 			return
 		}
+
 		tlsConn := tls.Server(conn, tlsConfig)
 		if err := tlsConn.HandshakeContext(context.Background()); err != nil {
 			t.Errorf("Unexpected error %v", err)
 			return
 		}
-		wd.handleConn(t, tlsConn)
+
+		wd.handleConn(t, tlsConn, wd.requireInBandMFA, wd.sendServerHello)
 	}()
 
 	return wd
 }
 
-func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn) {
-	tdpConn := tdp.NewConn(conn, legacy.Decode, legacy.WarningConstructor)
-
-	// Ensure that incoming connection is MFAVerified.
+func (w *windowsDesktopServiceMock) handleConn(t *testing.T, conn *tls.Conn, requireInBandMFA bool, sendServerHello bool) {
+	// Accept the connection. The cert may or may not be MFAVerified depending on the flow.
 	require.NotEmpty(t, conn.ConnectionState().PeerCertificates)
-	cert := conn.ConnectionState().PeerCertificates[0]
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	require.NoError(t, err)
-	require.NotEmpty(t, identity.MFAVerified)
 
+	// Always use TDPB for Proxy-to-WDS connection.
+	w.handleTDPBConn(t, conn, requireInBandMFA, sendServerHello)
+}
+
+func (w *windowsDesktopServiceMock) handleTDPBConn(t *testing.T, conn *tls.Conn, requireInBandMFA bool, sendServerHello bool) {
+	tdpConn := tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+
+	// Read ClientHello (TDPB).
 	msg, err := tdpConn.ReadMessage()
-	require.NoError(t, err)
-	require.IsType(t, legacy.ClientUsername{}, msg)
+	if err != nil {
+		t.Errorf("WDS mock: read ClientHello: %v", err)
+		return
+	}
 
-	msg, err = tdpConn.ReadMessage()
-	require.NoError(t, err)
-	require.IsType(t, legacy.ClientScreenSpec{}, msg)
+	if _, ok := msg.(*tdpb.ClientHello); !ok {
+		t.Errorf("WDS mock: expected ClientHello, got %T", msg)
+		return
+	}
 
-	msg, err = tdpConn.ReadMessage()
-	require.NoError(t, err)
-	require.IsType(t, legacy.ClientKeyboardLayout{}, msg, "%v", msg)
+	if requireInBandMFA {
+		// Modern WDS: send AuthPrompt, wait for MFAPromptResponse, then send ServerHello.
+		if err := tdpConn.WriteMessage((*tdpb.AuthPrompt)(desktop.NewAuthPrompt())); err != nil {
+			t.Errorf("WDS mock: write AuthPrompt: %v", err)
+			return
+		}
 
-	err = tdpConn.WriteMessage(legacy.Alert{Message: "test", Severity: legacy.SeverityWarning})
-	require.NoError(t, err)
+		resp, err := tdpConn.ReadMessage()
+		if err != nil {
+			t.Errorf("WDS mock: read MFAPromptResponse: %v", err)
+			return
+		}
+
+		if _, ok := resp.(*tdpb.MFAPromptResponse); !ok {
+			t.Errorf("WDS mock: expected MFAPromptResponse, got %T", resp)
+			return
+		}
+
+		// Accept any challenge name (verification tested in lib/srv/desktop/mfa_test.go).
+		// Send ServerHello to signal session ready.
+		if err := tdpConn.WriteMessage(&tdpb.ServerHello{
+			ClipboardEnabled: true,
+		}); err != nil {
+			t.Errorf("WDS mock: write ServerHello: %v", err)
+			return
+		}
+		return
+	}
+
+	if sendServerHello {
+		// Modern WDS, no MFA required: send ServerHello directly.
+		if err := tdpConn.WriteMessage(&tdpb.ServerHello{
+			ClipboardEnabled: true,
+		}); err != nil {
+			t.Errorf("WDS mock: write ServerHello: %v", err)
+			return
+		}
+		return
+	}
+
+	// Legacy WDS: send Alert to signal rejection (triggers Proxy fallback to per-session MFA).
+	err = tdpConn.WriteMessage(
+		&tdpb.Alert{
+			Message:  "test",
+			Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING,
+		},
+	)
+	if err != nil {
+		t.Errorf("WDS mock: write Alert: %v", err)
+		return
+	}
 }
 
 func TestDesktopAccessMFA(t *testing.T) {
 	t.Setenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING", "true")
 
+	// TODO(cthach): Add test case for real in-band MFA verification, including the MFA ceremony with the device.
 	tests := []struct {
 		name           string
 		authPref       types.AuthPreferenceSpecV2
 		mfaHandler     func(t *testing.T, ws *websocket.Conn, dev *authtest.Device)
 		registerDevice func(t *testing.T, ctx context.Context, clt *authclient.Client) *authtest.Device
+		useTDPB        bool
 	}{
 		{
-			name: "webauthn",
+			// Tests the fallback path: WDS sends Alert, Proxy falls back to per-session MFA.
+			// Does NOT test the actual in-band MFA ceremony.
+			name:    "in-band MFA fallback",
+			useTDPB: true,
+			authPref: types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorWebauthn,
+				Webauthn: &types.Webauthn{
+					RPID: "localhost",
+				},
+				RequireMFAType: types.RequireMFAType_SESSION,
+			},
+			mfaHandler: func(t *testing.T, ws *websocket.Conn, dev *authtest.Device) {
+				// No-op: WDS mock sends Alert directly. Proxy falls back to per-session MFA.
+			},
+			registerDevice: func(
+				t *testing.T,
+				ctx context.Context,
+				clt *authclient.Client,
+			) *authtest.Device {
+				webauthnDev, err := authtest.RegisterTestDevice(
+					ctx,
+					clt,
+					"webauthn",
+					authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					nil,
+				)
+				require.NoError(t, err)
+
+				return webauthnDev
+			},
+		},
+		{
+			// TODO(cthach): DELETE IN v20.0 when legacy TDP protocol support is removed.
+			name:    "legacy out of band MFA",
+			useTDPB: false,
 			authPref: types.AuthPreferenceSpecV2{
 				Type:         constants.Local,
 				SecondFactor: constants.SecondFactorWebauthn,
@@ -2844,9 +2954,20 @@ func TestDesktopAccessMFA(t *testing.T) {
 				RequireMFAType: types.RequireMFAType_SESSION,
 			},
 			mfaHandler: handleDesktopMFAWebauthnChallenge,
-			registerDevice: func(t *testing.T, ctx context.Context, clt *authclient.Client) *authtest.Device {
-				webauthnDev, err := authtest.RegisterTestDevice(ctx, clt, "webauthn", authproto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
+			registerDevice: func(
+				t *testing.T,
+				ctx context.Context,
+				clt *authclient.Client,
+			) *authtest.Device {
+				webauthnDev, err := authtest.RegisterTestDevice(
+					ctx,
+					clt,
+					"webauthn",
+					authproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+					nil,
+				)
 				require.NoError(t, err)
+
 				return webauthnDev
 			},
 		},
@@ -2854,29 +2975,39 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			ctx := context.Background()
+			ctx := t.Context()
 			env := newWebPack(t, 1)
 			proxy := env.proxies[0]
 			pack := proxy.authPack(t, "llama", nil /* roles */)
 
 			clt, err := env.server.NewClient(authtest.TestUser("llama"))
 			require.NoError(t, err)
+
 			wdID := uuid.New().String()
 
-			wdMock := mustStartWindowsDesktopMock(t, env.server.Auth())
-			wd, err := types.NewWindowsDesktopV3("desktop1", nil, types.WindowsDesktopSpecV3{
-				Addr:   wdMock.listener.Addr().String(),
-				Domain: "CORP",
-				HostID: wdID,
-			})
+			wdMock := mustStartWindowsDesktopMock(t, env.server.Auth(), false /* requireInBandMFA */)
+
+			wd, err := types.NewWindowsDesktopV3(
+				"desktop1",
+				nil,
+				types.WindowsDesktopSpecV3{
+					Addr:   wdMock.listener.Addr().String(),
+					Domain: "CORP",
+					HostID: wdID,
+				},
+			)
 			require.NoError(t, err)
 
 			err = env.server.Auth().UpsertWindowsDesktop(context.Background(), wd)
 			require.NoError(t, err)
-			wds, err := types.NewWindowsDesktopServiceV3(types.Metadata{Name: wdID}, types.WindowsDesktopServiceSpecV3{
-				Addr:            wdMock.listener.Addr().String(),
-				TeleportVersion: teleport.Version,
-			})
+
+			wds, err := types.NewWindowsDesktopServiceV3(
+				types.Metadata{Name: wdID},
+				types.WindowsDesktopServiceSpecV3{
+					Addr:            wdMock.listener.Addr().String(),
+					TeleportVersion: teleport.Version,
+				},
+			)
 			require.NoError(t, err)
 
 			_, err = env.server.Auth().UpsertWindowsDesktopService(context.Background(), wds)
@@ -2884,40 +3015,118 @@ func TestDesktopAccessMFA(t *testing.T) {
 
 			ap, err := types.NewAuthPreference(tc.authPref)
 			require.NoError(t, err)
+
 			_, err = env.server.Auth().UpsertAuthPreference(ctx, ap)
 			require.NoError(t, err)
 
 			dev := tc.registerDevice(t, ctx, clt)
 
-			ws := proxy.makeDesktopSession(t, pack)
+			ws := proxy.makeDesktopSession(t, pack, tc.useTDPB)
 
-			// Before the session can proceed to the MFA ceremony, the proxy expects the
-			// web UI to send both the screen size and keyboard layout over the websocket.
-			ss, err := legacy.ClientScreenSpec{
-				Width:  1920,
-				Height: 1080,
-			}.Encode()
-			require.NoError(t, err)
-			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, ss))
-			kl, err := legacy.ClientKeyboardLayout{}.Encode()
-			require.NoError(t, err)
-			require.NoError(t, ws.WriteMessage(websocket.BinaryMessage, kl))
-
-			tc.mfaHandler(t, ws, dev)
-
-			tdpClient := tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode, legacy.WarningConstructor)
-
-			msg, err := tdpClient.ReadMessage()
-			require.NoError(t, err)
-
-			// sometimes LatencyStats will be sent before we get Alert, in such case just skip it and get next one
-			if _, ok := msg.(legacy.LatencyStats); ok {
-				msg, err = tdpClient.ReadMessage()
-				require.NoError(t, err)
+			if tc.useTDPB {
+				wsTDPBFallback(t, ws, tc.mfaHandler, dev)
+				return
 			}
-			require.IsType(t, legacy.Alert{}, msg)
+
+			wsTDPLegacyMFA(t, ws, tc.mfaHandler, dev)
 		})
 	}
+}
+
+// wsTDPBFallback drives the browser side of the TDPB fallback flow. The WDS mock sends Alert (simulating legacy WDS),
+// Proxy falls back to per-session MFA, then relays the Alert back to the browser. No actual in-band MFA ceremony is
+// exercised.
+func wsTDPBFallback(
+	t *testing.T,
+	ws *websocket.Conn,
+	mfaHandler func(t *testing.T, ws *websocket.Conn, dev *authtest.Device),
+	dev *authtest.Device,
+) {
+	// The Proxy sends TDPUpgrade to the TDPB client, then waits for ClientHello.
+	br := bufio.NewReader(&WebsocketIO{Conn: ws})
+
+	mt, err := br.ReadByte()
+	require.NoError(t, err)
+	require.Equal(t, byte(legacy.TypeUpgrade), mt)
+
+	// Send ClientHello to Proxy (which forwards it to WDS).
+	tdpClient := tdp.NewConn(
+		&WebsocketIO{Conn: ws},
+		tdp.DecoderAdapter(tdpb.DecodePermissive),
+		tdpb.WarningConstructor,
+	)
+
+	hello := &tdpb.ClientHello{
+		InBandMfaSupported: true,
+		ScreenSpec: &tdpbv1.ClientScreenSpec{
+			Width:  1920,
+			Height: 1080,
+		},
+	}
+
+	err = tdpClient.WriteMessage(hello)
+	require.NoError(t, err)
+
+	// WDS sends AuthPrompt, Proxy relays it to the browser.
+	mfaHandler(t, ws, dev)
+
+	// After MFA, WDS sends Alert, Proxy relays it to the browser.
+	msg, err := tdpClient.ReadMessage()
+	require.NoError(t, err)
+
+	// Sometimes LatencyStats will be sent before we get Alert, in such case just skip it and get next one.
+	if _, ok := msg.(legacy.LatencyStats); ok {
+		msg, err = tdpClient.ReadMessage()
+		require.NoError(t, err)
+	}
+
+	require.IsType(t, &tdpb.Alert{}, msg)
+}
+
+// wsTDPLegacyMFA drives the browser side of the legacy TDP MFA flow. The Proxy performs MFA before connecting to the
+// WDS, then relays the Alert back to the browser.
+//
+// TODO(cthach): DELETE IN v20.0 when legacy TDP protocol support is removed.
+func wsTDPLegacyMFA(
+	t *testing.T,
+	ws *websocket.Conn,
+	mfaHandler func(t *testing.T, ws *websocket.Conn, dev *authtest.Device),
+	dev *authtest.Device,
+) {
+	// Legacy TDP flow: browser sends ClientScreenSpec and ClientKeyboardLayout.
+	tdpClient := tdp.NewConn(
+		&WebsocketIO{Conn: ws},
+		legacy.Decode,
+		legacy.WarningConstructor,
+	)
+
+	// Send ClientScreenSpec to Proxy.
+	err := tdpClient.WriteMessage(
+		legacy.ClientScreenSpec{
+			Width:  1920,
+			Height: 1080,
+		},
+	)
+	require.NoError(t, err)
+
+	// Send ClientKeyboardLayout to Proxy.
+	err = tdpClient.WriteMessage(legacy.ClientKeyboardLayout{})
+	require.NoError(t, err)
+
+	// Proxy performs MFA and sends mfa_challenge to the browser.
+	mfaHandler(t, ws, dev)
+
+	// After MFA, WDS sends Alert, Proxy relays it to the browser.
+	msg, err := tdpClient.ReadMessage()
+	require.NoError(t, err)
+
+	// Sometimes LatencyStats will be sent before we get Alert, in such case just skip it and get next one.
+	if _, ok := msg.(legacy.LatencyStats); ok {
+		msg, err = tdpClient.ReadMessage()
+		require.NoError(t, err)
+	}
+
+	require.IsType(t, legacy.Alert{}, msg)
 }
 
 func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *authtest.Device) {
@@ -2944,6 +3153,108 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 		},
 	})
 	require.NoError(t, err)
+}
+
+// TestDesktopInBandMFA_ServerHello verifies that when MFA is not required, the Proxy correctly relays ServerHello from
+// the WDS to the browser.
+func TestDesktopInBandMFA_ServerHello(t *testing.T) {
+	t.Setenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING", "true")
+
+	ctx := context.Background()
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "llama", nil)
+
+	wdID := uuid.New().String()
+
+	// WDS mock: no MFA required, sends ServerHello directly.
+	wdMock := mustStartWindowsDesktopMock(t, env.server.Auth(), false, true)
+
+	wd, err := types.NewWindowsDesktopV3(
+		"desktop1",
+		nil,
+		types.WindowsDesktopSpecV3{
+			Addr:   wdMock.listener.Addr().String(),
+			Domain: "CORP",
+			HostID: wdID,
+		},
+	)
+	require.NoError(t, err)
+
+	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), wd)
+	require.NoError(t, err)
+
+	wds, err := types.NewWindowsDesktopServiceV3(
+		types.Metadata{Name: wdID},
+		types.WindowsDesktopServiceSpecV3{
+			Addr:            wdMock.listener.Addr().String(),
+			TeleportVersion: teleport.Version,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertWindowsDesktopService(context.Background(), wds)
+	require.NoError(t, err)
+
+	// No MFA required.
+	ap, err := types.NewAuthPreference(
+		types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOff,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertAuthPreference(ctx, ap)
+	require.NoError(t, err)
+
+	ws := proxy.makeDesktopSession(t, pack, true)
+
+	// Drive the no-MFA flow.
+	wsTDPBNoMFA(t, ws)
+}
+
+// wsTDPBNoMFA drives the browser side of the no-MFA flow:
+// 1. Send ClientHello with InBandMfaSupported=true
+// 2. WDS sends ServerHello (MFA not required)
+// 3. Proxy relays ServerHello to browser
+func wsTDPBNoMFA(t *testing.T, ws *websocket.Conn) {
+	// The Proxy sends TDPUpgrade to the TDPB client, then waits for ClientHello.
+	br := bufio.NewReader(&WebsocketIO{Conn: ws})
+
+	mt, err := br.ReadByte()
+	require.NoError(t, err)
+	require.Equal(t, byte(legacy.TypeUpgrade), mt)
+
+	// Send ClientHello to Proxy (which forwards it to WDS).
+	tdpClient := tdp.NewConn(
+		&WebsocketIO{Conn: ws},
+		tdp.DecoderAdapter(tdpb.DecodePermissive),
+		tdpb.WarningConstructor,
+	)
+
+	hello := &tdpb.ClientHello{
+		InBandMfaSupported: true,
+		ScreenSpec: &tdpbv1.ClientScreenSpec{
+			Width:  1920,
+			Height: 1080,
+		},
+	}
+
+	err = tdpClient.WriteMessage(hello)
+	require.NoError(t, err)
+
+	// WDS sends ServerHello (MFA not required), Proxy relays to browser.
+	msg, err := tdpClient.ReadMessage()
+	require.NoError(t, err)
+
+	// Sometimes LatencyStats will be sent before we get ServerHello.
+	if _, ok := msg.(legacy.LatencyStats); ok {
+		msg, err = tdpClient.ReadMessage()
+		require.NoError(t, err)
+	}
+
+	require.IsType(t, &tdpb.ServerHello{}, msg)
 }
 
 func TestWebAgentForward(t *testing.T) {
@@ -9699,7 +10010,7 @@ func makeAuthReqOverWS(ws *websocket.Conn, token string) error {
 	return nil
 }
 
-func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack) *websocket.Conn {
+func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack, useTDPB bool) *websocket.Conn {
 	u := url.URL{
 		Host:   r.webURL.Host,
 		Scheme: client.WSS,
@@ -9707,6 +10018,11 @@ func (r *testProxy) makeDesktopSession(t *testing.T, pack *authPack) *websocket.
 	}
 
 	q := u.Query()
+
+	if useTDPB {
+		q.Set("tdpb", tdpb.ProtocolName)
+	}
+
 	q.Set("username", "marek")
 	q.Set("width", "100")
 	q.Set("height", "100")
