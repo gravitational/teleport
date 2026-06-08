@@ -263,6 +263,8 @@ func (r resourceTeleportClassifier) Update(ctx context.Context, req tfsdk.Update
 
 	classifierResource = classifierI
 	
+	classifier = classifierResource
+
 	diags = schemav1.CopyClassifierToTerraform(ctx, classifier, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

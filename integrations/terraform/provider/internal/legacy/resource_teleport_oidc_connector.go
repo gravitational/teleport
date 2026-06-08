@@ -279,6 +279,8 @@ func (r resourceTeleportOIDCConnector) Update(ctx context.Context, req tfsdk.Upd
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading OIDCConnector", trace.Errorf("Can not convert %T to OIDCConnectorV3", oidcConnectorI), "oidc"))
 		return
 	}
+	oidcConnector = oidcConnectorResource
+
 	diags = tfschema.CopyOIDCConnectorV3ToTerraform(ctx, oidcConnector, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
