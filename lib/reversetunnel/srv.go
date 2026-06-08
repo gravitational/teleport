@@ -772,6 +772,7 @@ func (s *server) handleTransportChannel(sconn *ssh.ServerConn, ch ssh.Channel, r
 			s.logger.ErrorContext(s.ctx, "Failed to create signed PROXY header", "error", err)
 			fmt.Fprint(ch.Stderr(), "internal server error")
 			req.Reply(false, nil)
+			return
 		}
 		proxyHeader = h
 	}
