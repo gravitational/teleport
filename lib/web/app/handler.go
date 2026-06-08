@@ -145,6 +145,8 @@ func NewHandler(ctx context.Context, c *HandlerConfig) (*Handler, error) {
 	h.router.GET("/x-teleport-auth", makeRouterHandler(h.startAppAuthExchange))
 	h.router.POST("/x-teleport-auth", makeRouterHandler(h.completeAppAuthExchange))
 	h.router.GET("/teleport-logout", h.withRouterAuth(h.handleLogout))
+	h.router.POST(dbscRegistrationPath, makeRouterHandler(h.handleDBSCRegistration))
+	h.router.POST(dbscRefreshPath, makeRouterHandler(h.handleDBSCRefresh))
 	h.router.NotFound = h.withAuth(h.handleHttp)
 
 	return h, nil
