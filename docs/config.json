@@ -3819,6 +3819,26 @@
       "source": "/reference/infrastructure-as-code/teleport-resources/db/",
       "destination": "/reference/infrastructure-as-code/teleport-resources/database-v3/",
       "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/compliance-frameworks/fedramp-20x/",
+      "destination": "/zero-trust-access/compliance-frameworks/fedramp/20x/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/compliance-frameworks/fedramp-deployment/",
+      "destination": "/zero-trust-access/compliance-frameworks/fedramp/deployment/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/compliance-frameworks/fedramp-evidence/",
+      "destination": "/zero-trust-access/compliance-frameworks/fedramp/evidence/",
+      "permanent": true
+    },
+    {
+      "source": "/zero-trust-access/compliance-frameworks/fedramp-rev5/",
+      "destination": "/zero-trust-access/compliance-frameworks/fedramp/rev5/",
+      "permanent": true
     }
   ]
 }

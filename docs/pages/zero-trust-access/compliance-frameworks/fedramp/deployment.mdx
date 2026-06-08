@@ -1,0 +1,165 @@
+---
+title: Deploying Teleport for FedRAMP Authorization
+sidebar_label: FedRAMP Deployment
+sidebar_position: 1
+description: How to deploy Teleport in a FedRAMP-compliant configuration — FIPS build, cluster configuration, agents, audit logging, and SIEM forwarding.
+tags:
+ - how-to
+ - zero-trust
+ - audit
+enterprise: FedRAMP compliance
+---
+
+This page walks through the operational pieces of standing up Teleport inside a FedRAMP authorization boundary.
+
+## Teleport for FedRAMP deployments
+
+A FedRAMP-compliant Teleport deployment has five pieces that must line up:
+
+1. **Teleport Enterprise FIPS build.** Teleport FIPS builds are compiled against the FIPS 140-validated BoringCrypto module. This is what guarantees your platform's cryptographic operations are FIPS-validated.
+2. **Cluster configured for SSO and host-key checking.** Set `teleport.yaml` (or Helm values) to disable local authentication, require an SSO connector, and enable proxy host-key checking — all three are required for FIPS mode. Clusters migrating from a non-FIPS deployment may also need to update their certificate authorities and signature algorithms.
+3. **FIPS mode at cluster startup.** Your Teleport cluster must be started in FIPS mode, either via the `--fips` flag on a binary install or via the FIPS-aware container image. FIPS mode restricts the platform to FIPS-approved cipher suites, disables local authentication to mandate SSO, and routes audit storage to FIPS endpoints.
+4. **Audit logging configured for durability and SIEM forwarding.** Audit events and session recordings must land in a tamper-resistant store inside your authorization boundary, and they must be forwarded to your enterprise SIEM via the Teleport Event Handler plugin.
+5. **Use FIPS-enabled Teleport services on your hosts.** Every Teleport service running on end hosts must run the FIPS Teleport build with `--fips`.  Targets reached via Teleport's [OpenSSH compatibility mode](./faq.mdx#what-are-the-mtls-exceptions) don't run a Teleport agent — their `sshd` must be configured for FIPS by the underlying OS instead.
+
+The sections below walk through each piece for both binary/systemd installs and Helm-based deployments.  If you're deploying with Helm, most of this is handled for you by the FIPS distroless image — it enables FIPS mode at startup automatically, so your remaining job is to point the chart at the right image and disable local authentication.
+
+Note: Teleport Enterprise must be deployed using cloud regions and services covered by the infrastructure provider's FedRAMP authorization and appropriate for the target impact level ([AWS](https://aws.amazon.com/compliance/services-in-scope/FedRAMP/), [Google Cloud](https://cloud.google.com/security/compliance/fedramp), [Microsoft Azure](https://learn.microsoft.com/en-us/azure/compliance/offerings/offering-fedramp)).
+
+
+### 1. Teleport Enterprise FIPS build
+
+For FedRAMP authorization, install the Teleport Enterprise FIPS build on your server hosts. The standard Enterprise binary is not FIPS-validated and will not satisfy SC-13 / IA-7. The FedRAMP/FIPS package also contains FIPS variants of `tsh`, `tctl`, and `tbot` — covered in step 5 below.
+
+The FIPS build is available in two forms:
+- **Tarball or package installs** for systemd-based hosts. Available from your [Teleport account](https://teleport.sh) — look for `Linux 64-bit (FedRAMP/FIPS)` — and installed using the standard [Teleport installation instructions](../../../installation/installation.mdx).
+- **Container image** for Docker, Kubernetes, and Helm deployments: `public.ecr.aws/gravitational/teleport-ent-fips-distroless`. Install using the standard [container installation instructions](../../../installation/single-machine/docker.mdx).
+
+
+### 2. Configure the cluster for SSO and host-key checking
+
+A FIPS-compliant `teleport.yaml` (or Helm values file) must do two things at minimum: **disable local authentication** so all logins go through your SSO provider, and **require host-key checking** between Teleport components.
+Both are also set by `--fips` at runtime, but file-based configuration overrides defaults.  Putting them explicitly in the config ensures they aren't accidentally overwritten.
+
+#### Auth Service configuration
+
+Add the following settings to `/etc/teleport.yaml` on the Auth Service host:
+
+```yaml
+auth_service:
+  authentication:
+    # Disable local auth — all logins go through SSO.
+    local_auth: false
+    # Set to saml, oidc, or github depending on your IdP.
+    type: <Var name="sso_type"/>
+
+  # Required to start Teleport in FIPS mode.
+  proxy_checks_host_keys: true
+```
+
+The SSO connector itself (SAML, OIDC, or GitHub) is configured separately. See the [Single sign-on](../../sso/sso.mdx) docs for connector setup and be sure that your IdP has the necessary FedRAMP authorization.
+
+#### Helm values
+
+For Helm deployments using the FIPS distroless image, the equivalent FIPS-compatible values are:
+
+```yaml
+enterpriseImage: public.ecr.aws/gravitational/teleport-ent-fips-distroless
+authentication:
+  localAuth: false
+```
+
+The SSO connector itself is configured through chart values — see the [`teleport-cluster` chart reference](../../../reference/helm-reference/teleport-cluster.mdx).
+
+
+
+### 3. FIPS mode at cluster startup
+
+Once the FIPS build is installed and configuration written, Teleport must be **started** in FIPS mode using the `--fips` flag for the FIPS-mode configuration constraints to fire. Without the `--fips` flag, the binary uses BoringCrypto for cryptographic operations but does not restrict the platform to FIPS-approved algorithms (a quirk of the BoringCrypto package — it's FIPS-validated, but still ships with non-FIPS libraries that Teleport must be told to avoid). The deployment is cryptographically validated but not operationally compliant.
+
+#### Binary / systemd installs
+
+Start `teleport` with the `--fips` flag:
+
+```code
+# Starting the cluster
+$ teleport start --fips
+```
+
+For systemd-managed deployments, review the FIPS-specific service unit file from the [examples directory](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/systemd/fips). The unit file already includes the `--fips` flag.
+
+#### Container, Kubernetes, and Helm installs
+
+The FIPS distroless image (`public.ecr.aws/gravitational/teleport-ent-fips-distroless`) starts Teleport in FIPS mode automatically — no entrypoint override or extra arguments needed.
+
+
+### 4. Audit logging configured for durability and SIEM forwarding
+
+FedRAMP authorization requires that audit events and session recordings are stored durably, tamper-resistantly, and forwarded into your enterprise SIEM for continuous monitoring. Teleport handles this in two layers: an audit storage backend on the Auth Service, and the Event Handler plugin for SIEM forwarding.
+
+#### Audit storage backend
+
+The Auth Service writes audit events and session recordings to backends declared in `teleport.yaml` under the top-level `teleport.storage` block. Common FedRAMP-suitable choices, all documented in the [Backend reference](../../../reference/deployment/backends.mdx):
+
+- **AWS** — DynamoDB for events plus S3 for session recordings. Enable S3 object lock for tamper-resistance and configure server-side encryption with a customer-managed KMS key on the audit bucket (`sse_kms_key` on `audit_sessions_uri`). When Teleport is started with `--fips`, it automatically uses [FIPS endpoints](../../../reference/deployment/backends.mdx#configuring-aws-fips-endpoints) for both services — no extra flag needed. Note: `--fips` only routes AWS storage to FIPS endpoints. At-rest encryption, retention, Object Lock / WORM behavior, and SIEM forwarding are independent backend settings you must configure explicitly.
+- **GCP** — Firestore for events plus GCS for session recordings.
+- **PostgreSQL** — a single PostgreSQL deployment for both cluster state and audit events (`audit_events_uri: postgresql://...`).
+
+Multiple destinations can be configured in parallel via the `audit_events_uri` array (for example, DynamoDB plus a local file plus stdout) — useful for resilience and for keeping a local copy alongside the primary store.
+
+Session recording encryption is configured separately on the cluster via [`session_recording_config`](../../../reference/infrastructure-as-code/terraform-provider/resources/session_recording_config.mdx) — this governs whether the recording payload itself is encrypted before Teleport writes it. S3 SSE-KMS (`sse_kms_key` above) is bucket-level object-store encryption applied by AWS. The two are independent: enable both for defense in depth.
+
+#### SIEM forwarding via the Event Handler
+
+The [Teleport Event Handler plugin](../../export-audit-events/export-audit-events.mdx) reads from Teleport's audit events API, batches events, and forwards them over mTLS to a Fluentd instance, which can route onward to your SIEM destinations. The plugin persists the ID of each successfully sent event locally, so it resumes from the last confirmed event if it crashes or restarts.
+
+Teleport provides direct integration guides for common SIEMs:
+
+- [Splunk](../../export-audit-events/splunk.mdx)
+- [Panther](../../export-audit-events/panther.mdx)
+- [Elastic Stack](../../export-audit-events/elastic-stack.mdx)
+- [Datadog](../../export-audit-events/datadog.mdx)
+- [Fluentd](../../export-audit-events/fluentd.mdx) (the base integration; useful if your SIEM consumes from a Fluentd forwarder)
+
+Start with [Set up the Event Handler with tctl](../../export-audit-events/event-handler-setup.mdx) to provision the plugin's credentials, then configure your SIEM integration of choice. By default the plugin skips `print` and `desktop.recording` payload events (the high-volume session-frame events) — set `--skip-session-types=''` if your SIEM needs the full recording stream.
+
+#### Retention and SSP language
+
+Whatever backend and forwarding configuration you settle on, document the retention period, encryption posture, and SIEM destination in your SSP under the AU family — assessors will ask. The [Backend reference](../../../reference/deployment/backends.mdx) calls out the relevant configuration values for each option.
+
+### 5. Use FIPS-enabled Teleport services on your hosts
+
+Anywhere you run a Teleport [Agent](../../../installation/agents/agents.mdx) — to expose SSH, Kubernetes, databases, web apps, MCP servers, or Windows desktops via Teleport — the agent must run the same FIPS Teleport build as the cluster. For SSH, the agent runs on the target Linux/macOS host. For the others (`db_service`, `kubernetes_service`, `app_service`, `windows_desktop_service`), the agent runs on a Linux host beside the resource — the Windows desktop itself never runs Teleport; `windows_desktop_service` proxies RDP to it.
+
+Hosts accessed via Teleport's [OpenSSH compatibility mode](./faq.mdx#what-are-the-mtls-exceptions) do not run a Teleport agent. Their native `sshd` accepts Teleport-issued certs; for FedRAMP, configure that host's `sshd` to use FIPS-validated crypto via the underlying OS (e.g., RHEL/CentOS in FIPS mode, Ubuntu Pro FIPS).
+
+Start the Agent with `--fips`, the same way as the cluster:
+
+```code
+# Starting the agent
+$ teleport start --fips
+```
+
+Agents register with the cluster via a [join method](../../../installation/agents/join-token.mdx) — static token, AWS IAM, Kubernetes ServiceAccount, GitHub, and others. The choice of join method does not affect FIPS posture; it only determines how the Agent authenticates itself to the cluster on startup.
+
+For FedRAMP deployments, prefer [delegated join methods](../../../reference/deployment/join-methods.mdx) (AWS IAM, Kubernetes ServiceAccount, GitHub OIDC, TPM) — they satisfy [KSI-IAM-SNU](./20x.mdx) by binding the Agent's identity to the platform it actually runs on. Static tokens remain available for backward compatibility but should be treated as exceptional rather than the default.
+
+The same FedRAMP/FIPS Linux package also contains FIPS variants of `tsh`, `tctl`, and `tbot`.
+
+<Admonition type="note" title="FIPS-validated clients are Linux-only">
+
+The FedRAMP/FIPS package ships FIPS-validated builds of `tsh`, `tctl`, and `tbot` for **Linux only**. The macOS and Windows builds of these clients — including Teleport Connect — are **not** FIPS-validated. This is often considered acceptable since administrator systems are considered outside of the boundary.
+
+Administrators who must operate `tsh` from inside the boundary should use the Teleport Web UI from your workstation to access internal hosts or, if necessary, a dedicated in-boundary Linux bastion running the FIPS `tsh` build. Cryptographic operations occur inside the FIPS-validated Teleport cluster; the workstation's browser is only the visual front-end.
+
+</Admonition>
+
+
+
+
+
+
+
+
+
+
