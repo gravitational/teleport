@@ -309,7 +309,7 @@ func clusterDialer(remoteCluster reversetunnelclient.RemoteSite, src, dst net.Ad
 			dialParams.From = clientSrcAddr
 		}
 		if dialParams.OriginalClientDstAddr == nil && clientDstAddr != nil {
-			dialParams.OriginalClientDstAddr = clientSrcAddr
+			dialParams.OriginalClientDstAddr = clientDstAddr
 		}
 
 		return remoteCluster.DialAuthServer(dialParams)
