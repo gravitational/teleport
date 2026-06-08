@@ -2209,6 +2209,15 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 		}
 		return ret, nil
 
+	case *usageeventsv1.UsageEventOneOf_UiInteraction:
+		data := e.UiInteraction
+		ret := &UIInteractionEvent{
+			UserName: userMD.Username,
+			Path:     data.Path,
+			PageId:   data.PageId,
+			Params:   data.Params,
+		}
+		return ret, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}
@@ -2264,6 +2273,23 @@ func (e *SessionSummarySearchEvent) Anonymize(a utils.Anonymizer) prehogv1a.Subm
 				UserKind:   e.UserKind,
 				QueryCount: e.QueryCount,
 				HasFilters: e.HasFilters,
+			},
+		},
+	}
+}
+
+// UIInteractionEvent is emitted when a user interacts with a configurable view within a page.
+type UIInteractionEvent prehogv1a.UIInteractionEvent
+
+// Anonymize anonymizes the event.
+func (e *UIInteractionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiInteraction{
+			UiInteraction: &prehogv1a.UIInteractionEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Path:     e.Path,
+				PageId:   e.PageId,
+				Params:   e.Params,
 			},
 		},
 	}

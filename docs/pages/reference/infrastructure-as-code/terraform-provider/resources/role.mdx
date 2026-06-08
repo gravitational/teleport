@@ -567,6 +567,7 @@ Optional:
 - `require_session_mfa` (Number) RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN".
 - `ssh_file_copy` (Boolean) SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.
 - `ssh_port_forwarding` (Attributes) SSHPortForwarding configures what types of SSH port forwarding are allowed by a role. (see [below for nested schema](#nested-schema-for-specoptionsssh_port_forwarding))
+- `web_terminal_clipboard_mode` (Number) WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal. Valid values are "unrestricted" and "no-copy". Defaults to "unrestricted" if unspecified.
 
 ### Nested Schema for `spec.options.cert_extensions`
 

@@ -296,6 +296,7 @@ test('undefined values in context response gives proper default values', async (
     desktopSessionRecordingEnabled: true,
     directorySharingEnabled: true,
     fileTransferAccess: true,
+    webTerminalClipboardMode: '',
     gitServers: {
       list: false,
       read: false,

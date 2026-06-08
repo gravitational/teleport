@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/recordingmetadata/v1/recordingmetadata_service.proto
 
+//go:build !protoopaque
+
 package recordingmetadatav1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 // GetMetadataResponseChunk is a chunked response for retrieving a session's metadata.
 // It can contain either metadata or a frame from the session recording.
 type GetMetadataResponseChunk struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Chunk:
 	//
 	//	*GetMetadataResponseChunk_Metadata
@@ -73,11 +74,6 @@ func (x *GetMetadataResponseChunk) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetMetadataResponseChunk.ProtoReflect.Descriptor instead.
-func (*GetMetadataResponseChunk) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *GetMetadataResponseChunk) GetChunk() isGetMetadataResponseChunk_Chunk {
 	if x != nil {
 		return x.Chunk
@@ -103,6 +99,113 @@ func (x *GetMetadataResponseChunk) GetFrame() *SessionRecordingThumbnail {
 	return nil
 }
 
+func (x *GetMetadataResponseChunk) SetMetadata(v *SessionRecordingMetadata) {
+	if v == nil {
+		x.Chunk = nil
+		return
+	}
+	x.Chunk = &GetMetadataResponseChunk_Metadata{v}
+}
+
+func (x *GetMetadataResponseChunk) SetFrame(v *SessionRecordingThumbnail) {
+	if v == nil {
+		x.Chunk = nil
+		return
+	}
+	x.Chunk = &GetMetadataResponseChunk_Frame{v}
+}
+
+func (x *GetMetadataResponseChunk) HasChunk() bool {
+	if x == nil {
+		return false
+	}
+	return x.Chunk != nil
+}
+
+func (x *GetMetadataResponseChunk) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Chunk.(*GetMetadataResponseChunk_Metadata)
+	return ok
+}
+
+func (x *GetMetadataResponseChunk) HasFrame() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Chunk.(*GetMetadataResponseChunk_Frame)
+	return ok
+}
+
+func (x *GetMetadataResponseChunk) ClearChunk() {
+	x.Chunk = nil
+}
+
+func (x *GetMetadataResponseChunk) ClearMetadata() {
+	if _, ok := x.Chunk.(*GetMetadataResponseChunk_Metadata); ok {
+		x.Chunk = nil
+	}
+}
+
+func (x *GetMetadataResponseChunk) ClearFrame() {
+	if _, ok := x.Chunk.(*GetMetadataResponseChunk_Frame); ok {
+		x.Chunk = nil
+	}
+}
+
+const GetMetadataResponseChunk_Chunk_not_set_case case_GetMetadataResponseChunk_Chunk = 0
+const GetMetadataResponseChunk_Metadata_case case_GetMetadataResponseChunk_Chunk = 1
+const GetMetadataResponseChunk_Frame_case case_GetMetadataResponseChunk_Chunk = 2
+
+func (x *GetMetadataResponseChunk) WhichChunk() case_GetMetadataResponseChunk_Chunk {
+	if x == nil {
+		return GetMetadataResponseChunk_Chunk_not_set_case
+	}
+	switch x.Chunk.(type) {
+	case *GetMetadataResponseChunk_Metadata:
+		return GetMetadataResponseChunk_Metadata_case
+	case *GetMetadataResponseChunk_Frame:
+		return GetMetadataResponseChunk_Frame_case
+	default:
+		return GetMetadataResponseChunk_Chunk_not_set_case
+	}
+}
+
+type GetMetadataResponseChunk_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Chunk:
+	// Metadata contains the metadata of the session recording.
+	Metadata *SessionRecordingMetadata
+	// Frame contains a frame from the session recording.
+	Frame *SessionRecordingThumbnail
+	// -- end of Chunk
+}
+
+func (b0 GetMetadataResponseChunk_builder) Build() *GetMetadataResponseChunk {
+	m0 := &GetMetadataResponseChunk{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Metadata != nil {
+		x.Chunk = &GetMetadataResponseChunk_Metadata{b.Metadata}
+	}
+	if b.Frame != nil {
+		x.Chunk = &GetMetadataResponseChunk_Frame{b.Frame}
+	}
+	return m0
+}
+
+type case_GetMetadataResponseChunk_Chunk protoreflect.FieldNumber
+
+func (x case_GetMetadataResponseChunk_Chunk) String() string {
+	md := file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_msgTypes[0].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isGetMetadataResponseChunk_Chunk interface {
 	isGetMetadataResponseChunk_Chunk()
 }
@@ -123,7 +226,7 @@ func (*GetMetadataResponseChunk_Frame) isGetMetadataResponseChunk_Chunk() {}
 
 // GetThumbnailRequest is a request for a session's thumbnail.
 type GetThumbnailRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SessionId is the ID of the session whose thumbnail is being requested.
 	SessionId     string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -155,11 +258,6 @@ func (x *GetThumbnailRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetThumbnailRequest.ProtoReflect.Descriptor instead.
-func (*GetThumbnailRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetThumbnailRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
@@ -167,9 +265,28 @@ func (x *GetThumbnailRequest) GetSessionId() string {
 	return ""
 }
 
+func (x *GetThumbnailRequest) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+type GetThumbnailRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SessionId is the ID of the session whose thumbnail is being requested.
+	SessionId string
+}
+
+func (b0 GetThumbnailRequest_builder) Build() *GetThumbnailRequest {
+	m0 := &GetThumbnailRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	return m0
+}
+
 // GetThumbnailResponse is a response for retrieving a session's thumbnail.
 type GetThumbnailResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Thumbnail is the thumbnail for the session.
 	Thumbnail     *SessionRecordingThumbnail `protobuf:"bytes,1,opt,name=thumbnail,proto3" json:"thumbnail,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -201,11 +318,6 @@ func (x *GetThumbnailResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetThumbnailResponse.ProtoReflect.Descriptor instead.
-func (*GetThumbnailResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GetThumbnailResponse) GetThumbnail() *SessionRecordingThumbnail {
 	if x != nil {
 		return x.Thumbnail
@@ -213,9 +325,39 @@ func (x *GetThumbnailResponse) GetThumbnail() *SessionRecordingThumbnail {
 	return nil
 }
 
+func (x *GetThumbnailResponse) SetThumbnail(v *SessionRecordingThumbnail) {
+	x.Thumbnail = v
+}
+
+func (x *GetThumbnailResponse) HasThumbnail() bool {
+	if x == nil {
+		return false
+	}
+	return x.Thumbnail != nil
+}
+
+func (x *GetThumbnailResponse) ClearThumbnail() {
+	x.Thumbnail = nil
+}
+
+type GetThumbnailResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Thumbnail is the thumbnail for the session.
+	Thumbnail *SessionRecordingThumbnail
+}
+
+func (b0 GetThumbnailResponse_builder) Build() *GetThumbnailResponse {
+	m0 := &GetThumbnailResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Thumbnail = b.Thumbnail
+	return m0
+}
+
 // GetMetadataRequest is a request for retrieving a session's metadata.
 type GetMetadataRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SessionId is the ID of the session whose metadata is being requested.
 	SessionId     string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -247,16 +389,30 @@ func (x *GetMetadataRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetMetadataRequest.ProtoReflect.Descriptor instead.
-func (*GetMetadataRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *GetMetadataRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
 	}
 	return ""
+}
+
+func (x *GetMetadataRequest) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+type GetMetadataRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SessionId is the ID of the session whose metadata is being requested.
+	SessionId string
+}
+
+func (b0 GetMetadataRequest_builder) Build() *GetMetadataRequest {
+	m0 := &GetMetadataRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	return m0
 }
 
 var File_teleport_recordingmetadata_v1_recordingmetadata_service_proto protoreflect.FileDescriptor
@@ -279,18 +435,6 @@ const file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDesc
 	"\x18RecordingMetadataService\x12w\n" +
 	"\fGetThumbnail\x122.teleport.recordingmetadata.v1.GetThumbnailRequest\x1a3.teleport.recordingmetadata.v1.GetThumbnailResponse\x12{\n" +
 	"\vGetMetadata\x121.teleport.recordingmetadata.v1.GetMetadataRequest\x1a7.teleport.recordingmetadata.v1.GetMetadataResponseChunk0\x01BfZdgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1;recordingmetadatav1b\x06proto3"
-
-var (
-	file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescOnce sync.Once
-	file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescData []byte
-)
-
-func file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescGZIP() []byte {
-	file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescOnce.Do(func() {
-		file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDesc), len(file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDesc)))
-	})
-	return file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_rawDescData
-}
 
 var file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_recordingmetadata_v1_recordingmetadata_service_proto_goTypes = []any{

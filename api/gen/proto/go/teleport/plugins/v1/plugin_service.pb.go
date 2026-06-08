@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/plugins/v1/plugin_service.proto
 
+//go:build !protoopaque
+
 package pluginsv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // PluginType represents a single type of hosted plugin
 // that can be onboarded.
 type PluginType struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Type is a string corresponding to api.PluginTypeXXX constants
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// OAuthClientID contains the client ID of the OAuth application
@@ -77,11 +78,6 @@ func (x *PluginType) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PluginType.ProtoReflect.Descriptor instead.
-func (*PluginType) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *PluginType) GetType() string {
 	if x != nil {
 		return x.Type
@@ -96,10 +92,39 @@ func (x *PluginType) GetOauthClientId() string {
 	return ""
 }
 
+func (x *PluginType) SetType(v string) {
+	x.Type = v
+}
+
+func (x *PluginType) SetOauthClientId(v string) {
+	x.OauthClientId = v
+}
+
+type PluginType_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Type is a string corresponding to api.PluginTypeXXX constants
+	Type string
+	// OAuthClientID contains the client ID of the OAuth application
+	// that is used with this plugin's API provider.
+	// For plugins that are not authenticated via OAuth,
+	// this will be empty.
+	OauthClientId string
+}
+
+func (b0 PluginType_builder) Build() *PluginType {
+	m0 := &PluginType{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.OauthClientId = b.OauthClientId
+	return m0
+}
+
 // CreatePluginRequest creates a new plugin from the given spec and initial
 // credentials.
 type CreatePluginRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Plugin is the plugin object without live credentials.
 	Plugin *types.PluginV1 `protobuf:"bytes,1,opt,name=plugin,proto3" json:"plugin,omitempty"`
 	// BootstrapCredentials are the initial credentials
@@ -146,11 +171,6 @@ func (x *CreatePluginRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreatePluginRequest.ProtoReflect.Descriptor instead.
-func (*CreatePluginRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CreatePluginRequest) GetPlugin() *types.PluginV1 {
 	if x != nil {
 		return x.Plugin
@@ -186,9 +206,96 @@ func (x *CreatePluginRequest) GetCredentialLabels() map[string]string {
 	return nil
 }
 
+func (x *CreatePluginRequest) SetPlugin(v *types.PluginV1) {
+	x.Plugin = v
+}
+
+func (x *CreatePluginRequest) SetBootstrapCredentials(v *types.PluginBootstrapCredentialsV1) {
+	x.BootstrapCredentials = v
+}
+
+func (x *CreatePluginRequest) SetStaticCredentials(v *types.PluginStaticCredentialsV1) {
+	x.StaticCredentials = v
+}
+
+func (x *CreatePluginRequest) SetStaticCredentialsList(v []*types.PluginStaticCredentialsV1) {
+	x.StaticCredentialsList = v
+}
+
+func (x *CreatePluginRequest) SetCredentialLabels(v map[string]string) {
+	x.CredentialLabels = v
+}
+
+func (x *CreatePluginRequest) HasPlugin() bool {
+	if x == nil {
+		return false
+	}
+	return x.Plugin != nil
+}
+
+func (x *CreatePluginRequest) HasBootstrapCredentials() bool {
+	if x == nil {
+		return false
+	}
+	return x.BootstrapCredentials != nil
+}
+
+func (x *CreatePluginRequest) HasStaticCredentials() bool {
+	if x == nil {
+		return false
+	}
+	return x.StaticCredentials != nil
+}
+
+func (x *CreatePluginRequest) ClearPlugin() {
+	x.Plugin = nil
+}
+
+func (x *CreatePluginRequest) ClearBootstrapCredentials() {
+	x.BootstrapCredentials = nil
+}
+
+func (x *CreatePluginRequest) ClearStaticCredentials() {
+	x.StaticCredentials = nil
+}
+
+type CreatePluginRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Plugin is the plugin object without live credentials.
+	Plugin *types.PluginV1
+	// BootstrapCredentials are the initial credentials
+	// issued by e.g. OAuth2 authorization code flow.
+	// In the scope of processing this request, these are exchanged for
+	// short-lived renewable credentials, which are stored in the Plugin.
+	BootstrapCredentials *types.PluginBootstrapCredentialsV1
+	// StaticCredentials are an optional static credential to supply to the
+	// plugin.
+	StaticCredentials *types.PluginStaticCredentialsV1
+	// StaticCredentials are an optional collection of static credentials
+	// to supply to the plugin. Ignored if `StaticCredentials` is set.
+	StaticCredentialsList []*types.PluginStaticCredentialsV1
+	// CredentialLabels are a collection of labels used to identify the
+	// credentials secified in the StaticCredentialsList. Ignored if
+	// StaticCredentials is used
+	CredentialLabels map[string]string
+}
+
+func (b0 CreatePluginRequest_builder) Build() *CreatePluginRequest {
+	m0 := &CreatePluginRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Plugin = b.Plugin
+	x.BootstrapCredentials = b.BootstrapCredentials
+	x.StaticCredentials = b.StaticCredentials
+	x.StaticCredentialsList = b.StaticCredentialsList
+	x.CredentialLabels = b.CredentialLabels
+	return m0
+}
+
 // GetPluginRequest is a request to return a plugin instance by name.
 type GetPluginRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the plugin instance.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// WithSecrets indicates whether plugin secrets (credentials) are requested
@@ -222,11 +329,6 @@ func (x *GetPluginRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetPluginRequest.ProtoReflect.Descriptor instead.
-func (*GetPluginRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *GetPluginRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -241,9 +343,35 @@ func (x *GetPluginRequest) GetWithSecrets() bool {
 	return false
 }
 
+func (x *GetPluginRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GetPluginRequest) SetWithSecrets(v bool) {
+	x.WithSecrets = v
+}
+
+type GetPluginRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the plugin instance.
+	Name string
+	// WithSecrets indicates whether plugin secrets (credentials) are requested
+	WithSecrets bool
+}
+
+func (b0 GetPluginRequest_builder) Build() *GetPluginRequest {
+	m0 := &GetPluginRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.WithSecrets = b.WithSecrets
+	return m0
+}
+
 // UpdatePluginRequest is a request to update a plugin instance.
 type UpdatePluginRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Plugin is the plugin object to update.
 	Plugin        *types.PluginV1 `protobuf:"bytes,1,opt,name=plugin,proto3" json:"plugin,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -275,11 +403,6 @@ func (x *UpdatePluginRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdatePluginRequest.ProtoReflect.Descriptor instead.
-func (*UpdatePluginRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UpdatePluginRequest) GetPlugin() *types.PluginV1 {
 	if x != nil {
 		return x.Plugin
@@ -287,9 +410,39 @@ func (x *UpdatePluginRequest) GetPlugin() *types.PluginV1 {
 	return nil
 }
 
+func (x *UpdatePluginRequest) SetPlugin(v *types.PluginV1) {
+	x.Plugin = v
+}
+
+func (x *UpdatePluginRequest) HasPlugin() bool {
+	if x == nil {
+		return false
+	}
+	return x.Plugin != nil
+}
+
+func (x *UpdatePluginRequest) ClearPlugin() {
+	x.Plugin = nil
+}
+
+type UpdatePluginRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Plugin is the plugin object to update.
+	Plugin *types.PluginV1
+}
+
+func (b0 UpdatePluginRequest_builder) Build() *UpdatePluginRequest {
+	m0 := &UpdatePluginRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Plugin = b.Plugin
+	return m0
+}
+
 // ListPluginsRequest is a paginated request to list all plugin instances.
 type ListPluginsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PageSize is the maximum number of plugins to return in a single response.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// StartKey is the value of NextKey received in the last ListPluginsResponse.
@@ -326,11 +479,6 @@ func (x *ListPluginsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListPluginsRequest.ProtoReflect.Descriptor instead.
-func (*ListPluginsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ListPluginsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -352,9 +500,43 @@ func (x *ListPluginsRequest) GetWithSecrets() bool {
 	return false
 }
 
+func (x *ListPluginsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListPluginsRequest) SetStartKey(v string) {
+	x.StartKey = v
+}
+
+func (x *ListPluginsRequest) SetWithSecrets(v bool) {
+	x.WithSecrets = v
+}
+
+type ListPluginsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PageSize is the maximum number of plugins to return in a single response.
+	PageSize int32
+	// StartKey is the value of NextKey received in the last ListPluginsResponse.
+	// When making the initial request, this should be left empty.
+	StartKey string
+	// WithSecrets indicates whether plugin secrets (credentials) are requested
+	WithSecrets bool
+}
+
+func (b0 ListPluginsRequest_builder) Build() *ListPluginsRequest {
+	m0 := &ListPluginsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.StartKey = b.StartKey
+	x.WithSecrets = b.WithSecrets
+	return m0
+}
+
 // ListPluginsResponse is a paginated response to a ListPluginsRequest.
 type ListPluginsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Plugins is the list of plugins.
 	Plugins []*types.PluginV1 `protobuf:"bytes,1,rep,name=plugins,proto3" json:"plugins,omitempty"`
 	// NextKey is a token to retrieve the next page of results, or empty
@@ -389,11 +571,6 @@ func (x *ListPluginsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListPluginsResponse.ProtoReflect.Descriptor instead.
-func (*ListPluginsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ListPluginsResponse) GetPlugins() []*types.PluginV1 {
 	if x != nil {
 		return x.Plugins
@@ -408,9 +585,36 @@ func (x *ListPluginsResponse) GetNextKey() string {
 	return ""
 }
 
+func (x *ListPluginsResponse) SetPlugins(v []*types.PluginV1) {
+	x.Plugins = v
+}
+
+func (x *ListPluginsResponse) SetNextKey(v string) {
+	x.NextKey = v
+}
+
+type ListPluginsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Plugins is the list of plugins.
+	Plugins []*types.PluginV1
+	// NextKey is a token to retrieve the next page of results, or empty
+	// if there are no more results.
+	NextKey string
+}
+
+func (b0 ListPluginsResponse_builder) Build() *ListPluginsResponse {
+	m0 := &ListPluginsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Plugins = b.Plugins
+	x.NextKey = b.NextKey
+	return m0
+}
+
 // DeletePluginRequest is a request to delete a plugin instance by name.
 type DeletePluginRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the plugin instance.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -442,11 +646,6 @@ func (x *DeletePluginRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeletePluginRequest.ProtoReflect.Descriptor instead.
-func (*DeletePluginRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeletePluginRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -454,10 +653,29 @@ func (x *DeletePluginRequest) GetName() string {
 	return ""
 }
 
+func (x *DeletePluginRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeletePluginRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the plugin instance.
+	Name string
+}
+
+func (b0 DeletePluginRequest_builder) Build() *DeletePluginRequest {
+	m0 := &DeletePluginRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // SetPluginCredentialsRequest is a request to set credentials for an existing
 // plugin
 type SetPluginCredentialsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the plugin instance.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Credentials are the credentials obtained after exchanging the initial
@@ -492,11 +710,6 @@ func (x *SetPluginCredentialsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SetPluginCredentialsRequest.ProtoReflect.Descriptor instead.
-func (*SetPluginCredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *SetPluginCredentialsRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -511,9 +724,47 @@ func (x *SetPluginCredentialsRequest) GetCredentials() *types.PluginCredentialsV
 	return nil
 }
 
+func (x *SetPluginCredentialsRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *SetPluginCredentialsRequest) SetCredentials(v *types.PluginCredentialsV1) {
+	x.Credentials = v
+}
+
+func (x *SetPluginCredentialsRequest) HasCredentials() bool {
+	if x == nil {
+		return false
+	}
+	return x.Credentials != nil
+}
+
+func (x *SetPluginCredentialsRequest) ClearCredentials() {
+	x.Credentials = nil
+}
+
+type SetPluginCredentialsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the plugin instance.
+	Name string
+	// Credentials are the credentials obtained after exchanging the initial
+	// credentials, and after successive credential renewals.
+	Credentials *types.PluginCredentialsV1
+}
+
+func (b0 SetPluginCredentialsRequest_builder) Build() *SetPluginCredentialsRequest {
+	m0 := &SetPluginCredentialsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Credentials = b.Credentials
+	return m0
+}
+
 // SetPluginStatusRequest is a request to set the status for an existing plugin
 type SetPluginStatusRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the plugin instance.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Status is the plugin status.
@@ -547,11 +798,6 @@ func (x *SetPluginStatusRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SetPluginStatusRequest.ProtoReflect.Descriptor instead.
-func (*SetPluginStatusRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *SetPluginStatusRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -566,10 +812,47 @@ func (x *SetPluginStatusRequest) GetStatus() *types.PluginStatusV1 {
 	return nil
 }
 
+func (x *SetPluginStatusRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *SetPluginStatusRequest) SetStatus(v *types.PluginStatusV1) {
+	x.Status = v
+}
+
+func (x *SetPluginStatusRequest) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *SetPluginStatusRequest) ClearStatus() {
+	x.Status = nil
+}
+
+type SetPluginStatusRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the plugin instance.
+	Name string
+	// Status is the plugin status.
+	Status *types.PluginStatusV1
+}
+
+func (b0 SetPluginStatusRequest_builder) Build() *SetPluginStatusRequest {
+	m0 := &SetPluginStatusRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Status = b.Status
+	return m0
+}
+
 // GetAvailablePluginTypesRequest is the request type for
 // GetAvailablePluginTypes
 type GetAvailablePluginTypesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -599,14 +882,21 @@ func (x *GetAvailablePluginTypesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAvailablePluginTypesRequest.ProtoReflect.Descriptor instead.
-func (*GetAvailablePluginTypesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{9}
+type GetAvailablePluginTypesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetAvailablePluginTypesRequest_builder) Build() *GetAvailablePluginTypesRequest {
+	m0 := &GetAvailablePluginTypesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GetAvailablePluginTypesResponse is a response to for GetAvailablePluginTypes
 type GetAvailablePluginTypesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PluginTypes is a list of hosted plugins
 	// that the auth service supports.
 	PluginTypes   []*PluginType `protobuf:"bytes,1,rep,name=plugin_types,json=pluginTypes,proto3" json:"plugin_types,omitempty"`
@@ -639,16 +929,31 @@ func (x *GetAvailablePluginTypesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAvailablePluginTypesResponse.ProtoReflect.Descriptor instead.
-func (*GetAvailablePluginTypesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *GetAvailablePluginTypesResponse) GetPluginTypes() []*PluginType {
 	if x != nil {
 		return x.PluginTypes
 	}
 	return nil
+}
+
+func (x *GetAvailablePluginTypesResponse) SetPluginTypes(v []*PluginType) {
+	x.PluginTypes = v
+}
+
+type GetAvailablePluginTypesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PluginTypes is a list of hosted plugins
+	// that the auth service supports.
+	PluginTypes []*PluginType
+}
+
+func (b0 GetAvailablePluginTypesResponse_builder) Build() *GetAvailablePluginTypesResponse {
+	m0 := &GetAvailablePluginTypesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PluginTypes = b.PluginTypes
+	return m0
 }
 
 // SearchPluginStaticCredentialsRequest is the request type for
@@ -658,7 +963,7 @@ func (x *GetAvailablePluginTypesResponse) GetPluginTypes() []*PluginType {
 // those labels augmented along with a uniquely identifying ID will ensure a
 // unique mapping between credentials and plugins.
 type SearchPluginStaticCredentialsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Labels are matched against static credentials objects and returned.
 	Labels        map[string]string `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
@@ -690,11 +995,6 @@ func (x *SearchPluginStaticCredentialsRequest) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SearchPluginStaticCredentialsRequest.ProtoReflect.Descriptor instead.
-func (*SearchPluginStaticCredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *SearchPluginStaticCredentialsRequest) GetLabels() map[string]string {
 	if x != nil {
 		return x.Labels
@@ -702,9 +1002,28 @@ func (x *SearchPluginStaticCredentialsRequest) GetLabels() map[string]string {
 	return nil
 }
 
+func (x *SearchPluginStaticCredentialsRequest) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+type SearchPluginStaticCredentialsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Labels are matched against static credentials objects and returned.
+	Labels map[string]string
+}
+
+func (b0 SearchPluginStaticCredentialsRequest_builder) Build() *SearchPluginStaticCredentialsRequest {
+	m0 := &SearchPluginStaticCredentialsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Labels = b.Labels
+	return m0
+}
+
 // CredentialQuery is a set of values to match when searching for credentials
 type CredentialQuery struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Labels        map[string]string      `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -735,11 +1054,6 @@ func (x *CredentialQuery) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CredentialQuery.ProtoReflect.Descriptor instead.
-func (*CredentialQuery) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *CredentialQuery) GetLabels() map[string]string {
 	if x != nil {
 		return x.Labels
@@ -747,11 +1061,29 @@ func (x *CredentialQuery) GetLabels() map[string]string {
 	return nil
 }
 
+func (x *CredentialQuery) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+type CredentialQuery_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Labels map[string]string
+}
+
+func (b0 CredentialQuery_builder) Build() *CredentialQuery {
+	m0 := &CredentialQuery{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Labels = b.Labels
+	return m0
+}
+
 // UpdatePluginStaticCredentialsRequest holds information for updating a plugin
 // static credential. The service will attempt to find the credential to update
 // based on the supplied plugin name and labels.
 type UpdatePluginStaticCredentialsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Target:
 	//
 	//	*UpdatePluginStaticCredentialsRequest_Name
@@ -789,11 +1121,6 @@ func (x *UpdatePluginStaticCredentialsRequest) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdatePluginStaticCredentialsRequest.ProtoReflect.Descriptor instead.
-func (*UpdatePluginStaticCredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *UpdatePluginStaticCredentialsRequest) GetTarget() isUpdatePluginStaticCredentialsRequest_Target {
 	if x != nil {
 		return x.Target
@@ -826,6 +1153,131 @@ func (x *UpdatePluginStaticCredentialsRequest) GetCredential() *types.PluginStat
 	return nil
 }
 
+func (x *UpdatePluginStaticCredentialsRequest) SetName(v string) {
+	x.Target = &UpdatePluginStaticCredentialsRequest_Name{v}
+}
+
+func (x *UpdatePluginStaticCredentialsRequest) SetQuery(v *CredentialQuery) {
+	if v == nil {
+		x.Target = nil
+		return
+	}
+	x.Target = &UpdatePluginStaticCredentialsRequest_Query{v}
+}
+
+func (x *UpdatePluginStaticCredentialsRequest) SetCredential(v *types.PluginStaticCredentialsSpecV1) {
+	x.Credential = v
+}
+
+func (x *UpdatePluginStaticCredentialsRequest) HasTarget() bool {
+	if x == nil {
+		return false
+	}
+	return x.Target != nil
+}
+
+func (x *UpdatePluginStaticCredentialsRequest) HasName() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Target.(*UpdatePluginStaticCredentialsRequest_Name)
+	return ok
+}
+
+func (x *UpdatePluginStaticCredentialsRequest) HasQuery() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Target.(*UpdatePluginStaticCredentialsRequest_Query)
+	return ok
+}
+
+func (x *UpdatePluginStaticCredentialsRequest) HasCredential() bool {
+	if x == nil {
+		return false
+	}
+	return x.Credential != nil
+}
+
+func (x *UpdatePluginStaticCredentialsRequest) ClearTarget() {
+	x.Target = nil
+}
+
+func (x *UpdatePluginStaticCredentialsRequest) ClearName() {
+	if _, ok := x.Target.(*UpdatePluginStaticCredentialsRequest_Name); ok {
+		x.Target = nil
+	}
+}
+
+func (x *UpdatePluginStaticCredentialsRequest) ClearQuery() {
+	if _, ok := x.Target.(*UpdatePluginStaticCredentialsRequest_Query); ok {
+		x.Target = nil
+	}
+}
+
+func (x *UpdatePluginStaticCredentialsRequest) ClearCredential() {
+	x.Credential = nil
+}
+
+const UpdatePluginStaticCredentialsRequest_Target_not_set_case case_UpdatePluginStaticCredentialsRequest_Target = 0
+const UpdatePluginStaticCredentialsRequest_Name_case case_UpdatePluginStaticCredentialsRequest_Target = 1
+const UpdatePluginStaticCredentialsRequest_Query_case case_UpdatePluginStaticCredentialsRequest_Target = 2
+
+func (x *UpdatePluginStaticCredentialsRequest) WhichTarget() case_UpdatePluginStaticCredentialsRequest_Target {
+	if x == nil {
+		return UpdatePluginStaticCredentialsRequest_Target_not_set_case
+	}
+	switch x.Target.(type) {
+	case *UpdatePluginStaticCredentialsRequest_Name:
+		return UpdatePluginStaticCredentialsRequest_Name_case
+	case *UpdatePluginStaticCredentialsRequest_Query:
+		return UpdatePluginStaticCredentialsRequest_Query_case
+	default:
+		return UpdatePluginStaticCredentialsRequest_Target_not_set_case
+	}
+}
+
+type UpdatePluginStaticCredentialsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Target:
+	// Name is the name of the plugin static credentials resource that we're
+	// targeting
+	Name *string
+	// Query is the search query that a credential must match in order to be
+	// updated. The update will only proceed if exactly one credential matches
+	// the search query.
+	Query *CredentialQuery
+	// -- end of Target
+	// Credential is the payload containing the updated credential. Only the spec
+	// is allowed to be updated via this interface.
+	Credential *types.PluginStaticCredentialsSpecV1
+}
+
+func (b0 UpdatePluginStaticCredentialsRequest_builder) Build() *UpdatePluginStaticCredentialsRequest {
+	m0 := &UpdatePluginStaticCredentialsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Name != nil {
+		x.Target = &UpdatePluginStaticCredentialsRequest_Name{*b.Name}
+	}
+	if b.Query != nil {
+		x.Target = &UpdatePluginStaticCredentialsRequest_Query{b.Query}
+	}
+	x.Credential = b.Credential
+	return m0
+}
+
+type case_UpdatePluginStaticCredentialsRequest_Target protoreflect.FieldNumber
+
+func (x case_UpdatePluginStaticCredentialsRequest_Target) String() string {
+	md := file_teleport_plugins_v1_plugin_service_proto_msgTypes[13].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isUpdatePluginStaticCredentialsRequest_Target interface {
 	isUpdatePluginStaticCredentialsRequest_Target()
 }
@@ -850,7 +1302,7 @@ func (*UpdatePluginStaticCredentialsRequest_Query) isUpdatePluginStaticCredentia
 // UpdatePluginStaticCredentialsResponse holds the updated credential returned
 // from UpdatePluginStaticCredentials
 type UpdatePluginStaticCredentialsResponse struct {
-	state         protoimpl.MessageState           `protogen:"open.v1"`
+	state         protoimpl.MessageState           `protogen:"hybrid.v1"`
 	Credential    *types.PluginStaticCredentialsV1 `protobuf:"bytes,1,opt,name=credential,proto3" json:"credential,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -881,11 +1333,6 @@ func (x *UpdatePluginStaticCredentialsResponse) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdatePluginStaticCredentialsResponse.ProtoReflect.Descriptor instead.
-func (*UpdatePluginStaticCredentialsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *UpdatePluginStaticCredentialsResponse) GetCredential() *types.PluginStaticCredentialsV1 {
 	if x != nil {
 		return x.Credential
@@ -893,10 +1340,39 @@ func (x *UpdatePluginStaticCredentialsResponse) GetCredential() *types.PluginSta
 	return nil
 }
 
+func (x *UpdatePluginStaticCredentialsResponse) SetCredential(v *types.PluginStaticCredentialsV1) {
+	x.Credential = v
+}
+
+func (x *UpdatePluginStaticCredentialsResponse) HasCredential() bool {
+	if x == nil {
+		return false
+	}
+	return x.Credential != nil
+}
+
+func (x *UpdatePluginStaticCredentialsResponse) ClearCredential() {
+	x.Credential = nil
+}
+
+type UpdatePluginStaticCredentialsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Credential *types.PluginStaticCredentialsV1
+}
+
+func (b0 UpdatePluginStaticCredentialsResponse_builder) Build() *UpdatePluginStaticCredentialsResponse {
+	m0 := &UpdatePluginStaticCredentialsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Credential = b.Credential
+	return m0
+}
+
 // SearchPluginStaticCredentialsResponse is the response type for
 // SearchPluginStaticCredentials
 type SearchPluginStaticCredentialsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Credentials are the list of credentials matching the requested labels.
 	Credentials   []*types.PluginStaticCredentialsV1 `protobuf:"bytes,1,rep,name=credentials,proto3" json:"credentials,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -928,11 +1404,6 @@ func (x *SearchPluginStaticCredentialsResponse) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SearchPluginStaticCredentialsResponse.ProtoReflect.Descriptor instead.
-func (*SearchPluginStaticCredentialsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *SearchPluginStaticCredentialsResponse) GetCredentials() []*types.PluginStaticCredentialsV1 {
 	if x != nil {
 		return x.Credentials
@@ -940,9 +1411,28 @@ func (x *SearchPluginStaticCredentialsResponse) GetCredentials() []*types.Plugin
 	return nil
 }
 
+func (x *SearchPluginStaticCredentialsResponse) SetCredentials(v []*types.PluginStaticCredentialsV1) {
+	x.Credentials = v
+}
+
+type SearchPluginStaticCredentialsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Credentials are the list of credentials matching the requested labels.
+	Credentials []*types.PluginStaticCredentialsV1
+}
+
+func (b0 SearchPluginStaticCredentialsResponse_builder) Build() *SearchPluginStaticCredentialsResponse {
+	m0 := &SearchPluginStaticCredentialsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Credentials = b.Credentials
+	return m0
+}
+
 // NeedsCleanupRequest is the request type for NeedsCleanup.
 type NeedsCleanupRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Type is the plugin type. We only need the string representation of the
 	// plugin type and not the PluginType message, as we don't want the oauth
 	// client ID here.
@@ -976,11 +1466,6 @@ func (x *NeedsCleanupRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NeedsCleanupRequest.ProtoReflect.Descriptor instead.
-func (*NeedsCleanupRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *NeedsCleanupRequest) GetType() string {
 	if x != nil {
 		return x.Type
@@ -988,9 +1473,30 @@ func (x *NeedsCleanupRequest) GetType() string {
 	return ""
 }
 
+func (x *NeedsCleanupRequest) SetType(v string) {
+	x.Type = v
+}
+
+type NeedsCleanupRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Type is the plugin type. We only need the string representation of the
+	// plugin type and not the PluginType message, as we don't want the oauth
+	// client ID here.
+	Type string
+}
+
+func (b0 NeedsCleanupRequest_builder) Build() *NeedsCleanupRequest {
+	m0 := &NeedsCleanupRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	return m0
+}
+
 // NeedsCleanupResponse is the response type for NeedsCleanup.
 type NeedsCleanupResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// NeedsCleanup will be set to true if the plugin needs cleanup.
 	NeedsCleanup bool `protobuf:"varint,1,opt,name=needs_cleanup,json=needsCleanup,proto3" json:"needs_cleanup,omitempty"`
 	// ResourcesToCleanup are the resources that need to be cleaned up.
@@ -1026,11 +1532,6 @@ func (x *NeedsCleanupResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NeedsCleanupResponse.ProtoReflect.Descriptor instead.
-func (*NeedsCleanupResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *NeedsCleanupResponse) GetNeedsCleanup() bool {
 	if x != nil {
 		return x.NeedsCleanup
@@ -1052,9 +1553,42 @@ func (x *NeedsCleanupResponse) GetPluginActive() bool {
 	return false
 }
 
+func (x *NeedsCleanupResponse) SetNeedsCleanup(v bool) {
+	x.NeedsCleanup = v
+}
+
+func (x *NeedsCleanupResponse) SetResourcesToCleanup(v []*types.ResourceID) {
+	x.ResourcesToCleanup = v
+}
+
+func (x *NeedsCleanupResponse) SetPluginActive(v bool) {
+	x.PluginActive = v
+}
+
+type NeedsCleanupResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// NeedsCleanup will be set to true if the plugin needs cleanup.
+	NeedsCleanup bool
+	// ResourcesToCleanup are the resources that need to be cleaned up.
+	ResourcesToCleanup []*types.ResourceID
+	// PluginActive returns true if the plugin is currently active.
+	PluginActive bool
+}
+
+func (b0 NeedsCleanupResponse_builder) Build() *NeedsCleanupResponse {
+	m0 := &NeedsCleanupResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.NeedsCleanup = b.NeedsCleanup
+	x.ResourcesToCleanup = b.ResourcesToCleanup
+	x.PluginActive = b.PluginActive
+	return m0
+}
+
 // CleanupRequest is the request type for NeedsCleanup.
 type CleanupRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Type is the plugin type. We only need the string representation of the
 	// plugin type and not the PluginType message, as we don't want the oauth
 	// client ID here.
@@ -1088,11 +1622,6 @@ func (x *CleanupRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CleanupRequest.ProtoReflect.Descriptor instead.
-func (*CleanupRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *CleanupRequest) GetType() string {
 	if x != nil {
 		return x.Type
@@ -1100,9 +1629,30 @@ func (x *CleanupRequest) GetType() string {
 	return ""
 }
 
+func (x *CleanupRequest) SetType(v string) {
+	x.Type = v
+}
+
+type CleanupRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Type is the plugin type. We only need the string representation of the
+	// plugin type and not the PluginType message, as we don't want the oauth
+	// client ID here.
+	Type string
+}
+
+func (b0 CleanupRequest_builder) Build() *CleanupRequest {
+	m0 := &CleanupRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	return m0
+}
+
 // CreatePluginOauthTokenRequest is the request type for creating an OAuth token for a plugin.
 type CreatePluginOauthTokenRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// plugin_name is the name of the plugin for which the OAuth token is requested.
 	PluginName string `protobuf:"bytes,1,opt,name=plugin_name,json=pluginName,proto3" json:"plugin_name,omitempty"`
 	// client_id is the OAuth client identifier issued to the plugin.
@@ -1140,11 +1690,6 @@ func (x *CreatePluginOauthTokenRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreatePluginOauthTokenRequest.ProtoReflect.Descriptor instead.
-func (*CreatePluginOauthTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *CreatePluginOauthTokenRequest) GetPluginName() string {
 	if x != nil {
 		return x.PluginName
@@ -1173,9 +1718,49 @@ func (x *CreatePluginOauthTokenRequest) GetGrantType() string {
 	return ""
 }
 
+func (x *CreatePluginOauthTokenRequest) SetPluginName(v string) {
+	x.PluginName = v
+}
+
+func (x *CreatePluginOauthTokenRequest) SetClientId(v string) {
+	x.ClientId = v
+}
+
+func (x *CreatePluginOauthTokenRequest) SetClientSecret(v string) {
+	x.ClientSecret = v
+}
+
+func (x *CreatePluginOauthTokenRequest) SetGrantType(v string) {
+	x.GrantType = v
+}
+
+type CreatePluginOauthTokenRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// plugin_name is the name of the plugin for which the OAuth token is requested.
+	PluginName string
+	// client_id is the OAuth client identifier issued to the plugin.
+	ClientId string
+	// client_secret is the secret associated with the client_id.
+	ClientSecret string
+	// grant_type is the OAuth 2.0 grant type being used. Currently, only "client_credentials" is supported.
+	GrantType string
+}
+
+func (b0 CreatePluginOauthTokenRequest_builder) Build() *CreatePluginOauthTokenRequest {
+	m0 := &CreatePluginOauthTokenRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PluginName = b.PluginName
+	x.ClientId = b.ClientId
+	x.ClientSecret = b.ClientSecret
+	x.GrantType = b.GrantType
+	return m0
+}
+
 // CreatePluginOauthTokenResponse is the response type for a successful OAuth token creation.
 type CreatePluginOauthTokenResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// access_token is the generated token issued to the plugin.
 	AccessToken string `protobuf:"bytes,1,opt,name=access_token,json=accessToken,proto3" json:"access_token,omitempty"`
 	// token_type describes the type of the token issued
@@ -1211,11 +1796,6 @@ func (x *CreatePluginOauthTokenResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreatePluginOauthTokenResponse.ProtoReflect.Descriptor instead.
-func (*CreatePluginOauthTokenResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *CreatePluginOauthTokenResponse) GetAccessToken() string {
 	if x != nil {
 		return x.AccessToken
@@ -1235,6 +1815,39 @@ func (x *CreatePluginOauthTokenResponse) GetExpiresIn() int64 {
 		return x.ExpiresIn
 	}
 	return 0
+}
+
+func (x *CreatePluginOauthTokenResponse) SetAccessToken(v string) {
+	x.AccessToken = v
+}
+
+func (x *CreatePluginOauthTokenResponse) SetTokenType(v string) {
+	x.TokenType = v
+}
+
+func (x *CreatePluginOauthTokenResponse) SetExpiresIn(v int64) {
+	x.ExpiresIn = v
+}
+
+type CreatePluginOauthTokenResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// access_token is the generated token issued to the plugin.
+	AccessToken string
+	// token_type describes the type of the token issued
+	TokenType string
+	// expires_in is the number of seconds until the token expires.
+	ExpiresIn int64
+}
+
+func (b0 CreatePluginOauthTokenResponse_builder) Build() *CreatePluginOauthTokenResponse {
+	m0 := &CreatePluginOauthTokenResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AccessToken = b.AccessToken
+	x.TokenType = b.TokenType
+	x.ExpiresIn = b.ExpiresIn
+	return m0
 }
 
 var File_teleport_plugins_v1_plugin_service_proto protoreflect.FileDescriptor
@@ -1337,18 +1950,6 @@ const file_teleport_plugins_v1_plugin_service_proto_rawDesc = "" +
 	"\fNeedsCleanup\x12(.teleport.plugins.v1.NeedsCleanupRequest\x1a).teleport.plugins.v1.NeedsCleanupResponse\x12F\n" +
 	"\aCleanup\x12#.teleport.plugins.v1.CleanupRequest\x1a\x16.google.protobuf.Empty\x12\x81\x01\n" +
 	"\x16CreatePluginOauthToken\x122.teleport.plugins.v1.CreatePluginOauthTokenRequest\x1a3.teleport.plugins.v1.CreatePluginOauthTokenResponseBRZPgithub.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1;pluginsv1b\x06proto3"
-
-var (
-	file_teleport_plugins_v1_plugin_service_proto_rawDescOnce sync.Once
-	file_teleport_plugins_v1_plugin_service_proto_rawDescData []byte
-)
-
-func file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP() []byte {
-	file_teleport_plugins_v1_plugin_service_proto_rawDescOnce.Do(func() {
-		file_teleport_plugins_v1_plugin_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_plugins_v1_plugin_service_proto_rawDesc), len(file_teleport_plugins_v1_plugin_service_proto_rawDesc)))
-	})
-	return file_teleport_plugins_v1_plugin_service_proto_rawDescData
-}
 
 var file_teleport_plugins_v1_plugin_service_proto_msgTypes = make([]protoimpl.MessageInfo, 24)
 var file_teleport_plugins_v1_plugin_service_proto_goTypes = []any{

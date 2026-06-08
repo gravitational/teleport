@@ -809,7 +809,7 @@ func getApp(ctx context.Context, clt apiclient.GetResourcesClient, name string) 
 	res, err := apiclient.GetEnrichedResourcePage(ctx, clt, &proto.ListResourcesRequest{
 		ResourceType:        types.KindAppServer,
 		SortBy:              types.SortBy{Field: types.ResourceMetadataName},
-		PredicateExpression: fmt.Sprintf(`name == "%s"`, name),
+		PredicateExpression: fmt.Sprintf(`name == %q`, name),
 		Limit:               1,
 		IncludeLogins:       true,
 	})

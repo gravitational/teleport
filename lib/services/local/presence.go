@@ -1216,6 +1216,32 @@ func (s *PresenceService) getApplicationServers(ctx context.Context, namespace s
 	return servers, nil
 }
 
+// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+func (s *PresenceService) RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error] {
+	if appName == "" {
+		return stream.Fail[types.AppServer](trace.BadParameter("missing application name"))
+	}
+
+	mapFn := func(item backend.Item) (types.AppServer, bool) {
+		server, err := services.UnmarshalAppServer(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal application server", "key", item.Key, "error", err)
+			return nil, false
+		}
+		app := server.GetApp()
+		return server, app != nil && app.GetName() == appName
+	}
+
+	startKey := backend.ExactKey(appServersPrefix, apidefaults.Namespace)
+	endKey := backend.RangeEnd(startKey)
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
+}
+
 // UpsertApplicationServer registers an application server.
 func (s *PresenceService) UpsertApplicationServer(ctx context.Context, server types.AppServer) (*types.KeepAlive, error) {
 	if err := services.CheckAndSetDefaults(server); err != nil {

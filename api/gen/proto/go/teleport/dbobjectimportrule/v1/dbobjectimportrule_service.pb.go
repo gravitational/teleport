@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/dbobjectimportrule/v1/dbobjectimportrule_service.proto
 
+//go:build !protoopaque
+
 package dbobjectimportrulev1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // The request for CreateDatabaseObjectImportRule.
 type CreateDatabaseObjectImportRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The DatabaseObjectImportRule to create.
 	Rule          *DatabaseObjectImportRule `protobuf:"bytes,1,opt,name=rule,proto3" json:"rule,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *CreateDatabaseObjectImportRuleRequest) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateDatabaseObjectImportRuleRequest.ProtoReflect.Descriptor instead.
-func (*CreateDatabaseObjectImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateDatabaseObjectImportRuleRequest) GetRule() *DatabaseObjectImportRule {
 	if x != nil {
 		return x.Rule
@@ -82,9 +78,39 @@ func (x *CreateDatabaseObjectImportRuleRequest) GetRule() *DatabaseObjectImportR
 	return nil
 }
 
+func (x *CreateDatabaseObjectImportRuleRequest) SetRule(v *DatabaseObjectImportRule) {
+	x.Rule = v
+}
+
+func (x *CreateDatabaseObjectImportRuleRequest) HasRule() bool {
+	if x == nil {
+		return false
+	}
+	return x.Rule != nil
+}
+
+func (x *CreateDatabaseObjectImportRuleRequest) ClearRule() {
+	x.Rule = nil
+}
+
+type CreateDatabaseObjectImportRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The DatabaseObjectImportRule to create.
+	Rule *DatabaseObjectImportRule
+}
+
+func (b0 CreateDatabaseObjectImportRuleRequest_builder) Build() *CreateDatabaseObjectImportRuleRequest {
+	m0 := &CreateDatabaseObjectImportRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rule = b.Rule
+	return m0
+}
+
 // The request for GetDatabaseObjectImportRule.
 type GetDatabaseObjectImportRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the DatabaseObjectImportRule to fetch.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -116,11 +142,6 @@ func (x *GetDatabaseObjectImportRuleRequest) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetDatabaseObjectImportRuleRequest.ProtoReflect.Descriptor instead.
-func (*GetDatabaseObjectImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetDatabaseObjectImportRuleRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -128,9 +149,28 @@ func (x *GetDatabaseObjectImportRuleRequest) GetName() string {
 	return ""
 }
 
+func (x *GetDatabaseObjectImportRuleRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetDatabaseObjectImportRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the DatabaseObjectImportRule to fetch.
+	Name string
+}
+
+func (b0 GetDatabaseObjectImportRuleRequest_builder) Build() *GetDatabaseObjectImportRuleRequest {
+	m0 := &GetDatabaseObjectImportRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // The request for ListDatabaseObjectImportRules.
 type ListDatabaseObjectImportRulesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -165,11 +205,6 @@ func (x *ListDatabaseObjectImportRulesRequest) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDatabaseObjectImportRulesRequest.ProtoReflect.Descriptor instead.
-func (*ListDatabaseObjectImportRulesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListDatabaseObjectImportRulesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -184,9 +219,36 @@ func (x *ListDatabaseObjectImportRulesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListDatabaseObjectImportRulesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListDatabaseObjectImportRulesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListDatabaseObjectImportRulesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The page_token is the next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListDatabaseObjectImportRulesRequest_builder) Build() *ListDatabaseObjectImportRulesRequest {
+	m0 := &ListDatabaseObjectImportRulesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // The response for ListDatabaseObjectImportRules.
 type ListDatabaseObjectImportRulesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of DatabaseObjectImportRules that matched the request.
 	Rules []*DatabaseObjectImportRule `protobuf:"bytes,1,rep,name=rules,proto3" json:"rules,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -221,11 +283,6 @@ func (x *ListDatabaseObjectImportRulesResponse) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListDatabaseObjectImportRulesResponse.ProtoReflect.Descriptor instead.
-func (*ListDatabaseObjectImportRulesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListDatabaseObjectImportRulesResponse) GetRules() []*DatabaseObjectImportRule {
 	if x != nil {
 		return x.Rules
@@ -240,9 +297,36 @@ func (x *ListDatabaseObjectImportRulesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListDatabaseObjectImportRulesResponse) SetRules(v []*DatabaseObjectImportRule) {
+	x.Rules = v
+}
+
+func (x *ListDatabaseObjectImportRulesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListDatabaseObjectImportRulesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of DatabaseObjectImportRules that matched the request.
+	Rules []*DatabaseObjectImportRule
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListDatabaseObjectImportRulesResponse_builder) Build() *ListDatabaseObjectImportRulesResponse {
+	m0 := &ListDatabaseObjectImportRulesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rules = b.Rules
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // The request for UpdateDatabaseObjectImportRule.
 type UpdateDatabaseObjectImportRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The DatabaseObjectImportRule to replace.
 	Rule          *DatabaseObjectImportRule `protobuf:"bytes,1,opt,name=rule,proto3" json:"rule,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -274,11 +358,6 @@ func (x *UpdateDatabaseObjectImportRuleRequest) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateDatabaseObjectImportRuleRequest.ProtoReflect.Descriptor instead.
-func (*UpdateDatabaseObjectImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateDatabaseObjectImportRuleRequest) GetRule() *DatabaseObjectImportRule {
 	if x != nil {
 		return x.Rule
@@ -286,9 +365,39 @@ func (x *UpdateDatabaseObjectImportRuleRequest) GetRule() *DatabaseObjectImportR
 	return nil
 }
 
+func (x *UpdateDatabaseObjectImportRuleRequest) SetRule(v *DatabaseObjectImportRule) {
+	x.Rule = v
+}
+
+func (x *UpdateDatabaseObjectImportRuleRequest) HasRule() bool {
+	if x == nil {
+		return false
+	}
+	return x.Rule != nil
+}
+
+func (x *UpdateDatabaseObjectImportRuleRequest) ClearRule() {
+	x.Rule = nil
+}
+
+type UpdateDatabaseObjectImportRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The DatabaseObjectImportRule to replace.
+	Rule *DatabaseObjectImportRule
+}
+
+func (b0 UpdateDatabaseObjectImportRuleRequest_builder) Build() *UpdateDatabaseObjectImportRuleRequest {
+	m0 := &UpdateDatabaseObjectImportRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rule = b.Rule
+	return m0
+}
+
 // The request for UpsertDatabaseObjectImportRule.
 type UpsertDatabaseObjectImportRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The DatabaseObjectImportRule to create or replace.
 	Rule          *DatabaseObjectImportRule `protobuf:"bytes,1,opt,name=rule,proto3" json:"rule,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -320,11 +429,6 @@ func (x *UpsertDatabaseObjectImportRuleRequest) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertDatabaseObjectImportRuleRequest.ProtoReflect.Descriptor instead.
-func (*UpsertDatabaseObjectImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpsertDatabaseObjectImportRuleRequest) GetRule() *DatabaseObjectImportRule {
 	if x != nil {
 		return x.Rule
@@ -332,9 +436,39 @@ func (x *UpsertDatabaseObjectImportRuleRequest) GetRule() *DatabaseObjectImportR
 	return nil
 }
 
+func (x *UpsertDatabaseObjectImportRuleRequest) SetRule(v *DatabaseObjectImportRule) {
+	x.Rule = v
+}
+
+func (x *UpsertDatabaseObjectImportRuleRequest) HasRule() bool {
+	if x == nil {
+		return false
+	}
+	return x.Rule != nil
+}
+
+func (x *UpsertDatabaseObjectImportRuleRequest) ClearRule() {
+	x.Rule = nil
+}
+
+type UpsertDatabaseObjectImportRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The DatabaseObjectImportRule to create or replace.
+	Rule *DatabaseObjectImportRule
+}
+
+func (b0 UpsertDatabaseObjectImportRuleRequest_builder) Build() *UpsertDatabaseObjectImportRuleRequest {
+	m0 := &UpsertDatabaseObjectImportRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Rule = b.Rule
+	return m0
+}
+
 // The request for DeleteDatabaseObjectImportRule.
 type DeleteDatabaseObjectImportRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the DatabaseObjectImportRule to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -366,16 +500,30 @@ func (x *DeleteDatabaseObjectImportRuleRequest) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteDatabaseObjectImportRuleRequest.ProtoReflect.Descriptor instead.
-func (*DeleteDatabaseObjectImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteDatabaseObjectImportRuleRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *DeleteDatabaseObjectImportRuleRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteDatabaseObjectImportRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the DatabaseObjectImportRule to delete.
+	Name string
+}
+
+func (b0 DeleteDatabaseObjectImportRuleRequest_builder) Build() *DeleteDatabaseObjectImportRuleRequest {
+	m0 := &DeleteDatabaseObjectImportRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
 }
 
 var File_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto protoreflect.FileDescriptor
@@ -407,18 +555,6 @@ const file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDe
 	"\x1eUpdateDatabaseObjectImportRule\x12E.teleport.dbobjectimportrule.v1.UpdateDatabaseObjectImportRuleRequest\x1a8.teleport.dbobjectimportrule.v1.DatabaseObjectImportRule\x12\xa1\x01\n" +
 	"\x1eUpsertDatabaseObjectImportRule\x12E.teleport.dbobjectimportrule.v1.UpsertDatabaseObjectImportRuleRequest\x1a8.teleport.dbobjectimportrule.v1.DatabaseObjectImportRule\x12\x7f\n" +
 	"\x1eDeleteDatabaseObjectImportRule\x12E.teleport.dbobjectimportrule.v1.DeleteDatabaseObjectImportRuleRequest\x1a\x16.google.protobuf.EmptyBhZfgithub.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1;dbobjectimportrulev1b\x06proto3"
-
-var (
-	file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescOnce sync.Once
-	file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescData []byte
-)
-
-func file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescGZIP() []byte {
-	file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescOnce.Do(func() {
-		file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDesc), len(file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDesc)))
-	})
-	return file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_rawDescData
-}
 
 var file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_dbobjectimportrule_v1_dbobjectimportrule_service_proto_goTypes = []any{

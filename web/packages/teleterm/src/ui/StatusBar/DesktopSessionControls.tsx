@@ -24,6 +24,7 @@ import { HoverTooltip } from 'design/Tooltip';
 import ActionMenu from 'shared/components/DesktopSession/ActionMenu';
 import { AlertDropdown } from 'shared/components/DesktopSession/AlertDropdown';
 import type { DesktopSessionControlsRenderProps } from 'shared/components/DesktopSession/DesktopSession';
+import { SessionSettings } from 'shared/components/DesktopSession/SessionSettings';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 
 import { statusBarHeight } from './constants';
@@ -79,6 +80,13 @@ export function DesktopSessionControls({
         />
       )}
       <Divider />
+      <SessionSettings
+        hiDpiEnabled={controls.hiDpiEnabled}
+        onToggleHiDpi={controls.onToggleHiDpi}
+        screenIsHiDpi={controls.screenIsHiDpi}
+        hiDpiSupported={controls.hiDpiSupported}
+        openUpward
+      />
       <ActionMenu
         showShareDirectory={
           controls.canShareDirectory && !controls.isSharingDirectory

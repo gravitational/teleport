@@ -138,6 +138,7 @@ type Client struct {
 
 	// Parameters read from the TDP stream
 	requestedWidth, requestedHeight uint16
+	requestedScale                  uint16
 	username                        string
 	keyboardLayout                  uint32
 
@@ -194,6 +195,11 @@ func New(conn tdp.MessageReadWriteCloser, hello *tdpb.ClientHello, cfg Config) (
 	}
 
 	c.conn = conn
+	c.requestedScale = uint16(hello.ScreenSpec.GetScale())
+	if c.requestedScale == 0 {
+		c.requestedScale = 100
+	}
+
 	c.username = hello.Username
 	c.keyboardLayout = hello.KeyboardLayout
 
@@ -368,22 +374,35 @@ func (c *Client) setClientSize(width uint32, height uint32) error {
 		c.requestedWidth = uint16(c.cfg.Width)
 		c.requestedHeight = uint16(c.cfg.Height)
 	} else {
-		// If not otherwise specified, we request the screen size based
-		// on what the client (browser) reports.
-		c.cfg.Logger.DebugContext(context.Background(), "Got RDP screen size", "width", width, "height", height)
-		c.requestedWidth = uint16(width)
-		c.requestedHeight = uint16(height)
+		// The browser sends CSS pixel dimensions. Scale them by the display
+		// scale factor (e.g. 200 for a 2x Retina display) to get the physical
+		// pixel resolution that the RDP server should render at.
+		w, h := applyScale(width, height, c.requestedScale)
+		c.cfg.Logger.DebugContext(context.Background(), "Got RDP screen size", "css_width", width, "css_height", height, "scale", c.requestedScale, "width", w, "height", h)
+		c.requestedWidth = uint16(w)
+		c.requestedHeight = uint16(h)
 	}
 
-	if width > types.MaxRDPScreenWidth || c.requestedHeight > types.MaxRDPScreenHeight {
+	if uint32(c.requestedWidth) > types.MaxRDPScreenWidth || uint32(c.requestedHeight) > types.MaxRDPScreenHeight {
 		err := trace.BadParameter(
 			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
-			width, height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
+			c.requestedWidth, c.requestedHeight, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight,
 		)
 		return trace.Wrap(err)
 	}
 
 	return nil
+}
+
+// applyScale multiplies CSS pixel dimensions by a display scale factor percentage.
+// For example, applyScale(1200, 800, 200) returns (2400, 1600).
+// A scale of 100 or less returns the dimensions unchanged.
+func applyScale(width, height uint32, scale uint16) (uint32, uint32) {
+	if scale > 100 {
+		width = width * uint32(scale) / 100
+		height = height * uint32(scale) / 100
+	}
+	return width, height
 }
 
 func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error {
@@ -445,6 +464,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			key_der:                 (*C.uint8_t)(key_der),
 			screen_width:            C.uint16_t(c.requestedWidth),
 			screen_height:           C.uint16_t(c.requestedHeight),
+			screen_scale:            C.uint16_t(c.requestedScale),
 			allow_clipboard:         C.bool(c.cfg.AllowClipboard),
 			allow_directory_sharing: C.bool(c.cfg.AllowDirectorySharing),
 			show_desktop_wallpaper:  C.bool(c.cfg.ShowDesktopWallpaper),
@@ -587,11 +607,18 @@ func (c *Client) handleTDPInput(msg tdp.Message) error {
 			return nil
 		}
 
-		c.cfg.Logger.DebugContext(context.Background(), "Client changed screen size", "width", m.Width, "height", m.Height)
+		// Update the display scale factor if the protobuf message carries one.
+		if m.Scale > 0 {
+			c.requestedScale = uint16(m.Scale)
+		}
+
+		w, h := applyScale(m.Width, m.Height, c.requestedScale)
+		c.cfg.Logger.DebugContext(context.Background(), "Client changed screen size", "css_width", m.Width, "css_height", m.Height, "scale", c.requestedScale, "width", w, "height", h)
 		if errCode := C.client_write_screen_resize(
 			C.uintptr_t(c.handle),
-			C.uint32_t(m.Width),
-			C.uint32_t(m.Height),
+			C.uint32_t(w),
+			C.uint32_t(h),
+			C.uint32_t(c.requestedScale),
 		); errCode != C.ErrCodeSuccess {
 			return trace.Errorf("ClientScreenSpec: client_write_screen_resize: %v", errCode)
 		}
@@ -1033,6 +1060,7 @@ func (c *Client) handleRDPConnectionActivated(ioChannelID, userChannelID, screen
 			ScreenHeight:  uint32(screenHeight),
 		},
 		ClipboardEnabled: true,
+		HidpiSupported:   true,
 	}); err != nil {
 		c.cfg.Logger.ErrorContext(context.Background(), "failed handling connection initialization", "error", err)
 		return C.ErrCodeFailure

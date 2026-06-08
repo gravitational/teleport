@@ -34,6 +34,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -1101,6 +1102,50 @@ func TestTCPIPForward(t *testing.T) {
 		_, err := cliUsingSessionJoin.Listen("tcp", "127.0.0.1:0")
 		require.ErrorContains(t, err, "ssh: tcpip-forward request denied by peer")
 	})
+
+	t.Run("user cannot cancel another user's port forward", func(t *testing.T) {
+		f := newFixtureWithoutDiskBasedLogging(t)
+		setPortForwarding(t, t.Context(), f, nil, nil, nil)
+
+		aliceUp, err := newUpack(t.Context(), f.testSrv, "alice", []string{f.user}, wildcardAllow)
+		require.NoError(t, err)
+		aliceCfg := &ssh.ClientConfig{
+			User:            f.user,
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(aliceUp.certSigner)},
+			HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+		}
+		aliceConn, err := tracessh.Dial(t.Context(), "tcp", f.ssh.srvAddress, aliceCfg)
+		require.NoError(t, err)
+		defer aliceConn.Close()
+
+		bobUp, err := newUpack(t.Context(), f.testSrv, "bob", []string{f.user}, wildcardAllow)
+		require.NoError(t, err)
+		bobCfg := &ssh.ClientConfig{
+			User:            f.user,
+			Auth:            []ssh.AuthMethod{ssh.PublicKeys(bobUp.certSigner)},
+			HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+		}
+
+		bobConn, err := tracessh.Dial(t.Context(), "tcp", f.ssh.srvAddress, bobCfg)
+		require.NoError(t, err)
+		defer bobConn.Close()
+
+		listener, err := aliceConn.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { listener.Close() })
+
+		_, port, err := net.SplitHostPort(listener.Addr().String())
+		require.NoError(t, err)
+		portInt, err := strconv.Atoi(port)
+		require.NoError(t, err)
+		listenReq := ssh.Marshal(sshutils.TCPIPForwardReq{
+			Addr: "localhost",
+			Port: uint32(portInt),
+		})
+		ok, _, err := bobConn.SendRequest(t.Context(), teleport.CancelTCPIPForwardRequest, true, listenReq)
+		require.NoError(t, err)
+		require.False(t, ok, "bob should not be able to close another user's listener")
+	})
 }
 
 func TestAdvertiseAddr(t *testing.T) {
@@ -1801,6 +1846,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
+		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
@@ -1942,6 +1988,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
+		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})
@@ -2614,6 +2661,7 @@ func TestParseSubsystemRequest(t *testing.T) {
 			NodeWatcher:           nodeWatcher,
 			GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 			DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
+			AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 			CertAuthorityWatcher:  caWatcher,
 		})
 		require.NoError(t, err)
@@ -2869,6 +2917,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
+		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 	})
 	require.NoError(t, err)
@@ -3232,10 +3281,23 @@ func newDatabaseServerWatcher(ctx context.Context, t *testing.T, client *authcli
 			Client:    client,
 		},
 	})
-
 	require.NoError(t, err)
 	t.Cleanup(databaseServerWatcher.Close)
 	return databaseServerWatcher
+}
+
+func newAppServerWatcher(ctx context.Context, t *testing.T, client *authclient.Client) *services.GenericWatcher[types.AppServer, readonly.AppServer] {
+	t.Helper()
+
+	appServerWatcher, err := services.NewAppServersWatcher(ctx, services.AppServersWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component: "test",
+			Client:    client,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(appServerWatcher.Close)
+	return appServerWatcher
 }
 
 // newSigner creates a new SSH signer that can be used by the Server.
@@ -3310,6 +3372,7 @@ func TestHostUserCreationProxy(t *testing.T) {
 		NodeWatcher:           nodeWatcher,
 		GitServerWatcher:      newGitServerWatcher(ctx, t, proxyClient),
 		DatabaseServerWatcher: newDatabaseServerWatcher(ctx, t, proxyClient),
+		AppServerWatcher:      newAppServerWatcher(ctx, t, proxyClient),
 		CertAuthorityWatcher:  caWatcher,
 		CircuitBreakerConfig:  breaker.NoopBreakerConfig(),
 	})

@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/kubewaitingcontainer/v1/kubewaitingcontainer.proto
 
+//go:build !protoopaque
+
 package kubewaitingcontainerv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 // KubernetesWaitingContainer is a Kubernetes pod that has ephemeral containers
 // waiting to be created until moderated session requirements are met.
 type KubernetesWaitingContainer struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// kind is a resource kind
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// sub_kind is an optional resource sub kind, used in some resources
@@ -80,11 +81,6 @@ func (x *KubernetesWaitingContainer) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KubernetesWaitingContainer.ProtoReflect.Descriptor instead.
-func (*KubernetesWaitingContainer) Descriptor() ([]byte, []int) {
-	return file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *KubernetesWaitingContainer) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -120,9 +116,79 @@ func (x *KubernetesWaitingContainer) GetSpec() *KubernetesWaitingContainerSpec {
 	return nil
 }
 
+func (x *KubernetesWaitingContainer) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *KubernetesWaitingContainer) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *KubernetesWaitingContainer) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *KubernetesWaitingContainer) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *KubernetesWaitingContainer) SetSpec(v *KubernetesWaitingContainerSpec) {
+	x.Spec = v
+}
+
+func (x *KubernetesWaitingContainer) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *KubernetesWaitingContainer) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *KubernetesWaitingContainer) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *KubernetesWaitingContainer) ClearSpec() {
+	x.Spec = nil
+}
+
+type KubernetesWaitingContainer_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// kind is a resource kind
+	Kind string
+	// sub_kind is an optional resource sub kind, used in some resources
+	SubKind string
+	// version is the resource version. It must be specified.
+	// Supported values are: `v1`.
+	Version string
+	// metadata is resource metadata
+	Metadata *v1.Metadata
+	// spec is the Kubernetes waiting container spec.
+	Spec *KubernetesWaitingContainerSpec
+}
+
+func (b0 KubernetesWaitingContainer_builder) Build() *KubernetesWaitingContainer {
+	m0 := &KubernetesWaitingContainer{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // KubernetesWaitingContainerSpec is the Kubernetes waiting ephemeral container spec.
 type KubernetesWaitingContainerSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// username is the Teleport user that attempted to create the container
 	Username string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	// cluster is the Kubernetes cluster of this container
@@ -165,11 +231,6 @@ func (x *KubernetesWaitingContainerSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use KubernetesWaitingContainerSpec.ProtoReflect.Descriptor instead.
-func (*KubernetesWaitingContainerSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *KubernetesWaitingContainerSpec) GetUsername() string {
@@ -221,6 +282,71 @@ func (x *KubernetesWaitingContainerSpec) GetPatchType() string {
 	return ""
 }
 
+func (x *KubernetesWaitingContainerSpec) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *KubernetesWaitingContainerSpec) SetCluster(v string) {
+	x.Cluster = v
+}
+
+func (x *KubernetesWaitingContainerSpec) SetNamespace(v string) {
+	x.Namespace = v
+}
+
+func (x *KubernetesWaitingContainerSpec) SetPodName(v string) {
+	x.PodName = v
+}
+
+func (x *KubernetesWaitingContainerSpec) SetContainerName(v string) {
+	x.ContainerName = v
+}
+
+func (x *KubernetesWaitingContainerSpec) SetPatch(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Patch = v
+}
+
+func (x *KubernetesWaitingContainerSpec) SetPatchType(v string) {
+	x.PatchType = v
+}
+
+type KubernetesWaitingContainerSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// username is the Teleport user that attempted to create the container
+	Username string
+	// cluster is the Kubernetes cluster of this container
+	Cluster string
+	// namespace is the Kubernetes namespace of this container
+	Namespace string
+	// pod_name is the name of the parent pod
+	PodName string
+	// container_name is the name of the ephemeral container
+	ContainerName string
+	// patch is the patch that should be applied to the parent pod
+	// to create this ephemeral container
+	Patch []byte
+	// patch_type identifies the patch model to be applied.
+	PatchType string
+}
+
+func (b0 KubernetesWaitingContainerSpec_builder) Build() *KubernetesWaitingContainerSpec {
+	m0 := &KubernetesWaitingContainerSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	x.Cluster = b.Cluster
+	x.Namespace = b.Namespace
+	x.PodName = b.PodName
+	x.ContainerName = b.ContainerName
+	x.Patch = b.Patch
+	x.PatchType = b.PatchType
+	return m0
+}
+
 var File_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto protoreflect.FileDescriptor
 
 const file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDesc = "" +
@@ -241,18 +367,6 @@ const file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDesc =
 	"\x05patch\x18\x06 \x01(\fR\x05patch\x12\x1d\n" +
 	"\n" +
 	"patch_type\x18\a \x01(\tR\tpatchTypeBlZjgithub.com/gravitational/teleport/api/gen/proto/go/teleport/kubewaitingcontainer/v1;kubewaitingcontainerv1b\x06proto3"
-
-var (
-	file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDescOnce sync.Once
-	file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDescData []byte
-)
-
-func file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDescGZIP() []byte {
-	file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDescOnce.Do(func() {
-		file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDesc), len(file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDesc)))
-	})
-	return file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_rawDescData
-}
 
 var file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_kubewaitingcontainer_v1_kubewaitingcontainer_proto_goTypes = []any{
