@@ -295,6 +295,8 @@ func (r resourceTeleportMember) Update(ctx context.Context, req tfsdk.UpdateReso
 
 	accessListMemberResource = accessListMemberI
 	
+	accessListMember = convert.ToMemberProto(accessListMemberResource)
+
 	diags = schemav1.CopyMemberToTerraform(ctx, accessListMember, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

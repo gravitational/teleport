@@ -273,6 +273,8 @@ func (r resourceTeleportAccessMonitoringRule) Update(ctx context.Context, req tf
 
 	accessMonitoringRuleResource = accessMonitoringRuleI
 	
+	accessMonitoringRule = accessMonitoringRuleResource
+
 	diags = schemav1.CopyAccessMonitoringRuleToTerraform(ctx, accessMonitoringRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

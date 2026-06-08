@@ -289,6 +289,8 @@ func (r resourceTeleportApp) Update(ctx context.Context, req tfsdk.UpdateResourc
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading App", trace.Errorf("Can not convert %T to AppV3", appI), "app"))
 		return
 	}
+	app = appResource
+
 	diags = tfschema.CopyAppV3ToTerraform(ctx, app, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

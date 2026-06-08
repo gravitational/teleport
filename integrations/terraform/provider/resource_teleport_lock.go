@@ -289,6 +289,8 @@ func (r resourceTeleportLock) Update(ctx context.Context, req tfsdk.UpdateResour
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Lock", trace.Errorf("Can not convert %T to LockV2", lockI), "lock"))
 		return
 	}
+	lock = lockResource
+
 	diags = tfschema.CopyLockV2ToTerraform(ctx, lock, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

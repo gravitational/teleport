@@ -305,6 +305,8 @@ func (r resourceTeleportWorkloadCluster) Update(ctx context.Context, req tfsdk.U
 
 	workloadclusterResource = workloadclusterI
 	
+	workloadcluster = workloadclusterResource
+
 	diags = schemav1.CopyWorkloadClusterToTerraform(ctx, workloadcluster, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

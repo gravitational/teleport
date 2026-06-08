@@ -289,6 +289,8 @@ func (r resourceTeleportDynamicWindowsDesktop) Update(ctx context.Context, req t
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading DynamicWindowsDesktop", trace.Errorf("Can not convert %T to DynamicWindowsDesktopV1", desktopI), "dynamic_windows_desktop"))
 		return
 	}
+	desktop = desktopResource
+
 	diags = tfschema.CopyDynamicWindowsDesktopV1ToTerraform(ctx, desktop, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
