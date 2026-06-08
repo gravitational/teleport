@@ -21,6 +21,7 @@ package reversetunnel
 import (
 	"context"
 	"crypto/ed25519"
+	"crypto/tls"
 	"encoding/json"
 	"io"
 	"net"
@@ -42,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -484,6 +486,60 @@ func TestOnlyAuthDial(t *testing.T) {
 			io.Copy(io.Discard, ch)
 		})
 	}
+}
+
+func TestHeaderError(t *testing.T) {
+	ctx := t.Context()
+
+	const failTrue = true
+	// no connections should actually hit the auth listener because the PROXY
+	// header signer will fail
+	authListenerAddr := acceptAndCloseListener(t, failTrue)
+
+	proxySigner, err := multiplexer.NewPROXYSigner("", func() (*tls.Certificate, error) {
+		return nil, trace.Errorf("oh no")
+	}, nil, false)
+
+	require.NoError(t, err)
+	srv := &server{
+		logger: logtest.NewLogger(),
+		ctx:    ctx,
+		Config: Config{
+			LocalAuthAddresses: []string{authListenerAddr},
+		},
+		proxySigner: proxySigner,
+	}
+
+	serverConn, clientConn := sshPipe(t)
+	go ssh.DiscardRequests(serverConn.reqC)
+	go ssh.DiscardRequests(clientConn.reqC)
+	go func() {
+		for nc := range serverConn.newChC {
+			go srv.handleTransport(&ssh.ServerConn{Conn: serverConn.conn}, nc)
+		}
+	}()
+	go func() {
+		for nc := range clientConn.newChC {
+			_ = nc.Reject(0, "")
+		}
+	}()
+
+	ch, reqC, err := clientConn.conn.OpenChannel(constants.ChanTransport, nil)
+	require.NoError(t, err)
+	go ssh.DiscardRequests(reqC)
+	go io.Copy(io.Discard, ch.Stderr())
+	defer ch.Close()
+
+	ok, err := ch.SendRequest(constants.ChanTransportDialReq, true, []byte(constants.RemoteAuthServer))
+	require.NoError(t, err)
+
+	// the request should fail because the PROXY header signer has failed
+	require.False(t, ok)
+
+	// block until the remote side closes the connection; this is needed so that
+	// the auth listener has time to receive the connection and fail the test if
+	// something connects to it
+	_, _ = io.Copy(io.Discard, ch)
 }
 
 type sshConn struct {
