@@ -951,7 +951,7 @@ test-go-prepare: ensure-webassets bpf-bytecode $(VERSRC) | $(TEST_LOG_DIR)
 test-go-unit: FLAGS ?= -race -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -vE 'teleport/(e2e|integration|tool/tsh|integrations/operator|integrations/access|integrations/lib)')
 test-go-unit: test-go-prepare | $(TEST_LOG_DIR)
-	$(CGOFLAG) GOEXPERIMENT=synctest go test -json -tags "enablesynctest $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+	$(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG) $(VNETDAEMON_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| $(GOTESTSUM) --junitfile $(TEST_LOG_DIR)/unit-tests.xml --jsonfile $(TEST_LOG_DIR)/unit-tests.json --raw-command -- cat
 
 # Runs tbot unit tests
