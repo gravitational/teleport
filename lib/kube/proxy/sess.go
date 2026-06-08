@@ -1580,12 +1580,12 @@ func (s *session) retrieveEphemeralContainerCommand(ctx context.Context, usernam
 		currentPod, err := s.forwarder.getPodForEphemeralPatch(
 			ctx,
 			&s.ctx,
-			s.req.Header,
+			impersonationHeadersFromWaitingContainer(container),
 			s.podNamespace,
 			s.podName,
 		)
 		if err != nil {
-			s.log.WarnContext(ctx, "Failed to get pod for ephemeral patch", "error", err)
+			s.log.WithError(err).Warn("Failed to get pod for ephemeral patch")
 			return nil
 		}
 		pod, _, err := s.forwarder.mergeEphemeralPatchWithCurrentPod(
