@@ -23,8 +23,15 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rand"
 	"crypto/sha256"
+	"crypto/x509"
+	"encoding/base64"
 	"encoding/hex"
+	"encoding/pem"
 	"fmt"
 	"io"
 	"log/slog"
@@ -38,6 +45,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sigstore/sigstore/pkg/signature"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -48,7 +56,8 @@ func TestLocalInstaller_Install(t *testing.T) {
 	t.Parallel()
 	const version = "new-version"
 
-	_, testSum := testTGZ(t, version)
+	tgz, testSum := testTGZ(t, version)
+	verifier, sig := testArtifactSignatureVerifier(t, tgz.Bytes())
 
 	tests := []struct {
 		name            string
@@ -108,19 +117,22 @@ func TestLocalInstaller_Install(t *testing.T) {
 			}
 
 			// test parameters
-			var dlPath, shaPath, shasum string
+			var dlPath, shaPath, sigPath, shasum string
 
 			// test server
 			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				tgz, sum := testTGZ(t, version)
-				shasum = sum
+				shasum = testSum
 				var out *bytes.Buffer
-				if strings.HasSuffix(r.URL.Path, "."+checksumType) { // checksum request
+				switch {
+				case strings.HasSuffix(r.URL.Path, "."+checksumType): // checksum request
 					shaPath = r.URL.Path
-					out = bytes.NewBufferString(sum)
-				} else { // tgz request
+					out = bytes.NewBufferString(testSum)
+				case strings.HasSuffix(r.URL.Path, "."+artifactSignatureType):
+					sigPath = r.URL.Path
+					out = bytes.NewBufferString(sig)
+				default: // tgz request
 					dlPath = r.URL.Path
-					out = tgz
+					out = bytes.NewBuffer(tgz.Bytes())
 				}
 				w.Header().Set("Content-Length", strconv.Itoa(out.Len()))
 				_, err := io.Copy(w, out)
@@ -131,12 +143,13 @@ func TestLocalInstaller_Install(t *testing.T) {
 			t.Cleanup(server.Close)
 
 			installer := &LocalInstaller{
-				InstallDir:              dir,
-				HTTP:                    http.DefaultClient,
-				Log:                     slog.Default(),
-				ReservedFreeTmpDisk:     tt.reservedTmp,
-				ReservedFreeInstallDisk: tt.reservedInstall,
-				Template:                "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
+				InstallDir:                dir,
+				HTTP:                      http.DefaultClient,
+				Log:                       slog.Default(),
+				ReservedFreeTmpDisk:       tt.reservedTmp,
+				ReservedFreeInstallDisk:   tt.reservedInstall,
+				Template:                  "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
+				ArtifactSignatureVerifier: verifier,
 			}
 			ctx := context.Background()
 			err = installer.Install(ctx, NewRevision(version, tt.flags), server.URL, tt.force)
@@ -151,10 +164,12 @@ func TestLocalInstaller_Install(t *testing.T) {
 			require.Equal(t, expectedPath+"."+checksumType, shaPath)
 
 			if tt.existingSum == testSum {
+				require.Empty(t, sigPath)
 				return
 			}
 
 			require.Equal(t, expectedPath, dlPath)
+			require.Equal(t, expectedPath+"."+artifactSignatureType, sigPath)
 
 			for _, p := range []string{
 				filepath.Join(dir, version, "lib", "systemd", "system", "teleport.service"),
@@ -171,6 +186,102 @@ func TestLocalInstaller_Install(t *testing.T) {
 			require.Equal(t, string(sum), shasum)
 		})
 	}
+}
+
+func TestLocalInstaller_Install_InvalidSignature(t *testing.T) {
+	t.Parallel()
+
+	const version = "new-version"
+	tgz, testSum := testTGZ(t, version)
+	verifier, _ := testArtifactSignatureVerifier(t, tgz.Bytes())
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var out *bytes.Buffer
+		switch {
+		case strings.HasSuffix(r.URL.Path, "."+checksumType):
+			out = bytes.NewBufferString(testSum)
+		case strings.HasSuffix(r.URL.Path, "."+artifactSignatureType):
+			out = bytes.NewBufferString(base64.StdEncoding.EncodeToString([]byte("invalid-signature")))
+		default:
+			out = tgz
+		}
+		w.Header().Set("Content-Length", strconv.Itoa(out.Len()))
+		_, err := io.Copy(w, out)
+		require.NoError(t, err)
+	}))
+	t.Cleanup(server.Close)
+
+	installer := &LocalInstaller{
+		InstallDir:                t.TempDir(),
+		HTTP:                      http.DefaultClient,
+		Log:                       slog.Default(),
+		Template:                  "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
+		ArtifactSignatureVerifier: verifier,
+	}
+
+	err := installer.Install(context.Background(), NewRevision(version, 0), server.URL, false)
+	require.ErrorContains(t, err, "artifact signature verification failed")
+}
+
+func TestLocalInstaller_Install_MissingSignature(t *testing.T) {
+	t.Parallel()
+
+	const version = "new-version"
+	tgz, testSum := testTGZ(t, version)
+	verifier, _ := testArtifactSignatureVerifier(t, tgz.Bytes())
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case strings.HasSuffix(r.URL.Path, "."+checksumType):
+			_, err := fmt.Fprint(w, testSum)
+			require.NoError(t, err)
+		case strings.HasSuffix(r.URL.Path, "."+artifactSignatureType):
+			http.NotFound(w, r)
+		default:
+			w.Header().Set("Content-Length", strconv.Itoa(tgz.Len()))
+			_, err := io.Copy(w, tgz)
+			require.NoError(t, err)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	installer := &LocalInstaller{
+		InstallDir:                t.TempDir(),
+		HTTP:                      http.DefaultClient,
+		Log:                       slog.Default(),
+		Template:                  "{{.BaseURL}}/{{.Package}}-{{.OS}}/{{.Arch}}/{{.Version}}",
+		ArtifactSignatureVerifier: verifier,
+	}
+
+	err := installer.Install(context.Background(), NewRevision(version, 0), server.URL, false)
+	require.ErrorContains(t, err, "signature not found")
+}
+
+func TestNewArtifactSignatureVerifier(t *testing.T) {
+	// Not parallel: mutates package-level teleportUpdateArtifactSignaturePublicKeyB64.
+
+	previous := teleportUpdateArtifactSignaturePublicKeyB64
+	t.Cleanup(func() {
+		teleportUpdateArtifactSignaturePublicKeyB64 = previous
+	})
+
+	teleportUpdateArtifactSignaturePublicKeyB64 = ""
+	_, err := newArtifactSignatureVerifier()
+	require.ErrorContains(t, err, "teleport-update artifact signature public key is not configured")
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	pubDER, err := x509.MarshalPKIXPublicKey(key.Public())
+	require.NoError(t, err)
+	teleportUpdateArtifactSignaturePublicKeyB64 = base64.StdEncoding.EncodeToString(pem.EncodeToMemory(&pem.Block{Type: "PUBLIC KEY", Bytes: pubDER}))
+
+	verifier, err := newArtifactSignatureVerifier()
+	require.NoError(t, err)
+
+	digest := sha256.Sum256([]byte("payload"))
+	sig, err := ecdsa.SignASN1(rand.Reader, key, digest[:])
+	require.NoError(t, err)
+	require.NoError(t, verifier.VerifySignature(bytes.NewReader(sig), bytes.NewReader([]byte("payload"))))
 }
 
 func testTGZ(t *testing.T, version string) (tgz *bytes.Buffer, shasum string) {
@@ -209,6 +320,21 @@ func testTGZ(t *testing.T, version string) (tgz *bytes.Buffer, shasum string) {
 		t.Fatal(err)
 	}
 	return &buf, hex.EncodeToString(sha.Sum(nil))
+}
+
+func testArtifactSignatureVerifier(t *testing.T, payload []byte) (signature.Verifier, string) {
+	t.Helper()
+
+	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	verifier, err := signature.LoadVerifier(key.Public(), crypto.SHA256)
+	require.NoError(t, err)
+
+	digest := sha256.Sum256(payload)
+	sig, err := ecdsa.SignASN1(rand.Reader, key, digest[:])
+	require.NoError(t, err)
+
+	return verifier, base64.StdEncoding.EncodeToString(sig)
 }
 
 func TestLocalInstaller_Link(t *testing.T) {
