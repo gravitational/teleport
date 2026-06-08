@@ -19,11 +19,12 @@
 import styled, { useTheme } from 'styled-components';
 
 import { Box, Flex, ResourceIcon } from 'design';
-import { Clipboard, FolderShared } from 'design/Icon';
+import { Clipboard } from 'design/Icon';
 import { HoverTooltip } from 'design/Tooltip';
 import ActionMenu from 'shared/components/DesktopSession/ActionMenu';
 import { AlertDropdown } from 'shared/components/DesktopSession/AlertDropdown';
 import type { DesktopSessionControlsRenderProps } from 'shared/components/DesktopSession/DesktopSession';
+import { SharedDirectoryList } from 'shared/components/DesktopSession/DirectoryList';
 import { SessionSettings } from 'shared/components/DesktopSession/SessionSettings';
 import { LatencyDiagnostic } from 'shared/components/LatencyDiagnostic';
 
@@ -49,19 +50,14 @@ export function DesktopSessionControls({
       {controls.latencyStats && (
         <LatencyDiagnostic latency={controls.latencyStats} />
       )}
-      <HoverTooltip
-        tipContent={directorySharingTooltip(
-          controls.canShareDirectory,
-          isSharingDirectory
-        )}
-        placement="top"
-      >
-        <FolderShared
-          size="small"
-          padding="8px"
-          color={iconColor(isSharingDirectory)}
-        />
-      </HoverTooltip>
+      <SharedDirectoryList
+        sharedDirectories={controls.sharedDirectories}
+        onRemoveSharedDirectory={controls.onRemoveSharedDirectory}
+        onAddSharedDirectory={controls.onAddSharedDirectory}
+        canRemoveSharedDirectory={controls.canRemoveSharedDirectory}
+        canShareDirectories={controls.canShareDirectory}
+        maxSharedDirectories={controls.maxSharedDirectories}
+      />
       <HoverTooltip
         tipContent={controls.clipboardSharingMessage}
         placement="top"
@@ -118,16 +114,3 @@ const Divider = styled.div`
   height: 20px;
   background: ${({ theme }) => theme.colors.interactive.tonal.neutral[1]};
 `;
-
-function directorySharingTooltip(
-  canShare: boolean,
-  isSharing: boolean
-): string {
-  if (!canShare) {
-    return 'Directory Sharing Disabled';
-  }
-  if (!isSharing) {
-    return 'Directory Sharing Inactive';
-  }
-  return 'Directory Sharing Enabled';
-}
