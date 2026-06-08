@@ -633,7 +633,7 @@ func itemsNotIn(all, delivered []Item) []Item {
 	for _, it := range delivered {
 		deliveredMap[it.ID] = struct{}{}
 	}
-	var failed []Item
+ failed := make([]Item, len(all)-len(delivered))
 	for _, it := range all {
 		if _, ok := deliveredMap[it.ID]; !ok {
 			failed = append(failed, it)
