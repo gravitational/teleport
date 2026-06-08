@@ -20,7 +20,7 @@ import { EventEmitter } from 'events';
 
 import { useEffect } from 'react';
 
-import { Logger } from 'design/logger';
+import { Logger as DesignLogger } from 'design/logger';
 import init, {
   FastPathProcessor,
   init_wasm_log,
@@ -136,6 +136,12 @@ export type DirectoryEntry = {
   id: number;
 };
 
+export interface Logger {
+  warn(...args: any[]): void;
+  info(...args: any[]): void;
+  error(...args: any[]): void;
+}
+
 export interface TdpTransport {
   /** Sends a message down the stream. */
   send(data: string | ArrayBufferLike): void;
@@ -174,26 +180,19 @@ export class TdpClient extends EventEmitter<EventMap> {
   protected transport: TdpTransport | undefined;
   private transportAbortController: AbortController | undefined;
   private fastPathProcessor: FastPathProcessor | undefined;
-  private directoryManager: SharedDirectoryManager;
   private keyboardLayout: number | undefined;
   private screenSpec: ClientScreenSpec | undefined;
   private codec: Codec | undefined;
   hidpiSupported = false;
 
-  private logger = new Logger('TDPClient');
+  private logger = new DesignLogger('TDPClient');
 
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
-    selectSharedDirectory: (id: number) => Promise<SharedDirectoryAccess>,
+    private directoryManager: SharedDirectoryManager,
     private policy: ConnectPolicy = { mode: 'tdp' }
   ) {
     super();
-    // Hardcode to a maximum of 10 shared directories per session.
-    this.directoryManager = new SharedDirectoryManager(
-      selectSharedDirectory,
-      this.logger,
-      MAX_SHARED_DIRECTORIES
-    );
   }
 
   /** Connects to the transport and registers event handlers. */
@@ -1033,7 +1032,7 @@ export class TdpError extends Error {
   }
 }
 
-class SharedDirectoryManager {
+export class SharedDirectoryManager {
   private deviceId: Identifiers;
   private sharedDirectories: Map<number, SharedDirectoryAccess>;
 

@@ -16,9 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { Logger } from 'design/logger';
 import { Envelope } from 'gen-proto-ts/teleport/desktop/v1/tdpb_pb';
 
-import { TdpClient, TdpTransport } from './client';
+import { SharedDirectoryManager, TdpClient, TdpTransport } from './client';
 import { SharedDirectoryAccess } from './sharedDirectoryAccess';
 
 let mockTransport: jest.Mocked<TdpTransport> = {
@@ -45,7 +46,11 @@ jest.mock('shared/libs/ironrdp/pkg/ironrdp');
 test('tdp upgrade', async () => {
   let client = new TdpClient(
     () => Promise.resolve(mockTransport),
-    () => Promise.resolve(mockSharedDirectoryAccess)
+    new SharedDirectoryManager(
+      () => Promise.resolve(mockSharedDirectoryAccess),
+      new Logger('sdManager'),
+      10
+    )
   );
 
   const transportOpen = new Promise<void>(client.onTransportOpen);
@@ -93,7 +98,11 @@ test('tdp upgrade', async () => {
 test('shared directory management', async () => {
   let client = new TdpClient(
     () => Promise.resolve(mockTransport),
-    () => Promise.resolve(mockSharedDirectoryAccess),
+    new SharedDirectoryManager(
+      () => Promise.resolve(mockSharedDirectoryAccess),
+      new Logger('sdManager'),
+      10
+    ),
     // Remove operations are only supported on the TDPB codec.
     { mode: 'tdpb' }
   );
@@ -106,7 +115,7 @@ test('shared directory management', async () => {
   });
   await transportOpen;
 
-  await Array.from({ length: 10 }, () => client.shareDirectory());
+  await Promise.all(Array.from({ length: 10 }, () => client.shareDirectory()));
   // Identifiers begin at 2
   const directories = client.listSharedDirectories();
   expect(directories).toHaveLength(10);

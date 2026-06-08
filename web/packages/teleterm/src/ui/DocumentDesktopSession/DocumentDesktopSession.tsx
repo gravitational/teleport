@@ -28,7 +28,11 @@ import {
   makeSuccessAttempt,
 } from 'shared/hooks/useAsync';
 import { SharedDirectoryAccess, TdpClient, useListener } from 'shared/libs/tdp';
-import { TdpTransport } from 'shared/libs/tdp/client';
+import {
+  MAX_SHARED_DIRECTORIES,
+  SharedDirectoryManager,
+  TdpTransport,
+} from 'shared/libs/tdp/client';
 
 import Logger from 'teleterm/logger';
 import { MainProcessClient } from 'teleterm/mainProcess/types';
@@ -69,6 +73,31 @@ export function DocumentDesktopSession(props: {
   );
 }
 
+// TshDirectoryManager extends the base SharedDirectoryManager
+// to hook in some IPC calls to tshd to add/remove
+// shared directories.
+class TshdDirectoryManager extends SharedDirectoryManager {
+  constructor(
+    logger: Logger,
+    maxDirectories: number = 10,
+    private client: MainProcessClient,
+    private context: {
+      desktopUri: string;
+      login: string;
+    }
+  ) {
+    super(
+      (id: number) =>
+        shareDirectoryInTshd(client, {
+          ...context,
+          id,
+        }),
+      logger,
+      maxDirectories
+    );
+  }
+}
+
 function DesktopSessionComponent(props: {
   visible: boolean;
   doc: types.DocumentDesktopSession;
@@ -106,12 +135,12 @@ function DesktopSessionComponent(props: {
             logger
           );
         },
-        (id: number) =>
-          shareDirectoryInTshd(appCtx.mainProcessClient, {
-            desktopUri,
-            login,
-            id,
-          }),
+        new TshdDirectoryManager(
+          logger,
+          MAX_SHARED_DIRECTORIES,
+          appCtx.mainProcessClient,
+          { desktopUri, login }
+        ),
         { mode: 'tdpb' }
       )
   );
