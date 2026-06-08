@@ -83,13 +83,13 @@ const schemaSQL = `
 CREATE TABLE IF NOT EXISTS audit_queue (
     id      INTEGER PRIMARY KEY,
     payload BLOB NOT NULL
-);
+) STRICT;
 
 CREATE TABLE IF NOT EXISTS teleport_info (
     id    INTEGER PRIMARY KEY,
     key   TEXT NOT NULL UNIQUE,
     value TEXT NOT NULL
-);
+) STRICT;
 `
 
 // writeRequest is a single Enqueue waiting on a commit result. The writer
