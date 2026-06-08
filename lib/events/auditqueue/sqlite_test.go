@@ -863,3 +863,56 @@ func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, dlItems, "row should have been deleted by expireDeadLetter")
 }
+
+func TestItemsNotIn(t *testing.T) {
+	t.Parallel()
+
+	mk := func(ids ...int64) []Item {
+		items := make([]Item, len(ids))
+		for i, id := range ids {
+			items[i] = Item{ID: id}
+		}
+		return items
+	}
+
+	tests := []struct {
+		name      string
+		all       []Item
+		delivered []Item
+		want      []Item
+	}{
+		{
+			name:      "partial delivery returns only undelivered items",
+			all:       mk(1, 2, 3),
+			delivered: mk(1),
+			want:      mk(2, 3),
+		},
+		{
+			name:      "single undelivered item among many delivered",
+			all:       mk(1, 2, 3, 4),
+			delivered: mk(1, 2, 4),
+			want:      mk(3),
+		},
+		{
+			name:      "nothing delivered returns all",
+			all:       mk(1, 2, 3),
+			delivered: nil,
+			want:      mk(1, 2, 3),
+		},
+		{
+			name:      "everything delivered returns empty",
+			all:       mk(1, 2, 3),
+			delivered: mk(1, 2, 3),
+			want:      mk(),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := itemsNotIn(tt.all, tt.delivered)
+			require.Equal(t, tt.want, got)
+			require.Len(t, got, len(tt.want))
+		})
+	}
+}
