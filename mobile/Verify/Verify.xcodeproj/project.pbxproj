@@ -38,25 +38,11 @@
 		};
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
-/* Begin PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-		0C94C8CB2FA35ECC00C13C9A /* Exceptions for "Verify" folder in "Embed Frameworks" phase from "Verify" target */ = {
-			isa = PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet;
-			attributesByRelativePath = {
-				gen/Enroll.xcframework = (CodeSignOnCopy, RemoveHeadersOnCopy, );
-			};
-			buildPhase = 0C94C8CA2FA35ECB00C13C9A /* Embed Frameworks */;
-			membershipExceptions = (
-				gen/Enroll.xcframework,
-			);
-		};
-/* End PBXFileSystemSynchronizedGroupBuildPhaseMembershipExceptionSet section */
-
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		0C94C8542FA232E600C13C9A /* Verify */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
 				0C94C8612FA2365300C13C9A /* Exceptions for "Verify" folder in "Verify" target */,
-				0C94C8CB2FA35ECC00C13C9A /* Exceptions for "Verify" folder in "Embed Frameworks" phase from "Verify" target */,
 			);
 			path = Verify;
 			sourceTree = "<group>";
