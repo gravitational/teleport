@@ -38,11 +38,6 @@ logged into the cluster via SAML SSO before SCIM provisioning was enabled), the
 temporary account will automatically be adopted by the SAML integration and
 promoted to a long-lived SCIM-managed account.
 
-<Admonition type="note">
-SCIM user profile attributes are stored in an internal user label instead of
-Teleport user traits.
-</Admonition>
-
 When a user is unassigned from the Okta app, or is deactivated by the Okta admin, Teleport will immediately delete the user in question, and create a lock that will both immediately terminate any existing sessions and prevent that user from re-using any credentials that have already been issued. This lock will be automatically revoked if the user is subsequently re-provisioned via SCIM, otherwise the lock is permanent and will have to be explicitly deleted to remove.
 
 <Admonition type="warning">
@@ -162,16 +157,13 @@ Supported *To App* provisioning features include:
 - **Update User Attributes** - Okta updates a user's attributes in Teleport when the SAML app is assigned. Future attribute changes made to the Okta user profile will automatically overwrite the corresponding attribute value in Teleport.
 - **Deactivate Users** - Deletes the Teleport user when it is unassigned in Okta or their Okta account is deactivated. A session lock for the user is created for the maximum session duration. The Teleport user will be recreated if the SAML app is reassigned to a user in Okta.
  
-Please note that SCIM attributes are stored in an internal user label which is
-subject to change. Other SCIM attributes are currently only used to construct
-compliant SCIM resource responses. All attributes sent to Teleport are stored and
-then replied in subsequent SCIM resource responses. The only exception is the
-"password" attribute.
-
-<Admonition type="tip">
-Teleport can use provisioned name and email attributes to show [display
-names](../../../reference/access-controls/user-display-names.mdx) in the Web UI.
-</Admonition>
+Please note that SCIM attributes are stored in an internal user label,
+`teleport.internal/scim-attrs`, which is subject to change. Teleport uses the
+name and email attributes to derive [display
+names](../../../reference/access-controls/user-display-names.mdx). The remaining
+attributes are only used to construct compliant SCIM resource responses.
+All attributes sent to Teleport are stored and then replied in subsequent SCIM
+resource responses. The only exception is the "password" attribute.
 
 ## Retrospective user provisioning
 
