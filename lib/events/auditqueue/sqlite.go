@@ -42,16 +42,15 @@ import (
 )
 
 const (
-	defaultToBeWrittenBufferLen = 1024
-	pollInterval                = 100 * time.Millisecond
-	incrementalVacuumInterval   = 10 * time.Minute
-	defaultOrphanScanInterval   = 10 * time.Minute
-	queueLockFile               = "queue.lock"
-	queueDBFile                 = "queue.db"
-	tmpDirSuffix                = ".tmp"
-	defaultSoftLimit            = 100 * 1024 * 1024 // 100 MiB
-	softLimitCheckInterval      = time.Minute
-	sqlitePageSize              = 4096 // Bytes
+	pollInterval              = 100 * time.Millisecond
+	incrementalVacuumInterval = 10 * time.Minute
+	defaultOrphanScanInterval = 10 * time.Minute
+	queueLockFile             = "queue.lock"
+	queueDBFile               = "queue.db"
+	tmpDirSuffix              = ".tmp"
+	defaultSoftLimit          = 100 * 1024 * 1024 // 100 MiB
+	softLimitCheckInterval    = time.Minute
+	sqlitePageSize            = 4096 // Bytes
 
 	// We've run benchmarks and found a batch size of 25 to be a good middle
 	// ground between insertion performance and memory overhead of
@@ -186,7 +185,7 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 	q := &sqliteQueue{
 		db:                 db,
 		path:               cfg.Path,
-		toBeWritten:        make(chan writeRequest, defaultToBeWrittenBufferLen),
+		toBeWritten:        make(chan writeRequest),
 		maxBatch:           defaultMaxBatch,
 		ctx:                ctx,
 		cancel:             cancel,
