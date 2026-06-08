@@ -315,6 +315,75 @@ func TestProxyKubeServerWatcher_ProcessesEvents(t *testing.T) {
 	synctest.Test(t, testWatcherProcessesEventsSynctest)
 }
 
+func proxyKubeServerWatcherFetchAndInitializeStateAppliesQueuedEventsSynctest(t *testing.T) {
+	ctx := t.Context()
+	noopFilter := func(k readonly.KubeServer) bool { return true }
+
+	fw := newFakeWatcher(10)
+	t.Cleanup(func() { fw.Close() })
+	primary := &mockKubeServerWatcherGetter{}
+	fallback := &mockKubeServerWatcherGetter{}
+
+	initialDeleted := newTestKubeServer(t, "deleted", "host2")
+	initialUpdated := newTestKubeServerWithRevsion(t, "updated", "host3", 0)
+	updated := newTestKubeServerWithRevsion(t, "updated", "host3", 1)
+	added := newTestKubeServer(t, "added", "host4")
+	transient := newTestKubeServer(t, "transient", "host5")
+
+	unblockFetch := make(chan time.Time)
+	primary.On("NewWatcher", mock.Anything, mock.Anything).Return(fw, nil).Once()
+
+	primary.On("GetKubernetesServers", mock.Anything).
+		Return([]types.KubeServer{
+			newTestKubeServer(t, "kept", "host1"),
+			initialDeleted,
+			initialUpdated,
+		}, nil).WaitUntil(unblockFetch).Once()
+
+	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
+		Component:      teleport.ComponentProxy,
+		AccessPoint:    primary,
+		FallbackGetter: fallback,
+		PrimaryTimeout: time.Second,
+		MaxRetryPeriod: time.Second,
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+	synctest.Wait()
+
+	fw.send(types.Event{Type: types.OpInit})
+	fw.send(types.Event{Type: types.OpDelete, Resource: initialDeleted})
+	fw.send(types.Event{Type: types.OpPut, Resource: added})
+	fw.send(types.Event{Type: types.OpPut, Resource: updated})
+	fw.send(types.Event{Type: types.OpPut, Resource: transient})
+	fw.send(types.Event{Type: types.OpDelete, Resource: transient})
+
+	close(unblockFetch)
+
+	require.NoError(t, w.WaitInitialization())
+	require.True(t, w.IsInitialized())
+	require.True(t, isHealthy(w))
+	require.Zero(t, len(fw.Events()))
+
+	resources, err := w.CurrentResourcesWithFilter(ctx, noopFilter)
+	require.NoError(t, err)
+
+	servers := types.KubeServers(resources).ToMap()
+	require.Len(t, servers, 3)
+	require.Contains(t, servers, "kept")
+	require.Contains(t, servers, "added")
+	require.Contains(t, servers, "updated")
+	require.NotContains(t, servers, "deleted")
+	require.NotContains(t, servers, "transient")
+	require.Equal(t, "1", servers["updated"].GetRevision())
+
+	primary.AssertExpectations(t)
+}
+
+func TestProxyKubeServerWatcher_FetchAndInitializeStateAppliesQueuedEvents(t *testing.T) {
+	synctest.Test(t, proxyKubeServerWatcherFetchAndInitializeStateAppliesQueuedEventsSynctest)
+}
+
 func testWatcherUnknownEventsHardFaultSynctest(t *testing.T) {
 	ctx := t.Context()
 	noopFilter := func(k readonly.KubeServer) bool { return true }
