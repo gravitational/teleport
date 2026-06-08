@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/distinguished_name.proto
 
-//go:build !protoopaque
+//go:build protoopaque
 
 package subcav1
 
@@ -39,11 +39,10 @@ const (
 // An X.509 distinguished name.
 // Mimics Go's pkix.Name.
 type DistinguishedName struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Names that compose the DN.
-	Names         []*AttributeTypeAndValue `protobuf:"bytes,1,rep,name=names,proto3" json:"names,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState    `protogen:"opaque.v1"`
+	xxx_hidden_Names *[]*AttributeTypeAndValue `protobuf:"bytes,1,rep,name=names,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *DistinguishedName) Reset() {
@@ -73,13 +72,15 @@ func (x *DistinguishedName) ProtoReflect() protoreflect.Message {
 
 func (x *DistinguishedName) GetNames() []*AttributeTypeAndValue {
 	if x != nil {
-		return x.Names
+		if x.xxx_hidden_Names != nil {
+			return *x.xxx_hidden_Names
+		}
 	}
 	return nil
 }
 
 func (x *DistinguishedName) SetNames(v []*AttributeTypeAndValue) {
-	x.Names = v
+	x.xxx_hidden_Names = &v
 }
 
 type DistinguishedName_builder struct {
@@ -93,19 +94,19 @@ func (b0 DistinguishedName_builder) Build() *DistinguishedName {
 	m0 := &DistinguishedName{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Names = b.Names
+	x.xxx_hidden_Names = &b.Names
 	return m0
 }
 
 // AttributeTypeAndValue is a distinguished name (oid,value) pair.
 type AttributeTypeAndValue struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// OID of the ATV.
-	Oid []int32 `protobuf:"varint,1,rep,packed,name=oid,proto3" json:"oid,omitempty"`
-	// Value of the ATV. Only string values are supported.
-	Value         *string `protobuf:"bytes,2,opt,name=value,proto3,oneof" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Oid         []int32                `protobuf:"varint,1,rep,packed,name=oid,proto3"`
+	xxx_hidden_Value       *string                `protobuf:"bytes,2,opt,name=value,proto3,oneof"`
+	XXX_raceDetectHookData protoimpl.RaceDetectHookData
+	XXX_presence           [1]uint32
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *AttributeTypeAndValue) Reset() {
@@ -135,35 +136,40 @@ func (x *AttributeTypeAndValue) ProtoReflect() protoreflect.Message {
 
 func (x *AttributeTypeAndValue) GetOid() []int32 {
 	if x != nil {
-		return x.Oid
+		return x.xxx_hidden_Oid
 	}
 	return nil
 }
 
 func (x *AttributeTypeAndValue) GetValue() string {
-	if x != nil && x.Value != nil {
-		return *x.Value
+	if x != nil {
+		if x.xxx_hidden_Value != nil {
+			return *x.xxx_hidden_Value
+		}
+		return ""
 	}
 	return ""
 }
 
 func (x *AttributeTypeAndValue) SetOid(v []int32) {
-	x.Oid = v
+	x.xxx_hidden_Oid = v
 }
 
 func (x *AttributeTypeAndValue) SetValue(v string) {
-	x.Value = &v
+	x.xxx_hidden_Value = &v
+	protoimpl.X.SetPresent(&(x.XXX_presence[0]), 1, 2)
 }
 
 func (x *AttributeTypeAndValue) HasValue() bool {
 	if x == nil {
 		return false
 	}
-	return x.Value != nil
+	return protoimpl.X.Present(&(x.XXX_presence[0]), 1)
 }
 
 func (x *AttributeTypeAndValue) ClearValue() {
-	x.Value = nil
+	protoimpl.X.ClearPresent(&(x.XXX_presence[0]), 1)
+	x.xxx_hidden_Value = nil
 }
 
 type AttributeTypeAndValue_builder struct {
@@ -179,8 +185,11 @@ func (b0 AttributeTypeAndValue_builder) Build() *AttributeTypeAndValue {
 	m0 := &AttributeTypeAndValue{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Oid = b.Oid
-	x.Value = b.Value
+	x.xxx_hidden_Oid = b.Oid
+	if b.Value != nil {
+		protoimpl.X.SetPresentNonAtomic(&(x.XXX_presence[0]), 1, 2)
+		x.xxx_hidden_Value = b.Value
+	}
 	return m0
 }
 

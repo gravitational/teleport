@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/certificate_override.proto
 
-//go:build !protoopaque
+//go:build protoopaque
 
 package subcav1
 
@@ -43,38 +43,13 @@ const (
 // authority, effectively making the Teleport CA into a Sub CA (instead of a
 // self-signed root).
 type CertificateOverride struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// SHA256(SubjectPublicKeyInfo DER) printed as hex string.
-	//
-	// Informative if certificate is present.
-	PublicKey string `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
-	// Certificate to present, in PEM form.
-	//
-	// The public key must match an existing CA certificate. It must also match
-	// the public_key field, if present.
-	//
-	// The certificate Subject must contain the cluster name, either in the "O="
-	// field or in OID "1.3.9999.4.1", as per RFD 0237.
-	//
-	// https://github.com/gravitational/teleport/blob/master/rfd/0237-sub-ca-support.md#subject-customization
-	Certificate string `protobuf:"bytes,2,opt,name=certificate,proto3" json:"certificate,omitempty"`
-	// Certificate chain, in PEM form.
-	//
-	// The chain must be sorted from leaf to root.
-	//
-	// If present Teleport may supply the chain, along with the certificate, in
-	// appropriate situations.
-	//
-	// The chain is limited to a generous (but sensible) server-defined length.
-	Chain []string `protobuf:"bytes,3,rep,name=chain,proto3" json:"chain,omitempty"`
-	// If true disables the override.
-	//
-	// A disabled override may exist for recording purposes, to be enabled later,
-	// or simply to mark a certain public key as not overridden. In the latter
-	// case the certificate may be absent.
-	Disabled      bool `protobuf:"varint,4,opt,name=disabled,proto3" json:"disabled,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_PublicKey   string                 `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3"`
+	xxx_hidden_Certificate string                 `protobuf:"bytes,2,opt,name=certificate,proto3"`
+	xxx_hidden_Chain       []string               `protobuf:"bytes,3,rep,name=chain,proto3"`
+	xxx_hidden_Disabled    bool                   `protobuf:"varint,4,opt,name=disabled,proto3"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
 }
 
 func (x *CertificateOverride) Reset() {
@@ -104,46 +79,46 @@ func (x *CertificateOverride) ProtoReflect() protoreflect.Message {
 
 func (x *CertificateOverride) GetPublicKey() string {
 	if x != nil {
-		return x.PublicKey
+		return x.xxx_hidden_PublicKey
 	}
 	return ""
 }
 
 func (x *CertificateOverride) GetCertificate() string {
 	if x != nil {
-		return x.Certificate
+		return x.xxx_hidden_Certificate
 	}
 	return ""
 }
 
 func (x *CertificateOverride) GetChain() []string {
 	if x != nil {
-		return x.Chain
+		return x.xxx_hidden_Chain
 	}
 	return nil
 }
 
 func (x *CertificateOverride) GetDisabled() bool {
 	if x != nil {
-		return x.Disabled
+		return x.xxx_hidden_Disabled
 	}
 	return false
 }
 
 func (x *CertificateOverride) SetPublicKey(v string) {
-	x.PublicKey = v
+	x.xxx_hidden_PublicKey = v
 }
 
 func (x *CertificateOverride) SetCertificate(v string) {
-	x.Certificate = v
+	x.xxx_hidden_Certificate = v
 }
 
 func (x *CertificateOverride) SetChain(v []string) {
-	x.Chain = v
+	x.xxx_hidden_Chain = v
 }
 
 func (x *CertificateOverride) SetDisabled(v bool) {
-	x.Disabled = v
+	x.xxx_hidden_Disabled = v
 }
 
 type CertificateOverride_builder struct {
@@ -184,10 +159,10 @@ func (b0 CertificateOverride_builder) Build() *CertificateOverride {
 	m0 := &CertificateOverride{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.PublicKey = b.PublicKey
-	x.Certificate = b.Certificate
-	x.Chain = b.Chain
-	x.Disabled = b.Disabled
+	x.xxx_hidden_PublicKey = b.PublicKey
+	x.xxx_hidden_Certificate = b.Certificate
+	x.xxx_hidden_Chain = b.Chain
+	x.xxx_hidden_Disabled = b.Disabled
 	return m0
 }
 

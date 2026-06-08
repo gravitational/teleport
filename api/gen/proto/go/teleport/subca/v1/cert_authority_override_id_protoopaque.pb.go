@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/cert_authority_override_id.proto
 
-//go:build !protoopaque
+//go:build protoopaque
 
 package subcav1
 
@@ -38,11 +38,10 @@ const (
 
 // ID of a CertAuthorityOverride resource.
 type CertAuthorityOverrideID struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CA type per api/types.CertAuthType.
-	CaType        string `protobuf:"bytes,1,opt,name=ca_type,json=caType,proto3" json:"ca_type,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state             protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CaType string                 `protobuf:"bytes,1,opt,name=ca_type,json=caType,proto3"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *CertAuthorityOverrideID) Reset() {
@@ -72,13 +71,13 @@ func (x *CertAuthorityOverrideID) ProtoReflect() protoreflect.Message {
 
 func (x *CertAuthorityOverrideID) GetCaType() string {
 	if x != nil {
-		return x.CaType
+		return x.xxx_hidden_CaType
 	}
 	return ""
 }
 
 func (x *CertAuthorityOverrideID) SetCaType(v string) {
-	x.CaType = v
+	x.xxx_hidden_CaType = v
 }
 
 type CertAuthorityOverrideID_builder struct {
@@ -92,7 +91,7 @@ func (b0 CertAuthorityOverrideID_builder) Build() *CertAuthorityOverrideID {
 	m0 := &CertAuthorityOverrideID{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaType = b.CaType
+	x.xxx_hidden_CaType = b.CaType
 	return m0
 }
 

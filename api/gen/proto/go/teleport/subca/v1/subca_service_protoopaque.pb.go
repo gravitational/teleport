@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/subca_service.proto
 
-//go:build !protoopaque
+//go:build protoopaque
 
 package subcav1
 
@@ -38,23 +38,12 @@ const (
 
 // Request for CreateCSR.
 type CreateCSRRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CA type per api/types.CertAuthType.
-	// Required.
-	CaType string `protobuf:"bytes,1,opt,name=ca_type,json=caType,proto3" json:"ca_type,omitempty"`
-	// Targets a CA certificate by its public key.
-	// Optional.
-	PublicKeyHash *PublicKeyHash `protobuf:"bytes,2,opt,name=public_key_hash,json=publicKeyHash,proto3" json:"public_key_hash,omitempty"`
-	// Customized certificate Subject.
-	// Eg: `O=mycluster,OU=Llama Unit,CN=Llama Teleport DB client CA`.
-	//
-	// Teleport CA Subject restrictions still apply. The system may modify the
-	// Subject or reject the request if restrictions cannot be fulfilled.
-	//
-	// Optional. If present the request must target a single certificate.
-	CustomSubject *DistinguishedName `protobuf:"bytes,3,opt,name=custom_subject,json=customSubject,proto3" json:"custom_subject,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CaType        string                 `protobuf:"bytes,1,opt,name=ca_type,json=caType,proto3"`
+	xxx_hidden_PublicKeyHash *PublicKeyHash         `protobuf:"bytes,2,opt,name=public_key_hash,json=publicKeyHash,proto3"`
+	xxx_hidden_CustomSubject *DistinguishedName     `protobuf:"bytes,3,opt,name=custom_subject,json=customSubject,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *CreateCSRRequest) Reset() {
@@ -84,57 +73,57 @@ func (x *CreateCSRRequest) ProtoReflect() protoreflect.Message {
 
 func (x *CreateCSRRequest) GetCaType() string {
 	if x != nil {
-		return x.CaType
+		return x.xxx_hidden_CaType
 	}
 	return ""
 }
 
 func (x *CreateCSRRequest) GetPublicKeyHash() *PublicKeyHash {
 	if x != nil {
-		return x.PublicKeyHash
+		return x.xxx_hidden_PublicKeyHash
 	}
 	return nil
 }
 
 func (x *CreateCSRRequest) GetCustomSubject() *DistinguishedName {
 	if x != nil {
-		return x.CustomSubject
+		return x.xxx_hidden_CustomSubject
 	}
 	return nil
 }
 
 func (x *CreateCSRRequest) SetCaType(v string) {
-	x.CaType = v
+	x.xxx_hidden_CaType = v
 }
 
 func (x *CreateCSRRequest) SetPublicKeyHash(v *PublicKeyHash) {
-	x.PublicKeyHash = v
+	x.xxx_hidden_PublicKeyHash = v
 }
 
 func (x *CreateCSRRequest) SetCustomSubject(v *DistinguishedName) {
-	x.CustomSubject = v
+	x.xxx_hidden_CustomSubject = v
 }
 
 func (x *CreateCSRRequest) HasPublicKeyHash() bool {
 	if x == nil {
 		return false
 	}
-	return x.PublicKeyHash != nil
+	return x.xxx_hidden_PublicKeyHash != nil
 }
 
 func (x *CreateCSRRequest) HasCustomSubject() bool {
 	if x == nil {
 		return false
 	}
-	return x.CustomSubject != nil
+	return x.xxx_hidden_CustomSubject != nil
 }
 
 func (x *CreateCSRRequest) ClearPublicKeyHash() {
-	x.PublicKeyHash = nil
+	x.xxx_hidden_PublicKeyHash = nil
 }
 
 func (x *CreateCSRRequest) ClearCustomSubject() {
-	x.CustomSubject = nil
+	x.xxx_hidden_CustomSubject = nil
 }
 
 type CreateCSRRequest_builder struct {
@@ -160,19 +149,18 @@ func (b0 CreateCSRRequest_builder) Build() *CreateCSRRequest {
 	m0 := &CreateCSRRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaType = b.CaType
-	x.PublicKeyHash = b.PublicKeyHash
-	x.CustomSubject = b.CustomSubject
+	x.xxx_hidden_CaType = b.CaType
+	x.xxx_hidden_PublicKeyHash = b.PublicKeyHash
+	x.xxx_hidden_CustomSubject = b.CustomSubject
 	return m0
 }
 
 // Response for CreateCSR.
 type CreateCSRResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Created CSRs.
-	Csrs          []*CertificateSigningRequest `protobuf:"bytes,1,rep,name=csrs,proto3" json:"csrs,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState        `protogen:"opaque.v1"`
+	xxx_hidden_Csrs *[]*CertificateSigningRequest `protobuf:"bytes,1,rep,name=csrs,proto3"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *CreateCSRResponse) Reset() {
@@ -202,13 +190,15 @@ func (x *CreateCSRResponse) ProtoReflect() protoreflect.Message {
 
 func (x *CreateCSRResponse) GetCsrs() []*CertificateSigningRequest {
 	if x != nil {
-		return x.Csrs
+		if x.xxx_hidden_Csrs != nil {
+			return *x.xxx_hidden_Csrs
+		}
 	}
 	return nil
 }
 
 func (x *CreateCSRResponse) SetCsrs(v []*CertificateSigningRequest) {
-	x.Csrs = v
+	x.xxx_hidden_Csrs = &v
 }
 
 type CreateCSRResponse_builder struct {
@@ -222,18 +212,16 @@ func (b0 CreateCSRResponse_builder) Build() *CreateCSRResponse {
 	m0 := &CreateCSRResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Csrs = b.Csrs
+	x.xxx_hidden_Csrs = &b.Csrs
 	return m0
 }
 
 // Request for CreateCertAuthorityOverride.
 type CreateCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CA override to create.
-	// Required.
-	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CaOverride *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *CreateCertAuthorityOverrideRequest) Reset() {
@@ -263,24 +251,24 @@ func (x *CreateCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message
 
 func (x *CreateCertAuthorityOverrideRequest) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
-		return x.CaOverride
+		return x.xxx_hidden_CaOverride
 	}
 	return nil
 }
 
 func (x *CreateCertAuthorityOverrideRequest) SetCaOverride(v *CertAuthorityOverride) {
-	x.CaOverride = v
+	x.xxx_hidden_CaOverride = v
 }
 
 func (x *CreateCertAuthorityOverrideRequest) HasCaOverride() bool {
 	if x == nil {
 		return false
 	}
-	return x.CaOverride != nil
+	return x.xxx_hidden_CaOverride != nil
 }
 
 func (x *CreateCertAuthorityOverrideRequest) ClearCaOverride() {
-	x.CaOverride = nil
+	x.xxx_hidden_CaOverride = nil
 }
 
 type CreateCertAuthorityOverrideRequest_builder struct {
@@ -295,17 +283,16 @@ func (b0 CreateCertAuthorityOverrideRequest_builder) Build() *CreateCertAuthorit
 	m0 := &CreateCertAuthorityOverrideRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaOverride = b.CaOverride
+	x.xxx_hidden_CaOverride = b.CaOverride
 	return m0
 }
 
 // Response for CreateCertAuthorityOverride.
 type CreateCertAuthorityOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Created CA override.
-	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CaOverride *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *CreateCertAuthorityOverrideResponse) Reset() {
@@ -335,24 +322,24 @@ func (x *CreateCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Messag
 
 func (x *CreateCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
-		return x.CaOverride
+		return x.xxx_hidden_CaOverride
 	}
 	return nil
 }
 
 func (x *CreateCertAuthorityOverrideResponse) SetCaOverride(v *CertAuthorityOverride) {
-	x.CaOverride = v
+	x.xxx_hidden_CaOverride = v
 }
 
 func (x *CreateCertAuthorityOverrideResponse) HasCaOverride() bool {
 	if x == nil {
 		return false
 	}
-	return x.CaOverride != nil
+	return x.xxx_hidden_CaOverride != nil
 }
 
 func (x *CreateCertAuthorityOverrideResponse) ClearCaOverride() {
-	x.CaOverride = nil
+	x.xxx_hidden_CaOverride = nil
 }
 
 type CreateCertAuthorityOverrideResponse_builder struct {
@@ -366,23 +353,17 @@ func (b0 CreateCertAuthorityOverrideResponse_builder) Build() *CreateCertAuthori
 	m0 := &CreateCertAuthorityOverrideResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaOverride = b.CaOverride
+	x.xxx_hidden_CaOverride = b.CaOverride
 	return m0
 }
 
 // Request for UpdateCertAuthorityOverride.
 type UpdateCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CA override to update.
-	// Required.
-	CaOverride *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
-	// If true the server will allow disable of an active override.
-	// Active overrides are defined as overrides of certificates that are used to
-	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
-	// CertAuthoritySpecV2.AdditionalTrustedKeys).
-	ForceImmediateDisable bool `protobuf:"varint,2,opt,name=force_immediate_disable,json=forceImmediateDisable,proto3" json:"force_immediate_disable,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state                            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CaOverride            *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3"`
+	xxx_hidden_ForceImmediateDisable bool                   `protobuf:"varint,2,opt,name=force_immediate_disable,json=forceImmediateDisable,proto3"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
 }
 
 func (x *UpdateCertAuthorityOverrideRequest) Reset() {
@@ -412,35 +393,35 @@ func (x *UpdateCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message
 
 func (x *UpdateCertAuthorityOverrideRequest) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
-		return x.CaOverride
+		return x.xxx_hidden_CaOverride
 	}
 	return nil
 }
 
 func (x *UpdateCertAuthorityOverrideRequest) GetForceImmediateDisable() bool {
 	if x != nil {
-		return x.ForceImmediateDisable
+		return x.xxx_hidden_ForceImmediateDisable
 	}
 	return false
 }
 
 func (x *UpdateCertAuthorityOverrideRequest) SetCaOverride(v *CertAuthorityOverride) {
-	x.CaOverride = v
+	x.xxx_hidden_CaOverride = v
 }
 
 func (x *UpdateCertAuthorityOverrideRequest) SetForceImmediateDisable(v bool) {
-	x.ForceImmediateDisable = v
+	x.xxx_hidden_ForceImmediateDisable = v
 }
 
 func (x *UpdateCertAuthorityOverrideRequest) HasCaOverride() bool {
 	if x == nil {
 		return false
 	}
-	return x.CaOverride != nil
+	return x.xxx_hidden_CaOverride != nil
 }
 
 func (x *UpdateCertAuthorityOverrideRequest) ClearCaOverride() {
-	x.CaOverride = nil
+	x.xxx_hidden_CaOverride = nil
 }
 
 type UpdateCertAuthorityOverrideRequest_builder struct {
@@ -460,18 +441,17 @@ func (b0 UpdateCertAuthorityOverrideRequest_builder) Build() *UpdateCertAuthorit
 	m0 := &UpdateCertAuthorityOverrideRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaOverride = b.CaOverride
-	x.ForceImmediateDisable = b.ForceImmediateDisable
+	x.xxx_hidden_CaOverride = b.CaOverride
+	x.xxx_hidden_ForceImmediateDisable = b.ForceImmediateDisable
 	return m0
 }
 
 // Response for UpdateCertAuthorityOverride.
 type UpdateCertAuthorityOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Updated CA override.
-	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CaOverride *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *UpdateCertAuthorityOverrideResponse) Reset() {
@@ -501,24 +481,24 @@ func (x *UpdateCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Messag
 
 func (x *UpdateCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
-		return x.CaOverride
+		return x.xxx_hidden_CaOverride
 	}
 	return nil
 }
 
 func (x *UpdateCertAuthorityOverrideResponse) SetCaOverride(v *CertAuthorityOverride) {
-	x.CaOverride = v
+	x.xxx_hidden_CaOverride = v
 }
 
 func (x *UpdateCertAuthorityOverrideResponse) HasCaOverride() bool {
 	if x == nil {
 		return false
 	}
-	return x.CaOverride != nil
+	return x.xxx_hidden_CaOverride != nil
 }
 
 func (x *UpdateCertAuthorityOverrideResponse) ClearCaOverride() {
-	x.CaOverride = nil
+	x.xxx_hidden_CaOverride = nil
 }
 
 type UpdateCertAuthorityOverrideResponse_builder struct {
@@ -532,23 +512,17 @@ func (b0 UpdateCertAuthorityOverrideResponse_builder) Build() *UpdateCertAuthori
 	m0 := &UpdateCertAuthorityOverrideResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaOverride = b.CaOverride
+	x.xxx_hidden_CaOverride = b.CaOverride
 	return m0
 }
 
 // Request for UpsertCertAuthorityOverride.
 type UpsertCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CA override to upsert.
-	// Required.
-	CaOverride *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
-	// If true the server will allow disable of an active override.
-	// Active overrides are defined as overrides of certificates that are used to
-	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
-	// CertAuthoritySpecV2.AdditionalTrustedKeys).
-	ForceImmediateDisable bool `protobuf:"varint,2,opt,name=force_immediate_disable,json=forceImmediateDisable,proto3" json:"force_immediate_disable,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state                            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CaOverride            *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3"`
+	xxx_hidden_ForceImmediateDisable bool                   `protobuf:"varint,2,opt,name=force_immediate_disable,json=forceImmediateDisable,proto3"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
 }
 
 func (x *UpsertCertAuthorityOverrideRequest) Reset() {
@@ -578,35 +552,35 @@ func (x *UpsertCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message
 
 func (x *UpsertCertAuthorityOverrideRequest) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
-		return x.CaOverride
+		return x.xxx_hidden_CaOverride
 	}
 	return nil
 }
 
 func (x *UpsertCertAuthorityOverrideRequest) GetForceImmediateDisable() bool {
 	if x != nil {
-		return x.ForceImmediateDisable
+		return x.xxx_hidden_ForceImmediateDisable
 	}
 	return false
 }
 
 func (x *UpsertCertAuthorityOverrideRequest) SetCaOverride(v *CertAuthorityOverride) {
-	x.CaOverride = v
+	x.xxx_hidden_CaOverride = v
 }
 
 func (x *UpsertCertAuthorityOverrideRequest) SetForceImmediateDisable(v bool) {
-	x.ForceImmediateDisable = v
+	x.xxx_hidden_ForceImmediateDisable = v
 }
 
 func (x *UpsertCertAuthorityOverrideRequest) HasCaOverride() bool {
 	if x == nil {
 		return false
 	}
-	return x.CaOverride != nil
+	return x.xxx_hidden_CaOverride != nil
 }
 
 func (x *UpsertCertAuthorityOverrideRequest) ClearCaOverride() {
-	x.CaOverride = nil
+	x.xxx_hidden_CaOverride = nil
 }
 
 type UpsertCertAuthorityOverrideRequest_builder struct {
@@ -626,18 +600,17 @@ func (b0 UpsertCertAuthorityOverrideRequest_builder) Build() *UpsertCertAuthorit
 	m0 := &UpsertCertAuthorityOverrideRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaOverride = b.CaOverride
-	x.ForceImmediateDisable = b.ForceImmediateDisable
+	x.xxx_hidden_CaOverride = b.CaOverride
+	x.xxx_hidden_ForceImmediateDisable = b.ForceImmediateDisable
 	return m0
 }
 
 // Response for UpsertCertAuthorityOverride.
 type UpsertCertAuthorityOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Created or updated CA override.
-	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CaOverride *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *UpsertCertAuthorityOverrideResponse) Reset() {
@@ -667,24 +640,24 @@ func (x *UpsertCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Messag
 
 func (x *UpsertCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
-		return x.CaOverride
+		return x.xxx_hidden_CaOverride
 	}
 	return nil
 }
 
 func (x *UpsertCertAuthorityOverrideResponse) SetCaOverride(v *CertAuthorityOverride) {
-	x.CaOverride = v
+	x.xxx_hidden_CaOverride = v
 }
 
 func (x *UpsertCertAuthorityOverrideResponse) HasCaOverride() bool {
 	if x == nil {
 		return false
 	}
-	return x.CaOverride != nil
+	return x.xxx_hidden_CaOverride != nil
 }
 
 func (x *UpsertCertAuthorityOverrideResponse) ClearCaOverride() {
-	x.CaOverride = nil
+	x.xxx_hidden_CaOverride = nil
 }
 
 type UpsertCertAuthorityOverrideResponse_builder struct {
@@ -698,24 +671,18 @@ func (b0 UpsertCertAuthorityOverrideResponse_builder) Build() *UpsertCertAuthori
 	m0 := &UpsertCertAuthorityOverrideResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaOverride = b.CaOverride
+	x.xxx_hidden_CaOverride = b.CaOverride
 	return m0
 }
 
 // Request for AddCertificateOverride.
 type AddCertificateOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CA override to target.
-	CaId *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3" json:"ca_id,omitempty"`
-	// Certificate override to add.
-	CertificateOverride *CertificateOverride `protobuf:"bytes,2,opt,name=certificate_override,json=certificateOverride,proto3" json:"certificate_override,omitempty"`
-	// If true the server will allow disable of an active override.
-	// Active overrides are defined as overrides of certificates that are used to
-	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
-	// CertAuthoritySpecV2.AdditionalTrustedKeys).
-	ForceImmediateDisable bool `protobuf:"varint,3,opt,name=force_immediate_disable,json=forceImmediateDisable,proto3" json:"force_immediate_disable,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state                            protoimpl.MessageState   `protogen:"opaque.v1"`
+	xxx_hidden_CaId                  *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3"`
+	xxx_hidden_CertificateOverride   *CertificateOverride     `protobuf:"bytes,2,opt,name=certificate_override,json=certificateOverride,proto3"`
+	xxx_hidden_ForceImmediateDisable bool                     `protobuf:"varint,3,opt,name=force_immediate_disable,json=forceImmediateDisable,proto3"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
 }
 
 func (x *AddCertificateOverrideRequest) Reset() {
@@ -745,57 +712,57 @@ func (x *AddCertificateOverrideRequest) ProtoReflect() protoreflect.Message {
 
 func (x *AddCertificateOverrideRequest) GetCaId() *CertAuthorityOverrideID {
 	if x != nil {
-		return x.CaId
+		return x.xxx_hidden_CaId
 	}
 	return nil
 }
 
 func (x *AddCertificateOverrideRequest) GetCertificateOverride() *CertificateOverride {
 	if x != nil {
-		return x.CertificateOverride
+		return x.xxx_hidden_CertificateOverride
 	}
 	return nil
 }
 
 func (x *AddCertificateOverrideRequest) GetForceImmediateDisable() bool {
 	if x != nil {
-		return x.ForceImmediateDisable
+		return x.xxx_hidden_ForceImmediateDisable
 	}
 	return false
 }
 
 func (x *AddCertificateOverrideRequest) SetCaId(v *CertAuthorityOverrideID) {
-	x.CaId = v
+	x.xxx_hidden_CaId = v
 }
 
 func (x *AddCertificateOverrideRequest) SetCertificateOverride(v *CertificateOverride) {
-	x.CertificateOverride = v
+	x.xxx_hidden_CertificateOverride = v
 }
 
 func (x *AddCertificateOverrideRequest) SetForceImmediateDisable(v bool) {
-	x.ForceImmediateDisable = v
+	x.xxx_hidden_ForceImmediateDisable = v
 }
 
 func (x *AddCertificateOverrideRequest) HasCaId() bool {
 	if x == nil {
 		return false
 	}
-	return x.CaId != nil
+	return x.xxx_hidden_CaId != nil
 }
 
 func (x *AddCertificateOverrideRequest) HasCertificateOverride() bool {
 	if x == nil {
 		return false
 	}
-	return x.CertificateOverride != nil
+	return x.xxx_hidden_CertificateOverride != nil
 }
 
 func (x *AddCertificateOverrideRequest) ClearCaId() {
-	x.CaId = nil
+	x.xxx_hidden_CaId = nil
 }
 
 func (x *AddCertificateOverrideRequest) ClearCertificateOverride() {
-	x.CertificateOverride = nil
+	x.xxx_hidden_CertificateOverride = nil
 }
 
 type AddCertificateOverrideRequest_builder struct {
@@ -816,19 +783,18 @@ func (b0 AddCertificateOverrideRequest_builder) Build() *AddCertificateOverrideR
 	m0 := &AddCertificateOverrideRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaId = b.CaId
-	x.CertificateOverride = b.CertificateOverride
-	x.ForceImmediateDisable = b.ForceImmediateDisable
+	x.xxx_hidden_CaId = b.CaId
+	x.xxx_hidden_CertificateOverride = b.CertificateOverride
+	x.xxx_hidden_ForceImmediateDisable = b.ForceImmediateDisable
 	return m0
 }
 
 // Response for AddCertificateOverride.
 type AddCertificateOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Added certificate override.
-	CertificateOverride *CertificateOverride `protobuf:"bytes,1,opt,name=certificate_override,json=certificateOverride,proto3" json:"certificate_override,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CertificateOverride *CertificateOverride   `protobuf:"bytes,1,opt,name=certificate_override,json=certificateOverride,proto3"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
 }
 
 func (x *AddCertificateOverrideResponse) Reset() {
@@ -858,24 +824,24 @@ func (x *AddCertificateOverrideResponse) ProtoReflect() protoreflect.Message {
 
 func (x *AddCertificateOverrideResponse) GetCertificateOverride() *CertificateOverride {
 	if x != nil {
-		return x.CertificateOverride
+		return x.xxx_hidden_CertificateOverride
 	}
 	return nil
 }
 
 func (x *AddCertificateOverrideResponse) SetCertificateOverride(v *CertificateOverride) {
-	x.CertificateOverride = v
+	x.xxx_hidden_CertificateOverride = v
 }
 
 func (x *AddCertificateOverrideResponse) HasCertificateOverride() bool {
 	if x == nil {
 		return false
 	}
-	return x.CertificateOverride != nil
+	return x.xxx_hidden_CertificateOverride != nil
 }
 
 func (x *AddCertificateOverrideResponse) ClearCertificateOverride() {
-	x.CertificateOverride = nil
+	x.xxx_hidden_CertificateOverride = nil
 }
 
 type AddCertificateOverrideResponse_builder struct {
@@ -889,24 +855,18 @@ func (b0 AddCertificateOverrideResponse_builder) Build() *AddCertificateOverride
 	m0 := &AddCertificateOverrideResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CertificateOverride = b.CertificateOverride
+	x.xxx_hidden_CertificateOverride = b.CertificateOverride
 	return m0
 }
 
 // Request for UpdateCertificateOverride.
 type UpdateCertificateOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CA override to target.
-	CaId *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3" json:"ca_id,omitempty"`
-	// Certificate override to update.
-	CertificateOverride *CertificateOverride `protobuf:"bytes,2,opt,name=certificate_override,json=certificateOverride,proto3" json:"certificate_override,omitempty"`
-	// If true the server will allow disable of an active override.
-	// Active overrides are defined as overrides of certificates that are used to
-	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
-	// CertAuthoritySpecV2.AdditionalTrustedKeys).
-	ForceImmediateDisable bool `protobuf:"varint,3,opt,name=force_immediate_disable,json=forceImmediateDisable,proto3" json:"force_immediate_disable,omitempty"`
-	unknownFields         protoimpl.UnknownFields
-	sizeCache             protoimpl.SizeCache
+	state                            protoimpl.MessageState   `protogen:"opaque.v1"`
+	xxx_hidden_CaId                  *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3"`
+	xxx_hidden_CertificateOverride   *CertificateOverride     `protobuf:"bytes,2,opt,name=certificate_override,json=certificateOverride,proto3"`
+	xxx_hidden_ForceImmediateDisable bool                     `protobuf:"varint,3,opt,name=force_immediate_disable,json=forceImmediateDisable,proto3"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
 }
 
 func (x *UpdateCertificateOverrideRequest) Reset() {
@@ -936,57 +896,57 @@ func (x *UpdateCertificateOverrideRequest) ProtoReflect() protoreflect.Message {
 
 func (x *UpdateCertificateOverrideRequest) GetCaId() *CertAuthorityOverrideID {
 	if x != nil {
-		return x.CaId
+		return x.xxx_hidden_CaId
 	}
 	return nil
 }
 
 func (x *UpdateCertificateOverrideRequest) GetCertificateOverride() *CertificateOverride {
 	if x != nil {
-		return x.CertificateOverride
+		return x.xxx_hidden_CertificateOverride
 	}
 	return nil
 }
 
 func (x *UpdateCertificateOverrideRequest) GetForceImmediateDisable() bool {
 	if x != nil {
-		return x.ForceImmediateDisable
+		return x.xxx_hidden_ForceImmediateDisable
 	}
 	return false
 }
 
 func (x *UpdateCertificateOverrideRequest) SetCaId(v *CertAuthorityOverrideID) {
-	x.CaId = v
+	x.xxx_hidden_CaId = v
 }
 
 func (x *UpdateCertificateOverrideRequest) SetCertificateOverride(v *CertificateOverride) {
-	x.CertificateOverride = v
+	x.xxx_hidden_CertificateOverride = v
 }
 
 func (x *UpdateCertificateOverrideRequest) SetForceImmediateDisable(v bool) {
-	x.ForceImmediateDisable = v
+	x.xxx_hidden_ForceImmediateDisable = v
 }
 
 func (x *UpdateCertificateOverrideRequest) HasCaId() bool {
 	if x == nil {
 		return false
 	}
-	return x.CaId != nil
+	return x.xxx_hidden_CaId != nil
 }
 
 func (x *UpdateCertificateOverrideRequest) HasCertificateOverride() bool {
 	if x == nil {
 		return false
 	}
-	return x.CertificateOverride != nil
+	return x.xxx_hidden_CertificateOverride != nil
 }
 
 func (x *UpdateCertificateOverrideRequest) ClearCaId() {
-	x.CaId = nil
+	x.xxx_hidden_CaId = nil
 }
 
 func (x *UpdateCertificateOverrideRequest) ClearCertificateOverride() {
-	x.CertificateOverride = nil
+	x.xxx_hidden_CertificateOverride = nil
 }
 
 type UpdateCertificateOverrideRequest_builder struct {
@@ -1007,19 +967,18 @@ func (b0 UpdateCertificateOverrideRequest_builder) Build() *UpdateCertificateOve
 	m0 := &UpdateCertificateOverrideRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaId = b.CaId
-	x.CertificateOverride = b.CertificateOverride
-	x.ForceImmediateDisable = b.ForceImmediateDisable
+	x.xxx_hidden_CaId = b.CaId
+	x.xxx_hidden_CertificateOverride = b.CertificateOverride
+	x.xxx_hidden_ForceImmediateDisable = b.ForceImmediateDisable
 	return m0
 }
 
 // Response for UpdateCertificateOverride.
 type UpdateCertificateOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Updated certificate override.
-	CertificateOverride *CertificateOverride `protobuf:"bytes,1,opt,name=certificate_override,json=certificateOverride,proto3" json:"certificate_override,omitempty"`
-	unknownFields       protoimpl.UnknownFields
-	sizeCache           protoimpl.SizeCache
+	state                          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CertificateOverride *CertificateOverride   `protobuf:"bytes,1,opt,name=certificate_override,json=certificateOverride,proto3"`
+	unknownFields                  protoimpl.UnknownFields
+	sizeCache                      protoimpl.SizeCache
 }
 
 func (x *UpdateCertificateOverrideResponse) Reset() {
@@ -1049,24 +1008,24 @@ func (x *UpdateCertificateOverrideResponse) ProtoReflect() protoreflect.Message 
 
 func (x *UpdateCertificateOverrideResponse) GetCertificateOverride() *CertificateOverride {
 	if x != nil {
-		return x.CertificateOverride
+		return x.xxx_hidden_CertificateOverride
 	}
 	return nil
 }
 
 func (x *UpdateCertificateOverrideResponse) SetCertificateOverride(v *CertificateOverride) {
-	x.CertificateOverride = v
+	x.xxx_hidden_CertificateOverride = v
 }
 
 func (x *UpdateCertificateOverrideResponse) HasCertificateOverride() bool {
 	if x == nil {
 		return false
 	}
-	return x.CertificateOverride != nil
+	return x.xxx_hidden_CertificateOverride != nil
 }
 
 func (x *UpdateCertificateOverrideResponse) ClearCertificateOverride() {
-	x.CertificateOverride = nil
+	x.xxx_hidden_CertificateOverride = nil
 }
 
 type UpdateCertificateOverrideResponse_builder struct {
@@ -1080,22 +1039,17 @@ func (b0 UpdateCertificateOverrideResponse_builder) Build() *UpdateCertificateOv
 	m0 := &UpdateCertificateOverrideResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CertificateOverride = b.CertificateOverride
+	x.xxx_hidden_CertificateOverride = b.CertificateOverride
 	return m0
 }
 
 // Request for RemoveCertificateOverride.
 type RemoveCertificateOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Certificate override to target.
-	CertificateOverrideId *CertificateOverrideID `protobuf:"bytes,1,opt,name=certificate_override_id,json=certificateOverrideId,proto3" json:"certificate_override_id,omitempty"`
-	// If true the server will allow deletion of an active override
-	// Active overrides are defined as overrides of certificates that are used to
-	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
-	// CertAuthoritySpecV2.AdditionalTrustedKeys).
-	ForceImmediateDelete bool `protobuf:"varint,3,opt,name=force_immediate_delete,json=forceImmediateDelete,proto3" json:"force_immediate_delete,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state                            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CertificateOverrideId *CertificateOverrideID `protobuf:"bytes,1,opt,name=certificate_override_id,json=certificateOverrideId,proto3"`
+	xxx_hidden_ForceImmediateDelete  bool                   `protobuf:"varint,3,opt,name=force_immediate_delete,json=forceImmediateDelete,proto3"`
+	unknownFields                    protoimpl.UnknownFields
+	sizeCache                        protoimpl.SizeCache
 }
 
 func (x *RemoveCertificateOverrideRequest) Reset() {
@@ -1125,35 +1079,35 @@ func (x *RemoveCertificateOverrideRequest) ProtoReflect() protoreflect.Message {
 
 func (x *RemoveCertificateOverrideRequest) GetCertificateOverrideId() *CertificateOverrideID {
 	if x != nil {
-		return x.CertificateOverrideId
+		return x.xxx_hidden_CertificateOverrideId
 	}
 	return nil
 }
 
 func (x *RemoveCertificateOverrideRequest) GetForceImmediateDelete() bool {
 	if x != nil {
-		return x.ForceImmediateDelete
+		return x.xxx_hidden_ForceImmediateDelete
 	}
 	return false
 }
 
 func (x *RemoveCertificateOverrideRequest) SetCertificateOverrideId(v *CertificateOverrideID) {
-	x.CertificateOverrideId = v
+	x.xxx_hidden_CertificateOverrideId = v
 }
 
 func (x *RemoveCertificateOverrideRequest) SetForceImmediateDelete(v bool) {
-	x.ForceImmediateDelete = v
+	x.xxx_hidden_ForceImmediateDelete = v
 }
 
 func (x *RemoveCertificateOverrideRequest) HasCertificateOverrideId() bool {
 	if x == nil {
 		return false
 	}
-	return x.CertificateOverrideId != nil
+	return x.xxx_hidden_CertificateOverrideId != nil
 }
 
 func (x *RemoveCertificateOverrideRequest) ClearCertificateOverrideId() {
-	x.CertificateOverrideId = nil
+	x.xxx_hidden_CertificateOverrideId = nil
 }
 
 type RemoveCertificateOverrideRequest_builder struct {
@@ -1172,14 +1126,14 @@ func (b0 RemoveCertificateOverrideRequest_builder) Build() *RemoveCertificateOve
 	m0 := &RemoveCertificateOverrideRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CertificateOverrideId = b.CertificateOverrideId
-	x.ForceImmediateDelete = b.ForceImmediateDelete
+	x.xxx_hidden_CertificateOverrideId = b.CertificateOverrideId
+	x.xxx_hidden_ForceImmediateDelete = b.ForceImmediateDelete
 	return m0
 }
 
 // Response for RemoveCertificateOverride.
 type RemoveCertificateOverrideResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1223,11 +1177,10 @@ func (b0 RemoveCertificateOverrideResponse_builder) Build() *RemoveCertificateOv
 
 // Request for GetCertAuthorityOverride.
 type GetCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CA override to target.
-	CaId          *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3" json:"ca_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state           protoimpl.MessageState   `protogen:"opaque.v1"`
+	xxx_hidden_CaId *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3"`
+	unknownFields   protoimpl.UnknownFields
+	sizeCache       protoimpl.SizeCache
 }
 
 func (x *GetCertAuthorityOverrideRequest) Reset() {
@@ -1257,24 +1210,24 @@ func (x *GetCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
 
 func (x *GetCertAuthorityOverrideRequest) GetCaId() *CertAuthorityOverrideID {
 	if x != nil {
-		return x.CaId
+		return x.xxx_hidden_CaId
 	}
 	return nil
 }
 
 func (x *GetCertAuthorityOverrideRequest) SetCaId(v *CertAuthorityOverrideID) {
-	x.CaId = v
+	x.xxx_hidden_CaId = v
 }
 
 func (x *GetCertAuthorityOverrideRequest) HasCaId() bool {
 	if x == nil {
 		return false
 	}
-	return x.CaId != nil
+	return x.xxx_hidden_CaId != nil
 }
 
 func (x *GetCertAuthorityOverrideRequest) ClearCaId() {
-	x.CaId = nil
+	x.xxx_hidden_CaId = nil
 }
 
 type GetCertAuthorityOverrideRequest_builder struct {
@@ -1288,17 +1241,16 @@ func (b0 GetCertAuthorityOverrideRequest_builder) Build() *GetCertAuthorityOverr
 	m0 := &GetCertAuthorityOverrideRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaId = b.CaId
+	x.xxx_hidden_CaId = b.CaId
 	return m0
 }
 
 // Response for GetCertAuthorityOverride.
 type GetCertAuthorityOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// The CA override.
-	CaOverride    *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3" json:"ca_override,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                 protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CaOverride *CertAuthorityOverride `protobuf:"bytes,1,opt,name=ca_override,json=caOverride,proto3"`
+	unknownFields         protoimpl.UnknownFields
+	sizeCache             protoimpl.SizeCache
 }
 
 func (x *GetCertAuthorityOverrideResponse) Reset() {
@@ -1328,24 +1280,24 @@ func (x *GetCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message {
 
 func (x *GetCertAuthorityOverrideResponse) GetCaOverride() *CertAuthorityOverride {
 	if x != nil {
-		return x.CaOverride
+		return x.xxx_hidden_CaOverride
 	}
 	return nil
 }
 
 func (x *GetCertAuthorityOverrideResponse) SetCaOverride(v *CertAuthorityOverride) {
-	x.CaOverride = v
+	x.xxx_hidden_CaOverride = v
 }
 
 func (x *GetCertAuthorityOverrideResponse) HasCaOverride() bool {
 	if x == nil {
 		return false
 	}
-	return x.CaOverride != nil
+	return x.xxx_hidden_CaOverride != nil
 }
 
 func (x *GetCertAuthorityOverrideResponse) ClearCaOverride() {
-	x.CaOverride = nil
+	x.xxx_hidden_CaOverride = nil
 }
 
 type GetCertAuthorityOverrideResponse_builder struct {
@@ -1359,20 +1311,17 @@ func (b0 GetCertAuthorityOverrideResponse_builder) Build() *GetCertAuthorityOver
 	m0 := &GetCertAuthorityOverrideResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaOverride = b.CaOverride
+	x.xxx_hidden_CaOverride = b.CaOverride
 	return m0
 }
 
 // Request for ListCertAuthorityOverride.
 type ListCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// The maximum number of items to return.
-	// The server may impose a different page size at its discretion.
-	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
-	// The next_page_token value returned from a previous List request, if any.
-	PageToken     string `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_PageSize  int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3"`
+	xxx_hidden_PageToken string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *ListCertAuthorityOverrideRequest) Reset() {
@@ -1402,24 +1351,24 @@ func (x *ListCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message {
 
 func (x *ListCertAuthorityOverrideRequest) GetPageSize() int32 {
 	if x != nil {
-		return x.PageSize
+		return x.xxx_hidden_PageSize
 	}
 	return 0
 }
 
 func (x *ListCertAuthorityOverrideRequest) GetPageToken() string {
 	if x != nil {
-		return x.PageToken
+		return x.xxx_hidden_PageToken
 	}
 	return ""
 }
 
 func (x *ListCertAuthorityOverrideRequest) SetPageSize(v int32) {
-	x.PageSize = v
+	x.xxx_hidden_PageSize = v
 }
 
 func (x *ListCertAuthorityOverrideRequest) SetPageToken(v string) {
-	x.PageToken = v
+	x.xxx_hidden_PageToken = v
 }
 
 type ListCertAuthorityOverrideRequest_builder struct {
@@ -1436,21 +1385,18 @@ func (b0 ListCertAuthorityOverrideRequest_builder) Build() *ListCertAuthorityOve
 	m0 := &ListCertAuthorityOverrideRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.PageSize = b.PageSize
-	x.PageToken = b.PageToken
+	x.xxx_hidden_PageSize = b.PageSize
+	x.xxx_hidden_PageToken = b.PageToken
 	return m0
 }
 
 // Response for ListCertAuthorityOverride.
 type ListCertAuthorityOverrideResponse struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// The CA overrides.
-	CaOverrides []*CertAuthorityOverride `protobuf:"bytes,1,rep,name=ca_overrides,json=caOverrides,proto3" json:"ca_overrides,omitempty"`
-	// Token to retrieve the next page of results, or empty if there are no more
-	// results in the list.
-	NextPageToken string `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                    protoimpl.MessageState    `protogen:"opaque.v1"`
+	xxx_hidden_CaOverrides   *[]*CertAuthorityOverride `protobuf:"bytes,1,rep,name=ca_overrides,json=caOverrides,proto3"`
+	xxx_hidden_NextPageToken string                    `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *ListCertAuthorityOverrideResponse) Reset() {
@@ -1480,24 +1426,26 @@ func (x *ListCertAuthorityOverrideResponse) ProtoReflect() protoreflect.Message 
 
 func (x *ListCertAuthorityOverrideResponse) GetCaOverrides() []*CertAuthorityOverride {
 	if x != nil {
-		return x.CaOverrides
+		if x.xxx_hidden_CaOverrides != nil {
+			return *x.xxx_hidden_CaOverrides
+		}
 	}
 	return nil
 }
 
 func (x *ListCertAuthorityOverrideResponse) GetNextPageToken() string {
 	if x != nil {
-		return x.NextPageToken
+		return x.xxx_hidden_NextPageToken
 	}
 	return ""
 }
 
 func (x *ListCertAuthorityOverrideResponse) SetCaOverrides(v []*CertAuthorityOverride) {
-	x.CaOverrides = v
+	x.xxx_hidden_CaOverrides = &v
 }
 
 func (x *ListCertAuthorityOverrideResponse) SetNextPageToken(v string) {
-	x.NextPageToken = v
+	x.xxx_hidden_NextPageToken = v
 }
 
 type ListCertAuthorityOverrideResponse_builder struct {
@@ -1514,24 +1462,18 @@ func (b0 ListCertAuthorityOverrideResponse_builder) Build() *ListCertAuthorityOv
 	m0 := &ListCertAuthorityOverrideResponse{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaOverrides = b.CaOverrides
-	x.NextPageToken = b.NextPageToken
+	x.xxx_hidden_CaOverrides = &b.CaOverrides
+	x.xxx_hidden_NextPageToken = b.NextPageToken
 	return m0
 }
 
 // Request for DeleteCertAuthorityOverride.
 type DeleteCertAuthorityOverrideRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CA override to target.
-	CaId *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3" json:"ca_id,omitempty"`
-	// If true the server will allow deletion of a CertAuthorityOverride that
-	// contains active overrides.
-	// Active overrides are defined as overrides of certificates that are used to
-	// mint certificate (see CertAuthoritySpecV2.ActiveKeys and
-	// CertAuthoritySpecV2.AdditionalTrustedKeys).
-	ForceImmediateDelete bool `protobuf:"varint,2,opt,name=force_immediate_delete,json=forceImmediateDelete,proto3" json:"force_immediate_delete,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state                           protoimpl.MessageState   `protogen:"opaque.v1"`
+	xxx_hidden_CaId                 *CertAuthorityOverrideID `protobuf:"bytes,1,opt,name=ca_id,json=caId,proto3"`
+	xxx_hidden_ForceImmediateDelete bool                     `protobuf:"varint,2,opt,name=force_immediate_delete,json=forceImmediateDelete,proto3"`
+	unknownFields                   protoimpl.UnknownFields
+	sizeCache                       protoimpl.SizeCache
 }
 
 func (x *DeleteCertAuthorityOverrideRequest) Reset() {
@@ -1561,35 +1503,35 @@ func (x *DeleteCertAuthorityOverrideRequest) ProtoReflect() protoreflect.Message
 
 func (x *DeleteCertAuthorityOverrideRequest) GetCaId() *CertAuthorityOverrideID {
 	if x != nil {
-		return x.CaId
+		return x.xxx_hidden_CaId
 	}
 	return nil
 }
 
 func (x *DeleteCertAuthorityOverrideRequest) GetForceImmediateDelete() bool {
 	if x != nil {
-		return x.ForceImmediateDelete
+		return x.xxx_hidden_ForceImmediateDelete
 	}
 	return false
 }
 
 func (x *DeleteCertAuthorityOverrideRequest) SetCaId(v *CertAuthorityOverrideID) {
-	x.CaId = v
+	x.xxx_hidden_CaId = v
 }
 
 func (x *DeleteCertAuthorityOverrideRequest) SetForceImmediateDelete(v bool) {
-	x.ForceImmediateDelete = v
+	x.xxx_hidden_ForceImmediateDelete = v
 }
 
 func (x *DeleteCertAuthorityOverrideRequest) HasCaId() bool {
 	if x == nil {
 		return false
 	}
-	return x.CaId != nil
+	return x.xxx_hidden_CaId != nil
 }
 
 func (x *DeleteCertAuthorityOverrideRequest) ClearCaId() {
-	x.CaId = nil
+	x.xxx_hidden_CaId = nil
 }
 
 type DeleteCertAuthorityOverrideRequest_builder struct {
@@ -1609,14 +1551,14 @@ func (b0 DeleteCertAuthorityOverrideRequest_builder) Build() *DeleteCertAuthorit
 	m0 := &DeleteCertAuthorityOverrideRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaId = b.CaId
-	x.ForceImmediateDelete = b.ForceImmediateDelete
+	x.xxx_hidden_CaId = b.CaId
+	x.xxx_hidden_ForceImmediateDelete = b.ForceImmediateDelete
 	return m0
 }
 
 // Response for DeleteCertAuthorityOverride.
 type DeleteCertAuthorityOverrideResponse struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	state         protoimpl.MessageState `protogen:"opaque.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }

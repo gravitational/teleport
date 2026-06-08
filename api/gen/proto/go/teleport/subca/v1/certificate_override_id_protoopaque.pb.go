@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/certificate_override_id.proto
 
-//go:build !protoopaque
+//go:build protoopaque
 
 package subcav1
 
@@ -38,13 +38,11 @@ const (
 
 // ID of a CertificateOverride within a CertAuthorityOverride resource.
 type CertificateOverrideID struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CA type per api/types.CertAuthType.
-	CaType string `protobuf:"bytes,1,opt,name=ca_type,json=caType,proto3" json:"ca_type,omitempty"`
-	// Certificate override to target.
-	PublicKeyHash *PublicKeyHash `protobuf:"bytes,2,opt,name=public_key_hash,json=publicKeyHash,proto3" json:"public_key_hash,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state                    protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_CaType        string                 `protobuf:"bytes,1,opt,name=ca_type,json=caType,proto3"`
+	xxx_hidden_PublicKeyHash *PublicKeyHash         `protobuf:"bytes,2,opt,name=public_key_hash,json=publicKeyHash,proto3"`
+	unknownFields            protoimpl.UnknownFields
+	sizeCache                protoimpl.SizeCache
 }
 
 func (x *CertificateOverrideID) Reset() {
@@ -74,35 +72,35 @@ func (x *CertificateOverrideID) ProtoReflect() protoreflect.Message {
 
 func (x *CertificateOverrideID) GetCaType() string {
 	if x != nil {
-		return x.CaType
+		return x.xxx_hidden_CaType
 	}
 	return ""
 }
 
 func (x *CertificateOverrideID) GetPublicKeyHash() *PublicKeyHash {
 	if x != nil {
-		return x.PublicKeyHash
+		return x.xxx_hidden_PublicKeyHash
 	}
 	return nil
 }
 
 func (x *CertificateOverrideID) SetCaType(v string) {
-	x.CaType = v
+	x.xxx_hidden_CaType = v
 }
 
 func (x *CertificateOverrideID) SetPublicKeyHash(v *PublicKeyHash) {
-	x.PublicKeyHash = v
+	x.xxx_hidden_PublicKeyHash = v
 }
 
 func (x *CertificateOverrideID) HasPublicKeyHash() bool {
 	if x == nil {
 		return false
 	}
-	return x.PublicKeyHash != nil
+	return x.xxx_hidden_PublicKeyHash != nil
 }
 
 func (x *CertificateOverrideID) ClearPublicKeyHash() {
-	x.PublicKeyHash = nil
+	x.xxx_hidden_PublicKeyHash = nil
 }
 
 type CertificateOverrideID_builder struct {
@@ -118,8 +116,8 @@ func (b0 CertificateOverrideID_builder) Build() *CertificateOverrideID {
 	m0 := &CertificateOverrideID{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CaType = b.CaType
-	x.PublicKeyHash = b.PublicKeyHash
+	x.xxx_hidden_CaType = b.CaType
+	x.xxx_hidden_PublicKeyHash = b.PublicKeyHash
 	return m0
 }
 

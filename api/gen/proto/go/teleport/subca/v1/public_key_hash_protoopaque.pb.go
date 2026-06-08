@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/public_key_hash.proto
 
-//go:build !protoopaque
+//go:build protoopaque
 
 package subcav1
 
@@ -39,10 +39,10 @@ const (
 // A certificate public key hash. SHA256(SubjectPublicKeyInfo DER) printed as a
 // hex string.
 type PublicKeyHash struct {
-	state         protoimpl.MessageState `protogen:"hybrid.v1"`
-	Value         string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state            protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Value string                 `protobuf:"bytes,1,opt,name=value,proto3"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *PublicKeyHash) Reset() {
@@ -72,13 +72,13 @@ func (x *PublicKeyHash) ProtoReflect() protoreflect.Message {
 
 func (x *PublicKeyHash) GetValue() string {
 	if x != nil {
-		return x.Value
+		return x.xxx_hidden_Value
 	}
 	return ""
 }
 
 func (x *PublicKeyHash) SetValue(v string) {
-	x.Value = v
+	x.xxx_hidden_Value = v
 }
 
 type PublicKeyHash_builder struct {
@@ -91,7 +91,7 @@ func (b0 PublicKeyHash_builder) Build() *PublicKeyHash {
 	m0 := &PublicKeyHash{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Value = b.Value
+	x.xxx_hidden_Value = b.Value
 	return m0
 }
 

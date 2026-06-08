@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/csr.proto
 
-//go:build !protoopaque
+//go:build protoopaque
 
 package subcav1
 
@@ -38,11 +38,10 @@ const (
 
 // A CSR.
 type CertificateSigningRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CSR encoded in PEM form.
-	Pem           string `protobuf:"bytes,1,opt,name=pem,proto3" json:"pem,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Pem string                 `protobuf:"bytes,1,opt,name=pem,proto3"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
 func (x *CertificateSigningRequest) Reset() {
@@ -72,13 +71,13 @@ func (x *CertificateSigningRequest) ProtoReflect() protoreflect.Message {
 
 func (x *CertificateSigningRequest) GetPem() string {
 	if x != nil {
-		return x.Pem
+		return x.xxx_hidden_Pem
 	}
 	return ""
 }
 
 func (x *CertificateSigningRequest) SetPem(v string) {
-	x.Pem = v
+	x.xxx_hidden_Pem = v
 }
 
 type CertificateSigningRequest_builder struct {
@@ -92,7 +91,7 @@ func (b0 CertificateSigningRequest_builder) Build() *CertificateSigningRequest {
 	m0 := &CertificateSigningRequest{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Pem = b.Pem
+	x.xxx_hidden_Pem = b.Pem
 	return m0
 }
 

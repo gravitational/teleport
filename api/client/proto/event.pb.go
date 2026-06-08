@@ -1667,7 +1667,15 @@ func (x *Event) SetAutoUpdateBotInstanceReport(v *v111.AutoUpdateBotInstanceRepo
 	x.Resource = &Event_AutoUpdateBotInstanceReport{v}
 }
 
-func (x *Event) SetInferenceModel(v *v120.InferenceModel) {
+func (x *Event) SetCertAuthorityOverride(v *v120.CertAuthorityOverride) {
+	if v == nil {
+		x.Resource = nil
+		return
+	}
+	x.Resource = &Event_CertAuthorityOverride{v}
+}
+
+func (x *Event) SetInferenceModel(v *v121.InferenceModel) {
 	if v == nil {
 		x.Resource = nil
 		return
@@ -1675,7 +1683,7 @@ func (x *Event) SetInferenceModel(v *v120.InferenceModel) {
 	x.Resource = &Event_InferenceModel{v}
 }
 
-func (x *Event) SetInferenceSecret(v *v120.InferenceSecret) {
+func (x *Event) SetInferenceSecret(v *v121.InferenceSecret) {
 	if v == nil {
 		x.Resource = nil
 		return
@@ -1683,7 +1691,7 @@ func (x *Event) SetInferenceSecret(v *v120.InferenceSecret) {
 	x.Resource = &Event_InferenceSecret{v}
 }
 
-func (x *Event) SetInferencePolicy(v *v120.InferencePolicy) {
+func (x *Event) SetInferencePolicy(v *v121.InferencePolicy) {
 	if v == nil {
 		x.Resource = nil
 		return
@@ -1691,7 +1699,7 @@ func (x *Event) SetInferencePolicy(v *v120.InferencePolicy) {
 	x.Resource = &Event_InferencePolicy{v}
 }
 
-func (x *Event) SetRetrievalModel(v *v120.RetrievalModel) {
+func (x *Event) SetRetrievalModel(v *v121.RetrievalModel) {
 	if v == nil {
 		x.Resource = nil
 		return
@@ -1699,7 +1707,7 @@ func (x *Event) SetRetrievalModel(v *v120.RetrievalModel) {
 	x.Resource = &Event_RetrievalModel{v}
 }
 
-func (x *Event) SetBeam(v *v121.Beam) {
+func (x *Event) SetBeam(v *v122.Beam) {
 	if v == nil {
 		x.Resource = nil
 		return
@@ -2354,6 +2362,14 @@ func (x *Event) HasAutoUpdateBotInstanceReport() bool {
 	return ok
 }
 
+func (x *Event) HasCertAuthorityOverride() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Resource.(*Event_CertAuthorityOverride)
+	return ok
+}
+
 func (x *Event) HasInferenceModel() bool {
 	if x == nil {
 		return false
@@ -2878,6 +2894,12 @@ func (x *Event) ClearAutoUpdateBotInstanceReport() {
 	}
 }
 
+func (x *Event) ClearCertAuthorityOverride() {
+	if _, ok := x.Resource.(*Event_CertAuthorityOverride); ok {
+		x.Resource = nil
+	}
+}
+
 func (x *Event) ClearInferenceModel() {
 	if _, ok := x.Resource.(*Event_InferenceModel); ok {
 		x.Resource = nil
@@ -2989,6 +3011,7 @@ const Event_RelayServer_case case_Event_Resource = 82
 const Event_RecordingEncryption_case case_Event_Resource = 83
 const Event_Plugin_case case_Event_Resource = 84
 const Event_AutoUpdateBotInstanceReport_case case_Event_Resource = 85
+const Event_CertAuthorityOverride_case case_Event_Resource = 90
 const Event_InferenceModel_case case_Event_Resource = 91
 const Event_InferenceSecret_case case_Event_Resource = 92
 const Event_InferencePolicy_case case_Event_Resource = 93
@@ -3160,6 +3183,8 @@ func (x *Event) WhichResource() case_Event_Resource {
 		return Event_Plugin_case
 	case *Event_AutoUpdateBotInstanceReport:
 		return Event_AutoUpdateBotInstanceReport_case
+	case *Event_CertAuthorityOverride:
+		return Event_CertAuthorityOverride_case
 	case *Event_InferenceModel:
 		return Event_InferenceModel_case
 	case *Event_InferenceSecret:
@@ -3348,16 +3373,18 @@ type Event_builder struct {
 	Plugin *types.PluginV1
 	// AutoUpdateAgentReport is a resource for counting connected bot instances.
 	AutoUpdateBotInstanceReport *v111.AutoUpdateBotInstanceReport
+	// CertAuthorityOverride allows admins to override Teleport CA certificates.
+	CertAuthorityOverride *v120.CertAuthorityOverride
 	// InferenceModel is a resource for defining inference models.
-	InferenceModel *v120.InferenceModel
+	InferenceModel *v121.InferenceModel
 	// InferenceSecret is a resource for defining inference secrets.
-	InferenceSecret *v120.InferenceSecret
+	InferenceSecret *v121.InferenceSecret
 	// InferencePolicy is a resource for defining inference policies.
-	InferencePolicy *v120.InferencePolicy
+	InferencePolicy *v121.InferencePolicy
 	// RetrievalModel is a resource for defining retrieval models.
-	RetrievalModel *v120.RetrievalModel
+	RetrievalModel *v121.RetrievalModel
 	// Beam is an ephemeral AI-optimized compute environment.
-	Beam *v121.Beam
+	Beam *v122.Beam
 	// -- end of Resource
 }
 
@@ -3605,6 +3632,9 @@ func (b0 Event_builder) Build() *Event {
 	}
 	if b.AutoUpdateBotInstanceReport != nil {
 		x.Resource = &Event_AutoUpdateBotInstanceReport{b.AutoUpdateBotInstanceReport}
+	}
+	if b.CertAuthorityOverride != nil {
+		x.Resource = &Event_CertAuthorityOverride{b.CertAuthorityOverride}
 	}
 	if b.InferenceModel != nil {
 		x.Resource = &Event_InferenceModel{b.InferenceModel}

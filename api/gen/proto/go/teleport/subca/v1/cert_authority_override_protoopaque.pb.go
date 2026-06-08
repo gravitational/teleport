@@ -18,7 +18,7 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/cert_authority_override.proto
 
-//go:build !protoopaque
+//go:build protoopaque
 
 package subcav1
 
@@ -50,23 +50,15 @@ const (
 //
 // https://github.com/gravitational/teleport/blob/master/rfd/0237-sub-ca-support.md
 type CertAuthorityOverride struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Kind is "cert_authority_override".
-	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	// Sub kind is the CA type.
-	// Eg: "db_client", "spiffe-tls", "windows".
-	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
-	// Version is "v1".
-	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	// Metadata for the resource.
-	// The name of the resource is the cluster name.
-	Metadata *v1.Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
-	// Spec for the resource.
-	Spec *CertAuthorityOverrideSpec `protobuf:"bytes,5,opt,name=spec,proto3" json:"spec,omitempty"`
-	// Dynamic state for the resource.
-	Status        *CertAuthorityOverrideStatus `protobuf:"bytes,7,opt,name=status,proto3" json:"status,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state               protoimpl.MessageState       `protogen:"opaque.v1"`
+	xxx_hidden_Kind     string                       `protobuf:"bytes,1,opt,name=kind,proto3"`
+	xxx_hidden_SubKind  string                       `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3"`
+	xxx_hidden_Version  string                       `protobuf:"bytes,3,opt,name=version,proto3"`
+	xxx_hidden_Metadata *v1.Metadata                 `protobuf:"bytes,4,opt,name=metadata,proto3"`
+	xxx_hidden_Spec     *CertAuthorityOverrideSpec   `protobuf:"bytes,5,opt,name=spec,proto3"`
+	xxx_hidden_Status   *CertAuthorityOverrideStatus `protobuf:"bytes,7,opt,name=status,proto3"`
+	unknownFields       protoimpl.UnknownFields
+	sizeCache           protoimpl.SizeCache
 }
 
 func (x *CertAuthorityOverride) Reset() {
@@ -96,101 +88,101 @@ func (x *CertAuthorityOverride) ProtoReflect() protoreflect.Message {
 
 func (x *CertAuthorityOverride) GetKind() string {
 	if x != nil {
-		return x.Kind
+		return x.xxx_hidden_Kind
 	}
 	return ""
 }
 
 func (x *CertAuthorityOverride) GetSubKind() string {
 	if x != nil {
-		return x.SubKind
+		return x.xxx_hidden_SubKind
 	}
 	return ""
 }
 
 func (x *CertAuthorityOverride) GetVersion() string {
 	if x != nil {
-		return x.Version
+		return x.xxx_hidden_Version
 	}
 	return ""
 }
 
 func (x *CertAuthorityOverride) GetMetadata() *v1.Metadata {
 	if x != nil {
-		return x.Metadata
+		return x.xxx_hidden_Metadata
 	}
 	return nil
 }
 
 func (x *CertAuthorityOverride) GetSpec() *CertAuthorityOverrideSpec {
 	if x != nil {
-		return x.Spec
+		return x.xxx_hidden_Spec
 	}
 	return nil
 }
 
 func (x *CertAuthorityOverride) GetStatus() *CertAuthorityOverrideStatus {
 	if x != nil {
-		return x.Status
+		return x.xxx_hidden_Status
 	}
 	return nil
 }
 
 func (x *CertAuthorityOverride) SetKind(v string) {
-	x.Kind = v
+	x.xxx_hidden_Kind = v
 }
 
 func (x *CertAuthorityOverride) SetSubKind(v string) {
-	x.SubKind = v
+	x.xxx_hidden_SubKind = v
 }
 
 func (x *CertAuthorityOverride) SetVersion(v string) {
-	x.Version = v
+	x.xxx_hidden_Version = v
 }
 
 func (x *CertAuthorityOverride) SetMetadata(v *v1.Metadata) {
-	x.Metadata = v
+	x.xxx_hidden_Metadata = v
 }
 
 func (x *CertAuthorityOverride) SetSpec(v *CertAuthorityOverrideSpec) {
-	x.Spec = v
+	x.xxx_hidden_Spec = v
 }
 
 func (x *CertAuthorityOverride) SetStatus(v *CertAuthorityOverrideStatus) {
-	x.Status = v
+	x.xxx_hidden_Status = v
 }
 
 func (x *CertAuthorityOverride) HasMetadata() bool {
 	if x == nil {
 		return false
 	}
-	return x.Metadata != nil
+	return x.xxx_hidden_Metadata != nil
 }
 
 func (x *CertAuthorityOverride) HasSpec() bool {
 	if x == nil {
 		return false
 	}
-	return x.Spec != nil
+	return x.xxx_hidden_Spec != nil
 }
 
 func (x *CertAuthorityOverride) HasStatus() bool {
 	if x == nil {
 		return false
 	}
-	return x.Status != nil
+	return x.xxx_hidden_Status != nil
 }
 
 func (x *CertAuthorityOverride) ClearMetadata() {
-	x.Metadata = nil
+	x.xxx_hidden_Metadata = nil
 }
 
 func (x *CertAuthorityOverride) ClearSpec() {
-	x.Spec = nil
+	x.xxx_hidden_Spec = nil
 }
 
 func (x *CertAuthorityOverride) ClearStatus() {
-	x.Status = nil
+	x.xxx_hidden_Status = nil
 }
 
 type CertAuthorityOverride_builder struct {
@@ -216,23 +208,21 @@ func (b0 CertAuthorityOverride_builder) Build() *CertAuthorityOverride {
 	m0 := &CertAuthorityOverride{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Kind = b.Kind
-	x.SubKind = b.SubKind
-	x.Version = b.Version
-	x.Metadata = b.Metadata
-	x.Spec = b.Spec
-	x.Status = b.Status
+	x.xxx_hidden_Kind = b.Kind
+	x.xxx_hidden_SubKind = b.SubKind
+	x.xxx_hidden_Version = b.Version
+	x.xxx_hidden_Metadata = b.Metadata
+	x.xxx_hidden_Spec = b.Spec
+	x.xxx_hidden_Status = b.Status
 	return m0
 }
 
 // CertAuthorityOverrideSpec is the spec of a CertAuthorityOverride resource.
 type CertAuthorityOverrideSpec struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// Certificate overrides.
-	// Required.
-	CertificateOverrides []*CertificateOverride `protobuf:"bytes,1,rep,name=certificate_overrides,json=certificateOverrides,proto3" json:"certificate_overrides,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	state                           protoimpl.MessageState  `protogen:"opaque.v1"`
+	xxx_hidden_CertificateOverrides *[]*CertificateOverride `protobuf:"bytes,1,rep,name=certificate_overrides,json=certificateOverrides,proto3"`
+	unknownFields                   protoimpl.UnknownFields
+	sizeCache                       protoimpl.SizeCache
 }
 
 func (x *CertAuthorityOverrideSpec) Reset() {
@@ -262,13 +252,15 @@ func (x *CertAuthorityOverrideSpec) ProtoReflect() protoreflect.Message {
 
 func (x *CertAuthorityOverrideSpec) GetCertificateOverrides() []*CertificateOverride {
 	if x != nil {
-		return x.CertificateOverrides
+		if x.xxx_hidden_CertificateOverrides != nil {
+			return *x.xxx_hidden_CertificateOverrides
+		}
 	}
 	return nil
 }
 
 func (x *CertAuthorityOverrideSpec) SetCertificateOverrides(v []*CertificateOverride) {
-	x.CertificateOverrides = v
+	x.xxx_hidden_CertificateOverrides = &v
 }
 
 type CertAuthorityOverrideSpec_builder struct {
@@ -283,18 +275,17 @@ func (b0 CertAuthorityOverrideSpec_builder) Build() *CertAuthorityOverrideSpec {
 	m0 := &CertAuthorityOverrideSpec{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.CertificateOverrides = b.CertificateOverrides
+	x.xxx_hidden_CertificateOverrides = &b.CertificateOverrides
 	return m0
 }
 
 // CertAuthorityOverrideStatus is the dynamic, system-managed state of a
 // CertAuthorityOverride resource.
 type CertAuthorityOverrideStatus struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CRLs generated for each certificate override.
-	PublicKeyHashToCrl map[string]*CertificateRevocationList `protobuf:"bytes,1,rep,name=public_key_hash_to_crl,json=publicKeyHashToCrl,proto3" json:"public_key_hash_to_crl,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
-	unknownFields      protoimpl.UnknownFields
-	sizeCache          protoimpl.SizeCache
+	state                         protoimpl.MessageState                `protogen:"opaque.v1"`
+	xxx_hidden_PublicKeyHashToCrl map[string]*CertificateRevocationList `protobuf:"bytes,1,rep,name=public_key_hash_to_crl,json=publicKeyHashToCrl,proto3" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	unknownFields                 protoimpl.UnknownFields
+	sizeCache                     protoimpl.SizeCache
 }
 
 func (x *CertAuthorityOverrideStatus) Reset() {
@@ -324,13 +315,13 @@ func (x *CertAuthorityOverrideStatus) ProtoReflect() protoreflect.Message {
 
 func (x *CertAuthorityOverrideStatus) GetPublicKeyHashToCrl() map[string]*CertificateRevocationList {
 	if x != nil {
-		return x.PublicKeyHashToCrl
+		return x.xxx_hidden_PublicKeyHashToCrl
 	}
 	return nil
 }
 
 func (x *CertAuthorityOverrideStatus) SetPublicKeyHashToCrl(v map[string]*CertificateRevocationList) {
-	x.PublicKeyHashToCrl = v
+	x.xxx_hidden_PublicKeyHashToCrl = v
 }
 
 type CertAuthorityOverrideStatus_builder struct {
@@ -344,7 +335,7 @@ func (b0 CertAuthorityOverrideStatus_builder) Build() *CertAuthorityOverrideStat
 	m0 := &CertAuthorityOverrideStatus{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.PublicKeyHashToCrl = b.PublicKeyHashToCrl
+	x.xxx_hidden_PublicKeyHashToCrl = b.PublicKeyHashToCrl
 	return m0
 }
 

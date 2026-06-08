@@ -16,9 +16,9 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        (unknown)
-// source: teleport/subca/v1/csr.proto
+// source: teleport/subca/v1/crl.proto
 
-//go:build !protoopaque
+//go:build protoopaque
 
 package subcav1
 
@@ -36,30 +36,29 @@ const (
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
 
-// A CSR.
-type CertificateSigningRequest struct {
-	state protoimpl.MessageState `protogen:"hybrid.v1"`
-	// CSR encoded in PEM form.
-	Pem           string `protobuf:"bytes,1,opt,name=pem,proto3" json:"pem,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+// A CRL.
+type CertificateRevocationList struct {
+	state          protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Pem string                 `protobuf:"bytes,1,opt,name=pem,proto3"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
 }
 
-func (x *CertificateSigningRequest) Reset() {
-	*x = CertificateSigningRequest{}
-	mi := &file_teleport_subca_v1_csr_proto_msgTypes[0]
+func (x *CertificateRevocationList) Reset() {
+	*x = CertificateRevocationList{}
+	mi := &file_teleport_subca_v1_crl_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
 
-func (x *CertificateSigningRequest) String() string {
+func (x *CertificateRevocationList) String() string {
 	return protoimpl.X.MessageStringOf(x)
 }
 
-func (*CertificateSigningRequest) ProtoMessage() {}
+func (*CertificateRevocationList) ProtoMessage() {}
 
-func (x *CertificateSigningRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_subca_v1_csr_proto_msgTypes[0]
+func (x *CertificateRevocationList) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_subca_v1_crl_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -70,45 +69,45 @@ func (x *CertificateSigningRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-func (x *CertificateSigningRequest) GetPem() string {
+func (x *CertificateRevocationList) GetPem() string {
 	if x != nil {
-		return x.Pem
+		return x.xxx_hidden_Pem
 	}
 	return ""
 }
 
-func (x *CertificateSigningRequest) SetPem(v string) {
-	x.Pem = v
+func (x *CertificateRevocationList) SetPem(v string) {
+	x.xxx_hidden_Pem = v
 }
 
-type CertificateSigningRequest_builder struct {
+type CertificateRevocationList_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// CSR encoded in PEM form.
+	// CRL encoded in PEM form.
 	Pem string
 }
 
-func (b0 CertificateSigningRequest_builder) Build() *CertificateSigningRequest {
-	m0 := &CertificateSigningRequest{}
+func (b0 CertificateRevocationList_builder) Build() *CertificateRevocationList {
+	m0 := &CertificateRevocationList{}
 	b, x := &b0, m0
 	_, _ = b, x
-	x.Pem = b.Pem
+	x.xxx_hidden_Pem = b.Pem
 	return m0
 }
 
-var File_teleport_subca_v1_csr_proto protoreflect.FileDescriptor
+var File_teleport_subca_v1_crl_proto protoreflect.FileDescriptor
 
-const file_teleport_subca_v1_csr_proto_rawDesc = "" +
+const file_teleport_subca_v1_crl_proto_rawDesc = "" +
 	"\n" +
-	"\x1bteleport/subca/v1/csr.proto\x12\x11teleport.subca.v1\"-\n" +
-	"\x19CertificateSigningRequest\x12\x10\n" +
+	"\x1bteleport/subca/v1/crl.proto\x12\x11teleport.subca.v1\"-\n" +
+	"\x19CertificateRevocationList\x12\x10\n" +
 	"\x03pem\x18\x01 \x01(\tR\x03pemBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1b\x06proto3"
 
-var file_teleport_subca_v1_csr_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
-var file_teleport_subca_v1_csr_proto_goTypes = []any{
-	(*CertificateSigningRequest)(nil), // 0: teleport.subca.v1.CertificateSigningRequest
+var file_teleport_subca_v1_crl_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
+var file_teleport_subca_v1_crl_proto_goTypes = []any{
+	(*CertificateRevocationList)(nil), // 0: teleport.subca.v1.CertificateRevocationList
 }
-var file_teleport_subca_v1_csr_proto_depIdxs = []int32{
+var file_teleport_subca_v1_crl_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for method output_type
 	0, // [0:0] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
@@ -116,26 +115,26 @@ var file_teleport_subca_v1_csr_proto_depIdxs = []int32{
 	0, // [0:0] is the sub-list for field type_name
 }
 
-func init() { file_teleport_subca_v1_csr_proto_init() }
-func file_teleport_subca_v1_csr_proto_init() {
-	if File_teleport_subca_v1_csr_proto != nil {
+func init() { file_teleport_subca_v1_crl_proto_init() }
+func file_teleport_subca_v1_crl_proto_init() {
+	if File_teleport_subca_v1_crl_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_subca_v1_csr_proto_rawDesc), len(file_teleport_subca_v1_csr_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_subca_v1_crl_proto_rawDesc), len(file_teleport_subca_v1_crl_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   1,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_teleport_subca_v1_csr_proto_goTypes,
-		DependencyIndexes: file_teleport_subca_v1_csr_proto_depIdxs,
-		MessageInfos:      file_teleport_subca_v1_csr_proto_msgTypes,
+		GoTypes:           file_teleport_subca_v1_crl_proto_goTypes,
+		DependencyIndexes: file_teleport_subca_v1_crl_proto_depIdxs,
+		MessageInfos:      file_teleport_subca_v1_crl_proto_msgTypes,
 	}.Build()
-	File_teleport_subca_v1_csr_proto = out.File
-	file_teleport_subca_v1_csr_proto_goTypes = nil
-	file_teleport_subca_v1_csr_proto_depIdxs = nil
+	File_teleport_subca_v1_crl_proto = out.File
+	file_teleport_subca_v1_crl_proto_goTypes = nil
+	file_teleport_subca_v1_crl_proto_depIdxs = nil
 }
