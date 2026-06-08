@@ -335,11 +335,27 @@ func (x *SessionIdentifyingPayload) GetSshSessionId() []byte {
 	return nil
 }
 
+func (x *SessionIdentifyingPayload) GetTlsSessionId() []byte {
+	if x != nil {
+		if x, ok := x.xxx_hidden_Payload.(*sessionIdentifyingPayload_TlsSessionId); ok {
+			return x.TlsSessionId
+		}
+	}
+	return nil
+}
+
 func (x *SessionIdentifyingPayload) SetSshSessionId(v []byte) {
 	if v == nil {
 		v = []byte{}
 	}
 	x.xxx_hidden_Payload = &sessionIdentifyingPayload_SshSessionId{v}
+}
+
+func (x *SessionIdentifyingPayload) SetTlsSessionId(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.xxx_hidden_Payload = &sessionIdentifyingPayload_TlsSessionId{v}
 }
 
 func (x *SessionIdentifyingPayload) HasPayload() bool {
@@ -357,6 +373,14 @@ func (x *SessionIdentifyingPayload) HasSshSessionId() bool {
 	return ok
 }
 
+func (x *SessionIdentifyingPayload) HasTlsSessionId() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.xxx_hidden_Payload.(*sessionIdentifyingPayload_TlsSessionId)
+	return ok
+}
+
 func (x *SessionIdentifyingPayload) ClearPayload() {
 	x.xxx_hidden_Payload = nil
 }
@@ -367,8 +391,15 @@ func (x *SessionIdentifyingPayload) ClearSshSessionId() {
 	}
 }
 
+func (x *SessionIdentifyingPayload) ClearTlsSessionId() {
+	if _, ok := x.xxx_hidden_Payload.(*sessionIdentifyingPayload_TlsSessionId); ok {
+		x.xxx_hidden_Payload = nil
+	}
+}
+
 const SessionIdentifyingPayload_Payload_not_set_case case_SessionIdentifyingPayload_Payload = 0
 const SessionIdentifyingPayload_SshSessionId_case case_SessionIdentifyingPayload_Payload = 1
+const SessionIdentifyingPayload_TlsSessionId_case case_SessionIdentifyingPayload_Payload = 2
 
 func (x *SessionIdentifyingPayload) WhichPayload() case_SessionIdentifyingPayload_Payload {
 	if x == nil {
@@ -377,6 +408,8 @@ func (x *SessionIdentifyingPayload) WhichPayload() case_SessionIdentifyingPayloa
 	switch x.xxx_hidden_Payload.(type) {
 	case *sessionIdentifyingPayload_SshSessionId:
 		return SessionIdentifyingPayload_SshSessionId_case
+	case *sessionIdentifyingPayload_TlsSessionId:
+		return SessionIdentifyingPayload_TlsSessionId_case
 	default:
 		return SessionIdentifyingPayload_Payload_not_set_case
 	}
@@ -389,6 +422,9 @@ type SessionIdentifyingPayload_builder struct {
 	// SSH session hash computed from session state. For example, in Go this is the value from
 	// crypto/ssh#ConnMetadata.SessionID().
 	SshSessionId []byte
+	// TLS session ID derived from the TLS connection using RFC 5705 exportable keying material. For example, in Go
+	// this is the value from crypto/tls#ConnectionState.ExportKeyingMaterial().
+	TlsSessionId []byte
 	// -- end of xxx_hidden_Payload
 }
 
@@ -398,6 +434,9 @@ func (b0 SessionIdentifyingPayload_builder) Build() *SessionIdentifyingPayload {
 	_, _ = b, x
 	if b.SshSessionId != nil {
 		x.xxx_hidden_Payload = &sessionIdentifyingPayload_SshSessionId{b.SshSessionId}
+	}
+	if b.TlsSessionId != nil {
+		x.xxx_hidden_Payload = &sessionIdentifyingPayload_TlsSessionId{b.TlsSessionId}
 	}
 	return m0
 }
@@ -422,7 +461,15 @@ type sessionIdentifyingPayload_SshSessionId struct {
 	SshSessionId []byte `protobuf:"bytes,1,opt,name=ssh_session_id,json=sshSessionId,proto3,oneof"`
 }
 
+type sessionIdentifyingPayload_TlsSessionId struct {
+	// TLS session ID derived from the TLS connection using RFC 5705 exportable keying material. For example, in Go
+	// this is the value from crypto/tls#ConnectionState.ExportKeyingMaterial().
+	TlsSessionId []byte `protobuf:"bytes,2,opt,name=tls_session_id,json=tlsSessionId,proto3,oneof"`
+}
+
 func (*sessionIdentifyingPayload_SshSessionId) isSessionIdentifyingPayload_Payload() {}
+
+func (*sessionIdentifyingPayload_TlsSessionId) isSessionIdentifyingPayload_Payload() {}
 
 var File_teleport_mfa_v2_validated_challenge_proto protoreflect.FileDescriptor
 
@@ -439,9 +486,10 @@ const file_teleport_mfa_v2_validated_challenge_proto_rawDesc = "" +
 	"\apayload\x18\x01 \x01(\v2*.teleport.mfa.v2.SessionIdentifyingPayloadR\apayload\x12%\n" +
 	"\x0esource_cluster\x18\x02 \x01(\tR\rsourceCluster\x12%\n" +
 	"\x0etarget_cluster\x18\x03 \x01(\tR\rtargetCluster\x12\x1a\n" +
-	"\busername\x18\x04 \x01(\tR\busername\"N\n" +
+	"\busername\x18\x04 \x01(\tR\busername\"v\n" +
 	"\x19SessionIdentifyingPayload\x12&\n" +
-	"\x0essh_session_id\x18\x01 \x01(\fH\x00R\fsshSessionIdB\t\n" +
+	"\x0essh_session_id\x18\x01 \x01(\fH\x00R\fsshSessionId\x12&\n" +
+	"\x0etls_session_id\x18\x02 \x01(\fH\x00R\ftlsSessionIdB\t\n" +
 	"\apayloadBJZHgithub.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2;mfav2b\x06proto3"
 
 var file_teleport_mfa_v2_validated_challenge_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
@@ -469,6 +517,7 @@ func file_teleport_mfa_v2_validated_challenge_proto_init() {
 	}
 	file_teleport_mfa_v2_validated_challenge_proto_msgTypes[2].OneofWrappers = []any{
 		(*sessionIdentifyingPayload_SshSessionId)(nil),
+		(*sessionIdentifyingPayload_TlsSessionId)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{

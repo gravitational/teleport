@@ -587,7 +587,39 @@ func messageFromEnvelope(e *tdpbv1.Envelope) validatableMessage {
 		return (*Ping)(m.Ping)
 	case *tdpbv1.Envelope_SharedDirectoryRemove:
 		return (*SharedDirectoryRemove)(m.SharedDirectoryRemove)
+	case *tdpbv1.Envelope_AuthPrompt:
+		return (*AuthPrompt)(m.AuthPrompt)
+	case *tdpbv1.Envelope_MfaPromptResponse:
+		return (*MFAPromptResponse)(m.MfaPromptResponse)
 	default:
 		return nil
 	}
 }
+
+// AuthPrompt carries an MFA prompt to the client.
+type AuthPrompt tdpbv1.AuthPrompt
+
+// Encode encodes an AuthPrompt message.
+func (a *AuthPrompt) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_AuthPrompt{
+			AuthPrompt: (*tdpbv1.AuthPrompt)(a),
+		},
+	})
+}
+
+func (*AuthPrompt) validate() error { return nil }
+
+// MFAPromptResponse carries the client's MFA response.
+type MFAPromptResponse tdpbv1.MFAPromptResponse
+
+// Encode encodes an MFAPromptResponse message.
+func (r *MFAPromptResponse) Encode() ([]byte, error) {
+	return marshalWithHeader(&tdpbv1.Envelope{
+		Payload: &tdpbv1.Envelope_MfaPromptResponse{
+			MfaPromptResponse: (*tdpbv1.MFAPromptResponse)(r),
+		},
+	})
+}
+
+func (*MFAPromptResponse) validate() error { return nil }

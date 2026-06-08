@@ -54,5 +54,8 @@ message SessionIdentifyingPayload {
     // SSH session hash computed from session state. For example, in Go this is the value from
     // crypto/ssh#ConnMetadata.SessionID().
     bytes ssh_session_id = 1;
+    // TLS session ID derived from the TLS connection using RFC 5705 exportable keying material. For example, in Go
+    // this is the value from crypto/tls#ConnectionState.ExportKeyingMaterial().
+    bytes tls_session_id = 2;
   }
 }

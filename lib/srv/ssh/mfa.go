@@ -27,50 +27,35 @@ import (
 
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
+	"github.com/gravitational/teleport/lib/srv/mfa"
 )
 
-// ValidatedMFAChallengeVerifier verifies that a validated MFA challenge exists in order to determine if the user has
-// completed MFA.
-type ValidatedMFAChallengeVerifier interface {
+// challengeVerifier verifies that a validated MFA challenge exists.
+type challengeVerifier interface {
 	VerifyValidatedMFAChallenge(ctx context.Context, req *mfav2.VerifyValidatedMFAChallengeRequest, opts ...grpc.CallOption) (*mfav2.VerifyValidatedMFAChallengeResponse, error)
 }
 
 // MFAPromptVerifier is a PromptVerifier that marshals and verifies MFA prompts and responses.
 type MFAPromptVerifier struct {
-	verifier      ValidatedMFAChallengeVerifier
-	sourceCluster string
-	username      string
-	sessionID     []byte
+	mfa.Verifier
 }
 
 var _ PromptVerifier = (*MFAPromptVerifier)(nil)
 
 // NewMFAPromptVerifier creates a new MFAPromptVerifier with the provided parameters.
 func NewMFAPromptVerifier(
-	verifier ValidatedMFAChallengeVerifier,
+	challengeVerifier challengeVerifier,
 	sourceCluster string,
 	username string,
 	sessionID []byte,
 ) (*MFAPromptVerifier, error) {
-	switch {
-	case verifier == nil:
-		return nil, trace.BadParameter("params Verifier must be set")
-
-	case sourceCluster == "":
-		return nil, trace.BadParameter("params SourceCluster must be set")
-
-	case username == "":
-		return nil, trace.BadParameter("params Username must be set")
-
-	case len(sessionID) == 0:
-		return nil, trace.BadParameter("params SessionID must be set and be non-empty")
+	mfaVerifier, err := mfa.NewVerifier(challengeVerifier, sourceCluster, username, sessionID)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return &MFAPromptVerifier{
-		verifier:      verifier,
-		sourceCluster: sourceCluster,
-		username:      username,
-		sessionID:     sessionID,
+		Verifier: *mfaVerifier,
 	}, nil
 }
 
@@ -103,29 +88,15 @@ func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) er
 		return trace.Wrap(err)
 	}
 
-	switch resp := mfaPromptResp.GetResponse().(type) {
+	switch r := mfaPromptResp.GetResponse().(type) {
 	case *sshpb.MFAPromptResponse_Reference:
-		challengeName := resp.Reference.GetChallengeName()
-		if challengeName == "" {
-			return trace.BadParameter("missing ChallengeName in MFAPromptResponseReference")
-		}
-
-		req := mfav2.VerifyValidatedMFAChallengeRequest_builder{
-			Name: challengeName,
-			Payload: mfav2.SessionIdentifyingPayload_builder{
-				SshSessionId: pv.sessionID,
-			}.Build(),
-			SourceCluster: pv.sourceCluster,
-			Username:      pv.username,
-		}.Build()
-
-		_, err := pv.verifier.VerifyValidatedMFAChallenge(ctx, req)
-		return trace.Wrap(err)
-
-	case nil:
-		return trace.BadParameter("missing Response in MFAPromptResponse")
+		return pv.Verify(ctx, r.Reference.GetChallengeName(), func() *mfav2.SessionIdentifyingPayload {
+			return mfav2.SessionIdentifyingPayload_builder{
+				SshSessionId: pv.SessionID(),
+			}.Build()
+		})
 
 	default:
-		return trace.BadParameter("unsupported MFAPromptResponse Response type: %T", resp)
+		return trace.BadParameter("missing or unknown MFAPromptResponse type: %T", r)
 	}
 }

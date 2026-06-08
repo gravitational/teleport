@@ -366,6 +366,7 @@ func TestHandshaker(t *testing.T) {
 		// Should get the Client Hello back
 		require.IsType(t, &tdpb.ClientHello{}, msg)
 		assert.Equal(t, "bob", msg.(*tdpb.ClientHello).Username)
+		assert.True(t, msg.(*tdpb.ClientHello).InBandMfaSupported)
 		assert.Equal(t, uint32(1), msg.(*tdpb.ClientHello).ScreenSpec.Width)
 		assert.Equal(t, uint32(2), msg.(*tdpb.ClientHello).ScreenSpec.Height)
 		assert.Equal(t, uint32(12), msg.(*tdpb.ClientHello).KeyboardLayout)
