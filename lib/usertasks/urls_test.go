@@ -29,13 +29,13 @@ import (
 
 func TestEKSURLs(t *testing.T) {
 	clusterName := "my-cluster"
-	dummyCluster := &usertasksv1.DiscoverEKSCluster{Name: clusterName}
-	baseClusterData := &usertasksv1.DiscoverEKS{
+	dummyCluster := usertasksv1.DiscoverEKSCluster_builder{Name: clusterName}.Build()
+	baseClusterData := usertasksv1.DiscoverEKS_builder{
 		Region: "us-east-1",
 		Clusters: map[string]*usertasksv1.DiscoverEKSCluster{
 			clusterName: dummyCluster,
 		},
-	}
+	}.Build()
 
 	for _, tt := range []struct {
 		name                      string
@@ -94,12 +94,12 @@ func TestEKSURLs(t *testing.T) {
 				},
 			}
 
-			got := EKSClustersWithURLs(&usertasksv1.UserTask{
-				Spec: &usertasksv1.UserTaskSpec{
+			got := EKSClustersWithURLs(usertasksv1.UserTask_builder{
+				Spec: usertasksv1.UserTaskSpec_builder{
 					IssueType:   tt.issueType,
 					DiscoverEks: baseClusterData,
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.Equal(t, expected, got)
 		})
 	}
@@ -107,13 +107,13 @@ func TestEKSURLs(t *testing.T) {
 
 func TestEC2URLs(t *testing.T) {
 	instanceID := "i-12345678"
-	dummyInstance := &usertasksv1.DiscoverEC2Instance{InstanceId: instanceID}
-	baseInstancesData := &usertasksv1.DiscoverEC2{
+	dummyInstance := usertasksv1.DiscoverEC2Instance_builder{InstanceId: instanceID}.Build()
+	baseInstancesData := usertasksv1.DiscoverEC2_builder{
 		Region: "us-east-1",
 		Instances: map[string]*usertasksv1.DiscoverEC2Instance{
 			instanceID: dummyInstance,
 		},
-	}
+	}.Build()
 
 	for _, tt := range []struct {
 		name                       string
@@ -139,12 +139,12 @@ func TestEC2URLs(t *testing.T) {
 				},
 			}
 
-			got := EC2InstancesWithURLs(&usertasksv1.UserTask{
-				Spec: &usertasksv1.UserTaskSpec{
+			got := EC2InstancesWithURLs(usertasksv1.UserTask_builder{
+				Spec: usertasksv1.UserTaskSpec_builder{
 					IssueType:   tt.issueType,
 					DiscoverEc2: baseInstancesData,
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.Equal(t, expected, got)
 		})
 	}
@@ -152,13 +152,13 @@ func TestEC2URLs(t *testing.T) {
 
 func TestRDSURLs(t *testing.T) {
 	databaseName := "my-database"
-	dummyDatabase := &usertasksv1.DiscoverRDSDatabase{Name: databaseName}
-	baseDatabaseData := &usertasksv1.DiscoverRDS{
+	dummyDatabase := usertasksv1.DiscoverRDSDatabase_builder{Name: databaseName}.Build()
+	baseDatabaseData := usertasksv1.DiscoverRDS_builder{
 		Region: "us-east-1",
 		Databases: map[string]*usertasksv1.DiscoverRDSDatabase{
 			databaseName: dummyDatabase,
 		},
-	}
+	}.Build()
 
 	for _, tt := range []struct {
 		name                       string
@@ -185,12 +185,12 @@ func TestRDSURLs(t *testing.T) {
 				},
 			}
 
-			got := RDSDatabasesWithURLs(&usertasksv1.UserTask{
-				Spec: &usertasksv1.UserTaskSpec{
+			got := RDSDatabasesWithURLs(usertasksv1.UserTask_builder{
+				Spec: usertasksv1.UserTaskSpec_builder{
 					IssueType:   tt.issueType,
 					DiscoverRds: baseDatabaseData,
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.Equal(t, expected, got)
 		})
 	}
@@ -198,15 +198,15 @@ func TestRDSURLs(t *testing.T) {
 
 func TestAzureVMURLs(t *testing.T) {
 	resourceID := "/subscriptions/sub-1/resourceGroups/rg-1/providers/Microsoft.Compute/virtualMachines/my-vm"
-	dummyVM := &usertasksv1.DiscoverAzureVMInstance{
+	dummyVM := usertasksv1.DiscoverAzureVMInstance_builder{
 		VmId:       "my-vm",
 		ResourceId: resourceID,
-	}
-	baseVMData := &usertasksv1.DiscoverAzureVM{
+	}.Build()
+	baseVMData := usertasksv1.DiscoverAzureVM_builder{
 		Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
 			resourceID: dummyVM,
 		},
-	}
+	}.Build()
 
 	for _, tt := range []struct {
 		name              string
@@ -231,12 +231,12 @@ func TestAzureVMURLs(t *testing.T) {
 				},
 			}
 
-			got := AzureVMInstancesWithURLs(&usertasksv1.UserTask{
-				Spec: &usertasksv1.UserTaskSpec{
+			got := AzureVMInstancesWithURLs(usertasksv1.UserTask_builder{
+				Spec: usertasksv1.UserTaskSpec_builder{
 					IssueType:       tt.issueType,
 					DiscoverAzureVm: baseVMData,
-				},
-			})
+				}.Build(),
+			}.Build())
 			require.Equal(t, expected, got)
 		})
 	}

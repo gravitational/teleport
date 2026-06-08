@@ -65,7 +65,7 @@ type TeleportLoginRuleList struct {
 // by the TeleportResourceReconciler.
 func (l TeleportLoginRule) ToTeleport() *LoginRuleResource {
 	resource := &LoginRuleResource{
-		LoginRule: &loginrulepb.LoginRule{
+		LoginRule: loginrulepb.LoginRule_builder{
 			Metadata: &types.Metadata{
 				Name:        l.Name,
 				Labels:      l.Labels,
@@ -74,13 +74,13 @@ func (l TeleportLoginRule) ToTeleport() *LoginRuleResource {
 			Version:          types.V1,
 			Priority:         l.Spec.Priority,
 			TraitsExpression: l.Spec.TraitsExpression,
-		},
+		}.Build(),
 	}
 	if len(l.Spec.TraitsMap) > 0 {
-		resource.LoginRule.TraitsMap = make(map[string]*wrappers.StringValues, len(l.Spec.TraitsMap))
+		resource.LoginRule.SetTraitsMap(make(map[string]*wrappers.StringValues, len(l.Spec.TraitsMap)))
 	}
 	for traitKey, traitExpressions := range l.Spec.TraitsMap {
-		resource.LoginRule.TraitsMap[traitKey] = &wrappers.StringValues{Values: traitExpressions}
+		resource.LoginRule.GetTraitsMap()[traitKey] = &wrappers.StringValues{Values: traitExpressions}
 	}
 	return resource
 }
@@ -100,21 +100,21 @@ type LoginRuleResource struct {
 }
 
 func (l *LoginRuleResource) GetName() string {
-	return l.LoginRule.Metadata.Name
+	return l.LoginRule.GetMetadata().Name
 }
 
 func (l *LoginRuleResource) SetOrigin(origin string) {
-	l.LoginRule.Metadata.SetOrigin(origin)
+	l.LoginRule.GetMetadata().SetOrigin(origin)
 }
 
 func (l *LoginRuleResource) Origin() string {
-	return l.LoginRule.Metadata.Origin()
+	return l.LoginRule.GetMetadata().Origin()
 }
 
 func (l *LoginRuleResource) GetRevision() string {
-	return l.LoginRule.Metadata.GetRevision()
+	return l.LoginRule.GetMetadata().GetRevision()
 }
 
 func (l *LoginRuleResource) SetRevision(rev string) {
-	l.LoginRule.Metadata.SetRevision(rev)
+	l.LoginRule.GetMetadata().SetRevision(rev)
 }

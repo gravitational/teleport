@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/lib/utils/typical"
 )
 
@@ -545,42 +546,49 @@ func (s *PresenceService) DeleteReverseTunnel(ctx context.Context, clusterName s
 func (s *PresenceService) ListReverseTunnels(
 	ctx context.Context, pageSize int, pageToken string,
 ) ([]types.ReverseTunnel, string, error) {
-	rangeStart := backend.NewKey(reverseTunnelsPrefix, pageToken)
-	rangeEnd := backend.RangeEnd(backend.ExactKey(reverseTunnelsPrefix))
+	return generic.CollectPageAndCursor(s.rangeReverseTunnels(ctx, pageToken, ""), pageSize, func(c types.ReverseTunnel) string {
+		return backend.GetPaginationKey(c)
+	})
+}
 
-	// Adjust page size, so it can't be too large.
-	if pageSize <= 0 || pageSize > apidefaults.DefaultChunkSize {
-		pageSize = apidefaults.DefaultChunkSize
-	}
-
-	limit := pageSize + 1
-
-	result, err := s.GetRange(ctx, rangeStart, rangeEnd, limit)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
-	}
-
-	tunnels := make([]types.ReverseTunnel, 0, len(result.Items))
-	for _, item := range result.Items {
+// rangeReverseTunnels returns reverse tunnel resources within the range [start, end).
+func (s *PresenceService) rangeReverseTunnels(ctx context.Context, start, end string) iter.Seq2[types.ReverseTunnel, error] {
+	mapFn := func(item backend.Item) (types.ReverseTunnel, bool) {
 		tunnel, err := services.UnmarshalReverseTunnel(item.Value,
 			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision),
-		)
+			services.WithRevision(item.Revision))
+
 		if err != nil {
-			slog.WarnContext(ctx, "Skipping item during ListReverseTunnels because conversion from backend item failed", "key", item.Key, "error", err)
-			continue
+			slog.WarnContext(ctx, "Failed to unmarshal reverse tunnel from backend item",
+				"key", logutils.StringerAttr(item.Key),
+				"error", err,
+			)
+			return nil, false
 		}
-		tunnels = append(tunnels, tunnel)
+
+		return tunnel, true
 	}
 
-	next := ""
-	if len(tunnels) > pageSize {
-		next = backend.GetPaginationKey(tunnels[pageSize])
-		clear(tunnels[pageSize:])
-		// Truncate the last item that was used to determine next row existence.
-		tunnels = tunnels[:pageSize]
+	rcKey := backend.NewKey(reverseTunnelsPrefix)
+	startKey := rcKey.AppendKey(backend.KeyFromString(start))
+	endKey := backend.RangeEnd(rcKey)
+	if end != "" {
+		endKey = rcKey.AppendKey(backend.KeyFromString(end)).ExactKey()
 	}
-	return tunnels, next, nil
+
+	return stream.TakeWhile(
+		stream.FilterMap(
+			s.Backend.Items(ctx, backend.ItemsParams{
+				StartKey: startKey,
+				EndKey:   endKey,
+			}),
+			mapFn, // mapping function
+		),
+		func(tunnel types.ReverseTunnel) bool {
+			// The range is not inclusive of the end key, so return early
+			// if the end has been reached.
+			return end == "" || tunnel.GetName() < end
+		})
 }
 
 // this combination of backoff parameters leads to worst-case total time spent
@@ -1214,6 +1222,32 @@ func (s *PresenceService) getApplicationServers(ctx context.Context, namespace s
 		servers[i] = server
 	}
 	return servers, nil
+}
+
+// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+func (s *PresenceService) RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error] {
+	if appName == "" {
+		return stream.Fail[types.AppServer](trace.BadParameter("missing application name"))
+	}
+
+	mapFn := func(item backend.Item) (types.AppServer, bool) {
+		server, err := services.UnmarshalAppServer(
+			item.Value,
+			services.WithExpires(item.Expires),
+			services.WithRevision(item.Revision),
+		)
+		if err != nil {
+			s.logger.WarnContext(ctx, "Failed to unmarshal application server", "key", item.Key, "error", err)
+			return nil, false
+		}
+		app := server.GetApp()
+		return server, app != nil && app.GetName() == appName
+	}
+
+	startKey := backend.ExactKey(appServersPrefix, apidefaults.Namespace)
+	endKey := backend.RangeEnd(startKey)
+
+	return stream.FilterMap(s.Backend.Items(ctx, backend.ItemsParams{StartKey: startKey, EndKey: endKey}), mapFn)
 }
 
 // UpsertApplicationServer registers an application server.
@@ -2006,14 +2040,14 @@ type relayServerParser struct{}
 func (relayServerParser) parse(event backend.Event) (types.Resource, error) {
 	switch event.Type {
 	case types.OpDelete:
-		return types.Resource153ToLegacy(&presencev1.RelayServer{
+		return types.Resource153ToLegacy(presencev1.RelayServer_builder{
 			Kind:    types.KindRelayServer,
 			SubKind: "",
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: event.Item.Key.TrimPrefix(backend.ExactKey(relayServersPrefix)).String(),
-			},
-		}), nil
+			}.Build(),
+		}.Build()), nil
 	case types.OpPut:
 		r, err := services.UnmarshalProtoResource[*presencev1.RelayServer](
 			event.Item.Value,

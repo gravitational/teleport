@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/linuxdesktop/v1/linux_desktop_service.proto
 
+//go:build !protoopaque
+
 package linuxdesktopv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // CreateLinuxDesktopRequest is request for CreateLinuxDesktop method
 type CreateLinuxDesktopRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The desired LinuxDesktop to be created.
 	LinuxDesktop  *LinuxDesktop `protobuf:"bytes,1,opt,name=linux_desktop,json=linuxDesktop,proto3" json:"linux_desktop,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *CreateLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateLinuxDesktopRequest.ProtoReflect.Descriptor instead.
-func (*CreateLinuxDesktopRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateLinuxDesktopRequest) GetLinuxDesktop() *LinuxDesktop {
 	if x != nil {
 		return x.LinuxDesktop
@@ -82,9 +78,39 @@ func (x *CreateLinuxDesktopRequest) GetLinuxDesktop() *LinuxDesktop {
 	return nil
 }
 
+func (x *CreateLinuxDesktopRequest) SetLinuxDesktop(v *LinuxDesktop) {
+	x.LinuxDesktop = v
+}
+
+func (x *CreateLinuxDesktopRequest) HasLinuxDesktop() bool {
+	if x == nil {
+		return false
+	}
+	return x.LinuxDesktop != nil
+}
+
+func (x *CreateLinuxDesktopRequest) ClearLinuxDesktop() {
+	x.LinuxDesktop = nil
+}
+
+type CreateLinuxDesktopRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The desired LinuxDesktop to be created.
+	LinuxDesktop *LinuxDesktop
+}
+
+func (b0 CreateLinuxDesktopRequest_builder) Build() *CreateLinuxDesktopRequest {
+	m0 := &CreateLinuxDesktopRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LinuxDesktop = b.LinuxDesktop
+	return m0
+}
+
 // UpdateLinuxDesktopRequest is request for UpdateLinuxDesktop method
 type UpdateLinuxDesktopRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The full LinuxDesktop resource to update in the backend.
 	LinuxDesktop  *LinuxDesktop `protobuf:"bytes,1,opt,name=linux_desktop,json=linuxDesktop,proto3" json:"linux_desktop,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -116,11 +142,6 @@ func (x *UpdateLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateLinuxDesktopRequest.ProtoReflect.Descriptor instead.
-func (*UpdateLinuxDesktopRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *UpdateLinuxDesktopRequest) GetLinuxDesktop() *LinuxDesktop {
 	if x != nil {
 		return x.LinuxDesktop
@@ -128,9 +149,39 @@ func (x *UpdateLinuxDesktopRequest) GetLinuxDesktop() *LinuxDesktop {
 	return nil
 }
 
+func (x *UpdateLinuxDesktopRequest) SetLinuxDesktop(v *LinuxDesktop) {
+	x.LinuxDesktop = v
+}
+
+func (x *UpdateLinuxDesktopRequest) HasLinuxDesktop() bool {
+	if x == nil {
+		return false
+	}
+	return x.LinuxDesktop != nil
+}
+
+func (x *UpdateLinuxDesktopRequest) ClearLinuxDesktop() {
+	x.LinuxDesktop = nil
+}
+
+type UpdateLinuxDesktopRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The full LinuxDesktop resource to update in the backend.
+	LinuxDesktop *LinuxDesktop
+}
+
+func (b0 UpdateLinuxDesktopRequest_builder) Build() *UpdateLinuxDesktopRequest {
+	m0 := &UpdateLinuxDesktopRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LinuxDesktop = b.LinuxDesktop
+	return m0
+}
+
 // UpsertLinuxDesktopRequest is request for UpsertLinuxDesktop method
 type UpsertLinuxDesktopRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The full LinuxDesktop resource to create or update in the backend.
 	LinuxDesktop  *LinuxDesktop `protobuf:"bytes,1,opt,name=linux_desktop,json=linuxDesktop,proto3" json:"linux_desktop,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -162,11 +213,6 @@ func (x *UpsertLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertLinuxDesktopRequest.ProtoReflect.Descriptor instead.
-func (*UpsertLinuxDesktopRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpsertLinuxDesktopRequest) GetLinuxDesktop() *LinuxDesktop {
 	if x != nil {
 		return x.LinuxDesktop
@@ -174,9 +220,39 @@ func (x *UpsertLinuxDesktopRequest) GetLinuxDesktop() *LinuxDesktop {
 	return nil
 }
 
+func (x *UpsertLinuxDesktopRequest) SetLinuxDesktop(v *LinuxDesktop) {
+	x.LinuxDesktop = v
+}
+
+func (x *UpsertLinuxDesktopRequest) HasLinuxDesktop() bool {
+	if x == nil {
+		return false
+	}
+	return x.LinuxDesktop != nil
+}
+
+func (x *UpsertLinuxDesktopRequest) ClearLinuxDesktop() {
+	x.LinuxDesktop = nil
+}
+
+type UpsertLinuxDesktopRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The full LinuxDesktop resource to create or update in the backend.
+	LinuxDesktop *LinuxDesktop
+}
+
+func (b0 UpsertLinuxDesktopRequest_builder) Build() *UpsertLinuxDesktopRequest {
+	m0 := &UpsertLinuxDesktopRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LinuxDesktop = b.LinuxDesktop
+	return m0
+}
+
 // GetLinuxDesktopRequest is request for GetLinuxDesktop method
 type GetLinuxDesktopRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name of the LinuxDesktop to retrieve
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -208,11 +284,6 @@ func (x *GetLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetLinuxDesktopRequest.ProtoReflect.Descriptor instead.
-func (*GetLinuxDesktopRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *GetLinuxDesktopRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -220,9 +291,28 @@ func (x *GetLinuxDesktopRequest) GetName() string {
 	return ""
 }
 
+func (x *GetLinuxDesktopRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetLinuxDesktopRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name of the LinuxDesktop to retrieve
+	Name string
+}
+
+func (b0 GetLinuxDesktopRequest_builder) Build() *GetLinuxDesktopRequest {
+	m0 := &GetLinuxDesktopRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // ListLinuxDesktopRequest is request for ListLinuxDesktops method
 type ListLinuxDesktopsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -257,11 +347,6 @@ func (x *ListLinuxDesktopsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListLinuxDesktopsRequest.ProtoReflect.Descriptor instead.
-func (*ListLinuxDesktopsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ListLinuxDesktopsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -276,9 +361,36 @@ func (x *ListLinuxDesktopsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListLinuxDesktopsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListLinuxDesktopsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListLinuxDesktopsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListLinuxDesktopsRequest_builder) Build() *ListLinuxDesktopsRequest {
+	m0 := &ListLinuxDesktopsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListLinuxDesktopsResponse is response of ListLinuxDesktop method
 type ListLinuxDesktopsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of LinuxDesktop that matched the request.
 	LinuxDesktops []*LinuxDesktop `protobuf:"bytes,1,rep,name=linux_desktops,json=linuxDesktops,proto3" json:"linux_desktops,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -313,11 +425,6 @@ func (x *ListLinuxDesktopsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListLinuxDesktopsResponse.ProtoReflect.Descriptor instead.
-func (*ListLinuxDesktopsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ListLinuxDesktopsResponse) GetLinuxDesktops() []*LinuxDesktop {
 	if x != nil {
 		return x.LinuxDesktops
@@ -332,9 +439,36 @@ func (x *ListLinuxDesktopsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListLinuxDesktopsResponse) SetLinuxDesktops(v []*LinuxDesktop) {
+	x.LinuxDesktops = v
+}
+
+func (x *ListLinuxDesktopsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListLinuxDesktopsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of LinuxDesktop that matched the request.
+	LinuxDesktops []*LinuxDesktop
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListLinuxDesktopsResponse_builder) Build() *ListLinuxDesktopsResponse {
+	m0 := &ListLinuxDesktopsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LinuxDesktops = b.LinuxDesktops
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // DeleteLinuxDesktopRequest is request for DeleteLinuxDesktop method
 type DeleteLinuxDesktopRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name of the LinuxDesktop to remove.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -366,16 +500,30 @@ func (x *DeleteLinuxDesktopRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteLinuxDesktopRequest.ProtoReflect.Descriptor instead.
-func (*DeleteLinuxDesktopRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteLinuxDesktopRequest) GetName() string {
 	if x != nil {
 		return x.Name
 	}
 	return ""
+}
+
+func (x *DeleteLinuxDesktopRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteLinuxDesktopRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name of the LinuxDesktop to remove.
+	Name string
+}
+
+func (b0 DeleteLinuxDesktopRequest_builder) Build() *DeleteLinuxDesktopRequest {
+	m0 := &DeleteLinuxDesktopRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
 }
 
 var File_teleport_linuxdesktop_v1_linux_desktop_service_proto protoreflect.FileDescriptor
@@ -407,18 +555,6 @@ const file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDesc = "" +
 	"\x0fGetLinuxDesktop\x120.teleport.linuxdesktop.v1.GetLinuxDesktopRequest\x1a&.teleport.linuxdesktop.v1.LinuxDesktop\x12|\n" +
 	"\x11ListLinuxDesktops\x122.teleport.linuxdesktop.v1.ListLinuxDesktopsRequest\x1a3.teleport.linuxdesktop.v1.ListLinuxDesktopsResponse\x12a\n" +
 	"\x12DeleteLinuxDesktop\x123.teleport.linuxdesktop.v1.DeleteLinuxDesktopRequest\x1a\x16.google.protobuf.EmptyB\\ZZgithub.com/gravitational/teleport/api/gen/proto/go/teleport/linuxdesktop/v1;linuxdesktopv1b\x06proto3"
-
-var (
-	file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescOnce sync.Once
-	file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescData []byte
-)
-
-func file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescGZIP() []byte {
-	file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescOnce.Do(func() {
-		file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDesc), len(file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDesc)))
-	})
-	return file_teleport_linuxdesktop_v1_linux_desktop_service_proto_rawDescData
-}
 
 var file_teleport_linuxdesktop_v1_linux_desktop_service_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_teleport_linuxdesktop_v1_linux_desktop_service_proto_goTypes = []any{

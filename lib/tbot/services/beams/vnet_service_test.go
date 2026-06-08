@@ -33,10 +33,11 @@ import (
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
-	proto "github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	delegationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1"
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
@@ -123,18 +124,18 @@ func TestVNetService(t *testing.T) {
 
 	// Configure VNet to add a custom DNS zone.
 	_, err = rootClient.VnetConfigClient().
-		UpsertVnetConfig(t.Context(), &vnetv1.VnetConfig{
+		UpsertVnetConfig(t.Context(), vnetv1.VnetConfig_builder{
 			Kind:    types.KindVnetConfig,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: types.MetaNameVnetConfig,
-			},
-			Spec: &vnetv1.VnetConfigSpec{
+			}.Build(),
+			Spec: vnetv1.VnetConfigSpec_builder{
 				CustomDnsZones: []*vnetv1.CustomDNSZone{
-					{Suffix: "dunder-mifflin.com"},
+					vnetv1.CustomDNSZone_builder{Suffix: "dunder-mifflin.com"}.Build(),
 				},
-			},
-		})
+			}.Build(),
+		}.Build())
 	require.NoError(t, err)
 
 	// Create a user with access to all applications,
@@ -186,21 +187,21 @@ func TestVNetService(t *testing.T) {
 	// Create a delegation session for the user.
 	aliceClient := makeUserClient(t, process, rootClient, user.GetName())
 	session, err := aliceClient.DelegationSessionServiceClient().
-		CreateDelegationSession(t.Context(), &delegationv1.CreateDelegationSessionRequest{
-			Spec: &delegationv1.DelegationSessionSpec{
+		CreateDelegationSession(t.Context(), delegationv1.CreateDelegationSessionRequest_builder{
+			Spec: delegationv1.DelegationSessionSpec_builder{
 				User: user.GetName(),
 				Resources: []*delegationv1.DelegationResourceSpec{
-					{Kind: types.Wildcard, Name: types.Wildcard},
+					delegationv1.DelegationResourceSpec_builder{Kind: types.Wildcard, Name: types.Wildcard}.Build(),
 				},
 				AuthorizedUsers: []*delegationv1.DelegationUserSpec{
-					{
+					delegationv1.DelegationUserSpec_builder{
 						Kind:    types.KindBot,
-						Matcher: &delegationv1.DelegationUserSpec_BotName{BotName: "test-bot"},
-					},
+						BotName: proto.String("test-bot"),
+					}.Build(),
 				},
-			},
+			}.Build(),
 			Ttl: durationpb.New(5 * time.Minute),
-		})
+		}.Build())
 	require.NoError(t, err)
 
 	// Create a fake host network.
@@ -310,18 +311,18 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) onboarding.Config {
 	t.Helper()
 
-	b, err := client.BotServiceClient().CreateBot(t.Context(), &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	b, err := client.BotServiceClient().CreateBot(t.Context(), machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: roles,
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
@@ -332,7 +333,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 		time.Now().Add(10*time.Minute),
 		types.ProvisionTokenSpecV2{
 			Roles:   []types.SystemRole{types.RoleBot},
-			BotName: b.Metadata.Name,
+			BotName: b.GetMetadata().GetName(),
 		})
 	require.NoError(t, err)
 
@@ -357,7 +358,7 @@ func makeUserClient(t *testing.T, process *service.TeleportProcess, rootClient *
 	tlsPublicKey, err := keys.MarshalPublicKey(tlsKey.Public())
 	require.NoError(t, err)
 
-	certs, err := rootClient.GenerateUserCerts(t.Context(), proto.UserCertsRequest{
+	certs, err := rootClient.GenerateUserCerts(t.Context(), clientproto.UserCertsRequest{
 		TLSPublicKey: tlsPublicKey,
 		Username:     username,
 		Expires:      time.Now().Add(time.Hour).UTC(),

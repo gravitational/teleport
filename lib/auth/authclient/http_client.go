@@ -315,23 +315,6 @@ func (c *HTTPClient) Delete(ctx context.Context, u string) (*roundtrip.Response,
 	return httplib.ConvertResponse(c.Client.Delete(ctx, u))
 }
 
-type upsertTunnelConnectionRawReq struct {
-	TunnelConnection json.RawMessage `json:"tunnel_connection"`
-}
-
-// UpsertTunnelConnection upserts tunnel connection
-func (c *HTTPClient) UpsertTunnelConnection(conn types.TunnelConnection) error {
-	data, err := services.MarshalTunnelConnection(conn)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	args := &upsertTunnelConnectionRawReq{
-		TunnelConnection: data,
-	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("tunnelconnections"), args)
-	return trace.Wrap(err)
-}
-
 // GetTunnelConnections returns tunnel connections for a given cluster
 func (c *HTTPClient) GetTunnelConnections(clusterName string, opts ...services.MarshalOption) ([]types.TunnelConnection, error) {
 	if clusterName == "" {
@@ -375,18 +358,6 @@ func (c *HTTPClient) GetAllTunnelConnections(opts ...services.MarshalOption) ([]
 		conns[i] = conn
 	}
 	return conns, nil
-}
-
-// DeleteTunnelConnection deletes tunnel connection by name
-func (c *HTTPClient) DeleteTunnelConnection(clusterName string, connName string) error {
-	if clusterName == "" {
-		return trace.BadParameter("missing parameter cluster name")
-	}
-	if connName == "" {
-		return trace.BadParameter("missing parameter connection name")
-	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("tunnelconnections", clusterName, connName))
-	return trace.Wrap(err)
 }
 
 type upsertServerRawReq struct {

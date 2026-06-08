@@ -169,17 +169,17 @@ func (c *recordingsEncryptionCommand) writeStatusText(w io.Writer, keyStates []*
 	rotationState := recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_UNSPECIFIED
 	t := asciitable.MakeTable([]string{"Key Pair Fingerprint", "State"})
 	for _, pair := range keyStates {
-		if pair.State == recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_INACCESSIBLE {
-			rotationState = pair.State
+		if pair.GetState() == recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_INACCESSIBLE {
+			rotationState = pair.GetState()
 		}
 
-		if pair.State == recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING {
+		if pair.GetState() == recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING {
 			if rotationState != recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_INACCESSIBLE {
-				rotationState = pair.State
+				rotationState = pair.GetState()
 			}
 		}
 
-		t.AddRow([]string{pair.Fingerprint, c.getFriendlyStatusString(pair.State)})
+		t.AddRow([]string{pair.GetFingerprint(), c.getFriendlyStatusString(pair.GetState())})
 	}
 
 	switch rotationState {

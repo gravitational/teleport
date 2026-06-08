@@ -1758,7 +1758,7 @@ func TestInit_bootstrap(t *testing.T) {
 				cfg.BootstrapResources = append(
 					cfg.BootstrapResources,
 					newHealthCheckConfig(t, func(hcc *healthcheckconfigv1.HealthCheckConfig) {
-						hcc.Spec.HealthyThreshold = 9000
+						hcc.GetSpec().SetHealthyThreshold(9000)
 					}),
 				)
 			},
@@ -2478,9 +2478,9 @@ func TestTeleportProcessAuthVersionUpgradeCheck(t *testing.T) {
 			if test.initialVersion != "" {
 				ver, err := semver.NewVersion(test.initialVersion)
 				require.NoError(t, err)
-				backendInfo, err := backendinfo.NewBackendInfo(&backendinfov1.BackendInfoSpec{
+				backendInfo, err := backendinfo.NewBackendInfo(backendinfov1.BackendInfoSpec_builder{
 					TeleportVersion: ver.String(),
-				})
+				}.Build())
 				require.NoError(t, err)
 				_, err = service.CreateBackendInfo(ctx, backendInfo)
 				require.NoError(t, err)
@@ -2533,21 +2533,21 @@ func Test_createPresetDatabaseObjectImportRule(t *testing.T) {
 	presetRule := databaseobjectimportrule.NewPresetImportAllObjectsRule()
 	require.NotNil(t, presetRule)
 
-	customRule, err := databaseobjectimportrule.NewDatabaseObjectImportRule("dev_rule", &dbobjectimportrulev1.DatabaseObjectImportRuleSpec{
+	customRule, err := databaseobjectimportrule.NewDatabaseObjectImportRule("dev_rule", dbobjectimportrulev1.DatabaseObjectImportRuleSpec_builder{
 		Priority:       100,
 		DatabaseLabels: label.FromMap(map[string][]string{"env": {"dev"}}),
-		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{{
-			Match: &dbobjectimportrulev1.DatabaseObjectImportMatch{
+		Mappings: []*dbobjectimportrulev1.DatabaseObjectImportRuleMapping{dbobjectimportrulev1.DatabaseObjectImportRuleMapping_builder{
+			Match: dbobjectimportrulev1.DatabaseObjectImportMatch_builder{
 				TableNames: []string{"*"},
-			},
+			}.Build(),
 			AddLabels: map[string]string{
 				"env": "dev",
 			},
-			Scope: &dbobjectimportrulev1.DatabaseObjectImportScope{
+			Scope: dbobjectimportrulev1.DatabaseObjectImportScope_builder{
 				SchemaNames: []string{"public"},
-			},
-		}},
-	})
+			}.Build(),
+		}.Build()},
+	}.Build())
 	require.NoError(t, err)
 
 	tests := []struct {

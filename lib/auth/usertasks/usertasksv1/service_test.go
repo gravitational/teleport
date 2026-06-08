@@ -125,90 +125,90 @@ func TestEvents(t *testing.T) {
 	service := newService(t, fakeChecker{allowedVerbs: rwVerbs}, testReporter, auditEventsSink, fakeClock)
 	ctx := context.Background()
 
-	ut1, err := usertasks.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+	ut1, err := usertasks.NewDiscoverEC2UserTask(usertasksv1.UserTaskSpec_builder{
 		Integration: "my-integration",
 		TaskType:    "discover-ec2",
 		IssueType:   "ec2-ssm-invocation-failure",
 		State:       "OPEN",
-		DiscoverEc2: &usertasksv1.DiscoverEC2{
+		DiscoverEc2: usertasksv1.DiscoverEC2_builder{
 			AccountId: "123456789012",
 			Region:    "us-east-1",
 			Instances: map[string]*usertasksv1.DiscoverEC2Instance{
-				"i-123": {
+				"i-123": usertasksv1.DiscoverEC2Instance_builder{
 					InstanceId:      "i-123",
 					DiscoveryConfig: "dc01",
 					DiscoveryGroup:  "dg01",
-				},
+				}.Build(),
 			},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	userTaskName := ut1.GetMetadata().GetName()
 
-	createUserTaskResp, err := service.CreateUserTask(ctx, &usertasksv1.CreateUserTaskRequest{UserTask: ut1})
+	createUserTaskResp, err := service.CreateUserTask(ctx, usertasksv1.CreateUserTaskRequest_builder{UserTask: ut1}.Build())
 	require.NoError(t, err)
 	// Usage reporting happens when user task is created, so we expect to see an event.
 	require.Len(t, testReporter.emittedEvents, 1)
 	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "create", "", ""))
 	// LastStateChange is updated.
-	require.Equal(t, timestamppb.New(fakeClock.Now()), createUserTaskResp.Status.LastStateChange)
+	require.Equal(t, timestamppb.New(fakeClock.Now()), createUserTaskResp.GetStatus().GetLastStateChange())
 
-	expectedLastStateChange := createUserTaskResp.Status.LastStateChange
-	ut1.Spec.DiscoverEc2.Instances["i-345"] = &usertasksv1.DiscoverEC2Instance{
+	expectedLastStateChange := createUserTaskResp.GetStatus().GetLastStateChange()
+	ut1.GetSpec().GetDiscoverEc2().GetInstances()["i-345"] = usertasksv1.DiscoverEC2Instance_builder{
 		InstanceId:      "i-345",
 		DiscoveryConfig: "dc01",
 		DiscoveryGroup:  "dg01",
-	}
+	}.Build()
 	fakeClock.Advance(1 * time.Minute)
-	upsertUserTaskResp, err := service.UpsertUserTask(ctx, &usertasksv1.UpsertUserTaskRequest{UserTask: ut1})
+	upsertUserTaskResp, err := service.UpsertUserTask(ctx, usertasksv1.UpsertUserTaskRequest_builder{UserTask: ut1}.Build())
 	require.NoError(t, err)
 	// State was not updated, so usage events must not increase.
 	require.Len(t, testReporter.emittedEvents, 1)
 	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "OPEN", "OPEN"))
 	// LastStateChange is not updated.
-	require.Equal(t, expectedLastStateChange.AsTime(), upsertUserTaskResp.Status.LastStateChange.AsTime())
+	require.Equal(t, expectedLastStateChange.AsTime(), upsertUserTaskResp.GetStatus().GetLastStateChange().AsTime())
 
-	ut1.Spec.State = "RESOLVED"
+	ut1.GetSpec().SetState("RESOLVED")
 	fakeClock.Advance(1 * time.Minute)
-	updateUserTaskResp, err := service.UpdateUserTask(ctx, &usertasksv1.UpdateUserTaskRequest{UserTask: ut1})
+	updateUserTaskResp, err := service.UpdateUserTask(ctx, usertasksv1.UpdateUserTaskRequest_builder{UserTask: ut1}.Build())
 	require.NoError(t, err)
 	// State was updated, so usage events include this new usage report.
 	require.Len(t, testReporter.emittedEvents, 2)
 	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "OPEN", "RESOLVED"))
 	// LastStateChange was updated because the state changed.
-	require.Equal(t, timestamppb.New(fakeClock.Now()), updateUserTaskResp.Status.LastStateChange)
+	require.Equal(t, timestamppb.New(fakeClock.Now()), updateUserTaskResp.GetStatus().GetLastStateChange())
 
 	// Updating one of the instances.
-	expectedLastStateChange = updateUserTaskResp.Status.GetLastStateChange()
+	expectedLastStateChange = updateUserTaskResp.GetStatus().GetLastStateChange()
 	fakeClock.Advance(1 * time.Minute)
-	ut1.Spec.DiscoverEc2.Instances["i-345"] = &usertasksv1.DiscoverEC2Instance{
+	ut1.GetSpec().GetDiscoverEc2().GetInstances()["i-345"] = usertasksv1.DiscoverEC2Instance_builder{
 		InstanceId:      "i-345",
 		DiscoveryConfig: "dc01",
 		DiscoveryGroup:  "dg01",
 		SyncTime:        timestamppb.New(fakeClock.Now()),
-	}
-	updateUserTaskResp, err = service.UpdateUserTask(ctx, &usertasksv1.UpdateUserTaskRequest{UserTask: ut1})
+	}.Build()
+	updateUserTaskResp, err = service.UpdateUserTask(ctx, usertasksv1.UpdateUserTaskRequest_builder{UserTask: ut1}.Build())
 	require.NoError(t, err)
 	// Does not change the LastStateChange
-	require.Equal(t, expectedLastStateChange.AsTime(), updateUserTaskResp.Status.LastStateChange.AsTime())
+	require.Equal(t, expectedLastStateChange.AsTime(), updateUserTaskResp.GetStatus().GetLastStateChange().AsTime())
 	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "RESOLVED", "RESOLVED"))
 
 	// Upserting one of the instances.
-	expectedLastStateChange = updateUserTaskResp.Status.GetLastStateChange()
+	expectedLastStateChange = updateUserTaskResp.GetStatus().GetLastStateChange()
 	fakeClock.Advance(1 * time.Minute)
-	ut1.Spec.DiscoverEc2.Instances["i-345"] = &usertasksv1.DiscoverEC2Instance{
+	ut1.GetSpec().GetDiscoverEc2().GetInstances()["i-345"] = usertasksv1.DiscoverEC2Instance_builder{
 		InstanceId:      "i-345",
 		DiscoveryConfig: "dc01",
 		DiscoveryGroup:  "dg01",
 		SyncTime:        timestamppb.New(fakeClock.Now()),
-	}
-	upsertUserTaskResp, err = service.UpsertUserTask(ctx, &usertasksv1.UpsertUserTaskRequest{UserTask: ut1})
+	}.Build()
+	upsertUserTaskResp, err = service.UpsertUserTask(ctx, usertasksv1.UpsertUserTaskRequest_builder{UserTask: ut1}.Build())
 	require.NoError(t, err)
 	// Does not change the LastStateChange
-	require.Equal(t, expectedLastStateChange.AsTime(), upsertUserTaskResp.Status.LastStateChange.AsTime())
+	require.Equal(t, expectedLastStateChange.AsTime(), upsertUserTaskResp.GetStatus().GetLastStateChange().AsTime())
 	consumeAssertEvent(t, auditEventsSink.C(), auditEventFor(userTaskName, "update", "RESOLVED", "RESOLVED"))
 
-	_, err = service.DeleteUserTask(ctx, &usertasksv1.DeleteUserTaskRequest{Name: userTaskName})
+	_, err = service.DeleteUserTask(ctx, usertasksv1.DeleteUserTaskRequest_builder{Name: userTaskName}.Build())
 	require.NoError(t, err)
 	// No usage report for deleted resources.
 	require.Len(t, testReporter.emittedEvents, 2)
@@ -283,18 +283,18 @@ func consumeAssertEvent(t *testing.T, q <-chan apievents.AuditEvent, expectedEve
 
 // callMethod calls a method with given name in the UserTask service
 func callMethod(t *testing.T, service *Service, method string) error {
-	emptyUserTask := &usertasksv1.UserTask{
+	emptyUserTask := usertasksv1.UserTask_builder{
 		Spec: &usertasksv1.UserTaskSpec{},
-	}
+	}.Build()
 
 	for _, desc := range usertasksv1.UserTaskService_ServiceDesc.Methods {
 		if desc.MethodName == method {
 			_, err := desc.Handler(service, context.Background(), func(arg any) error {
 				switch arg := arg.(type) {
 				case *usertasksv1.CreateUserTaskRequest:
-					arg.UserTask = emptyUserTask
+					arg.SetUserTask(emptyUserTask)
 				case *usertasksv1.UpsertUserTaskRequest:
-					arg.UserTask = emptyUserTask
+					arg.SetUserTask(emptyUserTask)
 				}
 				return nil
 			}, nil)

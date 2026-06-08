@@ -40,7 +40,7 @@ import (
 func TestPollAWSS3(t *testing.T) {
 	sortSlice := func(buckets []*accessgraphv1alpha.AWSS3BucketV1) {
 		sort.Slice(buckets, func(i, j int) bool {
-			return buckets[i].Name < buckets[j].Name
+			return buckets[i].GetName() < buckets[j].GetName()
 		})
 	}
 
@@ -118,44 +118,44 @@ func TestPollAWSS3(t *testing.T) {
 			name: "poll s3",
 			want: &Resources{
 				S3Buckets: []*accessgraphv1alpha.AWSS3BucketV1{
-					{
+					accessgraphv1alpha.AWSS3BucketV1_builder{
 						Name:           bucketName,
 						AccountId:      accountID,
 						PolicyDocument: []byte("policy"),
 						IsPublic:       true,
 						Acls: []*accessgraphv1alpha.AWSS3BucketACL{
-							{
-								Grantee: &accessgraphv1alpha.AWSS3BucketACLGrantee{
+							accessgraphv1alpha.AWSS3BucketACL_builder{
+								Grantee: accessgraphv1alpha.AWSS3BucketACLGrantee_builder{
 									Id: "id",
-								},
+								}.Build(),
 								Permission: "READ",
-							},
+							}.Build(),
 						},
 						Tags: []*accessgraphv1alpha.AWSTag{
-							{
+							accessgraphv1alpha.AWSTag_builder{
 								Key:   "tag",
 								Value: strPtrToWrapper(aws.String("val")),
-							},
+							}.Build(),
 						},
-					},
-					{
+					}.Build(),
+					accessgraphv1alpha.AWSS3BucketV1_builder{
 						Name:           otherBucketName,
 						AccountId:      accountID,
 						PolicyDocument: []byte("otherPolicy"),
 						IsPublic:       false,
 						Acls: []*accessgraphv1alpha.AWSS3BucketACL{
-							{
-								Grantee: &accessgraphv1alpha.AWSS3BucketACLGrantee{
+							accessgraphv1alpha.AWSS3BucketACL_builder{
+								Grantee: accessgraphv1alpha.AWSS3BucketACLGrantee_builder{
 									Id: "id",
-								},
+								}.Build(),
 								Permission: "READ",
-							},
+							}.Build(),
 						},
-					},
-					{
+					}.Build(),
+					accessgraphv1alpha.AWSS3BucketV1_builder{
 						Name:      missingBucket,
 						AccountId: accountID,
-					},
+					}.Build(),
 				},
 			},
 		},
@@ -202,7 +202,7 @@ func TestPollAWSS3(t *testing.T) {
 				// tags originate from a map so we must sort them before comparing.
 				protocmp.SortRepeated(
 					func(a, b *accessgraphv1alpha.AWSTag) bool {
-						return a.Key < b.Key
+						return a.GetKey() < b.GetKey()
 					},
 				),
 			),
@@ -226,12 +226,12 @@ func s3Buckets(bucketNames ...string) []s3types.Bucket {
 
 // Helper function to create AWSS3BucketV1 for testing
 func createAWSS3Bucket(name, accountID string, policyDocument []byte, isPublic bool, lastSync time.Time) *accessgraphv1alpha.AWSS3BucketV1 {
-	return &accessgraphv1alpha.AWSS3BucketV1{
+	return accessgraphv1alpha.AWSS3BucketV1_builder{
 		Name:           name,
 		AccountId:      accountID,
 		PolicyDocument: policyDocument,
 		IsPublic:       isPublic,
-	}
+	}.Build()
 }
 
 func TestMergeS3Protos(t *testing.T) {

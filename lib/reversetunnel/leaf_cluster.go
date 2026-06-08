@@ -393,7 +393,7 @@ func (s *leafCluster) registerHeartbeat(t time.Time) {
 	connInfo.SetLastHeartbeat(t)
 	connInfo.SetExpiry(s.clock.Now().Add(s.offlineThreshold))
 	s.setLastConnInfo(connInfo)
-	err := s.localCache.UpsertTunnelConnection(connInfo)
+	err := s.localCache.UpsertTunnelConnection(s.ctx, connInfo)
 	if err != nil {
 		s.logger.WarnContext(s.ctx, "Failed to register heartbeat", "error", err)
 	}
@@ -402,7 +402,7 @@ func (s *leafCluster) registerHeartbeat(t time.Time) {
 // deleteConnectionRecord deletes connection record to let know peer proxies
 // that this node lost the connection and needs to be discovered
 func (s *leafCluster) deleteConnectionRecord() {
-	if err := s.localCache.DeleteTunnelConnection(s.connInfo.GetClusterName(), s.connInfo.GetName()); err != nil {
+	if err := s.localCache.DeleteTunnelConnection(s.ctx, s.connInfo.GetClusterName(), s.connInfo.GetName()); err != nil {
 		s.logger.WarnContext(s.ctx, "Failed to delete tunnel connection", "error", err)
 	}
 }

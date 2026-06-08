@@ -1,7 +1,6 @@
 include ../../build.assets/images.mk
 
 VERSION ?= $(shell go run ../hack/get-version/get-version.go)
-GO_VERSION=1.21.9
 
 GITTAG=v$(VERSION)
 

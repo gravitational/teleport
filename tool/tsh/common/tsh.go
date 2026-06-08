@@ -2312,7 +2312,7 @@ func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
 
 		currentScope := ""
 		if profile != nil && profile.ScopePin != nil {
-			currentScope = profile.ScopePin.Scope
+			currentScope = profile.ScopePin.GetScope()
 		}
 
 		return targetScope, targetScope != currentScope
@@ -2320,7 +2320,7 @@ func resolveScope(cf *CLIConf, profile *client.ProfileStatus) (string, bool) {
 
 	// --scope not provided, inherit from profile.
 	if profile != nil && profile.ScopePin != nil {
-		return profile.ScopePin.Scope, false
+		return profile.ScopePin.GetScope(), false
 	}
 
 	return "", false

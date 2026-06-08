@@ -706,50 +706,50 @@ func (c *Client) ScopedRoleReader() services.ScopedRoleReader {
 
 // UpsertUserNotificationState creates or updates a user notification state which records whether the user has clicked on or dismissed a notification.
 func (c *Client) UpsertUserNotificationState(ctx context.Context, username string, uns *notificationsv1.UserNotificationState) (*notificationsv1.UserNotificationState, error) {
-	return c.APIClient.UpsertUserNotificationState(ctx, &notificationsv1.UpsertUserNotificationStateRequest{
+	return c.APIClient.UpsertUserNotificationState(ctx, notificationsv1.UpsertUserNotificationStateRequest_builder{
 		Username:              username,
 		UserNotificationState: uns,
-	})
+	}.Build())
 }
 
 // UpsertUserLastSeenNotification creates or updates a user's last seen notification item.
 func (c *Client) UpsertUserLastSeenNotification(ctx context.Context, username string, ulsn *notificationsv1.UserLastSeenNotification) (*notificationsv1.UserLastSeenNotification, error) {
-	return c.APIClient.UpsertUserLastSeenNotification(ctx, &notificationsv1.UpsertUserLastSeenNotificationRequest{
+	return c.APIClient.UpsertUserLastSeenNotification(ctx, notificationsv1.UpsertUserLastSeenNotificationRequest_builder{
 		Username:                 username,
 		UserLastSeenNotification: ulsn,
-	})
+	}.Build())
 }
 
 // CreateGlobalNotification creates a global notification.
 func (c *Client) CreateGlobalNotification(ctx context.Context, gn *notificationsv1.GlobalNotification) (*notificationsv1.GlobalNotification, error) {
-	rsp, err := c.APIClient.CreateGlobalNotification(ctx, &notificationsv1.CreateGlobalNotificationRequest{
+	rsp, err := c.APIClient.CreateGlobalNotification(ctx, notificationsv1.CreateGlobalNotificationRequest_builder{
 		GlobalNotification: gn,
-	})
+	}.Build())
 	return rsp, trace.Wrap(err)
 }
 
 // CreateUserNotification creates a user-specific notification.
 func (c *Client) CreateUserNotification(ctx context.Context, notification *notificationsv1.Notification) (*notificationsv1.Notification, error) {
-	rsp, err := c.APIClient.CreateUserNotification(ctx, &notificationsv1.CreateUserNotificationRequest{
+	rsp, err := c.APIClient.CreateUserNotification(ctx, notificationsv1.CreateUserNotificationRequest_builder{
 		Notification: notification,
-	})
+	}.Build())
 	return rsp, trace.Wrap(err)
 }
 
 // DeleteGlobalNotification deletes a global notification.
 func (c *Client) DeleteGlobalNotification(ctx context.Context, notificationId string) error {
-	err := c.APIClient.DeleteGlobalNotification(ctx, &notificationsv1.DeleteGlobalNotificationRequest{
+	err := c.APIClient.DeleteGlobalNotification(ctx, notificationsv1.DeleteGlobalNotificationRequest_builder{
 		NotificationId: notificationId,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
 // DeleteUserNotification not implemented: can only be called locally.
 func (c *Client) DeleteUserNotification(ctx context.Context, username string, notificationId string) error {
-	err := c.APIClient.DeleteUserNotification(ctx, &notificationsv1.DeleteUserNotificationRequest{
+	err := c.APIClient.DeleteUserNotification(ctx, notificationsv1.DeleteUserNotificationRequest_builder{
 		Username:       username,
 		NotificationId: notificationId,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 

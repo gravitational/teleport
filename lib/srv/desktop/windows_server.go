@@ -307,7 +307,33 @@ func (cfg *WindowsServiceConfig) CheckAndSetDefaults() error {
 		cfg.Logger.WarnContext(context.Background(), "site is set, but locate_server is false. site will be ignored.")
 	}
 
+	cfg.insecureSkipVerifyWarning()
+
 	return nil
+}
+
+func (w *WindowsServiceConfig) insecureSkipVerifyWarning() {
+	if !w.LDAPConfig.InsecureSkipVerify || w.Logger == nil {
+		return
+	}
+
+	const withCAs = "LDAP configuration specifies both a CA certificate and insecure_skip_verify. " +
+		"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning."
+
+	const withoutCAs = "LDAP configuration specifies insecure_skip_verify. " +
+		"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning."
+
+	// It's possible to provide a CA certificate for the LDAP server
+	// and to skip TLS validation, though this may be an error, so try
+	// to warn the user.
+	// (You may need this configuration in order to use certificates to
+	// authenticate with LDAP when the LDAP server name is not correct
+	// in the certificate).
+	if len(w.LDAPConfig.CAs) > 0 {
+		w.Logger.WarnContext(context.Background(), withCAs)
+	} else {
+		w.Logger.WarnContext(context.Background(), withoutCAs)
+	}
 }
 
 func (cfg *HeartbeatConfig) CheckAndSetDefaults() error {
@@ -334,9 +360,6 @@ func (s *WindowsService) getLDAPConfig() *winpki.LDAPConfig {
 	}
 }
 
-const insecureSkipVerifyWarning = "LDAP configuration specifies both a CA certificate and insecure_skip_verify. " +
-	"TLS connections to the LDAP server will not be verified. If this is intentional, disregard this warning."
-
 // NewWindowsService initializes a new WindowsService.
 //
 // To start serving connections, call Serve.
@@ -344,16 +367,6 @@ const insecureSkipVerifyWarning = "LDAP configuration specifies both a CA certif
 func NewWindowsService(cfg WindowsServiceConfig) (*WindowsService, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// It's possible to provide a CA certificate for the LDAP server
-	// and to skip TLS valdiation, though this may be an error, so try
-	// to warn the user.
-	// (You may need this configuration in order to use certificates to
-	// authenticate with LDAP when the LDAP server name is not correct
-	// in the certificate).
-	if len(cfg.LDAPConfig.CAs) > 0 && cfg.LDAPConfig.InsecureSkipVerify {
-		cfg.Logger.WarnContext(context.Background(), insecureSkipVerifyWarning)
 	}
 
 	clusterName, err := cfg.AccessPoint.GetClusterName(context.TODO())

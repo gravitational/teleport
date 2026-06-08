@@ -265,14 +265,14 @@ func Test_setResourceName(t *testing.T) {
 func TestProtoResourceRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	resource := &vnet.VnetConfig{
-		Metadata: &headerv1.Metadata{
+	resource := vnet.VnetConfig_builder{
+		Metadata: headerv1.Metadata_builder{
 			Name: "vnet_config",
-		},
-		Spec: &vnet.VnetConfigSpec{
+		}.Build(),
+		Spec: vnet.VnetConfigSpec_builder{
 			Ipv4CidrRange: "100.64.0.0/10",
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	for _, tc := range []struct {
 		desc          string

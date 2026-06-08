@@ -19,6 +19,7 @@ import '@testing-library/jest-dom';
 import { screen } from '@testing-library/react';
 
 import { act, render } from 'design/utils/testing';
+import { ToastNotificationProvider } from 'shared/components/ToastNotification';
 
 import { ContextProvider } from 'teleport';
 import { TestLayout } from 'teleport/Console/Console.story';
@@ -57,9 +58,11 @@ describe('DocumentKubeExec', () => {
 
     render(
       <ContextProvider ctx={ctx}>
-        <TestLayout ctx={consoleCtx}>
-          <DocumentKubeExec doc={baseDoc} visible={true} />
-        </TestLayout>
+        <ToastNotificationProvider>
+          <TestLayout ctx={consoleCtx}>
+            <DocumentKubeExec doc={baseDoc} visible={true} />
+          </TestLayout>
+        </ToastNotificationProvider>
       </ContextProvider>
     );
   };

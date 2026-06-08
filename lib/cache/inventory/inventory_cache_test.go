@@ -73,7 +73,7 @@ func getItemName(item *inventoryv1.UnifiedInstanceItem) string {
 	if instance := item.GetInstance(); instance != nil {
 		return instance.Spec.Hostname
 	} else if bot := item.GetBotInstance(); bot != nil {
-		return bot.Spec.BotName
+		return bot.GetSpec().GetBotName()
 	}
 	return ""
 }
@@ -85,8 +85,8 @@ func getItemVersion(item *inventoryv1.UnifiedInstanceItem) string {
 	if instance := item.GetInstance(); instance != nil {
 		return instance.Spec.Version
 	} else if bot := item.GetBotInstance(); bot != nil {
-		if len(bot.Status.LatestHeartbeats) > 0 {
-			return bot.Status.LatestHeartbeats[0].Version
+		if len(bot.GetStatus().GetLatestHeartbeats()) > 0 {
+			return bot.GetStatus().GetLatestHeartbeats()[0].GetVersion()
 		}
 	}
 	return ""
@@ -433,74 +433,74 @@ func TestInventoryCache(t *testing.T) {
 
 		// Create mock bot instances
 		bots := []*machineidv1.BotInstance{
-			{
-				Metadata: &headerv1.Metadata{
+			machineidv1.BotInstance_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot1",
-				},
-				Spec: &machineidv1.BotInstanceSpec{
+				}.Build(),
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "bot-1",
 					InstanceId: "bot1",
-				},
-				Status: &machineidv1.BotInstanceStatus{
+				}.Build(),
+				Status: machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							RecordedAt: timestamppb.Now(),
 							Version:    "18.1.0",
-						},
+						}.Build(),
 					},
-				},
-			},
-			{
-				Metadata: &headerv1.Metadata{
+				}.Build(),
+			}.Build(),
+			machineidv1.BotInstance_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot2",
-				},
-				Spec: &machineidv1.BotInstanceSpec{
+				}.Build(),
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "bot-2",
 					InstanceId: "bot2",
-				},
-				Status: &machineidv1.BotInstanceStatus{
+				}.Build(),
+				Status: machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							RecordedAt: timestamppb.Now(),
 							Version:    "18.2.0",
-						},
+						}.Build(),
 					},
-				},
-			},
-			{
-				Metadata: &headerv1.Metadata{
+				}.Build(),
+			}.Build(),
+			machineidv1.BotInstance_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot3",
-				},
-				Spec: &machineidv1.BotInstanceSpec{
+				}.Build(),
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "bot-3",
 					InstanceId: "bot3",
-				},
-				Status: &machineidv1.BotInstanceStatus{
+				}.Build(),
+				Status: machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							RecordedAt: timestamppb.Now(),
 							Version:    "18.2.0",
-						},
+						}.Build(),
 					},
-				},
-			},
-			{
-				Metadata: &headerv1.Metadata{
+				}.Build(),
+			}.Build(),
+			machineidv1.BotInstance_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot4",
-				},
-				Spec: &machineidv1.BotInstanceSpec{
+				}.Build(),
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "bot-4",
 					InstanceId: "bot4",
-				},
-				Status: &machineidv1.BotInstanceStatus{
+				}.Build(),
+				Status: machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							RecordedAt: timestamppb.Now(),
 							Version:    "18.1.0",
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		}
 
 		mockInventory := &mockInventoryService{instances: instances}
@@ -523,11 +523,11 @@ func TestInventoryCache(t *testing.T) {
 		require.True(t, inventoryCache.IsHealthy())
 
 		// Verify all the instances were loaded into the cache
-		listResp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		listResp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, listResp.Items, 12, "should have 8 instances + 4 bots")
+		require.Len(t, listResp.GetItems(), 12, "should have 8 instances + 4 bots")
 
 		// Verify results are correctly alphabetically sorted
 		expectedOrder := []string{
@@ -545,59 +545,59 @@ func TestInventoryCache(t *testing.T) {
 			"proxy1.example.com",
 		}
 
-		require.Equal(t, expectedOrder, libslices.Map(listResp.Items, getItemName))
+		require.Equal(t, expectedOrder, libslices.Map(listResp.GetItems(), getItemName))
 
 		// Verify pagination works as intended
-		firstPageResp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		firstPageResp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 5,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, firstPageResp.Items, 5, "first page should have 5 items, got %d", len(firstPageResp.Items))
+		require.Len(t, firstPageResp.GetItems(), 5, "first page should have 5 items, got %d", len(firstPageResp.GetItems()))
 
 		// The next page token should be the alphabetical key of the first item on the next page (6th item)
 		expectedNextPageToken := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(string(ordered.Encode("bot-3", "bot3", types.KindBotInstance))))
-		require.Equal(t, expectedNextPageToken, firstPageResp.NextPageToken)
+		require.Equal(t, expectedNextPageToken, firstPageResp.GetNextPageToken())
 
 		// Fetch another page of 5, this time using the page token from before
-		secondPageResp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		secondPageResp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize:  5,
-			PageToken: firstPageResp.NextPageToken,
-		})
+			PageToken: firstPageResp.GetNextPageToken(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, secondPageResp.Items, 5, "second page should have 5 items, got %d", len(secondPageResp.Items))
+		require.Len(t, secondPageResp.GetItems(), 5, "second page should have 5 items, got %d", len(secondPageResp.GetItems()))
 
 		// The returned next page token should be the alphabetical key of the first item on the third page (11th item)
 		expectedSecondPageToken := base32.HexEncoding.WithPadding(base32.NoPadding).EncodeToString([]byte(string(ordered.Encode("node1.example.com", "agent3", types.KindInstance))))
-		require.Equal(t, expectedSecondPageToken, secondPageResp.NextPageToken, "second page next token should match expected format")
+		require.Equal(t, expectedSecondPageToken, secondPageResp.GetNextPageToken(), "second page next token should match expected format")
 
 		// Fetch another page of 5, using the page token from before
-		thirdPageResp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		thirdPageResp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize:  5,
-			PageToken: secondPageResp.NextPageToken,
-		})
+			PageToken: secondPageResp.GetNextPageToken(),
+		}.Build())
 		require.NoError(t, err)
 		// We should only get 2 items, and no next page token
-		require.Len(t, thirdPageResp.Items, 2, "third page should have 2 items, got %d", len(thirdPageResp.Items))
-		require.Empty(t, thirdPageResp.NextPageToken, "third page should not have a next page token")
+		require.Len(t, thirdPageResp.GetItems(), 2, "third page should have 2 items, got %d", len(thirdPageResp.GetItems()))
+		require.Empty(t, thirdPageResp.GetNextPageToken(), "third page should not have a next page token")
 
 		// Verify filtering by kind works
-		instancesOnlyResp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		instancesOnlyResp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, instancesOnlyResp.Items, 8, "should have 8 results when filtering by KindInstance")
+		require.Len(t, instancesOnlyResp.GetItems(), 8, "should have 8 results when filtering by KindInstance")
 
-		botsOnlyResp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		botsOnlyResp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_BOT_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, botsOnlyResp.Items, 4, "should have 4 results when filtering by KindBotInstance")
+		require.Len(t, botsOnlyResp.GetItems(), 4, "should have 4 results when filtering by KindBotInstance")
 	})
 }
 
@@ -648,40 +648,40 @@ func TestInventoryCacheWatcher(t *testing.T) {
 
 		// Create 2 bot instances
 		bots := []*machineidv1.BotInstance{
-			{
-				Metadata: &headerv1.Metadata{
+			machineidv1.BotInstance_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot1",
-				},
-				Spec: &machineidv1.BotInstanceSpec{
+				}.Build(),
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "bot-1",
 					InstanceId: "bot1",
-				},
-				Status: &machineidv1.BotInstanceStatus{
+				}.Build(),
+				Status: machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							RecordedAt: timestamppb.Now(),
 							Version:    "18.1.0",
-						},
+						}.Build(),
 					},
-				},
-			},
-			{
-				Metadata: &headerv1.Metadata{
+				}.Build(),
+			}.Build(),
+			machineidv1.BotInstance_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot2",
-				},
-				Spec: &machineidv1.BotInstanceSpec{
+				}.Build(),
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "bot-2",
 					InstanceId: "bot2",
-				},
-				Status: &machineidv1.BotInstanceStatus{
+				}.Build(),
+				Status: machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							RecordedAt: timestamppb.Now(),
 							Version:    "18.2.0",
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		}
 
 		mockInventoryService := &mockInventoryService{
@@ -707,11 +707,11 @@ func TestInventoryCacheWatcher(t *testing.T) {
 		synctest.Wait()
 		require.True(t, inventoryCache.IsHealthy())
 
-		listResp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		listResp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, listResp.Items, 4, "should start with 4 items (2 instances + 2 bots)")
+		require.Len(t, listResp.GetItems(), 4, "should start with 4 items (2 instances + 2 bots)")
 
 		// Add a new instance and a bot instance to the backend
 		newInstance := &types.InstanceV1{
@@ -731,23 +731,23 @@ func TestInventoryCacheWatcher(t *testing.T) {
 			},
 		}
 
-		newBot := &machineidv1.BotInstance{
-			Metadata: &headerv1.Metadata{
+		newBot := machineidv1.BotInstance_builder{
+			Metadata: headerv1.Metadata_builder{
 				Name: "bot3",
-			},
-			Spec: &machineidv1.BotInstanceSpec{
+			}.Build(),
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "new-bot",
 				InstanceId: "bot3",
-			},
-			Status: &machineidv1.BotInstanceStatus{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
 				LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-					{
+					machineidv1.BotInstanceStatusHeartbeat_builder{
 						RecordedAt: timestamppb.Now(),
 						Version:    "18.2.0",
-					},
+					}.Build(),
 				},
-			},
-		}
+			}.Build(),
+		}.Build()
 
 		newInstanceItem, err := generic.FastMarshal(backend.NewKey(instancePrefix, newInstance.GetName()), newInstance)
 		require.NoError(t, err)
@@ -757,33 +757,33 @@ func TestInventoryCacheWatcher(t *testing.T) {
 		newBotBytes, err := services.MarshalBotInstance(newBot)
 		require.NoError(t, err)
 		_, err = p.Backend.Put(ctx, backend.Item{
-			Key:   backend.NewKey(botInstancePrefix, newBot.Spec.BotName, newBot.Metadata.Name),
+			Key:   backend.NewKey(botInstancePrefix, newBot.GetSpec().GetBotName(), newBot.GetMetadata().GetName()),
 			Value: newBotBytes,
 		})
 		require.NoError(t, err)
 
 		// Wait for the inventory cache watcher to process the put events
 		synctest.Wait()
-		listResp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		listResp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, listResp.Items, 6, "should have 6 items after adding 2")
+		require.Len(t, listResp.GetItems(), 6, "should have 6 items after adding 2")
 
 		// Delete the newly added instances
 		err = p.Backend.Delete(ctx, backend.NewKey(instancePrefix, newInstance.GetName()))
 		require.NoError(t, err)
 
-		err = p.Backend.Delete(ctx, backend.NewKey(botInstancePrefix, newBot.Spec.BotName, newBot.Metadata.Name))
+		err = p.Backend.Delete(ctx, backend.NewKey(botInstancePrefix, newBot.GetSpec().GetBotName(), newBot.GetMetadata().GetName()))
 		require.NoError(t, err)
 
 		// Wait for the watcher to process the delete events
 		synctest.Wait()
-		listResp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		listResp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, listResp.Items, 4, "should have 4 items after deleting 2")
+		require.Len(t, listResp.GetItems(), 4, "should have 4 items after deleting 2")
 	})
 }
 
@@ -932,50 +932,50 @@ func TestInventoryCacheFiltering(t *testing.T) {
 		}
 
 		bots := []*machineidv1.BotInstance{
-			{
+			machineidv1.BotInstance_builder{
 				Kind:    types.KindBotInstance,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot1-instance1",
-				},
-				Spec: &machineidv1.BotInstanceSpec{
+				}.Build(),
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "bot1",
 					InstanceId: "instance1",
-				},
-				Status: &machineidv1.BotInstanceStatus{
+				}.Build(),
+				Status: machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							RecordedAt:      timestamppb.Now(),
 							Version:         "18.1.5",
 							Hostname:        "bot-host1.example.com",
 							ExternalUpdater: "kube",
 							UpdaterInfo:     &types.UpdaterV2Info{UpdateGroup: "bot-group1"},
-						},
+						}.Build(),
 					},
-				},
-			},
-			{
+				}.Build(),
+			}.Build(),
+			machineidv1.BotInstance_builder{
 				Kind:    types.KindBotInstance,
 				Version: types.V1,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot2-instance2",
-				},
-				Spec: &machineidv1.BotInstanceSpec{
+				}.Build(),
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "bot2",
 					InstanceId: "instance2",
-				},
-				Status: &machineidv1.BotInstanceStatus{
+				}.Build(),
+				Status: machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							RecordedAt:      timestamppb.Now(),
 							Version:         "19.0.1",
 							Hostname:        "bot-host2.example.com",
 							ExternalUpdater: "unit",
 							UpdaterInfo:     &types.UpdaterV2Info{UpdateGroup: "bot-group2"},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		}
 
 		mockInventory := &mockInventoryService{instances: instances}
@@ -997,182 +997,182 @@ func TestInventoryCacheFiltering(t *testing.T) {
 		require.True(t, inventoryCache.IsHealthy())
 
 		// Test searching by hostname
-		resp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				Search: "node1",
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 1)
-		require.Equal(t, "node1.example.com", resp.Items[0].GetInstance().Spec.Hostname)
+		require.Len(t, resp.GetItems(), 1)
+		require.Equal(t, "node1.example.com", resp.GetItems()[0].GetInstance().Spec.Hostname)
 
 		// Test searching by bot name
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				Search:        "bot2",
 				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_BOT_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 1)
-		require.Equal(t, "bot2", resp.Items[0].GetBotInstance().Spec.BotName)
+		require.Len(t, resp.GetItems(), 1)
+		require.Equal(t, "bot2", resp.GetItems()[0].GetBotInstance().GetSpec().GetBotName())
 
 		// Test filtering by services
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				Services:      []string{string(types.RoleAuth), string(types.RoleProxy)},
 				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 2)
-		require.Equal(t, "auth1.example.com", resp.Items[0].GetInstance().Spec.Hostname)
-		require.Equal(t, "node2.example.com", resp.Items[1].GetInstance().Spec.Hostname)
+		require.Len(t, resp.GetItems(), 2)
+		require.Equal(t, "auth1.example.com", resp.GetItems()[0].GetInstance().Spec.Hostname)
+		require.Equal(t, "node2.example.com", resp.GetItems()[1].GetInstance().Spec.Hostname)
 
 		// Test filtering by updater groups
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				UpdaterGroups: []string{"group1"},
 				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 2)
+		require.Len(t, resp.GetItems(), 2)
 
 		// Test filtering by external upgraders
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				Upgraders:     []string{"kube"},
 				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 2)
-		for _, item := range resp.Items {
+		require.Len(t, resp.GetItems(), 2)
+		for _, item := range resp.GetItems() {
 			require.Equal(t, "kube", item.GetInstance().Spec.ExternalUpgrader)
 		}
 
 		// Test predicate query filtering by version (less than)
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				PredicateExpression: `older_than(status.latest_heartbeat.version, "18.2.0")`,
 				InstanceTypes:       []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 1)
-		require.Equal(t, "18.1.0", resp.Items[0].GetInstance().Spec.Version)
+		require.Len(t, resp.GetItems(), 1)
+		require.Equal(t, "18.1.0", resp.GetItems()[0].GetInstance().Spec.Version)
 
 		// Test predicate query filtering by version (greater than) for both instance types.
 		// This should return 3 instances and 1 bot instance.
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				PredicateExpression: `newer_than(status.latest_heartbeat.version, "18.1.6")`,
 				InstanceTypes:       []inventoryv1.InstanceType{},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 4)
+		require.Len(t, resp.GetItems(), 4)
 
 		// Test predicate query filtering by version (between)
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				PredicateExpression: `between(status.latest_heartbeat.version, "18.0.0", "19.0.0")`,
 				InstanceTypes:       []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 3)
+		require.Len(t, resp.GetItems(), 3)
 
 		// Test predicate query filtering by hostname
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				PredicateExpression: `hostname == "node2.example.com"`,
 				InstanceTypes:       []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 1)
-		require.Equal(t, "node2.example.com", resp.Items[0].GetInstance().Spec.Hostname)
+		require.Len(t, resp.GetItems(), 1)
+		require.Equal(t, "node2.example.com", resp.GetItems()[0].GetInstance().Spec.Hostname)
 
 		// Test filtering with multiple filters.
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				Services:            []string{string(types.RoleNode)},
 				UpdaterGroups:       []string{"group1"},
 				PredicateExpression: `older_than(status.latest_heartbeat.version, "18.2.0")`,
 				InstanceTypes:       []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 1)
-		require.Equal(t, "node1.example.com", resp.Items[0].GetInstance().Spec.Hostname)
+		require.Len(t, resp.GetItems(), 1)
+		require.Equal(t, "node1.example.com", resp.GetItems()[0].GetInstance().Spec.Hostname)
 
 		// Test filtering bot instances by updater group
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				UpdaterGroups: []string{"bot-group1"},
 				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_BOT_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 1)
-		require.Equal(t, "bot1", resp.Items[0].GetBotInstance().Spec.BotName)
+		require.Len(t, resp.GetItems(), 1)
+		require.Equal(t, "bot1", resp.GetItems()[0].GetBotInstance().GetSpec().GetBotName())
 
 		// Test filtering both instances and bot instances by upgrader
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				Upgraders: []string{"kube"},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 3)
+		require.Len(t, resp.GetItems(), 3)
 		upgraders := make(map[string]bool)
-		for _, item := range resp.Items {
+		for _, item := range resp.GetItems() {
 			if item.GetInstance() != nil {
 				upgraders[item.GetInstance().Spec.ExternalUpgrader] = true
-			} else if item.GetBotInstance() != nil && len(item.GetBotInstance().Status.LatestHeartbeats) > 0 {
-				upgraders[item.GetBotInstance().Status.LatestHeartbeats[0].ExternalUpdater] = true
+			} else if item.GetBotInstance() != nil && len(item.GetBotInstance().GetStatus().GetLatestHeartbeats()) > 0 {
+				upgraders[item.GetBotInstance().GetStatus().GetLatestHeartbeats()[0].GetExternalUpdater()] = true
 			}
 		}
 		require.True(t, upgraders["kube"])
 		require.Len(t, upgraders, 1)
 
 		// Test filtering for no upgrader works
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				Upgraders:     []string{""},
 				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 1)
-		require.Equal(t, "no-upgrader.example.com", resp.Items[0].GetInstance().Spec.Hostname)
-		require.Empty(t, resp.Items[0].GetInstance().Spec.ExternalUpgrader)
+		require.Len(t, resp.GetItems(), 1)
+		require.Equal(t, "no-upgrader.example.com", resp.GetItems()[0].GetInstance().Spec.Hostname)
+		require.Empty(t, resp.GetItems()[0].GetInstance().Spec.ExternalUpgrader)
 
 		// Test filtering for no upgrader or kube upgrader
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				Upgraders:     []string{"", "kube"},
 				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 3) // 2 with kube upgrader + 1 with no upgrader
+		require.Len(t, resp.GetItems(), 3) // 2 with kube upgrader + 1 with no upgrader
 	})
 }
 
@@ -1280,57 +1280,57 @@ func TestInventoryCacheSorting(t *testing.T) {
 
 		// Create test bot instances with different bot names and versions
 		bots := []*machineidv1.BotInstance{
-			{
-				Metadata: &headerv1.Metadata{
+			machineidv1.BotInstance_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot1",
-				},
-				Spec: &machineidv1.BotInstanceSpec{
+				}.Build(),
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "yyyy",
 					InstanceId: "bot1",
-				},
-				Status: &machineidv1.BotInstanceStatus{
+				}.Build(),
+				Status: machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							RecordedAt: timestamppb.Now(),
 							Version:    "18.0.0",
-						},
+						}.Build(),
 					},
-				},
-			},
-			{
-				Metadata: &headerv1.Metadata{
+				}.Build(),
+			}.Build(),
+			machineidv1.BotInstance_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot2",
-				},
-				Spec: &machineidv1.BotInstanceSpec{
+				}.Build(),
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "bbbb",
 					InstanceId: "bot2",
-				},
-				Status: &machineidv1.BotInstanceStatus{
+				}.Build(),
+				Status: machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							RecordedAt: timestamppb.Now(),
 							Version:    "19.2.0",
-						},
+						}.Build(),
 					},
-				},
-			},
-			{
-				Metadata: &headerv1.Metadata{
+				}.Build(),
+			}.Build(),
+			machineidv1.BotInstance_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "bot3",
-				},
-				Spec: &machineidv1.BotInstanceSpec{
+				}.Build(),
+				Spec: machineidv1.BotInstanceSpec_builder{
 					BotName:    "dddd",
 					InstanceId: "bot3",
-				},
-				Status: &machineidv1.BotInstanceStatus{
+				}.Build(),
+				Status: machineidv1.BotInstanceStatus_builder{
 					LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-						{
+						machineidv1.BotInstanceStatusHeartbeat_builder{
 							RecordedAt: timestamppb.Now(),
 							Version:    "18.1.5",
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		}
 
 		mockInventory := &mockInventoryService{instances: instances}
@@ -1352,24 +1352,24 @@ func TestInventoryCacheSorting(t *testing.T) {
 		require.True(t, inventoryCache.IsHealthy())
 
 		// Version predicate filter should work whether the instance's version has "v" prefix or not
-		resp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				PredicateExpression: `version == "18.0.0"`,
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 2)
-		require.ElementsMatch(t, []string{"v18.0.0", "18.0.0"}, libslices.Map(resp.Items, getItemVersion))
+		require.Len(t, resp.GetItems(), 2)
+		require.ElementsMatch(t, []string{"v18.0.0", "18.0.0"}, libslices.Map(resp.GetItems(), getItemVersion))
 
 		// Test sort by name ascending
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
 			Sort:     inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_NAME,
 			Order:    inventoryv1.SortOrder_SORT_ORDER_ASCENDING,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 10)
+		require.Len(t, resp.GetItems(), 10)
 
 		expectedNames := []string{
 			"aaaa",
@@ -1384,16 +1384,16 @@ func TestInventoryCacheSorting(t *testing.T) {
 			"zzzz",
 		}
 
-		require.Equal(t, expectedNames, libslices.Map(resp.Items, getItemName))
+		require.Equal(t, expectedNames, libslices.Map(resp.GetItems(), getItemName))
 
 		// Test sort by name descending
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
 			Sort:     inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_NAME,
 			Order:    inventoryv1.SortOrder_SORT_ORDER_DESCENDING,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 10)
+		require.Len(t, resp.GetItems(), 10)
 
 		expectedNames = []string{
 			"zzzz",
@@ -1408,16 +1408,16 @@ func TestInventoryCacheSorting(t *testing.T) {
 			"aaaa",
 		}
 
-		require.Equal(t, expectedNames, libslices.Map(resp.Items, getItemName))
+		require.Equal(t, expectedNames, libslices.Map(resp.GetItems(), getItemName))
 
 		// Test sort by type ascending
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
 			Sort:     inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_TYPE,
 			Order:    inventoryv1.SortOrder_SORT_ORDER_ASCENDING,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 10)
+		require.Len(t, resp.GetItems(), 10)
 
 		// Expect all bot instances first (sorted by name), then all instances (sorted by name)
 		expectedNames = []string{
@@ -1433,16 +1433,16 @@ func TestInventoryCacheSorting(t *testing.T) {
 			"zzzz",
 		}
 
-		require.Equal(t, expectedNames, libslices.Map(resp.Items, getItemName))
+		require.Equal(t, expectedNames, libslices.Map(resp.GetItems(), getItemName))
 
 		// Test sort by type descending
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
 			Sort:     inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_TYPE,
 			Order:    inventoryv1.SortOrder_SORT_ORDER_DESCENDING,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 10)
+		require.Len(t, resp.GetItems(), 10)
 
 		// Expect all instances first (desc sorted by name), then all bot instances (desc sorted by name)
 		expectedNames = []string{
@@ -1458,16 +1458,16 @@ func TestInventoryCacheSorting(t *testing.T) {
 			"bbbb",
 		}
 
-		require.Equal(t, expectedNames, libslices.Map(resp.Items, getItemName))
+		require.Equal(t, expectedNames, libslices.Map(resp.GetItems(), getItemName))
 
 		// Test sorting by version ascending
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
 			Sort:     inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_VERSION,
 			Order:    inventoryv1.SortOrder_SORT_ORDER_ASCENDING,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 10)
+		require.Len(t, resp.GetItems(), 10)
 
 		expectedVersions := []string{
 			"v18.0.0", // v-prefix version (treated as 18.0.0)
@@ -1482,16 +1482,16 @@ func TestInventoryCacheSorting(t *testing.T) {
 			"not-a-version", // invalid version
 		}
 
-		require.Equal(t, expectedVersions, libslices.Map(resp.Items, getItemVersion))
+		require.Equal(t, expectedVersions, libslices.Map(resp.GetItems(), getItemVersion))
 
 		// Test sort by version descending
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
 			Sort:     inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_VERSION,
 			Order:    inventoryv1.SortOrder_SORT_ORDER_DESCENDING,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 10)
+		require.Len(t, resp.GetItems(), 10)
 
 		expectedVersions = []string{
 			"not-a-version",
@@ -1506,104 +1506,104 @@ func TestInventoryCacheSorting(t *testing.T) {
 			"v18.0.0",
 		}
 
-		require.Equal(t, expectedVersions, libslices.Map(resp.Items, getItemVersion))
+		require.Equal(t, expectedVersions, libslices.Map(resp.GetItems(), getItemVersion))
 
 		// Test sorting by version with pagination
-		firstPageResp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		firstPageResp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 3,
 			Sort:     inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_VERSION,
 			Order:    inventoryv1.SortOrder_SORT_ORDER_ASCENDING,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, firstPageResp.Items, 3)
-		require.NotEmpty(t, firstPageResp.NextPageToken)
+		require.Len(t, firstPageResp.GetItems(), 3)
+		require.NotEmpty(t, firstPageResp.GetNextPageToken())
 
 		// Verify first page has the correct versions
 		expectedFirstPageVersions := []string{"v18.0.0", "18.0.0", "18.1.0"}
-		require.Equal(t, expectedFirstPageVersions, libslices.Map(firstPageResp.Items, getItemVersion))
+		require.Equal(t, expectedFirstPageVersions, libslices.Map(firstPageResp.GetItems(), getItemVersion))
 
 		// Fetch second page
-		secondPageResp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		secondPageResp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize:  3,
-			PageToken: firstPageResp.NextPageToken,
+			PageToken: firstPageResp.GetNextPageToken(),
 			Sort:      inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_VERSION,
 			Order:     inventoryv1.SortOrder_SORT_ORDER_ASCENDING,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, secondPageResp.Items, 3)
-		require.NotEmpty(t, secondPageResp.NextPageToken)
+		require.Len(t, secondPageResp.GetItems(), 3)
+		require.NotEmpty(t, secondPageResp.GetNextPageToken())
 
 		// Verify second page has the correct versions
 		expectedSecondPageVersions := []string{"18.1.5", "18.2.5", "19.0.0"}
-		require.Equal(t, expectedSecondPageVersions, libslices.Map(secondPageResp.Items, getItemVersion))
+		require.Equal(t, expectedSecondPageVersions, libslices.Map(secondPageResp.GetItems(), getItemVersion))
 
 		// Fetch third page
-		thirdPageResp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		thirdPageResp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize:  3,
-			PageToken: secondPageResp.NextPageToken,
+			PageToken: secondPageResp.GetNextPageToken(),
 			Sort:      inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_VERSION,
 			Order:     inventoryv1.SortOrder_SORT_ORDER_ASCENDING,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, thirdPageResp.Items, 3)
-		require.NotEmpty(t, thirdPageResp.NextPageToken)
+		require.Len(t, thirdPageResp.GetItems(), 3)
+		require.NotEmpty(t, thirdPageResp.GetNextPageToken())
 
 		// Verify third page has the correct versions
 		expectedThirdPageVersions := []string{"19.1.0-alpha", "19.1.0-beta.1", "19.2.0"}
-		require.Equal(t, expectedThirdPageVersions, libslices.Map(thirdPageResp.Items, getItemVersion))
+		require.Equal(t, expectedThirdPageVersions, libslices.Map(thirdPageResp.GetItems(), getItemVersion))
 
 		// Fetch fourth page
-		fourthPageResp, err := inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		fourthPageResp, err := inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize:  3,
-			PageToken: thirdPageResp.NextPageToken,
+			PageToken: thirdPageResp.GetNextPageToken(),
 			Sort:      inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_VERSION,
 			Order:     inventoryv1.SortOrder_SORT_ORDER_ASCENDING,
-		})
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, fourthPageResp.Items, 1)
-		require.Empty(t, fourthPageResp.NextPageToken)
+		require.Len(t, fourthPageResp.GetItems(), 1)
+		require.Empty(t, fourthPageResp.GetNextPageToken())
 
 		// Verify fourth page has the invalid version
 		var actualVersion string
-		if instance := fourthPageResp.Items[0].GetInstance(); instance != nil {
+		if instance := fourthPageResp.GetItems()[0].GetInstance(); instance != nil {
 			actualVersion = instance.Spec.Version
-		} else if bot := fourthPageResp.Items[0].GetBotInstance(); bot != nil {
-			actualVersion = bot.Status.LatestHeartbeats[0].Version
+		} else if bot := fourthPageResp.GetItems()[0].GetBotInstance(); bot != nil {
+			actualVersion = bot.GetStatus().GetLatestHeartbeats()[0].GetVersion()
 		}
 		require.Equal(t, "not-a-version", actualVersion)
 
 		// Test sorting by version while filtering for only instances
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
 			Sort:     inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_VERSION,
 			Order:    inventoryv1.SortOrder_SORT_ORDER_ASCENDING,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 7)
+		require.Len(t, resp.GetItems(), 7)
 
 		expectedVersions = []string{"v18.0.0", "18.1.0", "18.2.5", "19.0.0", "19.1.0-alpha", "19.1.0-beta.1", "not-a-version"}
-		require.Equal(t, expectedVersions, libslices.Map(resp.Items, func(item *inventoryv1.UnifiedInstanceItem) string {
+		require.Equal(t, expectedVersions, libslices.Map(resp.GetItems(), func(item *inventoryv1.UnifiedInstanceItem) string {
 			return item.GetInstance().Spec.Version
 		}))
 
 		// Test sorting by version while filtering for only bot instances
-		resp, err = inventoryCache.ListUnifiedInstances(ctx, &inventoryv1.ListUnifiedInstancesRequest{
+		resp, err = inventoryCache.ListUnifiedInstances(ctx, inventoryv1.ListUnifiedInstancesRequest_builder{
 			PageSize: 100,
 			Sort:     inventoryv1.UnifiedInstanceSort_UNIFIED_INSTANCE_SORT_VERSION,
 			Order:    inventoryv1.SortOrder_SORT_ORDER_ASCENDING,
-			Filter: &inventoryv1.ListUnifiedInstancesFilter{
+			Filter: inventoryv1.ListUnifiedInstancesFilter_builder{
 				InstanceTypes: []inventoryv1.InstanceType{inventoryv1.InstanceType_INSTANCE_TYPE_BOT_INSTANCE},
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
-		require.Len(t, resp.Items, 3)
+		require.Len(t, resp.GetItems(), 3)
 
 		expectedBotVersions := []string{"18.0.0", "18.1.5", "19.2.0"}
-		require.Equal(t, expectedBotVersions, libslices.Map(resp.Items, func(item *inventoryv1.UnifiedInstanceItem) string {
-			return item.GetBotInstance().Status.LatestHeartbeats[0].Version
+		require.Equal(t, expectedBotVersions, libslices.Map(resp.GetItems(), func(item *inventoryv1.UnifiedInstanceItem) string {
+			return item.GetBotInstance().GetStatus().GetLatestHeartbeats()[0].GetVersion()
 		}))
 	})
 }

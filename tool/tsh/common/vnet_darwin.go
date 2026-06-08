@@ -78,7 +78,7 @@ func newPlatformVnetUninstallServiceCommand(app *kingpin.Application) vnetComman
 
 func runVnetDiagnostics(ctx context.Context, nsi *vnetv1.NetworkStackInfo) error {
 	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
-		VnetIfaceName: nsi.InterfaceName,
+		VnetIfaceName: nsi.GetInterfaceName(),
 		Routing:       &diag.DarwinRouting{},
 		Interfaces:    &diag.NetInterfaces{},
 	})
@@ -90,7 +90,7 @@ func runVnetDiagnostics(ctx context.Context, nsi *vnetv1.NetworkStackInfo) error
 		return trace.Wrap(err)
 	}
 
-	for _, rc := range rcs.GetRouteConflictReport().RouteConflicts {
+	for _, rc := range rcs.GetRouteConflictReport().GetRouteConflicts() {
 		fmt.Printf("Found a conflicting route: %+v\n", rc)
 	}
 

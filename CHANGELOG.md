@@ -47,6 +47,14 @@ change is backwards compatible apart from three cases:
 Rolling upgrades are supported: older-agent heartbeats are
 normalized so previously valid names still pass.
 
+Static configs with two apps that route to the same effective FQDN
+(either the same explicit `public_addr`, or one app's
+`<name>.<proxy_public_addr>` default colliding with another app's
+`public_addr`) are now rejected at startup. Previously Teleport
+accepted the config and routed non-deterministically. The check uses
+this agent's `proxy_service.public_addr`; apps served via another
+proxy's public address in a multi-proxy cluster are not checked.
+
 #### CLI --help Output Improvements
 
 In the past, Teleport CLI programs printed all subcommands, subcommands'

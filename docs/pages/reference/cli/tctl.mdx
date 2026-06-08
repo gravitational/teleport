@@ -1849,7 +1849,7 @@ Flags:
 |`--access-request`|*no default*|Filter by access request ID. Can be specified multiple times.|
 |`--database-name`|*no default*|Filter database sessions by database name.|
 |`--format`|`text`|Format output (text, json, yaml).. Defaults to 'text'.|
-|`--from`|*no default*|Start of time range. Format 2006-01-02. Defaults to 24 hours ago.|
+|`--from-utc`|*no default*|Start of time range. Format 2006-01-02. Defaults to 24 hours ago.|
 |`--kind`|*no default*|Filter by session kind (ssh, db, k8s, desktop). Can be specified multiple times.|
 |`--label`|*no default*|Filter by resource labels (key=value pairs), e.g. env/prod=true,db/type=postgres.|
 |`--limit`|`50`|Maximum number of results to return.|
@@ -1857,12 +1857,13 @@ Flags:
 |`--pod-namespace`|*no default*|Filter Kubernetes sessions by pod namespace.|
 |`--resource-kind`|*no default*|Filter by Teleport resource type (node, kube_cluster, db).|
 |`--resource-name`|*no default*|Filter by resource name.|
+|`--resume-token`|*no default*|Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).|
 |`--role`|*no default*|Filter by role held during the session. Can be specified multiple times.|
 |`--search-mode`|`hybrid` (one of: `hybrid`, `keyword`, `embeddings`)|Search strategy to use when search queries are provided.|
 |`--server-addr`|*no default*|Filter SSH sessions by server address.|
 |`--server-hostname`|*no default*|Filter SSH sessions by server hostname.|
 |`--severity`|*no default*|Minimum severity level to include (low, medium, high, critical).|
-|`--to`|*no default*|End of time range. Format 2006-01-02. Defaults to current time.|
+|`--to-utc`|*no default*|End of time range. Format 2006-01-02. Defaults to current time.|
 |`--username`|*no default*|Filter by the Teleport username that initiated the session.|
 
 Arguments:

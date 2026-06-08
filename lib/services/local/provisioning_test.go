@@ -340,26 +340,26 @@ func TestProvisioningServiceTokenNameConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	// create a scoped token
-	scopedToken := &joiningv1.ScopedToken{
+	scopedToken := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "testtoken2",
-		},
+		}.Build(),
 		Scope: "/test",
-		Spec: &joiningv1.ScopedTokenSpec{
+		Spec: joiningv1.ScopedTokenSpec_builder{
 			AssignedScope: "/test/one",
 			JoinMethod:    "token",
 			Roles:         []string{types.RoleNode.String()},
 			UsageMode:     string(joining.TokenUsageModeUnlimited),
-		},
-		Status: &joiningv1.ScopedTokenStatus{
+		}.Build(),
+		Status: joiningv1.ScopedTokenStatus_builder{
 			Secret: "secret",
-		},
-	}
-	_, err = scopedTokenService.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		}.Build(),
+	}.Build()
+	_, err = scopedTokenService.CreateScopedToken(ctx, joiningv1.CreateScopedTokenRequest_builder{
 		Token: scopedToken,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	token.SetName(scopedToken.GetMetadata().GetName())
