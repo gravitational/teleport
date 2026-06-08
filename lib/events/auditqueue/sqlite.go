@@ -285,24 +285,23 @@ func (q *sqliteQueue) softLimitLoop() {
 			return
 		case <-ticker.C:
 		}
-			above, size, err := q.aboveSoftLimit()
-			if err != nil {
-				slog.ErrorContext(q.ctx,
-					"Failed to stat audit queue file.",
-					"path", q.path,
-					"error", err,
-				)
-				continue
-			}
-			if above {
-				slog.WarnContext(q.ctx,
-					"audit event queue above soft limit",
-					"path", q.path,
-					"size_bytes", size,
-					"soft_limit_bytes", q.softLimit,
-				)
-				softLimitWarnings.Inc()
-			}
+		above, size, err := q.aboveSoftLimit()
+		if err != nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to stat audit queue file.",
+				"path", q.path,
+				"error", err,
+			)
+			continue
+		}
+		if above {
+			slog.WarnContext(q.ctx,
+				"audit event queue above soft limit",
+				"path", q.path,
+				"size_bytes", size,
+				"soft_limit_bytes", q.softLimit,
+			)
+			softLimitWarnings.Inc()
 		}
 	}
 }
