@@ -515,6 +515,10 @@ func (c *Client) CreateResetPasswordToken(ctx context.Context, req CreateUserTok
 	})
 }
 
+func (c *Client) ResetUser(ctx context.Context, req *userspb.ResetUserRequest) (*userspb.ResetUserResponse, error) {
+	return c.APIClient.ResetUser(ctx, req)
+}
+
 // GetDatabaseServers returns all registered database proxy servers.
 func (c *Client) GetDatabaseServers(ctx context.Context, namespace string, opts ...services.MarshalOption) ([]types.DatabaseServer, error) {
 	return c.APIClient.GetDatabaseServers(ctx, namespace)

@@ -33,9 +33,11 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/asciitable"
@@ -191,22 +193,43 @@ func (u *UserCommand) TryRun(ctx context.Context, cmd string, clientFunc commonc
 
 // ResetPassword resets user password and generates a token to setup new password
 func (u *UserCommand) ResetPassword(ctx context.Context, client *authclient.Client) error {
-	req := authclient.CreateUserTokenRequest{
-		Name: u.login,
-		TTL:  u.ttl,
-		Type: authclient.UserTokenTypeResetPassword,
-	}
-	token, err := client.CreateResetPasswordToken(ctx, req)
-	if err != nil {
-		return err
-	}
-
-	err = u.PrintResetPasswordToken(token)
+	token, err := u.resetPasswordRPC(ctx, client)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
+	if token != nil {
+		err = u.PrintResetPasswordToken(token)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	} else {
+		fmt.Printf("SSO user %q has been reset. Removed all MFA devices.\n", u.login)
+	}
+
 	return nil
+}
+
+func (u *UserCommand) resetPasswordRPC(ctx context.Context, client *authclient.Client) (types.UserToken, error) {
+	res, err := client.ResetUser(ctx, &userspb.ResetUserRequest{
+		Name: u.login,
+		Ttl:  durationpb.New(u.ttl),
+		Type: authclient.UserTokenTypeResetPassword,
+	})
+	if trace.IsNotImplemented(err) {
+		// Fall back to the legacy API.
+		token, err := client.CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+			Name: u.login,
+			TTL:  u.ttl,
+			Type: authclient.UserTokenTypeResetPassword,
+		})
+		return token, trace.Wrap(err)
+	}
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return res.GetPasswordResetToken(), trace.Wrap(err)
 }
 
 // PrintResetPasswordToken prints ResetPasswordToken

@@ -40,6 +40,7 @@ const (
 	UsersService_UpdateUser_FullMethodName = "/teleport.users.v1.UsersService/UpdateUser"
 	UsersService_UpsertUser_FullMethodName = "/teleport.users.v1.UsersService/UpsertUser"
 	UsersService_DeleteUser_FullMethodName = "/teleport.users.v1.UsersService/DeleteUser"
+	UsersService_ResetUser_FullMethodName  = "/teleport.users.v1.UsersService/ResetUser"
 )
 
 // UsersServiceClient is the client API for UsersService service.
@@ -60,6 +61,18 @@ type UsersServiceClient interface {
 	UpsertUser(ctx context.Context, in *UpsertUserRequest, opts ...grpc.CallOption) (*UpsertUserResponse, error)
 	// DeleteUser removes an existing user by name.
 	DeleteUser(ctx context.Context, in *DeleteUserRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
+	// ResetUser resets users current password (if applicable) and MFA devices.
+	//
+	// For local users, it creates a password reset token that can be then used
+	// to set up new credentials.
+	//
+	// For SSO users, only MFA devices are removed; they are also removed if the
+	// user has been deleted/expired from the backend. No password reset token is
+	// returned.
+	//
+	// Other types of users, like bots, are not supported. Requests for those
+	// users are rejected and will error.
+	ResetUser(ctx context.Context, in *ResetUserRequest, opts ...grpc.CallOption) (*ResetUserResponse, error)
 }
 
 type usersServiceClient struct {
@@ -130,6 +143,16 @@ func (c *usersServiceClient) DeleteUser(ctx context.Context, in *DeleteUserReque
 	return out, nil
 }
 
+func (c *usersServiceClient) ResetUser(ctx context.Context, in *ResetUserRequest, opts ...grpc.CallOption) (*ResetUserResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ResetUserResponse)
+	err := c.cc.Invoke(ctx, UsersService_ResetUser_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // UsersServiceServer is the server API for UsersService service.
 // All implementations must embed UnimplementedUsersServiceServer
 // for forward compatibility.
@@ -148,6 +171,18 @@ type UsersServiceServer interface {
 	UpsertUser(context.Context, *UpsertUserRequest) (*UpsertUserResponse, error)
 	// DeleteUser removes an existing user by name.
 	DeleteUser(context.Context, *DeleteUserRequest) (*emptypb.Empty, error)
+	// ResetUser resets users current password (if applicable) and MFA devices.
+	//
+	// For local users, it creates a password reset token that can be then used
+	// to set up new credentials.
+	//
+	// For SSO users, only MFA devices are removed; they are also removed if the
+	// user has been deleted/expired from the backend. No password reset token is
+	// returned.
+	//
+	// Other types of users, like bots, are not supported. Requests for those
+	// users are rejected and will error.
+	ResetUser(context.Context, *ResetUserRequest) (*ResetUserResponse, error)
 	mustEmbedUnimplementedUsersServiceServer()
 }
 
@@ -175,6 +210,9 @@ func (UnimplementedUsersServiceServer) UpsertUser(context.Context, *UpsertUserRe
 }
 func (UnimplementedUsersServiceServer) DeleteUser(context.Context, *DeleteUserRequest) (*emptypb.Empty, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method DeleteUser not implemented")
+}
+func (UnimplementedUsersServiceServer) ResetUser(context.Context, *ResetUserRequest) (*ResetUserResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ResetUser not implemented")
 }
 func (UnimplementedUsersServiceServer) mustEmbedUnimplementedUsersServiceServer() {}
 func (UnimplementedUsersServiceServer) testEmbeddedByValue()                      {}
@@ -305,6 +343,24 @@ func _UsersService_DeleteUser_Handler(srv interface{}, ctx context.Context, dec 
 	return interceptor(ctx, in, info, handler)
 }
 
+func _UsersService_ResetUser_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ResetUserRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(UsersServiceServer).ResetUser(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: UsersService_ResetUser_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(UsersServiceServer).ResetUser(ctx, req.(*ResetUserRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // UsersService_ServiceDesc is the grpc.ServiceDesc for UsersService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -335,6 +391,10 @@ var UsersService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "DeleteUser",
 			Handler:    _UsersService_DeleteUser_Handler,
+		},
+		{
+			MethodName: "ResetUser",
+			Handler:    _UsersService_ResetUser_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

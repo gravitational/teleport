@@ -30,10 +30,12 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	wanpb "github.com/gravitational/teleport/api/types/webauthn"
@@ -152,6 +154,150 @@ func TestCreateResetPasswordTokenErrors(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			_, err := as.AuthServer.CreateResetPasswordToken(ctx, tc.req)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestResetUser(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	srv := newTestTLSServer(t)
+	mockEmitter := &eventstest.MockRecorderEmitter{}
+	srv.Auth().SetEmitter(mockEmitter)
+
+	// Configure cluster and user for MFA, registering various devices.
+	mfa := configureForMFA(t, srv)
+	username := mfa.User
+	pass := mfa.Password
+
+	// Create an admin user and client to perform the reset.
+	_, _, err := authtest.CreateUserAndRole(
+		srv.Auth(),
+		"admin",
+		[]string{"admin"},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindUser},
+				Verbs:     []string{types.VerbUpdate},
+			},
+		},
+	)
+	require.NoError(t, err)
+	clt, err := srv.NewClient(authtest.TestUser("admin"))
+	require.NoError(t, err)
+
+	req := &userspb.ResetUserRequest{
+		Name: username,
+		Ttl:  durationpb.New(time.Hour),
+	}
+
+	resp, err := clt.ResetUser(ctx, req)
+	require.NoError(t, err)
+	require.Equal(t, resp.PasswordResetToken.GetUser(), username)
+	require.Equal(t, resp.PasswordResetToken.GetURL(), "https://<proxyhost>:3080/web/reset/"+resp.PasswordResetToken.GetName())
+
+	event := mockEmitter.LastEvent()
+	require.Equal(t, events.ResetPasswordTokenCreateEvent, event.GetType())
+	require.Equal(t, username, event.(*apievents.UserTokenCreate).Name)
+	require.Equal(t, "admin", event.(*apievents.UserTokenCreate).User)
+
+	// verify that user has no MFA devices
+	devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false)
+	require.NoError(t, err)
+	require.Empty(t, devs)
+
+	// verify that password was reset
+	err = srv.Auth().CheckPasswordWOToken(ctx, username, []byte(pass))
+	require.Error(t, err)
+
+	// create another reset token for the same user
+	token, err := srv.Auth().CreateResetPasswordToken(ctx, authclient.CreateUserTokenRequest{
+		Name: username,
+		TTL:  time.Hour,
+	})
+	require.NoError(t, err)
+
+	// previous token must be deleted
+	userTokens, err := stream.Collect(clientutils.Resources(ctx, srv.Auth().ListUserTokens))
+	require.NoError(t, err)
+	require.Len(t, userTokens, 1)
+	require.Equal(t, userTokens[0].GetName(), token.GetName())
+}
+
+func TestResetUserErrors(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	srv := newTestTLSServer(t)
+
+	username := "joe@example.com"
+	_, _, err := authtest.CreateUserAndRole(srv.Auth(), username, []string{username}, nil)
+	require.NoError(t, err)
+
+	// Create an admin user and client to perform the reset.
+	_, _, err = authtest.CreateUserAndRole(
+		srv.Auth(),
+		"admin",
+		[]string{"admin"},
+		[]types.Rule{
+			{
+				Resources: []string{types.KindUser},
+				Verbs:     []string{types.VerbUpdate},
+			},
+		},
+	)
+	require.NoError(t, err)
+	clt, err := srv.NewClient(authtest.TestUser("admin"))
+	require.NoError(t, err)
+
+	type testCase struct {
+		desc string
+		req  *userspb.ResetUserRequest
+	}
+
+	testCases := []testCase{
+		{
+			desc: "Reset Password: TTL < 0",
+			req: &userspb.ResetUserRequest{
+				Name: username,
+				Ttl:  durationpb.New(-1),
+			},
+		},
+		{
+			desc: "Reset Password: TTL > max",
+			req: &userspb.ResetUserRequest{
+				Name: username,
+				Ttl:  durationpb.New(defaults.MaxChangePasswordTokenTTL + time.Hour),
+			},
+		},
+		{
+			desc: "Reset Password: empty user name",
+			req: &userspb.ResetUserRequest{
+				Ttl: durationpb.New(time.Hour),
+			},
+		},
+		{
+			desc: "Reset Password: user does not exist",
+			req: &userspb.ResetUserRequest{
+				Name: "doesnotexist@example.com",
+				Ttl:  durationpb.New(time.Hour),
+			},
+		},
+		{
+			desc: "Invite: TTL > max",
+			req: &userspb.ResetUserRequest{
+				Name: username,
+				Ttl:  durationpb.New(defaults.MaxSignupTokenTTL + time.Hour),
+				Type: authclient.UserTokenTypeResetPasswordInvite,
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			_, err := clt.ResetUser(ctx, tc.req)
 			require.Error(t, err)
 		})
 	}

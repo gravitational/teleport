@@ -27,27 +27,34 @@ import (
 	"testing"
 	"time"
 
+	gogotypes "github.com/gogo/protobuf/types"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/bcrypt"
 
+	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/auth/users/usersv1"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend/memory"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
+	libutils "github.com/gravitational/teleport/lib/utils"
 )
 
 type fakeAuthorizer struct {
@@ -151,14 +158,23 @@ func withEmitter(emitter apievents.Emitter) serviceOpt {
 	}
 }
 
+type testEnvBackend interface {
+	usersv1.Backend
+	services.Identity
+}
+
 type env struct {
 	*usersv1.Service
 	emitter *eventstest.ChannelEmitter
-	backend usersv1.Backend
+	backend testEnvBackend
+	clock   *clockwork.FakeClock
 }
 
 func newTestEnv(opts ...serviceOpt) (*env, error) {
-	bk, err := memory.New(memory.Config{})
+	clock := clockwork.NewFakeClock()
+	bk, err := memory.New(memory.Config{
+		Clock: clock,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err, "creating memory backend")
 	}
@@ -182,6 +198,7 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		Authorizer: fakeAuthorizer{authorize: true},
 		Cache:      service,
 		Backend:    service,
+		Auth:       &fakeAuth{clock: clock},
 		Emitter:    emitter,
 		Reporter:   usagereporter.DiscardUsageReporter{},
 	}
@@ -199,7 +216,36 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 		Service: svc,
 		emitter: emitter,
 		backend: service,
+		clock:   clock,
 	}, nil
+}
+
+type fakeAuth struct {
+	clock clockwork.Clock
+}
+
+func (a *fakeAuth) NewUserToken(
+	ctx context.Context, req authclient.CreateUserTokenRequest,
+) (types.UserToken, error) {
+	tokenID, err := libutils.CryptoRandomHex(defaults.TokenLenBytes)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	token, err := types.NewUserToken(tokenID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	token.SetSubKind(req.Type)
+	token.SetExpiry(a.clock.Now().UTC().Add(req.TTL))
+	token.SetUser(req.Name)
+	token.SetCreated(a.clock.Now().UTC())
+	token.SetURL(fmt.Sprintf("https://example.com:3080/web/reset/%v", tokenID))
+
+	return token, nil
+}
+func (a *fakeAuth) DeleteUserTokens(ctx context.Context, username string) error {
+	return nil
 }
 
 func TestCreateUser(t *testing.T) {
@@ -207,7 +253,7 @@ func TestCreateUser(t *testing.T) {
 	env, err := newTestEnv()
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -262,7 +308,7 @@ func TestDeleteUser(t *testing.T) {
 	env, err := newTestEnv()
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -303,7 +349,7 @@ func TestGetUser(t *testing.T) {
 	env, err := newTestEnv(withAuthorizer(fakeAuthorizer{authzContext: authzContext}))
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -363,7 +409,7 @@ func TestUpdateUser(t *testing.T) {
 	env, err := newTestEnv()
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -411,7 +457,7 @@ func TestUpsertUser(t *testing.T) {
 	env, err := newTestEnv()
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -470,7 +516,7 @@ func TestListUsers(t *testing.T) {
 	)
 	require.NoError(t, err, "creating test service")
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Create a role to assign to users for search testing.
 	accessSvc := env.backend.(interface {
@@ -611,7 +657,7 @@ func generateUserSecrets(u types.User) error {
 func TestRBAC(t *testing.T) {
 	t.Parallel()
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	llama, err := types.NewUser("llama")
 	require.NoError(t, err, "creating new user llama")
@@ -952,4 +998,320 @@ func TestRBAC(t *testing.T) {
 			require.ElementsMatch(t, test.expectChecks, test.checker.checks)
 		})
 	}
+}
+
+func TestResetUser(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	testCases := []struct {
+		name              string
+		userCreatedBy     types.CreatedBy
+		setupUser         func(t *testing.T, env *env, user types.User)
+		numMFAsAfterSetup int
+		numMFAsAfterReset int
+		userType          types.UserType
+		expectToken       bool
+		assert            func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse)
+	}{
+		{
+			name: "local user",
+			setupUser: func(t *testing.T, env *env, user types.User) {
+				err := env.backend.UpsertPassword(user.GetName(), []byte("dummypasswordhash"))
+				require.NoError(t, err)
+
+				// Double-check the opposite condition to the assertion that will check
+				// if the password is later removed.
+				_, err = env.backend.GetPasswordHash(user.GetName())
+				require.NoError(t, err)
+			},
+			numMFAsAfterSetup: 2,
+			userType:          types.UserTypeLocal,
+			expectToken:       true,
+			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
+				assert.NotNil(t, res.PasswordResetToken)
+				assert.Equal(t, authclient.UserTokenTypeResetPassword, res.PasswordResetToken.SubKind)
+				assert.Equal(t, user.GetName(), res.PasswordResetToken.GetUser(), user.GetName())
+
+				event := getLastEvent(env.emitter.C())
+				assert.Equal(t, events.ResetPasswordTokenCreateEvent, event.GetType())
+				assert.Equal(t, user.GetName(), event.(*apievents.UserTokenCreate).Name)
+				assert.Equal(t, teleport.UserSystem, event.(*apievents.UserTokenCreate).User)
+			},
+		},
+		{
+			name: "SSO user, active",
+			userCreatedBy: types.CreatedBy{
+				User: types.UserRef{Name: teleport.UserSystem},
+				Connector: &types.ConnectorRef{
+					Type: "dummy",
+				},
+			},
+			setupUser:         func(t *testing.T, env *env, user types.User) {},
+			numMFAsAfterSetup: 2,
+			userType:          types.UserTypeSSO,
+			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
+				assert.Nil(t, res.PasswordResetToken)
+			},
+		},
+		{
+			name: "SSO user, active, with SSO MFA",
+			userCreatedBy: types.CreatedBy{
+				User: types.UserRef{Name: teleport.UserSystem},
+				Connector: &types.ConnectorRef{
+					Type: constants.SAML,
+					ID:   "some-connector",
+				},
+			},
+			setupUser: func(t *testing.T, env *env, user types.User) {
+				cb := user.GetCreatedBy()
+				cb.Time = env.clock.Now().UTC()
+				user.SetCreatedBy(cb)
+
+				_, err := env.backend.UpdateUser(t.Context(), user)
+				require.NoError(t, err)
+
+				conn, err := types.NewSAMLConnector(
+					"some-connector",
+					types.SAMLConnectorSpecV2{
+						AssertionConsumerService: "http://localhost:65535/acs", // not called
+						Issuer:                   "test",
+						SSO:                      "https://localhost:65535/sso", // not called
+						AttributesToRoles: []types.AttributeMapping{
+							{Name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", Value: "admin", Roles: []string{"access"}},
+						},
+						MFASettings: &types.SAMLConnectorMFASettings{
+							Enabled: true,
+							Issuer:  "test",
+							Sso:     "http://localhost:65535/sso",
+						},
+					})
+				require.NoError(t, err)
+
+				_, err = env.backend.CreateSAMLConnector(ctx, conn)
+				require.NoError(t, err)
+			},
+			numMFAsAfterSetup: 3,
+			numMFAsAfterReset: 1,
+			userType:          types.UserTypeSSO,
+			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
+				assert.Nil(t, res.PasswordResetToken)
+			},
+		},
+		{
+			name: "SSO user, expired",
+			userCreatedBy: types.CreatedBy{
+				User: types.UserRef{Name: teleport.UserSystem},
+				Connector: &types.ConnectorRef{
+					Type: "dummy",
+				},
+			},
+			setupUser: func(t *testing.T, env *env, user types.User) {
+				user.SetExpiry(env.clock.Now().Add(time.Hour))
+				_, err := env.UpdateUser(ctx, &userspb.UpdateUserRequest{User: user.(*types.UserV2)})
+				require.NoError(t, err)
+
+				env.clock.Advance(user.Expiry().Sub(env.clock.Now()))
+				_, err = env.GetUser(ctx, &userspb.GetUserRequest{Name: user.GetName()})
+				require.True(t, trace.IsNotFound(err), "expected NotFound, got %T", err)
+			},
+			numMFAsAfterSetup: 2,
+			userType:          types.UserTypeSSO,
+			assert: func(t *testing.T, env *env, user types.User, res *userspb.ResetUserResponse) {
+				assert.Nil(t, res.PasswordResetToken)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			env, err := newTestEnv()
+			require.NoError(t, err, "creating test service")
+
+			user, err := types.NewUser("capybara")
+			require.NoError(t, err)
+			user.SetCreatedBy(tc.userCreatedBy)
+
+			cuResp, err := env.CreateUser(ctx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
+			require.NoError(t, err)
+			// The rules for GetUserType are non-obvious, so make sure that what we
+			// created is really the kind of user we want to have.
+			assert.Equal(t, tc.userType, cuResp.User.GetUserType())
+
+			tc.setupUser(t, env, cuResp.User)
+
+			// Add two MFA devices.
+			devs := []*types.MFADevice{}
+			devId := uuid.NewString()
+			dev, err := types.NewMFADevice(
+				"webauthn-key", devId, env.clock.Now(),
+				&types.MFADevice_Webauthn{
+					Webauthn: &types.WebauthnDevice{
+						CredentialId:             []byte("cred-" + devId),
+						PublicKeyCbor:            []byte("cbor-" + devId),
+						AttestationType:          "none",
+						Aaguid:                   []byte("aaguid"),
+						SignatureCounter:         10,
+						AttestationObject:        []byte("att-obj"),
+						ResidentKey:              true,
+						CredentialRpId:           "example.com",
+						CredentialBackupEligible: &gogotypes.BoolValue{Value: true},
+						CredentialBackedUp:       &gogotypes.BoolValue{Value: false},
+					},
+				})
+			require.NoError(t, err)
+			devs = append(devs, dev)
+
+			devId = uuid.NewString()
+			dev, err = types.NewMFADevice(
+				"auth-app", devId, env.clock.Now(),
+				&types.MFADevice_Totp{
+					Totp: &types.TOTPDevice{Key: "totp-key-" + devId},
+				},
+			)
+			require.NoError(t, err)
+			devs = append(devs, dev)
+
+			for _, d := range devs {
+				err = env.backend.UpsertMFADevice(ctx, user.GetName(), d)
+				require.NoError(t, err, "unable to upsert device %q", d.GetName())
+			}
+
+			// Double-check the opposite condition to the assertion that will check
+			// if the MFAs are later removed.
+			gotDevs, err := env.backend.GetMFADevices(ctx, user.GetName(), false)
+			require.NoError(t, err)
+			require.Len(t, gotDevs, tc.numMFAsAfterSetup)
+
+			ruResp, err := env.ResetUser(ctx, &userspb.ResetUserRequest{
+				Name: user.GetName(),
+				Type: authclient.UserTokenTypeResetPassword,
+			})
+			require.NoError(t, err)
+
+			tc.assert(t, env, user, ruResp)
+
+			// verify that user has no MFA devices
+			gotDevs, err = env.backend.GetMFADevices(ctx, user.GetName(), false)
+			require.NoError(t, err)
+			assert.Len(t, gotDevs, tc.numMFAsAfterReset)
+
+			// verify that password was reset
+			_, err = env.backend.GetPasswordHash(user.GetName())
+			require.True(t, trace.IsNotFound(err), "expected trace.NotFound, got %T %v", err, err)
+		})
+	}
+}
+
+func TestResetUser_NotFound(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	env, err := newTestEnv()
+	require.NoError(t, err, "creating test service")
+
+	_, err = env.ResetUser(ctx, &userspb.ResetUserRequest{
+		Name: "foobar",
+		Type: authclient.UserTokenTypeResetPassword,
+	})
+	assert.True(t, trace.IsNotFound(err), "expected trace.NotFound, got %T %v", err, err)
+}
+
+func TestResetUser_Bot(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	env, err := newTestEnv()
+	require.NoError(t, err, "creating test service")
+
+	user, err := types.NewUser("capybara")
+	require.NoError(t, err)
+
+	metadata := user.GetMetadata()
+	if metadata.Labels == nil {
+		metadata.Labels = map[string]string{}
+	}
+	metadata.Labels[types.BotLabel] = "R2D2"
+	user.SetMetadata(metadata)
+
+	resp, err := env.CreateUser(ctx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
+	require.NoError(t, err)
+
+	// Sanity check.
+	assert.True(t, resp.User.IsBot())
+
+	_, err = env.ResetUser(ctx, &userspb.ResetUserRequest{
+		Name: "capybara",
+		Type: authclient.UserTokenTypeResetPassword,
+	})
+	assert.True(t, trace.IsBadParameter(err), "expected trace.BadParameter, got %T %v", err, err)
+}
+
+func TestResetUser_AsNonAdminBuiltinRole(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	authzContext, err := authz.ContextForBuiltinRole(authz.BuiltinRole{
+		Role:     types.RoleOkta,
+		Username: string(types.RoleOkta),
+	}, &types.SessionRecordingConfigV2{})
+	require.NoError(t, err, "creating authorization context")
+
+	env, err := newTestEnv(withAuthorizer(fakeAuthorizer{authzContext: authzContext}))
+	require.NoError(t, err, "creating test service")
+
+	user, err := types.NewUser("capybara")
+	user.SetOrigin(types.OriginOkta)
+	require.NoError(t, err)
+
+	_, err = env.CreateUser(ctx, &userspb.CreateUserRequest{User: user.(*types.UserV2)})
+	require.NoError(t, err)
+
+	_, err = env.ResetUser(ctx, &userspb.ResetUserRequest{
+		Name: "capybara",
+		Type: authclient.UserTokenTypeResetPassword,
+	})
+	assert.True(t, trace.IsAccessDenied(err), "expected trace.AccessDenied, got %T %v", err, err)
+}
+
+func getLastEvent(c <-chan apievents.AuditEvent) apievents.AuditEvent {
+	var event apievents.AuditEvent
+	for {
+		select {
+		case event = <-c:
+		default:
+			return event
+		}
+	}
+}
+
+func TestResetCredentials_ResetsPassword(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	env, err := newTestEnv()
+	require.NoError(t, err, "creating test service")
+
+	dave, err := types.NewUser("dave")
+	require.NoError(t, err, "creating new user dave")
+
+	_, err = env.CreateUser(ctx, &userspb.CreateUserRequest{User: dave.(*types.UserV2)})
+	require.NoError(t, err, "creating user dave")
+
+	// Using the Identity service makes it easier to set up the test case.
+	err = env.backend.UpsertPassword("dave", []byte("it's full of stars!"))
+	require.NoError(t, err)
+
+	// Reset password.
+	_, err = env.ResetCredentials(ctx, "dave")
+	require.NoError(t, err)
+
+	// Make sure that the password has been reset.
+	u, err := env.backend.GetUser(ctx, "dave", true /* withSecrets */)
+	require.NoError(t, err)
+	assert.Nil(t, u.GetLocalAuth(), "user LocalAuth not nil")
+	assert.Equal(t, types.PasswordState_PASSWORD_STATE_UNSET, u.GetPasswordState())
+
+	// Make sure that we can reset once again (i.e. we don't complain if there's
+	// no password).
+	_, err = env.ResetCredentials(ctx, "dave")
+	require.NoError(t, err)
 }

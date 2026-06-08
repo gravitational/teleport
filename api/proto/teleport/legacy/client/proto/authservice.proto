@@ -3192,7 +3192,13 @@ service AuthService {
   // password token.
   //
   // Only local users may be reset.
-  rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3);
+  //
+  // Deprecated: Use
+  // [github.com/gravitational/teleport/lib/auth/users/usersv1.Service.ResetUser]
+  // instead.
+  rpc CreateResetPasswordToken(CreateResetPasswordTokenRequest) returns (types.UserTokenV3) {
+    option deprecated = true;
+  }
 
   // ListResetPasswordTokens returns a page of user tokens.
   rpc ListResetPasswordTokens(ListResetPasswordTokenRequest) returns (ListResetPasswordTokenResponse);

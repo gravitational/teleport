@@ -352,7 +352,7 @@ func (a *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 	if _, err := a.GetUser(ctx, token.GetUser(), false); err != nil {
 		if trace.IsNotFound(err) {
 			// Delete any remaining tokens for users that no longer exist.
-			if err := a.deleteUserTokens(ctx, token.GetUser()); err != nil {
+			if err := a.DeleteUserTokens(ctx, token.GetUser()); err != nil {
 				return nil, trace.Wrap(err)
 			}
 		}
@@ -366,7 +366,7 @@ func (a *Server) changeUserAuthentication(ctx context.Context, req *proto.Change
 	username := token.GetUser()
 	// Delete this token first to minimize the chances
 	// of partially updated user with still valid token.
-	if err := a.deleteUserTokens(ctx, username); err != nil {
+	if err := a.DeleteUserTokens(ctx, username); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
