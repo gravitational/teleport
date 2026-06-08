@@ -155,12 +155,12 @@ func ValidateAndParseCAOverride(resource *subcav1.CertAuthorityOverride) (*Parse
 		return nil, trace.BadParameter("invalid or unsupported version: %q", resource.GetVersion())
 	case !resource.HasMetadata():
 		return nil, trace.BadParameter("metadata required")
-	case resource.GetMetadata().Name == "":
+	case resource.GetMetadata().GetName() == "":
 		return nil, trace.BadParameter("metadata.name/clusterName required")
 	case !resource.HasSpec():
 		return nil, trace.BadParameter("spec required")
 	}
-	clusterName := resource.GetMetadata().Name
+	clusterName := resource.GetMetadata().GetName()
 
 	overrides := resource.GetSpec().GetCertificateOverrides()
 	parsedOverrides := make([]*ParsedCertificateOverride, len(overrides))

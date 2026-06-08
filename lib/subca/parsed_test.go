@@ -183,7 +183,7 @@ func TestValidateAndParseCAOverride(t *testing.T) {
 		{
 			name: "empty name",
 			modify: func(t *testing.T, ca *subcav1.CertAuthorityOverride) {
-				ca.GetMetadata().Name = ""
+				ca.GetMetadata().SetName("")
 			},
 			wantErr: "name/clusterName required",
 		},
@@ -457,9 +457,9 @@ func TestValidateAndParseCAOverride_ParsedResource(t *testing.T) {
 		Kind:    "cert_authority_override",
 		SubKind: "windows",
 		Version: "v1",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "zarquon",
-		},
+		}.Build(),
 		Spec: subcav1.CertAuthorityOverrideSpec_builder{
 			CertificateOverrides: []*subcav1.CertificateOverride{
 				subcav1.CertificateOverride_builder{

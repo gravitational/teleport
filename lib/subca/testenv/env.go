@@ -203,9 +203,9 @@ func (env *Env) NewOverrideForCA(
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(ca.GetType()),
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: ca.GetName(),
-		},
+		}.Build(),
 		Spec: subcav1.CertAuthorityOverrideSpec_builder{
 			CertificateOverrides: overrides,
 		}.Build(),

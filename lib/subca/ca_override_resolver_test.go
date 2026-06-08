@@ -209,9 +209,9 @@ func TestCAOverrideResolver_ApplyOverrides(t *testing.T) {
 			Kind:    types.KindCertAuthorityOverride,
 			SubKind: string(ca1Type),
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: env.ClusterName,
-			},
+			}.Build(),
 			Spec: subcav1.CertAuthorityOverrideSpec_builder{
 				CertificateOverrides: []*subcav1.CertificateOverride{
 					env.NewDisabledCertificateOverride(t, cert2, nil),
@@ -446,9 +446,9 @@ func TestCAOverrideResolver_CalculateOverride(t *testing.T) {
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(ca.GetType()),
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: ca.GetClusterName(),
-		},
+		}.Build(),
 		Spec: &subcav1.CertAuthorityOverrideSpec{},
 	}.Build())
 	require.NoError(t, err)
