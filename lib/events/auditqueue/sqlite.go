@@ -284,6 +284,7 @@ func (q *sqliteQueue) softLimitLoop() {
 		case <-q.ctx.Done():
 			return
 		case <-ticker.C:
+		}
 			above, size, err := q.aboveSoftLimit()
 			if err != nil {
 				slog.ErrorContext(q.ctx,
