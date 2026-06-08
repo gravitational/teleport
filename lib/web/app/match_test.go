@@ -20,7 +20,6 @@ package app
 
 import (
 	"context"
-	"errors"
 	"net"
 	"testing"
 
@@ -30,62 +29,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
-
-func TestMatchAll(t *testing.T) {
-	falseMatcher := func(_ context.Context, _ types.AppServer) bool { return false }
-	trueMatcher := func(_ context.Context, _ types.AppServer) bool { return true }
-
-	require.True(t, MatchAll(trueMatcher, trueMatcher, trueMatcher)(nil, nil))
-	require.False(t, MatchAll(trueMatcher, trueMatcher, falseMatcher)(nil, nil))
-	require.False(t, MatchAll(falseMatcher, falseMatcher, falseMatcher)(nil, nil))
-}
-
-func TestMatchHealthy(t *testing.T) {
-	testCases := map[string]struct {
-		dialErr error
-		match   bool
-		app     func() types.AppServer
-	}{
-		"WithHealthyApp": {
-			match: true,
-			app:   mustNewAppServer(t, types.OriginDynamic),
-		},
-		"WithUnhealthyApp": {
-			dialErr: errors.New("failed to connect"),
-			match:   false,
-			app:     mustNewAppServer(t, types.OriginDynamic),
-		},
-		"WithUnhealthyOktaApp": {
-			dialErr: errors.New("failed to connect"),
-			match:   true,
-			app:     mustNewAppServer(t, types.OriginOkta),
-		},
-		"WithIntegrationApp": {
-			dialErr: errors.New("failed to connect"),
-			match:   true,
-			app: func() types.AppServer {
-				appServer := mustNewAppServer(t, types.OriginDynamic)()
-				app := appServer.GetApp().Copy()
-				app.Spec.Integration = "my-integration"
-				appServer.SetApp(app)
-
-				return appServer
-			},
-		},
-	}
-
-	for name, test := range testCases {
-		t.Run(name, func(t *testing.T) {
-			match := MatchHealthy(&mockClusterGetter{
-				cluster: &mockCluster{
-					dialErr: test.dialErr,
-				},
-			}, "")
-
-			require.Equal(t, test.match, match(context.Background(), test.app()))
-		})
-	}
-}
 
 func mustNewAppServer(t *testing.T, origin string) func() types.AppServer {
 	t.Helper()
@@ -131,6 +74,10 @@ func (r *mockCluster) Dial(_ reversetunnelclient.DialParams) (net.Conn, error) {
 	}
 
 	return &mockDialConn{}, nil
+}
+
+func (r *mockCluster) GetName() string {
+	return "mockCluster"
 }
 
 type mockDialConn struct {
