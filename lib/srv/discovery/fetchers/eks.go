@@ -50,20 +50,6 @@ const (
 
 type eksFetcher struct {
 	EKSFetcherConfig
-
-	// accessManager owns the write side of discovery: access entries and the
-	// AWS discovery status. The fetcher resolves identity and matches clusters,
-	// then delegates access provisioning to it.
-	accessManager *EKSAccessManager
-}
-
-// regionalFetcher discovers EKS clusters in a single AWS region.
-type regionalFetcher struct {
-	tags          types.Labels
-	logger        *slog.Logger
-	eks           EKSClient
-	accessManager *EKSAccessManager
-	access        resolvedAccess
 }
 
 // EKSClient is the subset of the EKS interface we use in fetchers.
@@ -175,28 +161,28 @@ func MakeEKSFetchersFromAWSMatchers(
 	return kubeFetchers, nil
 }
 
-// NewEKSFetcher creates a new EKS fetcher configuration.
+// NewEKSFetcher creates a new EKS fetcher.
 func NewEKSFetcher(cfg EKSFetcherConfig) (common.Fetcher, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	accessManager, err := NewEKSAccessManager(cfg.ClientGetter, cfg.Logger)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &eksFetcher{EKSFetcherConfig: cfg, accessManager: accessManager}, nil
+	return &eksFetcher{EKSFetcherConfig: cfg}, nil
 }
 
 // GetIntegration returns the integration name that is used for getting credentials of the fetcher.
-func (a *eksFetcher) GetIntegration() string {
-	return a.Matcher.Integration
+func (f *eksFetcher) GetIntegration() string {
+	return f.Matcher.Integration
 }
 
 type DiscoveredEKSCluster struct {
 	types.KubeCluster
+	awsCluster *ekstypes.Cluster
 
 	Integration            string
 	EnableKubeAppDiscovery bool
+
+	AssumeRole        *types.AssumeRole
+	SetupAccessForARN string
 }
 
 func (d *DiscoveredEKSCluster) GetIntegration() string {
@@ -211,28 +197,25 @@ func (d *DiscoveredEKSCluster) GetKubeCluster() types.KubeCluster {
 	return d.KubeCluster
 }
 
-func (a *eksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
-	clusters, err := a.getEKSClusters(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	resources := make(types.ResourcesWithLabels, 0, len(clusters))
-	for _, cluster := range clusters {
-		common.ApplyEKSNameSuffix(cluster)
-		resources = append(resources, &DiscoveredEKSCluster{
-			KubeCluster:            cluster,
-			Integration:            a.Matcher.Integration,
-			EnableKubeAppDiscovery: a.Matcher.KubeAppDiscovery,
-		})
-	}
-	return resources, nil
+func (d *DiscoveredEKSCluster) GetAssumeRole() *types.AssumeRole {
+	return d.AssumeRole
 }
 
-func (a *eksFetcher) getEKSClusters(ctx context.Context) (types.KubeClusters, error) {
-	regions := a.Matcher.Regions
-	if a.Matcher.IsRegionWildcard() {
-		enabled, err := awsregions.ListEnabledRegions(ctx, a.RegionsListerGetter, matcherCredentialOpts(a.Matcher)...)
+func (d *DiscoveredEKSCluster) GetAssumeRoleARN() string {
+	if d.AssumeRole == nil {
+		return ""
+	}
+	return d.AssumeRole.RoleARN
+}
+
+func (d *DiscoveredEKSCluster) GetSetupAccessForARN() string {
+	return d.SetupAccessForARN
+}
+
+func (f *eksFetcher) Get(ctx context.Context) (types.ResourcesWithLabels, error) {
+	regions := f.Matcher.Regions
+	if f.Matcher.IsRegionWildcard() {
+		enabled, err := awsregions.ListEnabledRegions(ctx, f.RegionsListerGetter, matcherCredentialOpts(f.Matcher)...)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -242,49 +225,41 @@ func (a *eksFetcher) getEKSClusters(ctx context.Context) (types.KubeClusters, er
 		return nil, trace.Errorf("account:ListRegions returned no enabled regions")
 	}
 
-	// Integration-enrolled clusters are provisioned by their integration, so the
-	// access manager runs only for non-integration matchers.
-	var resolved resolvedAccess
-	if a.Matcher.Integration == "" {
-		resolved = a.accessManager.resolveAccess(ctx, accessConfigFromMatcher(a.Matcher), regions)
-	}
-
-	var clusters types.KubeClusters
+	var resources types.ResourcesWithLabels
 	for _, region := range regions {
-		rf, err := a.newRegionalFetcher(ctx, region, resolved)
+		eksClient, err := f.regionClient(ctx, region)
 		if err != nil {
-			a.Logger.WarnContext(ctx, "Failed to initialize regional EKS fetcher, skipping",
+			f.Logger.WarnContext(ctx, "Failed to initialize EKS client for region, skipping",
 				"region", region, "error", err)
 			continue
 		}
-		regionClusters, err := rf.FindClusters(ctx)
+		clusters, err := f.findClustersInRegion(ctx, eksClient)
 		if err != nil {
-			a.Logger.WarnContext(ctx, "Failed to discover EKS clusters in region, skipping",
+			f.Logger.WarnContext(ctx, "Failed to discover EKS clusters in region, skipping",
 				"region", region, "error", err)
 			continue
 		}
-		clusters = append(clusters, regionClusters...)
+		for _, cluster := range clusters {
+			resources = append(resources, cluster)
+		}
 	}
-	return clusters, nil
+	return resources, nil
 }
 
-func (a *eksFetcher) newRegionalFetcher(ctx context.Context, region string, access resolvedAccess) (*regionalFetcher, error) {
-	cfg, err := a.ClientGetter.GetConfig(ctx, region, matcherCredentialOpts(a.Matcher)...)
+// regionClient builds an EKS client scoped to one region with the matcher's
+// read-side credentials.
+func (f *eksFetcher) regionClient(ctx context.Context, region string) (EKSClient, error) {
+	cfg, err := f.ClientGetter.GetConfig(ctx, region, matcherCredentialOpts(f.Matcher)...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &regionalFetcher{
-		tags:          a.Matcher.Tags,
-		logger:        a.Logger,
-		eks:           a.ClientGetter.GetAWSEKSClient(cfg),
-		accessManager: a.accessManager,
-		access:        access,
-	}, nil
+	return f.ClientGetter.GetAWSEKSClient(cfg), nil
 }
 
 // matcherCredentialOpts builds the AWS config options for discovery's read side:
 // listing and describing clusters with the matcher's credentials, including its
-// integration. Access provisioning uses the integration-free EKSAccessConfig.
+// integration. Access provisioning uses accessCredentialOpts, which omits the
+// integration.
 func matcherCredentialOpts(m types.AWSMatcher) []awsconfig.OptionsFn {
 	var assumeRole types.AssumeRole
 	if m.AssumeRole != nil {
@@ -293,44 +268,30 @@ func matcherCredentialOpts(m types.AWSMatcher) []awsconfig.OptionsFn {
 	return getAWSOpts(assumeRole, m.Integration)
 }
 
-// accessConfigFromMatcher extracts the access-relevant fields a matcher carries,
-// translating discovery configuration into the access intent the manager needs.
-func accessConfigFromMatcher(m types.AWSMatcher) EKSAccessConfig {
-	return EKSAccessConfig{
-		AssumeRole:        m.AssumeRole,
-		SetupAccessForARN: m.SetupAccessForARN,
-	}
-}
-
-// FindClusters lists EKS clusters in this region, filters them against the
-// matcher, and sets up access entries where required. Per-cluster errors are
-// logged and swallowed so one bad cluster cannot abort the region.
-func (r *regionalFetcher) FindClusters(ctx context.Context) (types.KubeClusters, error) {
+// findClustersInRegion lists EKS clusters reachable through eksClient and returns
+// the ones matching the matcher. Per-cluster errors are logged and swallowed so one
+// bad cluster cannot abort the region.
+func (f *eksFetcher) findClustersInRegion(ctx context.Context, eksClient EKSClient) ([]*DiscoveredEKSCluster, error) {
 	var (
-		clusters        types.KubeClusters
+		clusters        []*DiscoveredEKSCluster
 		mu              sync.Mutex
 		group, groupCtx = errgroup.WithContext(ctx)
 	)
 	group.SetLimit(concurrencyLimit)
 
-	// For now we should only list EKS clusters so we use nil (default) input param.
-	for p := eks.NewListClustersPaginator(r.eks, nil); p.HasMorePages(); {
+	for p := eks.NewListClustersPaginator(eksClient, nil); p.HasMorePages(); {
 		out, err := p.NextPage(ctx)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 		for _, clusterName := range out.Clusters {
-			// group.Go will block if the concurrency limit is reached.
-			// It will resume once any running function finishes.
 			group.Go(func() error {
-				cluster, err := r.getMatchingKubeCluster(groupCtx, clusterName)
-				// trace.CompareFailed is returned if the cluster did not match the matcher filtering labels
-				// or if the cluster is not yet active.
+				cluster, err := f.getMatchingKubeCluster(groupCtx, eksClient, clusterName)
 				if trace.IsCompareFailed(err) {
-					r.logger.DebugContext(groupCtx, "Cluster did not match the filtering criteria", "error", err, "cluster", clusterName)
+					f.Logger.DebugContext(groupCtx, "Cluster did not match the filtering criteria", "error", err, "cluster", clusterName)
 					return nil
 				} else if err != nil {
-					r.logger.WarnContext(groupCtx, "Failed to discover EKS cluster", "error", err, "cluster", clusterName)
+					f.Logger.WarnContext(groupCtx, "Failed to discover EKS cluster", "error", err, "cluster", clusterName)
 					return nil
 				}
 
@@ -342,42 +303,41 @@ func (r *regionalFetcher) FindClusters(ctx context.Context) (types.KubeClusters,
 		}
 	}
 
-	// The error can be discarded since we do not return any error from group.Go closure.
+	// The closures always return nil, so the group error is too.
 	_ = group.Wait()
 	return clusters, nil
 }
 
-func (a *eksFetcher) ResourceType() string {
+func (f *eksFetcher) ResourceType() string {
 	return types.KindKubernetesCluster
 }
 
-func (a *eksFetcher) FetcherType() string {
+func (f *eksFetcher) FetcherType() string {
 	return types.AWSMatcherEKS
 }
 
-func (a *eksFetcher) Cloud() string {
+func (f *eksFetcher) Cloud() string {
 	return types.CloudAWS
 }
 
-func (a *eksFetcher) IntegrationName() string {
-	return a.Matcher.Integration
+func (f *eksFetcher) IntegrationName() string {
+	return f.Matcher.Integration
 }
 
-func (a *eksFetcher) GetDiscoveryConfigName() string {
-	return a.DiscoveryConfigName
+func (f *eksFetcher) GetDiscoveryConfigName() string {
+	return f.DiscoveryConfigName
 }
 
-func (a *eksFetcher) String() string {
+func (f *eksFetcher) String() string {
 	return fmt.Sprintf("eksFetcher(Regions=%v, FilterLabels=%v)",
-		a.Matcher.Regions, a.Matcher.Tags)
+		f.Matcher.Regions, f.Matcher.Tags)
 }
 
-// getMatchingKubeCluster extracts EKS cluster Tags and cluster status from EKS and checks if the cluster matches
-// the AWS matcher filtering labels. It also excludes EKS clusters that are not ready.
-// If any cluster does not match the filtering criteria, this function returns a “trace.CompareFailed“ error
-// to distinguish filtering and operational errors.
-func (r *regionalFetcher) getMatchingKubeCluster(ctx context.Context, clusterName string) (types.KubeCluster, error) {
-	rsp, err := r.eks.DescribeCluster(
+// getMatchingKubeCluster describes clusterName, excludes clusters that are not ready,
+// and matches the result against the matcher's labels. It returns trace.CompareFailed
+// for a clean non-match to distinguish filtering from operational errors.
+func (f *eksFetcher) getMatchingKubeCluster(ctx context.Context, eksClient EKSClient, clusterName string) (*DiscoveredEKSCluster, error) {
+	rsp, err := eksClient.DescribeCluster(
 		ctx,
 		&eks.DescribeClusterInput{
 			Name: aws.String(clusterName),
@@ -389,40 +349,31 @@ func (r *regionalFetcher) getMatchingKubeCluster(ctx context.Context, clusterNam
 
 	switch st := rsp.Cluster.Status; st {
 	case ekstypes.ClusterStatusUpdating, ekstypes.ClusterStatusActive:
-		r.logger.DebugContext(ctx, "EKS cluster status is valid", "status", st, "cluster", clusterName)
+		f.Logger.DebugContext(ctx, "EKS cluster status is valid", "status", st, "cluster", clusterName)
 	default:
 		return nil, trace.CompareFailed("EKS cluster %q not enrolled due to its current status: %s", clusterName, st)
 	}
 
-	cluster, err := common.NewKubeClusterFromAWSEKS(aws.ToString(rsp.Cluster.Name), aws.ToString(rsp.Cluster.Arn), rsp.Cluster.Tags)
+	kube, err := common.NewKubeClusterFromAWSEKS(aws.ToString(rsp.Cluster.Name), aws.ToString(rsp.Cluster.Arn), rsp.Cluster.Tags)
 	if err != nil {
-		return nil, trace.WrapWithMessage(err, "Unable to convert eks.Cluster cluster into types.KubernetesClusterV3.")
+		return nil, trace.WrapWithMessage(err, "Unable to convert EKS cluster %q into a Teleport kube cluster", clusterName)
 	}
 
-	if match, reason, err := services.MatchLabels(r.tags, cluster.GetAllLabels()); err != nil {
+	if match, reason, err := services.MatchLabels(f.Matcher.Tags, kube.GetAllLabels()); err != nil {
 		return nil, trace.WrapWithMessage(err, "Unable to match EKS cluster labels against match labels.")
 	} else if !match {
 		return nil, trace.CompareFailed("EKS cluster %q labels does not match the selector: %s", clusterName, reason)
 	}
 
-	// On an access error the cluster keeps its recorded status and stays in
-	// discovery. A later deletion can then clean up any access entry that was
-	// provisioned, and the access is retried next cycle.
-	status, err := r.accessManager.Ensure(ctx, r.access, rsp.Cluster)
-	if status != nil {
-		cluster.SetStatus(&types.KubernetesClusterStatus{
-			Discovery: &types.KubernetesClusterDiscoveryStatus{
-				Aws: status,
-			},
-		})
-	}
-	if err != nil {
-		r.logger.WarnContext(ctx, "Failed to provision EKS access; keeping cluster with recorded status for later cleanup",
-			"error", err,
-			"cluster", clusterName,
-		)
-	}
-	return cluster, nil
+	common.ApplyEKSNameSuffix(kube)
+	return &DiscoveredEKSCluster{
+		KubeCluster:            kube,
+		awsCluster:             rsp.Cluster,
+		Integration:            f.Matcher.Integration,
+		EnableKubeAppDiscovery: f.Matcher.KubeAppDiscovery,
+		AssumeRole:             f.Matcher.AssumeRole,
+		SetupAccessForARN:      f.Matcher.SetupAccessForARN,
+	}, nil
 }
 
 func getAWSOpts(assumeRole types.AssumeRole, integration string) []awsconfig.OptionsFn {

@@ -26,6 +26,7 @@ import (
 	"path"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -36,6 +37,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
 	rbacv1 "k8s.io/api/rbac/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -51,18 +53,19 @@ import (
 )
 
 const (
-	// teleportKubernetesGroup is the Kubernetes group that exists in the EKS cluster and is used to grant access to the cluster
-	// for the specified ARN.
+	// teleportKubernetesGroup is the Kubernetes group an EKS access entry maps the
+	// principal ARN into.
 	teleportKubernetesGroup = "teleport:kube-service:eks"
 	// eksClusterAdminPolicy is the EKS access policy granting cluster-admin. It is
 	// associated to the bootstrap ARN only temporarily, to create the Teleport role
 	// and binding, then revoked.
 	// https://docs.aws.amazon.com/eks/latest/userguide/access-policies.html
 	eksClusterAdminPolicy = "arn:aws:eks::aws:cluster-access-policy/AmazonEKSClusterAdminPolicy"
+	provisionConcurrency  = 10
 )
 
-// eksDiscoveryPermissions is used for logging to list all the permissions that
-// the discovery service may need to discover EKS clusters and configure access.
+// eksDiscoveryPermissions lists the IAM permissions discovery needs to find EKS
+// clusters and configure access; logged when a call is denied.
 var eksDiscoveryPermissions = []string{
 	"eks:AssociateAccessPolicy",
 	"eks:CreateAccessEntry",
@@ -75,17 +78,19 @@ var eksDiscoveryPermissions = []string{
 	"eks:UpdateAccessEntry",
 }
 
-// EKSAccessManager owns the write side of EKS discovery. It provisions EKS access
-// entries, computes the Status.Discovery.Aws cleanup metadata, and removes the
-// access entry when a cluster is deleted. It is the only writer of EKS access
-// entries and the only producer of AWS discovery status.
+// EKSAccessManager handles access provisioning for discovered EKS clusters.
 type EKSAccessManager struct {
 	clientGetter AWSClientGetter
 	logger       *slog.Logger
+	// mu guards callerIdentityARN against concurrent population by ProvisionAll's
+	// workers.
+	mu sync.Mutex
+	// callerIdentityARN is the discovery service's own IAM role ARN, the bootstrap
+	// principal for matchers with no assume role. It is cached only within a cycle.
+	callerIdentityARN string
 }
 
-// NewEKSAccessManager creates an EKSAccessManager from the AWS client getter the
-// fetchers use.
+// NewEKSAccessManager builds an EKSAccessManager from the fetchers' AWS client getter.
 func NewEKSAccessManager(clientGetter AWSClientGetter, logger *slog.Logger) (*EKSAccessManager, error) {
 	if clientGetter == nil {
 		return nil, trace.BadParameter("missing ClientGetter field")
@@ -96,142 +101,133 @@ func NewEKSAccessManager(clientGetter AWSClientGetter, logger *slog.Logger) (*EK
 	return &EKSAccessManager{clientGetter: clientGetter, logger: logger}, nil
 }
 
-// EKSAccessConfig is the access-relevant subset of a discovery matcher: the
-// principal to grant long-term access to, and the role the manager assumes to
-// provision it. It keeps the manager decoupled from discovery configuration.
-// Integration-enrolled clusters are provisioned by their integration, not by
-// the manager, so there is no integration field here.
-type EKSAccessConfig struct {
-	// AssumeRole, when set, is assumed for AWS and Kubernetes calls and is the
-	// bootstrap principal when SetupAccessForARN is unset.
-	AssumeRole *types.AssumeRole
-	// SetupAccessForARN is the principal granted long-term access; it falls back
-	// to the bootstrap ARN when unset.
-	SetupAccessForARN string
-}
-
-func (c EKSAccessConfig) credentialOpts() []awsconfig.OptionsFn {
-	var assumeRole types.AssumeRole
-	if c.AssumeRole != nil {
-		assumeRole = *c.AssumeRole
+// Provision sets up EKS access for a discovered cluster and returns the status to
+// record, or nil when no principal resolves or there is no describe output to act
+// on.
+func (m *EKSAccessManager) Provision(ctx context.Context, cluster *DiscoveredEKSCluster) *types.KubernetesClusterStatus {
+	bootstrapARN := cluster.GetAssumeRoleARN()
+	if bootstrapARN == "" {
+		bootstrapARN = m.ambientIdentity(ctx)
 	}
-	return getAWSOpts(assumeRole, "")
-}
-
-// resolvedAccess is an EKSAccessConfig with its identity resolved: the principal
-// granted long-term access and the bootstrap principal used to provision it.
-// Resolving once per config avoids an sts:GetCallerIdentity per cluster.
-type resolvedAccess struct {
-	config       EKSAccessConfig
-	principalARN string
-	bootstrapARN string
-}
-
-// resolveAccess resolves the principal and bootstrap ARNs for an access config.
-// principalARN is SetupAccessForARN, falling back to bootstrapARN; bootstrapARN
-// is AssumeRole, falling back to sts:GetCallerIdentity. Either may be empty when
-// STS fails and the relevant field is unset.
-func (m *EKSAccessManager) resolveAccess(ctx context.Context, access EKSAccessConfig, regions []string) resolvedAccess {
-	var bootstrapARN string
-	if access.AssumeRole != nil && access.AssumeRole.RoleARN != "" {
-		bootstrapARN = access.AssumeRole.RoleARN
-	} else {
-		bootstrapARN = m.getCallerIdentityARN(ctx, access, regions)
-	}
-	return resolvedAccess{
-		config:       access,
-		principalARN: cmp.Or(access.SetupAccessForARN, bootstrapARN),
-		bootstrapARN: bootstrapARN,
-	}
-}
-
-// getCallerIdentityARN calls sts:GetCallerIdentity through any region whose
-// config initializes successfully.
-func (m *EKSAccessManager) getCallerIdentityARN(ctx context.Context, access EKSAccessConfig, regions []string) string {
-	opts := access.credentialOpts()
-	for _, region := range regions {
-		cfg, err := m.clientGetter.GetConfig(ctx, region, opts...)
-		if err != nil {
-			m.logger.WarnContext(ctx, "Failed to initialize AWS config for STS",
-				"region", region, "error", err)
-			continue
-		}
-		out, err := m.clientGetter.GetAWSSTSClient(cfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
-		if err != nil {
-			m.logger.WarnContext(ctx, "Failed to resolve AWS caller identity, EKS access bootstrap will be skipped this cycle", "error", err)
-			return ""
-		}
-		iamARN, err := resolveIAMRoleARN(ctx, m.clientGetter.GetAWSIAMClient(cfg), aws.ToString(out.Arn))
-		if err != nil {
-			m.logger.WarnContext(ctx, "Failed to parse AWS caller identity ARN, EKS access bootstrap will be skipped this cycle", "error", err)
-			return ""
-		}
-		return iamARN
-	}
-	return ""
-}
-
-// Ensure provisions EKS access for one described cluster and returns the AWS
-// status to record for it. It records status before provisioning
-// the Kubernetes RBAC, so a cluster whose access setup fails midway keeps the
-// metadata Cleanup needs to remove its access entry.
-func (m *EKSAccessManager) Ensure(ctx context.Context, access resolvedAccess, cluster *ekstypes.Cluster) (*types.KubernetesClusterAWSStatus, error) {
-	// When a principal role ARN couldn't be resolved, or we can't inspect the
-	// existing access configuration, skip and the next cycle will retry.
-	if access.principalARN == "" || cluster.AccessConfig == nil {
-		return nil, nil
+	principalARN := cmp.Or(cluster.GetSetupAccessForARN(), bootstrapARN)
+	if principalARN == "" {
+		return nil
 	}
 
-	var assumedRole *types.AssumeRole
-	if access.config.AssumeRole != nil && access.config.AssumeRole.RoleARN != "" {
-		assumedRole = access.config.AssumeRole
-	}
-	status := &types.KubernetesClusterAWSStatus{
-		SetupAccessForArn:    access.principalARN,
-		DiscoveryAssumedRole: assumedRole,
+	awsCluster := cluster.awsCluster
+	if awsCluster == nil || awsCluster.AccessConfig == nil {
+		return nil
 	}
 
-	// Only auth modes that allow API access can be provisioned. A ConfigMap-only
-	// cluster must be configured manually, so record the intent but skip setup.
-	switch st := cluster.AccessConfig.AuthenticationMode; st {
+	// Record the status before provisioning RBAC, so a cluster whose setup fails
+	// midway still carries the metadata Cleanup needs to remove its access entry.
+	status := &types.KubernetesClusterStatus{
+		Discovery: &types.KubernetesClusterDiscoveryStatus{
+			Aws: &types.KubernetesClusterAWSStatus{
+				SetupAccessForArn:    principalARN,
+				DiscoveryAssumedRole: cluster.GetAssumeRole(),
+			},
+		},
+	}
+
+	// Only API-enabled auth modes can be provisioned; a ConfigMap-only cluster must
+	// be configured manually, so record the intent and skip setup.
+	switch mode := awsCluster.AccessConfig.AuthenticationMode; mode {
 	case ekstypes.AuthenticationModeApiAndConfigMap, ekstypes.AuthenticationModeApi:
 	default:
 		m.logger.InfoContext(ctx, "EKS cluster must be configured manually due to its authentication mode",
-			"cluster", aws.ToString(cluster.Name),
-			"authentication_mode", st,
-			"access_arn", access.principalARN,
+			"cluster", cluster.GetName(),
+			"authentication_mode", mode,
+			"access_arn", principalARN,
 		)
-		return status, nil
+		return status
 	}
 
-	setup, err := m.newAccessSetup(ctx, access, aws.ToString(cluster.Arn))
+	region := cluster.GetAWSConfig().Region
+	cfg, err := m.clientGetter.GetConfig(ctx, region, accessCredentialOpts(cluster.GetAssumeRole())...)
 	if err != nil {
-		return status, trace.Wrap(err)
+		m.logger.WarnContext(ctx, "Failed to initialize AWS config for EKS access, will retry next cycle",
+			"cluster", cluster.GetName(), "region", region, "error", err)
+		return nil
 	}
-	if err := setup.checkOrSetupAccessForARN(ctx, cluster); err != nil {
-		return status, trace.Wrap(err, "unable to setup access for EKS cluster %q", aws.ToString(cluster.Name))
-	}
-	return status, nil
-}
 
-// newAccessSetup builds the per-region write context Ensure uses to provision a
-// single cluster, with the EKS and STS-presign clients for the cluster's region.
-func (m *EKSAccessManager) newAccessSetup(ctx context.Context, access resolvedAccess, clusterARN string) (*eksAccessSetup, error) {
-	parsed, err := arn.Parse(clusterARN)
-	if err != nil {
-		return nil, trace.Wrap(err, "unable to parse EKS cluster ARN %q", clusterARN)
-	}
-	cfg, err := m.clientGetter.GetConfig(ctx, parsed.Region, access.config.credentialOpts()...)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return &eksAccessSetup{
+	setup := &eksAccessSetup{
 		eks:          m.clientGetter.GetAWSEKSClient(cfg),
 		stsPresign:   m.clientGetter.GetAWSSTSPresignClient(cfg),
-		principalARN: access.principalARN,
-		bootstrapARN: access.bootstrapARN,
+		principalARN: principalARN,
+		bootstrapARN: bootstrapARN,
 		logger:       m.logger,
-	}, nil
+	}
+	if err := setup.checkOrSetupAccessForARN(ctx, awsCluster); err != nil {
+		m.logger.WarnContext(ctx, "Failed to provision EKS access; keeping recorded status for later cleanup",
+			"cluster", cluster.GetName(),
+			"error", err,
+		)
+	}
+	return status
+}
+
+// ProvisionAll provisions the clusters concurrently, returning statuses index-aligned
+// with clusters.
+func (m *EKSAccessManager) ProvisionAll(ctx context.Context, clusters []*DiscoveredEKSCluster) []*types.KubernetesClusterStatus {
+	// Clear the cached ambient identity each cycle so a changed deployment identity is
+	// picked up rather than pinned for the process lifetime.
+	m.mu.Lock()
+	m.callerIdentityARN = ""
+	m.mu.Unlock()
+
+	statuses := make([]*types.KubernetesClusterStatus, len(clusters))
+	group, groupCtx := errgroup.WithContext(ctx)
+	group.SetLimit(provisionConcurrency)
+	for i, cluster := range clusters {
+		group.Go(func() error {
+			statuses[i] = m.Provision(groupCtx, cluster)
+			return nil
+		})
+	}
+	_ = group.Wait()
+	return statuses
+}
+
+// ambientIdentity resolves the discovery service's own IAM identity and caches it for
+// the cycle. It returns empty until the lookup succeeds, so a cluster that needs it
+// defers provisioning to a later cycle.
+func (m *EKSAccessManager) ambientIdentity(ctx context.Context) string {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	if m.callerIdentityARN != "" {
+		return m.callerIdentityARN
+	}
+	arn, err := m.resolveCallerIdentity(ctx)
+	if err != nil {
+		m.logger.WarnContext(ctx, "Failed to resolve discovery service identity; ambient-credential clusters will retry next cycle", "error", err)
+		return ""
+	}
+	m.callerIdentityARN = arn
+	return arn
+}
+
+// resolveCallerIdentity returns the discovery service's own IAM role ARN. The caller
+// identity does not depend on region, so the lookup uses the ambient region.
+func (m *EKSAccessManager) resolveCallerIdentity(ctx context.Context) (string, error) {
+	cfg, err := m.clientGetter.GetConfig(ctx, "", accessCredentialOpts(nil)...)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	out, err := m.clientGetter.GetAWSSTSClient(cfg).GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return resolveIAMRoleARN(ctx, m.clientGetter.GetAWSIAMClient(cfg), aws.ToString(out.Arn))
+}
+
+// accessCredentialOpts builds AWS config options for provisioning a cluster.
+func accessCredentialOpts(assumeRole *types.AssumeRole) []awsconfig.OptionsFn {
+	role := types.AssumeRole{}
+	if assumeRole != nil {
+		role = *assumeRole
+	}
+	return getAWSOpts(role, "")
 }
 
 // Cleanup deletes the EKS access entry recorded on the cluster's AWS discovery
@@ -284,9 +280,7 @@ func (m *EKSAccessManager) Cleanup(ctx context.Context, cluster types.KubeCluste
 	}
 }
 
-// eksAccessSetup provisions access for a single EKS cluster in one region using
-// the regional EKS and STS-presign clients and the resolved principal/bootstrap
-// ARNs.
+// eksAccessSetup provisions access for a single EKS cluster in one region.
 type eksAccessSetup struct {
 	eks          EKSClient
 	stsPresign   STSPresignClient
@@ -316,15 +310,13 @@ func (s *eksAccessSetup) checkOrSetupAccessForARN(ctx context.Context, cluster *
 		)
 		return nil
 	case err == nil:
-		// Entry already grants teleportKubernetesGroup.
 		if entry.AccessEntry != nil && slices.Contains(entry.AccessEntry.KubernetesGroups, teleportKubernetesGroup) {
 			return nil
 		}
 		fallthrough
 	case trace.IsNotFound(err):
-		// Entry missing or misconfigured: temporarily gain admin access to install
-		// the role and binding. Skip when bootstrapARN is unresolved and retry next
-		// cycle, leaving status intact so cleanup metadata is preserved.
+		// Entry missing or misconfigured. Skip when the bootstrap identity is
+		// unresolved and retry next cycle.
 		if s.bootstrapARN == "" {
 			s.logger.WarnContext(ctx, "Skipping EKS access setup because bootstrap identity is unresolved, will retry next discovery cycle",
 				"cluster", aws.ToString(cluster.Name),
@@ -359,9 +351,7 @@ func (s *eksAccessSetup) checkOrSetupAccessForARN(ctx context.Context, cluster *
 }
 
 // temporarilyGainAdminAccessAndCreateRole grants the bootstrap ARN cluster-admin long enough to install
-// the Teleport role and binding for teleportKubernetesGroup. On exit it deletes the access entry if it
-// created one, or disassociates the admin policy if the entry already existed, so the temporary
-// cluster-admin grant never lingers.
+// the Teleport role and binding.
 func (s *eksAccessSetup) temporarilyGainAdminAccessAndCreateRole(ctx context.Context, cluster *ekstypes.Cluster) error {
 	rsp, err := convertAWSError(
 		s.eks.CreateAccessEntry(ctx,
@@ -375,8 +365,11 @@ func (s *eksAccessSetup) temporarilyGainAdminAccessAndCreateRole(ctx context.Con
 		return trace.Wrap(err)
 	}
 
-	// rsp is non-nil when we created the access entry; nil when it already existed.
+	// rsp is nil when CreateAccessEntry hit the AlreadyExists error
 	createdEntry := rsp != nil
+	// associatedPolicy records whether this call added the admin policy, so the
+	// deferred revocation leaves a pre-existing association untouched.
+	associatedPolicy := false
 	defer func() {
 		if createdEntry {
 			// Deleting the entry also removes its admin policy association.
@@ -395,7 +388,9 @@ func (s *eksAccessSetup) temporarilyGainAdminAccessAndCreateRole(ctx context.Con
 			}
 			return
 		}
-		// The entry pre-existed, so only revoke the admin policy we associated to it.
+		if !associatedPolicy {
+			return
+		}
 		if _, err := convertAWSError(
 			s.eks.DisassociateAccessPolicy(
 				ctx,
@@ -426,14 +421,14 @@ func (s *eksAccessSetup) temporarilyGainAdminAccessAndCreateRole(ctx context.Con
 	if err != nil && !trace.IsAlreadyExists(err) {
 		return trace.Wrap(err, "unable to associate EKS Access Policy to cluster %q", aws.ToString(cluster.Name))
 	}
+	// A nil error means the policy was not already present, so this call added it.
+	associatedPolicy = err == nil
 
 	timeout := time.NewTimer(60 * time.Second)
 	defer timeout.Stop()
 forLoop:
 	for {
-
-		// EKS Access Entries are eventually consistent, so we need to wait for the access to be granted.
-		// AWS API recommends to wait for 5 seconds before checking the access.
+		// EKS access entries are eventually consistent, so retry until the grant propagates.
 		err = s.upsertRoleAndBinding(ctx, cluster)
 		if err == nil || !kubeerrors.IsForbidden(err) && !kubeerrors.IsUnauthorized(err) {
 			break
