@@ -68,8 +68,8 @@ func (r resourceTeleportInferenceSecret) Create(ctx context.Context, req tfsdk.C
 	if resp.Diagnostics.HasError() {
 		return
 	}
-	specFromPlan, ok := plan.Attrs["spec"]
-	if !ok {
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
 		return
 	}
@@ -210,6 +210,18 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 		return
 	}
 
+	specFromPlan, exist := plan.Attrs["spec"]
+	if !exist {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading InferenceSecret", trace.Wrap(trace.Errorf("spec not found in the plan")), "inference_secret"))
+		return
+	}
+
+	specFromPlan, err := deepCopyAttrValue(ctx, specFromPlan)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error copying InferenceSecret spec", trace.Wrap(err), "inference_secret"))
+		return
+	}
+
 	inferenceSecret := &summarizerv1.InferenceSecret{}
 	diags = schemav1.CopyInferenceSecretFromTerraform(ctx, plan, inferenceSecret)
 	resp.Diagnostics.Append(diags...)
@@ -262,11 +274,15 @@ func (r resourceTeleportInferenceSecret) Update(ctx context.Context, req tfsdk.U
 
 	inferenceSecretResource = inferenceSecretI
 	
+	inferenceSecret = inferenceSecretResource
+
 	diags = schemav1.CopyInferenceSecretToTerraform(ctx, inferenceSecret, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	plan.Attrs["spec"] = specFromPlan
 
 	diags = resp.State.Set(ctx, plan)
 	resp.Diagnostics.Append(diags...)
