@@ -282,6 +282,8 @@ func (r resourceTeleportServer) Update(ctx context.Context, req tfsdk.UpdateReso
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading Server", trace.Errorf("Can not convert %T to ServerV2", serverI), "node"))
 		return
 	}
+	server = serverResource
+
 	diags = tfschema.CopyServerV2ToTerraform(ctx, server, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

@@ -290,6 +290,8 @@ func (r resourceTeleportProvisionToken) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading ProvisionToken", trace.Errorf("Can not convert %T to ProvisionTokenV2", provisionTokenI), "token"))
 		return
 	}
+	provisionToken = provisionTokenResource
+
 	diags = token.CopyProvisionTokenV2ToTerraform(ctx, provisionToken, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

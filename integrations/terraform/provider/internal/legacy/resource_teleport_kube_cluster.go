@@ -279,6 +279,8 @@ func (r resourceTeleportKubeCluster) Update(ctx context.Context, req tfsdk.Updat
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading KubeCluster", trace.Errorf("Can not convert %T to KubernetesClusterV3", kubeClusterI), "kube_cluster"))
 		return
 	}
+	kubeCluster = kubeClusterResource
+
 	diags = tfschema.CopyKubernetesClusterV3ToTerraform(ctx, kubeCluster, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

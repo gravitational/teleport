@@ -279,6 +279,8 @@ func (r resourceTeleportOktaImportRule) Update(ctx context.Context, req tfsdk.Up
 		resp.Diagnostics.Append(tfdiag.DiagFromWrappedErr("Error reading OktaImportRule", trace.Errorf("Can not convert %T to OktaImportRuleV1", oktaImportRuleI), "okta_import_rule"))
 		return
 	}
+	oktaImportRule = oktaImportRuleResource
+
 	diags = tfschema.CopyOktaImportRuleV1ToTerraform(ctx, oktaImportRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
