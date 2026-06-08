@@ -289,6 +289,8 @@ func (r resourceTeleportInstaller) Update(ctx context.Context, req tfsdk.UpdateR
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Installer", trace.Errorf("Can not convert %T to InstallerV1", installerI), "installer"))
 		return
 	}
+	installer = installerResource
+
 	diags = tfschema.CopyInstallerV1ToTerraform(ctx, installer, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

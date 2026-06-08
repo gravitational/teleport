@@ -297,6 +297,8 @@ func (r resourceTeleportScopedRole) Update(ctx context.Context, req tfsdk.Update
 
 	scopedRoleResource = scopedRoleI
 	
+	scopedRole = scopedRoleResource
+
 	diags = schemav1.CopyScopedRoleToTerraform(ctx, scopedRole, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

@@ -270,6 +270,8 @@ func (r resourceTeleportLoginRule) Update(ctx context.Context, req tfsdk.UpdateR
 
 	loginRuleResource = loginRuleI
 	
+	loginRule = loginRuleResource
+
 	diags = schemav1.CopyLoginRuleToTerraform(ctx, loginRule, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

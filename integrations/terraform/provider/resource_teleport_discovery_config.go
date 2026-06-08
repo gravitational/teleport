@@ -280,6 +280,8 @@ func (r resourceTeleportDiscoveryConfig) Update(ctx context.Context, req tfsdk.U
 
 	discoveryConfigResource = discoveryConfigI
 	
+	discoveryConfig = convert.ToProto(discoveryConfigResource)
+
 	diags = schemav1.CopyDiscoveryConfigToTerraform(ctx, discoveryConfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

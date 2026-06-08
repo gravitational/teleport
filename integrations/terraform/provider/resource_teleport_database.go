@@ -289,6 +289,8 @@ func (r resourceTeleportDatabase) Update(ctx context.Context, req tfsdk.UpdateRe
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Database", trace.Errorf("Can not convert %T to DatabaseV3", databaseI), "db"))
 		return
 	}
+	database = databaseResource
+
 	diags = tfschema.CopyDatabaseV3ToTerraform(ctx, database, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

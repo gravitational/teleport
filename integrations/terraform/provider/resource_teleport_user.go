@@ -289,6 +289,8 @@ func (r resourceTeleportUser) Update(ctx context.Context, req tfsdk.UpdateResour
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading User", trace.Errorf("Can not convert %T to UserV2", userI), "user"))
 		return
 	}
+	user = userResource
+
 	diags = tfschema.CopyUserV2ToTerraform(ctx, user, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

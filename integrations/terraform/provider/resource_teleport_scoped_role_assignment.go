@@ -318,6 +318,8 @@ func (r resourceTeleportScopedRoleAssignment) Update(ctx context.Context, req tf
 
 	scopedRoleAssignmentResource = scopedRoleAssignmentI
 	
+	scopedRoleAssignment = scopedRoleAssignmentResource
+
 	diags = assignmentschemav1.CopyScopedRoleAssignmentToTerraform(ctx, scopedRoleAssignment, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

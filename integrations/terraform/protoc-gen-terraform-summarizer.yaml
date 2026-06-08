@@ -92,6 +92,7 @@ computed_fields:
   - "InferencePolicy.kind"
   - "InferencePolicy.metadata.namespace"
   - "RetrievalModel.kind"
+  - "RetrievalModel.metadata"
   - "RetrievalModel.metadata.namespace"
 
 # These fields will be marked as Required: true

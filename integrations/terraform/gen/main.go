@@ -450,6 +450,10 @@ var (
 		HasStaticID:            false,
 		TerraformResourceType:  "teleport_saml_idp_service_provider",
 		HasCheckAndSetDefaults: true,
+		// TODO: The Teleport SAML IdP API mutates the generated
+		// `spec.entity_descriptor` based on `spec.attribute_mapping`. This can
+		// result in `inconsistent state after apply` errors.
+		SaveSpecStateFromPlan: true,
 	}
 
 	provisionToken = payload{
