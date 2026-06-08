@@ -2882,13 +2882,8 @@ func TestSSHAddingMFA(t *testing.T) {
 			},
 		},
 		{
-			name: "accept and register device (no devices at all)",
-			stdinFn: func() *prompt.FakeReader {
-				return prompt.NewFakeReader().
-					AddString("y").        // Yes, create a new one
-					AddString("webauthn"). // Device type
-					AddString("mykey")     // Device name
-			},
+			name:    "accept and register device (no devices at all)",
+			stdinFn: buildRegistrationPromptFakeReader,
 			assertFn: func(t *testing.T, stdout string, err error) {
 				require.NoError(t, err)
 				assert.Contains(t, stdout, mfaRegistrationQuestion)
@@ -2903,11 +2898,8 @@ func TestSSHAddingMFA(t *testing.T) {
 				otp, err := totp.GenerateCode(otpKey, clock.Now())
 				require.NoError(t, err)
 
-				return prompt.NewFakeReader().
-					AddString("y").        // Yes, create a new one
-					AddString("webauthn"). // Device type
-					AddString("mykey").    // Device name
-					AddString(otp)         // Type an OTP code to add another MFA
+				fr := buildRegistrationPromptFakeReader()
+				return fr.AddString(otp)
 			},
 			assertFn: func(t *testing.T, stdout string, err error) {
 				require.NoError(t, err)
@@ -3170,11 +3162,7 @@ func TestSSHAccessRequestAndAddingMFA(t *testing.T) {
 	t.Cleanup(func() {
 		prompt.SetStdin(oldStdin)
 	})
-	prompt.SetStdin(prompt.NewFakeReader().
-		AddString("y").
-		AddString("webauthn").
-		AddString("mykey").
-		AddString("no"))
+	prompt.SetStdin(buildRegistrationPromptFakeReader())
 
 	const greeting = "hello-from-the-other-side"
 	const mfaPromptQuestion = "You have no MFA devices registered. Do you want to register a new one?"
@@ -3205,6 +3193,17 @@ func TestSSHAccessRequestAndAddingMFA(t *testing.T) {
 	require.True(t, slices.ContainsFunc(requests, func(request types.AccessRequest) bool {
 		return request.GetRequestReason() == requestReason
 	}), "access request with the specified reason was not found")
+}
+
+func buildRegistrationPromptFakeReader() *prompt.FakeReader {
+	fr := prompt.NewFakeReader().
+		AddString("y").
+		AddString("webauthn").
+		AddString("mykey")
+	if wancli.IsFIDO2Available() {
+		fr = fr.AddString("no")
+	}
+	return fr
 }
 
 // TestSSHAccessRequestWait tests that "tsh ssh" automatically creates an
