@@ -88,33 +88,33 @@ func TestCertificateStoreClient_Update(t *testing.T) {
 	require.NoError(t, err)
 	overrideCert, overrideCertPEM := overrideCA.Cert, overrideCA.CertPEM
 	publicKeyHash := subca.HashCertificatePublicKey(overrideCert)
-	caOverride := &subcav1.CertAuthorityOverride{
+	caOverride := subcav1.CertAuthorityOverride_builder{
 		Kind:    types.KindCertAuthorityOverride,
 		SubKind: string(types.WindowsCA),
 		Version: types.V1,
 		Metadata: &headerv1.Metadata{
 			Name: clusterName,
 		},
-		Spec: &subcav1.CertAuthorityOverrideSpec{
+		Spec: subcav1.CertAuthorityOverrideSpec_builder{
 			CertificateOverrides: []*subcav1.CertificateOverride{
-				{
+				subcav1.CertificateOverride_builder{
 					PublicKey:   publicKeyHash,
 					Certificate: string(overrideCertPEM),
 					Disabled:    true, // We'll push the CRL even if it's disabled.
-				},
+				}.Build(),
 			},
-		},
-		Status: &subcav1.CertAuthorityOverrideStatus{
+		}.Build(),
+		Status: subcav1.CertAuthorityOverrideStatus_builder{
 			PublicKeyHashToCrl: map[string]*subcav1.CertificateRevocationList{
-				publicKeyHash: {
+				publicKeyHash: subcav1.CertificateRevocationList_builder{
 					Pem: string(pem.EncodeToMemory(&pem.Block{
 						Type:  "X509 CRL",
 						Bytes: []byte(overrideCRL),
 					})),
-				},
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	ap := &fakeAccessPoint{
 		cas: []types.CertAuthority{ca},
@@ -230,7 +230,7 @@ func (f *fakeAccessPoint) GetCertAuthorityOverride(ctx context.Context, id types
 	}
 
 	for _, caOverride := range f.caOverrides {
-		if caOverride.Metadata.Name == id.ClusterName && caOverride.SubKind == id.CAType {
+		if caOverride.GetMetadata().Name == id.ClusterName && caOverride.GetSubKind() == id.CAType {
 			return caOverride, nil
 		}
 	}
