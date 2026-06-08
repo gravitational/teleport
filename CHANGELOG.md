@@ -1,6 +1,6 @@
 # Changelog
 
-## 18.9.0-rc.1 (06/05/26)
+## 18.9.0-rc.2 (06/08/26)
 
 ### Device Bound Session Credentials for App Access
 
