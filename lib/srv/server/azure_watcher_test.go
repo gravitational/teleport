@@ -41,6 +41,7 @@ import (
 
 type mockClients struct {
 	azure.Clients
+	resourceGraphClient azure.ResourceGraphClient
 
 	vmClients map[string]azure.VirtualMachinesClient
 }
@@ -53,6 +54,56 @@ func (c *mockClients) GetVirtualMachinesClient(ctx context.Context, subscription
 	return vmClient, nil
 }
 
+func (c *mockClients) GetResourceGraphClient(ctx context.Context) (azure.ResourceGraphClient, error) {
+	if c.resourceGraphClient == nil {
+		return nil, trace.NotFound("resource graph client not found")
+	}
+	return c.resourceGraphClient, nil
+}
+
+// fakeResourceGraphClient is an in-memory implementation of argResourcesAPI that lets each
+// test pin the exact response sequence (or error) for the Resources call.
+type fakeResourceGraphClient struct {
+	vmsBySubscriptionAndResourceGroup map[string]map[string][]*azure.VirtualMachine
+	queryError                        error
+}
+
+func (f *fakeResourceGraphClient) QueryLinuxVMs(_ context.Context, params azure.QueryLinuxVMsParams) ([]*azure.VirtualMachine, error) {
+	if f.queryError != nil {
+		return nil, f.queryError
+	}
+	vmsBySubscription, ok := f.vmsBySubscriptionAndResourceGroup[params.SubscriptionID]
+	if !ok {
+		return nil, trace.NotFound("subscription %s not found", params.SubscriptionID)
+	}
+
+	if params.ResourceGroup != "" && params.ResourceGroup != "*" {
+		vmsByResourceGroup, ok := vmsBySubscription[params.ResourceGroup]
+		if !ok {
+			return nil, trace.NotFound("resource group %s not found in subscription %s", params.ResourceGroup, params.SubscriptionID)
+		}
+
+		return vmsByResourceGroup, nil
+	}
+
+	// return vms from all resource groups in the subscription
+	var vms []*azure.VirtualMachine
+	for _, vmsInResourceGroup := range vmsBySubscription {
+		vms = append(vms, vmsInResourceGroup...)
+	}
+
+	return vms, nil
+}
+
+func makeAzureVM(subscription, location, resourceGroup, vmName string, tags map[string]string) *azure.VirtualMachine {
+	return &azure.VirtualMachine{
+		ID:       makeAzureVMID(subscription, resourceGroup, vmName),
+		Name:     vmName,
+		Location: location,
+		Tags:     tags,
+	}
+}
+
 func TestAzureWatcher(t *testing.T) {
 	t.Parallel()
 
@@ -60,93 +111,35 @@ func TestAzureWatcher(t *testing.T) {
 		sub1 = "00000000-0000-0000-0000-000000000000"
 		sub2 = "11111111-1111-1111-1111-111111111111"
 	)
+
 	clients := mockClients{
-		vmClients: map[string]azure.VirtualMachinesClient{
-			sub1: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
-				VirtualMachineAPI: &azure.ARMComputeMock{
-					VirtualMachines: map[string][]*armcompute.VirtualMachine{
-						"rg1": {
-							{
-								ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm1")),
-								Location: to.Ptr("location1"),
-							},
-							{
-								ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm2")),
-								Location: to.Ptr("location1"),
-								Tags: map[string]*string{
-									"teleport": to.Ptr("yes"),
-								},
-							},
-							{
-								ID:       to.Ptr(makeAzureVMID(sub1, "rg1", "vm5")),
-								Location: to.Ptr("location2"),
-							},
-						},
-						"rg2": {
-							{
-								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm3")),
-								Location: to.Ptr("location1"),
-							},
-							{
-								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm4")),
-								Location: to.Ptr("location1"),
-								Tags: map[string]*string{
-									"teleport": to.Ptr("yes"),
-								},
-							},
-							{
-								ID:       to.Ptr(makeAzureVMID(sub1, "rg2", "vm6")),
-								Location: to.Ptr("location2"),
-							},
-						},
+		resourceGraphClient: &fakeResourceGraphClient{
+			vmsBySubscriptionAndResourceGroup: map[string]map[string][]*azure.VirtualMachine{
+				sub1: {
+					"rg1": {
+						makeAzureVM(sub1, "location1", "rg1", "vm1", nil),
+						makeAzureVM(sub1, "location1", "rg1", "vm2", map[string]string{"teleport": "yes"}),
+						makeAzureVM(sub1, "location2", "rg1", "vm5", nil),
+					},
+					"rg2": {
+						makeAzureVM(sub1, "location1", "rg2", "vm3", nil),
+						makeAzureVM(sub1, "location1", "rg2", "vm4", map[string]string{"teleport": "yes"}),
+						makeAzureVM(sub1, "location2", "rg2", "vm6", nil),
 					},
 				},
-				ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{},
-				ScaleSetsAPI:   &azure.ARMScaleSetsMock{},
+				sub2: {
+					"rg3": {
+						makeAzureVM(sub2, "location1", "rg3", "vm7", nil),
+						makeAzureVM(sub2, "location1", "rg3", "vm8", map[string]string{"teleport": "yes"}),
+						makeAzureVM(sub2, "location2", "rg3", "vm9", nil),
+					},
+					"rg4": {
+						makeAzureVM(sub2, "location1", "rg4", "vm10", nil),
+						makeAzureVM(sub2, "location1", "rg4", "vm11", map[string]string{"teleport": "yes"}),
+						makeAzureVM(sub2, "location2", "rg4", "vm12", nil),
+					},
+				},
 			},
-			),
-			sub2: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
-				ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{},
-				ScaleSetsAPI:   &azure.ARMScaleSetsMock{},
-				VirtualMachineAPI: &azure.ARMComputeMock{
-					VirtualMachines: map[string][]*armcompute.VirtualMachine{
-						"rg3": {
-							{
-								ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm7")),
-								Location: to.Ptr("location1"),
-							},
-							{
-								ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm8")),
-								Location: to.Ptr("location1"),
-								Tags: map[string]*string{
-									"teleport": to.Ptr("yes"),
-								},
-							},
-							{
-								ID:       to.Ptr(makeAzureVMID(sub2, "rg3", "vm9")),
-								Location: to.Ptr("location2"),
-							},
-						},
-						"rg4": {
-							{
-								ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm10")),
-								Location: to.Ptr("location1"),
-							},
-							{
-								ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm11")),
-								Location: to.Ptr("location1"),
-								Tags: map[string]*string{
-									"teleport": to.Ptr("yes"),
-								},
-							},
-							{
-								ID:       to.Ptr(makeAzureVMID(sub2, "rg4", "vm12")),
-								Location: to.Ptr("location2"),
-							},
-						},
-					},
-				},
-			}),
 		},
 	}
 
@@ -286,6 +279,89 @@ func TestAzureWatcher(t *testing.T) {
 			require.ElementsMatch(t, tc.wantVMs, vmIDs)
 		})
 	}
+}
+
+func TestAzureInstancesDisablesResourceGraphUsageOnEnvVariable(t *testing.T) {
+	const (
+		subscription  = "00000000-0000-0000-0000-000000000000"
+		resourceGroup = "rg1"
+		location      = "eastus"
+	)
+
+	// Each backend returns a distinctly named VM so the test can tell which API
+	// the fetcher used purely from the discovered instance.
+	const (
+		resourceGraphVMName = "from-resource-graph"
+		listAPIVMName       = "from-list-api"
+	)
+
+	resourceGraphVM := makeAzureVM(subscription, location, resourceGroup, resourceGraphVMName, nil)
+	listAPIVM := &armcompute.VirtualMachine{
+		ID:       to.Ptr(makeAzureVMID(subscription, resourceGroup, listAPIVMName)),
+		Name:     to.Ptr(listAPIVMName),
+		Location: to.Ptr(location),
+		Properties: &armcompute.VirtualMachineProperties{
+			VMID: to.Ptr("list-api-vm-id"),
+		},
+	}
+
+	clients := &mockClients{
+		resourceGraphClient: &fakeResourceGraphClient{
+			vmsBySubscriptionAndResourceGroup: map[string]map[string][]*azure.VirtualMachine{
+				subscription: {resourceGroup: {resourceGraphVM}},
+			},
+		},
+		vmClients: map[string]azure.VirtualMachinesClient{
+			subscription: azure.NewVirtualMachinesClientByAPI(azure.VirtualMachinesClientConfig{
+				VirtualMachineAPI: &azure.ARMComputeMock{
+					VirtualMachines: map[string][]*armcompute.VirtualMachine{
+						resourceGroup: {listAPIVM},
+					},
+				},
+				ScaleSetsAPI:   &azure.ARMScaleSetsMock{},
+				ScaleSetVMsAPI: &azure.ARMScaleSetVMsMock{},
+			}),
+		},
+	}
+
+	newFetcher := func() *azureInstanceFetcher {
+		return newAzureInstanceFetcher(azureFetcherConfig{
+			Matcher: types.AzureMatcher{
+				Regions:      []string{types.Wildcard},
+				ResourceTags: types.Labels{"*": []string{"*"}},
+			},
+			Subscription:  subscription,
+			ResourceGroup: resourceGroup,
+			AzureClientGetter: func(context.Context, string) (azure.Clients, error) {
+				return clients, nil
+			},
+			Logger: logtest.NewLogger(),
+		})
+	}
+
+	discoveredVMNames := func(t *testing.T, instanceGroups []*AzureInstances) []string {
+		t.Helper()
+		var names []string
+		for _, group := range instanceGroups {
+			for _, vm := range group.Instances {
+				names = append(names, vm.Name)
+			}
+		}
+		return names
+	}
+
+	t.Run("resource graph used by default", func(t *testing.T) {
+		instanceGroups, err := newFetcher().GetInstances(t.Context(), false)
+		require.NoError(t, err)
+		require.Equal(t, []string{resourceGraphVMName}, discoveredVMNames(t, instanceGroups))
+	})
+
+	t.Run("uses ListVirtualMachines API when env var is set", func(t *testing.T) {
+		t.Setenv("TELEPORT_UNSTABLE_DISABLE_AZURE_RESOURCEGRAPH", "yes")
+		instanceGroups, err := newFetcher().GetInstances(t.Context(), false)
+		require.NoError(t, err)
+		require.Equal(t, []string{listAPIVMName}, discoveredVMNames(t, instanceGroups))
+	})
 }
 
 func TestAzureInstances_FilterExistingNodes(t *testing.T) {

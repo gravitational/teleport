@@ -52,6 +52,8 @@ type Clients interface {
 	GetKubernetesClient(ctx context.Context, subscription string) (AKSClient, error)
 	// GetVirtualMachinesClient returns an Azure Virtual Machines client for the given subscription.
 	GetVirtualMachinesClient(ctx context.Context, subscription string) (VirtualMachinesClient, error)
+	// GetResourceGraphClient returns an Azure Resource Graph client.
+	GetResourceGraphClient(ctx context.Context) (ResourceGraphClient, error)
 	// GetSQLServerClient returns an Azure SQL Server client for the
 	// specified subscription.
 	GetSQLServerClient(ctx context.Context, subscription string) (SQLServerClient, error)
@@ -169,6 +171,7 @@ type clients struct {
 	redisEnterpriseClients     ClientMap[RedisEnterpriseClient]
 	kubernetesClient           map[string]AKSClient
 	virtualMachinesClients     ClientMap[VirtualMachinesClient]
+	resourceGraphClient        ResourceGraphClient
 	sqlServerClients           ClientMap[SQLServerClient]
 	managedSQLServerClients    ClientMap[ManagedSQLServerClient]
 	mySQLFlexServersClients    ClientMap[MySQLFlexServersClient]
@@ -245,6 +248,38 @@ func (c *clients) GetKubernetesClient(ctx context.Context, subscription string) 
 // the given subscription.
 func (c *clients) GetVirtualMachinesClient(ctx context.Context, subscription string) (VirtualMachinesClient, error) {
 	return c.virtualMachinesClients.Get(ctx, subscription, c.GetCredential)
+}
+
+// GetResourceGraphClient returns an Azure Resource Graph client.
+func (c *clients) GetResourceGraphClient(ctx context.Context) (ResourceGraphClient, error) {
+	c.mtx.RLock()
+	client := c.resourceGraphClient
+	c.mtx.RUnlock()
+	if client != nil {
+		return client, nil
+	}
+	return c.initResourceGraphClient(ctx)
+}
+
+func (c *clients) initResourceGraphClient(ctx context.Context) (ResourceGraphClient, error) {
+	cred, err := c.GetCredential(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.mtx.Lock()
+	defer c.mtx.Unlock()
+	if c.resourceGraphClient != nil { // If some other thread already got here first.
+		return c.resourceGraphClient, nil
+	}
+	// TODO(gavin): if/when we support AzureChina/AzureGovernment, we will
+	// need to specify the cloud in these options.
+	client, err := NewResourceGraphClient(cred, &arm.ClientOptions{})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	c.resourceGraphClient = client
+	return client, nil
 }
 
 // GetSQLServerClient returns an Azure client for listing SQL servers.
