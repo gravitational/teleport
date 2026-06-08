@@ -323,7 +323,7 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 		}
 		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
 
-		mustWaitForEvent(t, sut, events.OktaUserSyncEvent, withTimeout(time.Second*5), withTimePoint(from))
+		mustWaitForEvent(t, sut, events.OktaUserSyncEvent, withTimePoint(from))
 		userExistInTeleportAndIsNotLocked(t, ctx, sut.Teleport.Process.GetAuthServer(), oktaUserLogin(fakeOkta.provisionedUsers[0]))
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
@@ -379,8 +379,8 @@ func TestPluginEnrollmentPartialSteps(t *testing.T) {
 		}
 		require.Equal(t, expectedOktaPluginSettings, oktaPlugin.Spec.GetOkta())
 
-		mustWaitForEvent(t, sut, events.OktaGroupsUpdateEvent, withTimeout(time.Second*5), withTimePoint(from))
-		mustWaitForEvent(t, sut, events.OktaApplicationsUpdateEvent, withTimeout(time.Second*10), withTimePoint(from))
+		mustWaitForEvent(t, sut, events.OktaGroupsUpdateEvent, withTimePoint(from))
+		mustWaitForEvent(t, sut, events.OktaApplicationsUpdateEvent, withTimePoint(from))
 
 		require.EventuallyWithT(t, func(t *assert.CollectT) {
 			accessLists, err := sut.Teleport.Process.GetAuthServer().GetAccessLists(ctx)
