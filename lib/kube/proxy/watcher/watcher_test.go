@@ -363,7 +363,7 @@ func proxyKubeServerWatcherFetchAndInitializeStateAppliesQueuedEventsSynctest(t 
 	require.NoError(t, w.WaitInitialization())
 	require.True(t, w.IsInitialized())
 	require.True(t, isHealthy(w))
-	require.Zero(t, len(fw.Events()))
+	require.Empty(t, fw.Events(), "All events should be processed by the time initialization is complete")
 
 	resources, err := w.CurrentResourcesWithFilter(ctx, noopFilter)
 	require.NoError(t, err)
