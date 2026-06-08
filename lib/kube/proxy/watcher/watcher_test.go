@@ -626,8 +626,10 @@ func testProxyKubeServerWatcherDiscardsStaleOnFallbackFailSynctest(t *testing.T)
 	fallback.On("GetKubernetesServers", mock.Anything).Return([]types.KubeServer{}, context.DeadlineExceeded).Once()
 
 	fw.closeWithError(context.DeadlineExceeded)
-	require.True(t, isHealthy(w), "Watcher remains hot for grace period")
 	synctest.Wait()
+
+	require.False(t, isHealthy(w), "Watcher is imminently unhealthy after the primary watcher fails")
+	require.False(t, w.shouldFetchFromFallback(time.Now()), "Watcher should not fetch from fallback immediately after primary watcher fails")
 
 	nonstale, err := w.CurrentResourcesWithFilter(ctx, noopFilter)
 	require.NoError(t, err)
