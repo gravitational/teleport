@@ -175,23 +175,6 @@ Kind-specific resource-property filters (SSH/Kubernetes/Database) can only targe
 **one** session kind per query (combining e.g. `--server-hostname` with
 `--database-name` errors out).
 
-### Filter caveats (verified against a live v18.8 cluster)
-
-- **`--severity` may be silently ignored by the server.** On observed v18.8.x
-  proxies the flag is accepted (and its value is validated) but the server
-  returns sessions of *all* severities anyway. **Do not rely on it for
-  correctness** — fetch results and **filter/sort by the `severity` field
-  yourself** (Step 4) so the skill is correct regardless of server version.
-- **JSON output is silently capped at `--limit` (default 50)** with no
-  "more results available" indicator — pagination only works in the interactive
-  TUI. If you might be truncating, raise `--limit` (e.g. `--limit=500`) and/or
-  narrow the time range and filters, and tell the user the list may be partial.
-- **`search` does not enforce a maximum time range** (unlike `recordings ls`,
-  which caps at 365 days), but **`--to` cannot be in the future** (the error
-  confusingly names it `--to-utc`).
-- All other filters (`--kind` with OR semantics, `--username`, `--role`,
-  `--resource-kind`, `--resource-name`, `--server-hostname`, `--pod-name`,
-  `--database-name`, `--label`, `--access-request`) do filter server-side.
 
 ### Common scenarios
 
