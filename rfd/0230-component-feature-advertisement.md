@@ -87,11 +87,81 @@ A service should advertise a flag only when:
 For the initial Resource Constraints work, support is not configuration-dependent. If the code path is compiled into the
 binary, the service can unconditionally advertise the flag for the resources that participate in that flow.
 
-Auth will stores these payloads alongside existing status information so they are available through the same APIs that
+Auth stores these payloads alongside existing status information so they are available through the same APIs that
 already expose presence and cluster state.
 
 Auth itself won't carry `ComponentFeatures` on an auth-server presence resource. Instead, it can expose its own feature
 support via adding some `AuthComponentFeatures` field to its Spec when heartbeating.
+
+The model above assumes every presence resource has a backing agent process whose heartbeat keeps the
+`ComponentFeatures` field current. This is not always the case; some resources exist in the presence layer without a
+corresponding agent. See [Resources without backing agents](#resources-without-backing-agents) for how these are handled.
+
+### Resources without backing agents
+
+Some presence resources exist without a backing agent process to set `ComponentFeatures` via heartbeat. These
+"agentless" resources are typically created by integrations, `tctl`, or gRPC API calls, and are served directly by Proxy
+or another intermediary rather than a dedicated service agent.
+
+For these resources, the heartbeat-based advertising model does not apply: there is no process that periodically
+constructs the resource and sets `ComponentFeatures` on its spec. The field will be unset (or stale, if it was set at
+creation time and the supported feature set has since changed), and consumers that rely on it will incorrectly treat the
+resource as supporting no features.
+
+#### Resolution: compute at read time
+
+Rather than requiring all resource creators to be aware of `ComponentFeatures` (which would be fragile and difficult to
+enforce across integrations, `tctl`, and API clients), consumers SHOULD compute features for known agentless resources at
+read time based on the resource's type and metadata.
+
+This is implemented via `GetEffectiveServerFeatures`, which acts as the single point of truth for a server's feature
+support. It checks for known agentless patterns before falling back to the spec field:
+
+```go
+func GetEffectiveServerFeatures(component versionedComponent) *componentfeaturesv1.ComponentFeatures {
+    // Agentless app servers: no heartbeat, compute from app type.
+    if appServer, ok := component.(types.AppServer); ok && appServer.GetApp().GetIntegration() != "" {
+        return ForAppServer(appServer)
+    }
+    // Agent-backed: read stored field (with version-gating).
+    return component.GetComponentFeatures()
+}
+```
+
+All consumers (unified resource cache, Proxy feature intersection, etc.) MUST call `GetEffectiveServerFeatures` rather
+than reading `ComponentFeatures` from the spec directly.
+
+#### Known agentless patterns
+
+The following table documents known agentless resource patterns and their detection signals. When adding
+`ComponentFeatures` support to a new resource kind, this table SHOULD be consulted and updated.
+
+| Resource kind | Agentless cases | Detection signal | Resolution |
+|---|---|---|---|
+| `AppServerV3` | AWS OIDC integration apps, `tctl`-created apps with integration set | `app.GetIntegration() != ""` | Compute from app type via `ForAppServer()`. |
+| `ServerV2` (SSH) | OpenSSH nodes, EC2 Instance Connect (EICE) nodes | `server.IsOpenSSHNode()` | Compute via `ForSSHServer()`. |
+| `DatabaseServerV3` | None. Discovery creates `Database` resources; the server wrapper is always heartbeated by `database_service`. `CheckAndSetDefaults` requires `HostID` and `Hostname`. | N/A | Safe for expansion as-is. |
+| `KubernetesServerV3` | None. Discovery creates `KubernetesCluster` resources; EKS enrollment installs an agent. The server wrapper is always heartbeated by `kube_service`. | N/A | Safe for expansion as-is. |
+| `WindowsDesktopV3` | Can be created via `tctl`/gRPC without `HostID` (not validated in `CheckAndSetDefaults`), but always requires a `windows_desktop_service` to serve connections. | No reliable signal. | The serving desktop service could set features during its heartbeat cycle. Requires design work. |
+| `DynamicWindowsDesktopV1` | Fully agentless: created via API, no `HostID` field, no agent. Still requires a desktop service for connection serving. | No detection signal exists. | Features could be inferred from the desktop service that serves the connection. Requires design work. |
+
+> [!NOTE]
+> For the immediate expansion targets (`DatabaseServerV3`, `KubernetesServerV3`), there is no agentless gap. These
+> resource kinds always have agents that heartbeat server wrappers, so `ComponentFeatures` works as designed. The risk
+> lies with `WindowsDesktopV3` and especially `DynamicWindowsDesktopV1` if Resource Constraints expand to desktops.
+
+#### Guidance for future expansion
+
+When adding `ComponentFeatures` to a resource kind that does not currently carry it:
+
+1. **Check for agentless creation paths.** Determine whether the resource can be created without a backing agent (via
+   integrations, `tctl`, gRPC API, or discovery). If so, the heartbeat model alone is insufficient.
+2. **Add a compute-at-read-time branch** in `GetEffectiveServerFeatures` for each agentless pattern, keyed on a stable
+   detection signal (e.g., `GetIntegration()`, `IsOpenSSHNode()`).
+3. **Update the table above** with the new resource kind, its agentless patterns, and the chosen resolution.
+4. **Do not rely on resource creators** to set `ComponentFeatures` at creation time. The field is a runtime signal, and
+   creation-time values will become stale as features evolve across versions. The canonical source of truth for agentless
+   resources is the compute-at-read-time logic.
 
 ### Consuming feature information
 On the consumer side, the logic is straightforward. For a target operation, the consumer gathers the participating
@@ -120,6 +190,8 @@ In v1, the implementation is limited to:
 - App Service advertising `ComponentFeatures` on `AppServerV3` presence records for AWS Console applications.
 - Auth and Proxy exposing their own `ComponentFeatures` via their `ServerSpecV2` when heartbeating.
 - Proxy/Web UI consuming these feature sets to gate Resource Constraint–dependent flows.
+- Compute-at-read-time handling for agentless `AppServerV3` resources (integration-backed apps) via
+  `GetEffectiveServerFeatures`.
 
 The design is intentionally generic so that other services can adopt `ComponentFeatures` for future features without
 changing any core model.
@@ -158,27 +230,19 @@ message AppServerSpecV3 {
 ```
 
 For Resource Constraints, this flag is per-application, not per-process. Only AWS Console apps (initially) are
-eligible for Resource Constraints. `getServerInfoFunc()` is extended so that the `AppServerV3` it returns marks only
-those apps as supporting the feature:
+eligible for Resource Constraints. Before each heartbeat, the App Service sets `ComponentFeatures` on the `AppServerV3`
+via a centralized helper that determines features from the app type:
 ```go
-func (s *Server) getServerInfoFunc(app types.Application) func(ctx context.Context) (*types.AppServerV3, error) {
-    return func(ctx context.Context) (*types.AppServerV3, error) {
-        server, err := s.buildAppServerV3(app) // existing metadata / labels / spec
-        if err != nil {
-            return nil, trace.Wrap(err)
-        }
-
-		if app.IsAWSConsole() {
-            server.Spec.ComponentFeatures = &presence.ComponentFeatures{
-                Features: []presence.ComponentFeatureID{
-                    presence.COMPONENT_FEATURE_ID_RESOURCE_CONSTRAINTS_V1,
-                },
-            }
-        }
-
-        return server, nil
+// In lib/componentfeatures/advertisement.go
+func ForAppServer(g appServerInfoGetter) *componentfeaturesv1.ComponentFeatures {
+    if app := g.GetApp(); !app.IsAWSConsole() {
+        return New()
     }
+    return New(FeatureResourceConstraintsV1)
 }
+
+// In lib/srv/app/server.go, called before each heartbeat
+server.SetComponentFeatures(componentfeatures.ForAppServer(server))
 ```
 
 As multiple app servers may serve a single application, the aggregation logic used in `UnifiedResourcesCache` should
@@ -303,3 +367,8 @@ feature set must be stable for the lifetime of the process (or at least between 
 **Not a config/health channel:** Do not encode configuration values, environment health, or per-tenant state as
 "features". If richer or non-Boolean data is ever needed for coordination, we should introduce a separate, purpose-built
 payload or evolve `ComponentFeatures` with a new field that does not change per-request.
+
+**Agentless resources require explicit handling:** The heartbeat-based advertising model does not cover resources created
+without a backing agent process. Before adding `ComponentFeatures` to a new resource kind, verify whether agentless
+creation paths exist and add corresponding compute-at-read-time logic in `GetEffectiveServerFeatures`. See
+[Resources without backing agents](#resources-without-backing-agents).
