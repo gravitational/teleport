@@ -4,7 +4,6 @@ on:
   merge_group:
 env:
   GOFLAGS: '-buildvcs=false'
-  GOEXPERIMENT: 'synctest'
 
 jobs:
   changes:
