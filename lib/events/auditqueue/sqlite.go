@@ -595,18 +595,51 @@ func (q *sqliteQueue) sweepStaleTmp() {
 		// should have their `*.tmp` suffix removed as soon as they are done
 		// initializing, which should be a very quick process.
 		stalePath := filepath.Join(q.parentDir, dirEntry.Name())
+		tryRemoveStaleTmp(q.ctx, stalePath)
+	}
+}
 
-		// Tmp directories were orphaned before they finished initializing,
-		// therefore they will have no audit log events, hence they are safe to
-		// remove.
-		if err := os.RemoveAll(stalePath); err != nil {
-			orphanScanErrors.Inc()
-			slog.ErrorContext(q.ctx,
-				"Failed to remove stale audit-queue tmp directory.",
+func tryRemoveStaleTmp(ctx context.Context, stalePath string) {
+	unlock, err := utils.FSTryWriteLock(filepath.Join(stalePath, queueLockFile))
+	if err != nil {
+		// The lock is held, so a creator is still active. Leave the directory
+		// for its owner and try again on the next sweep.
+		if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
+			slog.WarnContext(ctx,
+				"Audit-queue tmp directory is still locked past the stale threshold. Leaving it for its owner.",
+				"path", stalePath,
+				"stale_threshold", staleTmpThreshold,
+			)
+			return
+		}
+		orphanScanErrors.Inc()
+		slog.ErrorContext(ctx,
+			"Failed to lock stale audit-queue tmp directory.",
+			"path", stalePath,
+			"error", err,
+		)
+		return
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			slog.ErrorContext(ctx,
+				"Failed to release stale audit-queue tmp flock.",
 				"path", stalePath,
 				"error", err,
 			)
 		}
+	}()
+
+	// We hold the lock, so the directory is unowned. Tmp directories were
+	// orphaned before they finished initializing, therefore they will have no
+	// audit log events, hence they are safe to remove.
+	if err := os.RemoveAll(stalePath); err != nil {
+		orphanScanErrors.Inc()
+		slog.ErrorContext(ctx,
+			"Failed to remove stale audit-queue tmp directory.",
+			"path", stalePath,
+			"error", err,
+		)
 	}
 }
 
