@@ -547,20 +547,18 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 }
 
 func (q *sqliteQueue) orphanScanLoop(ctx context.Context, handler Handler) {
-	q.sweepStaleTmp()
-	q.adoptOrphans(ctx, handler)
-
 	ticker := time.NewTicker(q.orphanScanInterval)
 	defer ticker.Stop()
 	for {
+		q.sweepStaleTmp()
+		q.adoptOrphans(ctx, handler)
+
 		select {
 		case <-ctx.Done():
 			return
 		case <-q.ctx.Done():
 			return
 		case <-ticker.C:
-			q.sweepStaleTmp()
-			q.adoptOrphans(ctx, handler)
 		}
 	}
 }
