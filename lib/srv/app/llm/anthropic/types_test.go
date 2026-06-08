@@ -39,7 +39,7 @@ func TestParseMessagesRequest(t *testing.T) {
 				require.Equal(tt, "claude-opus-4-7", req.Model, i2...)
 				require.True(tt, req.Stream, i2...)
 				require.Equal(tt, 1024, req.MaxTokens, i2...)
-				require.Contains(tt, req.Raw, "messages")
+				require.Contains(tt, req.raw, "messages")
 			},
 		},
 		"valid json missing fields": {
@@ -51,42 +51,94 @@ func TestParseMessagesRequest(t *testing.T) {
 				require.Empty(tt, req.Model, i2...)
 				require.False(tt, req.Stream, i2...)
 				require.Empty(tt, req.MaxTokens, i2...)
-				require.Contains(tt, req.Raw, "messages")
+				require.Contains(tt, req.raw, "messages")
 			},
 		},
 		"model duplicates": {
-			input:       `{"model":"claude-sonnet-4-20250514","model":"claude-opus-4-7","model": "claude-haiku-4-5","MODEL":"claude-sonnet-4-7","messages":[{"role":"user","content":"Hello"}]}`,
+			input:       `{"model":"claude-sonnet-4-20250514","model":"claude-haiku-4-5","MODEL":"claude-sonnet-4-7","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"Hello"}]}`,
 			expectError: require.NoError,
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				req, ok := i1.(messagesAPIRequest)
 				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
 				require.Equal(tt, "claude-haiku-4-5", req.Model, i2...)
-				require.Contains(tt, req.Raw, "messages")
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"model duplicates different casing": {
+			input:       `{"model":"claude-sonnet-4-20250514","MODEL":"claude-opus-4-7","max_tokens":1024,"stream":true,"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(messagesAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.Equal(tt, "claude-sonnet-4-20250514", req.Model, i2...)
+				require.Contains(tt, req.raw, "messages")
 			},
 		},
 		"stream duplicates": {
+			input:       `{"model":"claude-sonnet-4-20250514","stream":true,"stream":false,"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(messagesAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.False(tt, req.Stream, i2...)
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"stream duplicates different casing": {
 			input:       `{"model":"claude-sonnet-4-20250514","stream":true,"STREAM":false,"messages":[{"role":"user","content":"Hello"}]}`,
 			expectError: require.NoError,
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				req, ok := i1.(messagesAPIRequest)
 				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
 				require.True(tt, req.Stream, i2...)
-				require.Contains(tt, req.Raw, "messages")
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"max tokens duplicates different casing": {
+			input:       `{"model":"claude-sonnet-4-20250514","max_tokens":1024,"MAX_TOKENS":9999,"stream":true,"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(messagesAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.Equal(tt, 1024, req.MaxTokens, i2...)
+				require.Contains(tt, req.raw, "messages")
 			},
 		},
 		"max tokens duplicates": {
-			input:       `{"model":"claude-sonnet-4-20250514","max_tokens":1024,"max_tokens":5555,"MAX_TOKENS":9999,"messages":[{"role":"user","content":"Hello"}]}`,
+			input:       `{"model":"claude-sonnet-4-20250514","max_tokens":1024,"max_tokens":5555,"stream": true,"messages":[{"role":"user","content":"Hello"}]}`,
 			expectError: require.NoError,
 			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
 				req, ok := i1.(messagesAPIRequest)
 				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
 				require.Equal(tt, 5555, req.MaxTokens, i2...)
-				require.Contains(tt, req.Raw, "messages")
+				require.Contains(tt, req.raw, "messages")
+			},
+		},
+		"fields in uppercase": {
+			input:       `{"MODEL":"claude-sonnet-4-20250514","MAX_TOKENS":1024,"STREAM":true,"messages":[{"role":"user","content":"Hello"}]}`,
+			expectError: require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				req, ok := i1.(messagesAPIRequest)
+				require.True(tt, ok, "expect type to be %T but got %T", req, i1)
+				require.Empty(tt, req.Model, i2...)
+				require.Empty(tt, req.MaxTokens, i2...)
+				require.False(tt, req.Stream, i2...)
+				require.Contains(tt, req.raw, "messages")
 			},
 		},
 		"stream invalid format": {
 			input:       `{"model":"claude-sonnet-4-20250514","stream":"yes","messages":[{"role":"user","content":"Hello"}]}`,
 			expectError: require.Error,
+			expectValue: require.NotEmpty,
+		},
+		"duplicated other fields no error": {
+			input:       `{"model": "claude-opus-4-7", "stream": true, "max_tokens": 1024, "messages":[{"role":"user","content":"Hello"}], "thinking": {"type": "adaptive"}, "thinking": {"type": "disabled"}}}`,
+			expectError: require.NoError,
+			expectValue: require.NotEmpty,
+		},
+		"duplicated other nested fields no error": {
+			input:       `{"model": "claude-opus-4-7", "stream": true, "max_tokens": 1024, "messages":[{"role":"user","content":"Hello"}], "thinking": {"type": "adaptive", "type": "disabled"}}}`,
+			expectError: require.NoError,
 			expectValue: require.NotEmpty,
 		},
 		"invalid json": {
@@ -98,7 +150,7 @@ func TestParseMessagesRequest(t *testing.T) {
 				require.Empty(tt, req.Model, i2...)
 				require.False(tt, req.Stream, i2...)
 				require.Empty(tt, req.MaxTokens, i2...)
-				require.Empty(tt, req.Raw, i2...)
+				require.Empty(tt, req.raw, i2...)
 			},
 		},
 	} {
@@ -153,6 +205,27 @@ func TestEncodeMessagesRequest(t *testing.T) {
 				resp, ok := i1.(string)
 				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
 				require.JSONEq(tt, `{"model": "claude-sonnet-4-7", "stream": false, "max_tokens": 5555, "messages":[{"role":"user","content":"Hello"}]}`, resp)
+			},
+		},
+		"duplicate fields different casing": {
+			input:         `{"model": "claude-opus-4-7", "MODEL": "claude-sonnet-4-7", "stream": true, "STREAM": false, "max_tokens": 1024, "MAX_TOKENS": 5555, "messages":[{"role":"user","content":"Hello"}]}`,
+			modifyRequest: func(r *messagesAPIRequest) {},
+			expectError:   require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				// Expect values from lowercase keys.
+				require.JSONEq(tt, `{"model": "claude-opus-4-7", "stream": true, "max_tokens": 1024, "messages":[{"role":"user","content":"Hello"}]}`, resp)
+			},
+		},
+		"full uppercase keys": {
+			input:         `{"MODEL": "claude-opus-4-7", "STREAM": true, "MAX_TOKENS": 1024, "messages":[{"role":"user","content":"Hello"}]}`,
+			modifyRequest: func(r *messagesAPIRequest) {},
+			expectError:   require.NoError,
+			expectValue: func(tt require.TestingT, i1 any, i2 ...any) {
+				resp, ok := i1.(string)
+				require.True(tt, ok, "expect type to be %T but got %T", resp, i1)
+				require.JSONEq(tt, `{"model": "", "stream": false, "max_tokens": 0, "messages":[{"role":"user","content":"Hello"}]}`, resp)
 			},
 		},
 		"valid json missing fields": {

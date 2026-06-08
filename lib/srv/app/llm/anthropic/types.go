@@ -19,6 +19,7 @@ package anthropic
 import (
 	"encoding/json"
 	"maps"
+	"strings"
 
 	"github.com/gravitational/trace"
 	jsoniter "github.com/json-iterator/go"
@@ -94,36 +95,47 @@ const (
 //
 // https://platform.claude.com/docs/en/api/messages/create
 type messagesAPIRequest struct {
-	Model     string `json:"-"`
-	Stream    bool   `json:"-"`
-	MaxTokens int    `json:"-"`
+	Model     string `json:"model"`
+	Stream    bool   `json:"stream"`
+	MaxTokens int    `json:"max_tokens"`
 
-	Raw map[string]json.RawMessage `json:"-"`
+	raw map[string]json.RawMessage `json:"-"`
 }
 
 func (m *messagesAPIRequest) UnmarshalJSON(data []byte) error {
+	type Alias messagesAPIRequest
+	aux := &struct{ *Alias }{Alias: (*Alias)(m)}
+	if err := caseSensitiveJSONConfig.Unmarshal(data, aux); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var raw map[string]json.RawMessage
-	if err := caseSensitiveJSONConfig.Unmarshal(data, &raw); err != nil {
-		return err
-	}
-
-	if err := unmarshalField(raw, "model", &m.Model); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := unmarshalField(raw, "stream", &m.Stream); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := unmarshalField(raw, "max_tokens", &m.MaxTokens); err != nil {
+	if err := utils.FastUnmarshal(data, &raw); err != nil {
 		return trace.Wrap(err)
 	}
 
-	m.Raw = raw
+	for key := range raw {
+		if isKnownMessagesJSONKey(key) {
+			delete(raw, key)
+		}
+	}
+
+	m.raw = raw
 	return nil
 }
 
+func isKnownMessagesJSONKey(key string) bool {
+	switch strings.ToLower(key) {
+	case "model", "stream", "max_tokens":
+		return true
+	default:
+		return false
+	}
+}
+
 func (m messagesAPIRequest) MarshalJSON() ([]byte, error) {
-	final := make(map[string]json.RawMessage, len(m.Raw)+3) // Current len + taken fields.
-	maps.Copy(final, m.Raw)
+	final := make(map[string]json.RawMessage, len(m.raw)+3) // Current len + taken fields.
+	maps.Copy(final, m.raw)
 	if err := marshalField(final, "model", m.Model); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -135,16 +147,6 @@ func (m messagesAPIRequest) MarshalJSON() ([]byte, error) {
 	}
 	res, err := utils.FastMarshal(final)
 	return res, trace.Wrap(err)
-}
-
-func unmarshalField(raw map[string]json.RawMessage, fieldName string, field any) error {
-	if v, ok := raw[fieldName]; ok {
-		if err := caseSensitiveJSONConfig.Unmarshal(v, field); err != nil {
-			return trace.Wrap(err)
-		}
-		delete(raw, fieldName)
-	}
-	return nil
 }
 
 func marshalField(raw map[string]json.RawMessage, fieldName string, value any) error {
