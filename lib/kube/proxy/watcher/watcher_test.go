@@ -296,8 +296,8 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 	synctest.Wait()
 
 	// Invalid op types handled gracefully.
-	fw.send(types.Event{Type: types.OpInvalid, Resource: newTestKubeServer(t, "new", "host2")})
-	synctest.Wait()
+	// fw.send(types.Event{Type: types.OpInvalid, Resource: newTestKubeServer(t, "new", "host2")})
+	// synctest.Wait()
 
 	fw.send(types.Event{Type: types.OpDelete, Resource: newTestKubeServer(t, "new", "host2")})
 	synctest.Wait()
@@ -313,6 +313,64 @@ func testWatcherProcessesEventsSynctest(t *testing.T) {
 
 func TestProxyKubeServerWatcher_ProcessesEvents(t *testing.T) {
 	synctest.Test(t, testWatcherProcessesEventsSynctest)
+}
+
+func testWatcherUnknownEventsHardFaultSynctest(t *testing.T) {
+	ctx := t.Context()
+	noopFilter := func(k readonly.KubeServer) bool { return true }
+
+	fw := newFakeWatcher(10)
+	t.Cleanup(func() { fw.Close() })
+	primary := &mockKubeServerWatcherGetter{}
+	fallback := &mockKubeServerWatcherGetter{}
+
+	// In the happy path we expect a single call to the primary to pre-warm the cache.
+	primary.On("GetKubernetesServers", mock.Anything).
+		Return([]types.KubeServer{
+			newTestKubeServer(t, "initial", "host1"),
+		}, nil).Once()
+
+	watcherReady := make(chan time.Time)
+	primary.On("NewWatcher", mock.Anything, mock.Anything).Return(fw, nil).WaitUntil(watcherReady).Once()
+
+	w, err := NewProxyKubeServerWatcher(ctx, ProxyKubeServerWatcherConfig{
+		Component:      teleport.ComponentProxy,
+		AccessPoint:    primary,
+		FallbackGetter: fallback,
+		PrimaryTimeout: time.Second,
+		MaxRetryPeriod: time.Second,
+	})
+	require.NoError(t, err)
+	t.Cleanup(w.Close)
+	synctest.Wait()
+
+	// Single call to backup since watcher is not ready.
+	resources, err := w.CurrentResourcesWithFilter(ctx, noopFilter)
+	require.NoError(t, err)
+	require.Empty(t, resources, "Watcher should start with empty cache before warm-up")
+
+	watcherReady <- time.Now() // unblock watcher
+	fw.send(types.Event{Type: types.OpInit})
+	require.NoError(t, w.WaitInitialization())
+	require.True(t, w.IsInitialized())
+	require.True(t, isHealthy(w), "Watcher starts out healthy")
+
+	fw.send(types.Event{Type: types.OpInvalid, Resource: newTestKubeServer(t, "new", "host2")})
+	synctest.Wait()
+	require.False(t, isHealthy(w), "Watcher should be unhealthy after receiving invalid event")
+	require.False(t, w.shouldFetchFromFallback(time.Now()), "The fallback timeout should not expire yet.")
+
+	resources, err = w.CurrentResourcesWithFilter(ctx, noopFilter)
+	require.NoError(t, err)
+	require.Len(t, resources, 1)
+	require.Equal(t, "initial", resources[0].GetName())
+
+	primary.AssertExpectations(t)
+	fallback.AssertExpectations(t)
+}
+
+func TestProxyKubeServerWatcher_UnknownEventsHardFault(t *testing.T) {
+	synctest.Test(t, testWatcherUnknownEventsHardFaultSynctest)
 }
 
 func testProxyKubeServerWatcherRetryWatchAfterTimeoutSynctest(t *testing.T) {

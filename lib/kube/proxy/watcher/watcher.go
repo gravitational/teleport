@@ -180,10 +180,12 @@ func NewProxyKubeServerWatcher(ctx context.Context, cfg ProxyKubeServerWatcherCo
 	return w, nil
 }
 
+// isHealthyLocked checks if the watcher is currently healthy, it should be called with rw lock held.
 func (w *ProxyKubeServerWatcher) isHealthyLocked() bool {
 	return w.nextFallbackFetch.IsZero()
 }
 
+// shouldFetchFromFallback determines if the watcher should fetch from the fallback getter based on the health of the primary access point and the next fallback fetch time.
 func (w *ProxyKubeServerWatcher) shouldFetchFromFallback(now time.Time) bool {
 	w.rw.Lock()
 	defer w.rw.Unlock()
@@ -245,6 +247,7 @@ func fillEventBuf(ctx context.Context, buf []types.Event, w types.Watcher, maxSi
 	return
 }
 
+// createWatcherAndInit creates a new watcher and waits for the initial event to mark the watcher as initialized.
 func (w *ProxyKubeServerWatcher) createWatcherAndInit() (types.Watcher, error) {
 	watcher, err := w.AccessPoint.NewWatcher(w.ctx, types.Watch{
 		Name:            w.Component,
@@ -282,14 +285,9 @@ func (w *ProxyKubeServerWatcher) createWatcherAndInit() (types.Watcher, error) {
 	return watcher, nil
 }
 
-// watch spawns a watcher on [types.KindKubeServer] and if successful, initializes the local cache and fetches events.
-func (w *ProxyKubeServerWatcher) watch() error {
-	watcher, err := w.createWatcherAndInit()
-	if err != nil {
-		return trace.Wrap(err, "creating watcher and waiting for init")
-	}
-	defer watcher.Close()
-
+// fetchAndInitializeState fetches the initial state of kube servers and applies any events that were queued during the fetch.
+// If successful, the watcher's cache is initialized and any faults are cleared.
+func (w *ProxyKubeServerWatcher) fetchAndInitializeState(watcher types.Watcher) error {
 	newCurrent, err := w.getAllKubeServers(w.ctx, w.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err, "fetching from primary")
@@ -331,7 +329,23 @@ func (w *ProxyKubeServerWatcher) watch() error {
 
 	// At this point watcher is successfully initialized and the cache is warmed up, we can reset the retry backoff and start processing events.
 	w.retry.Reset()
+	return nil
 
+}
+
+// watch spawns a watcher on [types.KindKubeServer] and if successful, initializes the local cache and fetches events.
+func (w *ProxyKubeServerWatcher) watch() error {
+	watcher, err := w.createWatcherAndInit()
+	if err != nil {
+		return trace.Wrap(err, "creating watcher and waiting for init")
+	}
+	defer watcher.Close()
+
+	if err := w.fetchAndInitializeState(watcher); err != nil {
+		return trace.Wrap(err, "fetching initial state and initializing watcher")
+	}
+
+	eventBuf := make([]types.Event, 0, eventBufferSize)
 	for {
 		select {
 		case <-watcher.Done():
