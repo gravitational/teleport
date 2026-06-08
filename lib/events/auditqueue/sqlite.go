@@ -1226,7 +1226,7 @@ func ackDB(ctx context.Context, db *sql.DB, items []Item) error {
 }
 
 func (q *sqliteQueue) Close() error {
-	var firstErr error
+	var errs []error
 	q.closeOnce.Do(func() {
 		q.cancel()
 		q.wg.Wait()
@@ -1250,7 +1250,7 @@ func (q *sqliteQueue) Close() error {
 		}
 
 		if err := q.db.Close(); err != nil {
-			firstErr = errors.Join(firstErr, err)
+			errs = append(errs, err)
 		}
 
 		// Remove the directory before releasing the lock. This ensures no other
@@ -1263,11 +1263,11 @@ func (q *sqliteQueue) Close() error {
 
 		if q.unlock != nil {
 			if err := q.unlock(); err != nil {
-				firstErr = errors.Join(firstErr, err)
+				errs = append(errs, err)
 			}
 		}
 	})
-	return trace.Wrap(firstErr)
+	return trace.NewAggregate(errs...)
 }
 
 func isQueueEmpty(db *sql.DB) (bool, error) {
