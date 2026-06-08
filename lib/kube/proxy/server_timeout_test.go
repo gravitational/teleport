@@ -144,6 +144,7 @@ func TestKubeHTTPServer_LongHandlerSurvivesWriteTimeout(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "OK", string(body))
 
+		require.NoError(t, client.Close())
 		require.NoError(t, srv.Close())
 		synctest.Wait()
 
