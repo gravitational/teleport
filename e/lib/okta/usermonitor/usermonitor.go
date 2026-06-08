@@ -244,6 +244,13 @@ func (u *UserMonitor) reconcile(ctx context.Context) error {
 	// is the maximum number of users we'll see.
 	usersToProcess := make(map[string]types.User, maxUsers)
 	for _, user := range users {
+		if user.IsBot() {
+			// Do not attempt to reconcile bots, they are always local users and
+			// cannot self-heal invalid user_login_state entries that might get
+			// created.
+			continue
+		}
+
 		usersToProcess[user.GetName()] = user
 	}
 
@@ -251,6 +258,11 @@ func (u *UserMonitor) reconcile(ctx context.Context) error {
 	// to rebuild the user state.
 	for _, uls := range states {
 		if _, ok := usersToProcess[uls.GetName()]; ok {
+			continue
+		}
+		if _, isBot := uls.GetLabel(types.BotLabel); isBot {
+			// As above, do not attempt to reconcile bots, even if they have an
+			// existing (invalid) ULS.
 			continue
 		}
 
@@ -387,6 +399,14 @@ func (u *UserMonitor) processResource(ctx context.Context, resource types.Resour
 
 // processUserChange will re-process a user by re-calling the login hooks for the user.
 func (u *UserMonitor) processUserChange(ctx context.Context, user types.User) error {
+	if user.IsBot() {
+		// Do not attempt to process changes for bot users. This can result in
+		// creation of invalid user_login_state resources which (unlike local
+		// users) are never repaired, since bots never authenticate in a way
+		// that trigger the ULS generator.
+		return nil
+	}
+
 	if err := u.authServer.CallLoginHooks(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
@@ -442,6 +462,15 @@ func (u *UserMonitor) rebuildAndProcessUser(ctx context.Context, name string) er
 	uls, err := u.authServer.GetUserLoginState(ctx, name)
 	if err != nil {
 		return trace.Wrap(err)
+	}
+
+	if _, isBot := uls.GetLabel(types.BotLabel); isBot {
+		// Do not attempt to rebuild users for bots. Note that if a corrupt ULS
+		// entry for a bot user already exists in the backend, its bot label
+		// will be missing, so IsBot() will always return false and this check
+		// will not skip it. In this case, GetUserLoginState() is responsible
+		// for discarding existing broken ULS entries on read.
+		return nil
 	}
 
 	user, err := rebuildUserFromUserLoginState(uls)

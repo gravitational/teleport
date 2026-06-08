@@ -12,6 +12,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	machineidv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/common"
@@ -566,6 +568,52 @@ func TestProcessEvent(t *testing.T) {
 	}
 }
 
+func TestSkipProcessingBots(t *testing.T) {
+	ctx := t.Context()
+
+	srv, svc := newUserMonitorServiceWithTestServer(t)
+	adminClient, err := srv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Kind:    types.KindBot,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: "test",
+			},
+			Spec: &machineidv1pb.BotSpec{
+				Roles: []string{"access"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	user, err := adminClient.GetUser(ctx, bot.GetStatus().GetUserName(), false)
+	require.NoError(t, err)
+
+	_, err = adminClient.UserLoginStateClient().GetUserLoginState(ctx, user.GetName())
+	require.True(t, trace.IsNotFound(err))
+
+	// No ULS should be created for a bot user.
+	require.NoError(t, svc.processUserChange(ctx, user))
+
+	_, err = adminClient.UserLoginStateClient().GetUserLoginState(ctx, user.GetName())
+	require.True(t, trace.IsNotFound(err))
+
+	// Deleting the bot should not trigger ULS creation (or corruption).
+	_, err = adminClient.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+		BotName: "test",
+	})
+	require.NoError(t, err)
+
+	// Once reconciled, the delete should not create/change bot ULS.
+	require.NoError(t, svc.reconcile(ctx))
+
+	_, err = adminClient.UserLoginStateClient().GetUserLoginState(ctx, user.GetName())
+	require.True(t, trace.IsNotFound(err))
+}
+
 func setupOktaUAC(t *testing.T, svc *UserMonitor) {
 	t.Helper()
 
@@ -630,6 +678,29 @@ func newUserMonitorService(t *testing.T) *UserMonitor {
 	require.NoError(t, err)
 
 	return svc
+}
+
+func newUserMonitorServiceWithTestServer(t *testing.T) (*authtest.Server, *UserMonitor) {
+	t.Helper()
+
+	srv, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir:     t.TempDir(),
+			Clock:   clockwork.NewFakeClock(),
+			Modules: modulestest.EnterpriseModules(),
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, srv.Close()) })
+
+	svc, err := New(Config{
+		AuthServer: srv.AuthServer.AuthServer,
+		Events:     srv.AuthServer.AuthServer,
+		Backend:    srv.AuthServer.Backend,
+	})
+	require.NoError(t, err)
+
+	return srv, svc
 }
 
 func addUser(t *testing.T, as *auth.Server, name string, userType types.UserType, roles ...string) {
