@@ -274,6 +274,8 @@ func (r resourceTeleportDeviceV1) Update(ctx context.Context, req tfsdk.UpdateRe
 
 	trustedDeviceResource = trustedDeviceI
 	
+	trustedDevice = trustedDeviceResource
+
 	diags = schemav1.CopyDeviceV1ToTerraform(ctx, trustedDevice, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

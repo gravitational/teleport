@@ -273,6 +273,8 @@ func (r resourceTeleportInferenceModel) Update(ctx context.Context, req tfsdk.Up
 
 	inferenceModelResource = inferenceModelI
 	
+	inferenceModel = inferenceModelResource
+
 	diags = schemav1.CopyInferenceModelToTerraform(ctx, inferenceModel, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
