@@ -101,7 +101,10 @@ func (c *Ceremony) Run(
 	// The user has no device registered that would allow per-session MFA, so
 	// prompt them to register and then retry the ceremony.
 	reason, ok := registrationReasonForError(req, authErr)
-	if !ok {
+	// If the authentication error can't be fixed by registering a new MFA device
+	// or the ceremony is not configured to do so, just return the original
+	// authentication error.
+	if !ok || c.AddMFADevice == nil || c.CreateRegisterChallenge == nil {
 		return nil, trace.Wrap(authErr)
 	}
 	regRes, err := c.Register(ctx, RegistrationCeremonyConfig{

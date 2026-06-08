@@ -584,9 +584,17 @@ func (c *CLIPrompt) promptBrowser(ctx context.Context, chal *proto.MFAAuthentica
 }
 
 // AskRegister prompts the user for device details. Returns an updated config
-// or nil if the user decided to cancel. (User declining to move forward is not
-// treated as an error.)
+// or nil if there was no attempt to register. The latter can occur in two
+// cases, and neither of them are treated as errors:
+// - User declined to register
+// - The process is not attached to a terminal
 func (c *CLIPrompt) AskRegister(ctx context.Context, config mfa.RegistrationPromptConfig) (*mfa.RegistrationPromptConfig, error) {
+	// If there's no interactive terminal, it makes no sense to attempt
+	// registration; this would only result in the process hanging forever.
+	if !utils.IsTerminal(c.stdout()) {
+		return nil, nil
+	}
+
 	confirmation := ""
 	switch config.Reason {
 	case mfa.RegistrationReasonMFANoDevices:

@@ -715,10 +715,6 @@ type CLIConf struct {
 
 	// checkManagedUpdates initiates check of managed update after client connects to cluster.
 	checkManagedUpdates bool
-
-	// addMFAIfRequired tells `tsh ssh` to offer adding an MFA device if it's
-	// required, but the user doesn't have one.
-	addMFAIfRequired bool
 }
 
 func (c *CLIConf) isForkAuthChild() bool {
@@ -1033,7 +1029,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("no-resume", "Disable SSH connection resumption.").Envar(noResumeEnvVar).BoolVar(&cf.DisableSSHResumption)
 	ssh.Flag("relogin", "Permit performing an authentication attempt on a failed command.").Default("true").BoolVar(&cf.Relogin)
 	ssh.Flag("fork-after-authentication", "Run in background after authentication is complete.").Short('f').BoolVar(&cf.ForkAfterAuthentication)
-	ssh.Flag("add-mfa", "Offer registering an MFA device if required.").Default("true").BoolVar(&cf.addMFAIfRequired)
 	// The following flags are OpenSSH compatibility flags. They are used for
 	// users that alias "ssh" to "tsh ssh." The following OpenSSH flags are
 	// implemented. From "man 1 ssh":
@@ -5263,7 +5258,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.RelayAddr = cf.Relay
 	}
 
-	c.RegisterMFADeviceIfRequired = cf.addMFAIfRequired
+	c.RegisterMFADeviceIfRequired = true
 
 	return c, nil
 }
