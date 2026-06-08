@@ -96,6 +96,11 @@ class TshdDirectoryManager extends SharedDirectoryManager {
       maxDirectories
     );
   }
+
+  async unshareDirectory(directoryId: number) {
+    unshareDirectoryInTshd(this.client, { id: directoryId, ...this.context });
+    super.unshareDirectory(directoryId);
+  }
 }
 
 function DesktopSessionComponent(props: {
@@ -253,6 +258,17 @@ async function adaptGRPCStreamToTdpTransport(
  * This message is safe to send from the renderer because it only provides
  * a display name for the mounted drive on the remote machine and has no effect on local file system operations.
  */
+async function unshareDirectoryInTshd(
+  mainProcessClient: MainProcessClient,
+  target: {
+    desktopUri: string;
+    login: string;
+    id: number;
+  }
+): Promise<void> {
+  await mainProcessClient.removeDirectoryForDesktopSession(target);
+}
+
 async function shareDirectoryInTshd(
   mainProcessClient: MainProcessClient,
   target: {
