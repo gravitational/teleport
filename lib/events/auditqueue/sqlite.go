@@ -48,6 +48,8 @@ const (
 	defaultOrphanScanInterval      = 10 * time.Minute
 	queueLockFile                  = "queue.lock"
 	queueDBFile                    = "queue.db"
+	auditQueueTable                = "audit_queue"
+	auditDeadLetterTable           = "audit_dead_letter"
 	tmpDirSuffix                   = ".tmp"
 	defaultSoftLimit               = 100 * 1024 * 1024 // 100 MiB
 	softLimitCheckInterval         = time.Minute
@@ -768,7 +770,7 @@ func (q *sqliteQueue) fetchDeadLetter(limit int) ([]Item, error) {
 
 // ackDeadLetter deletes successfully re-delivered items from audit_dead_letter.
 func (q *sqliteQueue) ackDeadLetter(items []Item) error {
-	return deleteByIDs(q.ctx, q.db, "audit_dead_letter", items)
+	return deleteByIDs(q.ctx, q.db, auditDeadLetterTable, items)
 }
 
 // expireDeadLetter deletes dead-letter rows older than the configured TTL.
@@ -1059,7 +1061,7 @@ func (q *sqliteQueue) migrateOrphanDeadLetter(orphan *sql.DB) bool {
 		for i, r := range batch {
 			ids[i] = r.id
 		}
-		if err := deleteIDsFromTable(q.ctx, orphan, "audit_dead_letter", ids); err != nil {
+		if err := deleteIDsFromTable(q.ctx, orphan, auditDeadLetterTable, ids); err != nil {
 			orphanScanErrors.Inc()
 			slog.ErrorContext(q.ctx,
 				"Failed to delete migrated orphan dead-letter rows.",
@@ -1197,7 +1199,7 @@ func deleteIDsFromTable(ctx context.Context, db *sql.DB, table string, ids []int
 		return nil
 	}
 	switch table {
-	case "audit_queue", "audit_dead_letter":
+	case auditQueueTable, auditDeadLetterTable:
 	default:
 		return trace.BadParameter("unknown table %q", table)
 	}
@@ -1220,7 +1222,7 @@ func deleteByIDs(ctx context.Context, db *sql.DB, table string, items []Item) er
 
 // ackDB deletes the rows for items from the audit_queue table.
 func ackDB(ctx context.Context, db *sql.DB, items []Item) error {
-	return deleteByIDs(ctx, db, "audit_queue", items)
+	return deleteByIDs(ctx, db, auditQueueTable, items)
 }
 
 func (q *sqliteQueue) Close() error {
