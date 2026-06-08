@@ -413,6 +413,46 @@ func TestHandleStreaming(t *testing.T) {
 	}
 }
 
+// TestHandleStreamingErrorEventWriteFailure covers the error-event branch of
+// processSSEEvents when the downstream write fails: the client connection is
+// broken, but the recorder must still surface the semantic error via Err().
+func TestHandleStreamingErrorEventWriteFailure(t *testing.T) {
+	for name, tc := range map[string]struct {
+		stream      string
+		expectedErr require.ErrorAssertionFunc
+	}{
+		"write error surfaces provider error": {
+			stream: "event: error\n" + `data: {"type": "error", "error": {"type": "overloaded_error", "message": "Overloaded"}}`,
+			expectedErr: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorIs(tt, err, llmerrors.ErrRejected, i...)
+			},
+		},
+		"invalid error event surfaces bad response": {
+			stream: "event: error\n" + `data: {"type": "error", "error":`,
+			expectedErr: func(tt require.TestingT, err error, i ...any) {
+				require.ErrorIs(tt, err, llmerrors.ErrBadResponse, i...)
+			},
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			w := &failingResponseWriter{header: http.Header{}}
+			w.header.Set("Content-Type", "text/event-stream")
+
+			rec, err := NewResponseRecorder(slog.Default(), w)
+			require.NoError(t, err)
+
+			rec.WriteHeader(http.StatusOK)
+			_, err = io.WriteString(rec, tc.stream)
+			require.NoError(t, err)
+			// Close waits on the streaming goroutine, so Err() is populated.
+			require.NoError(t, rec.Close())
+			tc.expectedErr(t, rec.Err())
+		})
+	}
+}
+
 func readSSEOneEvent(t require.TestingT, str string) sse.Event {
 	events, err := stream.Collect(sse.ReadEvents(strings.NewReader(str)))
 	require.NoError(t, err)
@@ -430,6 +470,17 @@ func (w *discardResponseWriter) Header() http.Header         { return w.header }
 func (w *discardResponseWriter) Write(p []byte) (int, error) { return len(p), nil }
 func (w *discardResponseWriter) WriteHeader(int)             {}
 func (w *discardResponseWriter) Flush()                      {}
+
+// failingResponseWriter is a minimal [http.ResponseWriter] + [http.Flusher]
+// whose Write always fails, simulating a broken downstream connection.
+type failingResponseWriter struct {
+	header http.Header
+}
+
+func (w *failingResponseWriter) Header() http.Header       { return w.header }
+func (w *failingResponseWriter) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+func (w *failingResponseWriter) WriteHeader(int)           {}
+func (w *failingResponseWriter) Flush()                    {}
 
 // buildResponseBody returns a valid non-streaming messages API response whose
 // total size is roughly fillerBytes.

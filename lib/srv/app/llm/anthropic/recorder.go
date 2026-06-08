@@ -282,17 +282,25 @@ func processSSEEvents(ctx context.Context, log *slog.Logger, r io.ReadCloser, w 
 
 		switch event.Event {
 		case "error":
-			if apiErr, err := parseProviderError(event.Data); err == nil {
+			apiErr, parseErr := parseProviderError(event.Data)
+			if parseErr == nil {
 				if _, err := sse.WriteEvent(w, sse.Event{Event: "error", Data: marshalError(newErrorMessage(apiErr))}); err != nil {
-					return inputTokensCount, outputTokensCount, trace.Wrap(err)
+					// Preserve the provider error for recorder Err(). A failed
+					// downstream write here often means the client canceled or
+					// timed out after the provider had already rejected the
+					// request.
+					log.ErrorContext(ctx, "failed to write error event", "error", err)
 				}
 				return inputTokensCount, outputTokensCount, apiErr
 			}
-			log.ErrorContext(ctx, "failed to parse error event", "error", err)
-			if _, err := sse.WriteEvent(w, sse.Event{Event: "error", Data: marshalError(newErrorMessage(llmerrors.ErrUnknown))}); err != nil {
-				return inputTokensCount, outputTokensCount, trace.Wrap(err)
+			log.ErrorContext(ctx, "failed to parse error event", "error", parseErr)
+			if _, err := sse.WriteEvent(w, sse.Event{Event: "error", Data: marshalError(newErrorMessage(llmerrors.ErrBadResponse))}); err != nil {
+				// Preserve the provider response for recorder Err().
+				// Downstream delivery failure is a secondary transport
+				// condition here.
+				log.ErrorContext(ctx, "failed to write error event", "error", err)
 			}
-			return inputTokensCount, outputTokensCount, llmerrors.ErrUnknown
+			return inputTokensCount, outputTokensCount, llmerrors.ErrBadResponse
 		case "message_start":
 			// This event will include the input tokens information.
 			//
