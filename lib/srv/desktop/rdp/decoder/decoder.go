@@ -50,8 +50,17 @@ package decoder
 #cgo noescape rdp_decoder_updated_regions
 #cgo nocallback rdp_decoder_reset_updated_regions
 #cgo noescape rdp_decoder_reset_updated_regions
+#cgo nocallback rdp_decoder_resize_crop
+#cgo noescape rdp_decoder_resize_crop
+#cgo nocallback rdp_decoder_dimensions
+#cgo noescape rdp_decoder_dimensions
+#cgo nocallback rdp_decoder_bytes_per_pixel
+#cgo noescape rdp_decoder_bytes_per_pixel
+#cgo nocallback rdp_decoder_sample_hash
+#cgo noescape rdp_decoder_sample_hash
 
 #include <stdint.h>
+#include <stdbool.h>
 
 typedef struct RdpDecoder RdpDecoder;
 
@@ -66,16 +75,17 @@ const uint8_t* rdp_decoder_cursor_bitmap(RdpDecoder* ptr, uint16_t* out_width, u
 uint32_t rdp_decoder_updated_regions_count(RdpDecoder* ptr);
 uint32_t rdp_decoder_updated_regions(RdpDecoder* ptr, uint16_t* out_buf, uint32_t max_count);
 void rdp_decoder_reset_updated_regions(RdpDecoder* ptr);
+bool rdp_decoder_resize_crop(RdpDecoder* ptr, uint16_t crop_x, uint16_t crop_y, uint16_t crop_w, uint16_t crop_h, uint16_t out_width, uint16_t out_height, uint8_t* out_buf, size_t out_buf_len);
+void rdp_decoder_dimensions(RdpDecoder* ptr, uint16_t* out_width, uint16_t* out_height);
+uint8_t rdp_decoder_bytes_per_pixel(RdpDecoder* ptr);
+uint64_t rdp_decoder_sample_hash(RdpDecoder* ptr, uint16_t sample_count);
 */
 import "C"
 
 import (
 	"errors"
 	"image"
-	"math"
 	"unsafe"
-
-	"golang.org/x/image/draw"
 )
 
 type Decoder struct {
@@ -150,44 +160,66 @@ func (d *Decoder) Image() *image.RGBA {
 	return rgba
 }
 
-// Thumbnail produces a scaled image of the current state of the screen.
-// It uses a low-quality interpolator so it shouldn't be used for large
-// size images.
-func (d *Decoder) Thumbnail(width, height int) *image.RGBA {
-	fullSize := d.Image()
-	if fullSize == nil || width <= 0 || height <= 0 {
-		return nil
+// ResizeCrop returns the source crop region (cropX, cropY, cropW, cropH) scaled to exactly outWidth x outHeight using
+// high-quality CatmullRom convolution. The crop must lie within the current frame bounds.
+func (d *Decoder) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16) (*image.RGBA, error) {
+	if d == nil || d.ptr == nil {
+		return nil, errors.New("decoder not initialized")
+	}
+	if outWidth == 0 || outHeight == 0 || cropW == 0 || cropH == 0 {
+		return nil, errors.New("invalid resize dimensions")
 	}
 
-	srcBounds := fullSize.Bounds()
-	srcW := srcBounds.Dx()
-	srcH := srcBounds.Dy()
-	if srcW == 0 || srcH == 0 {
-		return nil
+	bpp := int(C.rdp_decoder_bytes_per_pixel(d.ptr))
+	if bpp == 0 {
+		return nil, errors.New("decoder has no pixel format")
 	}
 
-	// Compute scale to fit the source inside the requested thumbnail
-	// while preserving aspect ratio.
-	scaleW := float64(width) / float64(srcW)
-	scaleH := float64(height) / float64(srcH)
-	scale := math.Min(scaleW, scaleH)
+	w, h := int(outWidth), int(outHeight)
+	buf := make([]byte, w*h*bpp)
 
-	// Calculate destination size after scaling.
-	dstW := int(math.Max(1, math.Floor(float64(srcW)*scale+0.5)))
-	dstH := int(math.Max(1, math.Floor(float64(srcH)*scale+0.5)))
+	ok := C.rdp_decoder_resize_crop(
+		d.ptr,
+		C.uint16_t(cropX),
+		C.uint16_t(cropY),
+		C.uint16_t(cropW),
+		C.uint16_t(cropH),
+		C.uint16_t(outWidth),
+		C.uint16_t(outHeight),
+		(*C.uint8_t)(unsafe.SliceData(buf)),
+		C.size_t(len(buf)),
+	)
+	if !bool(ok) {
+		return nil, errors.New("failed to resize crop region")
+	}
 
-	thumbnail := image.NewRGBA(image.Rect(0, 0, width, height))
+	return &image.RGBA{
+		Pix:    buf,
+		Stride: w * bpp,
+		Rect:   image.Rect(0, 0, w, h),
+	}, nil
+}
 
-	// Center the scaled image within the thumbnail.
-	offsetX := (width - dstW) / 2
-	offsetY := (height - dstH) / 2
-	dstRect := image.Rect(offsetX, offsetY, offsetX+dstW, offsetY+dstH)
+// Dimensions returns the current frame width and height in pixels. Returns (0, 0) if the decoder has not been initialized.
+func (d *Decoder) Dimensions() (width, height uint16) {
+	if d == nil || d.ptr == nil {
+		return 0, 0
+	}
 
-	// Note: the nearest neighbor interpolator is fast, but produces the lowest quality
-	// results. We're okay with this for thumbnails.
-	draw.NearestNeighbor.Scale(thumbnail, dstRect, fullSize, srcBounds, draw.Over, nil)
+	var w, h C.uint16_t
+	C.rdp_decoder_dimensions(d.ptr, &w, &h)
 
-	return thumbnail
+	return uint16(w), uint16(h)
+}
+
+// SampleHash returns a 64-bit FNV-1a digest of pixels sampled on a fixed grid from the current frame buffer.
+// sampleCount controls the per-axis sample density. Returns 0 if the decoder has not been initialized.
+func (d *Decoder) SampleHash(sampleCount uint16) uint64 {
+	if d == nil || d.ptr == nil {
+		return 0
+	}
+
+	return uint64(C.rdp_decoder_sample_hash(d.ptr, C.uint16_t(sampleCount)))
 }
 
 // CursorState returns the cursor position and visibility as tracked by the

@@ -102,6 +102,37 @@ func (s *RDPState) Image() *image.RGBA {
 	return s.decoder.Image()
 }
 
+// ResizeCrop returns the source crop region of the current screen image scaled to exactly outWidth x outHeight using
+// high-quality CatmullRom convolution. The crop must lie within the current frame bounds. Returns an error if the
+// decoder has not been initialized or the resize fails.
+func (s *RDPState) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16) (*image.RGBA, error) {
+	if s.decoder == nil {
+		return nil, trace.BadParameter("rdp state has no image")
+	}
+
+	return s.decoder.ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight)
+}
+
+// Dimensions returns the current screen width and height in pixels. Returns (0, 0) if the decoder has not been
+// initialized.
+func (s *RDPState) Dimensions() (width, height uint16) {
+	if s.decoder == nil {
+		return 0, 0
+	}
+
+	return s.decoder.Dimensions()
+}
+
+// SampleHash returns a 64-bit FNV-1a digest of pixels sampled on a fixed grid from the current frame buffer.
+// sampleCount controls the per-axis sample density. Returns 0 if the decoder has not been initialized.
+func (s *RDPState) SampleHash(sampleCount uint16) uint64 {
+	if s.decoder == nil {
+		return 0
+	}
+
+	return s.decoder.SampleHash(sampleCount)
+}
+
 // Release frees any resources associated with the RDPState, including the decoder.
 func (s *RDPState) Release() {
 	if s.decoder != nil {
