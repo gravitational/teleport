@@ -947,7 +947,7 @@ dependencies = [
  "cfg-if",
  "document-features",
  "num-traits",
- "thiserror 2.0.16",
+ "thiserror",
 ]
 
 [[package]]
