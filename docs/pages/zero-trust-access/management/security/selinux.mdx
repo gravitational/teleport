@@ -17,6 +17,36 @@ more Teleport features, and integration with Teleport Managed Updates.
 
 The Teleport SSH Service SELinux module allows SELinux to confine the Teleport SSH Service. It ensures that Teleport SSH Service processes can only perform explicitly allowed operations, reducing the attack surface and preventing unauthorized actions even if the Teleport binary were compromised.
 
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- A Linux host running Red Hat Enterprise Linux (RHEL) 8 or 9. The Teleport SSH
+  Service SELinux module is officially supported on these platforms only.
+- Root or `sudo` access on the host. The `install-selinux.sh` script must be run
+  as `root`.
+- SELinux installed and enabled on the host, in either permissive or enforcing
+  mode. Teleport exits with an error if SELinux is disabled. Check the current
+  mode with `getenforce` or `sestatus`. Enforcing mode is required for production
+  use.
+- The `selinux-policy-devel` package installed on the host, which provides the
+  toolchain used to compile the module. The [Installation](#installation)
+  section below covers this.
+- A Teleport SSH Service agent installed from a Teleport tarball and configured
+  to point at your cluster. Follow
+  [SSH getting started](../../../enroll-resources/server-access/getting-started.mdx)
+  to enroll the host. The `install-selinux.sh` script and SELinux module ship
+  only in the Linux tarball, not in package-manager or container installs, and
+  the agent must run only the SSH Service.
+- The Teleport SSH Service agent must run as a **systemd service**. Teleport only
+  runs under the correct `teleport_ssh_t` SELinux domain (and is therefore only
+  enforced) when started by systemd, not when launched manually.
+- A Teleport configuration file on the host (`/etc/teleport.yaml` by default).
+  The install script reads this file to customize the module and label files
+  correctly.
+
+(!docs/pages/includes/tctl.mdx!)
+
 ## Supported features
 
 The Teleport SSH Service SELinux module supports the following Teleport SSH Service features:
