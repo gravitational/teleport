@@ -113,7 +113,7 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		require.Eventually(t, func() bool {
 			return len(r.GetMsgs()) == 3
 		}, maxWaitOnResults, 1*time.Millisecond)
-		requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(r.GetMsgs()))
+		requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(t, r.GetMsgs()))
 	})
 
 	t.Run("verify if collector finishes execution (via closing channel) upon ctx.Cancel", func(t *testing.T) {
@@ -187,7 +187,7 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		// Then
 		// Make sure that channel is closed.
 		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
-		requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(r.GetMsgs()))
+		requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(t, r.GetMsgs()))
 	})
 	t.Run("verify if collector finishes execution (via closing channel) upon reaching maxUniquePerDayEvents", func(t *testing.T) {
 		// Given SqsMessagesCollector reading from fake sqs with random wait time on receiveMessage call
@@ -217,8 +217,8 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		go r.Do(eventsChan)
 
 		// When over 100 unique days are sent
-		eventsToSend := make([]apievents.AuditEvent, 0, 101)
-		for i := range 101 {
+		eventsToSend := make([]apievents.AuditEvent, 0, 21)
+		for i := range 21 {
 			day := fclock.Now().Add(time.Duration(i) * 24 * time.Hour)
 			eventsToSend = append(eventsToSend, &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: day}, AppMetadata: apievents.AppMetadata{AppName: "app1"}})
 		}
@@ -226,12 +226,50 @@ func Test_consumer_sqsMessagesCollector(t *testing.T) {
 		fclock.BlockUntil(cfg.noOfWorkers)
 		fclock.Advance(maxWaitTimeOnReceiveMessagesInFake)
 		require.Eventually(t, func() bool {
-			return len(r.GetMsgs()) == 101
+			return len(r.GetMsgs()) == 21
 		}, maxWaitOnResults, 1*time.Millisecond)
 
 		// Then
 		// Make sure that channel is closed.
 		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
+	})
+
+	t.Run("verify if collector finishes execution (via closing channel) upon reaching maxBatchBytes", func(t *testing.T) {
+
+		fclock := clockwork.NewFakeClock()
+		fq := &fakeSQS{
+			clock:       fclock,
+			maxWaitTime: maxWaitTimeOnReceiveMessagesInFake,
+		}
+		cfg := validCollectCfgForTests(t)
+		cfg.sqsReceiver = fq
+		cfg.batchMaxItems = 1000
+		cfg.maxBatchBytes = 1 // 1 byte — any event proto payload exceeds this
+		require.NoError(t, cfg.CheckAndSetDefaults())
+		c := newSqsMessagesCollector(cfg)
+		eventsChan := c.getEventsChan()
+
+		readSQSCtx, readCancel := context.WithCancel(context.Background())
+		defer readCancel()
+		go c.fromSQS(readSQSCtx)
+
+		r := &receiver{}
+		go r.Do(eventsChan)
+
+		wantEvents := []apievents.AuditEvent{
+			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app1"}},
+			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app2"}},
+			&apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent}, AppMetadata: apievents.AppMetadata{AppName: "app3"}},
+		}
+		fq.addEvents(wantEvents...)
+		fclock.BlockUntilContext(t.Context(), cfg.noOfWorkers)
+		fclock.Advance(maxWaitTimeOnReceiveMessagesInFake)
+		require.Eventually(t, func() bool {
+			return len(r.GetMsgs()) == 3
+		}, maxWaitOnResults, 1*time.Millisecond)
+
+		require.Eventually(t, channelClosedCondition(t, eventsChan), maxWaitOnResults, 1*time.Millisecond)
+		requireEventsEqualInAnyOrder(t, wantEvents, eventAndAckIDToAuditEvents(t, r.GetMsgs()))
 	})
 }
 
@@ -319,11 +357,13 @@ func (f *receiver) GetMsgs() []eventAndAckID {
 	return f.msgs
 }
 
-func eventAndAckIDToAuditEvents(in []eventAndAckID) []apievents.AuditEvent {
-	var out []apievents.AuditEvent
+func eventAndAckIDToAuditEvents(t *testing.T, in []eventAndAckID) []apievents.AuditEvent {
+	rows := make([]eventParquet, 0, len(in))
 	for _, eventAndAckID := range in {
-		out = append(out, eventAndAckID.event)
+		rows = append(rows, *eventAndAckID.event)
 	}
+	out, err := parquetRowsToAuditEvents(rows)
+	require.NoError(t, err)
 	return out
 }
 
@@ -578,8 +618,8 @@ func TestConsumerWriteToS3(t *testing.T) {
 	april1st2023Afternoon, err := time.Parse(time.RFC3339, april1st2023AfternoonStr)
 	require.NoError(t, err)
 
-	makeAppCreateEventWithTime := func(t time.Time, name string) apievents.AuditEvent {
-		return &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: t}, AppMetadata: apievents.AppMetadata{AppName: name}}
+	makeAppCreateEventWithTime := func(eventTime time.Time, name string) apievents.AuditEvent {
+		return &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: eventTime}, AppMetadata: apievents.AppMetadata{AppName: name}}
 	}
 
 	eventR1 := makeAppCreateEventWithTime(april1st2023Afternoon, "app-1")
@@ -587,10 +627,17 @@ func TestConsumerWriteToS3(t *testing.T) {
 	// r3 date is next date, so it should be written as separate file.
 	eventR3 := makeAppCreateEventWithTime(april1st2023Afternoon.Add(18*time.Hour), "app3")
 
+	eventP1, err := auditEventToParquet(eventR1)
+	require.NoError(t, err)
+	eventP2, err := auditEventToParquet(eventR2)
+	require.NoError(t, err)
+	eventP3, err := auditEventToParquet(eventR3)
+	require.NoError(t, err)
+
 	events := []eventAndAckID{
-		{receiptHandle: "r1", event: eventR1},
-		{receiptHandle: "r2", event: eventR2},
-		{receiptHandle: "r3", event: eventR3},
+		{receiptHandle: "r1", event: eventP1},
+		{receiptHandle: "r2", event: eventP2},
+		{receiptHandle: "r3", event: eventP3},
 	}
 
 	eventsC := make(chan eventAndAckID, 100)
