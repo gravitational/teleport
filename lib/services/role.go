@@ -295,6 +295,7 @@ func validateRoleExpressions(r types.Role) error {
 		}{
 			{"logins", r.GetLogins(condition.condition)},
 			{"windows_desktop_logins", r.GetWindowsLogins(condition.condition)},
+			{"linux_desktop_logins", r.GetLinuxDesktopLogins(condition.condition)},
 			{"aws_role_arns", r.GetAWSRoleARNs(condition.condition)},
 			{"azure_identities", r.GetAzureIdentities(condition.condition)},
 			{"gcp_service_accounts", r.GetGCPServiceAccounts(condition.condition)},

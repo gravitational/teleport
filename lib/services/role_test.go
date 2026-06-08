@@ -1203,6 +1203,7 @@ func TestValidateRole(t *testing.T) {
 				Allow: types.RoleConditions{
 					Logins:               []string{"{{email.localz(external.email)}}"},
 					WindowsDesktopLogins: []string{"{{email.localz(external.email)}}"},
+					LinuxDesktopLogins:   []string{"{{email.localz(external.email)}}"},
 					AWSRoleARNs:          []string{"{{email.localz(external.email)}}"},
 					AzureIdentities:      []string{"{{email.localz(external.email)}}"},
 					GCPServiceAccounts:   []string{"{{email.localz(external.email)}}"},
@@ -1228,6 +1229,7 @@ func TestValidateRole(t *testing.T) {
 				Deny: types.RoleConditions{
 					Logins:               []string{"{{email.localz(external.email)}}"},
 					WindowsDesktopLogins: []string{"{{email.localz(external.email)}}"},
+					LinuxDesktopLogins:   []string{"{{email.localz(external.email)}}"},
 					AWSRoleARNs:          []string{"{{email.localz(external.email)}}"},
 					AzureIdentities:      []string{"{{email.localz(external.email)}}"},
 					GCPServiceAccounts:   []string{"{{email.localz(external.email)}}"},
@@ -1249,6 +1251,7 @@ func TestValidateRole(t *testing.T) {
 				"parsing options.cert_extensions[0].value expression",
 				"parsing allow.logins expression",
 				"parsing allow.windows_desktop_logins expression",
+				"parsing allow.linux_desktop_logins expression",
 				"parsing allow.aws_role_arns expression",
 				"parsing allow.azure_identities expression",
 				"parsing allow.gcp_service_accounts expression",
@@ -1266,6 +1269,7 @@ func TestValidateRole(t *testing.T) {
 				`parsing allow.mcp.tools[0] "{{email.localz(external.email)}}"`,
 				"parsing deny.logins expression",
 				"parsing deny.windows_desktop_logins expression",
+				"parsing deny.linux_desktop_logins expression",
 				"parsing deny.aws_role_arns expression",
 				"parsing deny.azure_identities expression",
 				"parsing deny.gcp_service_accounts expression",
