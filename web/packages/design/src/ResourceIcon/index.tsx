@@ -24,7 +24,7 @@ import { IconProps } from 'design/Icon/Icon';
 
 import {
   iconNames,
-  ResourceIconName,
+  type ResourceIconName,
   resourceIconSpecs,
 } from './resourceIconSpecs';
 
