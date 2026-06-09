@@ -290,7 +290,12 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 
 	damageID := damage.Damage(id)
 
-	err = damage.CreateChecked(conn, damageID, xproto.Drawable(setup.Roots[0].Root), damage.ReportLevelNonEmpty).Check()
+	if len(setup.Roots) == 0 {
+		return nil, trace.BadParameter("no root window is available")
+	}
+	root := setup.Roots[0].Root
+
+	err = damage.CreateChecked(conn, damageID, xproto.Drawable(root), damage.ReportLevelNonEmpty).Check()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -300,7 +305,6 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	root := setup.Roots[0].Root
 	if err := xfixes.SelectSelectionInputChecked(conn, root, clipboardAtom, xfixes.SelectionEventMaskSetSelectionOwner).Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
