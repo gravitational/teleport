@@ -54,7 +54,7 @@ func TestVnetConfigService(t *testing.T) {
 	created, err := service.CreateVnetConfig(ctx, vnetConfig)
 	require.NoError(t, err)
 	diff := cmp.Diff(vnetConfig, created,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -64,7 +64,7 @@ func TestVnetConfigService(t *testing.T) {
 	got, err := service.GetVnetConfig(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(vnetConfig, got,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)

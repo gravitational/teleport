@@ -63,7 +63,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	created, err := service.CreateAutoUpdateConfig(ctx, config)
 	require.NoError(t, err)
 	diff := cmp.Diff(config, created,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -72,7 +72,7 @@ func TestAutoUpdateServiceConfigCRUD(t *testing.T) {
 	got, err := service.GetAutoUpdateConfig(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(config, got,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -128,7 +128,7 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	created, err := service.CreateAutoUpdateVersion(ctx, version)
 	require.NoError(t, err)
 	diff := cmp.Diff(version, created,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -137,7 +137,7 @@ func TestAutoUpdateServiceVersionCRUD(t *testing.T) {
 	got, err := service.GetAutoUpdateVersion(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(version, got,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -208,7 +208,7 @@ func TestAutoUpdateServiceAgentReportCRUD(t *testing.T) {
 	created, err := service.CreateAutoUpdateAgentReport(ctx, report)
 	require.NoError(t, err)
 	diff := cmp.Diff(report, created,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -217,7 +217,7 @@ func TestAutoUpdateServiceAgentReportCRUD(t *testing.T) {
 	got, err := service.GetAutoUpdateAgentReport(ctx, authID.String())
 	require.NoError(t, err)
 	diff = cmp.Diff(report, got,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)

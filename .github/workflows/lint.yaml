@@ -135,6 +135,18 @@ jobs:
             popd > /dev/null;
           done
 
+      # Prevent any new uses of the Open API from being added until OSS is converted
+      # to exclusively use the Opaque API.
+      - name: Check for Open API usage
+        run: |
+          go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./...
+          if ! git diff --quiet --exit-code -- '*.go'; then
+            echo "Detected Open API usage - Update code to use the Opaque API manually or run go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./..."
+            git diff --stat -- '*.go'
+            git diff -- '*.go'
+            exit 1
+          fi
+
       - name: Set linter versions
         run: |
           echo GOLANGCI_LINT_VERSION=$(cd build.assets; make print-golangci-lint-version) >> $GITHUB_ENV

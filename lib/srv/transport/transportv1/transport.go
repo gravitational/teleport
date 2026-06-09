@@ -269,7 +269,7 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 			case transportv1pb.ProxySSHRequest_Agent_case:
 				agentStream.incomingC <- req.GetAgent().GetPayload()
 			default:
-				s.cfg.Logger.ErrorContext(ctx, "received unexpected ssh frame", "frame", logutils.TypeAttr(frame))
+				s.cfg.Logger.ErrorContext(ctx, "received unexpected ssh frame", "frame", logutils.TypeAttr(req))
 				continue
 			}
 		}

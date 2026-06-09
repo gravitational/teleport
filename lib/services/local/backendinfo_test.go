@@ -57,7 +57,7 @@ func TestAutoInfoServiceCRUD(t *testing.T) {
 	created, err := service.CreateBackendInfo(ctx, info)
 	require.NoError(t, err)
 	diff := cmp.Diff(info, created,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
@@ -66,7 +66,7 @@ func TestAutoInfoServiceCRUD(t *testing.T) {
 	got, err := service.GetBackendInfo(ctx)
 	require.NoError(t, err)
 	diff = cmp.Diff(info, got,
-		protocmp.IgnoreFields(&headerv1.Metadata{}, "Revision"),
+		protocmp.IgnoreFields(&headerv1.Metadata{}, "revision"),
 		protocmp.Transform(),
 	)
 	require.Empty(t, diff)
