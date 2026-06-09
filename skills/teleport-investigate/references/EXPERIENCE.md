@@ -139,14 +139,14 @@ $TCTL investigate --resource production-database --event-type db.session.end \
   "total": 34,
   "who": [
     { "value": "alice", "count": 22 },
-    { "value": "system", "count": 11 }
     …
   ]
 }
 ```
 
-Exclude Teleport automation from the `who` facet — `system` (session.summarized),
-`Instance` (instance.join), and `UNKNOWN` (access-graph) are not human accessors.
+Manually exclude Teleport automation from the `who` facet — `system` (e.g.
+`session.summarized`), `Instance` (`instance.join`), and `UNKNOWN` are not human
+accessors.
 
 ### "Show me what activity was performed during the following access request `<uuid>`"
 
@@ -221,11 +221,12 @@ start with low-cost searches and refine until the result set is narrow.
 4. **Pull that window and keep every event whose payload references the id**
    anywhere — a plain `tostring | contains` catches both `event_data` paths:
 
-   `investigate` handles high event counts well, so up to ~1000 events just pull
-   the whole window. Only when step 3's count is well beyond that, tighten `--from`
-   first: the user can't have acted before assuming the grant, and assuming it
-   mints an elevated cert carrying the id in `identity.access_requests`, so the
-   earliest such `cert.create` is a safe lower bound — discarding pre-assume noise:
+   `investigate` can handle high event counts. If step 3's count is up to
+   roughly 1,000 events, pull the whole window; only when it runs well beyond
+   that should you tighten `--from`: the user can't have acted before assuming
+   the grant, and assuming it mints an elevated cert carrying the id in
+   `identity.access_requests`, so the earliest such `cert.create` is a safe
+   lower bound — discarding pre-assume noise:
 
    ```sh
    $TCTL investigate --user bob --event-type cert.create \
@@ -266,8 +267,8 @@ start with low-cost searches and refine until the result set is narrow.
 - **`truncated: true`** — more events matched than were returned. Raise `--limit`
   or pass `0`; don't present a truncated set as complete.
 - **Empty `data`** — broaden the time window, or add `--show-unmatched` to a
-`--facets-only` run to discover which filter values actually exist in the
-window, then adjust the filter.
+  `--facets-only` run to discover which filter values actually exist in the
+  window, then adjust the filter.
 <!-- TODO: Remove Geo filter restriction after stats endpoint adds support -->
 - **Geo filters apply to events only.** `--latitude`/`--longitude`/`--radius`
   (all three required together) restrict the `data` array but **not** `total` or
