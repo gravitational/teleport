@@ -295,7 +295,13 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	// Create S3 client with custom options
 	client := s3.NewFromConfig(awsConfig, s3Opts...)
 
-	uploader := transfermanager.New(client)
+	uploaderOpts := []func(*manager.Uploader){}
+	if cfg.DisableTrailingChecksum {
+		uploaderOpts = append(uploaderOpts, func(u *manager.Uploader) {
+			u.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
+		})
+	}
+	uploader := manager.NewUploader(client, uploaderOpts...) //nolint:staticcheck // TODO(tigrato)
 
 	h := &Handler{
 		logger:   logger,
