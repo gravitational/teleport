@@ -252,6 +252,13 @@ type CLIConf struct {
 	// KubernetesCluster specifies the kubernetes cluster to login to.
 	KubernetesCluster string
 
+	// SelectedProfile is the name of the profile selected via the --profile
+	// flag (or TELEPORT_PROFILE). Profiles are named sets of global overrides
+	// (proxy, cluster, user, etc.) defined in the tsh config file. If empty,
+	// the config's default_profile (if any) is used. This is distinct from a
+	// tsh login profile stored under ~/.tsh.
+	SelectedProfile string
+
 	// DaemonAddr is the daemon listening address.
 	DaemonAddr string
 	// DaemonCertsDir is the directory containing certs used to create secure gRPC connection with daemon service
@@ -411,9 +418,15 @@ type CLIConf struct {
 	//
 	// Deprecated in favor of `AddKeysToAgent`.
 	UseLocalSSHAgent bool
+	// useLocalSSHAgentSetByUser tracks whether --use-local-ssh-agent was set
+	// explicitly by the user, so a selected environment does not override it.
+	useLocalSSHAgentSetByUser bool
 
 	// AddKeysToAgent specifies the behavior of how certs are handled.
 	AddKeysToAgent string
+	// addKeysToAgentSetByUser tracks whether --add-keys-to-agent was set
+	// explicitly by the user, so a selected environment does not override it.
+	addKeysToAgentSetByUser bool
 
 	// EnableEscapeSequences will scan stdin for SSH escape sequences during
 	// command/shell execution. This also requires stdin to be an interactive
@@ -812,6 +825,7 @@ const (
 	bindAddrEnvVar            = "TELEPORT_LOGIN_BIND_ADDR"
 	browserEnvVar             = "TELEPORT_LOGIN_BROWSER"
 	proxyEnvVar               = "TELEPORT_PROXY"
+	profileSelectEnvVar       = "TELEPORT_PROFILE"
 	relayEnvVar               = "TELEPORT_RELAY"
 	headlessEnvVar            = "TELEPORT_HEADLESS"
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
@@ -920,6 +934,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	app.Flag("login", "Remote host login.").Short('l').Envar(loginEnvVar).StringVar(&cf.NodeLogin)
 	app.Flag("proxy", "Teleport proxy address.").Envar(proxyEnvVar).StringVar(&cf.Proxy)
+	app.Flag("profile", "Select a named profile from the tsh config file (defines proxy and other global overrides). See the profiles section of the tsh config.").Envar(profileSelectEnvVar).StringVar(&cf.SelectedProfile)
 	app.Flag("relay", "Teleport relay address, \"none\" to explicitly disable the use of a relay, or \"default\" to use the cluster-provided address even if a different address was specified at login time.").Envar(relayEnvVar).StringVar(&cf.Relay)
 	app.Flag("nocache", "Do not cache cluster discovery locally.").Hidden().BoolVar(&cf.NoCache)
 	app.Flag("user", "Teleport user, defaults to current local user.").Envar(userEnvVar).StringVar(&cf.Username)
@@ -962,11 +977,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		osLogFlag.Hidden()
 	}
 	osLogFlag.BoolVar(&cf.OSLog)
-	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).StringVar(&cf.AddKeysToAgent)
+	app.Flag("add-keys-to-agent", fmt.Sprintf("Controls how keys are handled. Valid values are %v.", client.AllAddKeysOptions)).Short('k').Envar(addKeysToAgentEnvVar).Default(client.AddKeysToAgentAuto).IsSetByUser(&cf.addKeysToAgentSetByUser).StringVar(&cf.AddKeysToAgent)
 	app.Flag("use-local-ssh-agent", "Deprecated in favor of the add-keys-to-agent flag.").
 		Hidden().
 		Envar(useLocalSSHAgentEnvVar).
 		Default("true").
+		IsSetByUser(&cf.useLocalSSHAgentSetByUser).
 		BoolVar(&cf.UseLocalSSHAgent)
 	app.Flag("enable-escape-sequences", "Enable support for SSH escape sequences. Type '~?' during an SSH session to list supported sequences. Default is enabled.").
 		Default("true").
@@ -1665,6 +1681,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// handle: help command, --help flag, version command, ...
 	if shouldTerminate != nil {
 		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
+	}
+
+	// Apply a named profile selected via --profile / TELEPORT_PROFILE (or the
+	// config's default_profile). This must run after app.Parse so that
+	// explicit CLI flags and environment variables, which are already resolved
+	// into cf at this point, take precedence over the profile's values.
+	if err := applySelectedProfile(ctx, &cf); err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Did we initially get the Username from flags/env?
@@ -6365,6 +6389,77 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 		out, err = yaml.Marshal(env)
 	}
 	return string(out), trace.Wrap(err)
+}
+
+// applySelectedProfile applies a named profile selected via --profile /
+// TELEPORT_PROFILE (or the tsh config's default_profile) to cf. It only fills
+// in values that the user has not already provided via an explicit CLI flag or
+// environment variable, so explicit input always takes precedence over the
+// selected profile.
+//
+// Precedence (highest to lowest): explicit CLI flag / env var > selected
+// profile > tsh defaults.
+func applySelectedProfile(ctx context.Context, cf *CLIConf) error {
+	name := cf.SelectedProfile
+	// If no profile was explicitly selected, fall back to the configured
+	// default profile (if any).
+	if name == "" {
+		name = cf.TSHConfig.DefaultProfile
+	}
+	if name == "" {
+		return nil
+	}
+
+	env, err := cf.TSHConfig.GetProfile(name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	logger.DebugContext(ctx, "Applying selected tsh profile", "profile", name)
+
+	// String overrides: only apply when the user has not already set the value
+	// via flag or env var (an unset string field is empty at this point).
+	if cf.Proxy == "" && env.Proxy != "" {
+		cf.Proxy = env.Proxy
+	}
+	if cf.SiteName == "" && env.Cluster != "" {
+		cf.SiteName = env.Cluster
+	}
+	if cf.Username == "" && env.User != "" {
+		cf.Username = env.User
+	}
+	if cf.NodeLogin == "" && env.Login != "" {
+		cf.NodeLogin = env.Login
+	}
+	if cf.AuthConnector == "" && env.AuthConnector != "" {
+		cf.AuthConnector = env.AuthConnector
+	}
+	if cf.KubernetesCluster == "" && env.KubeCluster != "" {
+		cf.KubernetesCluster = env.KubeCluster
+	}
+	if cf.MFAMode == "" && env.MFAMode != "" {
+		cf.MFAMode = env.MFAMode
+	}
+	if cf.HomePath == "" && env.Home != "" {
+		cf.HomePath = filepath.Clean(env.Home)
+	}
+
+	// Boolean overrides: --headless defaults to false, so apply the env value
+	// only when the user has not turned it on.
+	if env.Headless != nil && !cf.Headless {
+		cf.Headless = *env.Headless
+	}
+
+	// These two flags carry non-empty defaults, so use the explicit
+	// "set by user" tracking to decide whether to apply the environment.
+	if env.AddKeysToAgent != "" && !cf.addKeysToAgentSetByUser {
+		cf.AddKeysToAgent = env.AddKeysToAgent
+	}
+	if env.UseLocalSSHAgent != nil && !cf.useLocalSSHAgentSetByUser {
+		cf.UseLocalSSHAgent = *env.UseLocalSSHAgent
+	}
+
+	return nil
 }
 
 // setEnvFlags sets flags that can be set via environment variables.

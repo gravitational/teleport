@@ -27,6 +27,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"sort"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -49,6 +50,13 @@ type TSHConfig struct {
 	ProxyTemplates ProxyTemplates `yaml:"proxy_templates,omitempty"`
 	// Aliases are custom commands extending baseline tsh functionality.
 	Aliases map[string]string `yaml:"aliases,omitempty"`
+	// Profiles are named sets of tsh global overrides selectable via
+	// `tsh --profile <name>`. The map key is the profile name.
+	Profiles map[string]Profile `yaml:"profiles,omitempty"`
+	// DefaultProfile is the name of the profile to use when none is
+	// explicitly selected on the command line. It must reference a key in
+	// Profiles.
+	DefaultProfile string `yaml:"default_profile,omitempty"`
 }
 
 // Check validates the tsh config.
@@ -58,6 +66,79 @@ func (config *TSHConfig) Check() error {
 			return trace.Wrap(err)
 		}
 	}
+
+	for name, prof := range config.Profiles {
+		if err := prof.Check(); err != nil {
+			return trace.Wrap(err, "invalid profile %q", name)
+		}
+	}
+
+	if config.DefaultProfile != "" {
+		if _, ok := config.Profiles[config.DefaultProfile]; !ok {
+			return trace.BadParameter("default_profile %q is not defined in profiles", config.DefaultProfile)
+		}
+	}
+
+	return nil
+}
+
+// Profile represents a single named set of tsh global overrides selectable
+// via `tsh --profile <name>`. All fields are optional overrides; the most
+// common use case is setting Proxy, but any of the fields may be set to
+// override the corresponding tsh global flag.
+//
+// Note: this is distinct from a tsh login profile stored under ~/.tsh; a
+// Profile here is purely a convenience bundle of connection settings selected
+// at invocation time.
+type Profile struct {
+	// Proxy is the proxy address override (equivalent to --proxy).
+	Proxy string `yaml:"proxy,omitempty"`
+	// Cluster is the cluster name override (equivalent to --cluster).
+	Cluster string `yaml:"cluster,omitempty"`
+	// User is the Teleport user override (equivalent to --user).
+	User string `yaml:"user,omitempty"`
+	// Login is the local login override (equivalent to --login).
+	Login string `yaml:"login,omitempty"`
+	// AuthConnector is the auth connector override (equivalent to --auth).
+	AuthConnector string `yaml:"auth,omitempty"`
+	// KubeCluster is the Kubernetes cluster override (equivalent to --kube-cluster).
+	KubeCluster string `yaml:"kube_cluster,omitempty"`
+	// MFAMode is the MFA mode override (equivalent to --mfa-mode). If set, it
+	// must be one of "auto", "cross-platform", "platform", "otp", or "sso".
+	MFAMode string `yaml:"mfa_mode,omitempty"`
+	// Headless toggles headless authentication (equivalent to --headless). It
+	// is a pointer so an unset value is distinguishable from an explicit false.
+	Headless *bool `yaml:"headless,omitempty"`
+	// AddKeysToAgent is the add-keys-to-agent mode override (equivalent to
+	// --add-keys-to-agent). If set, it must be one of "auto", "yes", "no", or
+	// "only".
+	AddKeysToAgent string `yaml:"add_keys_to_agent,omitempty"`
+	// UseLocalSSHAgent toggles use of the local SSH agent (equivalent to
+	// --use-local-ssh-agent). It is a pointer so an unset value is
+	// distinguishable from an explicit false.
+	UseLocalSSHAgent *bool `yaml:"use_local_ssh_agent,omitempty"`
+	// Home is the tsh home directory override (equivalent to TELEPORT_HOME).
+	Home string `yaml:"home,omitempty"`
+}
+
+// Check validates the profile.
+func (p *Profile) Check() error {
+	if p.MFAMode != "" {
+		switch p.MFAMode {
+		case "auto", "cross-platform", "platform", "otp", "sso":
+		default:
+			return trace.BadParameter("invalid mfa_mode %q, must be one of: auto, cross-platform, platform, otp, sso", p.MFAMode)
+		}
+	}
+
+	if p.AddKeysToAgent != "" {
+		switch p.AddKeysToAgent {
+		case "auto", "yes", "no", "only":
+		default:
+			return trace.BadParameter("invalid add_keys_to_agent %q, must be one of: auto, yes, no, only", p.AddKeysToAgent)
+		}
+	}
+
 	return nil
 }
 
@@ -89,7 +170,46 @@ func (config *TSHConfig) Merge(otherConfig *TSHConfig) TSHConfig {
 	maps.Copy(newConfig.Aliases, baseConfig.Aliases)
 	maps.Copy(newConfig.Aliases, otherConfig.Aliases)
 
+	// Only allocate the profiles map when at least one side defines profiles,
+	// so an all-empty merge yields a nil map (matching zero-value semantics).
+	if len(baseConfig.Profiles) > 0 || len(otherConfig.Profiles) > 0 {
+		newConfig.Profiles = map[string]Profile{}
+		maps.Copy(newConfig.Profiles, baseConfig.Profiles)
+		maps.Copy(newConfig.Profiles, otherConfig.Profiles)
+	}
+
+	if otherConfig.DefaultProfile != "" {
+		newConfig.DefaultProfile = otherConfig.DefaultProfile
+	} else {
+		newConfig.DefaultProfile = baseConfig.DefaultProfile
+	}
+
 	return newConfig
+}
+
+// GetProfile returns the named profile from the config. It returns a
+// trace.BadParameter error if name is empty, and a trace.NotFound error if no
+// profiles are defined or if the named profile does not exist.
+func (config *TSHConfig) GetProfile(name string) (Profile, error) {
+	if name == "" {
+		return Profile{}, trace.BadParameter("profile name is empty")
+	}
+
+	if len(config.Profiles) == 0 {
+		return Profile{}, trace.NotFound("no profiles are defined in tsh config")
+	}
+
+	prof, ok := config.Profiles[name]
+	if !ok {
+		available := make([]string, 0, len(config.Profiles))
+		for profName := range config.Profiles {
+			available = append(available, profName)
+		}
+		sort.Strings(available)
+		return Profile{}, trace.NotFound("profile %q not found; available profiles: %s", name, strings.Join(available, ", "))
+	}
+
+	return prof, nil
 }
 
 // ProxyTemplates represents a list of individual proxy templates.
