@@ -35,18 +35,19 @@ import (
 	"github.com/gravitational/teleport/lib/utils/proxy"
 )
 
-// NewTunnelAuthDialer creates a new instance of TunnelAuthDialer
-func NewTunnelAuthDialer(config TunnelAuthDialerConfig) (*TunnelAuthDialer, error) {
+// NewAuthDialerThroughProxy creates a new instance of [AuthDialerThroughProxy].
+func NewAuthDialerThroughProxy(config AuthDialerThroughProxyConfig) (*AuthDialerThroughProxy, error) {
 	if err := config.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &TunnelAuthDialer{
-		TunnelAuthDialerConfig: config,
+	return &AuthDialerThroughProxy{
+		AuthDialerThroughProxyConfig: config,
 	}, nil
 }
 
-// TunnelAuthDialerConfig specifies TunnelAuthDialer configuration.
-type TunnelAuthDialerConfig struct {
+// AuthDialerThroughProxyConfig is the configuration of
+// [AuthDialerThroughProxy].
+type AuthDialerThroughProxyConfig struct {
 	// Resolver retrieves the address of the proxy
 	Resolver Resolver
 	// ClientConfig is SSH tunnel client config
@@ -63,7 +64,7 @@ type TunnelAuthDialerConfig struct {
 	GetClusterCAs client.GetClusterCAsFunc
 }
 
-func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
+func (c *AuthDialerThroughProxyConfig) CheckAndSetDefaults() error {
 	switch {
 	case c.Resolver == nil:
 		return trace.BadParameter("missing tunnel address resolver")
@@ -75,14 +76,18 @@ func (c *TunnelAuthDialerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// TunnelAuthDialer connects to the Auth Server through the reverse tunnel.
-type TunnelAuthDialer struct {
-	// TunnelAuthDialerConfig is the TunnelAuthDialer configuration.
-	TunnelAuthDialerConfig
+// AuthDialerThroughProxy is a dialer to open connections to the Auth service
+// through a Proxy. Depending on the configuration and the environment, it might
+// connect directly through the use of ALPN tags or through the reverse tunnel
+// SSH server, and, if necessary, it will connect through the Proxy webapi
+// connection upgrade mechanism, to get connections through TLS terminators and
+// HTTP-level reverse proxies.
+type AuthDialerThroughProxy struct {
+	AuthDialerThroughProxyConfig
 }
 
 // DialContext opens a connection to the Auth service through a Proxy.
-func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
+func (t *AuthDialerThroughProxy) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
 	// Connect to the reverse tunnel server.
 	opts := []proxy.DialerOptionFunc{
 		proxy.WithInsecureSkipTLSVerify(t.InsecureSkipTLSVerify),
