@@ -29,9 +29,6 @@ import (
 )
 
 func (s *TerraformSuiteOSS) TestLock() {
-	// TODO: `spec.created_at` and `spec.created_by` should be excluded from spec.
-	s.T().Skip("After applying this test step, the plan was not empty")
-
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -55,7 +52,24 @@ func (s *TerraformSuiteOSS) TestLock() {
 				Config: s.getFixture("lock_0_create.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "lock"),
+					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+					resource.TestCheckResourceAttr(name, "metadata.namespace", "default"),
+					resource.TestCheckResourceAttr(name, "metadata.description", "Ongoing incident investigation."),
+					resource.TestCheckResourceAttr(name, "spec.message", ""),
+					resource.TestCheckResourceAttr(name, "spec.target.access_request", ""),
+					resource.TestCheckResourceAttr(name, "spec.target.bot_instance_id", ""),
+					resource.TestCheckResourceAttr(name, "spec.target.device", ""),
+					resource.TestCheckResourceAttr(name, "spec.target.join_token", ""),
+					resource.TestCheckResourceAttr(name, "spec.target.linux_desktop", ""),
+					resource.TestCheckResourceAttr(name, "spec.target.login", ""),
+					resource.TestCheckResourceAttr(name, "spec.target.mfa_device", ""),
+					resource.TestCheckResourceAttr(name, "spec.target.role", ""),
+					resource.TestCheckResourceAttr(name, "spec.target.server_id", ""),
 					resource.TestCheckResourceAttr(name, "spec.target.user", "john"),
+					resource.TestCheckResourceAttr(name, "spec.target.windows_desktop", ""),
+
+					resource.TestCheckNoResourceAttr(name, "spec.created_at"),
+					resource.TestCheckNoResourceAttr(name, "spec.created_by"),
 				),
 			},
 			{
@@ -66,7 +80,19 @@ func (s *TerraformSuiteOSS) TestLock() {
 				Config: s.getFixture("lock_1_update.tf"),
 				Check: resource.ComposeTestCheckFunc(
 					resource.TestCheckResourceAttr(name, "kind", "lock"),
+					resource.TestCheckResourceAttr(name, "spec.expires", "2026-12-31T00:00:00Z"),
+					resource.TestCheckResourceAttr(name, "spec.message", "example_message"),
+					resource.TestCheckResourceAttr(name, "spec.target.access_request", "example_uuid"),
+					resource.TestCheckResourceAttr(name, "spec.target.bot_instance_id", "example_bot_instance_id"),
+					resource.TestCheckResourceAttr(name, "spec.target.device", "example_device_id"),
+					resource.TestCheckResourceAttr(name, "spec.target.join_token", "example_join_token"),
+					resource.TestCheckResourceAttr(name, "spec.target.linux_desktop", "example_linux_desktop"),
+					resource.TestCheckResourceAttr(name, "spec.target.login", "example_login"),
+					resource.TestCheckResourceAttr(name, "spec.target.mfa_device", "example_uuid"),
+					resource.TestCheckResourceAttr(name, "spec.target.role", "example_role"),
+					resource.TestCheckResourceAttr(name, "spec.target.server_id", "example_server_id"),
 					resource.TestCheckResourceAttr(name, "spec.target.user", "eve"),
+					resource.TestCheckResourceAttr(name, "spec.target.windows_desktop", "example_windows_desktop"),
 				),
 			},
 			{
@@ -131,9 +157,6 @@ func (s *TerraformSuiteOSS) TestImportLock() {
 }
 
 func (s *TerraformSuiteOSSWithCache) TestLockWithCache() {
-	// TODO: `spec.created_at` and `spec.created_by` should be excluded from spec.
-	s.T().Skip("After applying this test step, the plan was not empty")
-
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 	checkDestroyed := func(state *terraform.State) error {
