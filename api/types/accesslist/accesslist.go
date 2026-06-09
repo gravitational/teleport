@@ -224,6 +224,9 @@ type Owner struct {
 	// Description is the plaintext description of the owner and why they are an owner.
 	Description string `json:"description" yaml:"description"`
 
+	// Display contains read-time display values for this owner.
+	Display types.UserDisplay `json:"display" yaml:"display"`
+
 	// IneligibleStatus describes the reason why this owner is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 

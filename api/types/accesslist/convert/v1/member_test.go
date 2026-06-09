@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
 )
@@ -53,6 +54,69 @@ func TestWithMemberIneligibleStatusField(t *testing.T) {
 	fn(alMember)
 
 	require.Equal(t, accesslistv1.IneligibleStatus_INELIGIBLE_STATUS_EXPIRED.Enum().String(), alMember.Spec.IneligibleStatus)
+}
+
+func TestWithMemberDisplayField(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		display        types.UserDisplay
+		addedByDisplay types.UserDisplay
+	}{
+		{
+			name:           "both values",
+			display:        types.UserDisplay{Primary: "Alice Anderson", Secondary: "alice@example.com"},
+			addedByDisplay: types.UserDisplay{Primary: "Bob Brown", Secondary: "bob@example.com"},
+		},
+		{
+			name:           "primary only",
+			display:        types.UserDisplay{Primary: "Alice Anderson"},
+			addedByDisplay: types.UserDisplay{Primary: "Bob Brown"},
+		},
+		{
+			name:           "secondary only",
+			display:        types.UserDisplay{Secondary: "alice@example.com"},
+			addedByDisplay: types.UserDisplay{Secondary: "bob@example.com"},
+		},
+		{
+			name: "empty",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			member := newAccessListMember(t, "access-list-member")
+			member.Spec.Display = tt.display
+			member.Spec.AddedByDisplay = tt.addedByDisplay
+			proto := ToMemberProto(member)
+
+			converted, err := FromMemberProto(proto, WithMemberDisplayField(proto))
+			require.NoError(t, err)
+			require.Equal(t, tt.display, converted.Spec.Display)
+			require.Equal(t, tt.addedByDisplay, converted.Spec.AddedByDisplay)
+
+			converted, err = FromMemberProto(proto)
+			require.NoError(t, err)
+			require.Empty(t, converted.Spec.Display)
+			require.Empty(t, converted.Spec.AddedByDisplay)
+		})
+	}
+}
+
+func TestWithMemberDisplayFieldNils(t *testing.T) {
+	t.Parallel()
+
+	proto := ToMemberProto(newAccessListMember(t, "access-list-member"))
+	proto.Spec.Display = nil
+	proto.Spec.AddedByDisplay = nil
+
+	converted, err := FromMemberProto(proto, WithMemberDisplayField(proto))
+	require.NoError(t, err)
+	require.Empty(t, converted.Spec.Display)
+	require.Empty(t, converted.Spec.AddedByDisplay)
 }
 
 // Make sure that we don't panic if any of the message fields are missing.

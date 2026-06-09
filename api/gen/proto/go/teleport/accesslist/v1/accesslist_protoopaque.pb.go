@@ -672,6 +672,7 @@ type AccessListOwner struct {
 	xxx_hidden_Description      string                 `protobuf:"bytes,2,opt,name=description,proto3"`
 	xxx_hidden_IneligibleStatus IneligibleStatus       `protobuf:"varint,3,opt,name=ineligible_status,json=ineligibleStatus,proto3,enum=teleport.accesslist.v1.IneligibleStatus"`
 	xxx_hidden_MembershipKind   MembershipKind         `protobuf:"varint,4,opt,name=membership_kind,json=membershipKind,proto3,enum=teleport.accesslist.v1.MembershipKind"`
+	xxx_hidden_Display          *UserDisplay           `protobuf:"bytes,5,opt,name=display,proto3"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -729,6 +730,13 @@ func (x *AccessListOwner) GetMembershipKind() MembershipKind {
 	return MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED
 }
 
+func (x *AccessListOwner) GetDisplay() *UserDisplay {
+	if x != nil {
+		return x.xxx_hidden_Display
+	}
+	return nil
+}
+
 func (x *AccessListOwner) SetName(v string) {
 	x.xxx_hidden_Name = v
 }
@@ -745,6 +753,21 @@ func (x *AccessListOwner) SetMembershipKind(v MembershipKind) {
 	x.xxx_hidden_MembershipKind = v
 }
 
+func (x *AccessListOwner) SetDisplay(v *UserDisplay) {
+	x.xxx_hidden_Display = v
+}
+
+func (x *AccessListOwner) HasDisplay() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Display != nil
+}
+
+func (x *AccessListOwner) ClearDisplay() {
+	x.xxx_hidden_Display = nil
+}
+
 type AccessListOwner_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
@@ -759,6 +782,8 @@ type AccessListOwner_builder struct {
 	// membership_kind describes the type of membership, either
 	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
 	MembershipKind MembershipKind
+	// display holds read-time display values for the owner.
+	Display *UserDisplay
 }
 
 func (b0 AccessListOwner_builder) Build() *AccessListOwner {
@@ -769,6 +794,7 @@ func (b0 AccessListOwner_builder) Build() *AccessListOwner {
 	x.xxx_hidden_Description = b.Description
 	x.xxx_hidden_IneligibleStatus = b.IneligibleStatus
 	x.xxx_hidden_MembershipKind = b.MembershipKind
+	x.xxx_hidden_Display = b.Display
 	return m0
 }
 
@@ -1397,6 +1423,8 @@ type MemberSpec struct {
 	xxx_hidden_AddedBy          string                 `protobuf:"bytes,6,opt,name=added_by,json=addedBy,proto3"`
 	xxx_hidden_IneligibleStatus IneligibleStatus       `protobuf:"varint,7,opt,name=ineligible_status,json=ineligibleStatus,proto3,enum=teleport.accesslist.v1.IneligibleStatus"`
 	xxx_hidden_MembershipKind   MembershipKind         `protobuf:"varint,9,opt,name=membership_kind,json=membershipKind,proto3,enum=teleport.accesslist.v1.MembershipKind"`
+	xxx_hidden_Display          *UserDisplay           `protobuf:"bytes,10,opt,name=display,proto3"`
+	xxx_hidden_AddedByDisplay   *UserDisplay           `protobuf:"bytes,11,opt,name=added_by_display,json=addedByDisplay,proto3"`
 	unknownFields               protoimpl.UnknownFields
 	sizeCache                   protoimpl.SizeCache
 }
@@ -1482,6 +1510,20 @@ func (x *MemberSpec) GetMembershipKind() MembershipKind {
 	return MembershipKind_MEMBERSHIP_KIND_UNSPECIFIED
 }
 
+func (x *MemberSpec) GetDisplay() *UserDisplay {
+	if x != nil {
+		return x.xxx_hidden_Display
+	}
+	return nil
+}
+
+func (x *MemberSpec) GetAddedByDisplay() *UserDisplay {
+	if x != nil {
+		return x.xxx_hidden_AddedByDisplay
+	}
+	return nil
+}
+
 func (x *MemberSpec) SetAccessList(v string) {
 	x.xxx_hidden_AccessList = v
 }
@@ -1514,6 +1556,14 @@ func (x *MemberSpec) SetMembershipKind(v MembershipKind) {
 	x.xxx_hidden_MembershipKind = v
 }
 
+func (x *MemberSpec) SetDisplay(v *UserDisplay) {
+	x.xxx_hidden_Display = v
+}
+
+func (x *MemberSpec) SetAddedByDisplay(v *UserDisplay) {
+	x.xxx_hidden_AddedByDisplay = v
+}
+
 func (x *MemberSpec) HasJoined() bool {
 	if x == nil {
 		return false
@@ -1528,12 +1578,34 @@ func (x *MemberSpec) HasExpires() bool {
 	return x.xxx_hidden_Expires != nil
 }
 
+func (x *MemberSpec) HasDisplay() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Display != nil
+}
+
+func (x *MemberSpec) HasAddedByDisplay() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_AddedByDisplay != nil
+}
+
 func (x *MemberSpec) ClearJoined() {
 	x.xxx_hidden_Joined = nil
 }
 
 func (x *MemberSpec) ClearExpires() {
 	x.xxx_hidden_Expires = nil
+}
+
+func (x *MemberSpec) ClearDisplay() {
+	x.xxx_hidden_Display = nil
+}
+
+func (x *MemberSpec) ClearAddedByDisplay() {
+	x.xxx_hidden_AddedByDisplay = nil
 }
 
 type MemberSpec_builder struct {
@@ -1557,6 +1629,11 @@ type MemberSpec_builder struct {
 	// membership_kind describes the type of membership, either
 	// `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
 	MembershipKind MembershipKind
+	// display holds read-time display values for the member.
+	Display *UserDisplay
+	// added_by_display holds read-time display values for the user that added
+	// this member.
+	AddedByDisplay *UserDisplay
 }
 
 func (b0 MemberSpec_builder) Build() *MemberSpec {
@@ -1571,6 +1648,83 @@ func (b0 MemberSpec_builder) Build() *MemberSpec {
 	x.xxx_hidden_AddedBy = b.AddedBy
 	x.xxx_hidden_IneligibleStatus = b.IneligibleStatus
 	x.xxx_hidden_MembershipKind = b.MembershipKind
+	x.xxx_hidden_Display = b.Display
+	x.xxx_hidden_AddedByDisplay = b.AddedByDisplay
+	return m0
+}
+
+// UserDisplay holds read-time display values for a user, derived from the user
+// resource.
+type UserDisplay struct {
+	state                protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_Primary   string                 `protobuf:"bytes,1,opt,name=primary,proto3"`
+	xxx_hidden_Secondary string                 `protobuf:"bytes,2,opt,name=secondary,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *UserDisplay) Reset() {
+	*x = UserDisplay{}
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[11]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UserDisplay) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UserDisplay) ProtoMessage() {}
+
+func (x *UserDisplay) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[11]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UserDisplay) GetPrimary() string {
+	if x != nil {
+		return x.xxx_hidden_Primary
+	}
+	return ""
+}
+
+func (x *UserDisplay) GetSecondary() string {
+	if x != nil {
+		return x.xxx_hidden_Secondary
+	}
+	return ""
+}
+
+func (x *UserDisplay) SetPrimary(v string) {
+	x.xxx_hidden_Primary = v
+}
+
+func (x *UserDisplay) SetSecondary(v string) {
+	x.xxx_hidden_Secondary = v
+}
+
+type UserDisplay_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// primary is a display name when distinct from the username.
+	Primary string
+	// secondary is extra context, usually email, when distinct from the username.
+	Secondary string
+}
+
+func (b0 UserDisplay_builder) Build() *UserDisplay {
+	m0 := &UserDisplay{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_Primary = b.Primary
+	x.xxx_hidden_Secondary = b.Secondary
 	return m0
 }
 
@@ -1585,7 +1739,7 @@ type Review struct {
 
 func (x *Review) Reset() {
 	*x = Review{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[11]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1597,7 +1751,7 @@ func (x *Review) String() string {
 func (*Review) ProtoMessage() {}
 
 func (x *Review) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[11]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1684,7 +1838,7 @@ type ReviewSpec struct {
 
 func (x *ReviewSpec) Reset() {
 	*x = ReviewSpec{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[12]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1696,7 +1850,7 @@ func (x *ReviewSpec) String() string {
 func (*ReviewSpec) ProtoMessage() {}
 
 func (x *ReviewSpec) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[12]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1825,7 +1979,7 @@ type ReviewChanges struct {
 
 func (x *ReviewChanges) Reset() {
 	*x = ReviewChanges{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[13]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1837,7 +1991,7 @@ func (x *ReviewChanges) String() string {
 func (*ReviewChanges) ProtoMessage() {}
 
 func (x *ReviewChanges) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[13]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1941,7 +2095,7 @@ type CurrentUserAssignments struct {
 
 func (x *CurrentUserAssignments) Reset() {
 	*x = CurrentUserAssignments{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[14]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[15]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -1953,7 +2107,7 @@ func (x *CurrentUserAssignments) String() string {
 func (*CurrentUserAssignments) ProtoMessage() {}
 
 func (x *CurrentUserAssignments) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[14]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[15]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2015,7 +2169,7 @@ type UserAssignments struct {
 
 func (x *UserAssignments) Reset() {
 	*x = UserAssignments{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[15]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[16]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2027,7 +2181,7 @@ func (x *UserAssignments) String() string {
 func (*UserAssignments) ProtoMessage() {}
 
 func (x *UserAssignments) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[15]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[16]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2095,7 +2249,7 @@ type AccessListStatus struct {
 
 func (x *AccessListStatus) Reset() {
 	*x = AccessListStatus{}
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[16]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[17]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -2107,7 +2261,7 @@ func (x *AccessListStatus) String() string {
 func (*AccessListStatus) ProtoMessage() {}
 
 func (x *AccessListStatus) ProtoReflect() protoreflect.Message {
-	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[16]
+	mi := &file_teleport_accesslist_v1_accesslist_proto_msgTypes[17]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2290,12 +2444,13 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\x04type\x18\f \x01(\tR\x04typeJ\x04\b\a\x10\bJ\x04\b\t\x10\n" +
 	"J\x04\b\n" +
 	"\x10\vR\amembersR\n" +
-	"membershipR\townership\"\xef\x01\n" +
+	"membershipR\townership\"\xae\x02\n" +
 	"\x0fAccessListOwner\x12\x12\n" +
 	"\x04name\x18\x01 \x01(\tR\x04name\x12 \n" +
 	"\vdescription\x18\x02 \x01(\tR\vdescription\x12U\n" +
 	"\x11ineligible_status\x18\x03 \x01(\x0e2(.teleport.accesslist.v1.IneligibleStatusR\x10ineligibleStatus\x12O\n" +
-	"\x0fmembership_kind\x18\x04 \x01(\x0e2&.teleport.accesslist.v1.MembershipKindR\x0emembershipKind\"\xf7\x01\n" +
+	"\x0fmembership_kind\x18\x04 \x01(\x0e2&.teleport.accesslist.v1.MembershipKindR\x0emembershipKind\x12=\n" +
+	"\adisplay\x18\x05 \x01(\v2#.teleport.accesslist.v1.UserDisplayR\adisplay\"\xf7\x01\n" +
 	"\x0fAccessListAudit\x12B\n" +
 	"\x0fnext_audit_date\x18\x02 \x01(\v2\x1a.google.protobuf.TimestampR\rnextAuditDate\x12B\n" +
 	"\n" +
@@ -2321,7 +2476,7 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\x05scope\x18\x02 \x01(\tR\x05scope\"|\n" +
 	"\x06Member\x12:\n" +
 	"\x06header\x18\x01 \x01(\v2\".teleport.header.v1.ResourceHeaderR\x06header\x126\n" +
-	"\x04spec\x18\x02 \x01(\v2\".teleport.accesslist.v1.MemberSpecR\x04spec\"\x98\x03\n" +
+	"\x04spec\x18\x02 \x01(\v2\".teleport.accesslist.v1.MemberSpecR\x04spec\"\xa6\x04\n" +
 	"\n" +
 	"MemberSpec\x12\x1f\n" +
 	"\vaccess_list\x18\x01 \x01(\tR\n" +
@@ -2332,8 +2487,14 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"\x06reason\x18\x05 \x01(\tR\x06reason\x12\x19\n" +
 	"\badded_by\x18\x06 \x01(\tR\aaddedBy\x12U\n" +
 	"\x11ineligible_status\x18\a \x01(\x0e2(.teleport.accesslist.v1.IneligibleStatusR\x10ineligibleStatus\x12O\n" +
-	"\x0fmembership_kind\x18\t \x01(\x0e2&.teleport.accesslist.v1.MembershipKindR\x0emembershipKindJ\x04\b\b\x10\tR\n" +
-	"membership\"|\n" +
+	"\x0fmembership_kind\x18\t \x01(\x0e2&.teleport.accesslist.v1.MembershipKindR\x0emembershipKind\x12=\n" +
+	"\adisplay\x18\n" +
+	" \x01(\v2#.teleport.accesslist.v1.UserDisplayR\adisplay\x12M\n" +
+	"\x10added_by_display\x18\v \x01(\v2#.teleport.accesslist.v1.UserDisplayR\x0eaddedByDisplayJ\x04\b\b\x10\tR\n" +
+	"membership\"E\n" +
+	"\vUserDisplay\x12\x18\n" +
+	"\aprimary\x18\x01 \x01(\tR\aprimary\x12\x1c\n" +
+	"\tsecondary\x18\x02 \x01(\tR\tsecondary\"|\n" +
 	"\x06Review\x12:\n" +
 	"\x06header\x18\x01 \x01(\v2\".teleport.header.v1.ResourceHeaderR\x06header\x126\n" +
 	"\x04spec\x18\x02 \x01(\v2\".teleport.accesslist.v1.ReviewSpecR\x04spec\"\xdf\x01\n" +
@@ -2393,7 +2554,7 @@ const file_teleport_accesslist_v1_accesslist_proto_rawDesc = "" +
 	"*ACCESS_LIST_USER_ASSIGNMENT_TYPE_INHERITED\x10\x02BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1;accesslistv1b\x06proto3"
 
 var file_teleport_accesslist_v1_accesslist_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-var file_teleport_accesslist_v1_accesslist_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
+var file_teleport_accesslist_v1_accesslist_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_teleport_accesslist_v1_accesslist_proto_goTypes = []any{
 	(ReviewFrequency)(0),              // 0: teleport.accesslist.v1.ReviewFrequency
 	(ReviewDayOfMonth)(0),             // 1: teleport.accesslist.v1.ReviewDayOfMonth
@@ -2411,21 +2572,22 @@ var file_teleport_accesslist_v1_accesslist_proto_goTypes = []any{
 	(*ScopedRoleGrant)(nil),           // 13: teleport.accesslist.v1.ScopedRoleGrant
 	(*Member)(nil),                    // 14: teleport.accesslist.v1.Member
 	(*MemberSpec)(nil),                // 15: teleport.accesslist.v1.MemberSpec
-	(*Review)(nil),                    // 16: teleport.accesslist.v1.Review
-	(*ReviewSpec)(nil),                // 17: teleport.accesslist.v1.ReviewSpec
-	(*ReviewChanges)(nil),             // 18: teleport.accesslist.v1.ReviewChanges
-	(*CurrentUserAssignments)(nil),    // 19: teleport.accesslist.v1.CurrentUserAssignments
-	(*UserAssignments)(nil),           // 20: teleport.accesslist.v1.UserAssignments
-	(*AccessListStatus)(nil),          // 21: teleport.accesslist.v1.AccessListStatus
-	(*v1.ResourceHeader)(nil),         // 22: teleport.header.v1.ResourceHeader
-	(*timestamppb.Timestamp)(nil),     // 23: google.protobuf.Timestamp
-	(*durationpb.Duration)(nil),       // 24: google.protobuf.Duration
-	(*v11.Trait)(nil),                 // 25: teleport.trait.v1.Trait
+	(*UserDisplay)(nil),               // 16: teleport.accesslist.v1.UserDisplay
+	(*Review)(nil),                    // 17: teleport.accesslist.v1.Review
+	(*ReviewSpec)(nil),                // 18: teleport.accesslist.v1.ReviewSpec
+	(*ReviewChanges)(nil),             // 19: teleport.accesslist.v1.ReviewChanges
+	(*CurrentUserAssignments)(nil),    // 20: teleport.accesslist.v1.CurrentUserAssignments
+	(*UserAssignments)(nil),           // 21: teleport.accesslist.v1.UserAssignments
+	(*AccessListStatus)(nil),          // 22: teleport.accesslist.v1.AccessListStatus
+	(*v1.ResourceHeader)(nil),         // 23: teleport.header.v1.ResourceHeader
+	(*timestamppb.Timestamp)(nil),     // 24: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),       // 25: google.protobuf.Duration
+	(*v11.Trait)(nil),                 // 26: teleport.trait.v1.Trait
 }
 var file_teleport_accesslist_v1_accesslist_proto_depIdxs = []int32{
-	22, // 0: teleport.accesslist.v1.AccessList.header:type_name -> teleport.header.v1.ResourceHeader
+	23, // 0: teleport.accesslist.v1.AccessList.header:type_name -> teleport.header.v1.ResourceHeader
 	6,  // 1: teleport.accesslist.v1.AccessList.spec:type_name -> teleport.accesslist.v1.AccessListSpec
-	21, // 2: teleport.accesslist.v1.AccessList.status:type_name -> teleport.accesslist.v1.AccessListStatus
+	22, // 2: teleport.accesslist.v1.AccessList.status:type_name -> teleport.accesslist.v1.AccessListStatus
 	7,  // 3: teleport.accesslist.v1.AccessListSpec.owners:type_name -> teleport.accesslist.v1.AccessListOwner
 	8,  // 4: teleport.accesslist.v1.AccessListSpec.audit:type_name -> teleport.accesslist.v1.AccessListAudit
 	11, // 5: teleport.accesslist.v1.AccessListSpec.membership_requires:type_name -> teleport.accesslist.v1.AccessListRequires
@@ -2434,39 +2596,42 @@ var file_teleport_accesslist_v1_accesslist_proto_depIdxs = []int32{
 	12, // 8: teleport.accesslist.v1.AccessListSpec.owner_grants:type_name -> teleport.accesslist.v1.AccessListGrants
 	3,  // 9: teleport.accesslist.v1.AccessListOwner.ineligible_status:type_name -> teleport.accesslist.v1.IneligibleStatus
 	2,  // 10: teleport.accesslist.v1.AccessListOwner.membership_kind:type_name -> teleport.accesslist.v1.MembershipKind
-	23, // 11: teleport.accesslist.v1.AccessListAudit.next_audit_date:type_name -> google.protobuf.Timestamp
-	9,  // 12: teleport.accesslist.v1.AccessListAudit.recurrence:type_name -> teleport.accesslist.v1.Recurrence
-	10, // 13: teleport.accesslist.v1.AccessListAudit.notifications:type_name -> teleport.accesslist.v1.Notifications
-	0,  // 14: teleport.accesslist.v1.Recurrence.frequency:type_name -> teleport.accesslist.v1.ReviewFrequency
-	1,  // 15: teleport.accesslist.v1.Recurrence.day_of_month:type_name -> teleport.accesslist.v1.ReviewDayOfMonth
-	24, // 16: teleport.accesslist.v1.Notifications.start:type_name -> google.protobuf.Duration
-	25, // 17: teleport.accesslist.v1.AccessListRequires.traits:type_name -> teleport.trait.v1.Trait
-	25, // 18: teleport.accesslist.v1.AccessListGrants.traits:type_name -> teleport.trait.v1.Trait
-	13, // 19: teleport.accesslist.v1.AccessListGrants.scoped_roles:type_name -> teleport.accesslist.v1.ScopedRoleGrant
-	22, // 20: teleport.accesslist.v1.Member.header:type_name -> teleport.header.v1.ResourceHeader
-	15, // 21: teleport.accesslist.v1.Member.spec:type_name -> teleport.accesslist.v1.MemberSpec
-	23, // 22: teleport.accesslist.v1.MemberSpec.joined:type_name -> google.protobuf.Timestamp
-	23, // 23: teleport.accesslist.v1.MemberSpec.expires:type_name -> google.protobuf.Timestamp
-	3,  // 24: teleport.accesslist.v1.MemberSpec.ineligible_status:type_name -> teleport.accesslist.v1.IneligibleStatus
-	2,  // 25: teleport.accesslist.v1.MemberSpec.membership_kind:type_name -> teleport.accesslist.v1.MembershipKind
-	22, // 26: teleport.accesslist.v1.Review.header:type_name -> teleport.header.v1.ResourceHeader
-	17, // 27: teleport.accesslist.v1.Review.spec:type_name -> teleport.accesslist.v1.ReviewSpec
-	23, // 28: teleport.accesslist.v1.ReviewSpec.review_date:type_name -> google.protobuf.Timestamp
-	18, // 29: teleport.accesslist.v1.ReviewSpec.changes:type_name -> teleport.accesslist.v1.ReviewChanges
-	11, // 30: teleport.accesslist.v1.ReviewChanges.membership_requirements_changed:type_name -> teleport.accesslist.v1.AccessListRequires
-	0,  // 31: teleport.accesslist.v1.ReviewChanges.review_frequency_changed:type_name -> teleport.accesslist.v1.ReviewFrequency
-	1,  // 32: teleport.accesslist.v1.ReviewChanges.review_day_of_month_changed:type_name -> teleport.accesslist.v1.ReviewDayOfMonth
-	4,  // 33: teleport.accesslist.v1.CurrentUserAssignments.ownership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
-	4,  // 34: teleport.accesslist.v1.CurrentUserAssignments.membership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
-	4,  // 35: teleport.accesslist.v1.UserAssignments.ownership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
-	4,  // 36: teleport.accesslist.v1.UserAssignments.membership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
-	19, // 37: teleport.accesslist.v1.AccessListStatus.current_user_assignments:type_name -> teleport.accesslist.v1.CurrentUserAssignments
-	20, // 38: teleport.accesslist.v1.AccessListStatus.user_assignments:type_name -> teleport.accesslist.v1.UserAssignments
-	39, // [39:39] is the sub-list for method output_type
-	39, // [39:39] is the sub-list for method input_type
-	39, // [39:39] is the sub-list for extension type_name
-	39, // [39:39] is the sub-list for extension extendee
-	0,  // [0:39] is the sub-list for field type_name
+	16, // 11: teleport.accesslist.v1.AccessListOwner.display:type_name -> teleport.accesslist.v1.UserDisplay
+	24, // 12: teleport.accesslist.v1.AccessListAudit.next_audit_date:type_name -> google.protobuf.Timestamp
+	9,  // 13: teleport.accesslist.v1.AccessListAudit.recurrence:type_name -> teleport.accesslist.v1.Recurrence
+	10, // 14: teleport.accesslist.v1.AccessListAudit.notifications:type_name -> teleport.accesslist.v1.Notifications
+	0,  // 15: teleport.accesslist.v1.Recurrence.frequency:type_name -> teleport.accesslist.v1.ReviewFrequency
+	1,  // 16: teleport.accesslist.v1.Recurrence.day_of_month:type_name -> teleport.accesslist.v1.ReviewDayOfMonth
+	25, // 17: teleport.accesslist.v1.Notifications.start:type_name -> google.protobuf.Duration
+	26, // 18: teleport.accesslist.v1.AccessListRequires.traits:type_name -> teleport.trait.v1.Trait
+	26, // 19: teleport.accesslist.v1.AccessListGrants.traits:type_name -> teleport.trait.v1.Trait
+	13, // 20: teleport.accesslist.v1.AccessListGrants.scoped_roles:type_name -> teleport.accesslist.v1.ScopedRoleGrant
+	23, // 21: teleport.accesslist.v1.Member.header:type_name -> teleport.header.v1.ResourceHeader
+	15, // 22: teleport.accesslist.v1.Member.spec:type_name -> teleport.accesslist.v1.MemberSpec
+	24, // 23: teleport.accesslist.v1.MemberSpec.joined:type_name -> google.protobuf.Timestamp
+	24, // 24: teleport.accesslist.v1.MemberSpec.expires:type_name -> google.protobuf.Timestamp
+	3,  // 25: teleport.accesslist.v1.MemberSpec.ineligible_status:type_name -> teleport.accesslist.v1.IneligibleStatus
+	2,  // 26: teleport.accesslist.v1.MemberSpec.membership_kind:type_name -> teleport.accesslist.v1.MembershipKind
+	16, // 27: teleport.accesslist.v1.MemberSpec.display:type_name -> teleport.accesslist.v1.UserDisplay
+	16, // 28: teleport.accesslist.v1.MemberSpec.added_by_display:type_name -> teleport.accesslist.v1.UserDisplay
+	23, // 29: teleport.accesslist.v1.Review.header:type_name -> teleport.header.v1.ResourceHeader
+	18, // 30: teleport.accesslist.v1.Review.spec:type_name -> teleport.accesslist.v1.ReviewSpec
+	24, // 31: teleport.accesslist.v1.ReviewSpec.review_date:type_name -> google.protobuf.Timestamp
+	19, // 32: teleport.accesslist.v1.ReviewSpec.changes:type_name -> teleport.accesslist.v1.ReviewChanges
+	11, // 33: teleport.accesslist.v1.ReviewChanges.membership_requirements_changed:type_name -> teleport.accesslist.v1.AccessListRequires
+	0,  // 34: teleport.accesslist.v1.ReviewChanges.review_frequency_changed:type_name -> teleport.accesslist.v1.ReviewFrequency
+	1,  // 35: teleport.accesslist.v1.ReviewChanges.review_day_of_month_changed:type_name -> teleport.accesslist.v1.ReviewDayOfMonth
+	4,  // 36: teleport.accesslist.v1.CurrentUserAssignments.ownership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
+	4,  // 37: teleport.accesslist.v1.CurrentUserAssignments.membership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
+	4,  // 38: teleport.accesslist.v1.UserAssignments.ownership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
+	4,  // 39: teleport.accesslist.v1.UserAssignments.membership_type:type_name -> teleport.accesslist.v1.AccessListUserAssignmentType
+	20, // 40: teleport.accesslist.v1.AccessListStatus.current_user_assignments:type_name -> teleport.accesslist.v1.CurrentUserAssignments
+	21, // 41: teleport.accesslist.v1.AccessListStatus.user_assignments:type_name -> teleport.accesslist.v1.UserAssignments
+	42, // [42:42] is the sub-list for method output_type
+	42, // [42:42] is the sub-list for method input_type
+	42, // [42:42] is the sub-list for extension type_name
+	42, // [42:42] is the sub-list for extension extendee
+	0,  // [0:42] is the sub-list for field type_name
 }
 
 func init() { file_teleport_accesslist_v1_accesslist_proto_init() }
@@ -2474,14 +2639,14 @@ func file_teleport_accesslist_v1_accesslist_proto_init() {
 	if File_teleport_accesslist_v1_accesslist_proto != nil {
 		return
 	}
-	file_teleport_accesslist_v1_accesslist_proto_msgTypes[16].OneofWrappers = []any{}
+	file_teleport_accesslist_v1_accesslist_proto_msgTypes[17].OneofWrappers = []any{}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_accesslist_v1_accesslist_proto_rawDesc), len(file_teleport_accesslist_v1_accesslist_proto_rawDesc)),
 			NumEnums:      5,
-			NumMessages:   17,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

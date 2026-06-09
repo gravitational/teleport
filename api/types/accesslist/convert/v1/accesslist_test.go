@@ -91,6 +91,62 @@ func TestWithOwnersIneligibleStatusField(t *testing.T) {
 	}))
 }
 
+func TestWithOwnersDisplayField(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		display types.UserDisplay
+	}{
+		{
+			name:    "both values",
+			display: types.UserDisplay{Primary: "Alice Anderson", Secondary: "alice@example.com"},
+		},
+		{
+			name:    "primary only",
+			display: types.UserDisplay{Primary: "Alice Anderson"},
+		},
+		{
+			name:    "secondary only",
+			display: types.UserDisplay{Secondary: "alice@example.com"},
+		},
+		{
+			name: "empty",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			accessList := newAccessList(t, "access-list")
+			accessList.Spec.Owners = []accesslist.Owner{
+				{Name: "owner", Display: tt.display},
+			}
+			proto := ToProto(accessList)
+
+			converted, err := FromProto(proto, WithOwnersDisplayField(proto.GetSpec().GetOwners()))
+			require.NoError(t, err)
+			require.Equal(t, tt.display, converted.Spec.Owners[0].Display)
+
+			converted, err = FromProto(proto)
+			require.NoError(t, err)
+			require.Empty(t, converted.Spec.Owners[0].Display)
+		})
+	}
+}
+
+func TestWithOwnersDisplayFieldNils(t *testing.T) {
+	t.Parallel()
+
+	proto := ToProto(newAccessList(t, "access-list"))
+	proto.Spec.Owners[0].Display = nil
+
+	converted, err := FromProto(proto, WithOwnersDisplayField(proto.GetSpec().GetOwners()))
+	require.NoError(t, err)
+	require.Empty(t, converted.Spec.Owners[0].Display)
+}
+
 func TestRoundtrip(t *testing.T) {
 	t.Parallel()
 

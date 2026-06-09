@@ -62,6 +62,12 @@ type AccessListMemberSpec struct {
 	// added_by is the user that added this user to the access list.
 	AddedBy string `json:"added_by" yaml:"added_by"`
 
+	// Display contains read-time display values for this member.
+	Display types.UserDisplay `json:"display" yaml:"display"`
+
+	// AddedByDisplay contains read-time display values for AddedBy.
+	AddedByDisplay types.UserDisplay `json:"added_by_display" yaml:"added_by_display"`
+
 	// IneligibleStatus describes the reason why this member is not eligible.
 	IneligibleStatus string `json:"ineligible_status" yaml:"ineligible_status"`
 

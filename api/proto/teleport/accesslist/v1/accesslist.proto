@@ -94,6 +94,9 @@ message AccessListOwner {
   // membership_kind describes the type of membership, either
   // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
   MembershipKind membership_kind = 4;
+
+  // display holds read-time display values for the owner.
+  UserDisplay display = 5;
 }
 
 // AccessListAudit describes the audit configuration for an Access List.
@@ -220,6 +223,23 @@ message MemberSpec {
   // membership_kind describes the type of membership, either
   // `MEMBERSHIP_KIND_USER` or `MEMBERSHIP_KIND_LIST`.
   MembershipKind membership_kind = 9;
+
+  // display holds read-time display values for the member.
+  UserDisplay display = 10;
+
+  // added_by_display holds read-time display values for the user that added
+  // this member.
+  UserDisplay added_by_display = 11;
+}
+
+// UserDisplay holds read-time display values for a user, derived from the user
+// resource.
+message UserDisplay {
+  // primary is a display name when distinct from the username.
+  string primary = 1;
+
+  // secondary is extra context, when distinct from the username.
+  string secondary = 2;
 }
 
 // MembershipKind represents the different kinds of list membership
