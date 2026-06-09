@@ -569,7 +569,10 @@ func (c *HTTPClient) ValidateSAMLResponse(ctx context.Context, samlResponse, con
 	return &response, nil
 }
 
-// validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback
+// validateGithubAuthCallbackReq is a request to validate Github OAuth2 callback.
+//
+// It and githubAuthRawResponse are used by the HTTP fallback implementation of
+// ValidateGithubAuthCallback in httpfallback.go.
 type validateGithubAuthCallbackReq struct {
 	// Query is the callback query string
 	Query url.Values `json:"query"`
@@ -596,42 +599,4 @@ type githubAuthRawResponse struct {
 	// ClientOptions contains some options that the cluster wants the client to
 	// use.
 	ClientOptions ClientOptions `json:"client_options"`
-}
-
-// ValidateGithubAuthCallback validates Github auth callback returned from redirect
-func (c *HTTPClient) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
-	out, err := c.PostJSON(ctx, c.Endpoint("github", "requests", "validate"),
-		validateGithubAuthCallbackReq{Query: q})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	var rawResponse githubAuthRawResponse
-	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	response := GithubAuthResponse{
-		Username:      rawResponse.Username,
-		Identity:      rawResponse.Identity,
-		Cert:          rawResponse.Cert,
-		Req:           rawResponse.Req,
-		TLSCert:       rawResponse.TLSCert,
-		ClientOptions: rawResponse.ClientOptions,
-	}
-	if len(rawResponse.Session) != 0 {
-		session, err := services.UnmarshalWebSession(
-			rawResponse.Session)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		response.Session = session
-	}
-	response.HostSigners = make([]types.CertAuthority, len(rawResponse.HostSigners))
-	for i, raw := range rawResponse.HostSigners {
-		ca, err := services.UnmarshalCertAuthority(raw)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		response.HostSigners[i] = ca
-	}
-	return &response, nil
 }

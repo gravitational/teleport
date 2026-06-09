@@ -27,6 +27,7 @@ import (
 	"crypto/x509"
 	"net"
 	"net/http"
+	"net/url"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -97,6 +98,56 @@ func TestValidateTrustedClusterResponseProto(t *testing.T) {
 	require.NoError(t, err)
 	backToNative := ValidateTrustedClusterResponseFromProto(proto)
 	require.Empty(t, cmp.Diff(native, backToNative))
+}
+
+func TestGithubAuthResponseProto(t *testing.T) {
+	native := &GithubAuthResponse{
+		Username: "alice",
+		Identity: types.ExternalIdentity{
+			ConnectorID: "github",
+			Username:    "alice-gh",
+		},
+		Session: &types.WebSessionV2{
+			Kind:    types.KindWebSession,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name: "session-id",
+			},
+			Spec: types.WebSessionSpecV2{
+				User: "alice",
+			},
+		},
+		Cert:    []byte("ssh-cert"),
+		TLSCert: []byte("tls-cert"),
+		Req: GithubAuthRequest{
+			ConnectorID:       "github",
+			CSRFToken:         "csrf-token",
+			SSHPubKey:         []byte("ssh-pub-key"),
+			TLSPubKey:         []byte("tls-pub-key"),
+			CreateWebSession:  true,
+			ClientRedirectURL: "https://example.com/callback",
+		},
+		HostSigners: []types.CertAuthority{
+			fakeCA(t, types.HostCA),
+			fakeCA(t, types.UserCA),
+		},
+		ClientOptions: ClientOptions{
+			DefaultRelayAddr: "relay.example.com:443",
+		},
+	}
+	proto, err := native.ToProto()
+	require.NoError(t, err)
+	backToNative := GithubAuthResponseFromProto(proto)
+	require.Empty(t, cmp.Diff(native, backToNative))
+}
+
+func TestGithubAuthQueryProto(t *testing.T) {
+	q := url.Values{
+		"code":  []string{"auth-code"},
+		"state": []string{"state-token"},
+		"multi": []string{"a", "b"},
+	}
+	require.Equal(t, q, GithubAuthQueryFromProto(GithubAuthQueryToProto(q)))
 }
 
 func TestHTTPCircuitBreaker(t *testing.T) {

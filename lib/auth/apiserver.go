@@ -152,6 +152,8 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.POST("/:version/trustedclusters/validate", srv.WithAuth(srv.validateTrustedCluster))
 
 	// SSO validation handlers
+	// TODO(strideynet): DELETE IN v20.0.0 (superseded by the
+	// ValidateGithubAuthCallback gRPC method).
 	srv.POST("/:version/github/requests/validate", srv.WithAuth(srv.validateGithubAuthCallback))
 
 	// Migrated/deleted endpoints with 501 Not Implemented handlers.
@@ -490,6 +492,10 @@ validateGithubAuthRequest validates Github auth callback redirect
 	POST /:version/github/requests/validate
 
 	Success response: githubAuthRawResponse
+
+Superseded by the ValidateGithubAuthCallback gRPC method.
+
+TODO(strideynet): DELETE IN v20.0.0
 */
 func (s *APIServer) validateGithubAuthCallback(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	var req validateGithubAuthCallbackReq

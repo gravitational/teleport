@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/api/client/proto"
 	presencev1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -75,6 +76,59 @@ func (c *HTTPClient) validateTrustedCluster(ctx context.Context, validateRequest
 	}
 
 	return validateResponse, nil
+}
+
+// ValidateGithubAuthCallback validates a GitHub OAuth2 authentication callback.
+// It is called by the proxy on behalf of a user completing a GitHub SSO login.
+func (c *Client) ValidateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+	protoResp, err := c.APIClient.ValidateGithubAuthCallback(ctx, &proto.ValidateGithubAuthCallbackRequest{
+		Query: GithubAuthQueryToProto(q),
+	})
+	if err != nil {
+		if trace.IsNotImplemented(err) {
+			return c.HTTPClient.validateGithubAuthCallback(ctx, q)
+		}
+		return nil, trace.Wrap(err, "calling ValidateGithubAuthCallback on gRPC client")
+	}
+	return GithubAuthResponseFromProto(protoResp), nil
+}
+
+// TODO(strideynet): DELETE IN v20.0.0
+func (c *HTTPClient) validateGithubAuthCallback(ctx context.Context, q url.Values) (*GithubAuthResponse, error) {
+	out, err := c.PostJSON(ctx, c.Endpoint("github", "requests", "validate"),
+		validateGithubAuthCallbackReq{Query: q})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	var rawResponse githubAuthRawResponse
+	if err := json.Unmarshal(out.Bytes(), &rawResponse); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response := GithubAuthResponse{
+		Username:      rawResponse.Username,
+		Identity:      rawResponse.Identity,
+		Cert:          rawResponse.Cert,
+		Req:           rawResponse.Req,
+		TLSCert:       rawResponse.TLSCert,
+		ClientOptions: rawResponse.ClientOptions,
+	}
+	if len(rawResponse.Session) != 0 {
+		session, err := services.UnmarshalWebSession(
+			rawResponse.Session)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.Session = session
+	}
+	response.HostSigners = make([]types.CertAuthority, len(rawResponse.HostSigners))
+	for i, raw := range rawResponse.HostSigners {
+		ca, err := services.UnmarshalCertAuthority(raw)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		response.HostSigners[i] = ca
+	}
+	return &response, nil
 }
 
 // UpsertTunnelConnection creates or updates a tunnel connection record.

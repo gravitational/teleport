@@ -1025,6 +1025,120 @@ type GithubAuthRequest struct {
 	ClientRedirectURL string `json:"client_redirect_url"`
 }
 
+// githubAuthRequestToProto converts the native GithubAuthRequest carried in a
+// GithubAuthResponse to its proto representation. Only the subset of fields
+// populated by the auth server in the response are converted.
+func githubAuthRequestToProto(r GithubAuthRequest) *types.GithubAuthRequest {
+	return &types.GithubAuthRequest{
+		ConnectorID:       r.ConnectorID,
+		CSRFToken:         r.CSRFToken,
+		SshPublicKey:      r.SSHPubKey,
+		TlsPublicKey:      r.TLSPubKey,
+		CreateWebSession:  r.CreateWebSession,
+		ClientRedirectURL: r.ClientRedirectURL,
+	}
+}
+
+// githubAuthRequestFromProto converts a proto GithubAuthRequest to the native
+// representation carried in a GithubAuthResponse.
+func githubAuthRequestFromProto(req *types.GithubAuthRequest) GithubAuthRequest {
+	if req == nil {
+		return GithubAuthRequest{}
+	}
+	return GithubAuthRequest{
+		ConnectorID:       req.ConnectorID,
+		CSRFToken:         req.CSRFToken,
+		SSHPubKey:         req.SshPublicKey,
+		TLSPubKey:         req.TlsPublicKey,
+		CreateWebSession:  req.CreateWebSession,
+		ClientRedirectURL: req.ClientRedirectURL,
+	}
+}
+
+// GithubAuthQueryToProto converts an OAuth2 callback query string to its proto
+// representation.
+func GithubAuthQueryToProto(q url.Values) map[string]*proto.GithubAuthCallbackQueryValues {
+	query := make(map[string]*proto.GithubAuthCallbackQueryValues, len(q))
+	for k, v := range q {
+		query[k] = &proto.GithubAuthCallbackQueryValues{Values: v}
+	}
+	return query
+}
+
+// GithubAuthQueryFromProto converts a proto-encoded OAuth2 callback query string
+// back to url.Values.
+func GithubAuthQueryFromProto(query map[string]*proto.GithubAuthCallbackQueryValues) url.Values {
+	q := make(url.Values, len(query))
+	for k, v := range query {
+		q[k] = v.GetValues()
+	}
+	return q
+}
+
+// ToProto converts a GithubAuthResponse to its proto representation.
+func (r *GithubAuthResponse) ToProto() (*proto.ValidateGithubAuthCallbackResponse, error) {
+	out := &proto.ValidateGithubAuthCallbackResponse{
+		Username: r.Username,
+		Identity: &r.Identity,
+		Cert:     r.Cert,
+		TlsCert:  r.TLSCert,
+		Request:  githubAuthRequestToProto(r.Req),
+		ClientOptions: &proto.GithubClientOptions{
+			DefaultRelayAddr: r.ClientOptions.DefaultRelayAddr,
+		},
+	}
+
+	if r.Session != nil {
+		session, ok := r.Session.(*types.WebSessionV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected web session to be of type *types.WebSessionV2, got %T", r.Session)
+		}
+		out.Session = session
+	}
+
+	out.HostSigners = make([]*types.CertAuthorityV2, 0, len(r.HostSigners))
+	for _, ca := range r.HostSigners {
+		caV2, ok := ca.(*types.CertAuthorityV2)
+		if !ok {
+			return nil, trace.BadParameter(
+				"expected cert authority to be of type *types.CertAuthorityV2, got %T", ca)
+		}
+		out.HostSigners = append(out.HostSigners, caV2)
+	}
+
+	return out, nil
+}
+
+// GithubAuthResponseFromProto converts the proto representation of a
+// GithubAuthResponse to its native representation.
+func GithubAuthResponseFromProto(resp *proto.ValidateGithubAuthCallbackResponse) *GithubAuthResponse {
+	out := &GithubAuthResponse{
+		Username: resp.Username,
+		Cert:     resp.Cert,
+		TLSCert:  resp.TlsCert,
+		Req:      githubAuthRequestFromProto(resp.Request),
+	}
+	if resp.Identity != nil {
+		out.Identity = *resp.Identity
+	}
+	if resp.ClientOptions != nil {
+		out.ClientOptions = ClientOptions{
+			DefaultRelayAddr: resp.ClientOptions.DefaultRelayAddr,
+		}
+	}
+	// A nil session must remain nil; assigning a typed-nil *WebSessionV2 to the
+	// types.WebSession interface would make a nil check on the interface fail.
+	if resp.Session != nil {
+		out.Session = resp.Session
+	}
+	out.HostSigners = make([]types.CertAuthority, 0, len(resp.HostSigners))
+	for _, ca := range resp.HostSigners {
+		out.HostSigners = append(out.HostSigners, ca)
+	}
+	return out
+}
+
 // IdentityService manages identities and users
 type IdentityService interface {
 	// CreateOIDCConnector creates a new OIDC connector.

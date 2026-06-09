@@ -6103,6 +6103,18 @@ func (c *Client) ValidateTrustedCluster(
 	return resp, nil
 }
 
+// ValidateGithubAuthCallback validates a GitHub OAuth2 authentication callback.
+// It is called by the proxy on behalf of a user completing a GitHub SSO login.
+func (c *Client) ValidateGithubAuthCallback(
+	ctx context.Context, req *proto.ValidateGithubAuthCallbackRequest,
+) (*proto.ValidateGithubAuthCallbackResponse, error) {
+	resp, err := c.grpc.ValidateGithubAuthCallback(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return resp, nil
+}
+
 // ListScopedTokens fetches pages of scoped tokens.
 func (c *Client) ListScopedTokens(ctx context.Context, req *joiningv1.ListScopedTokensRequest) (*joiningv1.ListScopedTokensResponse, error) {
 	res, err := c.grpc.ListScopedTokens(ctx, req)
