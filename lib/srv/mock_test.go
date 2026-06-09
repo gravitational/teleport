@@ -87,6 +87,7 @@ func newTestServerContext(t *testing.T, srv Server, sessionJoiningRoleSet servic
 		SessionRecordingConfig: recConfig,
 		IsTestStub:             true,
 		ClusterName:            clusterName,
+		ExecResultCh:           make(chan ExecResult, 10),
 		srv:                    srv,
 		Identity: IdentityContext{
 			UnmappedIdentity: ident,

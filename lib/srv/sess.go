@@ -792,6 +792,8 @@ type session struct {
 
 	doneCh chan struct{}
 
+	closedCh chan struct{}
+
 	displayParticipantRequirements bool
 
 	// endingContext is the server context which closed this session.
@@ -882,6 +884,7 @@ func newSession(ctx context.Context, r *SessionRegistry, scx *ServerContext, ch 
 		presenceEnabled: scx.Identity.UnmappedIdentity.MFAVerified != "",
 		io:              NewTermManager(),
 		doneCh:          make(chan struct{}),
+		closedCh:        make(chan struct{}),
 		initiator: sessionInitiatorInfo{
 			user:    scx.Identity.TeleportUser,
 			cluster: scx.Identity.OriginClusterName,
@@ -1043,6 +1046,8 @@ func (s *session) Close() error {
 				s.logger.WarnContext(s.serverCtx, "Failed to close recorder.", "error", err)
 			}
 		}
+
+		close(s.closedCh)
 	})
 	return nil
 }
@@ -1534,7 +1539,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 		// broadcasting the result (which will close the pty) if it has not been
 		// closed already.
 		select {
-		case <-time.After(defaults.WaitCopyTimeout):
+		case <-s.registry.clock.After(defaults.WaitCopyTimeout):
 			s.logger.DebugContext(ctx, "Timed out waiting for PTY copy to finish, session data may be missing.")
 		case <-s.doneCh:
 		}
@@ -1720,12 +1725,15 @@ func (s *session) startExec(ctx context.Context, channel ssh.Channel, scx *Serve
 		// Wait a little bit to let all events filter through before
 		// closing the BPF session so everything can be recorded.
 		//
-		// TODO: This sleep is also necessary to prevent the SSH server
+		// TODO: This delay is also necessary to prevent the SSH server
 		// from closing an SSH session without sending the exit status
 		// to the client. The SSH server code in handleSessionRequests
 		// should be refactored to consistently wait for the exit result
 		// before cleaning up.
-		time.Sleep(2 * time.Second)
+		select {
+		case <-time.After(2 * time.Second):
+		case <-s.registry.clock.After(2 * time.Second):
+		}
 
 		if sessionContext != nil {
 			err = scx.srv.GetBPF().CloseSession(sessionContext)
