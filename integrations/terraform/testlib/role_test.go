@@ -19,6 +19,7 @@ package testlib
 import (
 	"context"
 	"regexp"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -27,7 +28,9 @@ import (
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 func (s *TerraformSuiteOSS) TestRoleDataSource() {
@@ -44,8 +47,50 @@ func (s *TerraformSuiteOSS) TestRoleDataSource() {
 	}
 
 	role := &types.RoleV6{
+		Kind:    "role",
+		Version: "v8",
 		Metadata: types.Metadata{
 			Name: "test",
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CertificateFormat:       "standard",
+				ClientIdleTimeout:       types.NewDuration(time.Hour),
+				CreateDatabaseUser:      types.NewBoolOption(false),
+				CreateDesktopUser:       types.NewBoolOption(false),
+				DesktopClipboard:        types.NewBoolOption(true),
+				DesktopDirectorySharing: types.NewBoolOption(true),
+				BPF: []string{
+					"command",
+					"network",
+				},
+				ForwardAgent:  true,
+				MaxSessionTTL: types.NewDuration(time.Hour * 30),
+				PinSourceIP:   false,
+				RecordSession: &types.RecordSession{
+					Default: constants.SessionRecordingModeBestEffort,
+					Desktop: types.NewBoolOption(true),
+				},
+				SSHFileCopy: types.NewBoolOption(true),
+			},
+			Allow: types.RoleConditions{
+				Logins: []string{"anonymous"},
+				AppLabels: types.Labels{
+					"env": utils.Strings{"test"},
+				},
+				KubernetesLabels: types.Labels{
+					"env": utils.Strings{"test"},
+				},
+				KubernetesResources: []types.KubernetesResource{
+					{
+						APIGroup:  "*",
+						Kind:      "*",
+						Name:      "*",
+						Namespace: "*",
+						Verbs:     []string{"*"},
+					},
+				},
+			},
 		},
 	}
 	err := role.CheckAndSetDefaults()
@@ -66,6 +111,32 @@ func (s *TerraformSuiteOSS) TestRoleDataSource() {
 					resource.TestCheckResourceAttr(name, "kind", "role"),
 					resource.TestCheckResourceAttr(name, "version", "v8"),
 					resource.TestCheckResourceAttr(name, "metadata.name", "test"),
+
+					resource.TestCheckResourceAttr(name, "spec.options.cert_format", "standard"),
+					resource.TestCheckResourceAttr(name, "spec.options.client_idle_timeout", "1h0m0s"),
+					resource.TestCheckResourceAttr(name, "spec.options.create_db_user", "false"),
+					resource.TestCheckResourceAttr(name, "spec.options.create_desktop_user", "false"),
+					resource.TestCheckResourceAttr(name, "spec.options.desktop_clipboard", "true"),
+					resource.TestCheckResourceAttr(name, "spec.options.desktop_directory_sharing", "true"),
+					resource.TestCheckResourceAttr(name, "spec.options.enhanced_recording.0", "command"),
+					resource.TestCheckResourceAttr(name, "spec.options.enhanced_recording.1", "network"),
+					resource.TestCheckResourceAttr(name, "spec.options.forward_agent", "true"),
+					resource.TestCheckResourceAttr(name, "spec.options.max_session_ttl", "30h0m0s"),
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.default", "best_effort"),
+					resource.TestCheckResourceAttr(name, "spec.options.record_session.desktop", "true"),
+					resource.TestCheckResourceAttr(name, "spec.options.ssh_file_copy", "true"),
+
+					// Regular false boolean values should be omitted
+					resource.TestCheckNoResourceAttr(name, "spec.options.pin_source_ip"),
+
+					resource.TestCheckResourceAttr(name, "spec.allow.logins.0", "anonymous"),
+					resource.TestCheckResourceAttr(name, "spec.allow.app_labels.env.0", "test"),
+					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_labels.env.0", "test"),
+					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.api_group", "*"),
+					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.kind", "*"),
+					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.name", "*"),
+					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.namespace", "*"),
+					resource.TestCheckResourceAttr(name, "spec.allow.kubernetes_resources.0.verbs.0", "*"),
 				),
 			},
 		},
