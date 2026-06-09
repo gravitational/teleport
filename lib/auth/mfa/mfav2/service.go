@@ -399,6 +399,7 @@ func (s *Service) ValidateSessionChallenge(
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				Payload: mfav2.SessionIdentifyingPayload_builder{
 					SshSessionId: details.Payload.SSHSessionID,
+					TlsSessionId: details.Payload.TLSSessionID,
 				}.Build(),
 				SourceCluster: details.SourceCluster,
 				TargetCluster: details.TargetCluster,
@@ -563,7 +564,9 @@ func (s *Service) VerifyValidatedMFAChallenge(
 	// Ensure the payload in the request matches the stored challenge payload for the same type.
 	reqSshSessionId := req.GetPayload().GetSshSessionId()
 	storedSshSessionId := chal.GetSpec().GetPayload().GetSshSessionId()
-	if !bytes.Equal(reqSshSessionId, storedSshSessionId) {
+	reqTlsSessionId := req.GetPayload().GetTlsSessionId()
+	storedTlsSessionId := chal.GetSpec().GetPayload().GetTlsSessionId()
+	if !bytes.Equal(reqSshSessionId, storedSshSessionId) || !bytes.Equal(reqTlsSessionId, storedTlsSessionId) {
 		return nil, trace.AccessDenied("request payload does not match validated challenge payload")
 	}
 
@@ -857,8 +860,8 @@ func checkPayload(sip *mfav2.SessionIdentifyingPayload) error {
 		return trace.BadParameter("missing SessionIdentifyingPayload in request")
 	}
 
-	if len(sip.GetSshSessionId()) == 0 {
-		return trace.BadParameter("empty SshSessionId in payload")
+	if len(sip.GetSshSessionId()) == 0 && len(sip.GetTlsSessionId()) == 0 {
+		return trace.BadParameter("empty SessionIdentifyingPayload: must have ssh_session_id or tls_session_id")
 	}
 
 	return nil
