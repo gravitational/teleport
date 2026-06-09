@@ -290,16 +290,18 @@ func (f *Forwarder) impersonatedKubeClient(authCtx *authContext, headers http.He
 	if err != nil {
 		return nil, nil, trace.NotFound("kubernetes cluster %q not found", authCtx.kubeClusterName)
 	}
-	restConfig := details.getKubeRestConfig()
 	kubeUser, kubeGroups, err := computeAndValidateImpersonatedPrincipals(authCtx.kubeUsers, authCtx.kubeGroups, authCtx.User.GetName(), headers)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
+	// Clone the shared cached rest config before setting impersonation to avoid
+	// racing with concurrent requests to the same cluster.
+	restConfig := *details.getKubeRestConfig()
 	restConfig.Impersonate = rest.ImpersonationConfig{
 		UserName: kubeUser,
 		Groups:   kubeGroups,
 	}
-	clientSet, err := kubernetes.NewForConfig(restConfig)
+	clientSet, err := kubernetes.NewForConfig(&restConfig)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
