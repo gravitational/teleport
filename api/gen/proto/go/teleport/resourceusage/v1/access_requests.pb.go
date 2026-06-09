@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/resourceusage/v1/access_requests.proto
 
+//go:build !protoopaque
+
 package resourceusagev1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 // AccessRequestsUsage defines the usage limits for access requests.
 // Usage is limited on the basis of access requests used per calendar month.
 type AccessRequestsUsage struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// MonthlyLimit is the amount of requests that are allowed per month
 	MonthlyLimit int32 `protobuf:"varint,1,opt,name=monthly_limit,json=monthlyLimit,proto3" json:"monthly_limit,omitempty"`
 	// MonthlyUsed is the amount of requests that have been used this month
@@ -72,11 +73,6 @@ func (x *AccessRequestsUsage) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessRequestsUsage.ProtoReflect.Descriptor instead.
-func (*AccessRequestsUsage) Descriptor() ([]byte, []int) {
-	return file_teleport_resourceusage_v1_access_requests_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *AccessRequestsUsage) GetMonthlyLimit() int32 {
 	if x != nil {
 		return x.MonthlyLimit
@@ -91,6 +87,32 @@ func (x *AccessRequestsUsage) GetMonthlyUsed() int32 {
 	return 0
 }
 
+func (x *AccessRequestsUsage) SetMonthlyLimit(v int32) {
+	x.MonthlyLimit = v
+}
+
+func (x *AccessRequestsUsage) SetMonthlyUsed(v int32) {
+	x.MonthlyUsed = v
+}
+
+type AccessRequestsUsage_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// MonthlyLimit is the amount of requests that are allowed per month
+	MonthlyLimit int32
+	// MonthlyUsed is the amount of requests that have been used this month
+	MonthlyUsed int32
+}
+
+func (b0 AccessRequestsUsage_builder) Build() *AccessRequestsUsage {
+	m0 := &AccessRequestsUsage{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.MonthlyLimit = b.MonthlyLimit
+	x.MonthlyUsed = b.MonthlyUsed
+	return m0
+}
+
 var File_teleport_resourceusage_v1_access_requests_proto protoreflect.FileDescriptor
 
 const file_teleport_resourceusage_v1_access_requests_proto_rawDesc = "" +
@@ -99,18 +121,6 @@ const file_teleport_resourceusage_v1_access_requests_proto_rawDesc = "" +
 	"\x13AccessRequestsUsage\x12#\n" +
 	"\rmonthly_limit\x18\x01 \x01(\x05R\fmonthlyLimit\x12!\n" +
 	"\fmonthly_used\x18\x02 \x01(\x05R\vmonthlyUsedB^Z\\github.com/gravitational/teleport/api/gen/proto/go/teleport/resourceusage/v1;resourceusagev1b\x06proto3"
-
-var (
-	file_teleport_resourceusage_v1_access_requests_proto_rawDescOnce sync.Once
-	file_teleport_resourceusage_v1_access_requests_proto_rawDescData []byte
-)
-
-func file_teleport_resourceusage_v1_access_requests_proto_rawDescGZIP() []byte {
-	file_teleport_resourceusage_v1_access_requests_proto_rawDescOnce.Do(func() {
-		file_teleport_resourceusage_v1_access_requests_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_resourceusage_v1_access_requests_proto_rawDesc), len(file_teleport_resourceusage_v1_access_requests_proto_rawDesc)))
-	})
-	return file_teleport_resourceusage_v1_access_requests_proto_rawDescData
-}
 
 var file_teleport_resourceusage_v1_access_requests_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_resourceusage_v1_access_requests_proto_goTypes = []any{

@@ -23,12 +23,25 @@ import (
 
 	"github.com/gravitational/teleport/integrations/lib/testing/integration"
 	"github.com/gravitational/teleport/lib/auth/authtest"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 func TestTerraformOSS(t *testing.T) {
 	suite.Run(t, &TerraformSuiteOSS{
 		TerraformBaseSuite: TerraformBaseSuite{
 			AuthHelper: &integration.MinimalAuthHelper{},
+		},
+	})
+}
+
+func TestTerraformOSSScopedResources(t *testing.T) {
+	suite.Run(t, &TerraformSuiteOSSScopedResources{
+		TerraformBaseSuite: TerraformBaseSuite{
+			AuthHelper: &integration.MinimalAuthHelper{
+				AuthConfig: authtest.AuthServerConfig{
+					ScopesFeatures: scopes.Features{Enabled: true},
+				},
+			},
 		},
 	})
 }

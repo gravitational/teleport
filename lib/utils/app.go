@@ -17,6 +17,7 @@
 package utils
 
 import (
+	"cmp"
 	"fmt"
 	"net"
 	"strings"
@@ -48,4 +49,12 @@ func DefaultAppPublicAddr(appName, localProxyDNSName string) string {
 		localProxyDNSName = host
 	}
 	return fmt.Sprintf("%s.%s", appName, strings.ToLower(localProxyDNSName))
+}
+
+// DefaultAppFQDN returns the default routing FQDN for an app.
+// proxyPublicAddrHost takes precedence; clusterName is the fallback
+// when it is empty. An IP-valued proxy public_addr is used as-is,
+// not replaced by clusterName.
+func DefaultAppFQDN(appName, proxyPublicAddrHost, clusterName string) string {
+	return DefaultAppPublicAddr(appName, cmp.Or(proxyPublicAddrHost, clusterName))
 }

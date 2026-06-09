@@ -75,16 +75,16 @@ func (h *Handler) listBots(w http.ResponseWriter, r *http.Request, p httprouter.
 
 	var items []*machineidv1.Bot
 	for pageToken := ""; ; {
-		bots, err := clt.BotServiceClient().ListBots(r.Context(), &machineidv1.ListBotsRequest{
+		bots, err := clt.BotServiceClient().ListBots(r.Context(), machineidv1.ListBotsRequest_builder{
 			PageSize:  int32(1000),
 			PageToken: pageToken,
-		})
+		}.Build())
 		// todo (michellescripts) consider returning partial results
 		if err != nil {
 			return nil, trace.Wrap(err, "error getting bots")
 		}
-		items = append(items, bots.Bots...)
-		pageToken = bots.NextPageToken
+		items = append(items, bots.GetBots()...)
+		pageToken = bots.GetNextPageToken()
 		if pageToken == "" {
 			break
 		}
@@ -106,22 +106,22 @@ func (h *Handler) createBot(w http.ResponseWriter, r *http.Request, p httprouter
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	_, err = clt.BotServiceClient().CreateBot(r.Context(), &machineidv1.CreateBotRequest{
-		Bot: &machineidv1.Bot{
+	_, err = clt.BotServiceClient().CreateBot(r.Context(), machineidv1.CreateBotRequest_builder{
+		Bot: machineidv1.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: req.BotName,
 				Labels: map[string]string{
 					webUIFlowLabelKey: webUIFlowBotGitHubActionsSSH,
 				},
-			},
-			Spec: &machineidv1.BotSpec{
+			}.Build(),
+			Spec: machineidv1.BotSpec_builder{
 				Roles:  req.Roles,
 				Traits: req.Traits,
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err, "error creating bot")
 	}
@@ -140,7 +140,7 @@ func (h *Handler) deleteBot(_ http.ResponseWriter, r *http.Request, params httpr
 		return nil, trace.BadParameter("missing bot name")
 	}
 
-	_, err = clt.BotServiceClient().DeleteBot(r.Context(), &machineidv1.DeleteBotRequest{BotName: name})
+	_, err = clt.BotServiceClient().DeleteBot(r.Context(), machineidv1.DeleteBotRequest_builder{BotName: name}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err, "error deleting bot")
 	}
@@ -215,9 +215,9 @@ func (h *Handler) getBot(w http.ResponseWriter, r *http.Request, p httprouter.Pa
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	bot, err := clt.BotServiceClient().GetBot(r.Context(), &machineidv1.GetBotRequest{
+	bot, err := clt.BotServiceClient().GetBot(r.Context(), machineidv1.GetBotRequest_builder{
 		BotName: botName,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err, "error querying bot")
 	}
@@ -313,7 +313,7 @@ func updateBot(ctx context.Context, botName string, request updateBotRequestV3, 
 	if request.Roles != nil {
 		mask.Append(&machineidv1.Bot{}, "spec.roles")
 
-		spec.Roles = request.Roles
+		spec.SetRoles(request.Roles)
 	}
 
 	if request.Traits != nil {
@@ -321,13 +321,13 @@ func updateBot(ctx context.Context, botName string, request updateBotRequestV3, 
 
 		traits := make([]*machineidv1.Trait, len(request.Traits))
 		for i, trait := range request.Traits {
-			traits[i] = &machineidv1.Trait{
+			traits[i] = machineidv1.Trait_builder{
 				Name:   trait.Name,
 				Values: trait.Values,
-			}
+			}.Build()
 		}
 
-		spec.Traits = traits
+		spec.SetTraits(traits)
 	}
 
 	if request.MaxSessionTtl != "" {
@@ -338,24 +338,24 @@ func updateBot(ctx context.Context, botName string, request updateBotRequestV3, 
 			return nil, trace.Wrap(err)
 		}
 
-		spec.MaxSessionTtl = durationpb.New(ttl)
+		spec.SetMaxSessionTtl(durationpb.New(ttl))
 	}
 
 	if request.Description != nil {
 		mask.Append(&machineidv1.Bot{}, "metadata.description")
 
-		metadata.Description = *request.Description
+		metadata.SetDescription(*request.Description)
 	}
 
-	updated, err := clt.BotServiceClient().UpdateBot(ctx, &machineidv1.UpdateBotRequest{
+	updated, err := clt.BotServiceClient().UpdateBot(ctx, machineidv1.UpdateBotRequest_builder{
 		UpdateMask: mask,
-		Bot: &machineidv1.Bot{
+		Bot: machineidv1.Bot_builder{
 			Kind:     types.KindBot,
 			Version:  types.V1,
 			Metadata: &metadata,
 			Spec:     &spec,
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err, "unable to find existing bot")
 	}
@@ -378,10 +378,10 @@ func (h *Handler) getBotInstance(w http.ResponseWriter, r *http.Request, p httpr
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	instance, err := clt.BotInstanceServiceClient().GetBotInstance(r.Context(), &machineidv1.GetBotInstanceRequest{
+	instance, err := clt.BotInstanceServiceClient().GetBotInstance(r.Context(), machineidv1.GetBotInstanceRequest_builder{
 		InstanceId: instanceId,
 		BotName:    botName,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err, "error querying bot instance")
 	}
@@ -425,31 +425,31 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 	}
 
 	//nolint:staticcheck // SA1019. Kept for backward compatibility.
-	instances, err := clt.BotInstanceServiceClient().ListBotInstances(r.Context(), &machineidv1.ListBotInstancesRequest{
+	instances, err := clt.BotInstanceServiceClient().ListBotInstances(r.Context(), machineidv1.ListBotInstancesRequest_builder{
 		FilterBotName:    r.URL.Query().Get("bot_name"),
 		PageSize:         int32(pageSize),
 		PageToken:        r.URL.Query().Get("page_token"),
 		FilterSearchTerm: r.URL.Query().Get("search"),
 		Sort:             sort,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
+	uiInstances := tslices.Map(instances.GetBotInstances(), func(instance *machineidv1.BotInstance) BotInstance {
 		heartbeat := services.GetBotInstanceLatestHeartbeat(instance)
 
 		uiInstance := BotInstance{
-			InstanceId: instance.Spec.InstanceId,
-			BotName:    instance.Spec.BotName,
+			InstanceId: instance.GetSpec().GetInstanceId(),
+			BotName:    instance.GetSpec().GetBotName(),
 		}
 
 		if heartbeat != nil {
-			uiInstance.JoinMethodLatest = heartbeat.JoinMethod
-			uiInstance.HostNameLatest = heartbeat.Hostname
-			uiInstance.VersionLatest = heartbeat.Version
-			uiInstance.ActiveAtLatest = heartbeat.RecordedAt.AsTime().Format(time.RFC3339)
-			uiInstance.OSLatest = heartbeat.Os
+			uiInstance.JoinMethodLatest = heartbeat.GetJoinMethod()
+			uiInstance.HostNameLatest = heartbeat.GetHostname()
+			uiInstance.VersionLatest = heartbeat.GetVersion()
+			uiInstance.ActiveAtLatest = heartbeat.GetRecordedAt().AsTime().Format(time.RFC3339)
+			uiInstance.OSLatest = heartbeat.GetOs()
 		}
 
 		return uiInstance
@@ -457,7 +457,7 @@ func (h *Handler) listBotInstances(_ http.ResponseWriter, r *http.Request, _ htt
 
 	return ListBotInstancesResponse{
 		BotInstances:  uiInstances,
-		NextPageToken: instances.NextPageToken,
+		NextPageToken: instances.GetNextPageToken(),
 	}, nil
 }
 
@@ -468,27 +468,27 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 		return nil, trace.Wrap(err)
 	}
 
-	request := &machineidv1.ListBotInstancesV2Request{
+	request := machineidv1.ListBotInstancesV2Request_builder{
 		PageToken: r.URL.Query().Get("page_token"),
 		SortField: r.URL.Query().Get("sort_field"),
-		Filter: &machineidv1.ListBotInstancesV2Request_Filters{
+		Filter: machineidv1.ListBotInstancesV2Request_Filters_builder{
 			BotName:    r.URL.Query().Get("bot_name"),
 			SearchTerm: r.URL.Query().Get("search"),
 			Query:      r.URL.Query().Get("query"),
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	if r.URL.Query().Has("page_size") {
 		pageSize, err := strconv.ParseInt(r.URL.Query().Get("page_size"), 10, 32)
 		if err != nil {
 			return nil, trace.BadParameter("invalid page size")
 		}
-		request.PageSize = int32(pageSize)
+		request.SetPageSize(int32(pageSize))
 	}
 
 	if r.URL.Query().Has("sort_dir") {
 		sortDir := r.URL.Query().Get("sort_dir")
-		request.SortDesc = strings.ToLower(sortDir) == "desc"
+		request.SetSortDesc(strings.ToLower(sortDir) == "desc")
 	}
 
 	instances, err := clt.BotInstanceServiceClient().ListBotInstancesV2(r.Context(), request)
@@ -496,7 +496,7 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 		return nil, trace.Wrap(err)
 	}
 
-	uiInstances := tslices.Map(instances.BotInstances, func(instance *machineidv1.BotInstance) BotInstance {
+	uiInstances := tslices.Map(instances.GetBotInstances(), func(instance *machineidv1.BotInstance) BotInstance {
 		heartbeat := services.GetBotInstanceLatestHeartbeat(instance)
 		authentication := services.GetBotInstanceLatestAuthentication(instance)
 
@@ -524,7 +524,7 @@ func (h *Handler) listBotInstancesV2(_ http.ResponseWriter, r *http.Request, _ h
 
 	return ListBotInstancesResponse{
 		BotInstances:  uiInstances,
-		NextPageToken: instances.NextPageToken,
+		NextPageToken: instances.GetNextPageToken(),
 	}, nil
 }
 
@@ -629,25 +629,25 @@ func (h *Handler) botInstanceMetrics(_ http.ResponseWriter, r *http.Request, _ h
 			switch {
 			case targetVersion.Equal(*version):
 				// Bot is up to date.
-				rsp.UpgradeStatuses.UpToDate.Count += int(versionMetrics.Count)
+				rsp.UpgradeStatuses.UpToDate.Count += int(versionMetrics.GetCount())
 
 			case targetVersion.LessThan(*version):
 				// Bot is running a newer version, we don't support this.
-				rsp.UpgradeStatuses.Unsupported.Count += int(versionMetrics.Count)
+				rsp.UpgradeStatuses.Unsupported.Count += int(versionMetrics.GetCount())
 
 			case targetVersion.Major == version.Major:
 				// Bot is running the right major version, but there's a minor
 				// or patch update available
-				rsp.UpgradeStatuses.PatchAvailable.Count += int(versionMetrics.Count)
+				rsp.UpgradeStatuses.PatchAvailable.Count += int(versionMetrics.GetCount())
 
 			case version.Major == targetVersion.Major-1:
 				// Bot is running the previous major version and should upgrade.
-				rsp.UpgradeStatuses.RequiresUpgrade.Count += int(versionMetrics.Count)
+				rsp.UpgradeStatuses.RequiresUpgrade.Count += int(versionMetrics.GetCount())
 
 			case version.Major < targetVersion.Major-1:
 				// Bot is running a version that is too old. In this case, the
 				// connection would be terminated so we shouldn't really see it.
-				rsp.UpgradeStatuses.Unsupported.Count += int(versionMetrics.Count)
+				rsp.UpgradeStatuses.Unsupported.Count += int(versionMetrics.GetCount())
 
 			default:
 				// The branches of this switch should be exhaustive, but just in case!

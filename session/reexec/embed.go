@@ -16,13 +16,17 @@
 
 package reexec
 
-// InitEmbeddedReexec tries to set up the embedded session helper for execution,
-// returning true if the helper is available and was tested successfully, false
-// if there is no embedded session helper in the build, or an error if the
-// helper is present in the build but the setup failed. This function can be
-// called multiple times with no adverse effects, and, if successful, any
-// subsequent call to [CommandOSTweaks] will result in a reexecution using the
-// embedded helper rather than the current process.
-func InitEmbeddedReexec() (bool, error) {
+// EmbeddedReexecAvailable is true if the embedded session helper could be
+// enabled in this build.
+const EmbeddedReexecAvailable bool = embeddedReexecAvailable
+
+// InitEmbeddedReexec tries to set up the embedded session helper for execution.
+// This function can be called multiple times with no adverse effects, and, if
+// successful, any subsequent call to [CommandOSTweaks] will result in a
+// reexecution using the embedded helper rather than the current process. On
+// builds without support for the embedded session helper, this function will
+// unconditionally fail. Such a condition can be more clearly checked by using
+// [EmbeddedReexecAvailable].
+func InitEmbeddedReexec() error {
 	return initEmbeddedReexec()
 }

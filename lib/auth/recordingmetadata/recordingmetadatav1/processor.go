@@ -106,8 +106,8 @@ func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time, i
 
 	startOffset := durationpb.New(eventTime.Sub(b.startTime))
 	endOffset := durationpb.New(eventTime.Add(interval).Add(-1 * time.Millisecond).Sub(b.startTime))
-	frame.StartOffset = startOffset
-	frame.EndOffset = endOffset
+	frame.SetStartOffset(startOffset)
+	frame.SetEndOffset(endOffset)
 
 	if _, err := protodelim.MarshalTo(b.writer, frame); err != nil {
 		// log the error but continue processing other thumbnails and the session metadata (metadata is more important)
@@ -117,7 +117,7 @@ func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time, i
 	// Decide whether this frame should become the representative thumbnail. We only re-encode at
 	// the higher resolution when the frame is actually being kept, to avoid wasted work.
 	if b.thumbnail != nil {
-		previousDiff := math.Abs(float64(b.thumbnailTime - b.thumbnail.StartOffset.AsDuration()))
+		previousDiff := math.Abs(float64(b.thumbnailTime - b.thumbnail.GetStartOffset().AsDuration()))
 		diff := math.Abs(float64(b.thumbnailTime - eventTime.Sub(b.startTime)))
 		if diff >= previousDiff {
 			return
@@ -133,8 +133,8 @@ func (b *baseRecordingProcessor) captureThumbnailIfNeeded(eventTime time.Time, i
 	if representative == nil {
 		return
 	}
-	representative.StartOffset = startOffset
-	representative.EndOffset = endOffset
+	representative.SetStartOffset(startOffset)
+	representative.SetEndOffset(endOffset)
 	b.thumbnail = representative
 }
 

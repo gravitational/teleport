@@ -125,6 +125,12 @@ impl FastPathProcessor {
                 // `Config` object in lib/srv/desktop/rdp/rdpclient/src/client.rs.
                 enable_server_pointer: true,
                 pointer_software_rendering: false,
+                // TODO (rhammonds): Update our ServerHello TDPB message to
+                // report the share_id so that we can set it here. This may
+                // fix a known resize bug.
+                // https://github.com/Devolutions/IronRDP/pull/1147
+                share_id: 0,
+                bulk_decompressor: None,
             }
             .build(),
             image: DecodedImage::new(PixelFormat::RgbA32, width, height),

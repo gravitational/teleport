@@ -181,20 +181,20 @@ func TestMergeUpsertUserTask(t *testing.T) {
 				IssueType:   usertasks.AutoDiscoverAzureVMIssueEnrollmentError,
 			},
 			clock.Now().Add(20*time.Minute),
-			&usertasksv1.DiscoverAzureVM{
+			usertasksv1.DiscoverAzureVM_builder{
 				Instances: map[string]*usertasksv1.DiscoverAzureVMInstance{
-					tag: {
+					tag: usertasksv1.DiscoverAzureVMInstance_builder{
 						VmId:            tag,
 						DiscoveryConfig: tag,
 						DiscoveryGroup:  tag,
 						SyncTime:        syncTime,
-					},
+					}.Build(),
 				},
 				// these feed into task name, in addition to the task group above.
 				SubscriptionId: "sub-123",
 				ResourceGroup:  "rg-123",
 				Region:         "westus",
-			},
+			}.Build(),
 		)
 		require.NoError(t, err)
 		return ut
@@ -236,7 +236,7 @@ func TestMergeUpsertUserTask(t *testing.T) {
 			upsertedTask, err := ap.GetUserTask(s.ctx, tt.newTask.GetMetadata().GetName())
 			require.NoError(t, err)
 			require.NotNil(t, upsertedTask)
-			require.Empty(t, cmp.Diff(tt.newTask.Spec, upsertedTask.Spec, protocmp.Transform()))
+			require.Empty(t, cmp.Diff(tt.newTask.GetSpec(), upsertedTask.GetSpec(), protocmp.Transform()))
 		})
 	}
 }
@@ -322,23 +322,23 @@ func TestAzureVMTasks_AddFailedEnrollment(t *testing.T) {
 	syncTime := timestamppb.New(time.Now())
 
 	vm := func(tag string) *usertasksv1.DiscoverAzureVMInstance {
-		return &usertasksv1.DiscoverAzureVMInstance{
+		return usertasksv1.DiscoverAzureVMInstance_builder{
 			VmId:            tag,
 			DiscoveryConfig: "dc-01",
 			DiscoveryGroup:  "group-1",
 			SyncTime:        syncTime,
-		}
+		}.Build()
 	}
 
 	azureData := func(key azureVMTaskKey, instances ...string) *usertasksv1.DiscoverAzureVM {
-		data := &usertasksv1.DiscoverAzureVM{
+		data := usertasksv1.DiscoverAzureVM_builder{
 			SubscriptionId: key.subscriptionID,
 			ResourceGroup:  key.resourceGroup,
 			Region:         key.region,
 			Instances:      make(map[string]*usertasksv1.DiscoverAzureVMInstance),
-		}
+		}.Build()
 		for _, instance := range instances {
-			data.Instances[instance] = vm(instance)
+			data.GetInstances()[instance] = vm(instance)
 		}
 		return data
 	}
@@ -430,19 +430,19 @@ func TestAzureVMTasks_UpsertAll(t *testing.T) {
 	var testAzureKeyAlt = azureVMTaskKey{subscriptionID: "sub-2", resourceGroup: "rg-2", region: "eastus"}
 
 	azureData := func(key azureVMTaskKey, instances ...string) *usertasksv1.DiscoverAzureVM {
-		data := &usertasksv1.DiscoverAzureVM{
+		data := usertasksv1.DiscoverAzureVM_builder{
 			SubscriptionId: key.subscriptionID,
 			ResourceGroup:  key.resourceGroup,
 			Region:         key.region,
 			Instances:      make(map[string]*usertasksv1.DiscoverAzureVMInstance),
-		}
+		}.Build()
 		for _, instance := range instances {
-			data.Instances[instance] = &usertasksv1.DiscoverAzureVMInstance{
+			data.GetInstances()[instance] = usertasksv1.DiscoverAzureVMInstance_builder{
 				VmId:            instance,
 				DiscoveryConfig: "dc-01",
 				DiscoveryGroup:  "group-1",
 				SyncTime:        timestamppb.New(time.Now()),
-			}
+			}.Build()
 		}
 		return data
 	}

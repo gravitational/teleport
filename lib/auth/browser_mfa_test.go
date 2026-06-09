@@ -80,7 +80,7 @@ func newBrowserMFATestEnv(t *testing.T) testEnv {
 		PublicAddrs: []string{"proxy.example.com:443"},
 	})
 	require.NoError(t, err)
-	err = a.UpsertProxy(ctx, proxy)
+	_, err = a.UpsertProxyServer(ctx, proxy)
 	require.NoError(t, err)
 
 	// Enable WebAuthn support.

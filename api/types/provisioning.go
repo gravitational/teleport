@@ -351,7 +351,7 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 				return trace.BadParameter(`the %q join method does not support the "aws_regions" parameter`, JoinMethodIAM)
 			}
 			if allowRule.AWSAccount == "" && allowRule.AWSARN == "" && allowRule.AWSOrganizationID == "" {
-				return trace.BadParameter(`allow rule for %q join method must set "aws_account", "aws_arn", or "aws_organization"`, JoinMethodIAM)
+				return trace.BadParameter(`allow rule for %q join method must set "aws_account", "aws_arn", or "aws_organization_id"`, JoinMethodIAM)
 			}
 		}
 	case JoinMethodGitHub:

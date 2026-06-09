@@ -32,6 +32,9 @@ import { NewCredentials } from 'teleport/Welcome/NewCredentials';
 
 import { Welcome } from './Welcome';
 
+jest.mock('design/assets/images/beams-light.svg', () => 'beams-light-stub');
+jest.mock('design/assets/images/beams-dark.svg', () => 'beams-dark-stub');
+
 const invitePath = '/web/invite/5182';
 const inviteContinuePath = '/web/invite/5182/continue';
 const resetPath = '/web/reset/5182';
@@ -42,6 +45,7 @@ describe('teleport/components/Welcome', () => {
 
   beforeEach(() => {
     user = userEvent.setup();
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(false);
     jest.spyOn(Logger.prototype, 'log').mockImplementation();
     jest.spyOn(auth, 'fetchPasswordToken').mockImplementation(async () => ({
       user: 'sam',
@@ -74,6 +78,7 @@ describe('teleport/components/Welcome', () => {
 
     render(<RouterProvider router={router} />);
 
+    expect(screen.getByText('Welcome to Teleport')).toBeInTheDocument();
     expect(
       screen.getByText(/Please click the button below to create an account/i)
     ).toBeInTheDocument();
@@ -93,6 +98,30 @@ describe('teleport/components/Welcome', () => {
     });
 
     expect(await screen.findByText(/confirm password/i)).toBeInTheDocument();
+  });
+
+  it('shows Beams branding on invite when beamsUi is enabled', async () => {
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(true);
+    jest.spyOn(history, 'push').mockImplementation();
+    const router = createMemoryRouter(
+      [
+        {
+          path: '*',
+          element: renderWelcomeRoutes(),
+        },
+      ],
+      {
+        initialEntries: [invitePath],
+      }
+    );
+    render(<RouterProvider router={router} />);
+
+    expect(screen.getByText('Welcome to Beams')).toBeInTheDocument();
+    expect(screen.queryByText('Welcome to Teleport')).not.toBeInTheDocument();
+    expect(screen.getByRole('img')).toHaveAttribute(
+      'src',
+      expect.stringMatching(/^beams-(light|dark)-stub$/)
+    );
   });
 
   it('should have correct welcome prompt flow for reset', async () => {

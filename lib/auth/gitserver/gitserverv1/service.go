@@ -109,7 +109,7 @@ func (s *Service) CreateGitServer(ctx context.Context, req *pb.CreateGitServerRe
 	if _, err := s.authorize(ctx, types.VerbCreate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	server, err := s.cfg.Backend.CreateGitServer(ctx, req.Server)
+	server, err := s.cfg.Backend.CreateGitServer(ctx, req.GetServer())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -121,13 +121,13 @@ func (s *Service) GetGitServer(ctx context.Context, req *pb.GetGitServerRequest)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	server, err := s.cfg.Backend.GetGitServer(ctx, req.Name)
+	server, err := s.cfg.Backend.GetGitServer(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	if err := s.checkAccess(authCtx, server); err != nil {
 		if trace.IsAccessDenied(err) {
-			return nil, trace.NotFound("git server %q not found", req.Name)
+			return nil, trace.NotFound("git server %q not found", req.GetName())
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -139,14 +139,14 @@ func (s *Service) ListGitServers(ctx context.Context, req *pb.ListGitServersRequ
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	servers, next, err := s.cfg.Backend.ListGitServers(ctx, int(req.PageSize), req.PageToken)
+	servers, next, err := s.cfg.Backend.ListGitServers(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp := &pb.ListGitServersResponse{
+	resp := pb.ListGitServersResponse_builder{
 		NextPageToken: next,
-	}
+	}.Build()
 	for _, server := range servers {
 		err := s.checkAccess(authCtx, server)
 		if trace.IsAccessDenied(err) {
@@ -158,7 +158,7 @@ func (s *Service) ListGitServers(ctx context.Context, req *pb.ListGitServersRequ
 		if serverV2, err := toServerV2(server); err != nil {
 			return nil, trace.Wrap(err)
 		} else {
-			resp.Servers = append(resp.Servers, serverV2)
+			resp.SetServers(append(resp.GetServers(), serverV2))
 		}
 	}
 	return resp, nil
@@ -168,7 +168,7 @@ func (s *Service) UpdateGitServer(ctx context.Context, req *pb.UpdateGitServerRe
 	if _, err := s.authorize(ctx, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	server, err := s.cfg.Backend.UpdateGitServer(ctx, req.Server)
+	server, err := s.cfg.Backend.UpdateGitServer(ctx, req.GetServer())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -179,7 +179,7 @@ func (s *Service) UpsertGitServer(ctx context.Context, req *pb.UpsertGitServerRe
 	if _, err := s.authorize(ctx, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	server, err := s.cfg.Backend.UpsertGitServer(ctx, req.Server)
+	server, err := s.cfg.Backend.UpsertGitServer(ctx, req.GetServer())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

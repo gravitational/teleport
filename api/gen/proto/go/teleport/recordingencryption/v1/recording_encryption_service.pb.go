@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/recordingencryption/v1/recording_encryption_service.proto
 
+//go:build !protoopaque
+
 package recordingencryptionv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // The handle to an upload for an encrypted session.
 type Upload struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The primary identifier for an Upload.
 	UploadId string `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
 	// The session ID an upload is tied to.
@@ -74,11 +75,6 @@ func (x *Upload) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Upload.ProtoReflect.Descriptor instead.
-func (*Upload) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *Upload) GetUploadId() string {
 	if x != nil {
 		return x.UploadId
@@ -100,9 +96,53 @@ func (x *Upload) GetInitiatedAt() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *Upload) SetUploadId(v string) {
+	x.UploadId = v
+}
+
+func (x *Upload) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+func (x *Upload) SetInitiatedAt(v *timestamppb.Timestamp) {
+	x.InitiatedAt = v
+}
+
+func (x *Upload) HasInitiatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.InitiatedAt != nil
+}
+
+func (x *Upload) ClearInitiatedAt() {
+	x.InitiatedAt = nil
+}
+
+type Upload_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The primary identifier for an Upload.
+	UploadId string
+	// The session ID an upload is tied to.
+	SessionId string
+	// The time that an upload was created at.
+	InitiatedAt *timestamppb.Timestamp
+}
+
+func (b0 Upload_builder) Build() *Upload {
+	m0 := &Upload{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UploadId = b.UploadId
+	x.SessionId = b.SessionId
+	x.InitiatedAt = b.InitiatedAt
+	return m0
+}
+
 // The request to start a multipart upload for a specific session recording.
 type CreateUploadRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The session ID associated with the recording being uploaded.
 	SessionId     string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -134,11 +174,6 @@ func (x *CreateUploadRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateUploadRequest.ProtoReflect.Descriptor instead.
-func (*CreateUploadRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *CreateUploadRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
@@ -146,9 +181,28 @@ func (x *CreateUploadRequest) GetSessionId() string {
 	return ""
 }
 
+func (x *CreateUploadRequest) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+type CreateUploadRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The session ID associated with the recording being uploaded.
+	SessionId string
+}
+
+func (b0 CreateUploadRequest_builder) Build() *CreateUploadRequest {
+	m0 := &CreateUploadRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	return m0
+}
+
 // The resulting Upload message for a created Upload.
 type CreateUploadResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The handle for the created Upload.
 	Upload        *Upload `protobuf:"bytes,1,opt,name=upload,proto3" json:"upload,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -180,11 +234,6 @@ func (x *CreateUploadResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateUploadResponse.ProtoReflect.Descriptor instead.
-func (*CreateUploadResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *CreateUploadResponse) GetUpload() *Upload {
 	if x != nil {
 		return x.Upload
@@ -192,9 +241,39 @@ func (x *CreateUploadResponse) GetUpload() *Upload {
 	return nil
 }
 
+func (x *CreateUploadResponse) SetUpload(v *Upload) {
+	x.Upload = v
+}
+
+func (x *CreateUploadResponse) HasUpload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Upload != nil
+}
+
+func (x *CreateUploadResponse) ClearUpload() {
+	x.Upload = nil
+}
+
+type CreateUploadResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The handle for the created Upload.
+	Upload *Upload
+}
+
+func (b0 CreateUploadResponse_builder) Build() *CreateUploadResponse {
+	m0 := &CreateUploadResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Upload = b.Upload
+	return m0
+}
+
 // The request to upload a single part in a multipart upload.
 type UploadPartRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The handle to the in-progress upload that should be uploaded to.
 	Upload *Upload `protobuf:"bytes,1,opt,name=upload,proto3" json:"upload,omitempty"`
 	// The ordered index applied to the part.
@@ -232,11 +311,6 @@ func (x *UploadPartRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UploadPartRequest.ProtoReflect.Descriptor instead.
-func (*UploadPartRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UploadPartRequest) GetUpload() *Upload {
 	if x != nil {
 		return x.Upload
@@ -265,9 +339,63 @@ func (x *UploadPartRequest) GetIsLast() bool {
 	return false
 }
 
+func (x *UploadPartRequest) SetUpload(v *Upload) {
+	x.Upload = v
+}
+
+func (x *UploadPartRequest) SetPartNumber(v int64) {
+	x.PartNumber = v
+}
+
+func (x *UploadPartRequest) SetPart(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Part = v
+}
+
+func (x *UploadPartRequest) SetIsLast(v bool) {
+	x.IsLast = v
+}
+
+func (x *UploadPartRequest) HasUpload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Upload != nil
+}
+
+func (x *UploadPartRequest) ClearUpload() {
+	x.Upload = nil
+}
+
+type UploadPartRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The handle to the in-progress upload that should be uploaded to.
+	Upload *Upload
+	// The ordered index applied to the part.
+	PartNumber int64
+	// The encrypted part of session recording data being uploaded.
+	Part []byte
+	// Whether this is the last upload part in the upload.
+	IsLast bool
+}
+
+func (b0 UploadPartRequest_builder) Build() *UploadPartRequest {
+	m0 := &UploadPartRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Upload = b.Upload
+	x.PartNumber = b.PartNumber
+	x.Part = b.Part
+	x.IsLast = b.IsLast
+	return m0
+}
+
 // The resulting metadata about an uploaded part.
 type Part struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The ordered index applied to the part.
 	PartNumber int64 `protobuf:"varint,1,opt,name=part_number,json=partNumber,proto3" json:"part_number,omitempty"`
 	// The part e-tag value relevant to some storage backends.
@@ -301,11 +429,6 @@ func (x *Part) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Part.ProtoReflect.Descriptor instead.
-func (*Part) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *Part) GetPartNumber() int64 {
 	if x != nil {
 		return x.PartNumber
@@ -320,9 +443,35 @@ func (x *Part) GetEtag() string {
 	return ""
 }
 
+func (x *Part) SetPartNumber(v int64) {
+	x.PartNumber = v
+}
+
+func (x *Part) SetEtag(v string) {
+	x.Etag = v
+}
+
+type Part_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The ordered index applied to the part.
+	PartNumber int64
+	// The part e-tag value relevant to some storage backends.
+	Etag string
+}
+
+func (b0 Part_builder) Build() *Part {
+	m0 := &Part{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PartNumber = b.PartNumber
+	x.Etag = b.Etag
+	return m0
+}
+
 // A successfully uploaded Part to be included in the final CompleteUpload request.
 type UploadPartResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The resulting part metadata about an uploaded part.
 	Part          *Part `protobuf:"bytes,1,opt,name=part,proto3" json:"part,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -354,11 +503,6 @@ func (x *UploadPartResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UploadPartResponse.ProtoReflect.Descriptor instead.
-func (*UploadPartResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UploadPartResponse) GetPart() *Part {
 	if x != nil {
 		return x.Part
@@ -366,10 +510,40 @@ func (x *UploadPartResponse) GetPart() *Part {
 	return nil
 }
 
+func (x *UploadPartResponse) SetPart(v *Part) {
+	x.Part = v
+}
+
+func (x *UploadPartResponse) HasPart() bool {
+	if x == nil {
+		return false
+	}
+	return x.Part != nil
+}
+
+func (x *UploadPartResponse) ClearPart() {
+	x.Part = nil
+}
+
+type UploadPartResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The resulting part metadata about an uploaded part.
+	Part *Part
+}
+
+func (b0 UploadPartResponse_builder) Build() *UploadPartResponse {
+	m0 := &UploadPartResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Part = b.Part
+	return m0
+}
+
 // The request to complete an upload. The included part numbers must match the parts successfully
 // uploaded up until this point.
 type CompleteUploadRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The handle to an upload to complete.
 	Upload *Upload `protobuf:"bytes,1,opt,name=upload,proto3" json:"upload,omitempty"`
 	// The parts expected to be successfully uploaded.
@@ -403,11 +577,6 @@ func (x *CompleteUploadRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CompleteUploadRequest.ProtoReflect.Descriptor instead.
-func (*CompleteUploadRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *CompleteUploadRequest) GetUpload() *Upload {
 	if x != nil {
 		return x.Upload
@@ -422,9 +591,46 @@ func (x *CompleteUploadRequest) GetParts() []*Part {
 	return nil
 }
 
+func (x *CompleteUploadRequest) SetUpload(v *Upload) {
+	x.Upload = v
+}
+
+func (x *CompleteUploadRequest) SetParts(v []*Part) {
+	x.Parts = v
+}
+
+func (x *CompleteUploadRequest) HasUpload() bool {
+	if x == nil {
+		return false
+	}
+	return x.Upload != nil
+}
+
+func (x *CompleteUploadRequest) ClearUpload() {
+	x.Upload = nil
+}
+
+type CompleteUploadRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The handle to an upload to complete.
+	Upload *Upload
+	// The parts expected to be successfully uploaded.
+	Parts []*Part
+}
+
+func (b0 CompleteUploadRequest_builder) Build() *CompleteUploadRequest {
+	m0 := &CompleteUploadRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Upload = b.Upload
+	x.Parts = b.Parts
+	return m0
+}
+
 // The body of a CompleteUpload request.
 type CompleteUploadResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -454,14 +660,21 @@ func (x *CompleteUploadResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CompleteUploadResponse.ProtoReflect.Descriptor instead.
-func (*CompleteUploadResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{7}
+type CompleteUploadResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 CompleteUploadResponse_builder) Build() *CompleteUploadResponse {
+	m0 := &CompleteUploadResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // The body of a RotateKey request.
 type RotateKeyRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -491,14 +704,21 @@ func (x *RotateKeyRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RotateKeyRequest.ProtoReflect.Descriptor instead.
-func (*RotateKeyRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{8}
+type RotateKeyRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RotateKeyRequest_builder) Build() *RotateKeyRequest {
+	m0 := &RotateKeyRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // The return value of a RotateKey request.
 type RotateKeyResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -528,14 +748,21 @@ func (x *RotateKeyResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RotateKeyResponse.ProtoReflect.Descriptor instead.
-func (*RotateKeyResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{9}
+type RotateKeyResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RotateKeyResponse_builder) Build() *RotateKeyResponse {
+	m0 := &RotateKeyResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // The body of a GetRotationState request.
 type GetRotationStateRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	PageSize      int32                  `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	PageToken     string                 `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3" json:"page_token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -567,11 +794,6 @@ func (x *GetRotationStateRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetRotationStateRequest.ProtoReflect.Descriptor instead.
-func (*GetRotationStateRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *GetRotationStateRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -586,9 +808,33 @@ func (x *GetRotationStateRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *GetRotationStateRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *GetRotationStateRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type GetRotationStateRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	PageSize  int32
+	PageToken string
+}
+
+func (b0 GetRotationStateRequest_builder) Build() *GetRotationStateRequest {
+	m0 := &GetRotationStateRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // A public key fingerprint coupled with its current state.
 type FingerprintWithState struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A fingerprint identifying the public key of a KeyPair.
 	Fingerprint string `protobuf:"bytes,1,opt,name=fingerprint,proto3" json:"fingerprint,omitempty"`
 	// The state associated with the identified KeyPair.
@@ -622,11 +868,6 @@ func (x *FingerprintWithState) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use FingerprintWithState.ProtoReflect.Descriptor instead.
-func (*FingerprintWithState) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *FingerprintWithState) GetFingerprint() string {
 	if x != nil {
 		return x.Fingerprint
@@ -641,9 +882,35 @@ func (x *FingerprintWithState) GetState() KeyPairState {
 	return KeyPairState_KEY_PAIR_STATE_UNSPECIFIED
 }
 
+func (x *FingerprintWithState) SetFingerprint(v string) {
+	x.Fingerprint = v
+}
+
+func (x *FingerprintWithState) SetState(v KeyPairState) {
+	x.State = v
+}
+
+type FingerprintWithState_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A fingerprint identifying the public key of a KeyPair.
+	Fingerprint string
+	// The state associated with the identified KeyPair.
+	State KeyPairState
+}
+
+func (b0 FingerprintWithState_builder) Build() *FingerprintWithState {
+	m0 := &FingerprintWithState{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Fingerprint = b.Fingerprint
+	x.State = b.State
+	return m0
+}
+
 // The current state of all active encryption key pairs.
 type GetRotationStateResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	NextPageToken string                 `protobuf:"bytes,1,opt,name=next_page_token,json=nextPageToken,proto3" json:"next_page_token,omitempty"`
 	// The state of all active encryption key pairs.
 	KeyPairStates []*FingerprintWithState `protobuf:"bytes,2,rep,name=key_pair_states,json=keyPairStates,proto3" json:"key_pair_states,omitempty"`
@@ -676,11 +943,6 @@ func (x *GetRotationStateResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetRotationStateResponse.ProtoReflect.Descriptor instead.
-func (*GetRotationStateResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *GetRotationStateResponse) GetNextPageToken() string {
 	if x != nil {
 		return x.NextPageToken
@@ -695,9 +957,34 @@ func (x *GetRotationStateResponse) GetKeyPairStates() []*FingerprintWithState {
 	return nil
 }
 
+func (x *GetRotationStateResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+func (x *GetRotationStateResponse) SetKeyPairStates(v []*FingerprintWithState) {
+	x.KeyPairStates = v
+}
+
+type GetRotationStateResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	NextPageToken string
+	// The state of all active encryption key pairs.
+	KeyPairStates []*FingerprintWithState
+}
+
+func (b0 GetRotationStateResponse_builder) Build() *GetRotationStateResponse {
+	m0 := &GetRotationStateResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.NextPageToken = b.NextPageToken
+	x.KeyPairStates = b.KeyPairStates
+	return m0
+}
+
 // The body of a CompleteRotation request.
 type CompleteRotationRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -727,14 +1014,21 @@ func (x *CompleteRotationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CompleteRotationRequest.ProtoReflect.Descriptor instead.
-func (*CompleteRotationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{13}
+type CompleteRotationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 CompleteRotationRequest_builder) Build() *CompleteRotationRequest {
+	m0 := &CompleteRotationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // The return value of a CompleteRotation request.
 type CompleteRotationResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -764,14 +1058,21 @@ func (x *CompleteRotationResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CompleteRotationResponse.ProtoReflect.Descriptor instead.
-func (*CompleteRotationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{14}
+type CompleteRotationResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 CompleteRotationResponse_builder) Build() *CompleteRotationResponse {
+	m0 := &CompleteRotationResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // The body of a RollbackRotation request.
 type RollbackRotationRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -801,14 +1102,21 @@ func (x *RollbackRotationRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RollbackRotationRequest.ProtoReflect.Descriptor instead.
-func (*RollbackRotationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{15}
+type RollbackRotationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RollbackRotationRequest_builder) Build() *RollbackRotationRequest {
+	m0 := &RollbackRotationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // The return value of a RollbackRotation request
 type RollbackRotationResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -838,9 +1146,16 @@ func (x *RollbackRotationResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RollbackRotationResponse.ProtoReflect.Descriptor instead.
-func (*RollbackRotationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP(), []int{16}
+type RollbackRotationResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RollbackRotationResponse_builder) Build() *RollbackRotationResponse {
+	m0 := &RollbackRotationResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_recordingencryption_v1_recording_encryption_service_proto protoreflect.FileDescriptor
@@ -899,18 +1214,6 @@ const file_teleport_recordingencryption_v1_recording_encryption_service_proto_ra
 	"\x10GetRotationState\x128.teleport.recordingencryption.v1.GetRotationStateRequest\x1a9.teleport.recordingencryption.v1.GetRotationStateResponse\x12\x87\x01\n" +
 	"\x10CompleteRotation\x128.teleport.recordingencryption.v1.CompleteRotationRequest\x1a9.teleport.recordingencryption.v1.CompleteRotationResponse\x12\x87\x01\n" +
 	"\x10RollbackRotation\x128.teleport.recordingencryption.v1.RollbackRotationRequest\x1a9.teleport.recordingencryption.v1.RollbackRotationResponseBjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1b\x06proto3"
-
-var (
-	file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescOnce sync.Once
-	file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescData []byte
-)
-
-func file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescGZIP() []byte {
-	file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescOnce.Do(func() {
-		file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDesc), len(file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDesc)))
-	})
-	return file_teleport_recordingencryption_v1_recording_encryption_service_proto_rawDescData
-}
 
 var file_teleport_recordingencryption_v1_recording_encryption_service_proto_msgTypes = make([]protoimpl.MessageInfo, 17)
 var file_teleport_recordingencryption_v1_recording_encryption_service_proto_goTypes = []any{

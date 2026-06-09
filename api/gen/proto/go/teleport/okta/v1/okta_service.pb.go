@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/okta/v1/okta_service.proto
 
+//go:build !protoopaque
+
 package oktav1
 
 import (
@@ -27,7 +29,6 @@ import (
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // ConditionalUpdateOktaAssignmentRequest is a request for updating an Okta assignment resource, protected by optimistic locking.
 type ConditionalUpdateOktaAssignmentRequest struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
+	state         protoimpl.MessageState  `protogen:"hybrid.v1"`
 	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -71,11 +72,6 @@ func (x *ConditionalUpdateOktaAssignmentRequest) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConditionalUpdateOktaAssignmentRequest.ProtoReflect.Descriptor instead.
-func (*ConditionalUpdateOktaAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ConditionalUpdateOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
 	if x != nil {
 		return x.Assignment
@@ -83,9 +79,38 @@ func (x *ConditionalUpdateOktaAssignmentRequest) GetAssignment() *types.OktaAssi
 	return nil
 }
 
+func (x *ConditionalUpdateOktaAssignmentRequest) SetAssignment(v *types.OktaAssignmentV1) {
+	x.Assignment = v
+}
+
+func (x *ConditionalUpdateOktaAssignmentRequest) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *ConditionalUpdateOktaAssignmentRequest) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type ConditionalUpdateOktaAssignmentRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Assignment *types.OktaAssignmentV1
+}
+
+func (b0 ConditionalUpdateOktaAssignmentRequest_builder) Build() *ConditionalUpdateOktaAssignmentRequest {
+	m0 := &ConditionalUpdateOktaAssignmentRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
 // ConditionalUpdateOktaAssignmentResponse is a response for updating an Okta assignment resource, protected by optimistic locking.
 type ConditionalUpdateOktaAssignmentResponse struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
+	state         protoimpl.MessageState  `protogen:"hybrid.v1"`
 	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -116,11 +141,6 @@ func (x *ConditionalUpdateOktaAssignmentResponse) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConditionalUpdateOktaAssignmentResponse.ProtoReflect.Descriptor instead.
-func (*ConditionalUpdateOktaAssignmentResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ConditionalUpdateOktaAssignmentResponse) GetAssignment() *types.OktaAssignmentV1 {
 	if x != nil {
 		return x.Assignment
@@ -128,9 +148,38 @@ func (x *ConditionalUpdateOktaAssignmentResponse) GetAssignment() *types.OktaAss
 	return nil
 }
 
+func (x *ConditionalUpdateOktaAssignmentResponse) SetAssignment(v *types.OktaAssignmentV1) {
+	x.Assignment = v
+}
+
+func (x *ConditionalUpdateOktaAssignmentResponse) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *ConditionalUpdateOktaAssignmentResponse) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type ConditionalUpdateOktaAssignmentResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Assignment *types.OktaAssignmentV1
+}
+
+func (b0 ConditionalUpdateOktaAssignmentResponse_builder) Build() *ConditionalUpdateOktaAssignmentResponse {
+	m0 := &ConditionalUpdateOktaAssignmentResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
 // UpsertOktaAssignmentRequest is a request for upserting an Okta assignment resource.
 type UpsertOktaAssignmentResponse struct {
-	state         protoimpl.MessageState  `protogen:"open.v1"`
+	state         protoimpl.MessageState  `protogen:"hybrid.v1"`
 	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -161,11 +210,6 @@ func (x *UpsertOktaAssignmentResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertOktaAssignmentResponse.ProtoReflect.Descriptor instead.
-func (*UpsertOktaAssignmentResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpsertOktaAssignmentResponse) GetAssignment() *types.OktaAssignmentV1 {
 	if x != nil {
 		return x.Assignment
@@ -173,9 +217,38 @@ func (x *UpsertOktaAssignmentResponse) GetAssignment() *types.OktaAssignmentV1 {
 	return nil
 }
 
+func (x *UpsertOktaAssignmentResponse) SetAssignment(v *types.OktaAssignmentV1) {
+	x.Assignment = v
+}
+
+func (x *UpsertOktaAssignmentResponse) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *UpsertOktaAssignmentResponse) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type UpsertOktaAssignmentResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Assignment *types.OktaAssignmentV1
+}
+
+func (b0 UpsertOktaAssignmentResponse_builder) Build() *UpsertOktaAssignmentResponse {
+	m0 := &UpsertOktaAssignmentResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
 // UpsertOktaAssignmentRequest is a request for upserting an Okta assignment resource.
 type UpsertOktaAssignmentRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// assignment is the Okta assignment to upsert.
 	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -207,11 +280,6 @@ func (x *UpsertOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertOktaAssignmentRequest.ProtoReflect.Descriptor instead.
-func (*UpsertOktaAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UpsertOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
 	if x != nil {
 		return x.Assignment
@@ -219,9 +287,39 @@ func (x *UpsertOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
 	return nil
 }
 
+func (x *UpsertOktaAssignmentRequest) SetAssignment(v *types.OktaAssignmentV1) {
+	x.Assignment = v
+}
+
+func (x *UpsertOktaAssignmentRequest) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *UpsertOktaAssignmentRequest) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type UpsertOktaAssignmentRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// assignment is the Okta assignment to upsert.
+	Assignment *types.OktaAssignmentV1
+}
+
+func (b0 UpsertOktaAssignmentRequest_builder) Build() *UpsertOktaAssignmentRequest {
+	m0 := &UpsertOktaAssignmentRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
 // GetAppsRequest is the request message for filtering apps.
 type GetAppsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// URL of the Okta organization.
 	OktaOrganizationUrl string `protobuf:"bytes,1,opt,name=okta_organization_url,json=oktaOrganizationUrl,proto3" json:"okta_organization_url,omitempty"`
 	// Credentials to access the Okta API.
@@ -257,11 +355,6 @@ func (x *GetAppsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAppsRequest.ProtoReflect.Descriptor instead.
-func (*GetAppsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *GetAppsRequest) GetOktaOrganizationUrl() string {
 	if x != nil {
 		return x.OktaOrganizationUrl
@@ -283,9 +376,53 @@ func (x *GetAppsRequest) GetFilters() []string {
 	return nil
 }
 
+func (x *GetAppsRequest) SetOktaOrganizationUrl(v string) {
+	x.OktaOrganizationUrl = v
+}
+
+func (x *GetAppsRequest) SetApiCredentials(v *OktaAPICredentials) {
+	x.ApiCredentials = v
+}
+
+func (x *GetAppsRequest) SetFilters(v []string) {
+	x.Filters = v
+}
+
+func (x *GetAppsRequest) HasApiCredentials() bool {
+	if x == nil {
+		return false
+	}
+	return x.ApiCredentials != nil
+}
+
+func (x *GetAppsRequest) ClearApiCredentials() {
+	x.ApiCredentials = nil
+}
+
+type GetAppsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// URL of the Okta organization.
+	OktaOrganizationUrl string
+	// Credentials to access the Okta API.
+	ApiCredentials *OktaAPICredentials
+	// List of filters to apply when fetching apps.
+	Filters []string
+}
+
+func (b0 GetAppsRequest_builder) Build() *GetAppsRequest {
+	m0 := &GetAppsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.OktaOrganizationUrl = b.OktaOrganizationUrl
+	x.ApiCredentials = b.ApiCredentials
+	x.Filters = b.Filters
+	return m0
+}
+
 // GetAppsResponse is the response message for filtering apps.
 type GetAppsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// List of apps that match the filter criteria.
 	Apps          []*GetAppsResponse_App `protobuf:"bytes,1,rep,name=apps,proto3" json:"apps,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -317,11 +454,6 @@ func (x *GetAppsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAppsResponse.ProtoReflect.Descriptor instead.
-func (*GetAppsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *GetAppsResponse) GetApps() []*GetAppsResponse_App {
 	if x != nil {
 		return x.Apps
@@ -329,9 +461,28 @@ func (x *GetAppsResponse) GetApps() []*GetAppsResponse_App {
 	return nil
 }
 
+func (x *GetAppsResponse) SetApps(v []*GetAppsResponse_App) {
+	x.Apps = v
+}
+
+type GetAppsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// List of apps that match the filter criteria.
+	Apps []*GetAppsResponse_App
+}
+
+func (b0 GetAppsResponse_builder) Build() *GetAppsResponse {
+	m0 := &GetAppsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Apps = b.Apps
+	return m0
+}
+
 // GetGroupsRequest is the request message.
 type GetGroupsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// URL of the Okta organization.
 	OktaOrganizationUrl string `protobuf:"bytes,1,opt,name=okta_organization_url,json=oktaOrganizationUrl,proto3" json:"okta_organization_url,omitempty"`
 	// Credentials to access the Okta API.
@@ -367,11 +518,6 @@ func (x *GetGroupsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetGroupsRequest.ProtoReflect.Descriptor instead.
-func (*GetGroupsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *GetGroupsRequest) GetOktaOrganizationUrl() string {
 	if x != nil {
 		return x.OktaOrganizationUrl
@@ -393,9 +539,53 @@ func (x *GetGroupsRequest) GetFilters() []string {
 	return nil
 }
 
+func (x *GetGroupsRequest) SetOktaOrganizationUrl(v string) {
+	x.OktaOrganizationUrl = v
+}
+
+func (x *GetGroupsRequest) SetApiCredentials(v *OktaAPICredentials) {
+	x.ApiCredentials = v
+}
+
+func (x *GetGroupsRequest) SetFilters(v []string) {
+	x.Filters = v
+}
+
+func (x *GetGroupsRequest) HasApiCredentials() bool {
+	if x == nil {
+		return false
+	}
+	return x.ApiCredentials != nil
+}
+
+func (x *GetGroupsRequest) ClearApiCredentials() {
+	x.ApiCredentials = nil
+}
+
+type GetGroupsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// URL of the Okta organization.
+	OktaOrganizationUrl string
+	// Credentials to access the Okta API.
+	ApiCredentials *OktaAPICredentials
+	// List of filters to apply when fetching groups.
+	Filters []string
+}
+
+func (b0 GetGroupsRequest_builder) Build() *GetGroupsRequest {
+	m0 := &GetGroupsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.OktaOrganizationUrl = b.OktaOrganizationUrl
+	x.ApiCredentials = b.ApiCredentials
+	x.Filters = b.Filters
+	return m0
+}
+
 // GetGroupsResponse is the response message for filtering groups.
 type GetGroupsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// List of groups that match the filter criteria.
 	Groups        []*GetGroupsResponse_Group `protobuf:"bytes,1,rep,name=groups,proto3" json:"groups,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -427,11 +617,6 @@ func (x *GetGroupsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetGroupsResponse.ProtoReflect.Descriptor instead.
-func (*GetGroupsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *GetGroupsResponse) GetGroups() []*GetGroupsResponse_Group {
 	if x != nil {
 		return x.Groups
@@ -439,9 +624,28 @@ func (x *GetGroupsResponse) GetGroups() []*GetGroupsResponse_Group {
 	return nil
 }
 
+func (x *GetGroupsResponse) SetGroups(v []*GetGroupsResponse_Group) {
+	x.Groups = v
+}
+
+type GetGroupsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// List of groups that match the filter criteria.
+	Groups []*GetGroupsResponse_Group
+}
+
+func (b0 GetGroupsResponse_builder) Build() *GetGroupsResponse {
+	m0 := &GetGroupsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Groups = b.Groups
+	return m0
+}
+
 // CreateIntegrationRequest is the request message for enrolling a new Okta integration.
 type CreateIntegrationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// URL of the Okta organization.
 	OktaOrganizationUrl string `protobuf:"bytes,1,opt,name=okta_organization_url,json=oktaOrganizationUrl,proto3" json:"okta_organization_url,omitempty"`
 	// Credentials to access the Okta API.
@@ -500,11 +704,6 @@ func (x *CreateIntegrationRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use CreateIntegrationRequest.ProtoReflect.Descriptor instead.
-func (*CreateIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *CreateIntegrationRequest) GetOktaOrganizationUrl() string {
@@ -598,9 +797,150 @@ func (x *CreateIntegrationRequest) GetTimeBetweenImports() *durationpb.Duration 
 	return nil
 }
 
+func (x *CreateIntegrationRequest) SetOktaOrganizationUrl(v string) {
+	x.OktaOrganizationUrl = v
+}
+
+func (x *CreateIntegrationRequest) SetApiCredentials(v *OktaAPICredentials) {
+	x.ApiCredentials = v
+}
+
+func (x *CreateIntegrationRequest) SetScimToken(v string) {
+	x.ScimToken = v
+}
+
+func (x *CreateIntegrationRequest) SetEnableAccessListSync(v bool) {
+	x.EnableAccessListSync = v
+}
+
+func (x *CreateIntegrationRequest) SetEnableUserSync(v bool) {
+	x.EnableUserSync = v
+}
+
+func (x *CreateIntegrationRequest) SetEnableAppGroupSync(v bool) {
+	x.EnableAppGroupSync = v
+}
+
+func (x *CreateIntegrationRequest) SetAccessListSettings(v *AccessListSettings) {
+	x.AccessListSettings = v
+}
+
+func (x *CreateIntegrationRequest) SetReuseConnector(v string) {
+	x.ReuseConnector = v
+}
+
+func (x *CreateIntegrationRequest) SetSsoMetadataUrl(v string) {
+	x.SsoMetadataUrl = v
+}
+
+func (x *CreateIntegrationRequest) SetEnableBidirectionalSync(v bool) {
+	x.EnableBidirectionalSync = v
+}
+
+func (x *CreateIntegrationRequest) SetEnableSystemLogExport(v bool) {
+	x.EnableSystemLogExport = v
+}
+
+func (x *CreateIntegrationRequest) SetDisableAssignDefaultRoles(v bool) {
+	x.DisableAssignDefaultRoles = v
+}
+
+func (x *CreateIntegrationRequest) SetTimeBetweenImports(v *durationpb.Duration) {
+	x.TimeBetweenImports = v
+}
+
+func (x *CreateIntegrationRequest) HasApiCredentials() bool {
+	if x == nil {
+		return false
+	}
+	return x.ApiCredentials != nil
+}
+
+func (x *CreateIntegrationRequest) HasAccessListSettings() bool {
+	if x == nil {
+		return false
+	}
+	return x.AccessListSettings != nil
+}
+
+func (x *CreateIntegrationRequest) HasTimeBetweenImports() bool {
+	if x == nil {
+		return false
+	}
+	return x.TimeBetweenImports != nil
+}
+
+func (x *CreateIntegrationRequest) ClearApiCredentials() {
+	x.ApiCredentials = nil
+}
+
+func (x *CreateIntegrationRequest) ClearAccessListSettings() {
+	x.AccessListSettings = nil
+}
+
+func (x *CreateIntegrationRequest) ClearTimeBetweenImports() {
+	x.TimeBetweenImports = nil
+}
+
+type CreateIntegrationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// URL of the Okta organization.
+	OktaOrganizationUrl string
+	// Credentials to access the Okta API.
+	ApiCredentials *OktaAPICredentials
+	// SCIM token for integration.
+	ScimToken string
+	// Enable synchronization of access lists.
+	EnableAccessListSync bool
+	// Enable user synchronization from Okta to Teleport.
+	EnableUserSync bool
+	// Enable synchronization of app groups from Okta to Teleport.
+	EnableAppGroupSync bool
+	// Settings related to access list synchronization.
+	AccessListSettings *AccessListSettings
+	// Option to reuse an existing connector.
+	ReuseConnector string
+	// SSO metadata URL for integration.
+	SsoMetadataUrl string
+	// Enable sync from Teleport to Okta. If disabled it will prevent creating Okta assignments which
+	// in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
+	// enabled.
+	EnableBidirectionalSync bool
+	// Enable Okta system log export.
+	EnableSystemLogExport bool
+	// Whether to assign the builtin okta-requester role to all Okta synced users.
+	DisableAssignDefaultRoles bool
+	// TimeBetweenImports controls the time between Okta syncs. I.e. importing Okta users, apps and
+	// groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
+	// bidirectional sync is enabled. It will be rounded down to the nearest second The default value
+	// is 1800 (30 minutes).
+	TimeBetweenImports *durationpb.Duration
+}
+
+func (b0 CreateIntegrationRequest_builder) Build() *CreateIntegrationRequest {
+	m0 := &CreateIntegrationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.OktaOrganizationUrl = b.OktaOrganizationUrl
+	x.ApiCredentials = b.ApiCredentials
+	x.ScimToken = b.ScimToken
+	x.EnableAccessListSync = b.EnableAccessListSync
+	x.EnableUserSync = b.EnableUserSync
+	x.EnableAppGroupSync = b.EnableAppGroupSync
+	x.AccessListSettings = b.AccessListSettings
+	x.ReuseConnector = b.ReuseConnector
+	x.SsoMetadataUrl = b.SsoMetadataUrl
+	x.EnableBidirectionalSync = b.EnableBidirectionalSync
+	x.EnableSystemLogExport = b.EnableSystemLogExport
+	x.DisableAssignDefaultRoles = b.DisableAssignDefaultRoles
+	x.TimeBetweenImports = b.TimeBetweenImports
+	return m0
+}
+
 // UpdateIntegrationRequest is the request message for updating an existing Okta integration.
 type UpdateIntegrationRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Credentials to access the Okta API.
 	ApiCredentials *OktaAPICredentials `protobuf:"bytes,2,opt,name=api_credentials,json=apiCredentials,proto3" json:"api_credentials,omitempty"`
 	// SCIM token for integration.
@@ -653,11 +993,6 @@ func (x *UpdateIntegrationRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use UpdateIntegrationRequest.ProtoReflect.Descriptor instead.
-func (*UpdateIntegrationRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *UpdateIntegrationRequest) GetApiCredentials() *OktaAPICredentials {
@@ -730,9 +1065,129 @@ func (x *UpdateIntegrationRequest) GetTimeBetweenImports() *durationpb.Duration 
 	return nil
 }
 
+func (x *UpdateIntegrationRequest) SetApiCredentials(v *OktaAPICredentials) {
+	x.ApiCredentials = v
+}
+
+func (x *UpdateIntegrationRequest) SetScimToken(v string) {
+	x.ScimToken = v
+}
+
+func (x *UpdateIntegrationRequest) SetEnableAccessListSync(v bool) {
+	x.EnableAccessListSync = v
+}
+
+func (x *UpdateIntegrationRequest) SetEnableUserSync(v bool) {
+	x.EnableUserSync = v
+}
+
+func (x *UpdateIntegrationRequest) SetEnableAppGroupSync(v bool) {
+	x.EnableAppGroupSync = v
+}
+
+func (x *UpdateIntegrationRequest) SetAccessListSettings(v *AccessListSettings) {
+	x.AccessListSettings = v
+}
+
+func (x *UpdateIntegrationRequest) SetEnableBidirectionalSync(v bool) {
+	x.EnableBidirectionalSync = v
+}
+
+func (x *UpdateIntegrationRequest) SetEnableSystemLogExport(v bool) {
+	x.EnableSystemLogExport = v
+}
+
+func (x *UpdateIntegrationRequest) SetDisableAssignDefaultRoles(v bool) {
+	x.DisableAssignDefaultRoles = v
+}
+
+func (x *UpdateIntegrationRequest) SetTimeBetweenImports(v *durationpb.Duration) {
+	x.TimeBetweenImports = v
+}
+
+func (x *UpdateIntegrationRequest) HasApiCredentials() bool {
+	if x == nil {
+		return false
+	}
+	return x.ApiCredentials != nil
+}
+
+func (x *UpdateIntegrationRequest) HasAccessListSettings() bool {
+	if x == nil {
+		return false
+	}
+	return x.AccessListSettings != nil
+}
+
+func (x *UpdateIntegrationRequest) HasTimeBetweenImports() bool {
+	if x == nil {
+		return false
+	}
+	return x.TimeBetweenImports != nil
+}
+
+func (x *UpdateIntegrationRequest) ClearApiCredentials() {
+	x.ApiCredentials = nil
+}
+
+func (x *UpdateIntegrationRequest) ClearAccessListSettings() {
+	x.AccessListSettings = nil
+}
+
+func (x *UpdateIntegrationRequest) ClearTimeBetweenImports() {
+	x.TimeBetweenImports = nil
+}
+
+type UpdateIntegrationRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Credentials to access the Okta API.
+	ApiCredentials *OktaAPICredentials
+	// SCIM token for integration.
+	ScimToken string
+	// Enable synchronization of access lists.
+	EnableAccessListSync bool
+	// Enable user synchronization from Okta to Teleport.
+	EnableUserSync bool
+	// Enable synchronization of app groups from Okta to Teleport.
+	EnableAppGroupSync bool
+	// Settings related to access list synchronization.
+	AccessListSettings *AccessListSettings
+	// Enable sync from Teleport to Okta. If disabled it will prevent creating Okta assignments which
+	// in turn will disable JIT Access Requests. Makes sense only when apps and groups sync is
+	// enabled.
+	EnableBidirectionalSync bool
+	// Enable Okta system log export.
+	EnableSystemLogExport bool
+	// Whether to assign the builtin okta-requester role to all Okta synced users.
+	DisableAssignDefaultRoles bool
+	// TimeBetweenImports controls the time between Okta syncs. I.e. importing Okta users, apps and
+	// groups to teleport. This doesn't affect how quickly Teleport changes are propagated to Okta if
+	// bidirectional sync is enabled. It will be rounded down to the nearest second. The default
+	// value is 1800 (30 minutes).
+	TimeBetweenImports *durationpb.Duration
+}
+
+func (b0 UpdateIntegrationRequest_builder) Build() *UpdateIntegrationRequest {
+	m0 := &UpdateIntegrationRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ApiCredentials = b.ApiCredentials
+	x.ScimToken = b.ScimToken
+	x.EnableAccessListSync = b.EnableAccessListSync
+	x.EnableUserSync = b.EnableUserSync
+	x.EnableAppGroupSync = b.EnableAppGroupSync
+	x.AccessListSettings = b.AccessListSettings
+	x.EnableBidirectionalSync = b.EnableBidirectionalSync
+	x.EnableSystemLogExport = b.EnableSystemLogExport
+	x.DisableAssignDefaultRoles = b.DisableAssignDefaultRoles
+	x.TimeBetweenImports = b.TimeBetweenImports
+	return m0
+}
+
 // AccessListSettings contains the settings for access list synchronization.
 type AccessListSettings struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Filters for groups to include in the access list.
 	GroupFilters []string `protobuf:"bytes,2,rep,name=group_filters,json=groupFilters,proto3" json:"group_filters,omitempty"`
 	// Filters for apps to include in the access list.
@@ -768,11 +1223,6 @@ func (x *AccessListSettings) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccessListSettings.ProtoReflect.Descriptor instead.
-func (*AccessListSettings) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *AccessListSettings) GetGroupFilters() []string {
 	if x != nil {
 		return x.GroupFilters
@@ -794,9 +1244,42 @@ func (x *AccessListSettings) GetDefaultOwner() []string {
 	return nil
 }
 
+func (x *AccessListSettings) SetGroupFilters(v []string) {
+	x.GroupFilters = v
+}
+
+func (x *AccessListSettings) SetAppFilters(v []string) {
+	x.AppFilters = v
+}
+
+func (x *AccessListSettings) SetDefaultOwner(v []string) {
+	x.DefaultOwner = v
+}
+
+type AccessListSettings_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Filters for groups to include in the access list.
+	GroupFilters []string
+	// Filters for apps to include in the access list.
+	AppFilters []string
+	// Default owner for access list items.
+	DefaultOwner []string
+}
+
+func (b0 AccessListSettings_builder) Build() *AccessListSettings {
+	m0 := &AccessListSettings{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.GroupFilters = b.GroupFilters
+	x.AppFilters = b.AppFilters
+	x.DefaultOwner = b.DefaultOwner
+	return m0
+}
+
 // OktaAPICredentials provides the authentication details for accessing Okta API.
 type OktaAPICredentials struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Auth:
 	//
 	//	*OktaAPICredentials_OauthId
@@ -831,11 +1314,6 @@ func (x *OktaAPICredentials) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use OktaAPICredentials.ProtoReflect.Descriptor instead.
-func (*OktaAPICredentials) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *OktaAPICredentials) GetAuth() isOktaAPICredentials_Auth {
 	if x != nil {
 		return x.Auth
@@ -861,6 +1339,105 @@ func (x *OktaAPICredentials) GetSswsBearerToken() string {
 	return ""
 }
 
+func (x *OktaAPICredentials) SetOauthId(v string) {
+	x.Auth = &OktaAPICredentials_OauthId{v}
+}
+
+func (x *OktaAPICredentials) SetSswsBearerToken(v string) {
+	x.Auth = &OktaAPICredentials_SswsBearerToken{v}
+}
+
+func (x *OktaAPICredentials) HasAuth() bool {
+	if x == nil {
+		return false
+	}
+	return x.Auth != nil
+}
+
+func (x *OktaAPICredentials) HasOauthId() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Auth.(*OktaAPICredentials_OauthId)
+	return ok
+}
+
+func (x *OktaAPICredentials) HasSswsBearerToken() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Auth.(*OktaAPICredentials_SswsBearerToken)
+	return ok
+}
+
+func (x *OktaAPICredentials) ClearAuth() {
+	x.Auth = nil
+}
+
+func (x *OktaAPICredentials) ClearOauthId() {
+	if _, ok := x.Auth.(*OktaAPICredentials_OauthId); ok {
+		x.Auth = nil
+	}
+}
+
+func (x *OktaAPICredentials) ClearSswsBearerToken() {
+	if _, ok := x.Auth.(*OktaAPICredentials_SswsBearerToken); ok {
+		x.Auth = nil
+	}
+}
+
+const OktaAPICredentials_Auth_not_set_case case_OktaAPICredentials_Auth = 0
+const OktaAPICredentials_OauthId_case case_OktaAPICredentials_Auth = 1
+const OktaAPICredentials_SswsBearerToken_case case_OktaAPICredentials_Auth = 2
+
+func (x *OktaAPICredentials) WhichAuth() case_OktaAPICredentials_Auth {
+	if x == nil {
+		return OktaAPICredentials_Auth_not_set_case
+	}
+	switch x.Auth.(type) {
+	case *OktaAPICredentials_OauthId:
+		return OktaAPICredentials_OauthId_case
+	case *OktaAPICredentials_SswsBearerToken:
+		return OktaAPICredentials_SswsBearerToken_case
+	default:
+		return OktaAPICredentials_Auth_not_set_case
+	}
+}
+
+type OktaAPICredentials_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Auth:
+	// OAuth ClientID for authentication.
+	OauthId *string
+	// SSWS Bearer token for authentication.
+	SswsBearerToken *string
+	// -- end of Auth
+}
+
+func (b0 OktaAPICredentials_builder) Build() *OktaAPICredentials {
+	m0 := &OktaAPICredentials{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.OauthId != nil {
+		x.Auth = &OktaAPICredentials_OauthId{*b.OauthId}
+	}
+	if b.SswsBearerToken != nil {
+		x.Auth = &OktaAPICredentials_SswsBearerToken{*b.SswsBearerToken}
+	}
+	return m0
+}
+
+type case_OktaAPICredentials_Auth protoreflect.FieldNumber
+
+func (x case_OktaAPICredentials_Auth) String() string {
+	md := file_teleport_okta_v1_okta_service_proto_msgTypes[11].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isOktaAPICredentials_Auth interface {
 	isOktaAPICredentials_Auth()
 }
@@ -881,7 +1458,7 @@ func (*OktaAPICredentials_SswsBearerToken) isOktaAPICredentials_Auth() {}
 
 // CreateIntegrationResponse is the response message for enrolling a new Okta integration.
 type CreateIntegrationResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Plugin information.
 	Plugin *types.PluginV1 `protobuf:"bytes,1,opt,name=plugin,proto3" json:"plugin,omitempty"`
 	// Details of the connector.
@@ -915,11 +1492,6 @@ func (x *CreateIntegrationResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateIntegrationResponse.ProtoReflect.Descriptor instead.
-func (*CreateIntegrationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *CreateIntegrationResponse) GetPlugin() *types.PluginV1 {
 	if x != nil {
 		return x.Plugin
@@ -934,9 +1506,57 @@ func (x *CreateIntegrationResponse) GetConnectorInfo() *ConnectorInfo {
 	return nil
 }
 
+func (x *CreateIntegrationResponse) SetPlugin(v *types.PluginV1) {
+	x.Plugin = v
+}
+
+func (x *CreateIntegrationResponse) SetConnectorInfo(v *ConnectorInfo) {
+	x.ConnectorInfo = v
+}
+
+func (x *CreateIntegrationResponse) HasPlugin() bool {
+	if x == nil {
+		return false
+	}
+	return x.Plugin != nil
+}
+
+func (x *CreateIntegrationResponse) HasConnectorInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.ConnectorInfo != nil
+}
+
+func (x *CreateIntegrationResponse) ClearPlugin() {
+	x.Plugin = nil
+}
+
+func (x *CreateIntegrationResponse) ClearConnectorInfo() {
+	x.ConnectorInfo = nil
+}
+
+type CreateIntegrationResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Plugin information.
+	Plugin *types.PluginV1
+	// Details of the connector.
+	ConnectorInfo *ConnectorInfo
+}
+
+func (b0 CreateIntegrationResponse_builder) Build() *CreateIntegrationResponse {
+	m0 := &CreateIntegrationResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Plugin = b.Plugin
+	x.ConnectorInfo = b.ConnectorInfo
+	return m0
+}
+
 // UpdateIntegrationResponse is the request for listing paginated Okta import rules.
 type UpdateIntegrationResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Plugin information.
 	Plugin *types.PluginV1 `protobuf:"bytes,1,opt,name=plugin,proto3" json:"plugin,omitempty"`
 	// Details of the connector.
@@ -970,11 +1590,6 @@ func (x *UpdateIntegrationResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateIntegrationResponse.ProtoReflect.Descriptor instead.
-func (*UpdateIntegrationResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *UpdateIntegrationResponse) GetPlugin() *types.PluginV1 {
 	if x != nil {
 		return x.Plugin
@@ -989,9 +1604,57 @@ func (x *UpdateIntegrationResponse) GetConnectorInfo() *ConnectorInfo {
 	return nil
 }
 
+func (x *UpdateIntegrationResponse) SetPlugin(v *types.PluginV1) {
+	x.Plugin = v
+}
+
+func (x *UpdateIntegrationResponse) SetConnectorInfo(v *ConnectorInfo) {
+	x.ConnectorInfo = v
+}
+
+func (x *UpdateIntegrationResponse) HasPlugin() bool {
+	if x == nil {
+		return false
+	}
+	return x.Plugin != nil
+}
+
+func (x *UpdateIntegrationResponse) HasConnectorInfo() bool {
+	if x == nil {
+		return false
+	}
+	return x.ConnectorInfo != nil
+}
+
+func (x *UpdateIntegrationResponse) ClearPlugin() {
+	x.Plugin = nil
+}
+
+func (x *UpdateIntegrationResponse) ClearConnectorInfo() {
+	x.ConnectorInfo = nil
+}
+
+type UpdateIntegrationResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Plugin information.
+	Plugin *types.PluginV1
+	// Details of the connector.
+	ConnectorInfo *ConnectorInfo
+}
+
+func (b0 UpdateIntegrationResponse_builder) Build() *UpdateIntegrationResponse {
+	m0 := &UpdateIntegrationResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Plugin = b.Plugin
+	x.ConnectorInfo = b.ConnectorInfo
+	return m0
+}
+
 // ConnectorInfo contains information about the connector.
 type ConnectorInfo struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Okta application ID.
 	OktaAppId string `protobuf:"bytes,1,opt,name=okta_app_id,json=oktaAppId,proto3" json:"okta_app_id,omitempty"`
 	// Name of the Okta application.
@@ -1029,11 +1692,6 @@ func (x *ConnectorInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConnectorInfo.ProtoReflect.Descriptor instead.
-func (*ConnectorInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *ConnectorInfo) GetOktaAppId() string {
 	if x != nil {
 		return x.OktaAppId
@@ -1062,9 +1720,49 @@ func (x *ConnectorInfo) GetTeleportConnectorName() string {
 	return ""
 }
 
+func (x *ConnectorInfo) SetOktaAppId(v string) {
+	x.OktaAppId = v
+}
+
+func (x *ConnectorInfo) SetOktaAppName(v string) {
+	x.OktaAppName = v
+}
+
+func (x *ConnectorInfo) SetOktaAppLabels(v string) {
+	x.OktaAppLabels = v
+}
+
+func (x *ConnectorInfo) SetTeleportConnectorName(v string) {
+	x.TeleportConnectorName = v
+}
+
+type ConnectorInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Okta application ID.
+	OktaAppId string
+	// Name of the Okta application.
+	OktaAppName string
+	// Labels associated with the Okta application.
+	OktaAppLabels string
+	// Name of the Teleport connector.
+	TeleportConnectorName string
+}
+
+func (b0 ConnectorInfo_builder) Build() *ConnectorInfo {
+	m0 := &ConnectorInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.OktaAppId = b.OktaAppId
+	x.OktaAppName = b.OktaAppName
+	x.OktaAppLabels = b.OktaAppLabels
+	x.TeleportConnectorName = b.TeleportConnectorName
+	return m0
+}
+
 // ValidateClientCredentialsRequest is the request message for validating client credentials.
 type ValidateClientCredentialsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// URL of the Okta organization.
 	OktaOrganizationUrl string `protobuf:"bytes,1,opt,name=okta_organization_url,json=oktaOrganizationUrl,proto3" json:"okta_organization_url,omitempty"`
 	// Credentials to access the Okta API.
@@ -1098,11 +1796,6 @@ func (x *ValidateClientCredentialsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ValidateClientCredentialsRequest.ProtoReflect.Descriptor instead.
-func (*ValidateClientCredentialsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *ValidateClientCredentialsRequest) GetOktaOrganizationUrl() string {
 	if x != nil {
 		return x.OktaOrganizationUrl
@@ -1117,9 +1810,46 @@ func (x *ValidateClientCredentialsRequest) GetApiCredentials() *OktaAPICredentia
 	return nil
 }
 
+func (x *ValidateClientCredentialsRequest) SetOktaOrganizationUrl(v string) {
+	x.OktaOrganizationUrl = v
+}
+
+func (x *ValidateClientCredentialsRequest) SetApiCredentials(v *OktaAPICredentials) {
+	x.ApiCredentials = v
+}
+
+func (x *ValidateClientCredentialsRequest) HasApiCredentials() bool {
+	if x == nil {
+		return false
+	}
+	return x.ApiCredentials != nil
+}
+
+func (x *ValidateClientCredentialsRequest) ClearApiCredentials() {
+	x.ApiCredentials = nil
+}
+
+type ValidateClientCredentialsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// URL of the Okta organization.
+	OktaOrganizationUrl string
+	// Credentials to access the Okta API.
+	ApiCredentials *OktaAPICredentials
+}
+
+func (b0 ValidateClientCredentialsRequest_builder) Build() *ValidateClientCredentialsRequest {
+	m0 := &ValidateClientCredentialsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.OktaOrganizationUrl = b.OktaOrganizationUrl
+	x.ApiCredentials = b.ApiCredentials
+	return m0
+}
+
 // ValidateClientCredentialsResponse is the response message for validating client credentials.
 type ValidateClientCredentialsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1149,14 +1879,21 @@ func (x *ValidateClientCredentialsResponse) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ValidateClientCredentialsResponse.ProtoReflect.Descriptor instead.
-func (*ValidateClientCredentialsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{16}
+type ValidateClientCredentialsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 ValidateClientCredentialsResponse_builder) Build() *ValidateClientCredentialsResponse {
+	m0 := &ValidateClientCredentialsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // ListOktaImportRulesRequest is the request for listing paginated Okta import rules.
 type ListOktaImportRulesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the number of results to return. If page_size is 0, a default page size of 200 will be chosen.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token is the next_token value returned from a previous List request if any.
@@ -1190,11 +1927,6 @@ func (x *ListOktaImportRulesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListOktaImportRulesRequest.ProtoReflect.Descriptor instead.
-func (*ListOktaImportRulesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *ListOktaImportRulesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -1209,9 +1941,35 @@ func (x *ListOktaImportRulesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListOktaImportRulesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListOktaImportRulesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListOktaImportRulesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the number of results to return. If page_size is 0, a default page size of 200 will be chosen.
+	PageSize int32
+	// page_token is the next_token value returned from a previous List request if any.
+	PageToken string
+}
+
+func (b0 ListOktaImportRulesRequest_builder) Build() *ListOktaImportRulesRequest {
+	m0 := &ListOktaImportRulesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListOktaImportRulesResponse is the response for listing paginated Okta import rules.
 type ListOktaImportRulesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// import_rules is the list of import rules.
 	ImportRules []*types.OktaImportRuleV1 `protobuf:"bytes,1,rep,name=import_rules,json=importRules,proto3" json:"import_rules,omitempty"`
 	// next_page_token is the next page token. If there are no more results, it will be empty.
@@ -1245,11 +2003,6 @@ func (x *ListOktaImportRulesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListOktaImportRulesResponse.ProtoReflect.Descriptor instead.
-func (*ListOktaImportRulesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *ListOktaImportRulesResponse) GetImportRules() []*types.OktaImportRuleV1 {
 	if x != nil {
 		return x.ImportRules
@@ -1264,9 +2017,35 @@ func (x *ListOktaImportRulesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListOktaImportRulesResponse) SetImportRules(v []*types.OktaImportRuleV1) {
+	x.ImportRules = v
+}
+
+func (x *ListOktaImportRulesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListOktaImportRulesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// import_rules is the list of import rules.
+	ImportRules []*types.OktaImportRuleV1
+	// next_page_token is the next page token. If there are no more results, it will be empty.
+	NextPageToken string
+}
+
+func (b0 ListOktaImportRulesResponse_builder) Build() *ListOktaImportRulesResponse {
+	m0 := &ListOktaImportRulesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ImportRules = b.ImportRules
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // GetOktaImportRuleRequest is the request for retrieving an Okta import rule.
 type GetOktaImportRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the Okta import rule.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1298,11 +2077,6 @@ func (x *GetOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetOktaImportRuleRequest.ProtoReflect.Descriptor instead.
-func (*GetOktaImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{19}
-}
-
 func (x *GetOktaImportRuleRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1310,9 +2084,28 @@ func (x *GetOktaImportRuleRequest) GetName() string {
 	return ""
 }
 
+func (x *GetOktaImportRuleRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetOktaImportRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the Okta import rule.
+	Name string
+}
+
+func (b0 GetOktaImportRuleRequest_builder) Build() *GetOktaImportRuleRequest {
+	m0 := &GetOktaImportRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // CreateOktaImportRuleRequest is a request for creating an Okta import rule.
 type CreateOktaImportRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// import_rule is the Okta import rule to create.
 	ImportRule    *types.OktaImportRuleV1 `protobuf:"bytes,1,opt,name=import_rule,json=importRule,proto3" json:"import_rule,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1344,11 +2137,6 @@ func (x *CreateOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateOktaImportRuleRequest.ProtoReflect.Descriptor instead.
-func (*CreateOktaImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *CreateOktaImportRuleRequest) GetImportRule() *types.OktaImportRuleV1 {
 	if x != nil {
 		return x.ImportRule
@@ -1356,9 +2144,39 @@ func (x *CreateOktaImportRuleRequest) GetImportRule() *types.OktaImportRuleV1 {
 	return nil
 }
 
+func (x *CreateOktaImportRuleRequest) SetImportRule(v *types.OktaImportRuleV1) {
+	x.ImportRule = v
+}
+
+func (x *CreateOktaImportRuleRequest) HasImportRule() bool {
+	if x == nil {
+		return false
+	}
+	return x.ImportRule != nil
+}
+
+func (x *CreateOktaImportRuleRequest) ClearImportRule() {
+	x.ImportRule = nil
+}
+
+type CreateOktaImportRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// import_rule is the Okta import rule to create.
+	ImportRule *types.OktaImportRuleV1
+}
+
+func (b0 CreateOktaImportRuleRequest_builder) Build() *CreateOktaImportRuleRequest {
+	m0 := &CreateOktaImportRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ImportRule = b.ImportRule
+	return m0
+}
+
 // UpdateOktaImportRuleRequest is a request for updating an Okta import rule.
 type UpdateOktaImportRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// import_rule is the Okta import rule to update.
 	ImportRule    *types.OktaImportRuleV1 `protobuf:"bytes,1,opt,name=import_rule,json=importRule,proto3" json:"import_rule,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1390,11 +2208,6 @@ func (x *UpdateOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateOktaImportRuleRequest.ProtoReflect.Descriptor instead.
-func (*UpdateOktaImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{21}
-}
-
 func (x *UpdateOktaImportRuleRequest) GetImportRule() *types.OktaImportRuleV1 {
 	if x != nil {
 		return x.ImportRule
@@ -1402,9 +2215,39 @@ func (x *UpdateOktaImportRuleRequest) GetImportRule() *types.OktaImportRuleV1 {
 	return nil
 }
 
+func (x *UpdateOktaImportRuleRequest) SetImportRule(v *types.OktaImportRuleV1) {
+	x.ImportRule = v
+}
+
+func (x *UpdateOktaImportRuleRequest) HasImportRule() bool {
+	if x == nil {
+		return false
+	}
+	return x.ImportRule != nil
+}
+
+func (x *UpdateOktaImportRuleRequest) ClearImportRule() {
+	x.ImportRule = nil
+}
+
+type UpdateOktaImportRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// import_rule is the Okta import rule to update.
+	ImportRule *types.OktaImportRuleV1
+}
+
+func (b0 UpdateOktaImportRuleRequest_builder) Build() *UpdateOktaImportRuleRequest {
+	m0 := &UpdateOktaImportRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ImportRule = b.ImportRule
+	return m0
+}
+
 // DeleteOktaImportRuleRequest is the request for deleting an Okta import rule.
 type DeleteOktaImportRuleRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the Okta import rule.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1436,11 +2279,6 @@ func (x *DeleteOktaImportRuleRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteOktaImportRuleRequest.ProtoReflect.Descriptor instead.
-func (*DeleteOktaImportRuleRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{22}
-}
-
 func (x *DeleteOktaImportRuleRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1448,9 +2286,28 @@ func (x *DeleteOktaImportRuleRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteOktaImportRuleRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteOktaImportRuleRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the Okta import rule.
+	Name string
+}
+
+func (b0 DeleteOktaImportRuleRequest_builder) Build() *DeleteOktaImportRuleRequest {
+	m0 := &DeleteOktaImportRuleRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // DeleteAllOktaImportRulesRequest is the request for deleting all Okta import rules.
 type DeleteAllOktaImportRulesRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1480,14 +2337,21 @@ func (x *DeleteAllOktaImportRulesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAllOktaImportRulesRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAllOktaImportRulesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{23}
+type DeleteAllOktaImportRulesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteAllOktaImportRulesRequest_builder) Build() *DeleteAllOktaImportRulesRequest {
+	m0 := &DeleteAllOktaImportRulesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // ListOktaAssignmentsRequest is the request for listing paginated Okta assignments.
 type ListOktaAssignmentsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the number of results to return. If page_size is 0, a default page size of 200 will be chosen.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token is the next page token to use when retrieving results.
@@ -1521,11 +2385,6 @@ func (x *ListOktaAssignmentsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListOktaAssignmentsRequest.ProtoReflect.Descriptor instead.
-func (*ListOktaAssignmentsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{24}
-}
-
 func (x *ListOktaAssignmentsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -1540,9 +2399,35 @@ func (x *ListOktaAssignmentsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListOktaAssignmentsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListOktaAssignmentsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListOktaAssignmentsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the number of results to return. If page_size is 0, a default page size of 200 will be chosen.
+	PageSize int32
+	// page_token is the next page token to use when retrieving results.
+	PageToken string
+}
+
+func (b0 ListOktaAssignmentsRequest_builder) Build() *ListOktaAssignmentsRequest {
+	m0 := &ListOktaAssignmentsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListOktaAssignmentsResponse is the response for listing paginated Okta assignments.
 type ListOktaAssignmentsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// assignments is the list of assignments.
 	Assignments []*types.OktaAssignmentV1 `protobuf:"bytes,1,rep,name=assignments,proto3" json:"assignments,omitempty"`
 	// next_page_token is the next page token. If there are no more results, it will be empty.
@@ -1576,11 +2461,6 @@ func (x *ListOktaAssignmentsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListOktaAssignmentsResponse.ProtoReflect.Descriptor instead.
-func (*ListOktaAssignmentsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{25}
-}
-
 func (x *ListOktaAssignmentsResponse) GetAssignments() []*types.OktaAssignmentV1 {
 	if x != nil {
 		return x.Assignments
@@ -1595,9 +2475,35 @@ func (x *ListOktaAssignmentsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListOktaAssignmentsResponse) SetAssignments(v []*types.OktaAssignmentV1) {
+	x.Assignments = v
+}
+
+func (x *ListOktaAssignmentsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListOktaAssignmentsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// assignments is the list of assignments.
+	Assignments []*types.OktaAssignmentV1
+	// next_page_token is the next page token. If there are no more results, it will be empty.
+	NextPageToken string
+}
+
+func (b0 ListOktaAssignmentsResponse_builder) Build() *ListOktaAssignmentsResponse {
+	m0 := &ListOktaAssignmentsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignments = b.Assignments
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // GetOktaAssignmentRequest is the request for retrieving an Okta assignment.
 type GetOktaAssignmentRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the Okta assignment.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1629,11 +2535,6 @@ func (x *GetOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetOktaAssignmentRequest.ProtoReflect.Descriptor instead.
-func (*GetOktaAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{26}
-}
-
 func (x *GetOktaAssignmentRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1641,9 +2542,28 @@ func (x *GetOktaAssignmentRequest) GetName() string {
 	return ""
 }
 
+func (x *GetOktaAssignmentRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetOktaAssignmentRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the Okta assignment.
+	Name string
+}
+
+func (b0 GetOktaAssignmentRequest_builder) Build() *GetOktaAssignmentRequest {
+	m0 := &GetOktaAssignmentRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // CreateOktaAssignmentRequest is a request for creating an Okta assignment.
 type CreateOktaAssignmentRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// assignment is the Okta assignment to create.
 	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1675,11 +2595,6 @@ func (x *CreateOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateOktaAssignmentRequest.ProtoReflect.Descriptor instead.
-func (*CreateOktaAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{27}
-}
-
 func (x *CreateOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
 	if x != nil {
 		return x.Assignment
@@ -1687,9 +2602,39 @@ func (x *CreateOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
 	return nil
 }
 
+func (x *CreateOktaAssignmentRequest) SetAssignment(v *types.OktaAssignmentV1) {
+	x.Assignment = v
+}
+
+func (x *CreateOktaAssignmentRequest) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *CreateOktaAssignmentRequest) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type CreateOktaAssignmentRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// assignment is the Okta assignment to create.
+	Assignment *types.OktaAssignmentV1
+}
+
+func (b0 CreateOktaAssignmentRequest_builder) Build() *CreateOktaAssignmentRequest {
+	m0 := &CreateOktaAssignmentRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
 // UpdateOktaAssignmentRequest is a request for updating an Okta assignment.
 type UpdateOktaAssignmentRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// assignment is the Okta assignment to update.
 	Assignment    *types.OktaAssignmentV1 `protobuf:"bytes,1,opt,name=assignment,proto3" json:"assignment,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1721,11 +2666,6 @@ func (x *UpdateOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateOktaAssignmentRequest.ProtoReflect.Descriptor instead.
-func (*UpdateOktaAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{28}
-}
-
 func (x *UpdateOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
 	if x != nil {
 		return x.Assignment
@@ -1733,9 +2673,39 @@ func (x *UpdateOktaAssignmentRequest) GetAssignment() *types.OktaAssignmentV1 {
 	return nil
 }
 
+func (x *UpdateOktaAssignmentRequest) SetAssignment(v *types.OktaAssignmentV1) {
+	x.Assignment = v
+}
+
+func (x *UpdateOktaAssignmentRequest) HasAssignment() bool {
+	if x == nil {
+		return false
+	}
+	return x.Assignment != nil
+}
+
+func (x *UpdateOktaAssignmentRequest) ClearAssignment() {
+	x.Assignment = nil
+}
+
+type UpdateOktaAssignmentRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// assignment is the Okta assignment to update.
+	Assignment *types.OktaAssignmentV1
+}
+
+func (b0 UpdateOktaAssignmentRequest_builder) Build() *UpdateOktaAssignmentRequest {
+	m0 := &UpdateOktaAssignmentRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Assignment = b.Assignment
+	return m0
+}
+
 // UpdateOktaAssignmentStatusRequest is a request for updating an Okta assignment status.
 type UpdateOktaAssignmentStatusRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the Okta assignment.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// status is the status to update the assignment to.
@@ -1772,11 +2742,6 @@ func (x *UpdateOktaAssignmentStatusRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateOktaAssignmentStatusRequest.ProtoReflect.Descriptor instead.
-func (*UpdateOktaAssignmentStatusRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{29}
-}
-
 func (x *UpdateOktaAssignmentStatusRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1798,9 +2763,54 @@ func (x *UpdateOktaAssignmentStatusRequest) GetTimeHasPassed() *durationpb.Durat
 	return nil
 }
 
+func (x *UpdateOktaAssignmentStatusRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *UpdateOktaAssignmentStatusRequest) SetStatus(v types.OktaAssignmentSpecV1_OktaAssignmentStatus) {
+	x.Status = v
+}
+
+func (x *UpdateOktaAssignmentStatusRequest) SetTimeHasPassed(v *durationpb.Duration) {
+	x.TimeHasPassed = v
+}
+
+func (x *UpdateOktaAssignmentStatusRequest) HasTimeHasPassed() bool {
+	if x == nil {
+		return false
+	}
+	return x.TimeHasPassed != nil
+}
+
+func (x *UpdateOktaAssignmentStatusRequest) ClearTimeHasPassed() {
+	x.TimeHasPassed = nil
+}
+
+type UpdateOktaAssignmentStatusRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the Okta assignment.
+	Name string
+	// status is the status to update the assignment to.
+	Status types.OktaAssignmentSpecV1_OktaAssignmentStatus
+	// timeHasPassed is the amount of time that must have passed since the last transition
+	// in order to set the new transition.
+	TimeHasPassed *durationpb.Duration
+}
+
+func (b0 UpdateOktaAssignmentStatusRequest_builder) Build() *UpdateOktaAssignmentStatusRequest {
+	m0 := &UpdateOktaAssignmentStatusRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Status = b.Status
+	x.TimeHasPassed = b.TimeHasPassed
+	return m0
+}
+
 // DeleteOktaAssignmentRequest is the request for deleting an Okta assignment.
 type DeleteOktaAssignmentRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the Okta assignment.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1832,11 +2842,6 @@ func (x *DeleteOktaAssignmentRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteOktaAssignmentRequest.ProtoReflect.Descriptor instead.
-func (*DeleteOktaAssignmentRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{30}
-}
-
 func (x *DeleteOktaAssignmentRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1844,9 +2849,28 @@ func (x *DeleteOktaAssignmentRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteOktaAssignmentRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteOktaAssignmentRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the Okta assignment.
+	Name string
+}
+
+func (b0 DeleteOktaAssignmentRequest_builder) Build() *DeleteOktaAssignmentRequest {
+	m0 := &DeleteOktaAssignmentRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // DeleteAllOktaAssignmentsRequest is the request for deleting all Okta assignments.
 type DeleteAllOktaAssignmentsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1876,14 +2900,21 @@ func (x *DeleteAllOktaAssignmentsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAllOktaAssignmentsRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAllOktaAssignmentsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{31}
+type DeleteAllOktaAssignmentsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteAllOktaAssignmentsRequest_builder) Build() *DeleteAllOktaAssignmentsRequest {
+	m0 := &DeleteAllOktaAssignmentsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // App contains details of an individual Okta app.
 type GetAppsResponse_App struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name of the app.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Description of the app.
@@ -1917,11 +2948,6 @@ func (x *GetAppsResponse_App) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAppsResponse_App.ProtoReflect.Descriptor instead.
-func (*GetAppsResponse_App) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{5, 0}
-}
-
 func (x *GetAppsResponse_App) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1936,9 +2962,35 @@ func (x *GetAppsResponse_App) GetDescription() string {
 	return ""
 }
 
+func (x *GetAppsResponse_App) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GetAppsResponse_App) SetDescription(v string) {
+	x.Description = v
+}
+
+type GetAppsResponse_App_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name of the app.
+	Name string
+	// Description of the app.
+	Description string
+}
+
+func (b0 GetAppsResponse_App_builder) Build() *GetAppsResponse_App {
+	m0 := &GetAppsResponse_App{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Description = b.Description
+	return m0
+}
+
 // Group contains details of an individual Okta group.
 type GetGroupsResponse_Group struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name of the group.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Description of the group.
@@ -1972,11 +3024,6 @@ func (x *GetGroupsResponse_Group) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetGroupsResponse_Group.ProtoReflect.Descriptor instead.
-func (*GetGroupsResponse_Group) Descriptor() ([]byte, []int) {
-	return file_teleport_okta_v1_okta_service_proto_rawDescGZIP(), []int{7, 0}
-}
-
 func (x *GetGroupsResponse_Group) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1989,6 +3036,32 @@ func (x *GetGroupsResponse_Group) GetDescription() string {
 		return x.Description
 	}
 	return ""
+}
+
+func (x *GetGroupsResponse_Group) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GetGroupsResponse_Group) SetDescription(v string) {
+	x.Description = v
+}
+
+type GetGroupsResponse_Group_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name of the group.
+	Name string
+	// Description of the group.
+	Description string
+}
+
+func (b0 GetGroupsResponse_Group_builder) Build() *GetGroupsResponse_Group {
+	m0 := &GetGroupsResponse_Group{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Description = b.Description
+	return m0
 }
 
 var File_teleport_okta_v1_okta_service_proto protoreflect.FileDescriptor
@@ -2147,18 +3220,6 @@ const file_teleport_okta_v1_okta_service_proto_rawDesc = "" +
 	"\x11UpdateIntegration\x12*.teleport.okta.v1.UpdateIntegrationRequest\x1a+.teleport.okta.v1.UpdateIntegrationResponse\x12N\n" +
 	"\aGetApps\x12 .teleport.okta.v1.GetAppsRequest\x1a!.teleport.okta.v1.GetAppsResponse\x12T\n" +
 	"\tGetGroups\x12\".teleport.okta.v1.GetGroupsRequest\x1a#.teleport.okta.v1.GetGroupsResponseBLZJgithub.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1;oktav1b\x06proto3"
-
-var (
-	file_teleport_okta_v1_okta_service_proto_rawDescOnce sync.Once
-	file_teleport_okta_v1_okta_service_proto_rawDescData []byte
-)
-
-func file_teleport_okta_v1_okta_service_proto_rawDescGZIP() []byte {
-	file_teleport_okta_v1_okta_service_proto_rawDescOnce.Do(func() {
-		file_teleport_okta_v1_okta_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_okta_v1_okta_service_proto_rawDesc), len(file_teleport_okta_v1_okta_service_proto_rawDesc)))
-	})
-	return file_teleport_okta_v1_okta_service_proto_rawDescData
-}
 
 var file_teleport_okta_v1_okta_service_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
 var file_teleport_okta_v1_okta_service_proto_goTypes = []any{

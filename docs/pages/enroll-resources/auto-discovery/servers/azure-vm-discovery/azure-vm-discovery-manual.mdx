@@ -151,10 +151,12 @@ resources:
 Teleport requires the following permissions to discover and enroll Azure VMs:
 
 - `Microsoft.Compute/virtualMachines/read`
-- `Microsoft.Compute/virtualMachines/runCommand/action`
 - `Microsoft.Compute/virtualMachines/runCommands/write`
 - `Microsoft.Compute/virtualMachines/runCommands/read`
-- `Microsoft.Compute/virtualMachines/runCommands/delete`
+- `Microsoft.Compute/virtualMachineScaleSets/read`
+- `Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read`
+- `Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/read`
+- `Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/write`
 
 Here is a sample role definition allowing Teleport to read and run commands on Azure
 virtual machines:
@@ -170,10 +172,12 @@ virtual machines:
             {
                 "actions": [
                     "Microsoft.Compute/virtualMachines/read",
-                    "Microsoft.Compute/virtualMachines/runCommand/action",
                     "Microsoft.Compute/virtualMachines/runCommands/write",
                     "Microsoft.Compute/virtualMachines/runCommands/read",
-                    "Microsoft.Compute/virtualMachines/runCommands/delete"
+                    "Microsoft.Compute/virtualMachineScaleSets/read",
+                    "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/read",
+                    "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/write",
+                    "Microsoft.Compute/virtualMachineScaleSets/virtualMachines/runCommands/read"
                 ],
                 "notActions": [],
                 "dataActions": [],
@@ -183,6 +187,16 @@ virtual machines:
     }
 }
 ```
+
+<Admonition type="tip">
+Using the role definition above grants Teleport access to enroll VMs and VMs from Virtual Machine Scale Sets (VMSSs).
+
+VMSSs have two orchestration modes: Uniform and, the recommended, [Flexible](https://learn.microsoft.com/en-us/azure/virtual-machine-scale-sets/virtual-machine-scale-sets-orchestration-modes#scale-sets-with-flexible-orchestration-recommended).
+If you are not using or don't want to enroll VMSSs with Uniform orchestration mode, you can further limit the permissions granted to Teleport by removing the `Microsoft.Compute/virtualMachineScaleSets/*` permissions.
+
+Navigate to the [Azure portal](https://portal.azure.com/#view/Microsoft_Azure_ComputeHub/ComputeHubMenuBlade/~/virtualMachineScaleSetsBrowse) and look for the Orchestration mode column to check the orchestration mode of your VMSSs and make sure to adjust the role permissions accordingly.
+</Admonition>
+
 The `assignableScopes` field above includes a subscription
 `/subscriptions/<subscription>`, allowing the role to be assigned at any
 resource scope within that subscription or the subscription scope itself. If

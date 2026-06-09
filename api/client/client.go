@@ -5585,6 +5585,8 @@ func (c *Client) StableUNIXUsersClient() stableunixusersv1.StableUNIXUsersServic
 }
 
 // MFAServiceClient returns a client for the MFA service.
+//
+//nolint:staticcheck // TODO(danielashare): Delete when Browser MFA has migrated to mfav2.
 func (c *Client) MFAServiceClient() mfav1.MFAServiceClient {
 	return mfav1.NewMFAServiceClient(c.conn)
 }
@@ -6313,11 +6315,11 @@ func (c *Client) GetCertAuthorityOverride(
 	ctx context.Context,
 	id types.CertAuthorityOverrideID,
 ) (*subcav1.CertAuthorityOverride, error) {
-	resp, err := c.SubCAClient().GetCertAuthorityOverride(ctx, &subcav1.GetCertAuthorityOverrideRequest{
-		CaId: &subcav1.CertAuthorityOverrideID{
+	resp, err := c.SubCAClient().GetCertAuthorityOverride(ctx, subcav1.GetCertAuthorityOverrideRequest_builder{
+		CaId: subcav1.CertAuthorityOverrideID_builder{
 			CaType: id.CAType,
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6328,7 +6330,7 @@ func (c *Client) GetCertAuthorityOverride(
 		return nil, trace.NotFound("%s %s/%s not found", types.KindCertAuthorityOverride, id.CAType, id.ClusterName)
 	}
 
-	return resp.CaOverride, nil
+	return resp.GetCaOverride(), nil
 }
 
 // ListCertAuthorityOverrides lists all CA overrides.
@@ -6339,14 +6341,14 @@ func (c *Client) ListCertAuthorityOverrides(
 	pageSize int,
 	pageToken string,
 ) (_ []*subcav1.CertAuthorityOverride, nextPageToken string, _ error) {
-	resp, err := c.SubCAClient().ListCertAuthorityOverride(ctx, &subcav1.ListCertAuthorityOverrideRequest{
+	resp, err := c.SubCAClient().ListCertAuthorityOverride(ctx, subcav1.ListCertAuthorityOverrideRequest_builder{
 		PageSize:  int32(pageSize),
 		PageToken: pageToken,
-	})
+	}.Build())
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
-	return resp.CaOverrides, resp.NextPageToken, nil
+	return resp.GetCaOverrides(), resp.GetNextPageToken(), nil
 }
 
 // IssuanceClient returns an [issuancev1pb.IssuanceServiceClient].

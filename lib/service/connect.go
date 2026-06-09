@@ -118,7 +118,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		case t := <-retry.After():
 			process.logger.DebugContext(process.ExitContext(), "Retrying connection to auth server.", "identity", role, "backoff", t.Sub(startedWait))
 			retry.Inc()
-		case <-process.ExitContext().Done():
+		case <-process.GracefulExitContext().Done():
 			process.logger.InfoContext(process.ExitContext(), "Stopping connection attempts, teleport is shutting down.", "identity", role)
 			return nil, ErrTeleportExited
 		}
@@ -1312,7 +1312,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			conn.serverState.Store(connState)
 			return &rotationStatus{credentialsUpdated: true}, nil
 		default:
-			return nil, trace.BadParameter("unsupported state: %q", localState)
+			return nil, trace.BadParameter("unsupported state: %v", localState)
 		}
 	case types.RotationStateInProgress:
 		switch remote.Phase {

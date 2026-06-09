@@ -29,6 +29,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -68,6 +69,16 @@ type APIConfig struct {
 	// DisableJoinV1 disables registration of the new join gRPC service.
 	// Intended for tests that need to exercise legacy join fallback paths.
 	DisableJoinV1 bool
+	// CreateAuditStreamInflightLimit, if set, is the maximum amount of allowed
+	// in-flight CreateAuditStream rpc calls. Calls beyond the limit will
+	// immediately return with an error. A non-positive limit means that no
+	// calls will be allowed.
+	CreateAuditStreamInflightLimit *int
+	// ResolveSSHTargetRateLimit, if set, is the (server-wide) rate limit for
+	// the ResolveSSHTarget rpc (i.e. the number of allowed calls per second),
+	// with an allowed burst rate equal to the rate per second (rounded up).
+	// Calls beyond the limit will block and wait for their turn.
+	ResolveSSHTargetRateLimit *float64
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -123,13 +134,17 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	// Servers and presence heartbeat
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/authservers", srv.WithScopedAuth(srv.getAuthServers))
+	// TODO(noah): DELETE IN 20.0.0 - move to httpMigratedHandler
 	srv.POST("/:version/proxies", srv.WithAuth(srv.upsertProxy))
 	// TODO(kiosion) DELETE IN 21.0.0
 	srv.GET("/:version/proxies", srv.WithScopedAuth(srv.getProxies))
+	// TODO(noah): DELETE IN 20.0.0 - move to httpMigratedHandler
 	srv.DELETE("/:version/proxies/:name", srv.WithAuth(srv.deleteProxy))
+	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 	srv.POST("/:version/tunnelconnections", srv.WithAuth(srv.upsertTunnelConnection))
 	srv.GET("/:version/tunnelconnections/:cluster", srv.WithAuth(srv.getTunnelConnections))
 	srv.GET("/:version/tunnelconnections", srv.WithAuth(srv.getAllTunnelConnections))
+	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 	srv.DELETE("/:version/tunnelconnections/:cluster/:conn", srv.WithAuth(srv.deleteTunnelConnection))
 
 	// trusted clusters
@@ -153,6 +168,17 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.DELETE("/:version/users/:user/web/sessions/:sid", httpMigratedHandler)
 	srv.POST("/:version/namespaces/:namespace/nodes/keepalive", httpMigratedHandler)
 	srv.POST("/:version/authservers", httpMigratedHandler)
+
+	// Return an explicit "too old" error rather than a 404, so that outdated clients
+	// using the deprecated legacy join endpoint get an actionable message.
+	srv.POST("/:version/tokens/register", httplib.MakeHandler(func(
+		w http.ResponseWriter, r *http.Request, p httprouter.Params,
+	) (any, error) {
+		return nil, trace.AccessDenied(
+			"this client is too old to join the cluster, please upgrade to at least v%d.0.0",
+			teleport.MinClientSemVer().Major,
+		)
+	}))
 
 	if config.PluginRegistry != nil {
 		if err := config.PluginRegistry.RegisterAuthWebHandlers(&srv); err != nil {
@@ -235,7 +261,7 @@ type upsertServerRawReq struct {
 // presenceForAPIServer is a subset of [services.Presence].
 type presenceForAPIServer interface {
 	UpsertNode(ctx context.Context, s types.Server) (*types.KeepAlive, error)
-	UpsertProxy(ctx context.Context, s types.Server) error
+	UpsertProxyServer(ctx context.Context, s types.Server) (types.Server, error)
 }
 
 // upsertServer is a common utility function
@@ -253,6 +279,12 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 	default:
 		return nil, trace.BadParameter("upsertServer with unknown role: %q", role)
 	}
+	// UnmarshalServer forces s.Kind = kind, ignoring the Kind in the payload.
+	// This is retained for backwards compatibility: prior to v19, proxy
+	// heartbeats sent the resource with Kind=KindNode over the wire (see
+	// https://github.com/gravitational/teleport/issues/66997). v19+ proxies
+	// send the correct kind; the override remains so older proxies in mixed
+	// clusters continue to work.
 	server, err := services.UnmarshalServer(req.Server, kind)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -276,7 +308,7 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 		}
 		return handle, nil
 	case types.RoleProxy:
-		if err := auth.UpsertProxy(r.Context(), server); err != nil {
+		if _, err := auth.UpsertProxyServer(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:
@@ -286,6 +318,8 @@ func (s *APIServer) upsertServer(auth presenceForAPIServer, role types.SystemRol
 }
 
 // upsertProxy is called by remote SSH nodes when they ping back into the auth service
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	return s.upsertServer(auth, types.RoleProxy, r, p)
 }
@@ -303,12 +337,14 @@ func (s *APIServer) getProxies(auth *ServerWithRoles, w http.ResponseWriter, r *
 }
 
 // deleteProxy deletes proxy
+//
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) deleteProxy(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	name := p.ByName("name")
 	if name == "" {
 		return nil, trace.BadParameter("missing proxy name")
 	}
-	err := auth.DeleteProxy(r.Context(), name)
+	err := auth.DeleteProxyServer(r.Context(), name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -496,7 +532,9 @@ type upsertTunnelConnectionRawReq struct {
 	TunnelConnection json.RawMessage `json:"tunnel_connection"`
 }
 
-// upsertTunnelConnection updates or inserts tunnel connection
+// upsertTunnelConnection updates or inserts tunnel connection.
+//
+// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) upsertTunnelConnection(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	var req upsertTunnelConnectionRawReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
@@ -506,7 +544,7 @@ func (s *APIServer) upsertTunnelConnection(auth *ServerWithRoles, w http.Respons
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := auth.UpsertTunnelConnection(conn); err != nil {
+	if err := auth.UpsertTunnelConnection(r.Context(), conn); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return message("ok"), nil
@@ -546,9 +584,11 @@ func (s *APIServer) getAllTunnelConnections(auth *ServerWithRoles, w http.Respon
 	return items, nil
 }
 
-// deleteTunnelConnection deletes tunnel connection by name
+// deleteTunnelConnection deletes tunnel connection by name.
+//
+// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) deleteTunnelConnection(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	err := auth.DeleteTunnelConnection(p.ByName("cluster"), p.ByName("conn"))
+	err := auth.DeleteTunnelConnection(r.Context(), p.ByName("cluster"), p.ByName("conn"))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

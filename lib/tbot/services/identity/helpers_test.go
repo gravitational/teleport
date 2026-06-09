@@ -140,18 +140,18 @@ func defaultTestServerOpts(log *slog.Logger) testenv.TestServerOptFunc {
 func makeBot(t *testing.T, client *authclient.Client, name string, roles ...string) onboarding.Config {
 	t.Helper()
 
-	b, err := client.BotServiceClient().CreateBot(t.Context(), &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	b, err := client.BotServiceClient().CreateBot(t.Context(), machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: roles,
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	tokenName, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
@@ -162,7 +162,7 @@ func makeBot(t *testing.T, client *authclient.Client, name string, roles ...stri
 		time.Now().Add(10*time.Minute),
 		types.ProvisionTokenSpecV2{
 			Roles:   []types.SystemRole{types.RoleBot},
-			BotName: b.Metadata.Name,
+			BotName: b.GetMetadata().GetName(),
 		})
 	require.NoError(t, err)
 

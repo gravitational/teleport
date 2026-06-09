@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	dtconfig "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv/server/installer"
@@ -707,6 +708,7 @@ Examples:
 
 	// Create default configuration.
 	conf = servicecfg.MakeDefaultConfig()
+	conf.ScopesFeatures = scopes.FeaturesFromEnv()
 
 	// If FIPS mode is specified update defaults to be FIPS appropriate and
 	// cross-validate the current config.
@@ -847,21 +849,16 @@ Examples:
 	case metricsCmd.FullCommand():
 		err = onMetrics(ctx, ccf.ConfigFile)
 	case checkSessionHelperCmd.FullCommand():
-		var ok bool
-		ok, err = reexec.InitEmbeddedReexec()
+		if !reexec.EmbeddedReexecAvailable {
+			fmt.Println("The embedded session helper is not available in this build.")
+			break
+		}
+		err = reexec.InitEmbeddedReexec()
 		if err == nil {
-			if ok {
-				fmt.Println("The embedded session helper is available in this build.")
-			} else {
-				fmt.Println("The embedded session helper is not available in this build.")
-			}
+			fmt.Println("The embedded session helper is available in this build.")
 		}
 	case requireSessionHelperCmd.FullCommand():
-		var ok bool
-		ok, err = reexec.InitEmbeddedReexec()
-		if err == nil && !ok {
-			err = errors.New("the embedded session helper is not available in this build")
-		}
+		err = reexec.InitEmbeddedReexec()
 	case moduleSourceCmd.FullCommand():
 		if runtime.GOOS != "linux" {
 			break
@@ -1078,7 +1075,12 @@ func onConfigDump(flags dumpFlags) error {
 		return trace.Wrap(err)
 	}
 
-	configPath, err := dumpConfigFile(flags.output, sfc.DebugDumpToYAML(), sampleConfComment)
+	configYAML, err := sfc.YAMLString()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	configPath, err := dumpConfigFile(flags.output, configYAML, sampleConfComment)
 	if err != nil {
 		return trace.Wrap(err)
 	}

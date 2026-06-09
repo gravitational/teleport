@@ -81,10 +81,10 @@ func createAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client
 	}
 
 	if rollout.GetMetadata() == nil {
-		rollout.Metadata = &headerv1.Metadata{}
+		rollout.SetMetadata(&headerv1.Metadata{})
 	}
 	if rollout.GetMetadata().GetName() == "" {
-		rollout.Metadata.Name = types.MetaNameAutoUpdateAgentRollout
+		rollout.GetMetadata().SetName(types.MetaNameAutoUpdateAgentRollout)
 	}
 
 	if opts.Force {
@@ -107,10 +107,10 @@ func updateAutoUpdateAgentRollout(ctx context.Context, client *authclient.Client
 	}
 
 	if rollout.GetMetadata() == nil {
-		rollout.Metadata = &headerv1.Metadata{}
+		rollout.SetMetadata(&headerv1.Metadata{})
 	}
 	if rollout.GetMetadata().GetName() == "" {
-		rollout.Metadata.Name = types.MetaNameAutoUpdateAgentRollout
+		rollout.GetMetadata().SetName(types.MetaNameAutoUpdateAgentRollout)
 	}
 
 	if _, err := client.UpdateAutoUpdateAgentRollout(ctx, rollout); err != nil {

@@ -2800,7 +2800,7 @@ export const events = [
     code: 'T1014W',
     cluster_name: 'root.cluster',
     event: 'user.login',
-    method: 'headdless',
+    method: 'headless',
     ei: 0,
     success: false,
     time: '2019-04-22T00:49:03Z',

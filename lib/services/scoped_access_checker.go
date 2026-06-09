@@ -78,14 +78,17 @@ func (b *scopedAccessCheckerBuilder) Check() error {
 	return nil
 }
 
-func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key roleCheckerKey) (*ScopedAccessChecker, error) {
-	if key == defaultImplicitRoleKey {
+func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key pinning.RoleAssignment) (*ScopedAccessChecker, error) {
+	if key == (pinning.RoleAssignment{}) {
 		return b.newDefaultImplicitChecker(ctx), nil
 	}
+	if key.RoleKind != pinning.RoleKindUser {
+		return nil, trace.BadParameter("cannot build checker for non-user role kind %q (this is a bug)", key.RoleKind)
+	}
 
-	rsp, err := b.reader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
-		Name: key.roleName,
-	})
+	rsp, err := b.reader.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
+		Name: key.RoleName,
+	}.Build())
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, errMissingAssignedRole
@@ -96,16 +99,16 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 	// verify that the role is enforceable at this enforcement point. if not, the assignment is
 	// skipped. this check is a critical part of the scopes security model and must always be
 	// performed prior to any enforcement logic related to a scoped role.
-	if !scopedaccess.RoleIsEnforceableAt(rsp.Role, scopes.EnforcementPoint{
-		ScopeOfOrigin: key.scopeOfOrigin,
-		ScopeOfEffect: key.scopeOfEffect,
+	if !scopedaccess.RoleIsEnforceableAt(rsp.GetRole(), scopes.EnforcementPoint{
+		ScopeOfOrigin: key.ScopeOfOrigin,
+		ScopeOfEffect: key.ScopeOfEffect,
 	}) {
 		return nil, errUnenforcceableAssignment
 	}
 
 	// Convert the scoped role to a classic role using the scope of effect.
 	// The scope of effect determines which resources this role's privileges apply to.
-	role, err := scopedaccess.ScopedRoleToRole(rsp.Role, key.scopeOfEffect)
+	role, err := scopedaccess.ScopedRoleToRole(rsp.GetRole(), key.ScopeOfEffect)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,9 +121,9 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 	checker := newAccessChecker(b.info, b.localCluster, NewRoleSet(role))
 
 	return &ScopedAccessChecker{
-		scopeOfOrigin:       key.scopeOfOrigin,
-		scopeOfEffect:       key.scopeOfEffect,
-		role:                rsp.Role,
+		scopeOfOrigin:       key.ScopeOfOrigin,
+		scopeOfEffect:       key.ScopeOfEffect,
+		role:                rsp.GetRole(),
 		scopedCompatChecker: checker,
 	}, nil
 }
@@ -136,16 +139,16 @@ func (b *scopedAccessCheckerBuilder) newDefaultImplicitChecker(_ context.Context
 		scopeOfOrigin:       scopes.Root,
 		scopeOfEffect:       scopes.Root,
 		scopedCompatChecker: newAccessChecker(b.info, b.localCluster, NewRoleSet()), // default implicit role definition is auto-populated by NewRoleSet()
-		role: &scopedaccessv1.ScopedRole{
-			Metadata: &headerv1.Metadata{
+		role: scopedaccessv1.ScopedRole_builder{
+			Metadata: headerv1.Metadata_builder{
 				Name: constants.DefaultImplicitRole,
-			},
+			}.Build(),
 			Scope: scopes.Root,
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scopes.Root},
-			},
+			}.Build(),
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 }
 
@@ -184,6 +187,32 @@ type ScopedAccessChecker struct {
 // This is used in code paths that accept *ScopedAccessChecker but operate on an unscoped identity.
 func NewScopedAccessCheckerFromUnscoped(checker AccessChecker) *ScopedAccessChecker {
 	return &ScopedAccessChecker{unscopedChecker: checker}
+}
+
+// NewScopedAccessCheckerForSystemRole creates a ScopedAccessChecker for a single system role. Currently
+// the checker masquerades as a scoped role checker but pulls all meaningful functionality from the provided
+// unscoped access checker. This is the simplest way to achieve our desired effect of having scoped agent
+// system roles act like scoped roles, but is somewhat brittle. It only works right now because we happen
+// to still defer to the scopedCompatChecker for resource access checks. In the long run we may want to
+// consider providing true scoped role representations of system roles, or more likely representing the
+// system role presets in a format suitable for representation as a scoped or unscoped role.
+// TODO(fspmarshall/scopes): revisit our scoped system role strateg as described above.
+func NewScopedAccessCheckerForSystemRole(roleName string, checker AccessChecker) *ScopedAccessChecker {
+	return &ScopedAccessChecker{
+		scopeOfOrigin: scopes.Root,
+		scopeOfEffect: scopes.Root,
+		role: scopedaccessv1.ScopedRole_builder{
+			Metadata: headerv1.Metadata_builder{
+				Name: "system/" + roleName,
+			}.Build(),
+			Scope:   scopes.Root,
+			Version: types.V1,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scopes.Root},
+			}.Build(),
+		}.Build(),
+		scopedCompatChecker: checker,
+	}
 }
 
 // isScoped reports whether this checker operates on a scoped identity.
@@ -226,6 +255,9 @@ func (c *ScopedAccessChecker) CheckAccessToRules(ctx RuleContext, resource strin
 	if !c.isScoped() {
 		return checkAccessToRulesImpl(c.unscopedChecker, ctx, resource, verbs...)
 	}
+	// XXX: the sanity of [NewScopedAccessCheckerForSystemRole] depends upon us continuing to defer to
+	// scopedCompatChecker for resource permission checks. Any revisiting of this strategy must take
+	// our scoped system role strategy into account.
 	return checkAccessToRulesImpl(c.scopedCompatChecker, ctx, resource, verbs...)
 }
 

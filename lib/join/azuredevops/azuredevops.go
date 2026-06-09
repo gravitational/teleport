@@ -102,8 +102,8 @@ func (c *IDTokenClaims) ForAudit() map[string]any {
 // This is used for auditing and for evaluation of WorkloadIdentity rules and
 // templating.
 func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsAzureDevops {
-	return &workloadidentityv1pb.JoinAttrsAzureDevops{
-		Pipeline: &workloadidentityv1pb.JoinAttrsAzureDevopsPipeline{
+	return workloadidentityv1pb.JoinAttrsAzureDevops_builder{
+		Pipeline: workloadidentityv1pb.JoinAttrsAzureDevopsPipeline_builder{
 			Sub:               c.Sub,
 			OrganizationName:  c.OrganizationName,
 			ProjectName:       c.ProjectName,
@@ -115,8 +115,8 @@ func (c *IDTokenClaims) JoinAttrs() *workloadidentityv1pb.JoinAttrsAzureDevops {
 			RepositoryVersion: c.RepositoryVersion,
 			RepositoryRef:     c.RepositoryRef,
 			RunId:             c.RunID,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // CheckIDTokenParams are parameters used to validate Azure Devops OIDC tokens.

@@ -212,14 +212,14 @@ func MakeEKSClusters(clusters []*integrationv1.EKSCluster) []EKSCluster {
 
 	for _, cluster := range clusters {
 		uiEKSClusters = append(uiEKSClusters, EKSCluster{
-			Name:                 cluster.Name,
-			Region:               cluster.Region,
-			Arn:                  cluster.Arn,
-			Labels:               ui.MakeLabelsWithoutInternalPrefixes(cluster.Labels),
-			JoinLabels:           ui.MakeLabelsWithoutInternalPrefixes(cluster.JoinLabels),
-			Status:               cluster.Status,
-			EndpointPublicAccess: cluster.EndpointPublicAccess,
-			AuthenticationMode:   cluster.AuthenticationMode,
+			Name:                 cluster.GetName(),
+			Region:               cluster.GetRegion(),
+			Arn:                  cluster.GetArn(),
+			Labels:               ui.MakeLabelsWithoutInternalPrefixes(cluster.GetLabels()),
+			JoinLabels:           ui.MakeLabelsWithoutInternalPrefixes(cluster.GetJoinLabels()),
+			Status:               cluster.GetStatus(),
+			EndpointPublicAccess: cluster.GetEndpointPublicAccess(),
+			AuthenticationMode:   cluster.GetAuthenticationMode(),
 		})
 	}
 	return uiEKSClusters

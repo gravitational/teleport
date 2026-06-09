@@ -65,7 +65,7 @@ Examples:
 		DurationVar(&c.nodesLast)
 	c.nodesCmd.Flag("format", "Output format.").
 		Default(teleport.Text).
-		EnumVar(&c.nodesFormat, teleport.Text, teleport.JSON)
+		EnumVar(&c.nodesFormat, teleport.Text, teleport.JSON, teleport.YAML)
 	c.nodesCmd.Flag("failures-only", "Only show instances with enrollment failures.").
 		BoolVar(&c.nodesFailuresOnly)
 	c.nodesCmd.Flag("cloud", "Comma-separated list of cloud providers to include (allowed: aws, azure). Empty (default) returns all.").
@@ -122,9 +122,13 @@ func (c *Command) runNodes(ctx context.Context, clt discoveryClient, w io.Writer
 	)
 
 	switch c.nodesFormat {
+	case teleport.Text:
+		return trace.Wrap(renderText(w, instances))
 	case teleport.JSON:
 		return trace.Wrap(utils.WriteJSONArray(w, instances))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(w, instances))
 	default:
-		return trace.Wrap(renderText(w, instances))
+		return trace.BadParameter("unknown format %q", c.nodesFormat)
 	}
 }

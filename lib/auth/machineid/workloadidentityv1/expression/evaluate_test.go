@@ -35,16 +35,16 @@ func TestEvaluate(t *testing.T) {
 	result, err := expression.Evaluate(
 		`workload.podman.attested && workload.podman.container.image == "ubuntu"`,
 		&expression.Environment{
-			Attrs: &workloadidentityv1.Attrs{
-				Workload: &workloadidentityv1.WorkloadAttrs{
-					Podman: &workloadidentityv1.WorkloadAttrsPodman{
+			Attrs: workloadidentityv1.Attrs_builder{
+				Workload: workloadidentityv1.WorkloadAttrs_builder{
+					Podman: workloadidentityv1.WorkloadAttrsPodman_builder{
 						Attested: true,
-						Container: &workloadidentityv1.WorkloadAttrsPodmanContainer{
+						Container: workloadidentityv1.WorkloadAttrsPodmanContainer_builder{
 							Image: "ubuntu",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		},
 	)
 	require.NoError(t, err)
@@ -54,11 +54,11 @@ func TestEvaluate(t *testing.T) {
 	result, err = expression.Evaluate(
 		`user.name != user.name`,
 		&expression.Environment{
-			Attrs: &workloadidentityv1.Attrs{
-				User: &workloadidentityv1.UserAttrs{
+			Attrs: workloadidentityv1.Attrs_builder{
+				User: workloadidentityv1.UserAttrs_builder{
 					Name: "Bobby",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	)
 	require.NoError(t, err)
@@ -68,11 +68,11 @@ func TestEvaluate(t *testing.T) {
 	result, err = expression.Evaluate(
 		`user.name == ""`,
 		&expression.Environment{
-			Attrs: &workloadidentityv1.Attrs{
-				User: &workloadidentityv1.UserAttrs{
+			Attrs: workloadidentityv1.Attrs_builder{
+				User: workloadidentityv1.UserAttrs_builder{
 					Name: "",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	)
 	require.NoError(t, err)
@@ -87,26 +87,26 @@ func TestEvaluate_Errors(t *testing.T) {
 	}{
 		"unset sub-message": {
 			expr: `workload.podman.pod.labels["foo"] == "bar"`,
-			attrs: &workloadidentityv1.Attrs{
-				Workload: &workloadidentityv1.WorkloadAttrs{
-					Podman: &workloadidentityv1.WorkloadAttrsPodman{
+			attrs: workloadidentityv1.Attrs_builder{
+				Workload: workloadidentityv1.WorkloadAttrs_builder{
+					Podman: workloadidentityv1.WorkloadAttrsPodman_builder{
 						Pod: nil,
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			err: "workload.podman.pod is unset",
 		},
 		"unset map key": {
 			expr: `workload.podman.pod.labels["foo"] == "bar"`,
-			attrs: &workloadidentityv1.Attrs{
-				Workload: &workloadidentityv1.WorkloadAttrs{
-					Podman: &workloadidentityv1.WorkloadAttrsPodman{
-						Pod: &workloadidentityv1.WorkloadAttrsPodmanPod{
+			attrs: workloadidentityv1.Attrs_builder{
+				Workload: workloadidentityv1.WorkloadAttrs_builder{
+					Podman: workloadidentityv1.WorkloadAttrsPodman_builder{
+						Pod: workloadidentityv1.WorkloadAttrsPodmanPod_builder{
 							Labels: map[string]string{"bar": "baz"},
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 			err: `no value for key: "foo"`,
 		},
 		"non-boolean expression": {
@@ -127,16 +127,16 @@ func TestEvaluate_Traits(t *testing.T) {
 	result, err := expression.Evaluate(
 		`user.traits.logins.contains("root")`,
 		&expression.Environment{
-			Attrs: &workloadidentityv1.Attrs{
-				User: &workloadidentityv1.UserAttrs{
+			Attrs: workloadidentityv1.Attrs_builder{
+				User: workloadidentityv1.UserAttrs_builder{
 					Traits: []*traitv1.Trait{
-						{
+						traitv1.Trait_builder{
 							Key:    "logins",
 							Values: []string{"root", "alice", "bob"},
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	)
 	require.NoError(t, err)
@@ -146,11 +146,11 @@ func TestEvaluate_Traits(t *testing.T) {
 	result, err = expression.Evaluate(
 		`is_empty(user.traits.logins)`,
 		&expression.Environment{
-			Attrs: &workloadidentityv1.Attrs{
-				User: &workloadidentityv1.UserAttrs{
+			Attrs: workloadidentityv1.Attrs_builder{
+				User: workloadidentityv1.UserAttrs_builder{
 					Traits: []*traitv1.Trait{},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 	)
 	require.NoError(t, err)

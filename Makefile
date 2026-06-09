@@ -1852,6 +1852,18 @@ test-compat:
 
 .PHONY: ensure-webassets
 ensure-webassets:
+# Stage the logo SVGs the Vite build will compress and embed. Runs before the
+# sha check so a change in GITHUB_REPOSITORY_OWNER produces a different web/
+# sha and forces a rebuild.
+ifeq ("$(GITHUB_REPOSITORY_OWNER)","gravitational")
+	@echo "copying teleport logo assets (community)";
+	@cp web/packages/design/src/assets/images/community-light.svg web/packages/teleport/public/app/logo-light.svg
+	@cp web/packages/design/src/assets/images/community-dark.svg  web/packages/teleport/public/app/logo-dark.svg
+else
+	@echo "copying teleport logo assets (agpl)";
+	@cp web/packages/design/src/assets/images/agpl-light.svg web/packages/teleport/public/app/logo-light.svg
+	@cp web/packages/design/src/assets/images/agpl-dark.svg  web/packages/teleport/public/app/logo-dark.svg
+endif
 	@if [[ "${WEBASSETS_SKIP_BUILD}" -eq 1 ]]; then mkdir -p webassets/teleport && mkdir -p webassets/teleport/app && cp web/packages/teleport/index.html webassets/teleport/index.html; \
 	else MAKE="$(MAKE)" "$(MAKE_DIR)/build.assets/build-webassets-if-changed.sh" OSS webassets/oss-sha build-ui web; fi
 

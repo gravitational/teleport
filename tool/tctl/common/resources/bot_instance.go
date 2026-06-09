@@ -50,7 +50,7 @@ func (c *botInstanceCollection) WriteText(w io.Writer, verbose bool) error {
 	// last heartbeat, last auth, etc.
 	var rows [][]string
 	for _, item := range c.items {
-		rows = append(rows, []string{item.Spec.BotName, item.Spec.InstanceId})
+		rows = append(rows, []string{item.GetSpec().GetBotName(), item.GetSpec().GetInstanceId()})
 	}
 
 	t := asciitable.MakeTable(headers, rows...)
@@ -78,10 +78,10 @@ func getBotInstance(
 	c := client.BotInstanceServiceClient()
 	if ref.Name != "" && ref.SubKind != "" {
 		// Gets a specific bot instance, e.g. bot_instance/<bot name>/<instance id>
-		bi, err := c.GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+		bi, err := c.GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
 			BotName:    ref.SubKind,
 			InstanceId: ref.Name,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -92,13 +92,13 @@ func getBotInstance(
 	instances, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 		// TODO(nicholasmarais1158) Use ListBotInstancesV2 instead.
 		//nolint:staticcheck // SA1019
-		resp, err := c.ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
+		resp, err := c.ListBotInstances(ctx, machineidv1pb.ListBotInstancesRequest_builder{
 			PageSize:  int32(limit),
 			PageToken: pageToken,
 
 			// Note: empty filter lists all bot instances
 			FilterBotName: ref.Name,
-		})
+		}.Build())
 
 		return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
 	}))
