@@ -79,7 +79,7 @@ func CompareServers(a, b types.Resource) int {
 	}
 	if linA, ok := a.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]); ok {
 		if linB, ok := b.(types.Resource153UnwrapperT[*linuxdesktopv1.LinuxDesktop]); ok {
-			return compareLinuxDesktop(linA.UnwrapT(), linB.UnwrapT())
+			return CompareLinuxDesktop(linA.UnwrapT(), linB.UnwrapT())
 		}
 	}
 	return Different
@@ -365,7 +365,7 @@ func compareWindowsDesktopServices(a, b types.WindowsDesktopService) int {
 	return Equal
 }
 
-func compareLinuxDesktop(a, b *linuxdesktopv1.LinuxDesktop) int {
+func CompareLinuxDesktop(a, b *linuxdesktopv1.LinuxDesktop) int {
 	if a.GetKind() != b.GetKind() {
 		return Different
 	}

@@ -1325,11 +1325,13 @@ func (c *Controller) handleLinuxDesktopHB(handle *upstreamHandle, linuxDesktop *
 		handle.linuxDesktop = &heartBeatInfo[*linuxdesktopv1.LinuxDesktop]{
 			resource: linuxDesktop,
 		}
-	} else if handle.linuxDesktop.keepAliveErrs == 0 && gproto.Equal(handle.linuxDesktop.resource, linuxDesktop) {
+	} else if handle.linuxDesktop.keepAliveErrs == 0 && services.CompareLinuxDesktop(handle.linuxDesktop.resource, linuxDesktop) != services.Different {
+		// if we have successfully upserted this exact server the last time
+		// (except for the expiry), we don't need to upsert it again right now
 		return nil
-	} else {
-		handle.linuxDesktop.resource = linuxDesktop
 	}
+
+	handle.linuxDesktop.resource = linuxDesktop
 
 	meta.Expires = timestamppb.New(time.Now().Add(c.serverTTL).UTC())
 
