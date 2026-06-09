@@ -1202,16 +1202,16 @@ func TestRegisterBotWithInvalidUserLoginState(t *testing.T) {
 	_, err = authtest.CreateRole(ctx, a, roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+	_, err = machineidv1.UpsertBot(ctx, a, machineidv1pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: botName,
-		},
-		Spec: &machineidv1pb.BotSpec{
+		}.Build(),
+		Spec: machineidv1pb.BotSpec_builder{
 			Roles: []string{roleName},
-		},
-	}, a.GetClock().Now(), "")
+		}.Build(),
+	}.Build(), a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	client, err := srv.NewClient(authtest.TestAdmin())
