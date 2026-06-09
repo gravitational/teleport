@@ -93,6 +93,7 @@ export const ViewModeSwitchButton = styled.button<{
   cursor: pointer;
   background-color: transparent;
   outline: none;
+  padding-inline: ${p => p.theme.space[1]}px;
   transition: outline-width 150ms ease;
 
   ${p =>

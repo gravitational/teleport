@@ -19,7 +19,6 @@
 import { QueryClientProvider } from '@tanstack/react-query';
 import { PropsWithChildren } from 'react';
 
-import darkTheme from 'design/theme/themes/darkTheme';
 import { ConfiguredThemeProvider } from 'design/ThemeProvider';
 import {
   enableMswServer,
@@ -27,6 +26,7 @@ import {
   screen,
   server,
   testQueryClient,
+  theme,
   waitForElementToBeRemoved,
 } from 'design/utils/testing';
 
@@ -139,7 +139,7 @@ function makeWrapper(options?: { customAcl?: ReturnType<typeof makeAcl> }) {
     });
     return (
       <QueryClientProvider client={testQueryClient}>
-        <ConfiguredThemeProvider theme={darkTheme}>
+        <ConfiguredThemeProvider theme={theme}>
           <ContextProvider ctx={ctx}>{children}</ContextProvider>
         </ConfiguredThemeProvider>
       </QueryClientProvider>

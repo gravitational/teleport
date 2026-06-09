@@ -16,6 +16,10 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import {
+  resolveColorTokens,
+  useDesignSystemContext,
+} from '@gravitational/design-system';
 import React, { useEffect, useRef, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
@@ -64,6 +68,7 @@ export function Terminal(props: TerminalProps) {
   const [startPtyProcessAttempt, setStartPtyProcessAttempt] =
     useState<Attempt<void>>(makeEmptyAttempt());
   const theme = useTheme();
+  const system = useDesignSystemContext();
 
   useEffect(() => {
     const removeOnStartErrorListener = props.ptyProcess.onStartError(
@@ -81,7 +86,7 @@ export function Terminal(props: TerminalProps) {
       {
         el: refElement.current,
         fontSize: props.fontSize,
-        theme: theme.colors.terminal,
+        theme: resolveColorTokens(system, theme.colors.terminal, theme.type),
         windowsPty: props.windowsPty,
         openContextMenu: props.openContextMenu,
       },
@@ -123,9 +128,13 @@ export function Terminal(props: TerminalProps) {
 
   useEffect(() => {
     if (refCtrl.current) {
-      refCtrl.current.term.options.theme = theme.colors.terminal;
+      refCtrl.current.term.options.theme = resolveColorTokens(
+        system,
+        theme.colors.terminal,
+        theme.type
+      );
     }
-  }, [theme]);
+  }, [system, theme]);
 
   return (
     <Flex

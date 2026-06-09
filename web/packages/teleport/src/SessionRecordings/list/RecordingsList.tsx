@@ -17,6 +17,10 @@
  */
 
 import {
+  resolveColorTokens,
+  useDesignSystemContext,
+} from '@gravitational/design-system';
+import {
   useCallback,
   useMemo,
   useRef,
@@ -144,6 +148,7 @@ export function RecordingsList({
 }: RecordingsListProps) {
   const ctx = useTeleport();
   const theme = useTheme();
+  const system = useDesignSystemContext();
 
   const { clusterId } = useStickyClusterId();
 
@@ -232,8 +237,12 @@ export function RecordingsList({
   );
 
   const thumbnailStyles = useMemo(
-    () => generateTerminalSVGStyleTag(theme),
-    [theme]
+    () =>
+      generateTerminalSVGStyleTag(
+        resolveColorTokens(system, theme.colors.terminal, theme.type),
+        theme.fonts.mono
+      ),
+    [system, theme]
   );
 
   const items = useMemo(
