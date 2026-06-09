@@ -11601,3 +11601,116 @@ func newDatabaseSessionEndEvent() *apievents.DatabaseSessionEnd {
 		EndTime:   endTime,
 	}
 }
+
+func TestCheckSubmitForUser(t *testing.T) {
+	t.Parallel()
+
+	aliceUser, err := types.NewUser("alice")
+	require.NoError(t, err)
+	reviewer, err := types.NewUser("reviewer")
+	require.NoError(t, err)
+
+	roleWildcardAllow := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "wildcard-allow",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					SubmitForUsers: []string{"*"},
+				},
+			},
+		},
+	}
+	roleWildcardDeny := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "wildcard-deny",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Deny: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					SubmitForUsers: []string{"*"},
+				},
+			},
+		},
+	}
+	roleAliceAllow := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "alice-allow",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					SubmitForUsers: []string{"alice"},
+				},
+			},
+		},
+	}
+	roleAliceDeny := &types.RoleV6{
+		Metadata: types.Metadata{
+			Name:      "alice-deny",
+			Namespace: apidefaults.Namespace,
+		},
+		Spec: types.RoleSpecV6{
+			Deny: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					SubmitForUsers: []string{"alice"},
+				},
+			},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		roles   RoleSet
+		wantErr bool
+	}{
+		{
+			name:    "allow empty",
+			roles:   RoleSet{},
+			wantErr: true,
+		},
+		{
+			name:  "allow wildcard",
+			roles: RoleSet{roleWildcardAllow},
+		},
+		{
+			name:    "deny wildcard",
+			roles:   RoleSet{roleWildcardDeny},
+			wantErr: true,
+		},
+		{
+			name:  "allow alice",
+			roles: RoleSet{roleAliceAllow},
+		},
+		{
+			name:    "deny alice",
+			roles:   RoleSet{roleAliceDeny},
+			wantErr: true,
+		},
+		{
+			name:    "allow wildcard, deny alice",
+			roles:   RoleSet{roleWildcardAllow, roleAliceDeny},
+			wantErr: true,
+		},
+		{
+			name:    "deny wildcard, allow alice",
+			roles:   RoleSet{roleWildcardDeny, roleAliceAllow},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err = tt.roles.CheckSubmitForUser(reviewer, aliceUser)
+			if tt.wantErr {
+				require.True(t, trace.IsAccessDenied(err))
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
