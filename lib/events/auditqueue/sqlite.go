@@ -42,7 +42,6 @@ import (
 )
 
 const (
-	defaultToBeWrittenBufferLen    = 1024
 	pollInterval                   = 100 * time.Millisecond
 	incrementalVacuumInterval      = 10 * time.Minute
 	defaultOrphanScanInterval      = 10 * time.Minute
@@ -89,13 +88,13 @@ CREATE TABLE IF NOT EXISTS audit_queue (
     id       INTEGER PRIMARY KEY,
     payload  BLOB    NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 0
-);
+) STRICT;
 
 CREATE TABLE IF NOT EXISTS audit_dead_letter (
     id        INTEGER PRIMARY KEY,
     payload   BLOB    NOT NULL,
     failed_at INTEGER NOT NULL
-);
+) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_dead_letter_failed_at ON audit_dead_letter(failed_at);
 
@@ -103,7 +102,7 @@ CREATE TABLE IF NOT EXISTS teleport_info (
     id    INTEGER PRIMARY KEY,
     key   TEXT NOT NULL UNIQUE,
     value TEXT NOT NULL
-);
+) STRICT;
 `
 
 // writeRequest is a single Enqueue waiting on a commit result. The writer
@@ -218,7 +217,7 @@ func newSQLiteQueue(cfg Config) (*sqliteQueue, error) {
 	q := &sqliteQueue{
 		db:                      db,
 		path:                    cfg.Path,
-		toBeWritten:             make(chan writeRequest, defaultToBeWrittenBufferLen),
+		toBeWritten:             make(chan writeRequest),
 		maxBatch:                defaultMaxBatch,
 		ctx:                     ctx,
 		cancel:                  cancel,
@@ -331,24 +330,24 @@ func (q *sqliteQueue) softLimitLoop() {
 		case <-q.ctx.Done():
 			return
 		case <-ticker.C:
-			above, size, err := q.aboveSoftLimit()
-			if err != nil {
-				slog.ErrorContext(q.ctx,
-					"Failed to stat audit queue file.",
-					"path", q.path,
-					"error", err,
-				)
-				continue
-			}
-			if above {
-				slog.WarnContext(q.ctx,
-					"audit event queue above soft limit",
-					"path", q.path,
-					"size_bytes", size,
-					"soft_limit_bytes", q.softLimit,
-				)
-				softLimitWarnings.Inc()
-			}
+		}
+		above, size, err := q.aboveSoftLimit()
+		if err != nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to stat audit queue file.",
+				"path", q.path,
+				"error", err,
+			)
+			continue
+		}
+		if above {
+			slog.WarnContext(q.ctx,
+				"audit event queue above soft limit",
+				"path", q.path,
+				"size_bytes", size,
+				"soft_limit_bytes", q.softLimit,
+			)
+			softLimitWarnings.Inc()
 		}
 	}
 }
@@ -807,21 +806,18 @@ func (q *sqliteQueue) expireDeadLetter() {
 }
 
 func (q *sqliteQueue) orphanScanLoop(ctx context.Context, handler Handler) {
-	q.sweepStaleTmp()
-	q.adoptOrphans(ctx, handler)
-
-	timer := time.NewTimer(q.orphanScanInterval)
-	defer timer.Stop()
+	ticker := time.NewTicker(q.orphanScanInterval)
+	defer ticker.Stop()
 	for {
+		q.sweepStaleTmp()
+		q.adoptOrphans(ctx, handler)
+
 		select {
 		case <-ctx.Done():
 			return
 		case <-q.ctx.Done():
 			return
-		case <-timer.C:
-			q.sweepStaleTmp()
-			q.adoptOrphans(ctx, handler)
-			timer.Reset(q.orphanScanInterval)
+		case <-ticker.C:
 		}
 	}
 }
@@ -864,18 +860,51 @@ func (q *sqliteQueue) sweepStaleTmp() {
 		// should have their `*.tmp` suffix removed as soon as they are done
 		// initializing, which should be a very quick process.
 		stalePath := filepath.Join(q.parentDir, dirEntry.Name())
+		tryRemoveStaleTmp(q.ctx, stalePath)
+	}
+}
 
-		// Tmp directories were orphaned before they finished initializing,
-		// therefore they will have no audit log events, hence they are safe to
-		// remove.
-		if err := os.RemoveAll(stalePath); err != nil {
-			orphanScanErrors.Inc()
-			slog.ErrorContext(q.ctx,
-				"Failed to remove stale audit-queue tmp directory.",
+func tryRemoveStaleTmp(ctx context.Context, stalePath string) {
+	unlock, err := utils.FSTryWriteLock(filepath.Join(stalePath, queueLockFile))
+	if err != nil {
+		// The lock is held, so a creator is still active. Leave the directory
+		// for its owner and try again on the next sweep.
+		if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
+			slog.WarnContext(ctx,
+				"Audit-queue tmp directory is still locked past the stale threshold. Leaving it for its owner.",
+				"path", stalePath,
+				"stale_threshold", staleTmpThreshold,
+			)
+			return
+		}
+		orphanScanErrors.Inc()
+		slog.ErrorContext(ctx,
+			"Failed to lock stale audit-queue tmp directory.",
+			"path", stalePath,
+			"error", err,
+		)
+		return
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			slog.ErrorContext(ctx,
+				"Failed to release stale audit-queue tmp flock.",
 				"path", stalePath,
 				"error", err,
 			)
 		}
+	}()
+
+	// We hold the lock, so the directory is unowned. Tmp directories were
+	// orphaned before they finished initializing, therefore they will have no
+	// audit log events, hence they are safe to remove.
+	if err := os.RemoveAll(stalePath); err != nil {
+		orphanScanErrors.Inc()
+		slog.ErrorContext(ctx,
+			"Failed to remove stale audit-queue tmp directory.",
+			"path", stalePath,
+			"error", err,
+		)
 	}
 }
 
