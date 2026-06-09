@@ -7,7 +7,6 @@ use anyhow::{Context, Result};
 use log::warn;
 use rand::RngCore;
 use serde::Deserialize;
-use windows::core::imp::{sha1, ConstBuffer};
 use windows::{core::*, Win32::Foundation::*, Win32::Security::Cryptography::*};
 
 use crate::crypto::LicenseType::{Enterprise, Unknown, OSS};
@@ -193,12 +192,11 @@ impl CryptContext {
         let mut key = Key(0);
         unsafe {
             // create hash object
-            CryptCreateHash(self.handle, CALG_SHA1, 0, 0, &mut h.0).context("Can't create hash")?;
+            CryptCreateHash(self.handle, CALG_SHA_256, 0, 0, &mut h.0)
+                .context("Can't create hash")?;
 
-            // set data to hash
-            let digest = sha1(&ConstBuffer::from_slice(&data[..]));
-            CryptSetHashParam(h.0, HP_HASHVAL, digest.bytes().as_ptr(), 0)
-                .context("Can't set hash value")?;
+            // feed data to the smart card CSP, which computes the digest
+            CryptHashData(h.0, &data, 0).context("Can't hash data")?;
 
             // get signature length
             let mut size = 0u32;
