@@ -26,7 +26,7 @@ In short, private key material will never leave Google Cloud KMS.
 
 If launching a new Teleport cluster this will all be handled during initial
 startup with no specific interventions required after configuration.
-For existing Teleport clusters that already have already generated software
+For existing Teleport clusters that already have generated software
 private keys, a CA rotation must be performed.
 Read on to [migrating an existing cluster](#migrating-an-existing-cluster) to
 learn more.
@@ -190,7 +190,7 @@ $ gcloud kms keyrings list --location <Var name="location"/>
 <summary>Choosing a protection level</summary>
 
 Supported KMS protection levels are `SOFTWARE` and `HSM`.
-If you choose `SOFTWARE`, GCP KMS will performs all cryptographic operations in
+If you choose `SOFTWARE`, GCP KMS will perform all cryptographic operations in
 software (Teleport performs no cryptographic operations).
 If you choose `HSM`, GCP KMS will perform all cryptographic operations in a
 Hardware Security Module.

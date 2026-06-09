@@ -1,7 +1,7 @@
 # Merge rules are governed by logic in the Workflow Bot. Protect the
 # .github/workflows directory (and the merge logic) using CODEOWNERS.
-/.github/workflows/ @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @rosstimothy
-/.github/actions/ @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @rosstimothy
+/.github/workflows/ @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @aadc-dev @rosstimothy
+/.github/actions/ @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @aadc-dev @rosstimothy
 /build.assets/tooling/cmd/difftest/ @klizhentas @russjones @r0mant @zmb3 @rosstimothy
 
 # Owners for JS dependency updates.
@@ -9,12 +9,15 @@
 /web/packages/teleterm/package.json @gzdunek @ravicious
 /e2e/pnpm-lock.yaml @ryanclark @avatus @ravicious
 
+# E2E Tests
+/.github/workflows/e2e-* @klizhentas @russjones @r0mant @zmb3 @mjsmithnh @doggydogworld @aadc-dev @rosstimothy @ryanclark @avatus @ravicious
+
 # Owners for Go dependency updates.
 /go.mod @russjones @r0mant @zmb3 @rosstimothy
 /api/go.mod @russjones @r0mant @zmb3 @rosstimothy
 /assets/aws/go.mod @russjones @r0mant @zmb3 @rosstimothy
 /assets/backport/go.mod @russjones @r0mant @zmb3 @rosstimothy
-/build.assets/tooling/go.mod @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld
+/build.assets/tooling/go.mod @russjones @r0mant @zmb3 @rosstimothy @mjsmithnh @doggydogworld @aadc-dev
 /integrations/terraform/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato
 /integrations/terraform-mwi/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato @strideynet
 /integrations/event-handler/go.mod @russjones @r0mant @zmb3 @rosstimothy @hugoShaka @tigrato

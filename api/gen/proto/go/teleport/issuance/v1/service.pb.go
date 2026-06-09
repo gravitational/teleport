@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/issuance/v1/service.proto
 
+//go:build !protoopaque
+
 package issuancev1pb
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // Request for IssueScopedBotCerts
 type IssueScopedBotCertsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The SSH public key in SSH authorized_keys format, to be used as
 	// the subject for the issued SSH certificate. If omitted, only a TLS cert
 	// will be returned.
@@ -86,11 +87,6 @@ func (x *IssueScopedBotCertsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IssueScopedBotCertsRequest.ProtoReflect.Descriptor instead.
-func (*IssueScopedBotCertsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_issuance_v1_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *IssueScopedBotCertsRequest) GetSshPublicKey() []byte {
 	if x != nil {
 		return x.SshPublicKey
@@ -128,6 +124,128 @@ func (x *IssueScopedBotCertsRequest) GetIdentity() *UsageIdentity {
 	return nil
 }
 
+func (x *IssueScopedBotCertsRequest) SetSshPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.SshPublicKey = v
+}
+
+func (x *IssueScopedBotCertsRequest) SetTlsPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.TlsPublicKey = v
+}
+
+func (x *IssueScopedBotCertsRequest) SetTtl(v *durationpb.Duration) {
+	x.Ttl = v
+}
+
+func (x *IssueScopedBotCertsRequest) SetIdentity(v *UsageIdentity) {
+	if v == nil {
+		x.Usage = nil
+		return
+	}
+	x.Usage = &IssueScopedBotCertsRequest_Identity{v}
+}
+
+func (x *IssueScopedBotCertsRequest) HasTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ttl != nil
+}
+
+func (x *IssueScopedBotCertsRequest) HasUsage() bool {
+	if x == nil {
+		return false
+	}
+	return x.Usage != nil
+}
+
+func (x *IssueScopedBotCertsRequest) HasIdentity() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Usage.(*IssueScopedBotCertsRequest_Identity)
+	return ok
+}
+
+func (x *IssueScopedBotCertsRequest) ClearTtl() {
+	x.Ttl = nil
+}
+
+func (x *IssueScopedBotCertsRequest) ClearUsage() {
+	x.Usage = nil
+}
+
+func (x *IssueScopedBotCertsRequest) ClearIdentity() {
+	if _, ok := x.Usage.(*IssueScopedBotCertsRequest_Identity); ok {
+		x.Usage = nil
+	}
+}
+
+const IssueScopedBotCertsRequest_Usage_not_set_case case_IssueScopedBotCertsRequest_Usage = 0
+const IssueScopedBotCertsRequest_Identity_case case_IssueScopedBotCertsRequest_Usage = 4
+
+func (x *IssueScopedBotCertsRequest) WhichUsage() case_IssueScopedBotCertsRequest_Usage {
+	if x == nil {
+		return IssueScopedBotCertsRequest_Usage_not_set_case
+	}
+	switch x.Usage.(type) {
+	case *IssueScopedBotCertsRequest_Identity:
+		return IssueScopedBotCertsRequest_Identity_case
+	default:
+		return IssueScopedBotCertsRequest_Usage_not_set_case
+	}
+}
+
+type IssueScopedBotCertsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The SSH public key in SSH authorized_keys format, to be used as
+	// the subject for the issued SSH certificate. If omitted, only a TLS cert
+	// will be returned.
+	SshPublicKey []byte
+	// The TLS public key in PEM-encoded PKCS#1 or PKIX format, to be used as
+	// the subject for the issued TLS certificate. If omitted, only an SSH cert
+	// will be returned.
+	TlsPublicKey []byte
+	// Requested TTL for the issued certificate.
+	// If greater than the maximum allowed TTL, the request will be rejected.
+	Ttl *durationpb.Duration
+	// Indicates the intended usage of the issued certificates and includes
+	// any usage-specific options. At least one of the usage values must be set.
+
+	// Fields of oneof Usage:
+	Identity *UsageIdentity
+	// -- end of Usage
+}
+
+func (b0 IssueScopedBotCertsRequest_builder) Build() *IssueScopedBotCertsRequest {
+	m0 := &IssueScopedBotCertsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SshPublicKey = b.SshPublicKey
+	x.TlsPublicKey = b.TlsPublicKey
+	x.Ttl = b.Ttl
+	if b.Identity != nil {
+		x.Usage = &IssueScopedBotCertsRequest_Identity{b.Identity}
+	}
+	return m0
+}
+
+type case_IssueScopedBotCertsRequest_Usage protoreflect.FieldNumber
+
+func (x case_IssueScopedBotCertsRequest_Usage) String() string {
+	md := file_teleport_issuance_v1_service_proto_msgTypes[0].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isIssueScopedBotCertsRequest_Usage interface {
 	isIssueScopedBotCertsRequest_Usage()
 }
@@ -141,7 +259,7 @@ func (*IssueScopedBotCertsRequest_Identity) isIssueScopedBotCertsRequest_Usage()
 // The simplest possible usage mode for a certificate, returning certificates
 // appropriate for SSH or API authn.
 type UsageIdentity struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -171,14 +289,21 @@ func (x *UsageIdentity) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UsageIdentity.ProtoReflect.Descriptor instead.
-func (*UsageIdentity) Descriptor() ([]byte, []int) {
-	return file_teleport_issuance_v1_service_proto_rawDescGZIP(), []int{1}
+type UsageIdentity_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 UsageIdentity_builder) Build() *UsageIdentity {
+	m0 := &UsageIdentity{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for IssueScopedBotCerts
 type IssueScopedBotCertsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Issued certificates.
 	Certs         *Certs `protobuf:"bytes,1,opt,name=certs,proto3" json:"certs,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -210,11 +335,6 @@ func (x *IssueScopedBotCertsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IssueScopedBotCertsResponse.ProtoReflect.Descriptor instead.
-func (*IssueScopedBotCertsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_issuance_v1_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *IssueScopedBotCertsResponse) GetCerts() *Certs {
 	if x != nil {
 		return x.Certs
@@ -222,9 +342,39 @@ func (x *IssueScopedBotCertsResponse) GetCerts() *Certs {
 	return nil
 }
 
+func (x *IssueScopedBotCertsResponse) SetCerts(v *Certs) {
+	x.Certs = v
+}
+
+func (x *IssueScopedBotCertsResponse) HasCerts() bool {
+	if x == nil {
+		return false
+	}
+	return x.Certs != nil
+}
+
+func (x *IssueScopedBotCertsResponse) ClearCerts() {
+	x.Certs = nil
+}
+
+type IssueScopedBotCertsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Issued certificates.
+	Certs *Certs
+}
+
+func (b0 IssueScopedBotCertsResponse_builder) Build() *IssueScopedBotCertsResponse {
+	m0 := &IssueScopedBotCertsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Certs = b.Certs
+	return m0
+}
+
 // Set of certificates corresponding to a single public key.
 type Certs struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SSH certificate marshaled in the authorized key format.
 	Ssh []byte `protobuf:"bytes,1,opt,name=ssh,proto3" json:"ssh,omitempty"`
 	// TLS X.509 certificate as PEM-wrapped ASN.1 DER.
@@ -258,11 +408,6 @@ func (x *Certs) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Certs.ProtoReflect.Descriptor instead.
-func (*Certs) Descriptor() ([]byte, []int) {
-	return file_teleport_issuance_v1_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *Certs) GetSsh() []byte {
 	if x != nil {
 		return x.Ssh
@@ -275,6 +420,38 @@ func (x *Certs) GetTls() []byte {
 		return x.Tls
 	}
 	return nil
+}
+
+func (x *Certs) SetSsh(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Ssh = v
+}
+
+func (x *Certs) SetTls(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Tls = v
+}
+
+type Certs_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SSH certificate marshaled in the authorized key format.
+	Ssh []byte
+	// TLS X.509 certificate as PEM-wrapped ASN.1 DER.
+	Tls []byte
+}
+
+func (b0 Certs_builder) Build() *Certs {
+	m0 := &Certs{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Ssh = b.Ssh
+	x.Tls = b.Tls
+	return m0
 }
 
 var File_teleport_issuance_v1_service_proto protoreflect.FileDescriptor
@@ -296,18 +473,6 @@ const file_teleport_issuance_v1_service_proto_rawDesc = "" +
 	"\x03tls\x18\x02 \x01(\fR\x03tls2\x8d\x01\n" +
 	"\x0fIssuanceService\x12z\n" +
 	"\x13IssueScopedBotCerts\x120.teleport.issuance.v1.IssueScopedBotCertsRequest\x1a1.teleport.issuance.v1.IssueScopedBotCertsResponseBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/issuance/v1;issuancev1pbb\x06proto3"
-
-var (
-	file_teleport_issuance_v1_service_proto_rawDescOnce sync.Once
-	file_teleport_issuance_v1_service_proto_rawDescData []byte
-)
-
-func file_teleport_issuance_v1_service_proto_rawDescGZIP() []byte {
-	file_teleport_issuance_v1_service_proto_rawDescOnce.Do(func() {
-		file_teleport_issuance_v1_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_issuance_v1_service_proto_rawDesc), len(file_teleport_issuance_v1_service_proto_rawDesc)))
-	})
-	return file_teleport_issuance_v1_service_proto_rawDescData
-}
 
 var file_teleport_issuance_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_issuance_v1_service_proto_goTypes = []any{

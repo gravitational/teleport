@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/resource.proto
 
+//go:build !protoopaque
+
 package decisionpb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // example, a call to EvaluateSSHAccess would use the Resource type to reference
 // the ssh node being accessed.
 type Resource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kind is the type of the resource. Required for requests that support
 	// multiple types, otherwise safe to omit.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
@@ -79,11 +80,6 @@ func (x *Resource) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Resource.ProtoReflect.Descriptor instead.
-func (*Resource) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_resource_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *Resource) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -105,6 +101,42 @@ func (x *Resource) GetName() string {
 	return ""
 }
 
+func (x *Resource) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *Resource) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *Resource) SetName(v string) {
+	x.Name = v
+}
+
+type Resource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kind is the type of the resource. Required for requests that support
+	// multiple types, otherwise safe to omit.
+	Kind string
+	// SubKind is the subtype of the resource. Usually not required as most
+	// resources don't have subkinds, or their subkinds do not have an effect on
+	// authorization decisions.
+	SubKind string
+	// Name is the unique name of the resource.
+	Name string
+}
+
+func (b0 Resource_builder) Build() *Resource {
+	m0 := &Resource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Name = b.Name
+	return m0
+}
+
 var File_teleport_decision_v1alpha1_resource_proto protoreflect.FileDescriptor
 
 const file_teleport_decision_v1alpha1_resource_proto_rawDesc = "" +
@@ -114,18 +146,6 @@ const file_teleport_decision_v1alpha1_resource_proto_rawDesc = "" +
 	"\x04kind\x18\x01 \x01(\tR\x04kind\x12\x19\n" +
 	"\bsub_kind\x18\x02 \x01(\tR\asubKind\x12\x12\n" +
 	"\x04name\x18\x03 \x01(\tR\x04nameBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
-
-var (
-	file_teleport_decision_v1alpha1_resource_proto_rawDescOnce sync.Once
-	file_teleport_decision_v1alpha1_resource_proto_rawDescData []byte
-)
-
-func file_teleport_decision_v1alpha1_resource_proto_rawDescGZIP() []byte {
-	file_teleport_decision_v1alpha1_resource_proto_rawDescOnce.Do(func() {
-		file_teleport_decision_v1alpha1_resource_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_resource_proto_rawDesc), len(file_teleport_decision_v1alpha1_resource_proto_rawDesc)))
-	})
-	return file_teleport_decision_v1alpha1_resource_proto_rawDescData
-}
 
 var file_teleport_decision_v1alpha1_resource_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_decision_v1alpha1_resource_proto_goTypes = []any{

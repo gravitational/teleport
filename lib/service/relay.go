@@ -112,6 +112,7 @@ func (process *TeleportProcess) runRelayService() error {
 		LockWatcher:      lockWatcher,
 		Logger:           sublogger("authorizer"),
 		PermitCaching:    process.Config.CachePolicy.Enabled,
+		ScopesFeatures:   process.scopesFeatures,
 	}
 
 	authorizer, err := authz.NewAuthorizer(authorizerOpts)
@@ -338,12 +339,12 @@ func (process *TeleportProcess) runRelayService() error {
 		FIPS:   process.Config.FIPS,
 		Logger: sublogger("transport_service"),
 		Dialer: relayRouter,
-		SignerFn: func(*authz.ScopedContext, string) agentless.SignerCreator {
-			return func(context.Context, agentless.LocalAccessPoint, agentless.CertGenerator) (ssh.Signer, error) {
+		SignerFn: func(context.Context, *authz.ScopedContext, string) (agentless.SignerCreator, error) {
+			return func(context.Context, agentless.LocalAccessPoint, string) (ssh.Signer, error) {
 				// the behavior of relayRouter is such that we should never
 				// attempt to connect to an agentless server
 				return nil, trace.Errorf("connections to agentless servers are not supported (this is a bug)")
-			}
+			}, nil
 		},
 		ConnectionMonitor: connMonitor,
 		LocalAddr:         transportListener.Addr(),
@@ -386,20 +387,20 @@ func (process *TeleportProcess) runRelayService() error {
 
 	nonce := uuid.NewString()
 	var relayServer atomic.Pointer[presencev1.RelayServer]
-	relayServer.Store(&presencev1.RelayServer{
+	relayServer.Store(presencev1.RelayServer_builder{
 		Kind:    apitypes.KindRelayServer,
 		SubKind: "",
 		Version: apitypes.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: conn.HostUUID(),
-		},
-		Spec: &presencev1.RelayServer_Spec{
+		}.Build(),
+		Spec: presencev1.RelayServer_Spec_builder{
 			Hostname:   process.Config.Hostname,
 			RelayGroup: process.Config.Relay.RelayGroup,
 			PeerAddr:   peerPublicAddr,
 			Nonce:      nonce,
-		},
-	})
+		}.Build(),
+	}.Build())
 
 	hb, err := srv.NewRelayServerHeartbeat(srv.HeartbeatV2Config[*presencev1.RelayServer]{
 		InventoryHandle: process.inventoryHandle,
@@ -432,7 +433,7 @@ func (process *TeleportProcess) runRelayService() error {
 
 	{
 		r := proto.CloneOf(relayServer.Load())
-		r.GetSpec().Terminating = true
+		r.GetSpec().SetTerminating(true)
 		relayServer.Store(r)
 	}
 

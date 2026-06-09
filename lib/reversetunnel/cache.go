@@ -113,7 +113,7 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 		return nil, trace.Wrap(err)
 	}
 
-	res, err := c.authClient.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+	res, err := c.authClient.TrustClient().GenerateHostCert(ctx, trustpb.GenerateHostCertRequest_builder{
 		Key:         pubBytes,
 		HostId:      principals[0],
 		NodeName:    principals[0],
@@ -121,11 +121,11 @@ func (c *certificateCache) generateHostCert(ctx context.Context, principals []st
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
 		Ttl:         durationpb.New(0),
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	certBytes := res.SshCertificate
+	certBytes := res.GetSshCertificate()
 
 	// create a *ssh.Certificate
 	sshSigner, err := ssh.NewSignerFromSigner(hostKey)

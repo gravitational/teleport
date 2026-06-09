@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/userpreferences/v1/discover_resource_preferences.proto
 
+//go:build !protoopaque
+
 package userpreferencesv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // DiscoverGuide defines preferences related to discover guides.
 type DiscoverGuide struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// pinned is a list of ids of pinned guides.
 	Pinned        []string `protobuf:"bytes,1,rep,name=pinned,proto3" json:"pinned,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -69,11 +70,6 @@ func (x *DiscoverGuide) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DiscoverGuide.ProtoReflect.Descriptor instead.
-func (*DiscoverGuide) Descriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_discover_resource_preferences_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DiscoverGuide) GetPinned() []string {
 	if x != nil {
 		return x.Pinned
@@ -81,9 +77,28 @@ func (x *DiscoverGuide) GetPinned() []string {
 	return nil
 }
 
+func (x *DiscoverGuide) SetPinned(v []string) {
+	x.Pinned = v
+}
+
+type DiscoverGuide_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// pinned is a list of ids of pinned guides.
+	Pinned []string
+}
+
+func (b0 DiscoverGuide_builder) Build() *DiscoverGuide {
+	m0 := &DiscoverGuide{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Pinned = b.Pinned
+	return m0
+}
+
 // DiscoverResourcePreferences holds preferences related to discovering resource.
 type DiscoverResourcePreferences struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// discover_guide defines preferences related to discover guides.
 	DiscoverGuide *DiscoverGuide `protobuf:"bytes,2,opt,name=discover_guide,json=discoverGuide,proto3" json:"discover_guide,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -115,16 +130,41 @@ func (x *DiscoverResourcePreferences) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DiscoverResourcePreferences.ProtoReflect.Descriptor instead.
-func (*DiscoverResourcePreferences) Descriptor() ([]byte, []int) {
-	return file_teleport_userpreferences_v1_discover_resource_preferences_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *DiscoverResourcePreferences) GetDiscoverGuide() *DiscoverGuide {
 	if x != nil {
 		return x.DiscoverGuide
 	}
 	return nil
+}
+
+func (x *DiscoverResourcePreferences) SetDiscoverGuide(v *DiscoverGuide) {
+	x.DiscoverGuide = v
+}
+
+func (x *DiscoverResourcePreferences) HasDiscoverGuide() bool {
+	if x == nil {
+		return false
+	}
+	return x.DiscoverGuide != nil
+}
+
+func (x *DiscoverResourcePreferences) ClearDiscoverGuide() {
+	x.DiscoverGuide = nil
+}
+
+type DiscoverResourcePreferences_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// discover_guide defines preferences related to discover guides.
+	DiscoverGuide *DiscoverGuide
+}
+
+func (b0 DiscoverResourcePreferences_builder) Build() *DiscoverResourcePreferences {
+	m0 := &DiscoverResourcePreferences{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DiscoverGuide = b.DiscoverGuide
+	return m0
 }
 
 var File_teleport_userpreferences_v1_discover_resource_preferences_proto protoreflect.FileDescriptor
@@ -136,18 +176,6 @@ const file_teleport_userpreferences_v1_discover_resource_preferences_proto_rawDe
 	"\x06pinned\x18\x01 \x03(\tR\x06pinned\"\x85\x01\n" +
 	"\x1bDiscoverResourcePreferences\x12Q\n" +
 	"\x0ediscover_guide\x18\x02 \x01(\v2*.teleport.userpreferences.v1.DiscoverGuideR\rdiscoverGuideJ\x04\b\x01\x10\x02R\rpinned_guidesBYZWgithub.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1;userpreferencesv1b\x06proto3"
-
-var (
-	file_teleport_userpreferences_v1_discover_resource_preferences_proto_rawDescOnce sync.Once
-	file_teleport_userpreferences_v1_discover_resource_preferences_proto_rawDescData []byte
-)
-
-func file_teleport_userpreferences_v1_discover_resource_preferences_proto_rawDescGZIP() []byte {
-	file_teleport_userpreferences_v1_discover_resource_preferences_proto_rawDescOnce.Do(func() {
-		file_teleport_userpreferences_v1_discover_resource_preferences_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userpreferences_v1_discover_resource_preferences_proto_rawDesc), len(file_teleport_userpreferences_v1_discover_resource_preferences_proto_rawDesc)))
-	})
-	return file_teleport_userpreferences_v1_discover_resource_preferences_proto_rawDescData
-}
 
 var file_teleport_userpreferences_v1_discover_resource_preferences_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_userpreferences_v1_discover_resource_preferences_proto_goTypes = []any{

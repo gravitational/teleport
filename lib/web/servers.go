@@ -93,9 +93,9 @@ func (h *Handler) clusterKubeResourcesGet(w http.ResponseWriter, r *http.Request
 	}
 
 	return listResourcesGetResponse{
-		Items:      webui.MakeKubeResources(resp.Resources, kubeCluster),
-		StartKey:   resp.NextKey,
-		TotalCount: int(resp.TotalCount),
+		Items:      webui.MakeKubeResources(resp.GetResources(), kubeCluster),
+		StartKey:   resp.GetNextKey(),
+		TotalCount: int(resp.GetTotalCount()),
 	}, nil
 }
 

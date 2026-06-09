@@ -199,6 +199,22 @@ module "azure_discovery" {
 </TabItem>
 
 <TabItem label="Self-Hosted">
+
+<Admonition type="note">
+
+The Teleport Azure OIDC integration uses a federated identity credential to authenticate the Discovery Service as the managed identity, which requires the Teleport Proxy Service to be accessible on the public internet.
+
+For Teleport clusters on a private network, set `use_oidc_integration = false` and assign a managed identity directly to the Discovery Service host.
+
+If you already have a managed identity with the required permissions, additionally set `create_azure_managed_identity = false` in the module configuration to skip creating the managed identity. See the
+[module reference](../../../../reference/infrastructure-as-code/terraform-modules/teleport-discovery-azure/teleport-discovery-azure.mdx)
+for the required permissions.
+
+After applying your configuration:
+[Assign a managed identity to the Discovery Service host](#assign-a-managed-identity-to-the-discovery-service-host).
+
+</Admonition>
+
 ```hcl
 module "azure_discovery" {
   source  = "terraform.releases.teleport.dev/teleport/discovery/azure"
@@ -237,11 +253,8 @@ module "azure_discovery" {
   apply_teleport_resource_labels = { origin = "example" }
 }
 ```
-</TabItem>
 
-{/*
-TODO(alexhemard): add instructions for the scenario where a self-hosted Teleport cluster cannot be reached on the public internet. The module supports disabling the integration with `use_oidc_integration = false` for this use case.
-*/}
+</TabItem>
 
 </Tabs>
 
@@ -301,6 +314,37 @@ The Teleport resources should have the following labels:
 
 - `origin=example`
 - `teleport.dev/iac-tool=terraform`
+
+### Assign a managed identity to the Discovery Service host
+
+For self-hosted Teleport clusters running on Azure, if the module is configured with `use_oidc_integration = false`, assign the managed identity created by the Terraform module to the VM running the Discovery Service. The Discovery Service will authenticate to Azure via the Azure Instance Metadata Service (IMDS) using the user-assigned identity.
+
+If the VM running the Discovery Service is managed by Terraform, reference the module output in the host
+VM resource's `identity` block:
+
+```hcl
+resource "azurerm_linux_virtual_machine" "teleport" {
+  # ...
+
+  identity {
+    type         = "UserAssigned"
+    identity_ids = [module.azure_discovery.azure_teleport_discovery_managed_identity.id]
+  }
+}
+```
+
+Alternatively, use the Azure CLI to assign the identity to an existing VM.
+Assign <Var name="discovery-service-vm-name" /> to the name of the VM running the
+Discovery Service and <Var name="discovery-service-vm-resource-group" /> to its
+resource group, and <Var name="azure-managed-identity-id" /> to the `id` from the
+`azure_teleport_discovery_managed_identity` output of the module.
+
+```code
+$ az vm identity assign \
+    --name <Var name="discovery-service-vm-name" /> \
+    --resource-group <Var name="discovery-service-vm-resource-group" /> \
+    --identities "<Var name="azure-managed-identity-id" />"
+```
 
 ## Step 5/5. Check discovery status
 

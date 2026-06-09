@@ -31,7 +31,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
@@ -279,35 +278,27 @@ func (r *Router) DialHost(ctx context.Context, scopePin *scopesv1.Pin, clientSrc
 
 	// If the node is a registered openssh node don't set agentGetter
 	// so a SSH user agent will not be created when connecting to the remote node.
-	var sshSigner ssh.Signer
+	var agentlessSignerCreator agentless.SignerCreator
 	if target.IsOpenSSHNode() {
 		agentGetter = nil
-
 		if target.GetSubKind() == types.SubKindOpenSSHNode {
-			// If the node is of SubKindOpenSSHNode, create the signer.
-			client, err := r.GetSiteClient(ctx, clusterName)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			sshSigner, err = signer(ctx, r.localAccessPoint, client)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
+			agentlessSignerCreator = signer
 		}
 	}
 
 	conn, err := cluster.Dial(reversetunnelclient.DialParams{
-		From:                  clientSrcAddr,
-		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
-		OriginalClientDstAddr: clientDstAddr,
-		GetUserAgent:          agentGetter,
-		AgentlessSigner:       sshSigner,
-		Address:               host,
-		Principals:            apiutils.Deduplicate(principals),
-		ServerID:              serverID,
-		ProxyIDs:              target.GetProxyIDs(),
-		ConnType:              types.NodeTunnel,
-		TargetServer:          target,
+		From:                   clientSrcAddr,
+		To:                     &utils.NetAddr{AddrNetwork: "tcp", Addr: serverAddr},
+		OriginalClientDstAddr:  clientDstAddr,
+		GetUserAgent:           agentGetter,
+		AgentlessSignerCreator: agentlessSignerCreator,
+		Address:                host,
+		Principals:             apiutils.Deduplicate(principals),
+		ServerID:               serverID,
+		ProxyIDs:               target.GetProxyIDs(),
+		ConnType:               types.NodeTunnel,
+		TargetServer:           target,
+		TargetScope:            target.GetScope(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -406,7 +397,7 @@ func (c *checkedPrefixWriter) Write(p []byte) (int, error) {
 // getRemoteCluster looks up the provided clusterName to determine if a remote cluster exists with
 // that name and determines if the user has access to it.
 func (r *Router) getRemoteCluster(ctx context.Context, clusterName string, clusterAccessChecker func(types.RemoteCluster) error) (reversetunnelclient.Cluster, error) {
-	_, span := r.tracer.Start(
+	ctx, span := r.tracer.Start(
 		ctx,
 		"router/getRemoteCluster",
 		oteltrace.WithAttributes(
@@ -624,7 +615,7 @@ func getServerWithResolver(ctx context.Context, scopePin *scopesv1.Pin, host, po
 // cluster. If the clusterName is an empty string then a connection to
 // the local auth server will be established.
 func (r *Router) DialSite(ctx context.Context, clusterName string, clientSrcAddr, clientDstAddr net.Addr) (_ net.Conn, err error) {
-	_, span := r.tracer.Start(
+	ctx, span := r.tracer.Start(
 		ctx,
 		"router/DialSite",
 		oteltrace.WithAttributes(

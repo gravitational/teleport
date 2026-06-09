@@ -559,6 +559,7 @@ func TestNewIdPIAMConfigureClient(t *testing.T) {
 		// Prevent the AWS SDK from loading user configuration files which may set the region.
 		t.Setenv("AWS_SHARED_CREDENTIALS_FILE", "/dev/null/does-not-exist")
 		t.Setenv("AWS_CONFIG_FILE", "/dev/null/does-not-exist")
+		t.Setenv("AWS_PROFILE", "")
 		t.Setenv("AWS_REGION", "")
 		t.Setenv("AWS_DEFAULT_REGION", "")
 		_, err := NewIdPIAMConfigureClient(context.Background())

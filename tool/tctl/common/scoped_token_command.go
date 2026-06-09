@@ -39,11 +39,11 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
 )
@@ -178,7 +178,7 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 
 	var labels map[string]string
 	if c.labels != "" {
-		labels, err = libclient.ParseLabelSpec(c.labels)
+		labels, err = parse.LabelSelectorSpec(c.labels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -186,33 +186,33 @@ func (c *ScopedTokensCommand) Add(ctx context.Context, client *authclient.Client
 
 	var immutableLabels *joiningv1.ImmutableLabels
 	if c.sshLabels != "" {
-		sshLabels, err := libclient.ParseLabelSpec(c.sshLabels)
+		sshLabels, err := parse.LabelSelectorSpec(c.sshLabels)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		immutableLabels = &joiningv1.ImmutableLabels{
+		immutableLabels = joiningv1.ImmutableLabels_builder{
 			Ssh: sshLabels,
-		}
+		}.Build()
 	}
 
 	expires := time.Now().UTC().Add(c.ttl)
-	tok := &joiningv1.ScopedToken{
+	tok := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:    tokenName,
 			Expires: timestamppb.New(expires),
 			Labels:  labels,
-		},
+		}.Build(),
 		Scope: c.tokenScope,
-		Spec: &joiningv1.ScopedTokenSpec{
+		Spec: joiningv1.ScopedTokenSpec_builder{
 			Roles:           roles.StringSlice(),
 			AssignedScope:   c.assignedScope,
 			UsageMode:       cmp.Or(c.mode, joining.TokenUsageModeUnlimited),
 			ImmutableLabels: immutableLabels,
 			JoinMethod:      string(types.JoinMethodToken),
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	tok, err = client.CreateScopedToken(ctx, tok)
 	if err != nil {
@@ -285,11 +285,11 @@ func (c *ScopedTokensCommand) Del(ctx context.Context, client *authclient.Client
 // List is called to execute "tokens ls" command.
 func (c *ScopedTokensCommand) List(ctx context.Context, client *authclient.Client) error {
 	tokens, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageKey string) ([]*joiningv1.ScopedToken, string, error) {
-		res, err := client.ListScopedTokens(ctx, &joiningv1.ListScopedTokensRequest{
+		res, err := client.ListScopedTokens(ctx, joiningv1.ListScopedTokensRequest_builder{
 			Limit:       uint32(pageSize),
 			Cursor:      pageKey,
 			WithSecrets: c.withSecrets,
-		})
+		}.Build())
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}

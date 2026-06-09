@@ -115,6 +115,14 @@ type TrustInternal interface {
 
 	// DeactivateCertAuthorities deactivates multiple cert authorities atomically.
 	DeactivateCertAuthorities(context.Context, ...types.CertAuthID) error
+
+	// UpsertTunnelConnectionV2 upserts a tunnel connection and returns the
+	// upserted value, with its revision populated from the backend.
+	//
+	// TODO(strideynet): In v20.0.0, once the legacy HTTP fallback is removed,
+	// this can be renamed to UpsertTunnelConnection and the error-only
+	// [Clusters.UpsertTunnelConnection] retired.
+	UpsertTunnelConnectionV2(ctx context.Context, conn types.TunnelConnection) (types.TunnelConnection, error)
 }
 
 // Clusters is responsible for managing trusted clusters.
@@ -138,7 +146,7 @@ type Clusters interface {
 	DeleteTrustedCluster(ctx context.Context, name string) error
 
 	// UpsertTunnelConnection upserts tunnel connection
-	UpsertTunnelConnection(types.TunnelConnection) error
+	UpsertTunnelConnection(ctx context.Context, conn types.TunnelConnection) error
 
 	// GetTunnelConnections returns tunnel connections for a given cluster
 	GetTunnelConnections(clusterName string, opts ...MarshalOption) ([]types.TunnelConnection, error)
@@ -147,7 +155,7 @@ type Clusters interface {
 	GetAllTunnelConnections(opts ...MarshalOption) ([]types.TunnelConnection, error)
 
 	// DeleteTunnelConnection deletes tunnel connection by name
-	DeleteTunnelConnection(clusterName string, connName string) error
+	DeleteTunnelConnection(ctx context.Context, clusterName string, connName string) error
 
 	// CreateRemoteCluster creates a remote cluster
 	CreateRemoteCluster(ctx context.Context, rc types.RemoteCluster) (types.RemoteCluster, error)

@@ -21,6 +21,40 @@ other services. The limit is aggregated across all apps on the
 `connection_limits` configured, those values apply to app access
 connections after upgrading to v19.
 
+#### Stricter application validation
+
+The application service now applies stricter naming rules on every
+write path (static config in `teleport.yaml`, the dynamic API via
+`tctl create`, the Terraform provider, the Kubernetes operator,
+direct API calls, and apps registered by existing agents). The
+change is backwards compatible apart from three cases:
+
+- Names in `teleport.yaml` static config must now be a valid DNS
+  label (lowercase alphanumeric and `-`, max 63 chars). Update the
+  config before upgrading.
+- `public_addr` values that remain unroutable after normalization
+  (IP addresses, IDN Unicode, trailing dots, underscores) are
+  rejected. The affected app drops from the registry until
+  corrected.
+- Duplicate `name` entries in the `app_service.apps` block of a
+  single agent's `teleport.yaml` now fail validation at startup.
+  Previously, the second entry silently overwrote the first, so
+  only one of the two apps was actually served. Deduplicate the
+  config before upgrading. The check is per-agent; multiple agents
+  heartbeating the same app name remain supported for load
+  balancing.
+
+Rolling upgrades are supported: older-agent heartbeats are
+normalized so previously valid names still pass.
+
+Static configs with two apps that route to the same effective FQDN
+(either the same explicit `public_addr`, or one app's
+`<name>.<proxy_public_addr>` default colliding with another app's
+`public_addr`) are now rejected at startup. Previously Teleport
+accepted the config and routed non-deterministically. The check uses
+this agent's `proxy_service.public_addr`; apps served via another
+proxy's public address in a multi-proxy cluster are not checked.
+
 #### CLI --help Output Improvements
 
 In the past, Teleport CLI programs printed all subcommands, subcommands'

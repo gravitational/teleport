@@ -26,6 +26,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -41,6 +43,15 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+// kubeconfigCmpOpts ignores fields that clientcmd populates as bookkeeping and equates nil maps/slices with empty ones,
+// so test fixtures don't have to set them explicitly to satisfy struct equality.
+var kubeconfigCmpOpts = []cmp.Option{
+	cmpopts.IgnoreFields(clientcmdapi.Cluster{}, "LocationOfOrigin"),
+	cmpopts.IgnoreFields(clientcmdapi.AuthInfo{}, "LocationOfOrigin"),
+	cmpopts.IgnoreFields(clientcmdapi.Context{}, "LocationOfOrigin"),
+	cmpopts.EquateEmpty(),
+}
+
 func setup(t *testing.T) (string, clientcmdapi.Config) {
 	f, err := os.CreateTemp("", "kubeconfig")
 	if err != nil {
@@ -48,11 +59,6 @@ func setup(t *testing.T) (string, clientcmdapi.Config) {
 	}
 	defer f.Close()
 
-	// Note: LocationOfOrigin and Extensions would be automatically added on
-	// clientcmd.Write below. Set them explicitly so we can compare
-	// initialConfig against loaded config.
-	//
-	// TODO: use a comparison library that can ignore individual fields.
 	kubeconfigPath := f.Name()
 	t.Cleanup(func() { os.Remove(kubeconfigPath) })
 
@@ -62,54 +68,38 @@ func setup(t *testing.T) (string, clientcmdapi.Config) {
 			"cluster-1": {
 				CertificateAuthority: "fake-ca-file",
 				Server:               "https://1.2.3.4",
-				LocationOfOrigin:     f.Name(),
-				Extensions:           map[string]runtime.Object{},
 			},
 			"cluster-2": {
 				InsecureSkipTLSVerify: true,
 				Server:                "https://1.2.3.5",
-				LocationOfOrigin:      f.Name(),
-				Extensions:            map[string]runtime.Object{},
 			},
 		},
 		AuthInfos: map[string]*clientcmdapi.AuthInfo{
 			"developer": {
 				ClientCertificate: "fake-client-cert",
 				ClientKey:         "fake-client-key",
-				LocationOfOrigin:  f.Name(),
-				Extensions:        map[string]runtime.Object{},
 			},
 			"admin": {
-				Username:         "admin",
-				Password:         "hunter1",
-				LocationOfOrigin: f.Name(),
-				Extensions:       map[string]runtime.Object{},
+				Username: "admin",
+				Password: "hunter1",
 			},
 			"support": {
 				Exec: &clientcmdapi.ExecConfig{
 					Command: "/bin/get_creds",
 					Args:    []string{"--role=support"},
 				},
-				LocationOfOrigin: f.Name(),
-				Extensions:       map[string]runtime.Object{},
 			},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
 			"dev": {
-				Cluster:          "cluster-2",
-				AuthInfo:         "developer",
-				LocationOfOrigin: f.Name(),
-				Extensions:       map[string]runtime.Object{},
+				Cluster:  "cluster-2",
+				AuthInfo: "developer",
 			},
 			"prod": {
-				Cluster:          "cluster-1",
-				AuthInfo:         "admin",
-				LocationOfOrigin: f.Name(),
-				Extensions:       map[string]runtime.Object{},
+				Cluster:  "cluster-1",
+				AuthInfo: "admin",
 			},
 		},
-		Preferences: clientcmdapi.Preferences{},
-		Extensions:  map[string]runtime.Object{},
 	}
 
 	initialContent, err := clientcmd.Write(initialConfig)
@@ -126,7 +116,7 @@ func TestLoad(t *testing.T) {
 	kubeconfigPath, initialConfig := setup(t)
 	config, err := Load(kubeconfigPath)
 	require.NoError(t, err)
-	require.Equal(t, initialConfig, *config)
+	require.Empty(t, cmp.Diff(initialConfig, *config, kubeconfigCmpOpts...))
 }
 
 func TestSave(t *testing.T) {
@@ -137,26 +127,17 @@ func TestSave(t *testing.T) {
 			"cluster": {
 				CertificateAuthority: "fake-ca-file",
 				Server:               "https://1.2.3.4",
-				LocationOfOrigin:     kubeconfigPath,
-				Extensions:           map[string]runtime.Object{},
 			},
 		},
 		AuthInfos: map[string]*clientcmdapi.AuthInfo{
-			"user": {
-				LocationOfOrigin: kubeconfigPath,
-				Extensions:       map[string]runtime.Object{},
-			},
+			"user": {},
 		},
 		Contexts: map[string]*clientcmdapi.Context{
 			"a": {
-				Cluster:          "cluster",
-				AuthInfo:         "user",
-				LocationOfOrigin: kubeconfigPath,
-				Extensions:       map[string]runtime.Object{},
+				Cluster:  "cluster",
+				AuthInfo: "user",
 			},
 		},
-		Preferences: clientcmdapi.Preferences{},
-		Extensions:  map[string]runtime.Object{},
 	}
 
 	err := Save(kubeconfigPath, cfg)
@@ -164,7 +145,7 @@ func TestSave(t *testing.T) {
 
 	config, err := Load(kubeconfigPath)
 	require.NoError(t, err)
-	require.Equal(t, cfg, *config)
+	require.Empty(t, cmp.Diff(cfg, *config, kubeconfigCmpOpts...))
 }
 
 func TestUpdate(t *testing.T) {
@@ -189,7 +170,6 @@ func TestUpdate(t *testing.T) {
 	wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
 		Server:                   clusterAddr,
 		CertificateAuthorityData: caCertPEM,
-		LocationOfOrigin:         kubeconfigPath,
 		Extensions: map[string]runtime.Object{
 			extTeleClusterName: &runtime.Unknown{
 				Raw:         []byte(`"` + clusterName + `"`),
@@ -200,7 +180,6 @@ func TestUpdate(t *testing.T) {
 	wantConfig.AuthInfos[clusterName] = &clientcmdapi.AuthInfo{
 		ClientCertificateData: creds.TLSCert,
 		ClientKeyData:         creds.TLSPrivateKey.PrivateKeyPEM(),
-		LocationOfOrigin:      kubeconfigPath,
 		Extensions: map[string]runtime.Object{
 			extTeleClusterName: &runtime.Unknown{
 				Raw:         []byte(`"` + clusterName + `"`),
@@ -209,9 +188,8 @@ func TestUpdate(t *testing.T) {
 		},
 	}
 	wantConfig.Contexts[clusterName] = &clientcmdapi.Context{
-		Cluster:          clusterName,
-		AuthInfo:         clusterName,
-		LocationOfOrigin: kubeconfigPath,
+		Cluster:  clusterName,
+		AuthInfo: clusterName,
 		Extensions: map[string]runtime.Object{
 			extTeleClusterName: &runtime.Unknown{
 				Raw:         []byte(`"` + clusterName + `"`),
@@ -223,7 +201,7 @@ func TestUpdate(t *testing.T) {
 
 	config, err := Load(kubeconfigPath)
 	require.NoError(t, err)
-	require.Equal(t, wantConfig, config)
+	require.Empty(t, cmp.Diff(wantConfig, config, kubeconfigCmpOpts...))
 }
 
 func TestUpdateWithExec(t *testing.T) {
@@ -311,7 +289,6 @@ func TestUpdateWithExec(t *testing.T) {
 			wantConfig.Clusters[authAndClusterName] = &clientcmdapi.Cluster{
 				Server:                   clusterAddr,
 				CertificateAuthorityData: caCertPEM,
-				LocationOfOrigin:         kubeconfigPath,
 				Extensions: map[string]runtime.Object{
 					extTeleClusterName: &runtime.Unknown{
 						Raw:         []byte(`"` + clusterName + `"`),
@@ -324,7 +301,6 @@ func TestUpdateWithExec(t *testing.T) {
 				},
 			}
 			wantConfig.AuthInfos[authAndClusterName] = &clientcmdapi.AuthInfo{
-				LocationOfOrigin: kubeconfigPath,
 				Extensions: map[string]runtime.Object{
 					extTeleClusterName: &runtime.Unknown{
 						Raw:         []byte(`"` + clusterName + `"`),
@@ -350,9 +326,8 @@ func TestUpdateWithExec(t *testing.T) {
 				},
 			}
 			wantConfig.Contexts[contextName] = &clientcmdapi.Context{
-				Cluster:          contextName,
-				AuthInfo:         contextName,
-				LocationOfOrigin: kubeconfigPath,
+				Cluster:  contextName,
+				AuthInfo: contextName,
 				Extensions: map[string]runtime.Object{
 					extTeleClusterName: &runtime.Unknown{
 						Raw:         []byte(`"` + clusterName + `"`),
@@ -367,7 +342,7 @@ func TestUpdateWithExec(t *testing.T) {
 			}
 			config, err := Load(kubeconfigPath)
 			require.NoError(t, err)
-			require.Equal(t, wantConfig, config)
+			require.Empty(t, cmp.Diff(wantConfig, config, kubeconfigCmpOpts...))
 		},
 		)
 	}
@@ -407,7 +382,6 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 	wantConfig.Clusters[contextName] = &clientcmdapi.Cluster{
 		Server:                   clusterAddr,
 		CertificateAuthorityData: caCertPEM,
-		LocationOfOrigin:         kubeconfigPath,
 		Extensions: map[string]runtime.Object{
 			extProfileName: &runtime.Unknown{
 				Raw:         []byte(`"` + proxyHost + `"`),
@@ -424,7 +398,6 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		},
 	}
 	wantConfig.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
-		LocationOfOrigin: kubeconfigPath,
 		Extensions: map[string]runtime.Object{
 			extProfileName: &runtime.Unknown{
 				Raw:         []byte(`"` + proxyHost + `"`),
@@ -453,9 +426,8 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 		},
 	}
 	wantConfig.Contexts[contextName] = &clientcmdapi.Context{
-		Cluster:          contextName,
-		AuthInfo:         contextName,
-		LocationOfOrigin: kubeconfigPath,
+		Cluster:  contextName,
+		AuthInfo: contextName,
 		Extensions: map[string]runtime.Object{
 			extProfileName: &runtime.Unknown{
 				Raw:         []byte(`"` + proxyHost + `"`),
@@ -474,7 +446,7 @@ func TestUpdateWithExecAndProxy(t *testing.T) {
 
 	config, err := Load(kubeconfigPath)
 	require.NoError(t, err)
-	require.Equal(t, wantConfig, config)
+	require.Empty(t, cmp.Diff(wantConfig, config, kubeconfigCmpOpts...))
 }
 
 func TestUpdateLoadAllCAs(t *testing.T) {
@@ -547,7 +519,7 @@ func TestRemoveByClusterName(t *testing.T) {
 	// as it's not the one we just removed.
 	require.NotEqual(t, clusterName, config.CurrentContext)
 	wantConfig.CurrentContext = config.CurrentContext
-	require.Equal(t, wantConfig, config)
+	require.Empty(t, cmp.Diff(wantConfig, config, kubeconfigCmpOpts...))
 
 	// Add teleport-generated entries to kubeconfig again.
 	err = Update(kubeconfigPath, Values{
@@ -580,7 +552,7 @@ func TestRemoveByClusterName(t *testing.T) {
 	}
 	config, err = Load(kubeconfigPath)
 	require.NoError(t, err)
-	require.Equal(t, wantConfig, config)
+	require.Empty(t, cmp.Diff(wantConfig, config, kubeconfigCmpOpts...))
 }
 
 func TestRemoveByServerAddr(t *testing.T) {
@@ -621,7 +593,7 @@ func TestRemoveByServerAddr(t *testing.T) {
 	require.NotEqual(t, rootClusterName, config.CurrentContext)
 	require.NotEqual(t, leafClusterName, config.CurrentContext)
 	wantConfig.CurrentContext = config.CurrentContext
-	require.Equal(t, wantConfig, config)
+	require.Empty(t, cmp.Diff(wantConfig, config, kubeconfigCmpOpts...))
 }
 
 func genUserKeyRing(hostname string) (*client.KeyRing, []byte, error) {

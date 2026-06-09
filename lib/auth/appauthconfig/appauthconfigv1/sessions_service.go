@@ -159,17 +159,17 @@ func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appa
 		return nil, trace.AccessDenied("this request can be only executed by a proxy")
 	}
 
-	sid := services.GenerateAppSessionIDFromJWT(req.Jwt)
+	sid := services.GenerateAppSessionIDFromJWT(req.GetJwt())
 	if err := validateCreateAppSessionWithJWTRequest(req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	config, err := s.cache.GetAppAuthConfig(ctx, req.ConfigName)
+	config, err := s.cache.GetAppAuthConfig(ctx, req.GetConfigName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	jwtConfig := config.Spec.GetJwt()
+	jwtConfig := config.GetSpec().GetJwt()
 	if jwtConfig == nil {
 		return nil, trace.BadParameter("app auth config jwt session can only start with jwt configs")
 	}
@@ -179,7 +179,7 @@ func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appa
 		return nil, trace.Wrap(err)
 	}
 
-	username, tokenTTL, err := verifyAppAuthJWTToken(req.Jwt, jwks, sigs, jwtConfig)
+	username, tokenTTL, err := verifyAppAuthJWTToken(req.GetJwt(), jwks, sigs, jwtConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -191,11 +191,11 @@ func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appa
 
 	ws, err := s.sessions.CreateAppSessionForAppAuth(ctx, &CreateAppSessionForAppAuthRequest{
 		Username:           username,
-		ClusterName:        req.App.ClusterName,
-		AppName:            req.App.AppName,
-		AppURI:             req.App.Uri,
-		AppPublicAddr:      req.App.PublicAddr,
-		LoginIP:            req.RemoteAddr,
+		ClusterName:        req.GetApp().GetClusterName(),
+		AppName:            req.GetApp().GetAppName(),
+		AppURI:             req.GetApp().GetUri(),
+		AppPublicAddr:      req.GetApp().GetPublicAddr(),
+		LoginIP:            req.GetRemoteAddr(),
 		Roles:              user.GetRoles(),
 		Traits:             user.GetTraits(),
 		TTL:                time.Until(tokenTTL),
@@ -206,16 +206,16 @@ func (s *SessionsService) CreateAppSessionWithJWT(ctx context.Context, req *appa
 		return nil, trace.Wrap(err)
 	}
 
-	return &appauthconfigv1.CreateAppSessionWithJWTResponse{Session: ws.(*types.WebSessionV2)}, nil
+	return appauthconfigv1.CreateAppSessionWithJWTResponse_builder{Session: ws.(*types.WebSessionV2)}.Build(), nil
 }
 
 // retrieveJWKSAppAuthConfig retrieves JWKS contents given a app auth JWT
 // config.
 func retrieveJWKSAppAuthConfig(jwtConfig *appauthconfigv1.AppAuthConfigJWTSpec, httpClient *http.Client) (*jose.JSONWebKeySet, []jose.SignatureAlgorithm, error) {
 	var rawJwks []byte
-	switch jwksSource := jwtConfig.KeysSource.(type) {
-	case *appauthconfigv1.AppAuthConfigJWTSpec_JwksUrl:
-		req, err := http.NewRequest(http.MethodGet, jwksSource.JwksUrl, nil)
+	switch jwtConfig.WhichKeysSource() {
+	case appauthconfigv1.AppAuthConfigJWTSpec_JwksUrl_case:
+		req, err := http.NewRequest(http.MethodGet, jwtConfig.GetJwksUrl(), nil)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -230,8 +230,8 @@ func retrieveJWKSAppAuthConfig(jwtConfig *appauthconfigv1.AppAuthConfigJWTSpec, 
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-	case *appauthconfigv1.AppAuthConfigJWTSpec_StaticJwks:
-		rawJwks = []byte(jwksSource.StaticJwks)
+	case appauthconfigv1.AppAuthConfigJWTSpec_StaticJwks_case:
+		rawJwks = []byte(jwtConfig.GetStaticJwks())
 	}
 
 	var jwks jose.JSONWebKeySet
@@ -268,8 +268,8 @@ func verifyAppAuthJWTToken(jwtToken string, jwks *jose.JSONWebKeySet, sigs []jos
 	}
 
 	expected := jwt.Expected{
-		Issuer:      jwtConfig.Issuer,
-		AnyAudience: jwt.Audience{jwtConfig.Audience},
+		Issuer:      jwtConfig.GetIssuer(),
+		AnyAudience: jwt.Audience{jwtConfig.GetAudience()},
 		Time:        time.Now(),
 	}
 	if err := claims.Validate(expected); err != nil {
@@ -289,7 +289,7 @@ func verifyAppAuthJWTToken(jwtToken string, jwks *jose.JSONWebKeySet, sigs []jos
 		return "", time.Time{}, trace.BadParameter("token must be issued recently to be used")
 	}
 
-	usernameClaimName := cmp.Or(jwtConfig.UsernameClaim, defaultUsernameClaim)
+	usernameClaimName := cmp.Or(jwtConfig.GetUsernameClaim(), defaultUsernameClaim)
 	usernameClaim, ok := remainingClaims[usernameClaimName]
 	if !ok {
 		return "", time.Time{}, trace.BadParameter("token must have %q claim", usernameClaimName)
@@ -305,17 +305,17 @@ func verifyAppAuthJWTToken(jwtToken string, jwks *jose.JSONWebKeySet, sigs []jos
 
 func validateCreateAppSessionWithJWTRequest(req *appauthconfigv1.CreateAppSessionWithJWTRequest) error {
 	switch {
-	case req.ConfigName == "":
+	case req.GetConfigName() == "":
 		return trace.BadParameter("create app session request requires an app auth config name")
-	case req.App == nil:
+	case !req.HasApp():
 		return trace.BadParameter("create app session request requires app information")
-	case req.App.AppName == "":
+	case req.GetApp().GetAppName() == "":
 		return trace.BadParameter("create app session request requires app name")
-	case req.App.ClusterName == "":
+	case req.GetApp().GetClusterName() == "":
 		return trace.BadParameter("create app session request requires app cluster name")
-	case req.App.PublicAddr == "":
+	case req.GetApp().GetPublicAddr() == "":
 		return trace.BadParameter("create app session request requires app public address")
-	case req.App.Uri == "":
+	case req.GetApp().GetUri() == "":
 		return trace.BadParameter("create app session request requires app uri")
 	}
 

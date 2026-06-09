@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/transport/v1/transport_service.proto
 
+//go:build !protoopaque
+
 package transportv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -42,7 +43,7 @@ const (
 // Any attempts to exchange frames prior to the client sending a TargetHost message will
 // result in the stream being terminated.
 type ProxySSHRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Contains the information required to dial the target.
 	// Must be populated on the initial request so that SSH connection can be established.
 	DialTarget *TargetHost `protobuf:"bytes,1,opt,name=dial_target,json=dialTarget,proto3" json:"dial_target,omitempty"`
@@ -82,11 +83,6 @@ func (x *ProxySSHRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProxySSHRequest.ProtoReflect.Descriptor instead.
-func (*ProxySSHRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *ProxySSHRequest) GetDialTarget() *TargetHost {
 	if x != nil {
 		return x.DialTarget
@@ -119,6 +115,134 @@ func (x *ProxySSHRequest) GetAgent() *Frame {
 	return nil
 }
 
+func (x *ProxySSHRequest) SetDialTarget(v *TargetHost) {
+	x.DialTarget = v
+}
+
+func (x *ProxySSHRequest) SetSsh(v *Frame) {
+	if v == nil {
+		x.Frame = nil
+		return
+	}
+	x.Frame = &ProxySSHRequest_Ssh{v}
+}
+
+func (x *ProxySSHRequest) SetAgent(v *Frame) {
+	if v == nil {
+		x.Frame = nil
+		return
+	}
+	x.Frame = &ProxySSHRequest_Agent{v}
+}
+
+func (x *ProxySSHRequest) HasDialTarget() bool {
+	if x == nil {
+		return false
+	}
+	return x.DialTarget != nil
+}
+
+func (x *ProxySSHRequest) HasFrame() bool {
+	if x == nil {
+		return false
+	}
+	return x.Frame != nil
+}
+
+func (x *ProxySSHRequest) HasSsh() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Frame.(*ProxySSHRequest_Ssh)
+	return ok
+}
+
+func (x *ProxySSHRequest) HasAgent() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Frame.(*ProxySSHRequest_Agent)
+	return ok
+}
+
+func (x *ProxySSHRequest) ClearDialTarget() {
+	x.DialTarget = nil
+}
+
+func (x *ProxySSHRequest) ClearFrame() {
+	x.Frame = nil
+}
+
+func (x *ProxySSHRequest) ClearSsh() {
+	if _, ok := x.Frame.(*ProxySSHRequest_Ssh); ok {
+		x.Frame = nil
+	}
+}
+
+func (x *ProxySSHRequest) ClearAgent() {
+	if _, ok := x.Frame.(*ProxySSHRequest_Agent); ok {
+		x.Frame = nil
+	}
+}
+
+const ProxySSHRequest_Frame_not_set_case case_ProxySSHRequest_Frame = 0
+const ProxySSHRequest_Ssh_case case_ProxySSHRequest_Frame = 2
+const ProxySSHRequest_Agent_case case_ProxySSHRequest_Frame = 3
+
+func (x *ProxySSHRequest) WhichFrame() case_ProxySSHRequest_Frame {
+	if x == nil {
+		return ProxySSHRequest_Frame_not_set_case
+	}
+	switch x.Frame.(type) {
+	case *ProxySSHRequest_Ssh:
+		return ProxySSHRequest_Ssh_case
+	case *ProxySSHRequest_Agent:
+		return ProxySSHRequest_Agent_case
+	default:
+		return ProxySSHRequest_Frame_not_set_case
+	}
+}
+
+type ProxySSHRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Contains the information required to dial the target.
+	// Must be populated on the initial request so that SSH connection can be established.
+	DialTarget *TargetHost
+	// Payload from SSH/SSH Agent Protocols
+
+	// Fields of oneof Frame:
+	// Raw SSH payload
+	Ssh *Frame
+	// Raw SSH Agent payload, populated for agent forwarding
+	Agent *Frame
+	// -- end of Frame
+}
+
+func (b0 ProxySSHRequest_builder) Build() *ProxySSHRequest {
+	m0 := &ProxySSHRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DialTarget = b.DialTarget
+	if b.Ssh != nil {
+		x.Frame = &ProxySSHRequest_Ssh{b.Ssh}
+	}
+	if b.Agent != nil {
+		x.Frame = &ProxySSHRequest_Agent{b.Agent}
+	}
+	return m0
+}
+
+type case_ProxySSHRequest_Frame protoreflect.FieldNumber
+
+func (x case_ProxySSHRequest_Frame) String() string {
+	md := file_teleport_transport_v1_transport_service_proto_msgTypes[0].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isProxySSHRequest_Frame interface {
 	isProxySSHRequest_Frame()
 }
@@ -144,7 +268,7 @@ func (*ProxySSHRequest_Agent) isProxySSHRequest_Frame() {}
 // without needing to call GetClusterDetails first. All subsequent
 // response will only contain Frames.
 type ProxySSHResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Cluster information returned *ONLY* with the first frame
 	Details *ClusterDetails `protobuf:"bytes,1,opt,name=details,proto3" json:"details,omitempty"`
 	// Payload from SSH/SSH Agent Protocols
@@ -183,11 +307,6 @@ func (x *ProxySSHResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProxySSHResponse.ProtoReflect.Descriptor instead.
-func (*ProxySSHResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ProxySSHResponse) GetDetails() *ClusterDetails {
 	if x != nil {
 		return x.Details
@@ -220,6 +339,133 @@ func (x *ProxySSHResponse) GetAgent() *Frame {
 	return nil
 }
 
+func (x *ProxySSHResponse) SetDetails(v *ClusterDetails) {
+	x.Details = v
+}
+
+func (x *ProxySSHResponse) SetSsh(v *Frame) {
+	if v == nil {
+		x.Frame = nil
+		return
+	}
+	x.Frame = &ProxySSHResponse_Ssh{v}
+}
+
+func (x *ProxySSHResponse) SetAgent(v *Frame) {
+	if v == nil {
+		x.Frame = nil
+		return
+	}
+	x.Frame = &ProxySSHResponse_Agent{v}
+}
+
+func (x *ProxySSHResponse) HasDetails() bool {
+	if x == nil {
+		return false
+	}
+	return x.Details != nil
+}
+
+func (x *ProxySSHResponse) HasFrame() bool {
+	if x == nil {
+		return false
+	}
+	return x.Frame != nil
+}
+
+func (x *ProxySSHResponse) HasSsh() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Frame.(*ProxySSHResponse_Ssh)
+	return ok
+}
+
+func (x *ProxySSHResponse) HasAgent() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Frame.(*ProxySSHResponse_Agent)
+	return ok
+}
+
+func (x *ProxySSHResponse) ClearDetails() {
+	x.Details = nil
+}
+
+func (x *ProxySSHResponse) ClearFrame() {
+	x.Frame = nil
+}
+
+func (x *ProxySSHResponse) ClearSsh() {
+	if _, ok := x.Frame.(*ProxySSHResponse_Ssh); ok {
+		x.Frame = nil
+	}
+}
+
+func (x *ProxySSHResponse) ClearAgent() {
+	if _, ok := x.Frame.(*ProxySSHResponse_Agent); ok {
+		x.Frame = nil
+	}
+}
+
+const ProxySSHResponse_Frame_not_set_case case_ProxySSHResponse_Frame = 0
+const ProxySSHResponse_Ssh_case case_ProxySSHResponse_Frame = 2
+const ProxySSHResponse_Agent_case case_ProxySSHResponse_Frame = 3
+
+func (x *ProxySSHResponse) WhichFrame() case_ProxySSHResponse_Frame {
+	if x == nil {
+		return ProxySSHResponse_Frame_not_set_case
+	}
+	switch x.Frame.(type) {
+	case *ProxySSHResponse_Ssh:
+		return ProxySSHResponse_Ssh_case
+	case *ProxySSHResponse_Agent:
+		return ProxySSHResponse_Agent_case
+	default:
+		return ProxySSHResponse_Frame_not_set_case
+	}
+}
+
+type ProxySSHResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Cluster information returned *ONLY* with the first frame
+	Details *ClusterDetails
+	// Payload from SSH/SSH Agent Protocols
+
+	// Fields of oneof Frame:
+	// SSH payload
+	Ssh *Frame
+	// SSH Agent payload, populated for agent forwarding
+	Agent *Frame
+	// -- end of Frame
+}
+
+func (b0 ProxySSHResponse_builder) Build() *ProxySSHResponse {
+	m0 := &ProxySSHResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Details = b.Details
+	if b.Ssh != nil {
+		x.Frame = &ProxySSHResponse_Ssh{b.Ssh}
+	}
+	if b.Agent != nil {
+		x.Frame = &ProxySSHResponse_Agent{b.Agent}
+	}
+	return m0
+}
+
+type case_ProxySSHResponse_Frame protoreflect.FieldNumber
+
+func (x case_ProxySSHResponse_Frame) String() string {
+	md := file_teleport_transport_v1_transport_service_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isProxySSHResponse_Frame interface {
 	isProxySSHResponse_Frame()
 }
@@ -246,7 +492,7 @@ func (*ProxySSHResponse_Agent) isProxySSHResponse_Frame() {}
 // result in the stream being terminated. All subsequent messages only need to
 // provide a Frame.
 type ProxyClusterRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name of the cluster to connect to. Must
 	// be sent first so the connection can be established.
 	Cluster string `protobuf:"bytes,1,opt,name=cluster,proto3" json:"cluster,omitempty"`
@@ -281,11 +527,6 @@ func (x *ProxyClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProxyClusterRequest.ProtoReflect.Descriptor instead.
-func (*ProxyClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ProxyClusterRequest) GetCluster() string {
 	if x != nil {
 		return x.Cluster
@@ -300,9 +541,47 @@ func (x *ProxyClusterRequest) GetFrame() *Frame {
 	return nil
 }
 
+func (x *ProxyClusterRequest) SetCluster(v string) {
+	x.Cluster = v
+}
+
+func (x *ProxyClusterRequest) SetFrame(v *Frame) {
+	x.Frame = v
+}
+
+func (x *ProxyClusterRequest) HasFrame() bool {
+	if x == nil {
+		return false
+	}
+	return x.Frame != nil
+}
+
+func (x *ProxyClusterRequest) ClearFrame() {
+	x.Frame = nil
+}
+
+type ProxyClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name of the cluster to connect to. Must
+	// be sent first so the connection can be established.
+	Cluster string
+	// Raw payload
+	Frame *Frame
+}
+
+func (b0 ProxyClusterRequest_builder) Build() *ProxyClusterRequest {
+	m0 := &ProxyClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cluster = b.Cluster
+	x.Frame = b.Frame
+	return m0
+}
+
 // Response for ProxyCluster
 type ProxyClusterResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Raw payload
 	Frame         *Frame `protobuf:"bytes,1,opt,name=frame,proto3" json:"frame,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -334,11 +613,6 @@ func (x *ProxyClusterResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProxyClusterResponse.ProtoReflect.Descriptor instead.
-func (*ProxyClusterResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ProxyClusterResponse) GetFrame() *Frame {
 	if x != nil {
 		return x.Frame
@@ -346,9 +620,39 @@ func (x *ProxyClusterResponse) GetFrame() *Frame {
 	return nil
 }
 
+func (x *ProxyClusterResponse) SetFrame(v *Frame) {
+	x.Frame = v
+}
+
+func (x *ProxyClusterResponse) HasFrame() bool {
+	if x == nil {
+		return false
+	}
+	return x.Frame != nil
+}
+
+func (x *ProxyClusterResponse) ClearFrame() {
+	x.Frame = nil
+}
+
+type ProxyClusterResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Raw payload
+	Frame *Frame
+}
+
+func (b0 ProxyClusterResponse_builder) Build() *ProxyClusterResponse {
+	m0 := &ProxyClusterResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Frame = b.Frame
+	return m0
+}
+
 // Encapsulates protocol specific payloads
 type Frame struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The raw packet of data
 	Payload       []byte `protobuf:"bytes,1,opt,name=payload,proto3" json:"payload,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -380,11 +684,6 @@ func (x *Frame) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Frame.ProtoReflect.Descriptor instead.
-func (*Frame) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *Frame) GetPayload() []byte {
 	if x != nil {
 		return x.Payload
@@ -392,9 +691,31 @@ func (x *Frame) GetPayload() []byte {
 	return nil
 }
 
+func (x *Frame) SetPayload(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Payload = v
+}
+
+type Frame_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The raw packet of data
+	Payload []byte
+}
+
+func (b0 Frame_builder) Build() *Frame {
+	m0 := &Frame{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Payload = b.Payload
+	return m0
+}
+
 // TargetHost indicates which server the connection is for
 type TargetHost struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The hostname/ip/uuid:port of the remote host.
 	HostPort string `protobuf:"bytes,1,opt,name=host_port,json=hostPort,proto3" json:"host_port,omitempty"`
 	// The cluster the server is a member of
@@ -428,11 +749,6 @@ func (x *TargetHost) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TargetHost.ProtoReflect.Descriptor instead.
-func (*TargetHost) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *TargetHost) GetHostPort() string {
 	if x != nil {
 		return x.HostPort
@@ -447,9 +763,35 @@ func (x *TargetHost) GetCluster() string {
 	return ""
 }
 
+func (x *TargetHost) SetHostPort(v string) {
+	x.HostPort = v
+}
+
+func (x *TargetHost) SetCluster(v string) {
+	x.Cluster = v
+}
+
+type TargetHost_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The hostname/ip/uuid:port of the remote host.
+	HostPort string
+	// The cluster the server is a member of
+	Cluster string
+}
+
+func (b0 TargetHost_builder) Build() *TargetHost {
+	m0 := &TargetHost{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.HostPort = b.HostPort
+	x.Cluster = b.Cluster
+	return m0
+}
+
 // Request for GetClusterDetails.
 type GetClusterDetailsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -479,14 +821,21 @@ func (x *GetClusterDetailsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetClusterDetailsRequest.ProtoReflect.Descriptor instead.
-func (*GetClusterDetailsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{6}
+type GetClusterDetailsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetClusterDetailsRequest_builder) Build() *GetClusterDetailsRequest {
+	m0 := &GetClusterDetailsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for GetClusterDetails.
 type GetClusterDetailsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Cluster configuration details
 	Details       *ClusterDetails `protobuf:"bytes,1,opt,name=details,proto3" json:"details,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -518,11 +867,6 @@ func (x *GetClusterDetailsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetClusterDetailsResponse.ProtoReflect.Descriptor instead.
-func (*GetClusterDetailsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *GetClusterDetailsResponse) GetDetails() *ClusterDetails {
 	if x != nil {
 		return x.Details
@@ -530,9 +874,39 @@ func (x *GetClusterDetailsResponse) GetDetails() *ClusterDetails {
 	return nil
 }
 
+func (x *GetClusterDetailsResponse) SetDetails(v *ClusterDetails) {
+	x.Details = v
+}
+
+func (x *GetClusterDetailsResponse) HasDetails() bool {
+	if x == nil {
+		return false
+	}
+	return x.Details != nil
+}
+
+func (x *GetClusterDetailsResponse) ClearDetails() {
+	x.Details = nil
+}
+
+type GetClusterDetailsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Cluster configuration details
+	Details *ClusterDetails
+}
+
+func (b0 GetClusterDetailsResponse_builder) Build() *GetClusterDetailsResponse {
+	m0 := &GetClusterDetailsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Details = b.Details
+	return m0
+}
+
 // ClusterDetails contains cluster configuration information
 type ClusterDetails struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// If the cluster is running in FIPS mode
 	FipsEnabled   bool `protobuf:"varint,1,opt,name=fips_enabled,json=fipsEnabled,proto3" json:"fips_enabled,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -564,11 +938,6 @@ func (x *ClusterDetails) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClusterDetails.ProtoReflect.Descriptor instead.
-func (*ClusterDetails) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *ClusterDetails) GetFipsEnabled() bool {
 	if x != nil {
 		return x.FipsEnabled
@@ -576,9 +945,28 @@ func (x *ClusterDetails) GetFipsEnabled() bool {
 	return false
 }
 
+func (x *ClusterDetails) SetFipsEnabled(v bool) {
+	x.FipsEnabled = v
+}
+
+type ClusterDetails_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// If the cluster is running in FIPS mode
+	FipsEnabled bool
+}
+
+func (b0 ClusterDetails_builder) Build() *ClusterDetails {
+	m0 := &ClusterDetails{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.FipsEnabled = b.FipsEnabled
+	return m0
+}
+
 // Request message for a proxied Windows desktop session.
 type ProxyWindowsDesktopSessionRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A chunk of data from the connection. Must be empty in the first message and nonempty in subsequent messages.
 	Data []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
 	// Target cluster and desktop. Must be set in the first message and unset in subsequent messages.
@@ -612,11 +1000,6 @@ func (x *ProxyWindowsDesktopSessionRequest) ProtoReflect() protoreflect.Message 
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProxyWindowsDesktopSessionRequest.ProtoReflect.Descriptor instead.
-func (*ProxyWindowsDesktopSessionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *ProxyWindowsDesktopSessionRequest) GetData() []byte {
 	if x != nil {
 		return x.Data
@@ -631,9 +1014,49 @@ func (x *ProxyWindowsDesktopSessionRequest) GetDialTarget() *TargetWindowsDeskto
 	return nil
 }
 
+func (x *ProxyWindowsDesktopSessionRequest) SetData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Data = v
+}
+
+func (x *ProxyWindowsDesktopSessionRequest) SetDialTarget(v *TargetWindowsDesktop) {
+	x.DialTarget = v
+}
+
+func (x *ProxyWindowsDesktopSessionRequest) HasDialTarget() bool {
+	if x == nil {
+		return false
+	}
+	return x.DialTarget != nil
+}
+
+func (x *ProxyWindowsDesktopSessionRequest) ClearDialTarget() {
+	x.DialTarget = nil
+}
+
+type ProxyWindowsDesktopSessionRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A chunk of data from the connection. Must be empty in the first message and nonempty in subsequent messages.
+	Data []byte
+	// Target cluster and desktop. Must be set in the first message and unset in subsequent messages.
+	DialTarget *TargetWindowsDesktop
+}
+
+func (b0 ProxyWindowsDesktopSessionRequest_builder) Build() *ProxyWindowsDesktopSessionRequest {
+	m0 := &ProxyWindowsDesktopSessionRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Data = b.Data
+	x.DialTarget = b.DialTarget
+	return m0
+}
+
 // Response message for a proxied Windows desktop session.
 type ProxyWindowsDesktopSessionResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A chunk of data from the connection. Can be empty (for example, to send a message
 	// signaling a successful connection even if there's no data available in the connection).
 	Data          []byte `protobuf:"bytes,1,opt,name=data,proto3" json:"data,omitempty"`
@@ -666,11 +1089,6 @@ func (x *ProxyWindowsDesktopSessionResponse) ProtoReflect() protoreflect.Message
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ProxyWindowsDesktopSessionResponse.ProtoReflect.Descriptor instead.
-func (*ProxyWindowsDesktopSessionResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *ProxyWindowsDesktopSessionResponse) GetData() []byte {
 	if x != nil {
 		return x.Data
@@ -678,9 +1096,32 @@ func (x *ProxyWindowsDesktopSessionResponse) GetData() []byte {
 	return nil
 }
 
+func (x *ProxyWindowsDesktopSessionResponse) SetData(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Data = v
+}
+
+type ProxyWindowsDesktopSessionResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A chunk of data from the connection. Can be empty (for example, to send a message
+	// signaling a successful connection even if there's no data available in the connection).
+	Data []byte
+}
+
+func (b0 ProxyWindowsDesktopSessionResponse_builder) Build() *ProxyWindowsDesktopSessionResponse {
+	m0 := &ProxyWindowsDesktopSessionResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Data = b.Data
+	return m0
+}
+
 // Identifies the destination desktop within a specific cluster.
 type TargetWindowsDesktop struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name of the desktop to connect to.
 	DesktopName string `protobuf:"bytes,1,opt,name=desktop_name,json=desktopName,proto3" json:"desktop_name,omitempty"`
 	// Name of the cluster the desktop belongs to.
@@ -714,11 +1155,6 @@ func (x *TargetWindowsDesktop) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TargetWindowsDesktop.ProtoReflect.Descriptor instead.
-func (*TargetWindowsDesktop) Descriptor() ([]byte, []int) {
-	return file_teleport_transport_v1_transport_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *TargetWindowsDesktop) GetDesktopName() string {
 	if x != nil {
 		return x.DesktopName
@@ -731,6 +1167,32 @@ func (x *TargetWindowsDesktop) GetCluster() string {
 		return x.Cluster
 	}
 	return ""
+}
+
+func (x *TargetWindowsDesktop) SetDesktopName(v string) {
+	x.DesktopName = v
+}
+
+func (x *TargetWindowsDesktop) SetCluster(v string) {
+	x.Cluster = v
+}
+
+type TargetWindowsDesktop_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name of the desktop to connect to.
+	DesktopName string
+	// Name of the cluster the desktop belongs to.
+	Cluster string
+}
+
+func (b0 TargetWindowsDesktop_builder) Build() *TargetWindowsDesktop {
+	m0 := &TargetWindowsDesktop{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DesktopName = b.DesktopName
+	x.Cluster = b.Cluster
+	return m0
 }
 
 var File_teleport_transport_v1_transport_service_proto protoreflect.FileDescriptor
@@ -779,18 +1241,6 @@ const file_teleport_transport_v1_transport_service_proto_rawDesc = "" +
 	"\bProxySSH\x12&.teleport.transport.v1.ProxySSHRequest\x1a'.teleport.transport.v1.ProxySSHResponse(\x010\x01\x12k\n" +
 	"\fProxyCluster\x12*.teleport.transport.v1.ProxyClusterRequest\x1a+.teleport.transport.v1.ProxyClusterResponse(\x010\x01\x12\x95\x01\n" +
 	"\x1aProxyWindowsDesktopSession\x128.teleport.transport.v1.ProxyWindowsDesktopSessionRequest\x1a9.teleport.transport.v1.ProxyWindowsDesktopSessionResponse(\x010\x01BVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1;transportv1b\x06proto3"
-
-var (
-	file_teleport_transport_v1_transport_service_proto_rawDescOnce sync.Once
-	file_teleport_transport_v1_transport_service_proto_rawDescData []byte
-)
-
-func file_teleport_transport_v1_transport_service_proto_rawDescGZIP() []byte {
-	file_teleport_transport_v1_transport_service_proto_rawDescOnce.Do(func() {
-		file_teleport_transport_v1_transport_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_transport_v1_transport_service_proto_rawDesc), len(file_teleport_transport_v1_transport_service_proto_rawDesc)))
-	})
-	return file_teleport_transport_v1_transport_service_proto_rawDescData
-}
 
 var file_teleport_transport_v1_transport_service_proto_msgTypes = make([]protoimpl.MessageInfo, 12)
 var file_teleport_transport_v1_transport_service_proto_goTypes = []any{

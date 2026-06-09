@@ -207,10 +207,6 @@ func (a *Server) CreateGithubUser(ctx context.Context, p *CreateUserParams, dryR
 	return a.createGithubUser(ctx, p, dryRun)
 }
 
-func (a *Server) SetSubCAEnabled(b bool) {
-	a.subCAEnabled = b
-}
-
 func BuildAPIEndpoint(apiEndpointURLStr string) (string, error) {
 	return buildAPIEndpoint(apiEndpointURLStr)
 }
@@ -225,10 +221,6 @@ func CheckGithubOrgSSOSupport(ctx context.Context, conn types.GithubConnector, u
 
 func ChangeUserAuthentication(ctx context.Context, a *Server, req *proto.ChangeUserAuthenticationRequest) (types.User, error) {
 	return a.changeUserAuthentication(ctx, req)
-}
-
-func ValidateOracleJoinToken(token types.ProvisionToken) error {
-	return validateOracleJoinToken(token)
 }
 
 func CreatePresetUsers(ctx context.Context, buildType string, um PresetUsers) error {

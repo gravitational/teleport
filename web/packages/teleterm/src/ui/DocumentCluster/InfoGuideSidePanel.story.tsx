@@ -57,6 +57,7 @@ const rootClusterDoc = makeDocumentCluster({
 export function InfoGuideSidePanel() {
   const topBarConnectMyComputerRef = useRef<HTMLDivElement>(null);
   const topBarAccessRequestRef = useRef<HTMLDivElement>(null);
+  const desktopSessionControlsRef = useRef<HTMLDivElement>(null);
 
   const appContext = new MockAppContext();
   const cluster = makeRootCluster({
@@ -88,7 +89,10 @@ export function InfoGuideSidePanel() {
                           </StyledTabs>
                           <Example />
                         </Flex>
-                        <StatusBar onAssumedRolesClick={() => null} />
+                        <StatusBar
+                          onAssumedRolesClick={() => null}
+                          desktopSessionControlsRef={desktopSessionControlsRef}
+                        />
                       </Flex>
                     </InfoGuidePanelProvider>
                   </Wrapper>

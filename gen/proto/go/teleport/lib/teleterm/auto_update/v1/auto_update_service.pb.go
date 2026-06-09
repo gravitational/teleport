@@ -20,13 +20,14 @@
 // 	protoc        (unknown)
 // source: teleport/lib/teleterm/auto_update/v1/auto_update_service.proto
 
+//go:build !protoopaque
+
 package auto_updatev1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -88,14 +89,9 @@ func (x ConfigSource) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ConfigSource.Descriptor instead.
-func (ConfigSource) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{0}
-}
-
 // Request for GetClusterVersions.
 type GetClusterVersionsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -125,14 +121,21 @@ func (x *GetClusterVersionsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetClusterVersionsRequest.ProtoReflect.Descriptor instead.
-func (*GetClusterVersionsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{0}
+type GetClusterVersionsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetClusterVersionsRequest_builder) Build() *GetClusterVersionsRequest {
+	m0 := &GetClusterVersionsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for GetClusterVersions.
 type GetClusterVersionsResponse struct {
-	state               protoimpl.MessageState `protogen:"open.v1"`
+	state               protoimpl.MessageState `protogen:"hybrid.v1"`
 	ReachableClusters   []*ClusterVersionInfo  `protobuf:"bytes,1,rep,name=reachable_clusters,json=reachableClusters,proto3" json:"reachable_clusters,omitempty"`
 	UnreachableClusters []*UnreachableCluster  `protobuf:"bytes,2,rep,name=unreachable_clusters,json=unreachableClusters,proto3" json:"unreachable_clusters,omitempty"`
 	unknownFields       protoimpl.UnknownFields
@@ -164,11 +167,6 @@ func (x *GetClusterVersionsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetClusterVersionsResponse.ProtoReflect.Descriptor instead.
-func (*GetClusterVersionsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetClusterVersionsResponse) GetReachableClusters() []*ClusterVersionInfo {
 	if x != nil {
 		return x.ReachableClusters
@@ -183,9 +181,33 @@ func (x *GetClusterVersionsResponse) GetUnreachableClusters() []*UnreachableClus
 	return nil
 }
 
+func (x *GetClusterVersionsResponse) SetReachableClusters(v []*ClusterVersionInfo) {
+	x.ReachableClusters = v
+}
+
+func (x *GetClusterVersionsResponse) SetUnreachableClusters(v []*UnreachableCluster) {
+	x.UnreachableClusters = v
+}
+
+type GetClusterVersionsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	ReachableClusters   []*ClusterVersionInfo
+	UnreachableClusters []*UnreachableCluster
+}
+
+func (b0 GetClusterVersionsResponse_builder) Build() *GetClusterVersionsResponse {
+	m0 := &GetClusterVersionsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ReachableClusters = b.ReachableClusters
+	x.UnreachableClusters = b.UnreachableClusters
+	return m0
+}
+
 // ClusterVersionInfo contains tool version information for a reachable cluster.
 type ClusterVersionInfo struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// URI of the cluster.
 	ClusterUri string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	// Whether the client should automatically update the tools version.
@@ -223,11 +245,6 @@ func (x *ClusterVersionInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ClusterVersionInfo.ProtoReflect.Descriptor instead.
-func (*ClusterVersionInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ClusterVersionInfo) GetClusterUri() string {
 	if x != nil {
 		return x.ClusterUri
@@ -256,9 +273,49 @@ func (x *ClusterVersionInfo) GetMinToolsVersion() string {
 	return ""
 }
 
+func (x *ClusterVersionInfo) SetClusterUri(v string) {
+	x.ClusterUri = v
+}
+
+func (x *ClusterVersionInfo) SetToolsAutoUpdate(v bool) {
+	x.ToolsAutoUpdate = v
+}
+
+func (x *ClusterVersionInfo) SetToolsVersion(v string) {
+	x.ToolsVersion = v
+}
+
+func (x *ClusterVersionInfo) SetMinToolsVersion(v string) {
+	x.MinToolsVersion = v
+}
+
+type ClusterVersionInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// URI of the cluster.
+	ClusterUri string
+	// Whether the client should automatically update the tools version.
+	ToolsAutoUpdate bool
+	// Tools version required by this cluster.
+	ToolsVersion string
+	// Minimum tools version allowed by this cluster.
+	MinToolsVersion string
+}
+
+func (b0 ClusterVersionInfo_builder) Build() *ClusterVersionInfo {
+	m0 := &ClusterVersionInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClusterUri = b.ClusterUri
+	x.ToolsAutoUpdate = b.ToolsAutoUpdate
+	x.ToolsVersion = b.ToolsVersion
+	x.MinToolsVersion = b.MinToolsVersion
+	return m0
+}
+
 // UnreachableCluster represents a cluster from which version information could not be retrieved.
 type UnreachableCluster struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// URI of the cluster.
 	ClusterUri string `protobuf:"bytes,1,opt,name=cluster_uri,json=clusterUri,proto3" json:"cluster_uri,omitempty"`
 	// Error that occurred while retrieving version information.
@@ -292,11 +349,6 @@ func (x *UnreachableCluster) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UnreachableCluster.ProtoReflect.Descriptor instead.
-func (*UnreachableCluster) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UnreachableCluster) GetClusterUri() string {
 	if x != nil {
 		return x.ClusterUri
@@ -311,9 +363,35 @@ func (x *UnreachableCluster) GetErrorMessage() string {
 	return ""
 }
 
+func (x *UnreachableCluster) SetClusterUri(v string) {
+	x.ClusterUri = v
+}
+
+func (x *UnreachableCluster) SetErrorMessage(v string) {
+	x.ErrorMessage = v
+}
+
+type UnreachableCluster_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// URI of the cluster.
+	ClusterUri string
+	// Error that occurred while retrieving version information.
+	ErrorMessage string
+}
+
+func (b0 UnreachableCluster_builder) Build() *UnreachableCluster {
+	m0 := &UnreachableCluster{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClusterUri = b.ClusterUri
+	x.ErrorMessage = b.ErrorMessage
+	return m0
+}
+
 // Request for GetConfig.
 type GetConfigRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -343,14 +421,21 @@ func (x *GetConfigRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetConfigRequest.ProtoReflect.Descriptor instead.
-func (*GetConfigRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{4}
+type GetConfigRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetConfigRequest_builder) Build() *GetConfigRequest {
+	m0 := &GetConfigRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for GetConfig.
 type GetConfigResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A base URL (e.g. cdn.teleport.dev) for downloading packages.
 	// Sources resolved by platform:
 	// * macOS/Linux: The `TELEPORT_CDN_BASE_URL` environment variable.
@@ -398,11 +483,6 @@ func (x *GetConfigResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetConfigResponse.ProtoReflect.Descriptor instead.
-func (*GetConfigResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *GetConfigResponse) GetCdnBaseUrl() *ConfigValue {
 	if x != nil {
 		return x.CdnBaseUrl
@@ -417,9 +497,71 @@ func (x *GetConfigResponse) GetToolsVersion() *ConfigValue {
 	return nil
 }
 
+func (x *GetConfigResponse) SetCdnBaseUrl(v *ConfigValue) {
+	x.CdnBaseUrl = v
+}
+
+func (x *GetConfigResponse) SetToolsVersion(v *ConfigValue) {
+	x.ToolsVersion = v
+}
+
+func (x *GetConfigResponse) HasCdnBaseUrl() bool {
+	if x == nil {
+		return false
+	}
+	return x.CdnBaseUrl != nil
+}
+
+func (x *GetConfigResponse) HasToolsVersion() bool {
+	if x == nil {
+		return false
+	}
+	return x.ToolsVersion != nil
+}
+
+func (x *GetConfigResponse) ClearCdnBaseUrl() {
+	x.CdnBaseUrl = nil
+}
+
+func (x *GetConfigResponse) ClearToolsVersion() {
+	x.ToolsVersion = nil
+}
+
+type GetConfigResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A base URL (e.g. cdn.teleport.dev) for downloading packages.
+	// Sources resolved by platform:
+	// * macOS/Linux: The `TELEPORT_CDN_BASE_URL` environment variable.
+	// * Windows: The `CdnBaseUrl` value in the system registry (SOFTWARE\Policies\Teleport\TeleportConnect).
+	//   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
+	//   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
+	//   - If policy values are missing, falls back to `TELEPORT_CDN_BASE_URL` (deprecated).
+	//
+	// Note: OSS builds require this to be set (via env var or registry), otherwise an empty value is returned.
+	CdnBaseUrl *ConfigValue
+	// The specific client tools version to use. The 'off' value disables automatic updates.
+	// Sources resolved by platform:
+	// * macOS/Linux: The `TELEPORT_TOOLS_VERSION` environment variable.
+	// * Windows: The `ToolsVersion` value in the system registry (SOFTWARE\Policies\Teleport\TeleportConnect).
+	//   - HKEY_LOCAL_MACHINE (Machine Policy): Takes precedence over user policies.
+	//   - HKEY_CURRENT_USER (User Policy): Used only for per-user installations if no machine policy is defined.
+	//   - If policy values are missing, falls back to `TELEPORT_TOOLS_VERSION` (deprecated).
+	ToolsVersion *ConfigValue
+}
+
+func (b0 GetConfigResponse_builder) Build() *GetConfigResponse {
+	m0 := &GetConfigResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CdnBaseUrl = b.CdnBaseUrl
+	x.ToolsVersion = b.ToolsVersion
+	return m0
+}
+
 // Contains the config value and its source.
 type ConfigValue struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	Value string                 `protobuf:"bytes,1,opt,name=value,proto3" json:"value,omitempty"`
 	// Source of the config.
 	Source        ConfigSource `protobuf:"varint,2,opt,name=source,proto3,enum=teleport.lib.teleterm.auto_update.v1.ConfigSource" json:"source,omitempty"`
@@ -452,11 +594,6 @@ func (x *ConfigValue) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ConfigValue.ProtoReflect.Descriptor instead.
-func (*ConfigValue) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *ConfigValue) GetValue() string {
 	if x != nil {
 		return x.Value
@@ -471,9 +608,34 @@ func (x *ConfigValue) GetSource() ConfigSource {
 	return ConfigSource_CONFIG_SOURCE_UNSPECIFIED
 }
 
+func (x *ConfigValue) SetValue(v string) {
+	x.Value = v
+}
+
+func (x *ConfigValue) SetSource(v ConfigSource) {
+	x.Source = v
+}
+
+type ConfigValue_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Value string
+	// Source of the config.
+	Source ConfigSource
+}
+
+func (b0 ConfigValue_builder) Build() *ConfigValue {
+	m0 := &ConfigValue{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Value = b.Value
+	x.Source = b.Source
+	return m0
+}
+
 // Request for GetInstallationMetadata.
 type GetInstallationMetadataRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -503,14 +665,21 @@ func (x *GetInstallationMetadataRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetInstallationMetadataRequest.ProtoReflect.Descriptor instead.
-func (*GetInstallationMetadataRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{7}
+type GetInstallationMetadataRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetInstallationMetadataRequest_builder) Build() *GetInstallationMetadataRequest {
+	m0 := &GetInstallationMetadataRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Response for GetInstallationMetadata.
 type GetInstallationMetadataResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Determines whether updates should target a per-machine installation.
 	IsPerMachineInstall bool `protobuf:"varint,1,opt,name=is_per_machine_install,json=isPerMachineInstall,proto3" json:"is_per_machine_install,omitempty"`
 	unknownFields       protoimpl.UnknownFields
@@ -542,16 +711,30 @@ func (x *GetInstallationMetadataResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetInstallationMetadataResponse.ProtoReflect.Descriptor instead.
-func (*GetInstallationMetadataResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *GetInstallationMetadataResponse) GetIsPerMachineInstall() bool {
 	if x != nil {
 		return x.IsPerMachineInstall
 	}
 	return false
+}
+
+func (x *GetInstallationMetadataResponse) SetIsPerMachineInstall(v bool) {
+	x.IsPerMachineInstall = v
+}
+
+type GetInstallationMetadataResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Determines whether updates should target a per-machine installation.
+	IsPerMachineInstall bool
+}
+
+func (b0 GetInstallationMetadataResponse_builder) Build() *GetInstallationMetadataResponse {
+	m0 := &GetInstallationMetadataResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.IsPerMachineInstall = b.IsPerMachineInstall
+	return m0
 }
 
 var File_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto protoreflect.FileDescriptor
@@ -593,18 +776,6 @@ const file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDes
 	"\x12GetClusterVersions\x12?.teleport.lib.teleterm.auto_update.v1.GetClusterVersionsRequest\x1a@.teleport.lib.teleterm.auto_update.v1.GetClusterVersionsResponse\x12|\n" +
 	"\tGetConfig\x126.teleport.lib.teleterm.auto_update.v1.GetConfigRequest\x1a7.teleport.lib.teleterm.auto_update.v1.GetConfigResponse\x12\xa6\x01\n" +
 	"\x17GetInstallationMetadata\x12D.teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataRequest\x1aE.teleport.lib.teleterm.auto_update.v1.GetInstallationMetadataResponseBcZagithub.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/auto_update/v1;auto_updatev1b\x06proto3"
-
-var (
-	file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescOnce sync.Once
-	file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescData []byte
-)
-
-func file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescGZIP() []byte {
-	file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDesc), len(file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDesc)))
-	})
-	return file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_rawDescData
-}
 
 var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_lib_teleterm_auto_update_v1_auto_update_service_proto_msgTypes = make([]protoimpl.MessageInfo, 9)

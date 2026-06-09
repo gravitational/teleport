@@ -36,17 +36,6 @@ func FuzzParseProxyHost(f *testing.F) {
 	})
 }
 
-func FuzzParseLabelSpec(f *testing.F) {
-	f.Add("XXXX=YYYY")
-	f.Add(`type="database";" role"=master,ver="mongoDB v1,2"`)
-
-	f.Fuzz(func(t *testing.T, spec string) {
-		require.NotPanics(t, func() {
-			_, _ = ParseLabelSpec(spec)
-		})
-	})
-}
-
 func FuzzParseSearchKeywords(f *testing.F) {
 	f.Add("XXXX,YYYY", ',')
 	f.Add(`XXXX"YYYY`, '"')

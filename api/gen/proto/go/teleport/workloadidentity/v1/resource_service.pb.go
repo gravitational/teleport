@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/resource_service.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // The request for CreateWorkloadIdentity.
 type CreateWorkloadIdentityRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The workload identity to create.
 	WorkloadIdentity *WorkloadIdentity `protobuf:"bytes,1,opt,name=workload_identity,json=workloadIdentity,proto3" json:"workload_identity,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -70,11 +71,6 @@ func (x *CreateWorkloadIdentityRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateWorkloadIdentityRequest.ProtoReflect.Descriptor instead.
-func (*CreateWorkloadIdentityRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateWorkloadIdentityRequest) GetWorkloadIdentity() *WorkloadIdentity {
 	if x != nil {
 		return x.WorkloadIdentity
@@ -82,9 +78,39 @@ func (x *CreateWorkloadIdentityRequest) GetWorkloadIdentity() *WorkloadIdentity 
 	return nil
 }
 
+func (x *CreateWorkloadIdentityRequest) SetWorkloadIdentity(v *WorkloadIdentity) {
+	x.WorkloadIdentity = v
+}
+
+func (x *CreateWorkloadIdentityRequest) HasWorkloadIdentity() bool {
+	if x == nil {
+		return false
+	}
+	return x.WorkloadIdentity != nil
+}
+
+func (x *CreateWorkloadIdentityRequest) ClearWorkloadIdentity() {
+	x.WorkloadIdentity = nil
+}
+
+type CreateWorkloadIdentityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The workload identity to create.
+	WorkloadIdentity *WorkloadIdentity
+}
+
+func (b0 CreateWorkloadIdentityRequest_builder) Build() *CreateWorkloadIdentityRequest {
+	m0 := &CreateWorkloadIdentityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.WorkloadIdentity = b.WorkloadIdentity
+	return m0
+}
+
 // The request for UpdateWorkloadIdentity.
 type UpdateWorkloadIdentityRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The workload identity to update.
 	WorkloadIdentity *WorkloadIdentity `protobuf:"bytes,1,opt,name=workload_identity,json=workloadIdentity,proto3" json:"workload_identity,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -116,11 +142,6 @@ func (x *UpdateWorkloadIdentityRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateWorkloadIdentityRequest.ProtoReflect.Descriptor instead.
-func (*UpdateWorkloadIdentityRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *UpdateWorkloadIdentityRequest) GetWorkloadIdentity() *WorkloadIdentity {
 	if x != nil {
 		return x.WorkloadIdentity
@@ -128,9 +149,39 @@ func (x *UpdateWorkloadIdentityRequest) GetWorkloadIdentity() *WorkloadIdentity 
 	return nil
 }
 
+func (x *UpdateWorkloadIdentityRequest) SetWorkloadIdentity(v *WorkloadIdentity) {
+	x.WorkloadIdentity = v
+}
+
+func (x *UpdateWorkloadIdentityRequest) HasWorkloadIdentity() bool {
+	if x == nil {
+		return false
+	}
+	return x.WorkloadIdentity != nil
+}
+
+func (x *UpdateWorkloadIdentityRequest) ClearWorkloadIdentity() {
+	x.WorkloadIdentity = nil
+}
+
+type UpdateWorkloadIdentityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The workload identity to update.
+	WorkloadIdentity *WorkloadIdentity
+}
+
+func (b0 UpdateWorkloadIdentityRequest_builder) Build() *UpdateWorkloadIdentityRequest {
+	m0 := &UpdateWorkloadIdentityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.WorkloadIdentity = b.WorkloadIdentity
+	return m0
+}
+
 // The request for UpsertWorkloadIdentityRequest.
 type UpsertWorkloadIdentityRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The workload identity to upsert.
 	WorkloadIdentity *WorkloadIdentity `protobuf:"bytes,1,opt,name=workload_identity,json=workloadIdentity,proto3" json:"workload_identity,omitempty"`
 	unknownFields    protoimpl.UnknownFields
@@ -162,11 +213,6 @@ func (x *UpsertWorkloadIdentityRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertWorkloadIdentityRequest.ProtoReflect.Descriptor instead.
-func (*UpsertWorkloadIdentityRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *UpsertWorkloadIdentityRequest) GetWorkloadIdentity() *WorkloadIdentity {
 	if x != nil {
 		return x.WorkloadIdentity
@@ -174,9 +220,39 @@ func (x *UpsertWorkloadIdentityRequest) GetWorkloadIdentity() *WorkloadIdentity 
 	return nil
 }
 
+func (x *UpsertWorkloadIdentityRequest) SetWorkloadIdentity(v *WorkloadIdentity) {
+	x.WorkloadIdentity = v
+}
+
+func (x *UpsertWorkloadIdentityRequest) HasWorkloadIdentity() bool {
+	if x == nil {
+		return false
+	}
+	return x.WorkloadIdentity != nil
+}
+
+func (x *UpsertWorkloadIdentityRequest) ClearWorkloadIdentity() {
+	x.WorkloadIdentity = nil
+}
+
+type UpsertWorkloadIdentityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The workload identity to upsert.
+	WorkloadIdentity *WorkloadIdentity
+}
+
+func (b0 UpsertWorkloadIdentityRequest_builder) Build() *UpsertWorkloadIdentityRequest {
+	m0 := &UpsertWorkloadIdentityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.WorkloadIdentity = b.WorkloadIdentity
+	return m0
+}
+
 // The request for GetWorkloadIdentity.
 type GetWorkloadIdentityRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the workload identity to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -208,11 +284,6 @@ func (x *GetWorkloadIdentityRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetWorkloadIdentityRequest.ProtoReflect.Descriptor instead.
-func (*GetWorkloadIdentityRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *GetWorkloadIdentityRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -220,9 +291,28 @@ func (x *GetWorkloadIdentityRequest) GetName() string {
 	return ""
 }
 
+func (x *GetWorkloadIdentityRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetWorkloadIdentityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the workload identity to retrieve.
+	Name string
+}
+
+func (b0 GetWorkloadIdentityRequest_builder) Build() *GetWorkloadIdentityRequest {
+	m0 := &GetWorkloadIdentityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // The request for DeleteWorkloadIdentity.
 type DeleteWorkloadIdentityRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the workload identity to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -254,11 +344,6 @@ func (x *DeleteWorkloadIdentityRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteWorkloadIdentityRequest.ProtoReflect.Descriptor instead.
-func (*DeleteWorkloadIdentityRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DeleteWorkloadIdentityRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -266,9 +351,28 @@ func (x *DeleteWorkloadIdentityRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteWorkloadIdentityRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteWorkloadIdentityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the workload identity to delete.
+	Name string
+}
+
+func (b0 DeleteWorkloadIdentityRequest_builder) Build() *DeleteWorkloadIdentityRequest {
+	m0 := &DeleteWorkloadIdentityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // The request for ListWorkloadIdentities.
 type ListWorkloadIdentitiesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -303,11 +407,6 @@ func (x *ListWorkloadIdentitiesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListWorkloadIdentitiesRequest.ProtoReflect.Descriptor instead.
-func (*ListWorkloadIdentitiesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ListWorkloadIdentitiesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -322,9 +421,36 @@ func (x *ListWorkloadIdentitiesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListWorkloadIdentitiesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListWorkloadIdentitiesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListWorkloadIdentitiesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The page_token value returned from a previous ListWorkloadIdentities request, if any.
+	PageToken string
+}
+
+func (b0 ListWorkloadIdentitiesRequest_builder) Build() *ListWorkloadIdentitiesRequest {
+	m0 := &ListWorkloadIdentitiesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // The request for ListWorkloadIdentitiesV2.
 type ListWorkloadIdentitiesV2Request struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -365,11 +491,6 @@ func (x *ListWorkloadIdentitiesV2Request) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListWorkloadIdentitiesV2Request.ProtoReflect.Descriptor instead.
-func (*ListWorkloadIdentitiesV2Request) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *ListWorkloadIdentitiesV2Request) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -405,9 +526,57 @@ func (x *ListWorkloadIdentitiesV2Request) GetFilterSearchTerm() string {
 	return ""
 }
 
+func (x *ListWorkloadIdentitiesV2Request) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListWorkloadIdentitiesV2Request) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+func (x *ListWorkloadIdentitiesV2Request) SetSortField(v string) {
+	x.SortField = v
+}
+
+func (x *ListWorkloadIdentitiesV2Request) SetSortDesc(v bool) {
+	x.SortDesc = v
+}
+
+func (x *ListWorkloadIdentitiesV2Request) SetFilterSearchTerm(v string) {
+	x.FilterSearchTerm = v
+}
+
+type ListWorkloadIdentitiesV2Request_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The page_token value returned from a previous ListWorkloadIdentities request, if any.
+	PageToken string
+	// The sort field to use for the results. If empty, the default sort field is used.
+	SortField string
+	// The sort order to use for the results. If empty, the default sort order is used.
+	SortDesc bool
+	// A search term used to filter the results. If non-empty, it's used to match against supported fields.
+	FilterSearchTerm string
+}
+
+func (b0 ListWorkloadIdentitiesV2Request_builder) Build() *ListWorkloadIdentitiesV2Request {
+	m0 := &ListWorkloadIdentitiesV2Request{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	x.SortField = b.SortField
+	x.SortDesc = b.SortDesc
+	x.FilterSearchTerm = b.FilterSearchTerm
+	return m0
+}
+
 // The response for ListWorkloadIdentities.
 type ListWorkloadIdentitiesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of workload identities that matched the request.
 	WorkloadIdentities []*WorkloadIdentity `protobuf:"bytes,1,rep,name=workload_identities,json=workloadIdentities,proto3" json:"workload_identities,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -442,11 +611,6 @@ func (x *ListWorkloadIdentitiesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListWorkloadIdentitiesResponse.ProtoReflect.Descriptor instead.
-func (*ListWorkloadIdentitiesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *ListWorkloadIdentitiesResponse) GetWorkloadIdentities() []*WorkloadIdentity {
 	if x != nil {
 		return x.WorkloadIdentities
@@ -459,6 +623,33 @@ func (x *ListWorkloadIdentitiesResponse) GetNextPageToken() string {
 		return x.NextPageToken
 	}
 	return ""
+}
+
+func (x *ListWorkloadIdentitiesResponse) SetWorkloadIdentities(v []*WorkloadIdentity) {
+	x.WorkloadIdentities = v
+}
+
+func (x *ListWorkloadIdentitiesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListWorkloadIdentitiesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of workload identities that matched the request.
+	WorkloadIdentities []*WorkloadIdentity
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListWorkloadIdentitiesResponse_builder) Build() *ListWorkloadIdentitiesResponse {
+	m0 := &ListWorkloadIdentitiesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.WorkloadIdentities = b.WorkloadIdentities
+	x.NextPageToken = b.NextPageToken
+	return m0
 }
 
 var File_teleport_workloadidentity_v1_resource_service_proto protoreflect.FileDescriptor
@@ -499,18 +690,6 @@ const file_teleport_workloadidentity_v1_resource_service_proto_rawDesc = "" +
 	"\x16DeleteWorkloadIdentity\x12;.teleport.workloadidentity.v1.DeleteWorkloadIdentityRequest\x1a\x16.google.protobuf.Empty\x12\x93\x01\n" +
 	"\x16ListWorkloadIdentities\x12;.teleport.workloadidentity.v1.ListWorkloadIdentitiesRequest\x1a<.teleport.workloadidentity.v1.ListWorkloadIdentitiesResponse\x12\x97\x01\n" +
 	"\x18ListWorkloadIdentitiesV2\x12=.teleport.workloadidentity.v1.ListWorkloadIdentitiesV2Request\x1a<.teleport.workloadidentity.v1.ListWorkloadIdentitiesResponseBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_resource_service_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_resource_service_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_resource_service_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_resource_service_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_resource_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_resource_service_proto_rawDesc), len(file_teleport_workloadidentity_v1_resource_service_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_resource_service_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_resource_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_workloadidentity_v1_resource_service_proto_goTypes = []any{

@@ -540,6 +540,10 @@ func (g *mockRegionalEKSClientGetter) GetAWSSTSPresignClient(aws.Config) kubeuti
 	return &mockSTSPresignAPI{}
 }
 
+func (g *mockRegionalEKSClientGetter) GetAWSIAMClient(aws.Config) IAMClient {
+	return nil
+}
+
 // mockAccountClient implements account.ListRegionsAPIClient.
 type mockAccountClient struct {
 	output *account.ListRegionsOutput

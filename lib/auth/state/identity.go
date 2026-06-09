@@ -31,11 +31,13 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	libslices "github.com/gravitational/teleport/lib/utils/slices"
@@ -88,6 +90,8 @@ type Identity struct {
 	ClusterName string
 	// SystemRoles is a list of additional system roles.
 	SystemRoles []string
+	// ScopePin pins a scoped agent to a specific scope and encodes the agent's system roles.
+	ScopePin *scopesv1.Pin
 	// AgentScope is the scope an identity is constrained to.
 	AgentScope string
 	// ImmutableLabelHash is the hash used to verify immutable labels against
@@ -95,6 +99,19 @@ type Identity struct {
 	ImmutableLabelHash string
 	// ImmutableLabels are the immutable labels assigned to this identity at join time.
 	ImmutableLabels *joiningv1.ImmutableLabels
+}
+
+// GetAgentScope returns the effective agent scope for this identity. Returns empty string
+// for unscoped agents and non-agent certs.
+// TODO(fspmarshall/scopes): remove this helper once we've fully transitioned to pinned agents.
+func (i *Identity) GetAgentScope() string {
+	if i.AgentScope != "" {
+		return i.AgentScope
+	}
+	if i.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		return i.ScopePin.GetScope()
+	}
+	return ""
 }
 
 // HasSystemRole checks if this identity encompasses the supplied system role.
@@ -269,14 +286,35 @@ func ReadTLSIdentityFromKeyPair(keyBytes, certBytes []byte, caCertsBytes [][]byt
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cluster name")
 	}
+	// Agent pin TLS certs omit Groups and SystemRoles for fail-closed compatibility;
+	// role and additional roles are carried exclusively in ScopePin.
+	var role types.SystemRole
+	var systemRoles []string
+	if id.ScopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		primary := id.ScopePin.GetSystemRoles().GetPrimary()
+		if primary == "" {
+			return nil, trace.BadParameter("agent scope pin in TLS certificate is missing primary system role")
+		}
+		role = types.SystemRole(primary)
+		systemRoles = id.ScopePin.GetSystemRoles().GetAdditional()
+	} else {
+		if len(id.Groups) == 0 {
+			return nil, trace.BadParameter("missing identity groups (roles) in TLS certificate")
+		}
+		role = types.SystemRole(id.Groups[0])
+		systemRoles = id.SystemRoles
+	}
+
 	identity := &Identity{
-		ID:              IdentityID{HostUUID: id.Username, Role: types.SystemRole(id.Groups[0])},
+		ID:              IdentityID{HostUUID: id.Username, Role: role},
 		ClusterName:     clusterName,
 		KeyBytes:        keyBytes,
 		TLSCertBytes:    certBytes,
 		TLSCACertsBytes: caCertsBytes,
 		XCert:           cert,
-		SystemRoles:     id.SystemRoles,
+		SystemRoles:     systemRoles,
+		ScopePin:        id.ScopePin,
+		AgentScope:      id.AgentScope,
 	}
 	// The passed in ciphersuites don't appear to matter here since the returned
 	// *tls.Config is never actually used?
@@ -326,19 +364,40 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		return nil, trace.BadParameter("extensions: missing needed extensions for host roles")
 	}
 	roleString := cert.Permissions.Extensions[utils.CertExtensionRole]
-	if roleString == "" {
+
+	// Decode the agent scope pin first: it may carry the primary role for
+	// agent-pin certs, which deliberately omit the legacy SystemRole extension.
+	var scopePin *scopesv1.Pin
+	if encoded, ok := cert.Permissions.Extensions[teleport.CertExtensionAgentScopePin]; ok {
+		pin, err := pinning.Decode(encoded)
+		if err != nil {
+			return nil, trace.BadParameter("failed to decode agent scope pin: %v", err)
+		}
+		scopePin = pin
+	}
+
+	var role types.SystemRole
+	if roleString != "" {
+		roles, err := types.ParseTeleportRoles(roleString)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		foundRoles := len(roles)
+		if foundRoles != 1 {
+			return nil, trace.Errorf("expected one role per certificate. found %d: '%s'",
+				foundRoles, roles.String())
+		}
+		role = roles[0]
+	} else if scopePin.GetKind() == scopesv1.PinKind_PIN_KIND_AGENT {
+		primary := scopePin.GetSystemRoles().GetPrimary()
+		if primary == "" {
+			return nil, trace.BadParameter("agent scope pin is missing primary system role")
+		}
+		role = types.SystemRole(primary)
+	} else {
 		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionRole)
 	}
-	roles, err := types.ParseTeleportRoles(roleString)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	foundRoles := len(roles)
-	if foundRoles != 1 {
-		return nil, trace.Errorf("expected one role per certificate. found %d: '%s'",
-			foundRoles, roles.String())
-	}
-	role := roles[0]
+
 	clusterName := cert.Permissions.Extensions[utils.CertExtensionAuthority]
 	if clusterName == "" {
 		return nil, trace.BadParameter("missing cert extension %v", utils.CertExtensionAuthority)
@@ -354,6 +413,7 @@ func ReadSSHIdentityFromKeyPair(keyBytes, certBytes []byte) (*Identity, error) {
 		CertBytes:          certBytes,
 		KeySigner:          certSigner,
 		Cert:               cert,
+		ScopePin:           scopePin,
 		AgentScope:         agentScope,
 		ImmutableLabelHash: labelHash,
 	}, nil

@@ -108,9 +108,9 @@ func ValidateSigstorePolicy(s *workloadidentityv1pb.SigstorePolicy) error {
 		return trace.BadParameter("spec.requirements: is required")
 	}
 
-	switch v := s.GetSpec().GetAuthority().(type) {
-	case *workloadidentityv1pb.SigstorePolicySpec_Key:
-		public := v.Key.GetPublic()
+	switch s.GetSpec().WhichAuthority() {
+	case workloadidentityv1pb.SigstorePolicySpec_Key_case:
+		public := s.GetSpec().GetKey().GetPublic()
 		if public == "" {
 			return trace.BadParameter("spec.key.public: is required")
 		}
@@ -128,12 +128,12 @@ func ValidateSigstorePolicy(s *workloadidentityv1pb.SigstorePolicy) error {
 		if _, err := x509.ParsePKIXPublicKey(block.Bytes); err != nil {
 			return trace.BadParameter("spec.key.public: failed to parse public key: %v", err)
 		}
-	case *workloadidentityv1pb.SigstorePolicySpec_Keyless:
-		if len(v.Keyless.GetIdentities()) == 0 {
+	case workloadidentityv1pb.SigstorePolicySpec_Keyless_case:
+		if len(s.GetSpec().GetKeyless().GetIdentities()) == 0 {
 			return trace.BadParameter("spec.keyless.identities: at least one trusted identity is required")
 		}
 
-		for idx, identity := range v.Keyless.GetIdentities() {
+		for idx, identity := range s.GetSpec().GetKeyless().GetIdentities() {
 			switch {
 			case identity.GetIssuer() != "":
 			case identity.GetIssuerRegex() != "":
@@ -156,7 +156,7 @@ func ValidateSigstorePolicy(s *workloadidentityv1pb.SigstorePolicy) error {
 		}
 
 		roots := make(root.TrustedMaterialCollection, 0)
-		for idx, trustedRoot := range v.Keyless.GetTrustedRoots() {
+		for idx, trustedRoot := range s.GetSpec().GetKeyless().GetTrustedRoots() {
 			root, err := root.NewTrustedRootFromJSON([]byte(trustedRoot))
 			if err != nil {
 				return trace.BadParameter("spec.keyless.trusted_roots[%d]: failed to parse trusted root: %v", idx, err)

@@ -100,11 +100,10 @@ func (c *WorkloadIdentityCommand) Initialize(
 	c.listCmd.
 		Flag(
 			"format",
-			"Output format, 'text' or 'json'",
+			"Output format.",
 		).
-		Hidden().
 		Default(teleport.Text).
-		EnumVar(&c.format, teleport.Text, teleport.JSON)
+		EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.rmCmd = cmd.Command(
 		"rm",
@@ -140,11 +139,10 @@ func (c *WorkloadIdentityCommand) Initialize(
 	c.revocationsLsCmd.
 		Flag(
 			"format",
-			"Output format, 'text' or 'json'",
+			"Output format.",
 		).
-		Hidden().
 		Default(teleport.Text).
-		EnumVar(&c.format, teleport.Text, teleport.JSON)
+		EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.revocationsCrlCmd = revocationsCmd.Command(
 		"crl", "Fetch the signed CRL for existing revocations.",
@@ -251,9 +249,9 @@ func (c *WorkloadIdentityCommand) DeleteWorkloadIdentity(
 ) error {
 	workloadIdentityClient := client.WorkloadIdentityResourceServiceClient()
 	_, err := workloadIdentityClient.DeleteWorkloadIdentity(
-		ctx, &workloadidentityv1pb.DeleteWorkloadIdentityRequest{
+		ctx, workloadidentityv1pb.DeleteWorkloadIdentityRequest_builder{
 			Name: c.workloadIdentityName,
-		})
+		}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -281,15 +279,16 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 		}
 
 		workloadIdentities = append(
-			workloadIdentities, resp.WorkloadIdentities...,
+			workloadIdentities, resp.GetWorkloadIdentities()...,
 		)
-		if resp.NextPageToken == "" {
+		if resp.GetNextPageToken() == "" {
 			break
 		}
-		req.PageToken = resp.NextPageToken
+		req.SetPageToken(resp.GetNextPageToken())
 	}
 
-	if c.format == teleport.Text {
+	switch c.format {
+	case teleport.Text:
 		if len(workloadIdentities) == 0 {
 			fmt.Fprintln(c.stdout, "No workload identities configured")
 			return nil
@@ -301,11 +300,18 @@ func (c *WorkloadIdentityCommand) ListWorkloadIdentities(
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
-	} else {
+	case teleport.JSON:
 		err := utils.WriteJSONArray(c.stdout, workloadIdentities)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal workload identities")
 		}
+	case teleport.YAML:
+		err := utils.WriteYAML(c.stdout, workloadIdentities)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal workload identities")
+		}
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }
@@ -345,20 +351,20 @@ func (c *WorkloadIdentityCommand) AddRevocation(
 	}
 
 	revocationClient := client.WorkloadIdentityRevocationServiceClient()
-	_, err = revocationClient.CreateWorkloadIdentityX509Revocation(ctx, &workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest{
-		WorkloadIdentityX509Revocation: &workloadidentityv1pb.WorkloadIdentityX509Revocation{
+	_, err = revocationClient.CreateWorkloadIdentityX509Revocation(ctx, workloadidentityv1pb.CreateWorkloadIdentityX509RevocationRequest_builder{
+		WorkloadIdentityX509Revocation: workloadidentityv1pb.WorkloadIdentityX509Revocation_builder{
 			Kind:    types.KindWorkloadIdentityX509Revocation,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name:    normalizedSerial,
 				Expires: timestamppb.New(expiry),
-			},
-			Spec: &workloadidentityv1pb.WorkloadIdentityX509RevocationSpec{
+			}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentityX509RevocationSpec_builder{
 				Reason:    c.revocationReason,
 				RevokedAt: timestamppb.New(c.now()),
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "creating revocation")
 	}
@@ -387,9 +393,9 @@ func (c *WorkloadIdentityCommand) DeleteRevocation(
 	}
 
 	revocationClient := client.WorkloadIdentityRevocationServiceClient()
-	_, err = revocationClient.DeleteWorkloadIdentityX509Revocation(ctx, &workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest{
+	_, err = revocationClient.DeleteWorkloadIdentityX509Revocation(ctx, workloadidentityv1pb.DeleteWorkloadIdentityX509RevocationRequest_builder{
 		Name: normalizedSerial,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "deleting revocation")
 	}
@@ -418,15 +424,16 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 		}
 
 		revocations = append(
-			revocations, resp.WorkloadIdentityX509Revocations...,
+			revocations, resp.GetWorkloadIdentityX509Revocations()...,
 		)
-		if resp.NextPageToken == "" {
+		if resp.GetNextPageToken() == "" {
 			break
 		}
-		req.PageToken = resp.NextPageToken
+		req.SetPageToken(resp.GetNextPageToken())
 	}
 
-	if c.format == teleport.Text {
+	switch c.format {
+	case teleport.Text:
 		if len(revocations) == 0 {
 			fmt.Fprintln(c.stdout, "No revocations configured")
 			return nil
@@ -447,15 +454,24 @@ func (c *WorkloadIdentityCommand) ListRevocations(
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
-	} else {
+	case teleport.JSON, teleport.YAML:
 		converted := []types.Resource{}
 		for _, resource := range revocations {
 			converted = append(converted, types.ProtoResource153ToLegacy(resource))
 		}
-		err := utils.WriteJSONArray(c.stdout, converted)
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal revocations")
+		if c.format == teleport.JSON {
+			err := utils.WriteJSONArray(c.stdout, converted)
+			if err != nil {
+				return trace.Wrap(err, "failed to marshal revocations")
+			}
+		} else {
+			err := utils.WriteYAML(c.stdout, converted)
+			if err != nil {
+				return trace.Wrap(err, "failed to marshal revocations")
+			}
 		}
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }
@@ -499,7 +515,7 @@ func (c *WorkloadIdentityCommand) StreamCRL(
 		slog.InfoContext(ctx, "Received CRL from server")
 		pemData := pem.EncodeToMemory(&pem.Block{
 			Type:  "X509 CRL",
-			Bytes: res.Crl,
+			Bytes: res.GetCrl(),
 		})
 		if err := write(pemData); err != nil {
 			return trace.Wrap(err, "writing CRL pem")
@@ -591,23 +607,23 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 		for _, cert := range override {
 			chainDer = append(chainDer, cert.Raw)
 		}
-		pbOverrides = append(pbOverrides, &workloadidentityv1pb.X509IssuerOverrideSpec_Override{
+		pbOverrides = append(pbOverrides, workloadidentityv1pb.X509IssuerOverrideSpec_Override_builder{
 			Issuer: chainDer[0],
 			Chain:  chainDer,
-		})
+		}.Build())
 	}
 
-	override := &workloadidentityv1pb.X509IssuerOverride{
+	override := workloadidentityv1pb.X509IssuerOverride_builder{
 		Kind:    types.KindWorkloadIdentityX509IssuerOverride,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: c.overridesCreateName,
-		},
-		Spec: &workloadidentityv1pb.X509IssuerOverrideSpec{
+		}.Build(),
+		Spec: workloadidentityv1pb.X509IssuerOverrideSpec_builder{
 			Overrides: pbOverrides,
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	if c.overridesCreateDryRun {
 		fmt.Fprintln(c.stderr, "Dry run mode enabled, the following override would have been created:")
@@ -618,15 +634,15 @@ func (c *WorkloadIdentityCommand) runOverridesCreate(ctx context.Context, client
 	}
 
 	if c.overridesCreateForce {
-		if _, err := oclt.UpsertX509IssuerOverride(ctx, &workloadidentityv1pb.UpsertX509IssuerOverrideRequest{
+		if _, err := oclt.UpsertX509IssuerOverride(ctx, workloadidentityv1pb.UpsertX509IssuerOverrideRequest_builder{
 			X509IssuerOverride: override,
-		}); err != nil {
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		if _, err := oclt.CreateX509IssuerOverride(ctx, &workloadidentityv1pb.CreateX509IssuerOverrideRequest{
+		if _, err := oclt.CreateX509IssuerOverride(ctx, workloadidentityv1pb.CreateX509IssuerOverrideRequest_builder{
 			X509IssuerOverride: override,
-		}); err != nil {
+		}.Build()); err != nil {
 			if trace.IsAlreadyExists(err) {
 				return trace.Wrap(err, "override already exists, use the --force option to overwrite it")
 			}
@@ -670,10 +686,10 @@ func (c *WorkloadIdentityCommand) runOverridesSignCSRs(ctx context.Context, clie
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		resp, err := oclt.SignX509IssuerCSR(ctx, &workloadidentityv1pb.SignX509IssuerCSRRequest{
+		resp, err := oclt.SignX509IssuerCSR(ctx, workloadidentityv1pb.SignX509IssuerCSRRequest_builder{
 			Issuer:          issuer.Raw,
 			CsrCreationMode: c.overridesSignMode,
-		})
+		}.Build())
 		if err != nil {
 			if !c.overridesSignForce {
 				return trace.Wrap(err)

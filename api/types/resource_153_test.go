@@ -29,7 +29,7 @@ import (
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	machineidv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/machineid/v1"
-	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -284,54 +284,6 @@ func TestExpiryConsistency(t *testing.T) {
 	}
 }
 
-func TestLegacyMetadataToResource(t *testing.T) {
-	t.Run("copies header fields and unwraps underlying resource", func(t *testing.T) {
-		chal := &mfav1.ValidatedMFAChallenge{
-			Kind:    types.KindValidatedMFAChallenge,
-			SubKind: "subkind",
-			Version: types.V1,
-			Metadata: &types.Metadata{
-				Name:      "some-challenge-name",
-				Namespace: "default",
-				Revision:  "revision-123",
-			},
-		}
-
-		resource := types.LegacyMetadataToResource(chal)
-
-		// Header fields should be copied over to the resource metadata.
-		require.Equal(t, chal.GetKind(), resource.GetKind())
-		require.Equal(t, chal.GetSubKind(), resource.GetSubKind())
-		require.Equal(t, chal.GetVersion(), resource.GetVersion())
-		require.Equal(t, *chal.GetMetadata(), resource.GetMetadata())
-
-		// UnwrapT should return the original resource pointer.
-		unwrapper := resource.(interface {
-			UnwrapT() *mfav1.ValidatedMFAChallenge
-		})
-		require.Same(t, chal, unwrapper.UnwrapT())
-
-		// Modifying the original resource's metadata should not affect the header metadata.
-		chal.Metadata.Name = "updated-name"
-		require.Equal(t, "some-challenge-name", resource.GetName())
-	})
-
-	t.Run("handles nil metadata", func(t *testing.T) {
-		chal := &mfav1.ValidatedMFAChallenge{
-			Kind:    types.KindValidatedMFAChallenge,
-			SubKind: "subkind",
-			Version: types.V1,
-		}
-
-		resource := types.LegacyMetadataToResource(chal)
-
-		require.Equal(t, chal.GetKind(), resource.GetKind())
-		require.Equal(t, chal.GetSubKind(), resource.GetSubKind())
-		require.Equal(t, chal.GetVersion(), resource.GetVersion())
-		require.Equal(t, types.Metadata{}, resource.GetMetadata())
-	})
-}
-
 func TestConvertResource(t *testing.T) {
 	t.Run("returns resource on direct type assertion", func(t *testing.T) {
 		user := &types.UserV2{
@@ -361,17 +313,16 @@ func TestConvertResource(t *testing.T) {
 		require.Same(t, bot, converted)
 	})
 
-	t.Run("unwraps legacy metadata adapter", func(t *testing.T) {
-		chal := &mfav1.ValidatedMFAChallenge{
-			Kind: types.KindValidatedMFAChallenge,
-			Metadata: &types.Metadata{
-				Name: "challenge",
-			},
-		}
+	t.Run("unwraps legacy resource adapter", func(t *testing.T) {
+		chal := &mfav2.ValidatedMFAChallenge{}
+		chal.SetKind(types.KindValidatedMFAChallenge)
+		chal.SetMetadata(&headerv1.Metadata{
+			Name: "challenge",
+		})
 
-		resource := types.LegacyMetadataToResource(chal)
+		resource := types.ProtoResource153ToLegacy(chal)
 
-		converted, err := types.ConvertResource[*mfav1.ValidatedMFAChallenge](resource)
+		converted, err := types.ConvertResource[*mfav2.ValidatedMFAChallenge](resource)
 		require.NoError(t, err)
 		require.Same(t, chal, converted)
 	})

@@ -23,6 +23,7 @@ type entitlement =
   | 'AccessLists'
   | 'AccessMonitoring'
   | 'AccessRequests'
+  | 'ActivityCenter'
   | 'App'
   | 'Beams'
   | 'ClientIPRestrictions'
@@ -43,6 +44,7 @@ type entitlement =
   | 'Policy'
   | 'SAML'
   | 'SessionLocks'
+  | 'SessionSummaries'
   | 'UnrestrictedManagedUpdates'
   | 'UpsellAlert'
   | 'UsageReporting';
@@ -56,6 +58,7 @@ export const defaultEntitlements: Record<
   AccessLists: { enabled: false, limit: 0 },
   AccessMonitoring: { enabled: false, limit: 0 },
   AccessRequests: { enabled: false, limit: 0 },
+  ActivityCenter: { enabled: false, limit: 0 },
   App: { enabled: false, limit: 0 },
   Beams: { enabled: false, limit: 0 },
   ClientIPRestrictions: { enabled: false, limit: 0 },
@@ -76,6 +79,7 @@ export const defaultEntitlements: Record<
   Policy: { enabled: false, limit: 0 },
   SAML: { enabled: false, limit: 0 },
   SessionLocks: { enabled: false, limit: 0 },
+  SessionSummaries: { enabled: false, limit: 0 },
   UnrestrictedManagedUpdates: { enabled: false, limit: 0 },
   UpsellAlert: { enabled: false, limit: 0 },
   UsageReporting: { enabled: false, limit: 0 },

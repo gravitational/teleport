@@ -248,8 +248,8 @@ func (u *inventoryInstance) getVersionKey() bytestring {
 		name = u.instance.GetHostname()
 		id = u.instance.GetName()
 	} else {
-		if u.bot.Status != nil && len(u.bot.Status.LatestHeartbeats) > 0 {
-			versionStr = u.bot.Status.LatestHeartbeats[0].Version
+		if u.bot.HasStatus() && len(u.bot.GetStatus().GetLatestHeartbeats()) > 0 {
+			versionStr = u.bot.GetStatus().GetLatestHeartbeats()[0].GetVersion()
 		}
 		name = u.bot.GetSpec().GetBotName()
 		id = u.bot.GetSpec().GetInstanceId()
@@ -777,13 +777,13 @@ func (ic *InventoryCache) parseFilter(filter *inventoryv1.ListUnifiedInstancesFi
 		filter: filter,
 	}
 
-	if filter == nil || filter.PredicateExpression == "" {
+	if filter == nil || filter.GetPredicateExpression() == "" {
 		return pf, nil
 	}
 
 	parser := getUnifiedExpressionParser()
 
-	expr, err := parser.Parse(filter.PredicateExpression)
+	expr, err := parser.Parse(filter.GetPredicateExpression())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -802,14 +802,14 @@ func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *invento
 
 	ic.metrics.requests.Inc()
 
-	if req.PageSize <= 0 {
-		req.PageSize = defaults.DefaultChunkSize
+	if req.GetPageSize() <= 0 {
+		req.SetPageSize(defaults.DefaultChunkSize)
 	}
 
 	// Decode the PageToken from base32hex
 	var startKey string
-	if req.PageToken != "" {
-		decoded, err := base32.HexEncoding.WithPadding(base32.NoPadding).DecodeString(req.PageToken)
+	if req.GetPageToken() != "" {
+		decoded, err := base32.HexEncoding.WithPadding(base32.NoPadding).DecodeString(req.GetPageToken())
 		if err != nil {
 			return nil, trace.BadParameter("invalid page token: %v", err)
 		}
@@ -857,7 +857,7 @@ func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *invento
 			start, end = end, start
 		}
 
-		if req.PageToken == "" {
+		if req.GetPageToken() == "" {
 			startKey = start
 		}
 		endKey = end
@@ -874,7 +874,7 @@ func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *invento
 			continue
 		}
 
-		if len(items) == int(req.PageSize) {
+		if len(items) == int(req.GetPageSize()) {
 			// Get the key for the current item based on the index
 			rawKey, err := ic.getKeyForIndex(sf, index)
 			if err != nil {
@@ -889,10 +889,10 @@ func (ic *InventoryCache) ListUnifiedInstances(ctx context.Context, req *invento
 		items = append(items, item)
 	}
 
-	return &inventoryv1.ListUnifiedInstancesResponse{
+	return inventoryv1.ListUnifiedInstancesResponse_builder{
 		Items:         items,
 		NextPageToken: nextPageToken,
-	}, nil
+	}.Build(), nil
 }
 
 // matchesFilter checks if a unified instance matches the filter criteria.
@@ -906,7 +906,7 @@ func (ic *InventoryCache) matchesFilter(ui *inventoryInstance, parsed *parsedFil
 	// Filter by instance types
 	isInstance := ui.isInstance()
 	matchesType := false
-	for _, instanceType := range filter.InstanceTypes {
+	for _, instanceType := range filter.GetInstanceTypes() {
 		if instanceType == inventoryv1.InstanceType_INSTANCE_TYPE_INSTANCE && isInstance {
 			matchesType = true
 			break
@@ -916,22 +916,22 @@ func (ic *InventoryCache) matchesFilter(ui *inventoryInstance, parsed *parsedFil
 			break
 		}
 	}
-	if len(filter.InstanceTypes) > 0 && !matchesType {
+	if len(filter.GetInstanceTypes()) > 0 && !matchesType {
 		return false
 	}
 
 	// Basic search
-	if filter.Search != "" {
+	if filter.GetSearch() != "" {
 		var searchableText string
 		if ui.isInstance() {
 			// For instances, search by hostname or instance ID
 			searchableText = ui.instance.Spec.Hostname + " " + ui.instance.GetName()
 		} else {
 			// For bot instances, search by bot name or instance ID
-			searchableText = ui.bot.Spec.BotName + " " + ui.bot.GetMetadata().GetName()
+			searchableText = ui.bot.GetSpec().GetBotName() + " " + ui.bot.GetMetadata().GetName()
 		}
 
-		searchTerms := strings.Fields(filter.Search)
+		searchTerms := strings.Fields(filter.GetSearch())
 		matchedAll := true
 		for _, term := range searchTerms {
 			if !strcase.Contains(searchableText, term) {
@@ -946,12 +946,12 @@ func (ic *InventoryCache) matchesFilter(ui *inventoryInstance, parsed *parsedFil
 	}
 
 	// Filter by services (only applies to instances)
-	if len(filter.Services) > 0 {
+	if len(filter.GetServices()) > 0 {
 		// Bot instances don't have services, so exclude them when the services filter is active
 		if !ui.isInstance() {
 			return false
 		}
-		filterServices := set.New(filter.Services...)
+		filterServices := set.New(filter.GetServices()...)
 		hasService := false
 		for _, svc := range ui.instance.Spec.Services {
 			if filterServices.Contains(string(svc)) {
@@ -965,39 +965,39 @@ func (ic *InventoryCache) matchesFilter(ui *inventoryInstance, parsed *parsedFil
 	}
 
 	// Filter by updater groups
-	if len(filter.UpdaterGroups) > 0 {
+	if len(filter.GetUpdaterGroups()) > 0 {
 		var updateGroup string
 		if ui.isInstance() {
 			if ui.instance.Spec.UpdaterInfo != nil {
 				updateGroup = ui.instance.Spec.UpdaterInfo.UpdateGroup
 			}
 		} else {
-			if len(ui.bot.Status.LatestHeartbeats) > 0 && ui.bot.Status.LatestHeartbeats[0].UpdaterInfo != nil {
-				updateGroup = ui.bot.Status.LatestHeartbeats[0].UpdaterInfo.UpdateGroup
+			if len(ui.bot.GetStatus().GetLatestHeartbeats()) > 0 && ui.bot.GetStatus().GetLatestHeartbeats()[0].HasUpdaterInfo() {
+				updateGroup = ui.bot.GetStatus().GetLatestHeartbeats()[0].GetUpdaterInfo().UpdateGroup
 			}
 		}
-		if !slices.Contains(filter.UpdaterGroups, updateGroup) {
+		if !slices.Contains(filter.GetUpdaterGroups(), updateGroup) {
 			return false
 		}
 	}
 
 	// Filter by upgraders
-	if len(filter.Upgraders) > 0 {
+	if len(filter.GetUpgraders()) > 0 {
 		var upgrader string
 		if ui.isInstance() {
 			upgrader = ui.instance.Spec.ExternalUpgrader
 		} else {
-			if len(ui.bot.Status.LatestHeartbeats) > 0 {
-				upgrader = ui.bot.Status.LatestHeartbeats[0].ExternalUpdater
+			if len(ui.bot.GetStatus().GetLatestHeartbeats()) > 0 {
+				upgrader = ui.bot.GetStatus().GetLatestHeartbeats()[0].GetExternalUpdater()
 			}
 		}
-		if !slices.Contains(filter.Upgraders, upgrader) {
+		if !slices.Contains(filter.GetUpgraders(), upgrader) {
 			return false
 		}
 	}
 
 	// Filter with predicate language query
-	if filter.PredicateExpression != "" {
+	if filter.GetPredicateExpression() != "" {
 		match, err := ic.matchSearchKeywords(ui, parsed)
 		if err != nil {
 			ic.cfg.Logger.DebugContext(context.Background(), "Failed to filter instances using predicate expression", "error", err)
@@ -1043,9 +1043,9 @@ func (e *unifiedFilterEnvironment) GetVersion() string {
 		return strings.TrimPrefix(e.ui.instance.Spec.Version, "v")
 	}
 	// For bot instances, get version from latest heartbeat
-	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 {
+	if e.ui.bot.HasStatus() && len(e.ui.bot.GetStatus().GetLatestHeartbeats()) > 0 {
 		// Trim "v" prefix if it's there
-		return strings.TrimPrefix(e.ui.bot.Status.LatestHeartbeats[0].Version, "v")
+		return strings.TrimPrefix(e.ui.bot.GetStatus().GetLatestHeartbeats()[0].GetVersion(), "v")
 	}
 	return ""
 }
@@ -1058,8 +1058,8 @@ func (e *unifiedFilterEnvironment) GetHostname() string {
 		return e.ui.instance.Spec.Hostname
 	}
 	// For bot instances, get hostname from latest heartbeat
-	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 {
-		return e.ui.bot.Status.LatestHeartbeats[0].Hostname
+	if e.ui.bot.HasStatus() && len(e.ui.bot.GetStatus().GetLatestHeartbeats()) > 0 {
+		return e.ui.bot.GetStatus().GetLatestHeartbeats()[0].GetHostname()
 	}
 	return ""
 }
@@ -1078,7 +1078,7 @@ func (e *unifiedFilterEnvironment) GetBotName() string {
 	if e == nil || e.ui == nil || e.ui.isInstance() {
 		return ""
 	}
-	return e.ui.bot.Spec.BotName
+	return e.ui.bot.GetSpec().GetBotName()
 }
 
 func (e *unifiedFilterEnvironment) GetInstanceID() string {
@@ -1088,7 +1088,7 @@ func (e *unifiedFilterEnvironment) GetInstanceID() string {
 	if e.ui.isInstance() {
 		return e.ui.instance.GetName()
 	}
-	return e.ui.bot.Spec.InstanceId
+	return e.ui.bot.GetSpec().GetInstanceId()
 }
 
 func (e *unifiedFilterEnvironment) GetServices() []string {
@@ -1114,8 +1114,8 @@ func (e *unifiedFilterEnvironment) GetUpdaterGroup() string {
 		return ""
 	}
 	// For bot instances, get from latest heartbeat
-	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 && e.ui.bot.Status.LatestHeartbeats[0].UpdaterInfo != nil {
-		return e.ui.bot.Status.LatestHeartbeats[0].UpdaterInfo.UpdateGroup
+	if e.ui.bot.HasStatus() && len(e.ui.bot.GetStatus().GetLatestHeartbeats()) > 0 && e.ui.bot.GetStatus().GetLatestHeartbeats()[0].HasUpdaterInfo() {
+		return e.ui.bot.GetStatus().GetLatestHeartbeats()[0].GetUpdaterInfo().UpdateGroup
 	}
 	return ""
 }
@@ -1128,8 +1128,8 @@ func (e *unifiedFilterEnvironment) GetExternalUpgrader() string {
 		return e.ui.instance.Spec.ExternalUpgrader
 	}
 	// For bot instances, get from latest heartbeat
-	if e.ui.bot.Status != nil && len(e.ui.bot.Status.LatestHeartbeats) > 0 {
-		return e.ui.bot.Status.LatestHeartbeats[0].ExternalUpdater
+	if e.ui.bot.HasStatus() && len(e.ui.bot.GetStatus().GetLatestHeartbeats()) > 0 {
+		return e.ui.bot.GetStatus().GetLatestHeartbeats()[0].GetExternalUpdater()
 	}
 	return ""
 }
@@ -1220,15 +1220,11 @@ func (ic *InventoryCache) getKeyForIndex(ui *inventoryInstance, index inventoryI
 // unifiedInstanceToProto converts a unified instance to a proto UnifiedInstanceItem.
 func (ic *InventoryCache) unifiedInstanceToProto(ui *inventoryInstance) *inventoryv1.UnifiedInstanceItem {
 	if ui.isInstance() {
-		return &inventoryv1.UnifiedInstanceItem{
-			Item: &inventoryv1.UnifiedInstanceItem_Instance{
-				Instance: ui.instance,
-			},
-		}
+		return inventoryv1.UnifiedInstanceItem_builder{
+			Instance: ui.instance,
+		}.Build()
 	}
-	return &inventoryv1.UnifiedInstanceItem{
-		Item: &inventoryv1.UnifiedInstanceItem_BotInstance{
-			BotInstance: ui.bot,
-		},
-	}
+	return inventoryv1.UnifiedInstanceItem_builder{
+		BotInstance: proto.ValueOrDefault(ui.bot),
+	}.Build()
 }

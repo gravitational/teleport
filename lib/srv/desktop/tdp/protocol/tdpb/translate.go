@@ -34,26 +34,26 @@ import (
 
 func translateFSO(fso *tdpbv1.FileSystemObject) legacy.FileSystemObject {
 	isEmpty := uint8(0)
-	if fso.IsEmpty {
+	if fso.GetIsEmpty() {
 		isEmpty = 1
 	}
 	return legacy.FileSystemObject{
-		LastModified: fso.LastModified,
-		Size:         fso.Size,
-		FileType:     fso.FileType,
+		LastModified: fso.GetLastModified(),
+		Size:         fso.GetSize(),
+		FileType:     fso.GetFileType(),
 		IsEmpty:      isEmpty,
-		Path:         fso.Path,
+		Path:         fso.GetPath(),
 	}
 }
 
 func translateFSOToModern(fso legacy.FileSystemObject) *tdpbv1.FileSystemObject {
-	return &tdpbv1.FileSystemObject{
+	return tdpbv1.FileSystemObject_builder{
 		LastModified: fso.LastModified,
 		Size:         fso.Size,
 		FileType:     fso.FileType,
 		IsEmpty:      fso.IsEmpty == 1,
 		Path:         fso.Path,
-	}
+	}.Build()
 }
 
 func toButtonState(b bool) legacy.ButtonState {
@@ -161,57 +161,57 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 			return []tdp.Message{legacy.SharedDirectoryInfoRequest{
 				CompletionID: m.CompletionId,
 				DirectoryID:  m.DirectoryId,
-				Path:         op.Info.Path,
+				Path:         op.Info.GetPath(),
 			}}, nil
 		case *tdpbv1.SharedDirectoryRequest_Create_:
 			return []tdp.Message{legacy.SharedDirectoryCreateRequest{
 				CompletionID: m.CompletionId,
 				DirectoryID:  m.DirectoryId,
-				FileType:     op.Create.FileType,
-				Path:         op.Create.Path,
+				FileType:     op.Create.GetFileType(),
+				Path:         op.Create.GetPath(),
 			}}, nil
 		case *tdpbv1.SharedDirectoryRequest_Delete_:
 			return []tdp.Message{legacy.SharedDirectoryDeleteRequest{
 				CompletionID: m.CompletionId,
 				DirectoryID:  m.DirectoryId,
-				Path:         op.Delete.Path,
+				Path:         op.Delete.GetPath(),
 			}}, nil
 		case *tdpbv1.SharedDirectoryRequest_List_:
 			return []tdp.Message{legacy.SharedDirectoryListRequest{
 				CompletionID: m.CompletionId,
 				DirectoryID:  m.DirectoryId,
-				Path:         op.List.Path,
+				Path:         op.List.GetPath(),
 			}}, nil
 		case *tdpbv1.SharedDirectoryRequest_Read_:
 			return []tdp.Message{legacy.SharedDirectoryReadRequest{
 				CompletionID: m.CompletionId,
 				DirectoryID:  m.DirectoryId,
-				Path:         op.Read.Path,
-				Offset:       op.Read.Offset,
-				Length:       op.Read.Length,
+				Path:         op.Read.GetPath(),
+				Offset:       op.Read.GetOffset(),
+				Length:       op.Read.GetLength(),
 			}}, nil
 		case *tdpbv1.SharedDirectoryRequest_Write_:
 			return []tdp.Message{legacy.SharedDirectoryWriteRequest{
 				CompletionID:    m.CompletionId,
 				DirectoryID:     m.DirectoryId,
-				Path:            op.Write.Path,
-				Offset:          op.Write.Offset,
-				WriteDataLength: uint32(len(op.Write.Data)),
-				WriteData:       op.Write.Data,
+				Path:            op.Write.GetPath(),
+				Offset:          op.Write.GetOffset(),
+				WriteDataLength: uint32(len(op.Write.GetData())),
+				WriteData:       op.Write.GetData(),
 			}}, nil
 		case *tdpbv1.SharedDirectoryRequest_Move_:
 			return []tdp.Message{legacy.SharedDirectoryMoveRequest{
 				CompletionID: m.CompletionId,
 				DirectoryID:  m.DirectoryId,
-				NewPath:      op.Move.NewPath,
-				OriginalPath: op.Move.OriginalPath,
+				NewPath:      op.Move.GetNewPath(),
+				OriginalPath: op.Move.GetOriginalPath(),
 			}}, nil
 		case *tdpbv1.SharedDirectoryRequest_Truncate_:
 			return []tdp.Message{legacy.SharedDirectoryTruncateRequest{
 				CompletionID: m.CompletionId,
 				DirectoryID:  m.DirectoryId,
-				Path:         op.Truncate.Path,
-				EndOfFile:    clampUint64ToUint32(op.Truncate.Size),
+				Path:         op.Truncate.GetPath(),
+				EndOfFile:    clampUint64ToUint32(op.Truncate.GetSize()),
 			}}, nil
 		default:
 			return nil, trace.BadParameter("Unknown shared directory operation")
@@ -222,13 +222,13 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 			return []tdp.Message{legacy.SharedDirectoryInfoResponse{
 				CompletionID: m.CompletionId,
 				ErrCode:      m.ErrorCode,
-				Fso:          translateFSO(op.Info.Fso),
+				Fso:          translateFSO(op.Info.GetFso()),
 			}}, nil
 		case *tdpbv1.SharedDirectoryResponse_Create_:
 			return []tdp.Message{legacy.SharedDirectoryCreateResponse{
 				CompletionID: m.CompletionId,
 				ErrCode:      m.ErrorCode,
-				Fso:          translateFSO(op.Create.Fso),
+				Fso:          translateFSO(op.Create.GetFso()),
 			}}, nil
 		case *tdpbv1.SharedDirectoryResponse_Delete_:
 			return []tdp.Message{legacy.SharedDirectoryDeleteResponse{
@@ -239,20 +239,20 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 			return []tdp.Message{legacy.SharedDirectoryListResponse{
 				CompletionID: m.CompletionId,
 				ErrCode:      m.ErrorCode,
-				FsoList:      slices.Map(op.List.FsoList, translateFSO),
+				FsoList:      slices.Map(op.List.GetFsoList(), translateFSO),
 			}}, nil
 		case *tdpbv1.SharedDirectoryResponse_Read_:
 			return []tdp.Message{legacy.SharedDirectoryReadResponse{
 				CompletionID:   m.CompletionId,
 				ErrCode:        m.ErrorCode,
-				ReadData:       op.Read.Data,
-				ReadDataLength: uint32(len(op.Read.Data)),
+				ReadData:       op.Read.GetData(),
+				ReadDataLength: uint32(len(op.Read.GetData())),
 			}}, nil
 		case *tdpbv1.SharedDirectoryResponse_Write_:
 			return []tdp.Message{legacy.SharedDirectoryWriteResponse{
 				CompletionID: m.CompletionId,
 				ErrCode:      m.ErrorCode,
-				BytesWritten: op.Write.BytesWritten,
+				BytesWritten: op.Write.GetBytesWritten(),
 			}}, nil
 		case *tdpbv1.SharedDirectoryResponse_Move_:
 			return []tdp.Message{legacy.SharedDirectoryMoveResponse{
@@ -280,10 +280,10 @@ func TranslateToLegacy(msg tdp.Message) ([]tdp.Message, error) {
 		return []tdp.Message{legacy.Ping{UUID: id}}, nil
 	case *ServerHello:
 		return []tdp.Message{legacy.ConnectionActivated{
-			IOChannelID:   uint16(m.ActivationSpec.IoChannelId),
-			UserChannelID: uint16(m.ActivationSpec.UserChannelId),
-			ScreenWidth:   uint16(m.ActivationSpec.ScreenWidth),
-			ScreenHeight:  uint16(m.ActivationSpec.ScreenHeight),
+			IOChannelID:   uint16(m.ActivationSpec.GetIoChannelId()),
+			UserChannelID: uint16(m.ActivationSpec.GetUserChannelId()),
+			ScreenWidth:   uint16(m.ActivationSpec.GetScreenWidth()),
+			ScreenHeight:  uint16(m.ActivationSpec.GetScreenHeight()),
 		}}, nil
 	default:
 		return nil, trace.Errorf("Could not translate to TDP. Encountered unexpected message type %T", m)
@@ -300,12 +300,12 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 		}}, nil
 	case legacy.PNG2Frame:
 		return []tdp.Message{&PNGFrame{
-			Coordinates: &tdpbv1.Rectangle{
+			Coordinates: tdpbv1.Rectangle_builder{
 				Top:    m.Top(),
 				Left:   m.Left(),
 				Bottom: m.Bottom(),
 				Right:  m.Right(),
-			},
+			}.Build(),
 			Data: m.Data(),
 		}}, nil
 	case legacy.PNGFrame:
@@ -314,12 +314,12 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			return nil, trace.Errorf("Erroring converting TDP PNGFrame to TDPB - dropping message!: %w", err)
 		}
 		return []tdp.Message{&PNGFrame{
-			Coordinates: &tdpbv1.Rectangle{
+			Coordinates: tdpbv1.Rectangle_builder{
 				Top:    uint32(m.Img.Bounds().Min.Y),
 				Left:   uint32(m.Img.Bounds().Min.X),
 				Bottom: uint32(m.Img.Bounds().Max.Y),
 				Right:  uint32(m.Img.Bounds().Max.X),
-			},
+			}.Build(),
 			Data: buf.Bytes(),
 		}}, nil
 	case legacy.MouseMove:
@@ -377,12 +377,12 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 		// Legacy TDP servers send this message once at the start
 		// of the connection.
 		return []tdp.Message{&ServerHello{
-			ActivationSpec: &tdpbv1.ConnectionActivated{
+			ActivationSpec: tdpbv1.ConnectionActivated_builder{
 				IoChannelId:   uint32(m.IOChannelID),
 				UserChannelId: uint32(m.UserChannelID),
 				ScreenWidth:   uint32(m.ScreenWidth),
 				ScreenHeight:  uint32(m.ScreenHeight),
-			},
+			}.Build(),
 			// Assume all legacy TDP servers support clipboard sharing
 			ClipboardEnabled: true,
 			// No data to map, default to false
@@ -419,9 +419,9 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			DirectoryId:  m.DirectoryID,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Info_{
-				Info: &tdpbv1.SharedDirectoryRequest_Info{
+				Info: tdpbv1.SharedDirectoryRequest_Info_builder{
 					Path: m.Path,
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryInfoResponse:
@@ -429,9 +429,9 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			ErrorCode:    m.ErrCode,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryResponse_Info_{
-				Info: &tdpbv1.SharedDirectoryResponse_Info{
+				Info: tdpbv1.SharedDirectoryResponse_Info_builder{
 					Fso: translateFSOToModern(m.Fso),
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryCreateRequest:
@@ -439,10 +439,10 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			DirectoryId:  m.DirectoryID,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Create_{
-				Create: &tdpbv1.SharedDirectoryRequest_Create{
+				Create: tdpbv1.SharedDirectoryRequest_Create_builder{
 					Path:     m.Path,
 					FileType: m.FileType,
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryCreateResponse:
@@ -450,9 +450,9 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			ErrorCode:    m.ErrCode,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryResponse_Create_{
-				Create: &tdpbv1.SharedDirectoryResponse_Create{
+				Create: tdpbv1.SharedDirectoryResponse_Create_builder{
 					Fso: translateFSOToModern(m.Fso),
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryDeleteRequest:
@@ -460,9 +460,9 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			DirectoryId:  m.DirectoryID,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Delete_{
-				Delete: &tdpbv1.SharedDirectoryRequest_Delete{
+				Delete: tdpbv1.SharedDirectoryRequest_Delete_builder{
 					Path: m.Path,
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryDeleteResponse:
@@ -476,11 +476,11 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			CompletionId: m.CompletionID,
 			DirectoryId:  m.DirectoryID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Read_{
-				Read: &tdpbv1.SharedDirectoryRequest_Read{
+				Read: tdpbv1.SharedDirectoryRequest_Read_builder{
 					Path:   m.Path,
 					Offset: m.Offset,
 					Length: m.Length,
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryReadResponse:
@@ -488,9 +488,9 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			CompletionId: m.CompletionID,
 			ErrorCode:    m.ErrCode,
 			Operation: &tdpbv1.SharedDirectoryResponse_Read_{
-				Read: &tdpbv1.SharedDirectoryResponse_Read{
+				Read: tdpbv1.SharedDirectoryResponse_Read_builder{
 					Data: m.ReadData,
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryWriteRequest:
@@ -498,11 +498,11 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			CompletionId: m.CompletionID,
 			DirectoryId:  m.DirectoryID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Write_{
-				Write: &tdpbv1.SharedDirectoryRequest_Write{
+				Write: tdpbv1.SharedDirectoryRequest_Write_builder{
 					Path:   m.Path,
 					Offset: m.Offset,
 					Data:   m.WriteData,
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryWriteResponse:
@@ -510,9 +510,9 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			CompletionId: m.CompletionID,
 			ErrorCode:    m.ErrCode,
 			Operation: &tdpbv1.SharedDirectoryResponse_Write_{
-				Write: &tdpbv1.SharedDirectoryResponse_Write{
+				Write: tdpbv1.SharedDirectoryResponse_Write_builder{
 					BytesWritten: m.BytesWritten,
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryMoveRequest:
@@ -520,10 +520,10 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			CompletionId: m.CompletionID,
 			DirectoryId:  m.DirectoryID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Move_{
-				Move: &tdpbv1.SharedDirectoryRequest_Move{
+				Move: tdpbv1.SharedDirectoryRequest_Move_builder{
 					OriginalPath: m.OriginalPath,
 					NewPath:      m.NewPath,
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryMoveResponse:
@@ -537,9 +537,9 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			CompletionId: m.CompletionID,
 			DirectoryId:  m.DirectoryID,
 			Operation: &tdpbv1.SharedDirectoryRequest_List_{
-				List: &tdpbv1.SharedDirectoryRequest_List{
+				List: tdpbv1.SharedDirectoryRequest_List_builder{
 					Path: m.Path,
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryListResponse:
@@ -547,9 +547,9 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			CompletionId: m.CompletionID,
 			ErrorCode:    m.ErrCode,
 			Operation: &tdpbv1.SharedDirectoryResponse_List_{
-				List: &tdpbv1.SharedDirectoryResponse_List{
+				List: tdpbv1.SharedDirectoryResponse_List_builder{
 					FsoList: slices.Map(m.FsoList, translateFSOToModern),
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryTruncateRequest:
@@ -557,10 +557,10 @@ func TranslateToModern(msg tdp.Message) ([]tdp.Message, error) {
 			DirectoryId:  m.DirectoryID,
 			CompletionId: m.CompletionID,
 			Operation: &tdpbv1.SharedDirectoryRequest_Truncate_{
-				Truncate: &tdpbv1.SharedDirectoryRequest_Truncate{
+				Truncate: tdpbv1.SharedDirectoryRequest_Truncate_builder{
 					Path: m.Path,
 					Size: uint64(m.EndOfFile),
-				},
+				}.Build(),
 			},
 		}}, nil
 	case legacy.SharedDirectoryTruncateResponse:

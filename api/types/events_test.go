@@ -20,6 +20,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 )
 
 // TestWatchKindContains tests that the WatchKind.Contains method correctly detects whether its receiver contains its
@@ -293,33 +296,25 @@ func TestWatchKindMatchesValidatedMFAChallengeResource(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			chal := mfav2.ValidatedMFAChallenge_builder{
+				Kind:    KindValidatedMFAChallenge,
+				Version: V1,
+				Metadata: &headerv1.Metadata{
+					Name: "challenge",
+				},
+				Spec: mfav2.ValidatedMFAChallengeSpec_builder{
+					TargetCluster: tc.targetCluster,
+				}.Build(),
+			}.Build()
+
 			match, err := kind.Matches(
 				Event{
-					Type: OpPut,
-					Resource: &mockValidatedMFAChallenge{
-						ResourceHeader: &ResourceHeader{
-							Kind:    KindValidatedMFAChallenge,
-							Version: V1,
-							Metadata: Metadata{
-								Name: "challenge",
-							},
-						},
-						targetCluster: tc.targetCluster,
-					},
+					Type:     OpPut,
+					Resource: Resource153ToLegacy(chal),
 				},
 			)
 			require.NoError(t, err)
 			require.Equal(t, tc.want, match)
 		})
 	}
-}
-
-type mockValidatedMFAChallenge struct {
-	*ResourceHeader
-
-	targetCluster string
-}
-
-func (r *mockValidatedMFAChallenge) GetTargetCluster() string {
-	return r.targetCluster
 }

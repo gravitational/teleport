@@ -174,7 +174,9 @@ export function ResourceListItem({
             <HoverTooltip tipContent={name} showOnlyOnOverflow>
               <Flex alignItems="center" gap={2}>
                 <Name>{name}</Name>
-                {showResourceSelectedIcon && <ResourceSelectedIcon />}
+                {(typeof showResourceSelectedIcon === 'function'
+                  ? showResourceSelectedIcon(labels)
+                  : showResourceSelectedIcon) && <ResourceSelectedIcon />}
               </Flex>
             </HoverTooltip>
             <HoverTooltip tipContent={description} showOnlyOnOverflow>

@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/os_type.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -46,6 +47,10 @@ const (
 	OSType_OS_TYPE_MACOS OSType = 2
 	// Windows.
 	OSType_OS_TYPE_WINDOWS OSType = 3
+	// iOS.
+	OSType_OS_TYPE_IOS OSType = 4
+	// iPadOS.
+	OSType_OS_TYPE_IPADOS OSType = 5
 )
 
 // Enum value maps for OSType.
@@ -55,12 +60,16 @@ var (
 		1: "OS_TYPE_LINUX",
 		2: "OS_TYPE_MACOS",
 		3: "OS_TYPE_WINDOWS",
+		4: "OS_TYPE_IOS",
+		5: "OS_TYPE_IPADOS",
 	}
 	OSType_value = map[string]int32{
 		"OS_TYPE_UNSPECIFIED": 0,
 		"OS_TYPE_LINUX":       1,
 		"OS_TYPE_MACOS":       2,
 		"OS_TYPE_WINDOWS":     3,
+		"OS_TYPE_IOS":         4,
+		"OS_TYPE_IPADOS":      5,
 	}
 )
 
@@ -86,33 +95,18 @@ func (x OSType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use OSType.Descriptor instead.
-func (OSType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_os_type_proto_rawDescGZIP(), []int{0}
-}
-
 var File_teleport_devicetrust_v1_os_type_proto protoreflect.FileDescriptor
 
 const file_teleport_devicetrust_v1_os_type_proto_rawDesc = "" +
 	"\n" +
-	"%teleport/devicetrust/v1/os_type.proto\x12\x17teleport.devicetrust.v1*\\\n" +
+	"%teleport/devicetrust/v1/os_type.proto\x12\x17teleport.devicetrust.v1*\x81\x01\n" +
 	"\x06OSType\x12\x17\n" +
 	"\x13OS_TYPE_UNSPECIFIED\x10\x00\x12\x11\n" +
 	"\rOS_TYPE_LINUX\x10\x01\x12\x11\n" +
 	"\rOS_TYPE_MACOS\x10\x02\x12\x13\n" +
-	"\x0fOS_TYPE_WINDOWS\x10\x03BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_os_type_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_os_type_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_os_type_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_os_type_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_os_type_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_os_type_proto_rawDesc), len(file_teleport_devicetrust_v1_os_type_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_os_type_proto_rawDescData
-}
+	"\x0fOS_TYPE_WINDOWS\x10\x03\x12\x0f\n" +
+	"\vOS_TYPE_IOS\x10\x04\x12\x12\n" +
+	"\x0eOS_TYPE_IPADOS\x10\x05BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
 
 var file_teleport_devicetrust_v1_os_type_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_devicetrust_v1_os_type_proto_goTypes = []any{

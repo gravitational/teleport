@@ -134,7 +134,12 @@ Recording proxy mode is disabled for Teleport Cloud customers.
 
 ### Is there a way to download session recordings for easy playback?
 
-The ability to download recordings for offline viewing will be available in a future release.
+The `tctl` admin tool supports downloading session recordings for Teleport version >= `18.7.0` using the
+[`tctl recordings download`](reference/cli/tctl.mdx#tctl-recordings-download) command:
+
+```code
+$ tctl recordings download <session-id>
+```
 
 ## Updates
 

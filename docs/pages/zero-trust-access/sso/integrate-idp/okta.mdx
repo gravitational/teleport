@@ -69,9 +69,7 @@ Create two groups: "devs" and "admins".
 
 ### Create and configure an Okta app
 
-Okta Integration Network support is still in beta. If unsure please proceed with the Custom SAML 2.0 app.
-
-<Tabs groupId="saml-app" defaultValue="legacy">
+<Tabs groupId="saml-app" defaultValue="oin">
 <TabItem label="Okta Integration Network" value="oin">
 
   Add Teleport app to Okta:
@@ -209,7 +207,7 @@ spec:
   - name: groups
     roles:
     - access
-    value: dev
+    value: devs
   audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
   cert: ""
   display: "Okta"
@@ -222,6 +220,8 @@ version: v2
 ```
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)
+
+(!docs/pages/includes/sso/saml-slo.mdx!)
 
 ### Test the connector
 
@@ -256,7 +256,7 @@ Authentication details:
   value: admins
 - name: groups
   roles:
-  - dev
+  - access
   value: devs
 
 --------------------------------------------------------------------------------

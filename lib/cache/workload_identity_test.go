@@ -33,18 +33,18 @@ import (
 )
 
 func newWorkloadIdentity(name string) *workloadidentityv1pb.WorkloadIdentity {
-	return &workloadidentityv1pb.WorkloadIdentity{
+	return workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+		}.Build(),
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
 				Id: "/example",
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 }
 
 func TestWorkloadIdentity(t *testing.T) {
@@ -67,12 +67,11 @@ func TestWorkloadIdentity(t *testing.T) {
 		deleteAll: func(ctx context.Context) error {
 			return p.workloadIdentity.DeleteAllWorkloadIdentities(ctx)
 		},
-
 		cacheList: func(ctx context.Context, pageSize int, pageToken string) ([]*workloadidentityv1pb.WorkloadIdentity, string, error) {
-			return p.cache.ListWorkloadIdentities(ctx, 0, "", nil)
+			return p.cache.ListWorkloadIdentities(ctx, pageSize, pageToken, nil)
 		},
 		cacheGet: p.cache.GetWorkloadIdentity,
-	}, withSkipPaginationTest())
+	})
 }
 
 // TestWorkloadIdentityCacheSorting tests that cache items are sorted.
@@ -97,18 +96,18 @@ func TestWorkloadIdentityCacheSorting(t *testing.T) {
 	}
 
 	for _, r := range rs {
-		id := &workloadidentityv1pb.WorkloadIdentity{
+		id := workloadidentityv1pb.WorkloadIdentity_builder{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: r.name,
-			},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+			}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
 					Id: r.spiffeID,
-				},
-			},
-		}
+				}.Build(),
+			}.Build(),
+		}.Build()
 
 		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, id)
 		require.NoError(t, err, "failed to create WorkloadIdentity %q", r.name)
@@ -191,18 +190,18 @@ func TestWorkloadIdentityCacheFallback(t *testing.T) {
 	})
 	t.Cleanup(p.Close)
 
-	_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+	_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
 		Kind:    types.KindWorkloadIdentity,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "test-workload-identity-1",
-		},
-		Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-			Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+		}.Build(),
+		Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+			Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
 				Id: "/test/spiffe/1",
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Let the cache catch up
@@ -247,18 +246,18 @@ func TestWorkloadIdentityCacheSearchFilter(t *testing.T) {
 
 	for n := range 10 {
 		name := "test-workload-identity-" + strconv.Itoa(n)
-		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+			}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
 					Id: "/test/" + strconv.Itoa(n%2) + "/id" + strconv.Itoa(n),
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 		require.NoError(t, err, "failed to create WorkloadIdentity %q", name)
 	}
 
@@ -288,34 +287,34 @@ func TestWorkloadIdentityCaseSensitiveName(t *testing.T) {
 	t.Cleanup(p.Close)
 
 	{
-		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "TEST-WORKLOAD-IDENTITY-1",
-			},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+			}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
 					Id: "/test/spiffe/1",
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 
 	{
-		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, &workloadidentityv1pb.WorkloadIdentity{
+		_, err := p.workloadIdentity.CreateWorkloadIdentity(ctx, workloadidentityv1pb.WorkloadIdentity_builder{
 			Kind:    types.KindWorkloadIdentity,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test-workload-identity-1",
-			},
-			Spec: &workloadidentityv1pb.WorkloadIdentitySpec{
-				Spiffe: &workloadidentityv1pb.WorkloadIdentitySPIFFE{
+			}.Build(),
+			Spec: workloadidentityv1pb.WorkloadIdentitySpec_builder{
+				Spiffe: workloadidentityv1pb.WorkloadIdentitySPIFFE_builder{
 					Id: "/test/spiffe/1",
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -328,7 +327,7 @@ func TestWorkloadIdentityCaseSensitiveName(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, results, 2)
 
-		require.Equal(t, "test-workload-identity-1", results[0].Metadata.Name)
-		require.Equal(t, "TEST-WORKLOAD-IDENTITY-1", results[1].Metadata.Name)
+		require.Equal(t, "test-workload-identity-1", results[0].GetMetadata().GetName())
+		require.Equal(t, "TEST-WORKLOAD-IDENTITY-1", results[1].GetMetadata().GetName())
 	}, 10*time.Second, 100*time.Millisecond)
 }

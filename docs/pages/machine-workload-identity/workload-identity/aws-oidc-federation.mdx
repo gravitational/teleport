@@ -408,8 +408,10 @@ Replace:
 - example-workload-identity with the name of the Workload Identity you have
   created.
 
-Restart your `tbot` service to apply the new configuration. You should see a
-file created at `/opt/workload-identity/jwt_svid` containing the JWT.
+(!docs/pages/includes/machine-id/reload-tbot.mdx!)
+
+You should see a file created at `/opt/workload-identity/jwt_svid` containing
+the JWT.
 
 ## Step 4/4. Configure AWS CLIs and SDKs
 

@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/recordingencryption/v1/recording_encryption.proto
 
+//go:build !protoopaque
+
 package recordingencryptionv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -90,14 +91,9 @@ func (x KeyPairState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use KeyPairState.Descriptor instead.
-func (KeyPairState) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{0}
-}
-
 // A key pair used with age to wrap and unwrap file keys for session recording encryption.
 type KeyPair struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A key pair used with age to wrap and unwrap file keys for session recording encryption.
 	KeyPair *types.EncryptionKeyPair `protobuf:"bytes,1,opt,name=key_pair,json=keyPair,proto3" json:"key_pair,omitempty"`
 	// The current state of the key pair.
@@ -131,11 +127,6 @@ func (x *KeyPair) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use KeyPair.ProtoReflect.Descriptor instead.
-func (*KeyPair) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *KeyPair) GetKeyPair() *types.EncryptionKeyPair {
 	if x != nil {
 		return x.KeyPair
@@ -150,9 +141,46 @@ func (x *KeyPair) GetState() KeyPairState {
 	return KeyPairState_KEY_PAIR_STATE_UNSPECIFIED
 }
 
+func (x *KeyPair) SetKeyPair(v *types.EncryptionKeyPair) {
+	x.KeyPair = v
+}
+
+func (x *KeyPair) SetState(v KeyPairState) {
+	x.State = v
+}
+
+func (x *KeyPair) HasKeyPair() bool {
+	if x == nil {
+		return false
+	}
+	return x.KeyPair != nil
+}
+
+func (x *KeyPair) ClearKeyPair() {
+	x.KeyPair = nil
+}
+
+type KeyPair_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A key pair used with age to wrap and unwrap file keys for session recording encryption.
+	KeyPair *types.EncryptionKeyPair
+	// The current state of the key pair.
+	State KeyPairState
+}
+
+func (b0 KeyPair_builder) Build() *KeyPair {
+	m0 := &KeyPair{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.KeyPair = b.KeyPair
+	x.State = b.State
+	return m0
+}
+
 // RecordingEncryptionSpec contains the active key set for encrypted session recording.
 type RecordingEncryptionSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A list of active key pairs used for session recording encryption. The unique set of
 	// active public keys are used as recipients during age encryption. This allows any
 	// active private key to be used during decryption which guards against recordings being
@@ -187,11 +215,6 @@ func (x *RecordingEncryptionSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RecordingEncryptionSpec.ProtoReflect.Descriptor instead.
-func (*RecordingEncryptionSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *RecordingEncryptionSpec) GetActiveKeyPairs() []*KeyPair {
 	if x != nil {
 		return x.ActiveKeyPairs
@@ -199,9 +222,31 @@ func (x *RecordingEncryptionSpec) GetActiveKeyPairs() []*KeyPair {
 	return nil
 }
 
+func (x *RecordingEncryptionSpec) SetActiveKeyPairs(v []*KeyPair) {
+	x.ActiveKeyPairs = v
+}
+
+type RecordingEncryptionSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of active key pairs used for session recording encryption. The unique set of
+	// active public keys are used as recipients during age encryption. This allows any
+	// active private key to be used during decryption which guards against recordings being
+	// inaccessible to auth servers waiting for key rotation.
+	ActiveKeyPairs []*KeyPair
+}
+
+func (b0 RecordingEncryptionSpec_builder) Build() *RecordingEncryptionSpec {
+	m0 := &RecordingEncryptionSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ActiveKeyPairs = b.ActiveKeyPairs
+	return m0
+}
+
 // RecordingEncryptionStatus contains the status of the RecordingEncryption resource.
 type RecordingEncryptionStatus struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -231,14 +276,21 @@ func (x *RecordingEncryptionStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RecordingEncryptionStatus.ProtoReflect.Descriptor instead.
-func (*RecordingEncryptionStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{2}
+type RecordingEncryptionStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RecordingEncryptionStatus_builder) Build() *RecordingEncryptionStatus {
+	m0 := &RecordingEncryptionStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // RecordingEncryption contains cluster state for encrypted session recordings.
 type RecordingEncryption struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
+	state         protoimpl.MessageState     `protogen:"hybrid.v1"`
 	Kind          string                     `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                     `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                     `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -272,11 +324,6 @@ func (x *RecordingEncryption) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RecordingEncryption.ProtoReflect.Descriptor instead.
-func (*RecordingEncryption) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *RecordingEncryption) GetKind() string {
@@ -321,10 +368,91 @@ func (x *RecordingEncryption) GetStatus() *RecordingEncryptionStatus {
 	return nil
 }
 
+func (x *RecordingEncryption) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *RecordingEncryption) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *RecordingEncryption) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *RecordingEncryption) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *RecordingEncryption) SetSpec(v *RecordingEncryptionSpec) {
+	x.Spec = v
+}
+
+func (x *RecordingEncryption) SetStatus(v *RecordingEncryptionStatus) {
+	x.Status = v
+}
+
+func (x *RecordingEncryption) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *RecordingEncryption) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *RecordingEncryption) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *RecordingEncryption) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *RecordingEncryption) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *RecordingEncryption) ClearStatus() {
+	x.Status = nil
+}
+
+type RecordingEncryption_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *RecordingEncryptionSpec
+	Status   *RecordingEncryptionStatus
+}
+
+func (b0 RecordingEncryption_builder) Build() *RecordingEncryption {
+	m0 := &RecordingEncryption{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // A rotated key pair previously used with age to wrap and unwrap file keys for session recording
 // encryption.
 type RotatedKeySpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The rotated key pair previously used with age to wrap and unwrap file keys for session recording
 	// encryption.
 	EncryptionKeyPair *types.EncryptionKeyPair `protobuf:"bytes,2,opt,name=encryption_key_pair,json=encryptionKeyPair,proto3" json:"encryption_key_pair,omitempty"`
@@ -357,11 +485,6 @@ func (x *RotatedKeySpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RotatedKeySpec.ProtoReflect.Descriptor instead.
-func (*RotatedKeySpec) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *RotatedKeySpec) GetEncryptionKeyPair() *types.EncryptionKeyPair {
 	if x != nil {
 		return x.EncryptionKeyPair
@@ -369,9 +492,40 @@ func (x *RotatedKeySpec) GetEncryptionKeyPair() *types.EncryptionKeyPair {
 	return nil
 }
 
+func (x *RotatedKeySpec) SetEncryptionKeyPair(v *types.EncryptionKeyPair) {
+	x.EncryptionKeyPair = v
+}
+
+func (x *RotatedKeySpec) HasEncryptionKeyPair() bool {
+	if x == nil {
+		return false
+	}
+	return x.EncryptionKeyPair != nil
+}
+
+func (x *RotatedKeySpec) ClearEncryptionKeyPair() {
+	x.EncryptionKeyPair = nil
+}
+
+type RotatedKeySpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The rotated key pair previously used with age to wrap and unwrap file keys for session recording
+	// encryption.
+	EncryptionKeyPair *types.EncryptionKeyPair
+}
+
+func (b0 RotatedKeySpec_builder) Build() *RotatedKeySpec {
+	m0 := &RotatedKeySpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.EncryptionKeyPair = b.EncryptionKeyPair
+	return m0
+}
+
 // The empty status of a RotatedKey.
 type RotatedKeyStatus struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -401,16 +555,23 @@ func (x *RotatedKeyStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RotatedKeyStatus.ProtoReflect.Descriptor instead.
-func (*RotatedKeyStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{5}
+type RotatedKeyStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 RotatedKeyStatus_builder) Build() *RotatedKeyStatus {
+	m0 := &RotatedKeyStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // A previously rotated encryption key for session recordings kept for future replay. The metadata.name
 // is expected to be the fingerprint of the public key contained in the spec, which is a hex encoded
 // SHA256 hash of its PKIX form.
 type RotatedKey struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -444,11 +605,6 @@ func (x *RotatedKey) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RotatedKey.ProtoReflect.Descriptor instead.
-func (*RotatedKey) Descriptor() ([]byte, []int) {
-	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *RotatedKey) GetKind() string {
@@ -493,6 +649,87 @@ func (x *RotatedKey) GetStatus() *RotatedKeyStatus {
 	return nil
 }
 
+func (x *RotatedKey) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *RotatedKey) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *RotatedKey) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *RotatedKey) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *RotatedKey) SetSpec(v *RotatedKeySpec) {
+	x.Spec = v
+}
+
+func (x *RotatedKey) SetStatus(v *RotatedKeyStatus) {
+	x.Status = v
+}
+
+func (x *RotatedKey) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *RotatedKey) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *RotatedKey) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *RotatedKey) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *RotatedKey) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *RotatedKey) ClearStatus() {
+	x.Status = nil
+}
+
+type RotatedKey_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *RotatedKeySpec
+	Status   *RotatedKeyStatus
+}
+
+func (b0 RotatedKey_builder) Build() *RotatedKey {
+	m0 := &RotatedKey{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 var File_teleport_recordingencryption_v1_recording_encryption_proto protoreflect.FileDescriptor
 
 const file_teleport_recordingencryption_v1_recording_encryption_proto_rawDesc = "" +
@@ -527,18 +764,6 @@ const file_teleport_recordingencryption_v1_recording_encryption_proto_rawDesc = 
 	"\x15KEY_PAIR_STATE_ACTIVE\x10\x01\x12\x1b\n" +
 	"\x17KEY_PAIR_STATE_ROTATING\x10\x02\x12\x1f\n" +
 	"\x1bKEY_PAIR_STATE_INACCESSIBLE\x10\x03BjZhgithub.com/gravitational/teleport/api/gen/proto/go/teleport/recordingencryption/v1;recordingencryptionv1b\x06proto3"
-
-var (
-	file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescOnce sync.Once
-	file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescData []byte
-)
-
-func file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescGZIP() []byte {
-	file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescOnce.Do(func() {
-		file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_recordingencryption_v1_recording_encryption_proto_rawDesc), len(file_teleport_recordingencryption_v1_recording_encryption_proto_rawDesc)))
-	})
-	return file_teleport_recordingencryption_v1_recording_encryption_proto_rawDescData
-}
 
 var file_teleport_recordingencryption_v1_recording_encryption_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_recordingencryption_v1_recording_encryption_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
