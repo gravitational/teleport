@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -1481,3 +1482,38 @@ var (
 		},
 	}
 )
+
+// TestConfigGetScope verifies that Config.GetScope resolves the agent's scope
+// from a full scope pin when present, otherwise from the bare scope.
+func TestConfigGetScope(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		name   string
+		config Config
+		want   string
+	}{
+		{
+			name:   "unscoped",
+			config: Config{},
+			want:   "",
+		},
+		{
+			name:   "bare scope only",
+			config: Config{Scope: "/staging"},
+			want:   "/staging",
+		},
+		{
+			name: "scope pin only",
+			config: Config{ScopePin: &scopesv1.Pin{
+				Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+				Scope: "/staging/west",
+			}},
+			want: "/staging/west",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, tt.config.GetScope())
+		})
+	}
+}

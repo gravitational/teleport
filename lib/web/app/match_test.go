@@ -65,10 +65,12 @@ func (p *mockClusterGetter) Cluster(context.Context, string) (reversetunnelclien
 
 type mockCluster struct {
 	reversetunnelclient.Cluster
-	dialErr error
+	dialErr            error
+	dialParamsReceived reversetunnelclient.DialParams
 }
 
-func (r *mockCluster) Dial(_ reversetunnelclient.DialParams) (net.Conn, error) {
+func (r *mockCluster) Dial(params reversetunnelclient.DialParams) (net.Conn, error) {
+	r.dialParamsReceived = params
 	if r.dialErr != nil {
 		return nil, r.dialErr
 	}

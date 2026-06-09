@@ -775,6 +775,12 @@ func TestNewAppV3(t *testing.T) {
 			require.Equal(t, tt.want, actual)
 		})
 	}
+
+	t.Run("set via WithScope", func(t *testing.T) {
+		app, err := NewAppV3(Metadata{Name: "myapp"}, AppSpecV3{URI: "https://localhost:1337"}, WithScope("/staging/test"))
+		require.NoError(t, err)
+		require.Equal(t, "/staging/test", app.GetScope())
+	})
 }
 
 func TestPortRangesContains(t *testing.T) {
