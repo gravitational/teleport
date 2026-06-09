@@ -155,6 +155,63 @@ func TestAppAccessRoutingByName(t *testing.T) {
 	}
 }
 
+// TestAppAccessRoutingByNameLeafCluster is the trusted-cluster version of
+// TestAppAccessRoutingByName. It registers two distinct apps in a leaf cluster with
+// the same public address and verifies that requests are routed to the correct app.
+func TestAppAccessRoutingByNameLeafCluster(t *testing.T) {
+	const sharedPublicAddr = "leaf-dup.example.com"
+
+	appOneMessage := "leaf-app-one-" + uuid.NewString()
+	appTwoMessage := "leaf-app-two-" + uuid.NewString()
+
+	appOneServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, appOneMessage)
+	}))
+	t.Cleanup(appOneServer.Close)
+	appTwoServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		fmt.Fprintln(w, appTwoMessage)
+	}))
+	t.Cleanup(appTwoServer.Close)
+
+	pack := SetupWithOptions(t, AppTestOptions{
+		ExtraLeafApps: []servicecfg.App{
+			{
+				Name:         "leaf-dup-1",
+				URI:          appOneServer.URL,
+				PublicAddr:   sharedPublicAddr,
+				StaticLabels: map[string]string{"app_name": "leaf-dup-1"},
+			},
+			{
+				Name:         "leaf-dup-2",
+				URI:          appTwoServer.URL,
+				PublicAddr:   sharedPublicAddr,
+				StaticLabels: map[string]string{"app_name": "leaf-dup-2"},
+			},
+		},
+	})
+
+	for _, tc := range []struct {
+		appName     string
+		wantMessage string
+	}{
+		{appName: "leaf-dup-1", wantMessage: appOneMessage},
+		{appName: "leaf-dup-2", wantMessage: appTwoMessage},
+	} {
+		t.Run(tc.appName, func(t *testing.T) {
+			// Resolve within the leaf cluster (note the leaf cluster name).
+			cookies := pack.CreateAppSessionCookiesForApp(t, tc.appName, sharedPublicAddr, pack.leafAppClusterName)
+
+			for range 20 {
+				status, body, err := pack.MakeRequest(cookies, http.MethodGet, "/")
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, status)
+				require.Equal(t, tc.wantMessage, strings.TrimSpace(body),
+					"request must only ever be routed to %q in the leaf cluster", tc.appName)
+			}
+		})
+	}
+}
+
 // testForward tests that requests get forwarded to the target application
 // within a single cluster and trusted cluster.
 func testForward(p *Pack, t *testing.T) {
