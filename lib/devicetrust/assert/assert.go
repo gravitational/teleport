@@ -21,6 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/proto"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/authn"
@@ -132,17 +133,13 @@ func (s *authnStreamAdapter) Recv() (*devicepb.AuthenticateDeviceResponse, error
 
 	switch resp.WhichPayload() {
 	case devicepb.AssertDeviceResponse_Challenge_case:
-		return &devicepb.AuthenticateDeviceResponse{
-			Payload: &devicepb.AuthenticateDeviceResponse_Challenge{
-				Challenge: resp.GetChallenge(),
-			},
-		}, nil
+		return devicepb.AuthenticateDeviceResponse_builder{
+			Challenge: proto.ValueOrDefault(resp.GetChallenge()),
+		}.Build(), nil
 	case devicepb.AssertDeviceResponse_TpmChallenge_case:
-		return &devicepb.AuthenticateDeviceResponse{
-			Payload: &devicepb.AuthenticateDeviceResponse_TpmChallenge{
-				TpmChallenge: resp.GetTpmChallenge(),
-			},
-		}, nil
+		return devicepb.AuthenticateDeviceResponse_builder{
+			TpmChallenge: proto.ValueOrDefault(resp.GetTpmChallenge()),
+		}.Build(), nil
 	case devicepb.AssertDeviceResponse_DeviceAsserted_case:
 		// Pass an empty UserCertificates to signify success.
 		return devicepb.AuthenticateDeviceResponse_builder{
@@ -167,13 +164,9 @@ func (s *authnStreamAdapter) Send(authnReq *devicepb.AuthenticateDeviceRequest) 
 			DeviceData:   init.GetDeviceData(),
 		}.Build())
 	case devicepb.AuthenticateDeviceRequest_ChallengeResponse_case:
-		req.Payload = &devicepb.AssertDeviceRequest_ChallengeResponse{
-			ChallengeResponse: authnReq.GetChallengeResponse(),
-		}
+		req.SetChallengeResponse(proto.ValueOrDefault(authnReq.GetChallengeResponse()))
 	case devicepb.AuthenticateDeviceRequest_TpmChallengeResponse_case:
-		req.Payload = &devicepb.AssertDeviceRequest_TpmChallengeResponse{
-			TpmChallengeResponse: authnReq.GetTpmChallengeResponse(),
-		}
+		req.SetTpmChallengeResponse(proto.ValueOrDefault(authnReq.GetTpmChallengeResponse()))
 	default:
 		return trace.BadParameter("unexpected authenticate request payload: %T", authnReq.Payload)
 	}

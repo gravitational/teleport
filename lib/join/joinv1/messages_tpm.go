@@ -18,6 +18,7 @@ package joinv1
 
 import (
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	joinv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/join/v1"
 	"github.com/gravitational/teleport/lib/join/internal/messages"
@@ -59,13 +60,9 @@ func tpmInitFromMessage(msg *messages.TPMInit) (*joinv1.TPMInit, error) {
 	case hasEKCert == hasEKKey:
 		return nil, trace.BadParameter("exactly one of EKCert and EKKey must be set")
 	case hasEKCert:
-		req.Ek = &joinv1.TPMInit_EkCert{
-			EkCert: msg.EKCert,
-		}
+		req.SetEkCert(proto.ValueOrDefaultBytes(msg.EKCert))
 	case hasEKKey:
-		req.Ek = &joinv1.TPMInit_EkKey{
-			EkKey: msg.EKKey,
-		}
+		req.SetEkKey(proto.ValueOrDefaultBytes(msg.EKKey))
 	}
 	return req, nil
 }

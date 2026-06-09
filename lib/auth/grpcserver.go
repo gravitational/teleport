@@ -2589,10 +2589,6 @@ func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleReque
 		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
 	}
 
-	if err = services.ValidateRole(req.Role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	created, err := auth.ServerWithRoles.CreateRole(ctx, req.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2628,10 +2624,6 @@ func (g *GRPCServer) UpdateRole(ctx context.Context, req *authpb.UpdateRoleReque
 		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
 	}
 
-	if err = services.ValidateRole(req.Role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	updated, err := auth.ServerWithRoles.UpdateRole(ctx, req.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2665,10 +2657,6 @@ func (g *GRPCServer) UpsertRoleV2(ctx context.Context, req *authpb.UpsertRoleReq
 	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
 	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
 		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
-	}
-
-	if err = services.ValidateRole(req.Role); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	upserted, err := auth.ServerWithRoles.UpsertRole(ctx, req.Role)

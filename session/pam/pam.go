@@ -29,7 +29,7 @@ package pam
 // #include <security/pam_appl.h>
 // extern char *library_name();
 // extern char* readCallback(int, int);
-// extern void writeCallback(int n, int s, char* c);
+// extern int writeCallback(int n, int s, char* c);
 // extern struct pam_conv *make_pam_conv(int);
 // extern int _pam_start(void *, const char *, const char *, const struct pam_conv *, pam_handle_t **);
 // extern int _pam_putenv(void *, pam_handle_t *, const char *);
@@ -151,7 +151,7 @@ var (
 )
 
 //export writeCallback
-func writeCallback(index C.int, stream C.int, s *C.char) {
+func writeCallback(index C.int, stream C.int, s *C.char) C.int {
 	handle, err := lookupHandler(int(index))
 	if err != nil {
 		slog.ErrorContext(context.Background(),
@@ -159,7 +159,7 @@ func writeCallback(index C.int, stream C.int, s *C.char) {
 			logconstants.ComponentKey, logComponent,
 			"error", err,
 		)
-		return
+		return 1
 	}
 
 	// Convert C string to a Go string with a max size of maxMessageSize
@@ -167,7 +167,17 @@ func writeCallback(index C.int, stream C.int, s *C.char) {
 	str := C.GoStringN(s, C.int(C.strnlen(s, C.size_t(maxMessageSize))))
 
 	// Write to the stream (typically stdout or stderr or equivalent).
-	handle.writeStream(int(stream), str)
+	_, err = handle.writeStream(int(stream), str)
+	if err != nil {
+		slog.ErrorContext(context.Background(),
+			"Unable to write to output stream",
+			logconstants.ComponentKey, logComponent,
+			"error", err,
+		)
+		return 1
+	}
+
+	return 0
 }
 
 //export readCallback

@@ -22,6 +22,7 @@ import (
 	"errors"
 
 	"github.com/google/uuid"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -76,12 +77,10 @@ func (f *FakeTPMDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	return devicepb.EnrollDeviceInit_builder{
 		CredentialId: f.CredentialID,
 		DeviceData:   cd,
-		Tpm: &devicepb.TPMEnrollPayload{
-			Ek: &devicepb.TPMEnrollPayload_EkKey{
-				EkKey: validEKKey,
-			},
+		Tpm: devicepb.TPMEnrollPayload_builder{
+			EkKey:                 proto.ValueOrDefaultBytes(validEKKey),
 			AttestationParameters: validAttestationParameters,
-		},
+		}.Build(),
 	}.Build(), nil
 }
 

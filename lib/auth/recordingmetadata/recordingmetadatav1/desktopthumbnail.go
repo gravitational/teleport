@@ -25,7 +25,6 @@ import (
 	"math"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/image/draw"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/recordingmetadata/v1"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -97,18 +96,14 @@ func (d *desktopThumbnailGenerator) produceThumbnail(maxDim int) (*pb.SessionRec
 		return nil, nil
 	}
 
-	img := d.rdpstate.Image()
-	if img == nil {
+	screenW, screenH := d.rdpstate.Dimensions()
+	if screenW == 0 || screenH == 0 {
 		return nil, trace.BadParameter("rdp state has no image")
 	}
 
 	cursor := d.rdpstate.CursorState()
 
-	bounds := img.Bounds()
-
-	screenWidth := bounds.Dx()
-	screenHeight := bounds.Dy()
-
+	bounds := image.Rect(0, 0, int(screenW), int(screenH))
 	if cursor.Visible {
 		bounds = calculateCropBounds(bounds, cursor)
 	}
@@ -130,8 +125,20 @@ func (d *desktopThumbnailGenerator) produceThumbnail(maxDim int) (*pb.SessionRec
 		}
 	}
 
-	thumbImg := image.NewRGBA(image.Rect(0, 0, thumbW, thumbH))
-	draw.CatmullRom.Scale(thumbImg, thumbImg.Bounds(), img, bounds, draw.Over, nil)
+	// The integer division above can floor a dimension to 0 for extreme aspect
+	// ratios; clamp to at least 1px so we still produce a valid thumbnail.
+	thumbW = max(thumbW, 1)
+	thumbH = max(thumbH, 1)
+
+	//nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+	thumbImg, err := d.rdpstate.ResizeCrop(
+		uint16(bounds.Min.X), uint16(bounds.Min.Y),
+		uint16(cropW), uint16(cropH),
+		uint16(thumbW), uint16(thumbH),
+	)
+	if err != nil { //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+		return nil, trace.Wrap(err, "resizing thumbnail crop")
+	}
 
 	d.buf.Reset()
 	if err := d.pngEncoder.Encode(&d.buf, thumbImg); err != nil {
@@ -142,8 +149,8 @@ func (d *desktopThumbnailGenerator) produceThumbnail(maxDim int) (*pb.SessionRec
 		CursorX:       int32(cursor.X),
 		CursorY:       int32(cursor.Y),
 		CursorVisible: cursor.Visible,
-		ScreenWidth:   int32(screenWidth),
-		ScreenHeight:  int32(screenHeight),
+		ScreenWidth:   int32(screenW),
+		ScreenHeight:  int32(screenH),
 		Png:           bytes.Clone(d.buf.Bytes()),
 	}.Build(), nil
 }

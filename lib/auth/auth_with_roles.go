@@ -3307,9 +3307,47 @@ func AuthorizeAccessReviewRequest(context authz.Context, params types.AccessRevi
 	return nil
 }
 
+// AuthorizeAccessReviewRequestSubmittedForUser validates that the calling user (eg. teleport access plugin)
+// has sufficient permissions to submit review for the actual author.
+func (a *ServerWithRoles) AuthorizeAccessReviewRequestSubmittedForUser(ctx context.Context, params types.AccessReviewSubmission) error {
+	if params.Review.SubmittedBy != a.context.User.GetName() {
+		return trace.AccessDenied("user %q cannot submit reviews on behalf of %q", a.context.User.GetName(), params.Review.SubmittedBy)
+	}
+
+	// Calling user should have the ability to read/list users.
+	// We must check that the `Author` user exists, and this check
+	// prevents disclosing more information than what the caller should already know.
+	if err := a.authorizeAction(types.KindUser, types.VerbRead); err != nil {
+		return trace.Wrap(err)
+	}
+
+	user, err := a.authServer.GetUser(ctx, params.Review.Author, false)
+	if err != nil {
+		a.authServer.logger.ErrorContext(ctx, "Could not submit review for another user, the user could not be fetched from local store",
+			"submitter", a.context.User.GetName(),
+			"submitted for user", params.Review.Author,
+			"error", err,
+		)
+		return trace.AccessDenied("user %q cannot submit reviews for %q, user could not be fetched from local store",
+			a.context.User.GetName(),
+			params.Review.Author,
+		)
+	}
+
+	if err := a.context.Checker.CheckSubmitForUser(a.context.User, user); err != nil {
+		a.authServer.logger.ErrorContext(ctx, "Could not submit review for another user, invalid permissions",
+			"submitter", a.context.User.GetName(),
+			"submitted for user", params.Review.Author,
+			"error", err,
+		)
+		return trace.AccessDenied("user %q cannot submit reviews for %q", a.context.User.GetName(), params.Review.Author)
+	}
+	return nil
+}
+
 func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission types.AccessReviewSubmission) (types.AccessRequest, error) {
 	// Prevent users from submitting access reviews with the "promoted" state.
-	// Promotion is only allowed by SubmitAccessReviewAllowPromotion API in the Enterprise module.
+	// Promotion is only allowed by AccessRequestPromote API in the Enterprise module.
 	if submission.Review.ProposedState.IsPromoted() {
 		return nil, trace.BadParameter("state promoted can be only set when promoting to access list")
 	}
@@ -3319,9 +3357,23 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 		submission.Review.Author = a.context.User.GetName()
 	}
 
-	// Check if the current user is allowed to submit the given access review request.
-	if err := AuthorizeAccessReviewRequest(a.context, submission); err != nil {
-		return nil, trace.Wrap(err)
+	// If the review is submitted on behalf of the author (eg. plugin submitting for a human user),
+	// we must check the caller has proper permissions to submit for other users.
+	if submission.Review.SubmittedOnBehalfOfAuthor {
+		// submitter defaults to username of caller.
+		if submission.Review.SubmittedBy == "" {
+			submission.Review.SubmittedBy = a.context.User.GetName()
+		}
+
+		if err := a.AuthorizeAccessReviewRequestSubmittedForUser(ctx, submission); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	} else {
+		submission.Review.SubmittedBy = ""
+
+		if err := AuthorizeAccessReviewRequest(a.context, submission); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	if err := a.context.AuthorizeAdminAction(); err != nil {
@@ -3332,6 +3384,15 @@ func (a *ServerWithRoles) SubmitAccessReview(ctx context.Context, submission typ
 	// the author field to match the calling user.  fine-grained permissions are evaluated
 	// under optimistic locking at the level of the backend service.  the correctness of the
 	// author field is all that needs to be enforced at this level.
+	//
+	// If the calling user (eg. plugin) is submitting for another user,
+	// the author field will not match the calling user.
+	// Instead, we enforce that the caller has proper `submit_for_users` permissions.
+	// Since the calling identity does not match the author for this case, we pass in a nil identity
+	// to prevent incorrect identity correlation.
+	if submission.Review.SubmittedBy != "" {
+		return a.authServer.submitAccessReview(ctx, submission, nil)
+	}
 
 	identity := a.context.Identity.GetIdentity()
 	return a.authServer.submitAccessReview(ctx, submission, &identity)
@@ -5223,10 +5284,7 @@ func (a *ServerWithRoles) validateRole(role types.Role) error {
 		return trace.Wrap(err)
 	}
 
-	// access predicate syntax is not checked as part of normal role validation in order
-	// to allow the available namespaces to be extended without breaking compatibility with
-	// older nodes/proxies (which do not need to ever evaluate said predicates).
-	if err := services.ValidateAccessPredicates(role); err != nil {
+	if err := services.ValidateRole(role); err != nil {
 		return trace.Wrap(err)
 	}
 
