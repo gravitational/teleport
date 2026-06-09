@@ -20,6 +20,7 @@ import (
 	"cmp"
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -30,13 +31,13 @@ import (
 	"slices"
 	"strconv"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jezek/xgb"
 	"github.com/jezek/xgb/xproto"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -271,10 +272,10 @@ func (t *tracker) UpdateClientActivity() {
 
 // linuxSession encapsulates all state for a single Linux desktop session.
 type linuxSession struct {
-	closing     atomic.Bool
 	service     *LinuxService
 	log         *slog.Logger
 	ctx         context.Context
+	errGroup    *errgroup.Group
 	cancel      context.CancelFunc
 	tdpConn     *tdp.Conn
 	auditedConn tdp.MessageReadWriteCloser
@@ -302,23 +303,11 @@ type linuxSession struct {
 	allowClipboard bool
 }
 
-func (sess *linuxSession) sendTDPError(message string) {
-	if err := sess.writeMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
-		sess.log.ErrorContext(sess.ctx, "Failed to send TDPB error message", "error", err, "message", message)
-	}
-}
-
-func (sess *linuxSession) sendTDPWarning(message string) {
-	if err := sess.writeMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING}); err != nil {
-		sess.log.ErrorContext(sess.ctx, "Failed to send TDPB error message", "error", err, "message", message)
-	}
-}
-
 func (sess *linuxSession) handleClipboardData(data []byte) {
 	if !sess.allowClipboard {
 		return
 	}
-	sess.writeMessage(&tdpb.ClipboardData{
+	sess.auditedConn.WriteMessage(&tdpb.ClipboardData{
 		Data: data,
 	})
 }
@@ -362,7 +351,7 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 
 	// Inline function to enforce that we are centralizing TDP Error sending in this function.
 	sendTDPError := func(message string) {
-		if err := tdpConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil {
+		if err := tdpConn.WriteMessage(&tdpb.Alert{Message: message, Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR}); err != nil && !utils.IsOKNetworkError(err) && !trace.IsConnectionProblem(err) {
 			log.ErrorContext(ctx, "Failed to send TDPB error message", "error", err, "message", message)
 		}
 	}
@@ -423,10 +412,13 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 
+	errGroup, ctx := errgroup.WithContext(ctx)
+
 	sess := &linuxSession{
 		service:        s,
 		log:            log,
 		ctx:            ctx,
+		errGroup:       errGroup,
 		cancel:         cancel,
 		tdpConn:        tdpConn,
 		auditedConn:    tdpConn,
@@ -439,8 +431,18 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		allowClipboard: authCtx.Checker.DesktopClipboard(),
 	}
 
-	if err := sess.run(); err != nil {
-		log.ErrorContext(ctx, "desktop session ended with error", "error", err)
+	errGroup.Go(sess.run)
+
+	err = errGroup.Wait()
+	sendTDPError(err.Error())
+	if !utils.IsOKNetworkError(err) && !trace.IsConnectionProblem(err) {
+		log.ErrorContext(ctx, "linux desktop session ended with error", "error", err)
+	}
+	if sess.cmd != nil {
+		sess.cmd.Close()
+	}
+	if sess.backend != nil {
+		sess.backend.Close()
 	}
 }
 
@@ -449,8 +451,7 @@ func (sess *linuxSession) run() error {
 
 	xsessions, err := x11.GetAvailableXSessions(s.cfg.IncludedSessions, s.cfg.ExcludedSessions)
 	if err != nil {
-		sess.sendTDPError("Couldn't get available xsessions.")
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to get available xsessions")
 	}
 	sess.xsessions = xsessions
 
@@ -458,8 +459,7 @@ func (sess *linuxSession) run() error {
 	if sess.authCtx.Checker.RecordDesktopSession() {
 		recConfig, err = s.cfg.AccessPoint.GetSessionRecordingConfig(sess.ctx)
 		if err != nil {
-			sess.sendTDPError("Couldn't get session recording config")
-			return trace.Wrap(err)
+			return trace.Wrap(err, "failed to get session recording config")
 		}
 		sess.recordSession = recConfig.GetMode() != types.RecordOff
 	} else {
@@ -469,8 +469,7 @@ func (sess *linuxSession) run() error {
 	}
 	rec, err := s.newSessionRecorder(recConfig, string(sess.sessionID))
 	if err != nil {
-		sess.sendTDPError("Couldn't create session recorder")
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to create session recorder")
 	}
 	sess.recorder = rec
 
@@ -507,8 +506,7 @@ func (sess *linuxSession) run() error {
 		startEvent := sess.audit.makeLinuxSessionStart(err)
 		s.record(sess.ctx, sess.recorder, startEvent)
 		s.emit(sess.ctx, startEvent)
-		sess.sendTDPError("Couldn't start connection monitor.")
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to start connection monitor")
 	}
 
 	defer func() {
@@ -518,16 +516,6 @@ func (sess *linuxSession) run() error {
 			s.emit(context.Background(), endEvent)
 		}
 		sess.audit.teardown(context.Background())
-	}()
-
-	defer func() {
-		sess.closing.Store(true)
-		if sess.cmd != nil {
-			sess.cmd.Close()
-		}
-		if sess.backend != nil {
-			sess.backend.Close()
-		}
 	}()
 
 	return sess.messageLoop()
@@ -560,11 +548,8 @@ func (sess *linuxSession) startMonitor() error {
 func (sess *linuxSession) messageLoop() error {
 	for {
 		msg, err := sess.auditedConn.ReadMessage()
-		if utils.IsOKNetworkError(err) || trace.IsConnectionProblem(err) {
-			return nil
-		}
 		if err != nil {
-			return trace.ConnectionProblem(err, "failed to read message")
+			return trace.Wrap(err)
 		}
 
 		// If the message was due to user input, then we update client activity
@@ -603,15 +588,11 @@ func (sess *linuxSession) messageLoop() error {
 			}
 		case *tdpb.MouseMove:
 			if err := sess.backend.SendMouseMove(int16(m.X), int16(m.Y)); err != nil {
-				sess.log.ErrorContext(sess.ctx, "failed to send mouse move", "error", err)
-				sess.sendTDPError("Couldn't send mouse move.")
-				return trace.Wrap(err)
+				return trace.Wrap(err, "failed send mouse move.")
 			}
 		case *tdpb.MouseButton:
 			if err := sess.backend.SendMouseButton(byte(m.Button-1), m.Pressed); err != nil {
-				sess.log.ErrorContext(sess.ctx, "failed to send mouse button", "error", err)
-				sess.sendTDPError("Couldn't send mouse button.")
-				return trace.Wrap(err)
+				return trace.Wrap(err, "failed send mouse button.")
 			}
 		case *tdpb.MouseWheel:
 			f := sess.backend.SendMouseWheel
@@ -619,20 +600,16 @@ func (sess *linuxSession) messageLoop() error {
 				f = sess.backend.SendHorizontalMouseWheel
 			}
 			if err := f(int(m.Delta)); err != nil {
-				sess.log.ErrorContext(sess.ctx, "failed to send mouse wheel", "error", err)
-				sess.sendTDPError("Couldn't send mouse wheel event.")
-				return trace.Wrap(err)
+				return trace.Wrap(err, "failed to send mouse wheel move.")
 			}
 		case *tdpb.KeyboardButton:
 			if err := sess.backend.SendKeyboardButton(byte(m.KeyCode), m.Pressed); err != nil {
-				sess.log.ErrorContext(sess.ctx, "failed to send keyboard button", "error", err)
-				sess.sendTDPError("Couldn't send keyboard button.")
-				return trace.Wrap(err)
+				return trace.Wrap(err, "failed to send keyboard button.")
 			}
 		case *tdpb.Ping:
-			if err := sess.writeMessage(m); err != nil {
+			if err := sess.auditedConn.WriteMessage(m); err != nil {
 				sess.log.ErrorContext(sess.ctx, "failed to send ping message", "error", err)
-				return trace.Wrap(err)
+				return trace.Wrap(err, "failed to send ping message")
 			}
 		case *tdpb.ClipboardData:
 			if !sess.allowClipboard {
@@ -640,25 +617,19 @@ func (sess *linuxSession) messageLoop() error {
 				continue
 			}
 			if err := sess.backend.SetClipboardData(m.Data); err != nil {
-				sess.log.ErrorContext(sess.ctx, "failed to set clipboard data", "error", err)
-				sess.sendTDPError("Couldn't set clipboard data.")
-				return trace.Wrap(err)
+				return trace.Wrap(err, "failed to set clipboard data")
 			}
 		case *tdpb.ClientScreenSpec:
 			if err := sess.handleClientScreenSpec(m); err != nil {
 				return trace.Wrap(err)
 			}
 		default:
-			sess.log.InfoContext(sess.service.closeCtx, "Ignoring message", "message", fmt.Sprintf("%T", msg))
+			sess.log.InfoContext(sess.service.closeCtx, "ignoring message", "message", fmt.Sprintf("%T", msg))
 		}
 	}
 }
 
 func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
-	// Ignore multiple ClientHello messages
-	if sess.username != "" {
-		return nil
-	}
 	s := sess.service
 	sess.username = m.Username
 	sess.audit.targetUser = m.Username
@@ -672,9 +643,7 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 		startEvent := sess.audit.makeLinuxSessionStart(err)
 		s.record(sess.ctx, sess.recorder, startEvent)
 		s.emit(sess.ctx, startEvent)
-		sess.log.WarnContext(sess.ctx, "authorization failed for Linux desktop connection", "error", err)
-		sess.sendTDPError("Connection authorization failed.")
-		return trace.Wrap(err)
+		return trace.Wrap(err, "connection authorization failed")
 	}
 
 	backend, err := x11.NewBackend(sess.ctx, x11.Config{
@@ -682,8 +651,7 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 		Logger:                sess.log,
 	})
 	if err != nil {
-		sess.sendTDPError("Couldn't create backend.")
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to create backend")
 	}
 	sess.backend = backend
 
@@ -692,9 +660,7 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 	}
 
 	if err := s.trackSession(sess.ctx, &sess.identity, m.Username, string(sess.sessionID)); err != nil {
-		sess.log.ErrorContext(sess.ctx, "failed to track session", "error", err)
-		sess.sendTDPError("Failed to track session.")
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to track session")
 	}
 
 	startEvent := sess.audit.makeLinuxSessionStart(nil)
@@ -704,15 +670,11 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 	sess.sessionStarted = true
 
 	if m.ScreenSpec == nil {
-		sess.log.ErrorContext(sess.ctx, "missing screen spec")
-		sess.sendTDPError("Missing screen specification.")
 		return trace.BadParameter("missing screen spec")
 	}
 
 	if m.ScreenSpec.Width > types.MaxRDPScreenWidth || m.ScreenSpec.Height > types.MaxRDPScreenHeight {
-		sess.log.ErrorContext(sess.ctx, "invalid screen size", "width", m.ScreenSpec.Width, "height", m.ScreenSpec.Height)
-		sess.sendTDPError(fmt.Sprintf("Screen is too large. Maximum is %dx%d", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight))
-		return trace.BadParameter("invalid screen size")
+		return trace.BadParameter("invalid screen size %dx%d, maximum is %dx%d", m.ScreenSpec.Width, m.ScreenSpec.Height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight)
 	}
 
 	width := uint16(m.ScreenSpec.Width)
@@ -720,9 +682,7 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 	sess.screenSize.Width = width
 	sess.screenSize.Height = height
 	if err := sess.backend.Resize(width, height); err != nil {
-		sess.log.ErrorContext(sess.ctx, "failed to resize screen", "error", err)
-		sess.sendTDPError("Couldn't resize backend.")
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to resize screen")
 	}
 	sessions := make([]*tdpbv1.SessionIdentifier, 0, len(sess.xsessions))
 	for _, s := range slices.Sorted(maps.Keys(sess.xsessions)) {
@@ -730,7 +690,7 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 			Name: s,
 		})
 	}
-	if err := sess.writeMessage(&tdpb.ServerHello{
+	if err := sess.auditedConn.WriteMessage(&tdpb.ServerHello{
 		ActivationSpec: &tdpbv1.ConnectionActivated{
 			IoChannelId:   0,
 			UserChannelId: 0,
@@ -740,56 +700,48 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 		ClipboardEnabled: true,
 		Sessions:         sessions,
 	}); err != nil {
-		sess.log.WarnContext(sess.ctx, "failed to send server hello", "error", err)
 		return trace.Wrap(err)
 	}
-	go sess.processScreenChanges()
-	go func() {
+	sess.errGroup.Go(sess.processScreenChanges)
+	sess.errGroup.Go(func() error {
 		// Simulate activity to prevent lock screen from activating
 		for {
 			select {
 			case <-sess.ctx.Done():
-				return
+				return nil
 			case <-time.After(30 * time.Second):
 			}
 			sess.backend.SendNoOpEvent()
 		}
-	}()
+	})
 	return nil
 }
 
 func (sess *linuxSession) changeAuthorityFileOwnership(m *tdpb.ClientHello) error {
 	currentUser, err := user.Current()
 	if err != nil {
-		sess.log.ErrorContext(sess.ctx, "failed to get current user", "error", err)
-		sess.sendTDPError("Internal server error")
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to get current user")
 	}
 	targetUser, err := user.Lookup(m.Username)
 	if err != nil {
-		sess.log.WarnContext(sess.ctx, "couldn't lookup user", "error", err)
-		sess.sendTDPError(fmt.Sprintf("Couldn't find user: %s", m.Username))
-		return trace.Wrap(err)
+		return trace.Wrap(err, "failed to lookup user %s", m.Username)
 	}
-	if currentUser.Uid != targetUser.Uid {
-		uid, err := strconv.Atoi(targetUser.Uid)
-		if err != nil {
-			sess.log.ErrorContext(sess.ctx, "couldn't convert uid to int", "error", err)
-			sess.sendTDPError("Internal server error")
-			return trace.Wrap(err)
-		}
-		gid, err := strconv.Atoi(targetUser.Gid)
-		if err != nil {
-			sess.log.ErrorContext(sess.ctx, "couldn't convert gid to int", "error", err)
-			sess.sendTDPError("Internal server error")
-			return trace.Wrap(err)
-		}
+	if currentUser.Uid == targetUser.Uid {
+		return nil
+	}
 
-		if err := os.Chown(sess.backend.AuthorityFile, uid, gid); err != nil {
-			sess.log.ErrorContext(sess.ctx, "couldn't change Xauthority file ownership", "error", err)
-			sess.sendTDPError("Internal server error")
-			return trace.Wrap(err)
-		}
+	uid, err := strconv.Atoi(targetUser.Uid)
+	if err != nil {
+		return trace.Wrap(err, "failed to convert UID")
+	}
+
+	gid, err := strconv.Atoi(targetUser.Gid)
+	if err != nil {
+		return trace.Wrap(err, "failed to convert GID")
+	}
+
+	if err := os.Chown(sess.backend.AuthorityFile, uid, gid); err != nil {
+		return trace.Wrap(err, "failed to change Xauthority file ownership")
 	}
 	return nil
 }
@@ -797,14 +749,11 @@ func (sess *linuxSession) changeAuthorityFileOwnership(m *tdpb.ClientHello) erro
 func (sess *linuxSession) handleSessionSelection(m *tdpbv1.SessionSelection) error {
 	if sess.cmd != nil {
 		sess.log.WarnContext(sess.ctx, "session already started")
-		sess.sendTDPWarning("Received session selection message but session is already started")
-		return nil
+		return sess.auditedConn.WriteMessage(&tdpb.Alert{Message: "Received session selection message but session is already started", Severity: tdpbv1.AlertSeverity_ALERT_SEVERITY_WARNING})
 	}
 	sessionName := m.GetSession().GetName()
 	xsession, ok := sess.xsessions[sessionName]
 	if !ok {
-		sess.log.WarnContext(sess.ctx, "failed to get xsession", "name", sessionName)
-		sess.sendTDPError(fmt.Sprintf("Couldn't find xsession %s.", sessionName))
 		return trace.NotFound("xsession %s not found", sessionName)
 	}
 	cmd, err := x11.StartTeleportExecXSession(sess.ctx, &x11.XSessionConfig{
@@ -817,32 +766,22 @@ func (sess *linuxSession) handleSessionSelection(m *tdpbv1.SessionSelection) err
 		AuthorityFile:  sess.backend.AuthorityFile,
 	})
 	if err != nil {
-		sess.log.ErrorContext(sess.ctx, "failed to start Xsession", "error", err)
-		sess.sendTDPError("Couldn't start Xsession.")
-		return trace.Wrap(err)
+		return trace.Wrap(err, "Couldn't start Xsession")
 	}
 	sess.cmd = cmd
-	go func() {
+	sess.errGroup.Go(func() error {
 		err := cmd.Wait()
-		if sess.closing.Load() {
-			// ignore errors when killing Xsession due to session ending
-			return
+		if err != nil {
+			return trace.Wrap(err, "xsession was terminated with error")
 		}
-		if err == nil {
-			sess.sendTDPError("Xsession was terminated")
-		} else {
-			sess.log.ErrorContext(sess.ctx, "Xsession was terminated", "error", err)
-			sess.sendTDPError("Xsession was terminated with error")
-		}
-	}()
+		return trace.Wrap(errors.New("xsession was terminated"))
+	})
 	return nil
 }
 
 func (sess *linuxSession) handleClientScreenSpec(m *tdpb.ClientScreenSpec) error {
 	if m.Width > types.MaxRDPScreenWidth || m.Height > types.MaxRDPScreenHeight {
-		sess.log.ErrorContext(sess.ctx, "invalid screen size", "width", m.Width, "height", m.Height)
-		sess.sendTDPError(fmt.Sprintf("Screen is too large. Maximum is %dx%d", types.MaxRDPScreenWidth, types.MaxRDPScreenHeight))
-		return trace.BadParameter("invalid screen size")
+		return trace.BadParameter("invalid screen size %dx%d, maximum is %dx%d", m.Width, m.Height, types.MaxRDPScreenWidth, types.MaxRDPScreenHeight)
 	}
 	sess.resizeMu.Lock()
 	defer sess.resizeMu.Unlock()
@@ -852,32 +791,26 @@ func (sess *linuxSession) handleClientScreenSpec(m *tdpb.ClientScreenSpec) error
 	sess.screenSize.Height = height
 	sess.sendFullScreen = true
 	if err := sess.backend.Resize(width, height); err != nil {
-		sess.log.ErrorContext(sess.ctx, "failed to resize screen", "error", err)
-		sess.sendTDPError("Couldn't resize backend.")
-		return trace.Wrap(err)
+		return trace.Wrap(err, "Couldn't resize backend")
 	}
-	if err := sess.writeMessage(&tdpb.ServerHello{
+	if err := sess.auditedConn.WriteMessage(&tdpb.ServerHello{
 		ActivationSpec: &tdpbv1.ConnectionActivated{
 			ScreenWidth:  m.Width,
 			ScreenHeight: m.Height,
 		},
 		ClipboardEnabled: true,
 	}); err != nil {
-		sess.log.ErrorContext(sess.ctx, "failed to send server-hello message", "error", err)
 		return trace.Wrap(err)
 	}
 	return nil
 }
 
-func (sess *linuxSession) processScreenChanges() {
+func (sess *linuxSession) processScreenChanges() error {
 	for {
 		start := time.Now()
 		size, err := sess.innerProcessScreenChanges()
 		if err != nil {
-			if !utils.IsOKNetworkError(err) {
-				sess.sendTDPError(fmt.Sprintf("Error processing screen changes: %s", err))
-			}
-			return
+			return trace.Wrap(err)
 		}
 		delta := time.Since(start)
 		if size > 0 {
@@ -885,7 +818,7 @@ func (sess *linuxSession) processScreenChanges() {
 		}
 		select {
 		case <-sess.ctx.Done():
-			return
+			return nil
 			// We want to keep 25fps, so we want to wait ~40ms between frames
 		case <-sess.service.cfg.Clock.After(40*time.Millisecond - delta):
 		}
@@ -898,7 +831,7 @@ func (sess *linuxSession) innerProcessScreenChanges() (int, error) {
 	size := 0
 	changes, err := sess.backend.GetChanges()
 	if err != nil {
-		return 0, err
+		return 0, trace.Wrap(err)
 	}
 	if sess.sendFullScreen || slices.ContainsFunc(changes, func(change xproto.Rectangle) bool {
 		return uint16(change.X)+change.Width > sess.screenSize.Width ||
@@ -919,19 +852,16 @@ func (sess *linuxSession) innerProcessScreenChanges() (int, error) {
 		size += int(change.Width) * int(change.Height)
 		img, err := sess.backend.GetImage(change)
 		if err != nil {
-			sess.log.ErrorContext(sess.ctx, "failed to get image from backend", "error", err)
-			return 0, err
+			return 0, trace.Wrap(err, "couldn't get image from backend")
 		}
 
 		frames, err := rdpclient.EncodeQOIZ(img, uint16(change.X), uint16(change.Y), change.Width, change.Height)
 		if err != nil {
-			sess.log.ErrorContext(sess.ctx, "failed to encode FastPathPDUs", "error", err)
-			return 0, err
+			return 0, trace.Wrap(err, "couldn't encode image frame")
 		}
 		for _, frame := range frames {
-			if err := sess.writeMessage(frame); err != nil {
-				sess.log.ErrorContext(sess.ctx, "failed to send frame", "error", err)
-				return 0, err
+			if err := sess.auditedConn.WriteMessage(frame); err != nil {
+				return 0, trace.Wrap(err)
 			}
 		}
 	}
