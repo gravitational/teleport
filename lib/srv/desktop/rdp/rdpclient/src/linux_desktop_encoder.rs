@@ -241,8 +241,10 @@ mod tests {
             // at defaults when decoding session recordings.
             io_channel_id: 0,
             user_channel_id: 0,
+            share_id: 0,
             enable_server_pointer: false,
             pointer_software_rendering: false,
+            bulk_decompressor: None,
         }
         .build();
         let mut image = DecodedImage::new(
