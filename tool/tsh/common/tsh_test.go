@@ -7079,6 +7079,41 @@ func TestStatusPrintsProfilesIfNoActiveProfile(t *testing.T) {
 	require.ErrorContains(t, err, "No active profile.")
 }
 
+// TestStatusPrintsActiveConfigProfile verifies that `tsh status` shows the
+// active config profile selected via --profile when one is applied.
+func TestStatusPrintsActiveConfigProfile(t *testing.T) {
+	t.Parallel()
+
+	buf := bytes.NewBuffer([]byte{})
+
+	err := Run(context.Background(), []string{
+		"--profile", "prod",
+		"status",
+	}, setHomePath(t.TempDir()), func(c *CLIConf) error {
+		c.OverrideStdout = buf
+		// Inject a tsh config defining a "prod" profile. setHomePath resets
+		// TSHConfig (since it is loaded before options are applied), so we set
+		// it here; the profile is applied after options run.
+		c.TSHConfig = client.TSHConfig{
+			Profiles: map[string]client.Profile{
+				"prod": {Proxy: "proxy:3080", Cluster: "proxy"},
+			},
+		}
+		p := &profile.Profile{
+			WebProxyAddr: "proxy:3080",
+			Username:     "testuser",
+		}
+		// setCurrent is false, so there is no active login profile; we only
+		// care that the selected config profile is printed.
+		return trace.Wrap(c.getClientStore().SaveProfile(p, false))
+	})
+
+	require.Contains(t, buf.String(), "Active Config Profile: prod")
+	// status returns an error because the injected profile is not a valid
+	// active login session; the assertion of interest is the printed line above.
+	require.Error(t, err)
+}
+
 // TestProxyTemplates verifies proxy templates apply properly to client config.
 func TestProxyTemplatesMakeClient(t *testing.T) {
 	t.Parallel()

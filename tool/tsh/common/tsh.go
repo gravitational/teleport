@@ -259,6 +259,11 @@ type CLIConf struct {
 	// tsh login profile stored under ~/.tsh.
 	SelectedProfile string
 
+	// activeConfigProfile is the name of the config profile that was actually
+	// applied (the explicitly selected one, or the default_profile fallback).
+	// Empty if no config profile was applied. Used for display in tsh status.
+	activeConfigProfile string
+
 	// DaemonAddr is the daemon listening address.
 	DaemonAddr string
 	// DaemonCertsDir is the directory containing certs used to create secure gRPC connection with daemon service
@@ -1683,17 +1688,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
 	}
 
-	// Apply a named profile selected via --profile / TELEPORT_PROFILE (or the
-	// config's default_profile). This must run after app.Parse so that
-	// explicit CLI flags and environment variables, which are already resolved
-	// into cf at this point, take precedence over the profile's values.
-	if err := applySelectedProfile(ctx, &cf); err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Did we initially get the Username from flags/env?
-	cf.ExplicitUsername = cf.Username != ""
-
 	cf.command = command
 	// Convert --disable-access-request for compatibility.
 	if cf.disableAccessRequest {
@@ -1707,6 +1701,18 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			return trace.Wrap(err)
 		}
 	}
+
+	// Apply a named profile selected via --profile / TELEPORT_PROFILE (or the
+	// config's default_profile). This runs after app.Parse and after the
+	// CliOptions so that explicit CLI flags, environment variables, and any
+	// test/programmatic overrides take precedence over the profile's values,
+	// and so the profile is resolved against the final TSHConfig.
+	if err := applySelectedProfile(ctx, &cf); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Did we get the Username from flags/env or a selected profile?
+	cf.ExplicitUsername = cf.Username != ""
 
 	// Enable debug logging if requested by --debug.
 	// If TELEPORT_DEBUG was set and --debug/--no-debug was not passed, debug logs were already
@@ -5760,6 +5766,12 @@ func printLoginInformation(cf *CLIConf, profile *client.ProfileStatus, profiles 
 			printStatus(cf.Stdout(), cf.Debug, p, env, false)
 		}
 
+		// Print the active config profile selected via --profile / TELEPORT_PROFILE
+		// (or default_profile), if any.
+		if cf.activeConfigProfile != "" {
+			fmt.Fprintf(cf.Stdout(), "Active Config Profile: %s\n", cf.activeConfigProfile)
+		}
+
 		// Print relevant active env vars, if they are set.
 		if cf.Verbose {
 			if len(env) > 0 {
@@ -6416,6 +6428,9 @@ func applySelectedProfile(ctx context.Context, cf *CLIConf) error {
 	}
 
 	logger.DebugContext(ctx, "Applying selected tsh profile", "profile", name)
+
+	// Record the effective profile name for display in tsh status.
+	cf.activeConfigProfile = name
 
 	// String overrides: only apply when the user has not already set the value
 	// via flag or env var (an unset string field is empty at this point).
