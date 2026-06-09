@@ -1521,11 +1521,8 @@ func (s FakeTeleportVersion) DeleteTeleportVersion(_ context.Context) error {
 	return nil
 }
 
-// HostCertsParamsOpt is a functional option for editing HostCertsParams while generating a new server identity.
-type HostCertsParamsOpt func(req *auth.HostCertsParams)
-
 // NewServerIdentity generates new server identity, used in tests
-func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole, opts ...HostCertsParamsOpt) (*state.Identity, error) {
+func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole) (*state.Identity, error) {
 	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1546,7 +1543,7 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole, o
 		return nil, trace.Wrap(err)
 	}
 
-	params := auth.HostCertsParams{
+	certs, err := clt.GenerateHostCerts(context.Background(), auth.HostCertsParams{
 		Req: &proto.HostCertsRequest{
 			HostID:       hostID,
 			NodeName:     hostID,
@@ -1554,12 +1551,50 @@ func NewServerIdentity(clt *auth.Server, hostID string, role types.SystemRole, o
 			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
 			PublicTLSKey: tlsPubKey,
 		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	for _, opt := range opts {
-		opt(&params)
+	return state.ReadIdentityFromKeyPair(privateKeyPEM, certs)
+}
+
+// NewScopedServerIdentity generates new scoped server identity, used in tests
+func NewScopedServerIdentity(clt *auth.Server, hostID, scope string, role types.SystemRole) (*state.Identity, error) {
+	if scope == "" {
+		return NewServerIdentity(clt, hostID, role)
 	}
-	certs, err := clt.GenerateHostCerts(context.Background(), params)
+
+	key, err := cryptosuites.GenerateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sshPubKey, err := ssh.NewPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsPubKey, err := keys.MarshalPublicKey(key.Public())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	certs, err := clt.GenerateHostCerts(context.Background(), auth.HostCertsParams{
+		Req: &proto.HostCertsRequest{
+			HostID:       hostID,
+			NodeName:     hostID,
+			Role:         role,
+			PublicSSHKey: ssh.MarshalAuthorizedKey(sshPubKey),
+			PublicTLSKey: tlsPubKey,
+		},
+		AgentScope: scope,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -217,9 +217,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// TLS config for kube proxy and Kube service.
-	serverIdentity, err := authtest.NewServerIdentity(authServer.AuthServer, testCtx.HostID, types.RoleKube, func(p *auth.HostCertsParams) {
-		p.AgentScope = cfg.Scope
-	})
+	serverIdentity, err := authtest.NewScopedServerIdentity(authServer.AuthServer, testCtx.HostID, cfg.Scope, types.RoleKube)
 	require.NoError(t, err)
 	kubeServiceTLSConfig, err := serverIdentity.TLSConfig(nil)
 	require.NoError(t, err)
