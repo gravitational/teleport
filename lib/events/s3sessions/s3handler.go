@@ -104,6 +104,11 @@ type Config struct {
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption bool
 
+	// DisableTrailingChecksum is an optional switch to opt out of trailing
+	// checksums for S3 multipart uploads, for use with S3-compatible providers
+	// that do not support this feature.
+	DisableTrailingChecksum bool
+
 	// UseVirtualStyleAddressing use a virtual-hosted–style URI.
 	// Path style e.g. https://s3.region-code.amazonaws.com/bucket-name/key-name
 	// Virtual hosted style e.g. https://bucket-name.s3.region-code.amazonaws.com/key-name
@@ -143,6 +148,13 @@ func (s *Config) SetFromURL(in *url.URL, inRegion string) error {
 			return trace.BadParameter(boolErrorTemplate, in.String(), teleport.DisableServerSideEncryption, val)
 		}
 		s.DisableServerSideEncryption = disableServerSideEncryption
+	}
+	if val := in.Query().Get(teleport.DisableTrailingChecksum); val != "" {
+		disableTrailingChecksum, err := strconv.ParseBool(val)
+		if err != nil {
+			return trace.BadParameter(boolErrorTemplate, in.String(), teleport.DisableTrailingChecksum, val)
+		}
+		s.DisableTrailingChecksum = disableTrailingChecksum
 	}
 	if acl := in.Query().Get(teleport.ACL); acl != "" {
 		if !isCannedACL(acl) {
@@ -266,6 +278,12 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 	if modules.GetModules().IsFIPSBuild() && cfg.UseFIPSEndpoint == types.ClusterAuditConfigSpecV2_FIPS_ENABLED {
 		s3Opts = append(s3Opts, func(options *s3.Options) {
 			options.EndpointOptions.UseFIPSEndpoint = aws.FIPSEndpointStateEnabled
+		})
+	}
+
+	if cfg.DisableTrailingChecksum {
+		s3Opts = append(s3Opts, func(options *s3.Options) {
+			options.RequestChecksumCalculation = aws.RequestChecksumCalculationWhenRequired
 		})
 	}
 
