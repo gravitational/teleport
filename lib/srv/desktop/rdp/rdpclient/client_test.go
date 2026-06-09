@@ -147,7 +147,7 @@ func TestEncodeQOIZ(t *testing.T) {
 	t.Run("empty", func(t *testing.T) {
 		frames, err := EncodeQOIZ(nil, 0, 0, 0, 0)
 		require.NoError(t, err)
-		require.Len(t, frames, 0)
+		require.Empty(t, frames)
 	})
 
 	t.Run("size mismatch", func(t *testing.T) {

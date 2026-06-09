@@ -33,6 +33,13 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jezek/xgb"
+	"github.com/jezek/xgb/xproto"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
@@ -59,12 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/session/reexec"
-	"github.com/gravitational/trace"
-	"github.com/jezek/xgb"
-	"github.com/jezek/xgb/xproto"
-	"github.com/jonboulle/clockwork"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // LinuxService implements the Linux desktop access service.
@@ -872,13 +873,6 @@ func (sess *linuxSession) innerProcessScreenChanges() (int, error) {
 	}
 	sess.sendFullScreen = false
 	return size, nil
-}
-
-func (sess *linuxSession) writeMessage(message tdp.Message) error {
-	if err := sess.auditedConn.WriteMessage(message); !utils.IsOKNetworkError(err) && !trace.IsConnectionProblem(err) {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 func (s *LinuxService) newSessionRecorder(recConfig types.SessionRecordingConfig, sessionID string) (libevents.SessionPreparerRecorder, error) {
