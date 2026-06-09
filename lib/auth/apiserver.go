@@ -554,7 +554,7 @@ func (s *APIServer) upsertTunnelConnection(auth *ServerWithRoles, w http.Respons
 
 // getTunnelConnections returns a list of tunnel connections from a cluster.
 //
-// TODO(noah): move to httpMigratedHandler in v21.0.0
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	conns, err := auth.GetTunnelConnections(r.Context(), p.ByName("cluster"))
 	if err != nil {
@@ -573,7 +573,7 @@ func (s *APIServer) getTunnelConnections(auth *ServerWithRoles, w http.ResponseW
 
 // getAllTunnelConnections returns a list of tunnel connections from a cluster.
 //
-// TODO(noah): move to httpMigratedHandler in v21.0.0
+// TODO(noah): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) getAllTunnelConnections(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	conns, err := auth.GetAllTunnelConnections(r.Context())
 	if err != nil {
