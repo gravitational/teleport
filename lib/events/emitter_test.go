@@ -140,7 +140,8 @@ func TestAsyncEmitter(t *testing.T) {
 	// on slow emitters
 	t.Run("Slow", func(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
-			Inner: eventstest.NewSlowEmitter(time.Hour),
+			Inner:   eventstest.NewSlowEmitter(time.Hour),
+			DataDir: t.TempDir(),
 		})
 		require.NoError(t, err)
 		defer emitter.Close()
@@ -157,7 +158,8 @@ func TestAsyncEmitter(t *testing.T) {
 	t.Run("Receive", func(t *testing.T) {
 		chanEmitter := eventstest.NewChannelEmitter(len(evts))
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
-			Inner: chanEmitter,
+			Inner:   chanEmitter,
+			DataDir: t.TempDir(),
 		})
 
 		require.NoError(t, err)
@@ -185,6 +187,7 @@ func TestAsyncEmitter(t *testing.T) {
 		emitter, err := events.NewAsyncEmitter(events.AsyncEmitterConfig{
 			Inner:      counter,
 			BufferSize: len(evts),
+			DataDir:    t.TempDir(),
 		})
 		require.NoError(t, err)
 
@@ -212,6 +215,44 @@ func TestAsyncEmitter(t *testing.T) {
 			}
 		}
 	})
+}
+
+// TestCheckingAsyncEmitter_FieldsSetBeforePersist verifies that fields
+// are written to the event before it is enqueued.
+func TestCheckingAsyncEmitter_FieldsSetBeforePersist(t *testing.T) {
+	emitter, err := events.NewCheckingAsyncEmitter(
+		events.CheckingEmitterConfig{
+			ClusterName: "test-cluster",
+		},
+		events.AsyncEmitterConfig{
+			Inner:      eventstest.NewCountingEmitter(),
+			BufferSize: 8,
+			DataDir:    t.TempDir(),
+		},
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = emitter.Close()
+	})
+
+	event := &apievents.UserLogin{
+		Metadata: apievents.Metadata{
+			Type: events.UserLoginEvent,
+			Code: events.UserLocalLoginCode,
+		},
+	}
+	require.Empty(t, event.GetID(), "event must start with empty UID")
+	require.True(t, event.GetTime().IsZero(), "event must start with zero Time")
+
+	before := time.Now().Truncate(time.Millisecond)
+	require.NoError(t, emitter.EmitAuditEvent(context.Background(), event))
+
+	require.NotEmpty(t, event.GetID(),
+		"UID should be set on the input event after EmitAuditEvent",
+	)
+	require.False(t, event.GetTime().Before(before),
+		"Time on event should be >= time captured before EmitAuditEvent")
+	require.Equal(t, "test-cluster", event.GetClusterName())
 }
 
 // TestExport tests export to JSON format.

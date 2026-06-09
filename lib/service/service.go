@@ -3424,22 +3424,26 @@ func (process *TeleportProcess) proxyPublicAddr() utils.NetAddr {
 	return process.Config.Proxy.PublicAddrs[0]
 }
 
+func isSQLiteQueueEnabled() bool {
+	enabled, _ := strconv.ParseBool(os.Getenv("TELEPORT_UNSTABLE_AUDIT_LOG_RELIABILITY"))
+	return enabled
+}
+
 // NewAsyncEmitter wraps client and returns emitter that never blocks, logs some events and checks values.
 // It is caller's responsibility to call Close on the emitter once done.
-func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.AsyncEmitter, error) {
-	emitter, err := events.NewCheckingEmitter(events.CheckingEmitterConfig{
-		Inner: events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
-		Clock: process.Clock,
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// asyncEmitter makes sure that sessions do not block
-	// in case if connections are slow
-	return events.NewAsyncEmitter(events.AsyncEmitterConfig{
-		Inner: emitter,
-	})
+func (process *TeleportProcess) NewAsyncEmitter(clt apievents.Emitter) (*events.CheckingAsyncEmitter, error) {
+	// Wrap the AsyncEmitter in a CheckingEmitter to ensure event fields are
+	// properly set before inserting events into the queue.
+	return events.NewCheckingAsyncEmitter(
+		events.CheckingEmitterConfig{
+			Clock: process.Clock,
+		},
+		events.AsyncEmitterConfig{
+			Inner:             events.NewMultiEmitter(events.NewLoggingEmitter(process.GetClusterFeatures().Cloud), clt),
+			DataDir:           process.Config.DataDir,
+			EnableSQLiteQueue: isSQLiteQueueEnabled(),
+		},
+	)
 }
 
 // ServerTLSConfig returns a new server-side [*tls.Config] that presents the
