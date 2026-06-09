@@ -38,7 +38,7 @@ type summaryLoadedMsg struct {
 	err     error
 }
 
-type closeSummaryMsg struct{}
+type closePopupMsg struct{}
 
 type summaryPopupModel struct {
 	session       *sessionsearchv1pb.SessionSummary
@@ -109,7 +109,7 @@ func (m *summaryPopupModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch {
 		case key.Matches(msg, m.keys.Close):
 			m.close()
-			return m, func() tea.Msg { return closeSummaryMsg{} }
+			return m, func() tea.Msg { return closePopupMsg{} }
 		}
 	}
 
@@ -155,13 +155,17 @@ func (m *summaryPopupModel) View() string {
 	)
 }
 
-func (m *summaryPopupModel) popupWidth() int {
-	width := m.width * 70 / 100
+func (m *summaryPopupModel) popupWidth() int  { return clampPopupWidth(m.width) }
+func (m *summaryPopupModel) popupHeight() int { return clampPopupHeight(m.height) }
+
+// clampPopupWidth returns the popup width for the given terminal width.
+func clampPopupWidth(total int) int {
+	width := total * 70 / 100
 	if width > 100 {
 		width = 100
 	}
 	if width < 48 {
-		width = min(m.width-2, 48)
+		width = min(total-2, 48)
 	}
 	if width < 24 {
 		width = 24
@@ -169,13 +173,14 @@ func (m *summaryPopupModel) popupWidth() int {
 	return width
 }
 
-func (m *summaryPopupModel) popupHeight() int {
-	height := m.height * 70 / 100
+// clampPopupHeight returns the popup height for the given terminal height.
+func clampPopupHeight(total int) int {
+	height := total * 70 / 100
 	if height > 32 {
 		height = 32
 	}
 	if height < 12 {
-		height = min(m.height-2, 12)
+		height = min(total-2, 12)
 	}
 	if height < 8 {
 		height = 8
@@ -240,7 +245,7 @@ func (m *summaryPopupModel) close() {
 
 func loadSummaryCmd(ctx context.Context, getter SummaryGetter, sessionID string) tea.Cmd {
 	return func() tea.Msg {
-		resp, err := getter.GetSummary(ctx, &summarizerv1pb.GetSummaryRequest{SessionId: sessionID})
+		resp, err := getter.GetSummary(ctx, summarizerv1pb.GetSummaryRequest_builder{SessionId: sessionID}.Build())
 		if err != nil {
 			return summaryLoadedMsg{err: err}
 		}

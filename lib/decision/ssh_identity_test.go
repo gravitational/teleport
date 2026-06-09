@@ -45,17 +45,17 @@ func TestSSHIdentityConversion(t *testing.T) {
 		ClusterName: "some-cluster",
 		SystemRole:  types.RoleNode,
 		Username:    "user",
-		ScopePin: &scopesv1.Pin{
+		ScopePin: scopesv1.Pin_builder{
 			Kind:  scopesv1.PinKind_PIN_KIND_USER,
 			Scope: "/foo",
 			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 				"/": {"/": {"role1", "role2"}},
 			}),
-			SystemRoles: &scopesv1.SystemRoles{
+			SystemRoles: scopesv1.SystemRoles_builder{
 				Primary:    string(types.RoleNode),
 				Additional: []string{string(types.RoleProxy)},
-			},
-		},
+			}.Build(),
+		}.Build(),
 		Impersonator:            "impersonator",
 		Principals:              []string{"login1", "login2"},
 		PermitX11Forwarding:     true,
@@ -113,12 +113,12 @@ func TestSSHIdentityConversion(t *testing.T) {
 		GitHubUsername:           "ghuser",
 		HeadlessAuthenticationID: "headless-auth-id",
 		AgentScope:               "/foo",
-		ImmutableLabelHash: joining.HashImmutableLabels(&joiningv1.ImmutableLabels{
+		ImmutableLabelHash: joining.HashImmutableLabels(joiningv1.ImmutableLabels_builder{
 			Ssh: map[string]string{
 				"one": "1",
 				"two": "2",
 			},
-		}),
+		}.Build()),
 		DelegationSessionID: "delegation-session",
 	}
 

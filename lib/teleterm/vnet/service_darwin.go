@@ -26,7 +26,7 @@ import (
 
 func (s *Service) platformDiagChecks(ctx context.Context) ([]diag.DiagCheck, error) {
 	routeConflictDiag, err := diag.NewRouteConflictDiag(&diag.RouteConflictConfig{
-		VnetIfaceName: s.networkStackInfo.InterfaceName,
+		VnetIfaceName: s.networkStackInfo.GetInterfaceName(),
 		Routing:       &diag.DarwinRouting{},
 		Interfaces:    &diag.NetInterfaces{},
 	})

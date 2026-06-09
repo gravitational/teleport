@@ -393,9 +393,9 @@ func (s *Service) ValidateSessionChallenge(
 		mfav2.ValidatedMFAChallenge_builder{
 			Kind:    types.KindValidatedMFAChallenge,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: mfaResp.GetName(),
-			},
+			}.Build(),
 			Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 				Payload: mfav2.SessionIdentifyingPayload_builder{
 					SshSessionId: details.Payload.SSHSessionID,
@@ -494,9 +494,9 @@ func (s *Service) ReplicateValidatedMFAChallenge(
 	chal := mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: req.GetName(),
-		},
+		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload:       req.GetPayload(),
 			SourceCluster: req.GetSourceCluster(),

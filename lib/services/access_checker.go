@@ -1367,17 +1367,17 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersDecision, error) {
 		}
 
 		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF {
-			decision.DeniedBy = append(decision.DeniedBy, &decisionpb.Determinant{
+			decision.DeniedBy = append(decision.DeniedBy, decisionpb.Determinant_builder{
 				Kind: role.GetKind(),
 				Name: role.GetName(),
-			})
+			}.Build())
 			continue
 		}
 
-		decision.AllowedBy = append(decision.AllowedBy, &decisionpb.Determinant{
+		decision.AllowedBy = append(decision.AllowedBy, decisionpb.Determinant_builder{
 			Kind: role.GetKind(),
 			Name: role.GetName(),
-		})
+		}.Build())
 
 		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 			mode = createHostUserMode
@@ -1443,13 +1443,13 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersDecision, error) {
 		uid = uidL[0]
 	}
 
-	decision.Info = &decisionpb.HostUsersInfo{
+	decision.Info = decisionpb.HostUsersInfo_builder{
 		Groups: groups.Elements(),
 		Mode:   convertHostUserMode(mode),
 		Uid:    uid,
 		Gid:    gid,
 		Shell:  shell,
-	}
+	}.Build()
 
 	return decision, nil
 }

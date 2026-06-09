@@ -79,13 +79,11 @@ const MFAPromptMessage = "Multi-factor authentication (MFA) is required. Complet
 
 // MarshalPrompt returns a JSON-marshaled MFA prompt and an echo flag set to false.
 func (pv *MFAPromptVerifier) MarshalPrompt() (string, bool, error) {
-	prompt := &sshpb.AuthPrompt{
-		Prompt: &sshpb.AuthPrompt_MfaPrompt{
-			MfaPrompt: &sshpb.MFAPrompt{
-				Message: MFAPromptMessage,
-			},
-		},
-	}
+	prompt := sshpb.AuthPrompt_builder{
+		MfaPrompt: sshpb.MFAPrompt_builder{
+			Message: MFAPromptMessage,
+		}.Build(),
+	}.Build()
 
 	json, err := protojson.Marshal(prompt)
 	if err != nil {
@@ -103,9 +101,9 @@ func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) er
 		return trace.Wrap(err)
 	}
 
-	switch resp := mfaPromptResp.GetResponse().(type) {
-	case *sshpb.MFAPromptResponse_Reference:
-		challengeName := resp.Reference.GetChallengeName()
+	switch resp := mfaPromptResp.WhichResponse(); resp {
+	case sshpb.MFAPromptResponse_Reference_case:
+		challengeName := mfaPromptResp.GetReference().GetChallengeName()
 		if challengeName == "" {
 			return trace.BadParameter("missing ChallengeName in MFAPromptResponseReference")
 		}
@@ -122,10 +120,10 @@ func (pv *MFAPromptVerifier) VerifyAnswer(ctx context.Context, answer string) er
 		_, err := pv.verifier.VerifyValidatedMFAChallenge(ctx, req)
 		return trace.Wrap(err)
 
-	case nil:
+	case 0:
 		return trace.BadParameter("missing Response in MFAPromptResponse")
 
 	default:
-		return trace.BadParameter("unsupported MFAPromptResponse Response type: %T", resp)
+		return trace.BadParameter("unsupported MFAPromptResponse Response type: %v", resp)
 	}
 }

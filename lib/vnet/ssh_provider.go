@@ -153,10 +153,10 @@ func (p *sshProvider) userTLSConfig(
 	signer := &rpcSigner{
 		pub: parsedCert.PublicKey,
 		sendRequest: func(req *vnetv1.SignRequest) ([]byte, error) {
-			return p.cfg.clt.SignForUserTLS(ctx, &vnetv1.SignForUserTLSRequest{
+			return p.cfg.clt.SignForUserTLS(ctx, vnetv1.SignForUserTLSRequest_builder{
 				Profile: profile,
 				Sign:    req,
-			})
+			}.Build())
 		},
 	}
 	tlsCert := tls.Certificate{

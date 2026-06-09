@@ -65,24 +65,24 @@ func TestProvisioningUpdate(t *testing.T) {
 		require.NoError(t, err)
 
 		// WHEN I try to fetch the user from Downstream A
-		retrievedStateA, err := uut.GetProvisioningState(ctx, downstreamA, services.ProvisioningStateID(stateA.Metadata.Name))
+		retrievedStateA, err := uut.GetProvisioningState(ctx, downstreamA, services.ProvisioningStateID(stateA.GetMetadata().GetName()))
 
 		// EXPECT the operation to succeed, and  to have retrieved the correct record
 		require.NoError(t, err)
-		require.Equal(t, string(downstreamA), retrievedStateA.Spec.DownstreamId)
+		require.Equal(t, string(downstreamA), retrievedStateA.GetSpec().GetDownstreamId())
 		require.Equal(t,
 			provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE,
-			retrievedStateA.Status.ProvisioningState)
+			retrievedStateA.GetStatus().GetProvisioningState())
 
 		// WHEN I try to fetch the user from Downstream B
-		retrievedStateB, err := uut.GetProvisioningState(ctx, downstreamA, services.ProvisioningStateID(stateB.Metadata.Name))
+		retrievedStateB, err := uut.GetProvisioningState(ctx, downstreamA, services.ProvisioningStateID(stateB.GetMetadata().GetName()))
 
 		// EXPECT the operation to succeed, and  to have retrieved the correct record
 		require.NoError(t, err)
-		require.Equal(t, string(downstreamA), retrievedStateB.Spec.DownstreamId)
+		require.Equal(t, string(downstreamA), retrievedStateB.GetSpec().GetDownstreamId())
 		require.Equal(t,
 			provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE,
-			retrievedStateB.Status.ProvisioningState)
+			retrievedStateB.GetStatus().GetProvisioningState())
 
 	})
 
@@ -96,15 +96,15 @@ func TestProvisioningUpdate(t *testing.T) {
 		require.NoError(t, err)
 
 		// GIVEN also that the resource has been updated...
-		s1, err := uut.GetProvisioningState(ctx, downstreamID, services.ProvisioningStateID(s0.Metadata.Name))
+		s1, err := uut.GetProvisioningState(ctx, downstreamID, services.ProvisioningStateID(s0.GetMetadata().GetName()))
 		require.NoError(t, err)
-		s1.Status.ProvisioningState = provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED
+		s1.GetStatus().SetProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED)
 		_, err = uut.UpdateProvisioningState(ctx, s1)
 		require.NoError(t, err)
 
 		// WHEN I try to update the resource based on the original version...
-		s0.Status.ProvisioningState = provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE
-		s0.Status.Error = "I can't find the database"
+		s0.GetStatus().SetProvisioningState(provisioningv1.ProvisioningState_PROVISIONING_STATE_STALE)
+		s0.GetStatus().SetError("I can't find the database")
 		_, err = uut.UpdateProvisioningState(ctx, s0)
 
 		// EXPECT the update to fail due to optimistic locking
@@ -114,20 +114,20 @@ func TestProvisioningUpdate(t *testing.T) {
 }
 
 func mkUserProvisioningState(username string, downstream services.DownstreamID, initialStatus provisioningv1.ProvisioningState) *provisioningv1.PrincipalState {
-	return &provisioningv1.PrincipalState{
+	return provisioningv1.PrincipalState_builder{
 		Kind:    types.KindProvisioningPrincipalState,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "u-" + username,
-		},
-		Spec: &provisioningv1.PrincipalStateSpec{
+		}.Build(),
+		Spec: provisioningv1.PrincipalStateSpec_builder{
 			DownstreamId:  string(downstream),
 			PrincipalType: provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER,
 			PrincipalId:   username,
-		},
-		Status: &provisioningv1.PrincipalStateStatus{
+		}.Build(),
+		Status: provisioningv1.PrincipalStateStatus_builder{
 			ProvisioningState: initialStatus,
-		},
-	}
+		}.Build(),
+	}.Build()
 }

@@ -922,7 +922,7 @@ func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryC
 	// services that currently use ics for heartbeats are registered in the icsServiceToMetricName
 	// mapping for translation.
 	var metricServices []string
-	for _, service := range hello.Services {
+	for _, service := range hello.GetServices() {
 		if name, ok := icsServiceToMetricName[types.SystemRole(service)]; ok {
 			metricServices = append(metricServices, name)
 		}
@@ -2589,10 +2589,6 @@ func (g *GRPCServer) CreateRole(ctx context.Context, req *authpb.CreateRoleReque
 		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
 	}
 
-	if err = services.ValidateRole(req.Role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	created, err := auth.ServerWithRoles.CreateRole(ctx, req.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2628,10 +2624,6 @@ func (g *GRPCServer) UpdateRole(ctx context.Context, req *authpb.UpdateRoleReque
 		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
 	}
 
-	if err = services.ValidateRole(req.Role); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	updated, err := auth.ServerWithRoles.UpdateRole(ctx, req.Role)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2665,10 +2657,6 @@ func (g *GRPCServer) UpsertRoleV2(ctx context.Context, req *authpb.UpsertRoleReq
 	//nolint:staticcheck // this field is preserved for backwards compatibility, but shouldn't be used going forward
 	if req.Role.GetOptions().SSHPortForwarding != nil && req.Role.GetOptions().PortForwarding != nil {
 		return nil, trace.BadParameter("options define both 'port_forwarding' and 'ssh_port_forwarding', only one can be set")
-	}
-
-	if err = services.ValidateRole(req.Role); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	upserted, err := auth.ServerWithRoles.UpsertRole(ctx, req.Role)
@@ -3814,7 +3802,7 @@ func (g *GRPCServer) ListAuthServers(ctx context.Context, req *presencev1pb.List
 		return nil, trace.Wrap(err)
 	}
 
-	servers, next, err := auth.ListAuthServers(ctx, int(req.PageSize), req.PageToken)
+	servers, next, err := auth.ListAuthServers(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3828,10 +3816,10 @@ func (g *GRPCServer) ListAuthServers(ctx context.Context, req *presencev1pb.List
 		serverV2s = append(serverV2s, srv)
 	}
 
-	return &presencev1pb.ListAuthServersResponse{
+	return presencev1pb.ListAuthServersResponse_builder{
 		Servers:       serverV2s,
 		NextPageToken: next,
-	}, nil
+	}.Build(), nil
 }
 
 // ListProxyServers returns a paginated list of proxy servers.
@@ -3841,7 +3829,7 @@ func (g *GRPCServer) ListProxyServers(ctx context.Context, req *presencev1pb.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	servers, next, err := auth.ListProxyServers(ctx, int(req.PageSize), req.PageToken)
+	servers, next, err := auth.ListProxyServers(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3855,10 +3843,10 @@ func (g *GRPCServer) ListProxyServers(ctx context.Context, req *presencev1pb.Lis
 		serverV2s = append(serverV2s, srv)
 	}
 
-	return &presencev1pb.ListProxyServersResponse{
+	return presencev1pb.ListProxyServersResponse_builder{
 		Servers:       serverV2s,
 		NextPageToken: next,
-	}, nil
+	}.Build(), nil
 }
 
 // GetNode retrieves a node by name and namespace.
@@ -6874,22 +6862,22 @@ func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.
 	rawEvents, lastkey, err := auth.ServerWithRoles.SearchUnstructuredEvents(
 		ctx,
 		events.SearchEventsRequest{
-			From:       req.StartDate.AsTime(),
-			To:         req.EndDate.AsTime(),
-			EventTypes: req.EventTypes,
-			Limit:      int(req.Limit),
-			Order:      types.EventOrder(req.Order),
-			StartKey:   req.StartKey,
+			From:       req.GetStartDate().AsTime(),
+			To:         req.GetEndDate().AsTime(),
+			EventTypes: req.GetEventTypes(),
+			Limit:      int(req.GetLimit()),
+			Order:      types.EventOrder(req.GetOrder()),
+			StartKey:   req.GetStartKey(),
 		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &auditlogpb.EventsUnstructured{
+	return auditlogpb.EventsUnstructured_builder{
 		Items:   rawEvents,
 		LastKey: lastkey,
-	}, nil
+	}.Build(), nil
 }
 
 // ExportUnstructuredEvents exports events from a given event chunk returned by GetEventExportChunks. This API prioritizes
@@ -6939,7 +6927,7 @@ func (g *GRPCServer) StreamUnstructuredSessionEvents(req *auditlogpb.StreamUnstr
 		return trace.Wrap(err)
 	}
 
-	c, e := auth.ServerWithRoles.StreamSessionEvents(stream.Context(), session.ID(req.SessionId), int64(req.StartIndex))
+	c, e := auth.ServerWithRoles.StreamSessionEvents(stream.Context(), session.ID(req.GetSessionId()), int64(req.GetStartIndex()))
 
 	for {
 		select {

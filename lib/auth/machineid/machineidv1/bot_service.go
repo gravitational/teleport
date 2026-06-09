@@ -189,24 +189,24 @@ func (bs *BotService) GetBot(ctx context.Context, req *pb.GetBotRequest) (*pb.Bo
 		return nil, trace.Wrap(err)
 	}
 
-	if req.BotName == "" {
+	if req.GetBotName() == "" {
 		return nil, trace.BadParameter("bot_name: must be non-empty")
 	}
 
-	bot, err := bs.getBot(ctx, req.BotName)
+	bot, err := bs.getBot(ctx, req.GetBotName())
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching bot")
 	}
 
 	ruleCtx.Resource153 = bot
 	if err := authCtx.CheckerContext.Decision(
-		ctx, bot.Scope, func(checker *services.ScopedAccessChecker) error {
+		ctx, bot.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbReadNoSecrets)
 		},
 	); err != nil {
 		// Return NotFound rather than Forbidden to avoid leaking existence of
 		// bot.
-		return nil, trace.NotFound("bot %q not found", req.BotName)
+		return nil, trace.NotFound("bot %q not found", req.GetBotName())
 	}
 
 	return bot, nil
@@ -262,14 +262,14 @@ func (bs *BotService) ListBots(
 	// needing to iterate over all users here. This is currently a fairly
 	// expensive implementation.
 	bots := []*pb.Bot{}
-	rsp, err := bs.cache.ListUsers(ctx, &userspb.ListUsersRequest{
-		PageSize:  req.PageSize,
-		PageToken: req.PageToken,
-	})
+	rsp, err := bs.cache.ListUsers(ctx, userspb.ListUsersRequest_builder{
+		PageSize:  req.GetPageSize(),
+		PageToken: req.GetPageToken(),
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err, "listing users")
 	}
-	for _, u := range rsp.Users {
+	for _, u := range rsp.GetUsers() {
 		botName, isBot := u.GetLabel(types.BotLabel)
 		if !isBot {
 			continue
@@ -316,7 +316,7 @@ func (bs *BotService) ListBots(
 		// Check if user can access this specific Bot.
 		ruleCtx := authCtx.RuleContext()
 		ruleCtx.Resource153 = bot
-		if err := authCtx.CheckerContext.Decision(ctx, bot.Scope, func(checker *services.ScopedAccessChecker) error {
+		if err := authCtx.CheckerContext.Decision(ctx, bot.GetScope(), func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbList)
 		}); err != nil {
 			// Ignore resources the user cannot access.
@@ -326,10 +326,10 @@ func (bs *BotService) ListBots(
 		bots = append(bots, bot)
 	}
 
-	return &pb.ListBotsResponse{
+	return pb.ListBotsResponse_builder{
 		Bots:          bots,
-		NextPageToken: rsp.NextPageToken,
-	}, nil
+		NextPageToken: rsp.GetNextPageToken(),
+	}.Build(), nil
 }
 
 // CreateBot creates a new bot. It will throw an error if the bot already
@@ -337,7 +337,7 @@ func (bs *BotService) ListBots(
 func (bs *BotService) CreateBot(
 	ctx context.Context, req *pb.CreateBotRequest,
 ) (*pb.Bot, error) {
-	if err := setKindAndVersion(req.Bot); err != nil {
+	if err := setKindAndVersion(req.GetBot()); err != nil {
 		return nil, trace.Wrap(err, "setting kind and version")
 	}
 	authCtx, err := bs.scopedAuthorizer.AuthorizeScoped(ctx)
@@ -345,15 +345,15 @@ func (bs *BotService) CreateBot(
 		return nil, trace.Wrap(err)
 	}
 
-	if err := StrongValidateBot(req.Bot); err != nil {
+	if err := StrongValidateBot(req.GetBot()); err != nil {
 		return nil, trace.Wrap(err, "validating bot")
 	}
 	// Validation comes before authz checks so we know that scope etc is
 	// well-formed.
 
 	ruleCtx := authCtx.RuleContext()
-	ruleCtx.Resource153 = req.Bot
-	if err := authCtx.CheckerContext.Decision(ctx, req.Bot.Scope, func(checker *services.ScopedAccessChecker) error {
+	ruleCtx.Resource153 = req.GetBot()
+	if err := authCtx.CheckerContext.Decision(ctx, req.GetBot().GetScope(), func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbCreate)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -367,13 +367,13 @@ func (bs *BotService) CreateBot(
 	}
 
 	var bot *pb.Bot
-	if req.Bot.Scope != "" {
-		bot, err = bs.createScopedBot(ctx, authCtx, req.Bot)
+	if req.GetBot().GetScope() != "" {
+		bot, err = bs.createScopedBot(ctx, authCtx, req.GetBot())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		bot, err = bs.createUnscopedBot(ctx, authCtx, req.Bot)
+		bot, err = bs.createUnscopedBot(ctx, authCtx, req.GetBot())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -381,10 +381,10 @@ func (bs *BotService) CreateBot(
 
 	bs.reporter.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
 		UserName:    authz.ClientUsername(ctx),
-		BotUserName: BotResourceName(bot.Metadata.Name),
-		RoleName:    BotResourceName(bot.Metadata.Name),
-		BotName:     bot.Metadata.Name,
-		RoleCount:   int64(len(bot.Spec.Roles)),
+		BotUserName: BotResourceName(bot.GetMetadata().GetName()),
+		RoleName:    BotResourceName(bot.GetMetadata().GetName()),
+		BotName:     bot.GetMetadata().GetName(),
+		RoleCount:   int64(len(bot.GetSpec().GetRoles())),
 	})
 	if err := bs.emitter.EmitAuditEvent(ctx, &apievents.BotCreate{
 		Metadata: apievents.Metadata{
@@ -393,7 +393,7 @@ func (bs *BotService) CreateBot(
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: bot.Metadata.Name,
+			Name: bot.GetMetadata().GetName(),
 		},
 	}); err != nil {
 		bs.logger.WarnContext(
@@ -475,7 +475,7 @@ func UpsertBot(
 	createdBy string,
 	scopesFeatures scopes.Features,
 ) (*pb.Bot, error) {
-	if bot.Scope != "" {
+	if bot.GetScope() != "" {
 		if err := scopesFeatures.AssertEnabled(); err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -487,7 +487,7 @@ func UpsertBot(
 	// Fetch pre-existing user, we'll use this to preserve generation and
 	// check for scope transitions.
 	existingUser, err := backend.GetUser(
-		ctx, BotResourceName(bot.Metadata.Name), false,
+		ctx, BotResourceName(bot.GetMetadata().GetName()), false,
 	)
 	if err != nil && !trace.IsNotFound(err) {
 		// We'll happily ignore a not-found error, in this case, we have an
@@ -502,7 +502,7 @@ func UpsertBot(
 		// This restriction may be loosened in future if we evaluate pre-upsert
 		// and post-upsert scope authz.
 		existingScope, _ := existingUser.GetLabel(types.BotScopeLabel)
-		if existingScope != bot.Scope {
+		if existingScope != bot.GetScope() {
 			return nil, trace.BadParameter(
 				"upserts cannot cause the scope of a bot to change, delete and recreate the bot to change its scope",
 			)
@@ -512,7 +512,7 @@ func UpsertBot(
 	// Create User (and maybe Role if unscoped) from the Bot.
 	var user types.User
 	var role types.Role
-	if bot.Scope != "" {
+	if bot.GetScope() != "" {
 		user, err = scopedBotToUser(bot, now, createdBy)
 		if err != nil {
 			return nil, trace.Wrap(err, "converting scoped bot to user resource")
@@ -563,7 +563,7 @@ func UpsertBot(
 
 // UpsertBot creates a new bot or forcefully updates an existing bot.
 func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (*pb.Bot, error) {
-	if err := setKindAndVersion(req.Bot); err != nil {
+	if err := setKindAndVersion(req.GetBot()); err != nil {
 		return nil, trace.Wrap(err, "setting kind and version")
 	}
 
@@ -572,17 +572,17 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 		return nil, trace.Wrap(err)
 	}
 
-	if err := StrongValidateBot(req.Bot); err != nil {
+	if err := StrongValidateBot(req.GetBot()); err != nil {
 		return nil, trace.Wrap(err, "validating bot")
 	}
 	// Validation comes before authz checks so that we know scope (if present)
 	// is well-formed.
 
 	ruleCtx := authCtx.RuleContext()
-	ruleCtx.Resource153 = req.Bot
+	ruleCtx.Resource153 = req.GetBot()
 	if err := authCtx.CheckerContext.Decision(
 		ctx,
-		req.Bot.Scope,
+		req.GetBot().GetScope(),
 		func(checker *services.ScopedAccessChecker) error {
 			return checker.CheckAccessToRules(
 				&ruleCtx, types.KindBot, types.VerbCreate, types.VerbUpdate,
@@ -601,7 +601,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 	}
 
 	bot, err := UpsertBot(
-		ctx, bs.backend, req.Bot, bs.clock.Now(), authCtx.User.GetName(), bs.scopesFeatures,
+		ctx, bs.backend, req.GetBot(), bs.clock.Now(), authCtx.User.GetName(), bs.scopesFeatures,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -609,10 +609,10 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 
 	bs.reporter.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
 		UserName:    authz.ClientUsername(ctx),
-		BotUserName: BotResourceName(bot.Metadata.Name),
-		RoleName:    BotResourceName(bot.Metadata.Name),
-		BotName:     bot.Metadata.Name,
-		RoleCount:   int64(len(bot.Spec.Roles)),
+		BotUserName: BotResourceName(bot.GetMetadata().GetName()),
+		RoleName:    BotResourceName(bot.GetMetadata().GetName()),
+		BotName:     bot.GetMetadata().GetName(),
+		RoleCount:   int64(len(bot.GetSpec().GetRoles())),
 	})
 	if err := bs.emitter.EmitAuditEvent(ctx, &apievents.BotCreate{
 		Metadata: apievents.Metadata{
@@ -621,7 +621,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: bot.Metadata.Name,
+			Name: bot.GetMetadata().GetName(),
 		},
 	}); err != nil {
 		bs.logger.WarnContext(
@@ -638,7 +638,7 @@ func (bs *BotService) UpsertBot(ctx context.Context, req *pb.UpsertBotRequest) (
 func (bs *BotService) UpdateBot(
 	ctx context.Context, req *pb.UpdateBotRequest,
 ) (*pb.Bot, error) {
-	if err := setKindAndVersion(req.Bot); err != nil {
+	if err := setKindAndVersion(req.GetBot()); err != nil {
 		return nil, trace.Wrap(err, "setting kind and version")
 	}
 
@@ -656,7 +656,7 @@ func (bs *BotService) UpdateBot(
 	}
 
 	if err := authCtx.CheckAccessToResource153(
-		req.Bot,
+		req.GetBot(),
 		types.VerbUpdate,
 	); err != nil {
 		return nil, trace.Wrap(err)
@@ -666,62 +666,62 @@ func (bs *BotService) UpdateBot(
 	}
 
 	switch {
-	case req.Bot == nil:
+	case !req.HasBot():
 		return nil, trace.BadParameter("bot: must be non-nil")
-	case req.Bot.Metadata == nil:
+	case !req.GetBot().HasMetadata():
 		return nil, trace.BadParameter("bot.metadata: must be non-nil")
-	case req.Bot.Metadata.Name == "":
+	case req.GetBot().GetMetadata().GetName() == "":
 		return nil, trace.BadParameter("bot.metadata.name: must be non-empty")
-	case req.Bot.Spec == nil:
+	case !req.GetBot().HasSpec():
 		return nil, trace.BadParameter("bot.spec: must be non-nil")
-	case req.UpdateMask == nil:
+	case !req.HasUpdateMask():
 		return nil, trace.BadParameter("update_mask: must be non-nil")
-	case len(req.UpdateMask.Paths) == 0:
+	case len(req.GetUpdateMask().Paths) == 0:
 		return nil, trace.BadParameter("update_mask.paths: must be non-empty")
 	}
 
-	user, err := bs.backend.GetUser(ctx, BotResourceName(req.Bot.Metadata.Name), false)
+	user, err := bs.backend.GetUser(ctx, BotResourceName(req.GetBot().GetMetadata().GetName()), false)
 	if err != nil {
 		return nil, trace.Wrap(err, "getting bot user")
 	}
 	if scope := user.GetMetadata().Labels[types.BotScopeLabel]; scope != "" {
 		return nil, trace.BadParameter("cannot update scoped bot")
 	}
-	role, err := bs.backend.GetRole(ctx, BotResourceName(req.Bot.Metadata.Name))
+	role, err := bs.backend.GetRole(ctx, BotResourceName(req.GetBot().GetMetadata().GetName()))
 	if err != nil {
 		return nil, trace.Wrap(err, "getting bot role")
 	}
 
-	for _, path := range req.UpdateMask.Paths {
+	for _, path := range req.GetUpdateMask().Paths {
 		switch path {
 		case "spec.roles":
-			if slices.Contains(req.Bot.Spec.Roles, "") {
+			if slices.Contains(req.GetBot().GetSpec().GetRoles(), "") {
 				return nil, trace.BadParameter(
 					"spec.roles: must not contain empty strings",
 				)
 			}
 			role.SetImpersonateConditions(types.Allow, types.ImpersonateConditions{
-				Roles: req.Bot.Spec.Roles,
+				Roles: req.GetBot().GetSpec().GetRoles(),
 			})
 		case "spec.traits":
 			traits := map[string][]string{}
-			for _, t := range req.Bot.Spec.Traits {
-				if len(t.Values) == 0 {
+			for _, t := range req.GetBot().GetSpec().GetTraits() {
+				if len(t.GetValues()) == 0 {
 					continue
 				}
-				if traits[t.Name] == nil {
-					traits[t.Name] = []string{}
+				if traits[t.GetName()] == nil {
+					traits[t.GetName()] = []string{}
 				}
-				traits[t.Name] = append(traits[t.Name], t.Values...)
+				traits[t.GetName()] = append(traits[t.GetName()], t.GetValues()...)
 			}
 			user.SetTraits(traits)
 		case "spec.max_session_ttl":
 			opts := role.GetOptions()
-			opts.MaxSessionTTL = types.Duration(req.Bot.Spec.MaxSessionTtl.AsDuration())
+			opts.MaxSessionTTL = types.Duration(req.GetBot().GetSpec().GetMaxSessionTtl().AsDuration())
 			role.SetOptions(opts)
 		case "metadata.description":
 			meta := user.GetMetadata()
-			meta.Description = req.Bot.Metadata.Description
+			meta.Description = req.GetBot().GetMetadata().GetDescription()
 			user.SetMetadata(meta)
 		default:
 			return nil, trace.BadParameter("update_mask: unsupported path %q", path)
@@ -744,7 +744,7 @@ func (bs *BotService) UpdateBot(
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.Bot.Metadata.Name,
+			Name: req.GetBot().GetMetadata().GetName(),
 		},
 	}); err != nil {
 		bs.logger.WarnContext(
@@ -789,13 +789,13 @@ func (bs *BotService) deleteBotRole(ctx context.Context, botName string) error {
 // dummyBotWithName returns a dummy bot with the given name. This is used
 // for evaluating RBAC for the Delete RPC
 func dummyBotWithName(name string) *pb.Bot {
-	return &pb.Bot{
+	return pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // DeleteBot deletes an existing bot. It will throw an error if the bot does
@@ -812,7 +812,7 @@ func (bs *BotService) DeleteBot(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if req.BotName == "" {
+	if req.GetBotName() == "" {
 		return nil, trace.BadParameter("bot_name: must be non-empty")
 	}
 
@@ -826,14 +826,14 @@ func (bs *BotService) DeleteBot(
 
 	// Fetch user to determine if bot is scoped or unscoped.
 	user, err := bs.backend.GetUser(
-		ctx, BotResourceName(req.BotName), false,
+		ctx, BotResourceName(req.GetBotName()), false,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	scope := user.GetMetadata().Labels[types.BotScopeLabel]
 
-	ruleCtx.Resource153 = dummyBotWithName(req.BotName)
+	ruleCtx.Resource153 = dummyBotWithName(req.GetBotName())
 	if err := authCtx.CheckerContext.Decision(ctx, scope, func(checker *services.ScopedAccessChecker) error {
 		return checker.CheckAccessToRules(&ruleCtx, types.KindBot, types.VerbDelete)
 	}); err != nil {
@@ -847,11 +847,11 @@ func (bs *BotService) DeleteBot(
 		}
 	}
 
-	userErr := bs.deleteBotUser(ctx, req.BotName, user)
+	userErr := bs.deleteBotUser(ctx, req.GetBotName(), user)
 	var roleErr error
 	if scope == "" {
 		// Only unscoped bots have a Bot role for us to delete.
-		roleErr = bs.deleteBotRole(ctx, req.BotName)
+		roleErr = bs.deleteBotRole(ctx, req.GetBotName())
 	}
 	err = trace.NewAggregate(
 		trace.Wrap(userErr, "deleting bot user"),
@@ -868,7 +868,7 @@ func (bs *BotService) DeleteBot(
 		},
 		UserMetadata: authz.ClientUserMetadata(ctx),
 		ResourceMetadata: apievents.ResourceMetadata{
-			Name: req.BotName,
+			Name: req.GetBotName(),
 		},
 	}); err != nil {
 		bs.logger.WarnContext(
@@ -892,11 +892,11 @@ func setKindAndVersion(b *pb.Bot) error {
 	if b == nil {
 		return trace.BadParameter("bot: must be non-nil")
 	}
-	if b.Kind == "" {
-		b.Kind = types.KindBot
+	if b.GetKind() == "" {
+		b.SetKind(types.KindBot)
 	}
-	if b.Version == "" {
-		b.Version = types.V1
+	if b.GetVersion() == "" {
+		b.SetVersion(types.V1)
 	}
 	return nil
 }
@@ -908,34 +908,34 @@ func StrongValidateBot(b *pb.Bot) error {
 	if b == nil {
 		return trace.BadParameter("must be non-nil")
 	}
-	if b.Metadata == nil {
+	if !b.HasMetadata() {
 		return trace.BadParameter("metadata: must be non-nil")
 	}
-	if b.Metadata.Name == "" {
+	if b.GetMetadata().GetName() == "" {
 		return trace.BadParameter("metadata.name: must be non-empty")
 	}
-	if b.Spec == nil {
+	if !b.HasSpec() {
 		return trace.BadParameter("spec: must be non-nil")
 	}
-	if slices.Contains(b.Spec.Roles, "") {
+	if slices.Contains(b.GetSpec().GetRoles(), "") {
 		return trace.BadParameter("spec.roles: must not contain empty strings")
 	}
 
 	// Scoped bot only validation
-	if b.Scope != "" {
+	if b.GetScope() != "" {
 		// Validate scope-specific fields
-		if err := scopes.StrongValidate(b.Scope); err != nil {
+		if err := scopes.StrongValidate(b.GetScope()); err != nil {
 			return trace.Wrap(err, "scope:")
 		}
 
 		// Validate unsupported fields aren't set.
-		if len(b.Spec.Roles) > 0 {
+		if len(b.GetSpec().GetRoles()) > 0 {
 			return trace.BadParameter("spec.roles: cannot be set on scoped bot")
 		}
-		if b.Spec.MaxSessionTtl.AsDuration() != 0 {
+		if b.GetSpec().GetMaxSessionTtl().AsDuration() != 0 {
 			return trace.BadParameter("spec.max_session_ttl: cannot be set on scoped bot")
 		}
-		if len(b.Spec.Traits) > 0 {
+		if len(b.GetSpec().GetTraits()) > 0 {
 			return trace.BadParameter("spec.traits: cannot be set on scoped bot")
 		}
 	}
@@ -970,33 +970,33 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 		return nil, trace.BadParameter("botFromUserAndRole called on user with scope label")
 	}
 
-	b := &pb.Bot{
+	b := pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        botName,
 			Expires:     botExpiryFromUser(user),
 			Description: user.GetMetadata().Description,
-		},
-		Status: &pb.BotStatus{
+		}.Build(),
+		Status: pb.BotStatus_builder{
 			UserName: user.GetName(),
 			RoleName: role.GetName(),
-		},
-		Spec: &pb.BotSpec{
+		}.Build(),
+		Spec: pb.BotSpec_builder{
 			Roles:         role.GetImpersonateConditions(types.Allow).Roles,
 			MaxSessionTtl: durationpb.New(role.GetOptions().MaxSessionTTL.Duration()),
-		},
-	}
+		}.Build(),
+	}.Build()
 
 	// Copy in labels from the user
-	b.Metadata.Labels = map[string]string{}
+	b.GetMetadata().SetLabels(map[string]string{})
 	for k, v := range user.GetMetadata().Labels {
 		// We exclude the labels that are implicitly added to the user by the
 		// bot service.
 		if nonPropagatedLabels.Contains(k) {
 			continue
 		}
-		b.Metadata.Labels[k] = v
+		b.GetMetadata().GetLabels()[k] = v
 	}
 
 	// Copy in traits
@@ -1004,10 +1004,10 @@ func botFromUserAndRole(user types.User, role types.Role) (*pb.Bot, error) {
 		if len(v) == 0 {
 			continue
 		}
-		b.Spec.Traits = append(b.Spec.Traits, &pb.Trait{
+		b.GetSpec().SetTraits(append(b.GetSpec().GetTraits(), pb.Trait_builder{
 			Name:   k,
 			Values: v,
-		})
+		}.Build()))
 	}
 
 	return b, nil
@@ -1024,48 +1024,48 @@ func scopedBotFromUser(user types.User) (*pb.Bot, error) {
 		return nil, trace.BadParameter("scopedBotFromUser called on user without scope label")
 	}
 
-	b := &pb.Bot{
+	b := pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
 		Scope:   scope,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:        botName,
 			Expires:     botExpiryFromUser(user),
 			Description: user.GetMetadata().Description,
-		},
-		Status: &pb.BotStatus{
+		}.Build(),
+		Status: pb.BotStatus_builder{
 			UserName: user.GetName(),
-		},
+		}.Build(),
 		Spec: &pb.BotSpec{},
-	}
+	}.Build()
 
 	// Copy in labels from the user
-	b.Metadata.Labels = map[string]string{}
+	b.GetMetadata().SetLabels(map[string]string{})
 	for k, v := range user.GetMetadata().Labels {
 		// We exclude the labels that are implicitly added to the user by the
 		// bot service.
 		if nonPropagatedLabels.Contains(k) {
 			continue
 		}
-		b.Metadata.Labels[k] = v
+		b.GetMetadata().GetLabels()[k] = v
 	}
 
 	return b, nil
 }
 
 func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User, types.Role, error) {
-	if bot.Scope != "" {
+	if bot.GetScope() != "" {
 		return nil, nil, trace.BadParameter("botToUserAndRole called on scoped bot")
 	}
 
 	// Setup role
-	resourceName := BotResourceName(bot.Metadata.Name)
+	resourceName := BotResourceName(bot.GetMetadata().GetName())
 
 	// Continue to use the legacy max session TTL (12 hours) as the default, but
 	// allow overrides via the optional bot spec field.
 	maxSessionTTL := defaults.DefaultBotMaxSessionTTL
-	if bot.Spec.MaxSessionTtl != nil {
-		maxSessionTTL = bot.Spec.MaxSessionTtl.AsDuration()
+	if bot.GetSpec().HasMaxSessionTtl() {
+		maxSessionTTL = bot.GetSpec().GetMaxSessionTtl().AsDuration()
 	}
 
 	role, err := types.NewRole(resourceName, types.RoleSpecV6{
@@ -1078,7 +1078,7 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 				types.NewRule(types.KindCertAuthority, []string{types.VerbReadNoSecrets}),
 			},
 			Impersonate: &types.ImpersonateConditions{
-				Roles: bot.Spec.Roles,
+				Roles: bot.GetSpec().GetRoles(),
 			},
 		},
 	})
@@ -1087,10 +1087,10 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	}
 	roleMeta := role.GetMetadata()
 	roleMeta.Description = fmt.Sprintf(
-		"Automatically generated role for bot %s", bot.Metadata.Name,
+		"Automatically generated role for bot %s", bot.GetMetadata().GetName(),
 	)
 	roleMeta.Labels = map[string]string{
-		types.BotLabel: bot.Metadata.Name,
+		types.BotLabel: bot.GetMetadata().GetName(),
 	}
 	roleMeta.Expires = userAndRoleExpiryFromBot(bot)
 	role.SetMetadata(roleMeta)
@@ -1105,10 +1105,10 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 
 	// First copy in the labels from the Bot resource
 	userMeta.Labels = map[string]string{}
-	maps.Copy(userMeta.Labels, bot.Metadata.Labels)
+	maps.Copy(userMeta.Labels, bot.GetMetadata().GetLabels())
 	// Then set these labels over the top - we exclude these when converting
 	// back.
-	userMeta.Labels[types.BotLabel] = bot.Metadata.Name
+	userMeta.Labels[types.BotLabel] = bot.GetMetadata().GetName()
 	// We always set this to zero here - but in Upsert, we copy from the
 	// previous user before writing if necessary
 	userMeta.Labels[types.BotGenerationLabel] = "0"
@@ -1117,18 +1117,18 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 	userMeta.Expires = userAndRoleExpiryFromBot(bot)
 	// We track the Bot description within the User description field because
 	// the Role description already has a message.
-	userMeta.Description = bot.Metadata.Description
+	userMeta.Description = bot.GetMetadata().GetDescription()
 	user.SetMetadata(userMeta)
 
 	traits := map[string][]string{}
-	for _, t := range bot.Spec.Traits {
-		if len(t.Values) == 0 {
+	for _, t := range bot.GetSpec().GetTraits() {
+		if len(t.GetValues()) == 0 {
 			continue
 		}
-		if traits[t.Name] == nil {
-			traits[t.Name] = []string{}
+		if traits[t.GetName()] == nil {
+			traits[t.GetName()] = []string{}
 		}
-		traits[t.Name] = append(traits[t.Name], t.Values...)
+		traits[t.GetName()] = append(traits[t.GetName()], t.GetValues()...)
 	}
 	user.SetTraits(traits)
 	user.SetCreatedBy(types.CreatedBy{
@@ -1140,12 +1140,12 @@ func botToUserAndRole(bot *pb.Bot, now time.Time, createdBy string) (types.User,
 }
 
 func scopedBotToUser(bot *pb.Bot, now time.Time, createdBy string) (types.User, error) {
-	if bot.Scope == "" {
+	if bot.GetScope() == "" {
 		return nil, trace.BadParameter("scopedBotToUser called on unscoped bot")
 	}
 
 	// Setup user
-	user, err := types.NewUser(BotResourceName(bot.Metadata.Name))
+	user, err := types.NewUser(BotResourceName(bot.GetMetadata().GetName()))
 	if err != nil {
 		return nil, trace.Wrap(err, "new user")
 	}
@@ -1153,18 +1153,18 @@ func scopedBotToUser(bot *pb.Bot, now time.Time, createdBy string) (types.User, 
 
 	// First copy in the labels from the Bot resource
 	userMeta.Labels = map[string]string{}
-	maps.Copy(userMeta.Labels, bot.Metadata.Labels)
+	maps.Copy(userMeta.Labels, bot.GetMetadata().GetLabels())
 	// Then set these labels over the top - we exclude these when converting
 	// back.
-	userMeta.Labels[types.BotLabel] = bot.Metadata.Name
+	userMeta.Labels[types.BotLabel] = bot.GetMetadata().GetName()
 	// We always set this to zero here - but in Upsert, we copy from the
 	// previous user before writing if necessary
 	userMeta.Labels[types.BotGenerationLabel] = "0"
-	userMeta.Labels[types.BotScopeLabel] = bot.Scope
+	userMeta.Labels[types.BotScopeLabel] = bot.GetScope()
 	userMeta.Expires = userAndRoleExpiryFromBot(bot)
 	// We track the Bot description within the User description field because
 	// the Role description already has a message.
-	userMeta.Description = bot.Metadata.Description
+	userMeta.Description = bot.GetMetadata().GetDescription()
 	user.SetMetadata(userMeta)
 
 	user.SetCreatedBy(types.CreatedBy{
@@ -1176,11 +1176,11 @@ func scopedBotToUser(bot *pb.Bot, now time.Time, createdBy string) (types.User, 
 }
 
 func userAndRoleExpiryFromBot(bot *pb.Bot) *time.Time {
-	if bot.Metadata.GetExpires() == nil {
+	if bot.GetMetadata().GetExpires() == nil {
 		return nil
 	}
 
-	expiry := bot.Metadata.GetExpires().AsTime()
+	expiry := bot.GetMetadata().GetExpires().AsTime()
 	if expiry.IsZero() || expiry.Unix() == 0 {
 		return nil
 	}

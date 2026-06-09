@@ -42,10 +42,10 @@ func listResources[T types.ResourceWithLabels](ctx context.Context, params *api.
 
 	req := &proto.ListResourcesRequest{
 		ResourceType:        resourceKind,
-		Limit:               params.Limit,
-		StartKey:            params.StartKey,
-		PredicateExpression: params.PredicateExpression,
-		UseSearchAsRoles:    params.UseSearchAsRoles,
+		Limit:               params.GetLimit(),
+		StartKey:            params.GetStartKey(),
+		PredicateExpression: params.GetPredicateExpression(),
+		UseSearchAsRoles:    params.GetUseSearchAsRoles(),
 	}
 
 	err = AddMetadataToRetryableError(ctx, func() error {

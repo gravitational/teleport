@@ -1054,30 +1054,30 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	adminClient, err := testPack.tlsServer.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 	defer adminClient.Close()
-	bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	bot, err := adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "request-approver",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{
 					// Grants the ability to approve requests
 					"admins",
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Use the bot user to generate some certs using role impersonation.
 	// This mimics what the bot actually does.
-	botClient, err := testPack.tlsServer.NewClient(authtest.TestUser(bot.Status.UserName))
+	botClient, err := testPack.tlsServer.NewClient(authtest.TestUser(bot.GetStatus().GetUserName()))
 	require.NoError(t, err)
 	defer botClient.Close()
 	certRes, err := botClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
-		Username:     bot.Status.UserName,
+		Username:     bot.GetStatus().GetUserName(),
 		TLSPublicKey: testPack.tlsPubKey,
 		Expires:      time.Now().Add(time.Hour),
 
@@ -1110,7 +1110,7 @@ func testBotAccessRequestReview(t *testing.T, testPack *accessRequestTestPack) {
 	require.NoError(t, err)
 
 	// Check the final state of the request
-	require.Equal(t, bot.Status.UserName, accessRequest.GetReviews()[0].Author)
+	require.Equal(t, bot.GetStatus().GetUserName(), accessRequest.GetReviews()[0].Author)
 	require.Equal(t, types.RequestState_APPROVED, accessRequest.GetState())
 }
 

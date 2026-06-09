@@ -138,23 +138,23 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 	// Create a new bot.
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
-	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	bot, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"example"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	token, err := types.NewProvisionTokenFromSpec("testxyzzy", time.Time{}, types.ProvisionTokenSpecV2{
 		Roles:   types.SystemRoles{types.RoleBot},
-		BotName: bot.Metadata.Name,
+		BotName: bot.GetMetadata().GetName(),
 	})
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
@@ -188,18 +188,18 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 
 		// There should always be at least 1 entry as the initial join is
 		// duplicated in the list.
-		require.Len(t, bi.Status.LatestAuthentications, min(i+1, machineidv1.AuthenticationHistoryLimit))
+		require.Len(t, bi.GetStatus().GetLatestAuthentications(), min(i+1, machineidv1.AuthenticationHistoryLimit))
 
 		// Generation starts at 1 for initial certs.
-		latest := bi.Status.LatestAuthentications[len(bi.Status.LatestAuthentications)-1]
-		require.Equal(t, int32(i+1), latest.Generation)
+		latest := bi.GetStatus().GetLatestAuthentications()[len(bi.GetStatus().GetLatestAuthentications())-1]
+		require.Equal(t, int32(i+1), latest.GetGeneration())
 
-		lastExpires := bi.Metadata.Expires.AsTime()
+		lastExpires := bi.GetMetadata().GetExpires().AsTime()
 
 		// Advance the clock a bit.
 		fakeClock.Advance(time.Minute)
 
-		_, certs, err = renewBotCerts(ctx, srv, certs.TLS, bot.Status.UserName, result.PrivateKey)
+		_, certs, err = renewBotCerts(ctx, srv, certs.TLS, bot.GetStatus().GetUserName(), result.PrivateKey)
 		require.NoError(t, err)
 
 		// Parse the Identity
@@ -222,12 +222,12 @@ func TestRegisterBotCertificateGenerationCheck(t *testing.T) {
 		bi, err = srv.Auth().BotInstance.GetBotInstance(ctx, initialIdent.BotName, initialIdent.BotInstanceID)
 		require.NoError(t, err)
 
-		require.Len(t, bi.Status.LatestAuthentications, min(i+2, machineidv1.AuthenticationHistoryLimit))
+		require.Len(t, bi.GetStatus().GetLatestAuthentications(), min(i+2, machineidv1.AuthenticationHistoryLimit))
 
-		latest = bi.Status.LatestAuthentications[len(bi.Status.LatestAuthentications)-1]
-		require.Equal(t, int32(i+2), latest.Generation)
+		latest = bi.GetStatus().GetLatestAuthentications()[len(bi.GetStatus().GetLatestAuthentications())-1]
+		require.Equal(t, int32(i+2), latest.GetGeneration())
 
-		require.True(t, bi.Metadata.Expires.AsTime().After(lastExpires), "Metadata.Expires must be extended")
+		require.True(t, bi.GetMetadata().GetExpires().AsTime().After(lastExpires), "Metadata.Expires must be extended")
 	}
 }
 
@@ -250,18 +250,18 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	// Create a new bot.
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
-	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	bot, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"example"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	k8s, err := fakeissuer.NewKubernetesSigner(srv.Clock())
@@ -282,7 +282,7 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 		types.ProvisionTokenSpecV2{
 			Roles:      types.SystemRoles{types.RoleBot},
 			JoinMethod: types.JoinMethodKubernetes,
-			BotName:    bot.Metadata.Name,
+			BotName:    bot.GetMetadata().GetName(),
 			Kubernetes: &types.ProvisionTokenSpecV2Kubernetes{
 				Type: types.KubernetesJoinTypeStaticJWKS,
 				StaticJWKS: &types.ProvisionTokenSpecV2Kubernetes_StaticJWKSConfig{
@@ -317,22 +317,22 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	require.NoError(t, err)
 	ident, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
 	require.NoError(t, err)
-	wantAttrs := &workloadidentityv1pb.JoinAttrs{
-		Meta: &workloadidentityv1pb.JoinAttrsMeta{
+	wantAttrs := workloadidentityv1pb.JoinAttrs_builder{
+		Meta: workloadidentityv1pb.JoinAttrsMeta_builder{
 			JoinTokenName: tok.GetName(),
 			JoinMethod:    string(types.JoinMethodKubernetes),
-		},
-		Kubernetes: &workloadidentityv1pb.JoinAttrsKubernetes{
-			ServiceAccount: &workloadidentityv1pb.JoinAttrsKubernetesServiceAccount{
+		}.Build(),
+		Kubernetes: workloadidentityv1pb.JoinAttrsKubernetes_builder{
+			ServiceAccount: workloadidentityv1pb.JoinAttrsKubernetesServiceAccount_builder{
 				Namespace: "my-namespace",
 				Name:      "my-service-account",
-			},
-			Pod: &workloadidentityv1pb.JoinAttrsKubernetesPod{
+			}.Build(),
+			Pod: workloadidentityv1pb.JoinAttrsKubernetesPod_builder{
 				Name: "my-pod",
-			},
+			}.Build(),
 			Subject: "system:serviceaccount:my-namespace:my-service-account",
-		},
-	}
+		}.Build(),
+	}.Build()
 	require.Empty(t, cmp.Diff(
 		ident.JoinAttributes,
 		wantAttrs,
@@ -354,7 +354,7 @@ func TestBotJoinAttrs_Kubernetes(t *testing.T) {
 	roleCerts, err := botClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 		SSHPublicKey: ssh.MarshalAuthorizedKey(sshPub),
 		TLSPublicKey: tlsPub,
-		Username:     bot.Status.UserName,
+		Username:     bot.GetStatus().GetUserName(),
 		RoleRequests: []string{
 			role.GetName(),
 		},
@@ -390,23 +390,23 @@ func TestRegisterBotInstance(t *testing.T) {
 	// Create a new bot.
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
-	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	bot, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"example"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	token, err := types.NewProvisionTokenFromSpec("testxyzzy", time.Time{}, types.ProvisionTokenSpecV2{
 		Roles:   types.SystemRoles{types.RoleBot},
-		BotName: bot.Metadata.Name,
+		BotName: bot.GetMetadata().GetName(),
 	})
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
@@ -433,19 +433,19 @@ func TestRegisterBotInstance(t *testing.T) {
 	botInstance, err := srv.Auth().BotInstance.GetBotInstance(ctx, ident.BotName, ident.BotInstanceID)
 	require.NoError(t, err)
 
-	require.Equal(t, ident.BotName, botInstance.GetSpec().BotName)
-	require.Equal(t, ident.BotInstanceID, botInstance.GetSpec().InstanceId)
+	require.Equal(t, ident.BotName, botInstance.GetSpec().GetBotName())
+	require.Equal(t, ident.BotInstanceID, botInstance.GetSpec().GetInstanceId())
 
 	// The initial authentication record should be sane
-	ia := botInstance.GetStatus().InitialAuthentication
+	ia := botInstance.GetStatus().GetInitialAuthentication()
 	require.NotNil(t, ia)
-	require.Equal(t, int32(1), ia.Generation)
-	require.Equal(t, string(types.JoinMethodToken), ia.JoinMethod)
-	require.Equal(t, token.GetSafeName(), ia.JoinToken)
+	require.Equal(t, int32(1), ia.GetGeneration())
+	require.Equal(t, string(types.JoinMethodToken), ia.GetJoinMethod())
+	require.Equal(t, token.GetSafeName(), ia.GetJoinToken())
 	// The latest authentications field should contain the same record (and
 	// only that record.)
-	require.Len(t, botInstance.GetStatus().LatestAuthentications, 1)
-	require.EqualExportedValues(t, ia, botInstance.GetStatus().LatestAuthentications[0])
+	require.Len(t, botInstance.GetStatus().GetLatestAuthentications(), 1)
+	require.EqualExportedValues(t, ia, botInstance.GetStatus().GetLatestAuthentications()[0])
 
 	// Validate that expected audit events were emitted...
 	auditEvents := mockEmitter.Events()
@@ -537,23 +537,23 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	// Create a new bot.
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
-	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	bot, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"example"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	token, err := types.NewProvisionTokenFromSpec("testxyzzy", time.Time{}, types.ProvisionTokenSpecV2{
 		Roles:   types.SystemRoles{types.RoleBot},
-		BotName: bot.Metadata.Name,
+		BotName: bot.GetMetadata().GetName(),
 	})
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
@@ -568,7 +568,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.NoError(t, err)
 
 	// Renew the certs once (e.g. this is the actual bot process)
-	renewedClient, certsReal, err := renewBotCerts(ctx, srv, result.Certs.TLS, bot.Status.UserName, result.PrivateKey)
+	renewedClient, certsReal, err := renewBotCerts(ctx, srv, result.Certs.TLS, bot.GetStatus().GetUserName(), result.PrivateKey)
 	require.NoError(t, err)
 
 	// This client should be able to ping.
@@ -583,7 +583,7 @@ func TestRegisterBotCertificateGenerationStolen(t *testing.T) {
 	require.Equal(t, uint64(2), impersonatedIdent.Generation)
 
 	// Meanwhile, the initial set of certs was stolen. Let's try to renew those.
-	_, _, err = renewBotCerts(ctx, srv, result.Certs.TLS, bot.Status.UserName, result.PrivateKey)
+	_, _, err = renewBotCerts(ctx, srv, result.Certs.TLS, bot.GetStatus().GetUserName(), result.PrivateKey)
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -613,23 +613,23 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	// Create a new bot.
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
-	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	bot, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"example"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	token, err := types.NewProvisionTokenFromSpec("testxyzzy", time.Time{}, types.ProvisionTokenSpecV2{
 		Roles:   types.SystemRoles{types.RoleBot},
-		BotName: bot.Metadata.Name,
+		BotName: bot.GetMetadata().GetName(),
 	})
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, token))
@@ -644,7 +644,7 @@ func TestRegisterBotCertificateExtensions(t *testing.T) {
 	require.NoError(t, err)
 	checkCertLoginIP(t, result.Certs.TLS, "127.0.0.1")
 
-	_, certs, err := renewBotCerts(ctx, srv, result.Certs.TLS, bot.Status.UserName, result.PrivateKey)
+	_, certs, err := renewBotCerts(ctx, srv, result.Certs.TLS, bot.GetStatus().GetUserName(), result.PrivateKey)
 	require.NoError(t, err)
 
 	// Parse the Identity
@@ -677,16 +677,16 @@ func TestRegisterBot_RemoteAddr(t *testing.T) {
 	require.NoError(t, err)
 
 	botName := "botty"
-	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+	_, err = machineidv1.UpsertBot(ctx, a, machineidv1pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: botName,
-		},
-		Spec: &machineidv1pb.BotSpec{
+		}.Build(),
+		Spec: machineidv1pb.BotSpec_builder{
 			Roles: []string{roleName},
-		},
-	}, a.GetClock().Now(), "", scopes.Features{})
+		}.Build(),
+	}.Build(), a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	remoteAddr := "42.42.42.42:42"
@@ -935,16 +935,16 @@ func TestRegisterBot_BotInstanceRejoin(t *testing.T) {
 	require.NoError(t, err)
 
 	botName := "bot"
-	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+	_, err = machineidv1.UpsertBot(ctx, a, machineidv1pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: botName,
-		},
-		Spec: &machineidv1pb.BotSpec{
+		}.Build(),
+		Spec: machineidv1pb.BotSpec_builder{
 			Roles: []string{roleName},
-		},
-	}, a.GetClock().Now(), "", scopes.Features{})
+		}.Build(),
+	}.Build(), a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	// Create k8s and IAM join tokens
@@ -1091,16 +1091,16 @@ func TestRegisterBotWithInvalidInstanceID(t *testing.T) {
 	_, err = authtest.CreateRole(ctx, a, roleName, types.RoleSpecV6{})
 	require.NoError(t, err)
 
-	_, err = machineidv1.UpsertBot(ctx, a, &machineidv1pb.Bot{
+	_, err = machineidv1.UpsertBot(ctx, a, machineidv1pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: botName,
-		},
-		Spec: &machineidv1pb.BotSpec{
+		}.Build(),
+		Spec: machineidv1pb.BotSpec_builder{
 			Roles: []string{roleName},
-		},
-	}, a.GetClock().Now(), "", scopes.Features{})
+		}.Build(),
+	}.Build(), a.GetClock().Now(), "", scopes.Features{})
 	require.NoError(t, err)
 
 	client, err := srv.NewClient(authtest.TestAdmin())
@@ -1169,30 +1169,30 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 	// Initial setup, create a bot and join token.
 	client, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
-	bot, err := client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	bot, err := client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"example"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	tokenA, err := types.NewProvisionTokenFromSpec("a", time.Time{}, types.ProvisionTokenSpecV2{
 		Roles:   types.SystemRoles{types.RoleBot},
-		BotName: bot.Metadata.Name,
+		BotName: bot.GetMetadata().GetName(),
 	})
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, tokenA))
 
 	tokenB, err := types.NewProvisionTokenFromSpec("b", time.Time{}, types.ProvisionTokenSpecV2{
 		Roles:   types.SystemRoles{types.RoleBot},
-		BotName: bot.Metadata.Name,
+		BotName: bot.GetMetadata().GetName(),
 	})
 	require.NoError(t, err)
 	require.NoError(t, client.CreateToken(ctx, tokenB))
@@ -1226,7 +1226,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 	require.NotEqual(t, initialInstanceA, initialInstanceB)
 
 	for i := range 6 {
-		_, certsA, err = renewBotCerts(ctx, srv, certsA.TLS, bot.Status.UserName, resultA.PrivateKey)
+		_, certsA, err = renewBotCerts(ctx, srv, certsA.TLS, bot.GetStatus().GetUserName(), resultA.PrivateKey)
 		require.NoError(t, err)
 
 		instanceA, generationA := instanceIDFromCerts(t, certsA)
@@ -1235,7 +1235,7 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 
 		// Only renew bot B 3x.
 		if i < 3 {
-			_, certsB, err = renewBotCerts(ctx, srv, certsB.TLS, bot.Status.UserName, resultB.PrivateKey)
+			_, certsB, err = renewBotCerts(ctx, srv, certsB.TLS, bot.GetStatus().GetUserName(), resultB.PrivateKey)
 			require.NoError(t, err)
 
 			instanceB, generationB := instanceIDFromCerts(t, certsB)
@@ -1247,14 +1247,14 @@ func TestRegisterBotMultipleTokens(t *testing.T) {
 	// Renew B again. This will be the final renewal, but the legacy generation
 	// counter on the user will be greater as it should have been incremented by
 	// bot A.
-	_, certsB, err = renewBotCerts(ctx, srv, certsB.TLS, bot.Status.UserName, resultB.PrivateKey)
+	_, certsB, err = renewBotCerts(ctx, srv, certsB.TLS, bot.GetStatus().GetUserName(), resultB.PrivateKey)
 	require.NoError(t, err)
 
 	instanceB, generationB := instanceIDFromCerts(t, certsB)
 	require.Equal(t, initialInstanceB, instanceB)
 	require.Equal(t, uint64(5), generationB)
 
-	botUser, err := client.GetUser(ctx, bot.Status.UserName, false)
+	botUser, err := client.GetUser(ctx, bot.GetStatus().GetUserName(), false)
 	require.NoError(t, err)
 	genStr := botUser.BotGenerationLabel()
 	require.Equal(t, "7", genStr)
@@ -1266,62 +1266,62 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 
 	// Create a scoped role for the bot.
 	scopedSvc := adminClient.ScopedAccessServiceClient()
-	_, err := scopedSvc.CreateScopedRole(t.Context(), &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
+	_, err := scopedSvc.CreateScopedRole(t.Context(), scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "scoped-example",
-			},
+			}.Build(),
 			Scope: "/test",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/test"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the scoped bot.
-	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	_, err = adminClient.BotServiceClient().CreateBot(t.Context(), machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
 			Scope:   "/test",
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test-scoped",
-			},
+			}.Build(),
 			Spec: &machineidv1pb.BotSpec{},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Create a scoped role assignment for the bot.
-	resp, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+	resp, err := srv.Auth().ScopedAccess().CreateScopedRoleAssignment(t.Context(), scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: uuid.NewString(),
-			},
+			}.Build(),
 			SubKind: scopedaccess.SubKindDynamic,
 			Scope:   "/test",
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				BotName:  "test-scoped",
 				BotScope: "/test",
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "scoped-example", Scope: "/test"},
+					scopedaccessv1.Assignment_builder{Role: "scoped-example", Scope: "/test"}.Build(),
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	ctx := t.Context()
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		_, err := srv.Auth().ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    resp.GetAssignment().GetMetadata().GetName(),
 			SubKind: resp.GetAssignment().GetSubKind(),
-		})
+		}.Build())
 		require.NoError(t, err)
 	}, time.Second*10, 100*time.Millisecond)
 }
@@ -1351,32 +1351,32 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	scopedToken := &joiningv1.ScopedToken{
+	scopedToken := joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
 		Scope:   "/test",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "example-token",
-		},
-		Spec: &joiningv1.ScopedTokenSpec{
+		}.Build(),
+		Spec: joiningv1.ScopedTokenSpec_builder{
 			JoinMethod: string(types.JoinMethodKubernetes),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
 			BotName:    "test-scoped",
 			BotScope:   "/test",
-			Kubernetes: &joiningv1.Kubernetes{
+			Kubernetes: joiningv1.Kubernetes_builder{
 				Type: string(types.KubernetesJoinTypeStaticJWKS),
-				StaticJwks: &joiningv1.Kubernetes_StaticJWKSConfig{
+				StaticJwks: joiningv1.Kubernetes_StaticJWKSConfig_builder{
 					Jwks: jwks,
-				},
+				}.Build(),
 				Allow: []*joiningv1.Kubernetes_Rule{
-					{
+					joiningv1.Kubernetes_Rule_builder{
 						ServiceAccount: "my-namespace:my-service-account",
-					},
+					}.Build(),
 				},
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	_, err = client.CreateScopedToken(ctx, scopedToken)
 	require.NoError(t, err)

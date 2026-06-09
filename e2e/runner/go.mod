@@ -1,6 +1,6 @@
 module github.com/gravitational/teleport/e2e/runner
 
-go 1.25.10
+go 1.26.4
 
 require (
 	github.com/DataDog/datadog-agent/pkg/template v0.77.2
@@ -264,6 +264,7 @@ require (
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/exp v0.0.0-20260410095643-746e56fc9e2f // indirect
+	golang.org/x/image v0.41.0 // indirect
 	golang.org/x/mod v0.35.0 // indirect
 	golang.org/x/net v0.55.0 // indirect
 	golang.org/x/sys v0.45.0 // indirect
@@ -302,7 +303,7 @@ replace (
 	github.com/gravitational/teleport => ../..
 	github.com/gravitational/teleport/api => ../../api
 	github.com/hashicorp/terraform-plugin-docs => github.com/gravitational/terraform-plugin-docs v0.19.5-0.20250326215846-2e10ca5fcbdf
-	github.com/hinshun/vt10x => github.com/gravitational/vt10x v0.0.3-teleport.1
+	github.com/hinshun/vt10x => github.com/gravitational/vt10x v0.0.5-teleport.1
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-teleport.1
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v1.8.1-teleport.2

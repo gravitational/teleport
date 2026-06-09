@@ -174,8 +174,8 @@ func TestWatchers(t *testing.T) {
 				// EXPECT that the resource attached event represents the created
 				// PrincipalState record
 				s0 := unwrapResource153[*provisioningv1.PrincipalState](subtestT, event.Resource)
-				require.Equal(subtestT, "foocorp", s0.Spec.DownstreamId)
-				require.Equal(subtestT, "u-alice", s0.Metadata.Name)
+				require.Equal(subtestT, "foocorp", s0.GetSpec().GetDownstreamId())
+				require.Equal(subtestT, "u-alice", s0.GetMetadata().GetName())
 			},
 		},
 		{
@@ -209,8 +209,8 @@ func TestWatchers(t *testing.T) {
 				// EXPECT that the supplied resource is a PrincipalState record
 				// containing the downstream ID of the deleted resource
 				principalState := unwrapResource153[*provisioningv1.PrincipalState](subtestT, event.Resource)
-				require.NotNil(t, principalState.Spec)
-				require.Equal(subtestT, "foocorp", principalState.Spec.DownstreamId)
+				require.NotNil(t, principalState.GetSpec())
+				require.Equal(subtestT, "foocorp", principalState.GetSpec().GetDownstreamId())
 			},
 		},
 		{
@@ -221,21 +221,21 @@ func TestWatchers(t *testing.T) {
 				svc, err := NewLinuxDesktopService(backend)
 				require.NoError(subtestT, err)
 
-				desktop := &linuxdesktopv1.LinuxDesktop{
+				desktop := linuxdesktopv1.LinuxDesktop_builder{
 					Kind:    types.KindLinuxDesktop,
 					Version: types.V1,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "desktop-1",
 						Labels: map[string]string{
 							"env":  "test",
 							"team": "engineering",
 						},
-					},
-					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+					}.Build(),
+					Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 						Addr:     "127.0.0.1:22",
 						Hostname: "test-host",
-					},
-				}
+					}.Build(),
+				}.Build()
 
 				_, err = svc.CreateLinuxDesktop(subtestCtx, desktop)
 				require.NoError(subtestT, err)
@@ -247,13 +247,13 @@ func TestWatchers(t *testing.T) {
 
 				// EXPECT that the resource attached to the event is a Linux desktop
 				desktop := unwrapResource153[*linuxdesktopv1.LinuxDesktop](subtestT, event.Resource)
-				require.Equal(subtestT, "desktop-1", desktop.Metadata.Name)
-				require.Equal(subtestT, "127.0.0.1:22", desktop.Spec.Addr)
-				require.Equal(subtestT, "test-host", desktop.Spec.Hostname)
+				require.Equal(subtestT, "desktop-1", desktop.GetMetadata().GetName())
+				require.Equal(subtestT, "127.0.0.1:22", desktop.GetSpec().GetAddr())
+				require.Equal(subtestT, "test-host", desktop.GetSpec().GetHostname())
 				require.Equal(subtestT, map[string]string{
 					"env":  "test",
 					"team": "engineering",
-				}, desktop.Metadata.Labels)
+				}, desktop.GetMetadata().GetLabels())
 			},
 		},
 		{
@@ -264,20 +264,20 @@ func TestWatchers(t *testing.T) {
 				svc, err := NewLinuxDesktopService(backend)
 				require.NoError(subtestT, err)
 
-				desktop := &linuxdesktopv1.LinuxDesktop{
+				desktop := linuxdesktopv1.LinuxDesktop_builder{
 					Kind:    types.KindLinuxDesktop,
 					Version: types.V1,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "desktop-to-delete",
 						Labels: map[string]string{
 							"env": "staging",
 						},
-					},
-					Spec: &linuxdesktopv1.LinuxDesktopSpec{
+					}.Build(),
+					Spec: linuxdesktopv1.LinuxDesktopSpec_builder{
 						Addr:     "192.168.1.10:22",
 						Hostname: "delete-me",
-					},
-				}
+					}.Build(),
+				}.Build()
 
 				_, err = svc.CreateLinuxDesktop(subtestCtx, desktop)
 				require.NoError(subtestT, err)
@@ -314,9 +314,9 @@ func TestWatchers(t *testing.T) {
 					mfav2.ValidatedMFAChallenge_builder{
 						Kind:    types.KindValidatedMFAChallenge,
 						Version: types.V1,
-						Metadata: &headerv1.Metadata{
+						Metadata: headerv1.Metadata_builder{
 							Name: "test-challenge",
-						},
+						}.Build(),
 						Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 							Payload: mfav2.SessionIdentifyingPayload_builder{
 								SshSessionId: []byte("session-id"),
@@ -349,9 +349,9 @@ func TestWatchers(t *testing.T) {
 				_, err = svc.CreateValidatedMFAChallenge(subtestCtx, "leaf.example.com", mfav2.ValidatedMFAChallenge_builder{
 					Kind:    types.KindValidatedMFAChallenge,
 					Version: types.V1,
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name: "test-challenge",
-					},
+					}.Build(),
 					Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 						Payload: mfav2.SessionIdentifyingPayload_builder{
 							SshSessionId: []byte("session-id"),

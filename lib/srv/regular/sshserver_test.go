@@ -3637,17 +3637,17 @@ func TestHostUserCreationProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = reg.WriteSudoersFile(srv.IdentityContext{
-		AccessPermit: &decisionpb.SSHAccessPermit{
+		AccessPermit: decisionpb.SSHAccessPermit_builder{
 			HostSudoers: []string{"test1", "test2", "test3"},
-		},
+		}.Build(),
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 0, sudoers.writeAttempts)
 
 	_, _, err = reg.UpsertHostUser(srv.IdentityContext{
-		AccessPermit: &decisionpb.SSHAccessPermit{
+		AccessPermit: decisionpb.SSHAccessPermit_builder{
 			HostSudoers: []string{"test1", "test2", "test3"},
-		},
+		}.Build(),
 	}, srv.ObtainFallbackUIDFunc(nil))
 	assert.NoError(t, err)
 	assert.Empty(t, usersBackend.calls, 0)
@@ -3756,7 +3756,7 @@ func (f obtainUIDForUsernameFunc) ObtainUIDForUsername(ctx context.Context, in *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &stableunixusersv1.ObtainUIDForUsernameResponse{Uid: uid}, nil
+	return stableunixusersv1.ObtainUIDForUsernameResponse_builder{Uid: uid}.Build(), nil
 }
 
 func (f obtainUIDForUsernameFunc) ListStableUNIXUsers(ctx context.Context, in *stableunixusersv1.ListStableUNIXUsersRequest, opts ...grpc.CallOption) (*stableunixusersv1.ListStableUNIXUsersResponse, error) {

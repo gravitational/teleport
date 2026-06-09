@@ -157,7 +157,7 @@ func TestMFAService_CreateValidatedMFAChallenge_Validation(t *testing.T) {
 			targetCluster: &defaultTargetCluster,
 			chal: func() *mfav2.ValidatedMFAChallenge {
 				c := newValidatedMFAChallenge()
-				c.GetMetadata().Name = ""
+				c.GetMetadata().SetName("")
 				return c
 			}(),
 			wantErr: trace.BadParameter("name must be set"),
@@ -265,7 +265,7 @@ func TestMFAService_ListValidatedMFAChallenges_Success(t *testing.T) {
 		{name: "chal-3", username: "bob"},
 	} {
 		chal := newValidatedMFAChallenge()
-		chal.GetMetadata().Name = tc.name
+		chal.GetMetadata().SetName(tc.name)
 		chal.GetSpec().SetUsername(tc.username)
 
 		challenges = append(challenges, chal)
@@ -322,7 +322,7 @@ func TestMFAService_ListValidatedMFAChallenges_FilterByTargetCluster(t *testing.
 		{name: "chal-target-a-2", username: "bob", targetCluster: "leaf-a"},
 	} {
 		chal := newValidatedMFAChallenge()
-		chal.GetMetadata().Name = tc.name
+		chal.GetMetadata().SetName(tc.name)
 		chal.GetSpec().SetUsername(tc.username)
 		chal.GetSpec().SetTargetCluster(tc.targetCluster)
 
@@ -362,9 +362,9 @@ func newValidatedMFAChallenge() *mfav2.ValidatedMFAChallenge {
 	return mfav2.ValidatedMFAChallenge_builder{
 		Kind:    types.KindValidatedMFAChallenge,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "test-challenge",
-		},
+		}.Build(),
 		Spec: mfav2.ValidatedMFAChallengeSpec_builder{
 			Payload: mfav2.SessionIdentifyingPayload_builder{
 				SshSessionId: []byte("session-id"),

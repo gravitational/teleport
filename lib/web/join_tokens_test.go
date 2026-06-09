@@ -2115,14 +2115,14 @@ func TestJoinScript(t *testing.T) {
 		})
 	})
 	t.Run("using teleport-update", func(t *testing.T) {
-		testRollout := &autoupdatev1pb.AutoUpdateAgentRollout{Spec: &autoupdatev1pb.AutoUpdateAgentRolloutSpec{
+		testRollout := autoupdatev1pb.AutoUpdateAgentRollout_builder{Spec: autoupdatev1pb.AutoUpdateAgentRolloutSpec_builder{
 			StartVersion:              "1.2.2",
 			TargetVersion:             "1.2.3",
 			Schedule:                  autoupdate.AgentsScheduleImmediate,
 			AutoupdateMode:            autoupdate.AgentsUpdateModeEnabled,
 			Strategy:                  autoupdate.AgentsStrategyTimeBased,
 			MaintenanceWindowDuration: durationpb.New(1 * time.Hour),
-		}}
+		}.Build()}.Build()
 		t.Run("rollout exists and autoupdates are on", func(t *testing.T) {
 			currentStableCloudVersion := "1.1.1"
 			config := autoupdateTestHandlerConfig{
@@ -2140,7 +2140,7 @@ func TestJoinScript(t *testing.T) {
 
 			// list of packages must include the updater
 			require.Contains(t, script, "UPDATER_STYLE='binary'")
-			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", testRollout.Spec.TargetVersion))
+			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", testRollout.GetSpec().GetTargetVersion()))
 		})
 		t.Run("rollout exists and autoupdates are off", func(t *testing.T) {
 			h := newAutoupdateTestHandler(t, autoupdateTestHandlerConfig{
@@ -2150,7 +2150,7 @@ func TestJoinScript(t *testing.T) {
 			script, err := h.getJoinScript(context.Background(), scriptSettings{token: validToken})
 			require.NoError(t, err)
 			require.Contains(t, script, "UPDATER_STYLE='binary'")
-			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", testRollout.Spec.TargetVersion))
+			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", testRollout.GetSpec().GetTargetVersion()))
 		})
 	})
 }

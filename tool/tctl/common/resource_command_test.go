@@ -413,17 +413,17 @@ version: v1
 	require.Len(t, rs, 1)
 
 	// Compare with expected value
-	expected := &scopedaccessv1.ScopedRole{
+	expected := scopedaccessv1.ScopedRole_builder{
 		Kind: scopedaccess.KindScopedRole,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "some-role",
-		},
+		}.Build(),
 		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleSpec{
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{"/foo"},
-		},
+		}.Build(),
 		Version: types.V1,
-	}
+	}.Build()
 
 	require.Empty(t, cmp.Diff(expected, rs[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
@@ -490,24 +490,24 @@ version: v1
 	require.Equal(t, assignmentName, asByName[0].GetMetadata().GetName())
 
 	// Compare with expected value
-	expectedAssignment := &scopedaccessv1.ScopedRoleAssignment{
+	expectedAssignment := scopedaccessv1.ScopedRoleAssignment_builder{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindDynamic,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: assignmentName,
-		},
+		}.Build(),
 		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 			User: "bob",
 			Assignments: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "some-role",
 					Scope: "/foo",
-				},
+				}.Build(),
 			},
-		},
+		}.Build(),
 		Version: types.V1,
-	}
+	}.Build()
 
 	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
@@ -680,8 +680,8 @@ spec:
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 	// Using --force should succeed and act as an upsert
-	allTokens[0].Metadata.Labels = map[string]string{"env": "staging"}
-	allTokens[0].Spec.AssignedScope = "/bar"
+	allTokens[0].GetMetadata().SetLabels(map[string]string{"env": "staging"})
+	allTokens[0].GetSpec().SetAssignedScope("/bar")
 	updatedBytes, err := services.MarshalProtoResource(allTokens[0])
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(scopedTokenYAMLPath, updatedBytes, 0644))
@@ -2680,7 +2680,7 @@ spec:
 
 	// Explicitly change the revision and try creating the user with and without
 	// the force flag.
-	expected.GetMetadata().Revision = uuid.NewString()
+	expected.GetMetadata().SetRevision(uuid.NewString())
 	hostUserBytes, err := services.MarshalProtoResource(&expected, services.PreserveRevision())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(userYAMLPath, hostUserBytes, 0644))

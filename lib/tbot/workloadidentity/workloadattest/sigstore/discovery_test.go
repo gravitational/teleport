@@ -58,7 +58,7 @@ func TestDiscovery_SimpleSigning(t *testing.T) {
 
 	t.Run("keyless signature", func(t *testing.T) {
 		var bundle bundlepb.Bundle
-		err = proto.Unmarshal(payloads[0].Bundle, &bundle)
+		err = proto.Unmarshal(payloads[0].GetBundle(), &bundle)
 		require.NoError(t, err)
 
 		assert.Equal(t, "application/vnd.dev.sigstore.bundle+json;version=0.1", bundle.MediaType)
@@ -104,14 +104,14 @@ func TestDiscovery_SimpleSigning(t *testing.T) {
 				} `json:"image"`
 			} `json:"critical"`
 		}
-		err = json.Unmarshal(payloads[0].SimpleSigningEnvelope, &envelope)
+		err = json.Unmarshal(payloads[0].GetSimpleSigningEnvelope(), &envelope)
 		require.NoError(t, err)
 		assert.Equal(t, "sha256:21c76c650023cac8d753af4cb591e6f7450c6e2b499b5751d4a21e26e2fc5012", envelope.Critical.Image.Digest)
 	})
 
 	t.Run("key-based signature", func(t *testing.T) {
 		var bundle bundlepb.Bundle
-		err = proto.Unmarshal(payloads[1].Bundle, &bundle)
+		err = proto.Unmarshal(payloads[1].GetBundle(), &bundle)
 		require.NoError(t, err)
 
 		// Public key.
@@ -136,7 +136,7 @@ func TestDiscovery_Attestations(t *testing.T) {
 	require.Len(t, payloads, 1)
 
 	var bundle bundlepb.Bundle
-	err = proto.Unmarshal(payloads[0].Bundle, &bundle)
+	err = proto.Unmarshal(payloads[0].GetBundle(), &bundle)
 	require.NoError(t, err)
 
 	var attestation struct {

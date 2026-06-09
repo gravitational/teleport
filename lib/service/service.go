@@ -76,6 +76,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	kubeproto "github.com/gravitational/teleport/api/gen/proto/go/teleport/kube/v1"
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	apissh "github.com/gravitational/teleport/api/ssh"
 	"github.com/gravitational/teleport/api/types"
@@ -376,6 +377,7 @@ func newConnector(clientIdentity, serverIdentity *state.Identity) (*Connector, e
 		clusterName: clientIdentity.ClusterName,
 		hostID:      clientIdentity.ID.HostUUID,
 		scope:       clientIdentity.GetAgentScope(),
+		scopePin:    clientIdentity.ScopePin,
 		role:        clientIdentity.ID.Role,
 	}
 	c.clientState.Store(clientState)
@@ -444,6 +446,7 @@ type Connector struct {
 	clusterName string
 	hostID      string
 	scope       string
+	scopePin    *scopesv1.Pin
 	role        types.SystemRole
 
 	// clientState contains the current connector state for outbound connections
@@ -480,6 +483,11 @@ func (c *Connector) HostUUID() string {
 // Scope returns the host's AgentScope
 func (c *Connector) Scope() string {
 	return c.scope
+}
+
+// ScopePin returns the host's ScopePin
+func (c *Connector) ScopePin() *scopesv1.Pin {
+	return c.scopePin
 }
 
 func (c *Connector) Role() types.SystemRole {
@@ -1398,18 +1406,18 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		for _, r := range instanceRoles {
 			services = append(services, string(r))
 		}
-		hello := &proto.UpstreamInventoryHello{
+		hello := proto.UpstreamInventoryHello_builder{
 			ServerID:         hostID,
 			Version:          teleport.Version,
 			Services:         services,
 			Hostname:         cfg.Hostname,
 			ExternalUpgrader: externalUpgrader,
 			ImmutableLabels:  process.getImmutableLabels(),
-		}
+		}.Build()
 
 		if upgraderVersion != nil {
 			// The UpstreamInventoryHello message wants versions with the leading "v".
-			hello.ExternalUpgraderVersion = "v" + upgraderVersion.String()
+			hello.SetExternalUpgraderVersion("v" + upgraderVersion.String())
 		}
 
 		if upgraderKind == types.UpgraderKindTeleportUpdate ||
@@ -1426,7 +1434,7 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 				cfg.Logger.WarnContext(supervisor.ExitContext(), "Error recovering updater status, this might affect automatic update tracking and progress.", "error", err)
 				info = &types.UpdaterV2Info{UpdaterStatus: types.UpdaterStatus_UPDATER_STATUS_UNREADABLE}
 			}
-			hello.UpdaterInfo = info
+			hello.SetUpdaterInfo(info)
 		}
 		return hello, nil
 	}
@@ -1447,12 +1455,12 @@ func NewTeleport(cfg *servicecfg.Config) (_ *TeleportProcess, err error) {
 		process.logger.InfoContext(process.ExitContext(), "Handling incoming inventory ping.",
 			"id", ping.GetID(),
 			"clock", systemClock)
-		err := sender.Send(process.ExitContext(), &proto.UpstreamInventoryPong{
+		err := sender.Send(process.ExitContext(), proto.UpstreamInventoryPong_builder{
 			ID:          ping.GetID(),
 			SystemClock: timestamppb.New(systemClock),
-		})
+		}.Build())
 		if err != nil {
-			process.logger.WarnContext(process.ExitContext(), "Failed to respond to inventory ping.", "id", ping.ID, "error", err)
+			process.logger.WarnContext(process.ExitContext(), "Failed to respond to inventory ping.", "id", ping.GetID(), "error", err)
 		}
 	})
 

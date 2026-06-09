@@ -52,10 +52,14 @@ const struct data_t *unused __attribute__((unused));
 // this with reliable data from mm->arg_start. On a failed exec, this 
 // is the only argv source.
 struct inflight_exec_t {
-    bool valid;
+    // valid_unsent is true if the filename and argv are set and they 
+    // have not already been added to an event for userland to consume.
+    bool valid_unsent;
+    // filename is the filename of the executable.
     u8 filename[FILENAMESIZE];
+    // argv is a pointer to the argv array. It will only be used if
+    // fexit/bprm_execve isn't called.
     u64 argv;
-    bool emitted;
 };
 
 struct {
@@ -108,14 +112,13 @@ static int enter_execve(const char *filename, const char *const *argv)
         return 0;
     }
 
-    info->valid = true;
+    info->valid_unsent = true;
     if (bpf_probe_read_user_str(&info->filename, sizeof(info->filename), filename) <= 0) {
         // if reading the filename failed set it to empty to it won't
         // be used in an event
         info->filename[0] = 0;
     }
     info->argv = (u64)argv;
-    info->emitted = false;
 
     return 0;
 }
@@ -157,7 +160,7 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
 
     info = bpf_task_storage_get(&inflight_exec, task, NULL, 0);
     if (ret != 0) {
-        if (info && info->valid) {
+        if (info && info->valid_unsent) {
             // If bprm_execve is called but the return code is non-zero,
             // the argv in task->mm won't be populated, but we can still
             // get the filename. In this case we pass the filename to
@@ -167,6 +170,11 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
             bpf_probe_read_kernel_str(info->filename, sizeof(info->filename), BPF_CORE_READ(bprm, filename));
         }
         return 0;
+    }
+
+    // Mark consumed so exit_execve won't also handle this event.
+    if (info != NULL) {
+        info->valid_unsent = false;
     }
 
     struct data_t *data = bpf_ringbuf_reserve(&execve_events, sizeof(*data), 0);
@@ -210,10 +218,6 @@ int BPF_PROG(bprm_execve_exit, struct linux_binprm *bprm, int ret)
     bpf_printk("bprm_execve_exit: emitted event");
     bpf_ringbuf_submit(data, 0);
 
-    if (info && info->valid) {
-        info->emitted = true;
-    }
-
     return 0;
 }
 
@@ -233,16 +237,20 @@ static int exit_execve(int retCode)
         bpf_printk("exit_execve: no inflight_exec_t found, not emitting event");
         return 0;
     }
-    if (!info->valid || info->emitted) {
-        bpf_printk("execve_exit: not emitting event: valid=%d emitted=%d", info->valid, info->emitted);
-        goto out;
+    if (!info->valid_unsent) {
+        bpf_printk("execve_exit: not emitting event");
+        return 0;
     }
+
+    // Mark consumed so a subsequent open on the same thread doesn't 
+    // pick up stale data.
+    info->valid_unsent = false;
 
     struct data_t *data = bpf_ringbuf_reserve(&execve_events, sizeof(*data), 0);
     if (!data) {
         INCR_COUNTER(lost);
         bpf_printk("execve_events ring buffer full");
-        goto out;
+        return 0;
     }
     zero_data(data);
 
@@ -300,11 +308,6 @@ static int exit_execve(int retCode)
 
     bpf_printk("execve_exit: emitted event");
     bpf_ringbuf_submit(data, 0);
-
-out:
-    // Mark consumed so a subsequent open on the same thread doesn't 
-    // pick up stale data.
-    info->valid = false;
 
     return 0;
 }
