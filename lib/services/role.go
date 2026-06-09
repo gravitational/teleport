@@ -531,6 +531,14 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 				names = []string{""}
 			}
 			verbs := applyValueTraitsSlice(rec.Verbs, traits, "kubernetes resource verb")
+			// Trait expansion happens after role validation (which rejects a
+			// wildcard verb mixed with other verbs), so a trait value can
+			// reintroduce that combination here. A wildcard subsumes all other
+			// verbs, so normalize to just the wildcard to keep the stored shape
+			// consistent with validation and the matcher semantics.
+			if slices.Contains(verbs, types.Wildcard) {
+				verbs = []string{types.Wildcard}
+			}
 			for _, namespace := range namespaces {
 				for _, name := range names {
 					out = append(out, types.KubernetesResource{
