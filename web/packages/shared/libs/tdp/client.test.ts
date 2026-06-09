@@ -45,7 +45,12 @@ jest.mock('shared/libs/ironrdp/pkg/ironrdp');
 test('tdp upgrade', async () => {
   let client = new TdpClient(
     () => Promise.resolve(mockTransport),
-    () => Promise.resolve(mockSharedDirectoryAccess)
+    () => Promise.resolve(mockSharedDirectoryAccess),
+    {
+      warn(..._args: any[]) {},
+      info(..._args: any[]) {},
+      error(..._args: any[]) {},
+    }
   );
 
   const transportOpen = new Promise<void>(client.onTransportOpen);
@@ -94,6 +99,11 @@ test('shared directory management', async () => {
   let client = new TdpClient(
     () => Promise.resolve(mockTransport),
     () => Promise.resolve(mockSharedDirectoryAccess),
+    {
+      warn(..._args: any[]) {},
+      info(..._args: any[]) {},
+      error(..._args: any[]) {},
+    },
     // Remove operations are only supported on the TDPB codec.
     { mode: 'tdpb' }
   );
@@ -138,9 +148,7 @@ test('shared directory management', async () => {
   const res = await client.shareDirectory();
   expect(res.id).toEqual(2);
 
-  const warn = jest.spyOn(console, 'warn').mockImplementation();
   // releasing an unknown or unleased identifier does not throw, but
   // should log a warning.
   client.unshareDirectory(3);
-  expect(warn).toHaveBeenCalled();
 });

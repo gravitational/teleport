@@ -20,7 +20,6 @@ import { EventEmitter } from 'events';
 
 import { useEffect } from 'react';
 
-import { Logger } from 'design/logger';
 import init, {
   FastPathProcessor,
   init_wasm_log,
@@ -127,8 +126,6 @@ export enum LogType {
   ERROR = 'ERROR',
   WARN = 'WARN',
   INFO = 'INFO',
-  DEBUG = 'DEBUG',
-  TRACE = 'TRACE',
 }
 
 export type DirectoryEntry = {
@@ -166,6 +163,12 @@ type ServerCapabilities = {
   directoryRemoval: boolean;
 };
 
+export interface Logger {
+  warn(...args: any[]): void;
+  info(...args: any[]): void;
+  error(...args: any[]): void;
+}
+
 // Client is the TDP client. It is responsible for connecting to a websocket serving the tdp server,
 // sending client commands, and receiving and processing server messages. Its creator is responsible for
 // ensuring the websocket gets closed and all of its event listeners cleaned up when it is no longer in use.
@@ -180,11 +183,10 @@ export class TdpClient extends EventEmitter<EventMap> {
   private codec: Codec | undefined;
   hidpiSupported = false;
 
-  private logger = new Logger('TDPClient');
-
   constructor(
     private getTransport: (signal: AbortSignal) => Promise<TdpTransport>,
     selectSharedDirectory: () => Promise<SharedDirectoryAccess>,
+    private logger: Logger,
     private policy: ConnectPolicy = { mode: 'tdp' }
   ) {
     super();
@@ -375,7 +377,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
     if (import.meta.env.MODE === 'development') {
-      wasmLogLevel = LogType.TRACE;
+      wasmLogLevel = LogType.INFO;
     }
 
     // Convert the inlined (base64) WASM to a raw buffer. The init function will
@@ -394,7 +396,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     userChannelId: number,
     spec: ClientScreenSpec
   ) {
-    this.logger.debug(
+    this.logger.info(
       `setting up fast path processor with screen spec ${spec.width} x ${spec.height}`
     );
 
@@ -500,12 +502,12 @@ export class TdpClient extends EventEmitter<EventMap> {
       case 'unknown':
         // Truly unknown message types. The envelope is empty or
         // or the server's schema is ahead of ours.
-        this.logger.debug(`received unknown message type`);
+        this.logger.info(`received unknown message type`);
         break;
       case 'unsupported':
         // Message types that we know about, but deliberately do no support on the client.
         // 'data' should be the unsupported message kind.
-        this.logger.debug(
+        this.logger.info(
           `received message type not supported by this client ${result.data}`
         );
         break;
