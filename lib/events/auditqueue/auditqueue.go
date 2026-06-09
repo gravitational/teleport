@@ -46,8 +46,10 @@ var (
 type Kind string
 
 const (
-	// KindSQLite selects the SQLite-backed implementation.
-	KindSQLite Kind = "sqlite"
+	// KindSQLiteDisk selects the SQLite-backed on-disk implementation.
+	KindSQLiteDisk Kind = "sqlite_disk"
+	// KindSQLiteMemory selects the SQLite-backed in-memory implementation.
+	KindSQLiteMemory Kind = "sqlite_memory"
 )
 
 // Config configures a Queue.
@@ -102,8 +104,10 @@ type Queue interface {
 // New constructs a Queue of the given kind.
 func New(kind Kind, cfg Config) (Queue, error) {
 	switch kind {
-	case KindSQLite:
+	case KindSQLiteDisk:
 		return newSQLiteQueue(cfg)
+	case KindSQLiteMemory:
+		return newSQLiteInMemoryQueue(cfg)
 	default:
 		return nil, trace.BadParameter("unknown audit queue kind: '%s'", kind)
 	}
