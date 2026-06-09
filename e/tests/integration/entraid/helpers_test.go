@@ -105,7 +105,7 @@ func createEntraIDPlugin(ctx context.Context, authClient authclient.ClientI, plu
 }
 
 func updateEntraIDPlugin(ctx context.Context, authClient authclient.ClientI, plugin *types.PluginV1) error {
-	_, err := authClient.PluginsClient().UpdatePlugin(ctx, &pluginspb.UpdatePluginRequest{Plugin: plugin})
+	_, err := authClient.PluginsClient().UpdatePlugin(ctx, pluginspb.UpdatePluginRequest_builder{Plugin: plugin}.Build())
 	return trace.Wrap(err)
 }
 

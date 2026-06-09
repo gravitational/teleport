@@ -1405,11 +1405,9 @@ func syncInventoryPages(
 	}
 
 	// Start sync.
-	if err := stream.Send(&devicepb.SyncInventoryRequest{
-		Payload: &devicepb.SyncInventoryRequest_Start{
-			Start: startReq,
-		},
-	}); err != nil && !errors.Is(err, io.EOF) {
+	if err := stream.Send(devicepb.SyncInventoryRequest_builder{
+		Start: proto.ValueOrDefault(startReq),
+	}.Build()); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("start: Send: %w", err)
 	}
 	resp, err := stream.Recv()
@@ -1519,11 +1517,9 @@ func syncInventoryDelete(
 	if err != nil {
 		return nil, fmt.Errorf("init: %w", err)
 	}
-	if err := stream.Send(&devicepb.SyncInventoryRequest{
-		Payload: &devicepb.SyncInventoryRequest_Start{
-			Start: start,
-		},
-	}); err != nil && !errors.Is(err, io.EOF) {
+	if err := stream.Send(devicepb.SyncInventoryRequest_builder{
+		Start: proto.ValueOrDefault(start),
+	}.Build()); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("start Send: %w", err)
 	}
 	if _, err = stream.Recv(); err != nil {

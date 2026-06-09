@@ -18,6 +18,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
+	xpb "google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -109,9 +110,9 @@ func newConfigAndState() []*accessgraphv1.AuditLogStreamResponse {
 			StartDate: timestamppb.New(testStartDate),
 		}.Build(),
 	}.Build()
-	noResumeState := &accessgraphv1.AuditLogStreamResponse{
-		State: &accessgraphv1.AuditLogStreamResponse_NoResumeState{},
-	}
+	noResumeState := accessgraphv1.AuditLogStreamResponse_builder{
+		NoResumeState: &xpb.Empty{},
+	}.Build()
 	return []*accessgraphv1.AuditLogStreamResponse{config, noResumeState}
 }
 
@@ -403,12 +404,10 @@ func newTestEventBatch(nextKey string, events ...apievents.AuditEvent) testEvent
 
 func searchEventRequest(events []apievents.AuditEvent, startKey, lastID string) *accessgraphv1.AuditLogStreamRequest {
 	return accessgraphv1.AuditLogStreamRequest_builder{
-		Events: &accessgraphv1.AuditLogEvents{
-			Events: toUnstructured(events),
-			ResumeState: &accessgraphv1.AuditLogEvents_SearchResumeState{
-				SearchResumeState: searchResumeState(startKey, lastID),
-			},
-		},
+		Events: accessgraphv1.AuditLogEvents_builder{
+			Events:            toUnstructured(events),
+			SearchResumeState: proto.ValueOrDefault(searchResumeState(startKey, lastID)),
+		}.Build(),
 	}.Build()
 }
 

@@ -400,9 +400,9 @@ func push(
 		return trace.Wrap(err)
 	}
 	err = client.Send(
-		&accessgraphv1alpha.GitlabEventsStreamRequest{
-			Operation: &accessgraphv1alpha.GitlabEventsStreamRequest_Sync{},
-		},
+		accessgraphv1alpha.GitlabEventsStreamRequest_builder{
+			Sync: &accessgraphv1alpha.GitlabSyncOperation{},
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }

@@ -7,6 +7,8 @@ import (
 	"fmt"
 	"io"
 
+	"google.golang.org/protobuf/proto"
+
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/challenge"
 )
@@ -60,11 +62,9 @@ func (e *macOSSimulator) enrollRequest(
 	if e.behavior.modifyEnrollDeviceInit != nil {
 		e.behavior.modifyEnrollDeviceInit(init)
 	}
-	return &devicepb.EnrollDeviceRequest{
-		Payload: &devicepb.EnrollDeviceRequest_Init{
-			Init: init,
-		},
-	}
+	return devicepb.EnrollDeviceRequest_builder{
+		Init: proto.ValueOrDefault(init),
+	}.Build()
 }
 
 func (e *macOSSimulator) handleEnrollStream(
@@ -139,11 +139,9 @@ func (e *macOSSimulator) authenticate(
 	if e.behavior.modifyAuthenticateDeviceInit != nil {
 		e.behavior.modifyAuthenticateDeviceInit(init)
 	}
-	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-		Payload: &devicepb.AuthenticateDeviceRequest_Init{
-			Init: init,
-		},
-	}); err != nil && !errors.Is(err, io.EOF) {
+	if err := stream.Send(devicepb.AuthenticateDeviceRequest_builder{
+		Init: proto.ValueOrDefault(init),
+	}.Build()); err != nil && !errors.Is(err, io.EOF) {
 		return nil, fmt.Errorf("init Send: %w", err)
 	}
 	resp, err := stream.Recv()

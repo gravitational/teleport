@@ -1159,7 +1159,7 @@ func TestSummarizerEnhancedSession(t *testing.T) {
 			require.Empty(t, summary.GetErrorMessage())
 			require.NotNil(t, summary.GetEnhancedSummary())
 			//nolint:staticcheck // deprecated field kept for backwards compatibility
-			require.NotNil(t, summary.GetEnhancedSummary().NeedsFurtherReview)
+			require.NotNil(t, proto.ValueOrNil(summary.GetEnhancedSummary().HasNeedsFurtherReview(), summary.GetEnhancedSummary().GetNeedsFurtherReview))
 			//nolint:staticcheck // deprecated field kept for backwards compatibility
 			require.Equal(t, summarizerv1pb.NeedsReviewReason_NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED, summary.GetEnhancedSummary().GetNeedsFurtherReview())
 		})

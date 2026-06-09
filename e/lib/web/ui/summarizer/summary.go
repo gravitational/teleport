@@ -3,6 +3,7 @@ package summarizer
 import (
 	"time"
 
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
@@ -156,7 +157,7 @@ func makeEnhancedSummary(es *summarizerv1.EnhancedSummary) *EnhancedSummary {
 		out.SessionEvents = sessionEventsFromProtoCommands(deprecatedCommands)
 	}
 	//nolint:staticcheck // deprecated field read for cross-version compatibility
-	deprecatedReason := es.NeedsFurtherReview
+	deprecatedReason := proto.ValueOrNil(es.HasNeedsFurtherReview(), es.GetNeedsFurtherReview)
 	if len(out.NeedsFurtherReviewReasons) == 0 && deprecatedReason != nil {
 		out.NeedsFurtherReviewReasons = makeNeedsFurtherReviewReasons([]summarizerv1.NeedsReviewReason{*deprecatedReason})
 	}

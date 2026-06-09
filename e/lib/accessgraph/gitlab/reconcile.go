@@ -49,18 +49,14 @@ func reconcileGroups(old []*accessgraphv1alpha.GitlabGroup, new []*accessgraphv1
 	})
 
 	for _, group := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GitlabResource{
-			Resource: &accessgraphv1alpha.GitlabResource_Group{
-				Group: group,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.GitlabResource_builder{
+			Group: proto.ValueOrDefault(group),
+		}.Build()))
 	}
 	for _, group := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GitlabResource{
-			Resource: &accessgraphv1alpha.GitlabResource_Group{
-				Group: group,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.GitlabResource_builder{
+			Group: proto.ValueOrDefault(group),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -75,18 +71,14 @@ func reconcileUsers(
 		return user.GetUsername()
 	})
 	for _, user := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GitlabResource{
-			Resource: &accessgraphv1alpha.GitlabResource_User{
-				User: user,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.GitlabResource_builder{
+			User: proto.ValueOrDefault(user),
+		}.Build()))
 	}
 	for _, user := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GitlabResource{
-			Resource: &accessgraphv1alpha.GitlabResource_User{
-				User: user,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.GitlabResource_builder{
+			User: proto.ValueOrDefault(user),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -101,18 +93,14 @@ func reconcileProjects(
 		return project.GetPath()
 	})
 	for _, project := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GitlabResource{
-			Resource: &accessgraphv1alpha.GitlabResource_Project{
-				Project: project,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.GitlabResource_builder{
+			Project: proto.ValueOrDefault(project),
+		}.Build()))
 	}
 	for _, project := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GitlabResource{
-			Resource: &accessgraphv1alpha.GitlabResource_Project{
-				Project: project,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.GitlabResource_builder{
+			Project: proto.ValueOrDefault(project),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -127,18 +115,14 @@ func reconcileProjectMembers(
 		return fmt.Sprintf("%x;%x", policy.GetUsername(), policy.GetProject().GetPath())
 	})
 	for _, projectMember := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GitlabResource{
-			Resource: &accessgraphv1alpha.GitlabResource_ProjectMember{
-				ProjectMember: projectMember,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.GitlabResource_builder{
+			ProjectMember: proto.ValueOrDefault(projectMember),
+		}.Build()))
 	}
 	for _, projectMember := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GitlabResource{
-			Resource: &accessgraphv1alpha.GitlabResource_ProjectMember{
-				ProjectMember: projectMember,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.GitlabResource_builder{
+			ProjectMember: proto.ValueOrDefault(projectMember),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -153,18 +137,14 @@ func reconcileGroupMembers(
 		return fmt.Sprintf("%x;%x", policy.GetUsername(), policy.GetGroup().GetPath())
 	})
 	for _, member := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.GitlabResource{
-			Resource: &accessgraphv1alpha.GitlabResource_GroupMember{
-				GroupMember: member,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.GitlabResource_builder{
+			GroupMember: proto.ValueOrDefault(member),
+		}.Build()))
 	}
 	for _, member := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.GitlabResource{
-			Resource: &accessgraphv1alpha.GitlabResource_GroupMember{
-				GroupMember: member,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.GitlabResource_builder{
+			GroupMember: proto.ValueOrDefault(member),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }

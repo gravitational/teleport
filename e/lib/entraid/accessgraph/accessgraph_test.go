@@ -6,6 +6,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -78,14 +79,14 @@ func TestReconcile(t *testing.T) {
 
 	wantUpsert := accessgraphv1alpha.EntraResourceList_builder{
 		Resources: []*accessgraphv1alpha.EntraResource{
-			{Resource: &accessgraphv1alpha.EntraResource_Application{Application: app2Updated}},
-			{Resource: &accessgraphv1alpha.EntraResource_Application{Application: app4}},
+			accessgraphv1alpha.EntraResource_builder{Application: proto.ValueOrDefault(app2Updated)}.Build(),
+			accessgraphv1alpha.EntraResource_builder{Application: proto.ValueOrDefault(app4)}.Build(),
 		},
 	}.Build()
 
 	wantDelete := accessgraphv1alpha.EntraResourceList_builder{
 		Resources: []*accessgraphv1alpha.EntraResource{
-			{Resource: &accessgraphv1alpha.EntraResource_Application{Application: app3}},
+			accessgraphv1alpha.EntraResource_builder{Application: proto.ValueOrDefault(app3)}.Build(),
 		},
 	}.Build()
 

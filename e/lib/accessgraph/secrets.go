@@ -7,6 +7,7 @@ import (
 	"sync"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport/api/constants"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
@@ -327,11 +328,9 @@ type streamAdapter struct {
 }
 
 func (s streamAdapter) Send(rsp *devicepb.AssertDeviceResponse) error {
-	msg := &accessgraphsecretsv1pb.ReportSecretsResponse{
-		Payload: &accessgraphsecretsv1pb.ReportSecretsResponse_DeviceAssertion{
-			DeviceAssertion: rsp,
-		},
-	}
+	msg := accessgraphsecretsv1pb.ReportSecretsResponse_builder{
+		DeviceAssertion: proto.ValueOrDefault(rsp),
+	}.Build()
 	err := s.stream.Send(msg)
 	return trace.Wrap(err)
 }

@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust/assertserver"
@@ -60,13 +61,9 @@ func (s *assertStreamAdapter) Recv() (*devicepb.AuthenticateDeviceRequest, error
 			DeviceData:   init.GetDeviceData(),
 		}.Build())
 	case devicepb.AssertDeviceRequest_ChallengeResponse_case:
-		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
-			ChallengeResponse: req.GetChallengeResponse(),
-		}
+		authnReq.SetChallengeResponse(proto.ValueOrDefault(req.GetChallengeResponse()))
 	case devicepb.AssertDeviceRequest_TpmChallengeResponse_case:
-		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
-			TpmChallengeResponse: req.GetTpmChallengeResponse(),
-		}
+		authnReq.SetTpmChallengeResponse(proto.ValueOrDefault(req.GetTpmChallengeResponse()))
 	default:
 		return nil, trace.BadParameter("unexpected assert request payload: %T", req.Payload)
 	}
@@ -83,13 +80,9 @@ func (s *assertStreamAdapter) Send(authnResp *devicepb.AuthenticateDeviceRespons
 	resp := &devicepb.AssertDeviceResponse{}
 	switch authnResp.WhichPayload() {
 	case devicepb.AuthenticateDeviceResponse_Challenge_case:
-		resp.Payload = &devicepb.AssertDeviceResponse_Challenge{
-			Challenge: authnResp.GetChallenge(),
-		}
+		resp.SetChallenge(proto.ValueOrDefault(authnResp.GetChallenge()))
 	case devicepb.AuthenticateDeviceResponse_TpmChallenge_case:
-		resp.Payload = &devicepb.AssertDeviceResponse_TpmChallenge{
-			TpmChallenge: authnResp.GetTpmChallenge(),
-		}
+		resp.SetTpmChallenge(proto.ValueOrDefault(authnResp.GetTpmChallenge()))
 	case devicepb.AuthenticateDeviceResponse_UserCertificates_case:
 		// An empty UserCertificates signifies success for assertion.
 		certs := authnResp.GetUserCertificates()

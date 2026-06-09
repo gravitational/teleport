@@ -15,6 +15,7 @@ import (
 	"google.golang.org/grpc/connectivity"
 	_ "google.golang.org/grpc/health"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 
 	authpb "github.com/gravitational/teleport/api/client/proto"
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
@@ -547,14 +548,12 @@ func sendUsers(ctx context.Context, authServer interface {
 				user.GetWeakestDevice() == types.MFADeviceKind_MFA_DEVICE_KIND_UNSPECIFIED {
 				user.SetWeakestDevice(local.GetWeakestMFADeviceKind(auth.MFA))
 			}
-			return &accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_User{
-					// reset local auth to avoid sending secrets to the access graph service
-					// we load secrets only to populate the user's MFA status when not set
-					// in the database.
-					User: user.WithoutSecrets().(*types.UserV2),
-				},
-			}
+			return accessgraphv1.ResourceEntry_builder{
+				// reset local auth to avoid sending secrets to the access graph service
+				// we load secrets only to populate the user's MFA status when not set
+				// in the database.
+				User: user.WithoutSecrets().(*types.UserV2),
+			}.Build()
 		},
 	)
 }
@@ -568,7 +567,7 @@ func sendCrownJewels(ctx context.Context, authServer interface {
 			return authServer.ListCrownJewels(ctx, int64(size), token)
 		},
 		func(c *crownjewelv1.CrownJewel) *accessgraphv1.ResourceEntry {
-			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_CrownJewel{CrownJewel: c}}
+			return accessgraphv1.ResourceEntry_builder{CrownJewel: proto.ValueOrDefault(c)}.Build()
 		},
 	)
 }
@@ -589,7 +588,7 @@ func sendRoles(ctx context.Context, authServer interface {
 			return rsp.GetRoles(), rsp.GetNextKey(), nil
 		},
 		func(role *types.RoleV6) *accessgraphv1.ResourceEntry {
-			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_Role{Role: role}}
+			return accessgraphv1.ResourceEntry_builder{Role: role}.Build()
 		},
 	)
 }
@@ -602,7 +601,7 @@ func sendAccessLists(ctx context.Context, authServer interface {
 	err := sendPaginatedResources(ctx, stream,
 		authServer.ListAccessLists,
 		func(al *accesslist.AccessList) *accessgraphv1.ResourceEntry {
-			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_AccessList{AccessList: accesslistv1conv.ToProto(al)}}
+			return accessgraphv1.ResourceEntry_builder{AccessList: proto.ValueOrDefault(accesslistv1conv.ToProto(al))}.Build()
 		},
 	)
 	if err != nil {
@@ -655,7 +654,7 @@ func sendDatabaseObjects(ctx context.Context, authServer services.DatabaseObject
 	return sendPaginatedResources(ctx, stream,
 		authServer.ListDatabaseObjects,
 		func(o *dbobjectv1.DatabaseObject) *accessgraphv1.ResourceEntry {
-			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_DatabaseObject{DatabaseObject: o}}
+			return accessgraphv1.ResourceEntry_builder{DatabaseObject: proto.ValueOrDefault(o)}.Build()
 		},
 	)
 }
@@ -670,7 +669,7 @@ func sendDevices(ctx context.Context, authServer services.DevicesGetter, stream 
 		},
 		func(d *devicepb.Device) *accessgraphv1.ResourceEntry {
 			d.ClearCredential()
-			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_Device{Device: d}}
+			return accessgraphv1.ResourceEntry_builder{Device: proto.ValueOrDefault(d)}.Build()
 		},
 	)
 }
@@ -682,7 +681,7 @@ func sendPrivateKeys(ctx context.Context, authServer services.AccessGraphSecrets
 	return sendPaginatedResources(ctx, stream,
 		authServer.ListAllPrivateKeys,
 		func(k *accessgraphsecretsv1pb.PrivateKey) *accessgraphv1.ResourceEntry {
-			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_PrivateKey{PrivateKey: k}}
+			return accessgraphv1.ResourceEntry_builder{PrivateKey: proto.ValueOrDefault(k)}.Build()
 		},
 	)
 }
@@ -694,7 +693,7 @@ func sendAuthorizedKeys(ctx context.Context, authServer services.AccessGraphSecr
 	return sendPaginatedResources(ctx, stream,
 		authServer.ListAllAuthorizedKeys,
 		func(k *accessgraphsecretsv1pb.AuthorizedKey) *accessgraphv1.ResourceEntry {
-			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_AuthorizedKey{AuthorizedKey: k}}
+			return accessgraphv1.ResourceEntry_builder{AuthorizedKey: proto.ValueOrDefault(k)}.Build()
 		},
 	)
 }
@@ -716,7 +715,7 @@ func sendAccessRequests(ctx context.Context, authServer interface {
 			return rsp.GetAccessRequests(), rsp.GetNextKey(), nil
 		},
 		func(a *types.AccessRequestV3) *accessgraphv1.ResourceEntry {
-			return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_AccessRequest{AccessRequest: a}}
+			return accessgraphv1.ResourceEntry_builder{AccessRequest: a}.Build()
 		},
 	)
 }
@@ -1014,76 +1013,58 @@ func (t *tagEventWatcher) sendPut(event types.Event) (err error) {
 	switch resource := event.Resource.(type) {
 	case *types.UserV2:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_User{
-					User: resource,
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				User: resource,
+			}.Build(),
 		)
 
 	case *types.RoleV6:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_Role{
-					Role: resource,
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				Role: resource,
+			}.Build(),
 		)
 	case *types.AccessRequestV3:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_AccessRequest{
-					AccessRequest: resource,
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				AccessRequest: resource,
+			}.Build(),
 		)
 	case *types.ServerV2:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_Server{
-					Server: resource,
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				Server: resource,
+			}.Build(),
 		)
 	case *types.KubernetesServerV3:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_KubernetesServer{
-					KubernetesServer: resource,
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				KubernetesServer: resource,
+			}.Build(),
 		)
 	case *types.AppServerV3:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_AppServer{
-					AppServer: resource,
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				AppServer: resource,
+			}.Build(),
 		)
 	case *types.DatabaseServerV3:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_DatabaseServer{
-					DatabaseServer: resource,
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				DatabaseServer: resource,
+			}.Build(),
 		)
 	case *types.WindowsDesktopV3:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_WindowsDesktop{
-					WindowsDesktop: resource,
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				WindowsDesktop: resource,
+			}.Build(),
 		)
 	case *accesslist.AccessList:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_AccessList{
-					AccessList: accesslistv1conv.ToProto(resource),
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				AccessList: proto.ValueOrDefault(accesslistv1conv.ToProto(resource)),
+			}.Build(),
 		)
 	case *accesslist.AccessListMember:
 		req = accessgraphv1.EventsStreamV2Request_builder{
@@ -1099,44 +1080,34 @@ func (t *tagEventWatcher) sendPut(event types.Event) (err error) {
 		// reset device credentials before sending to access graph
 		device.ClearCredential()
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_Device{
-					Device: device,
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				Device: proto.ValueOrDefault(device),
+			}.Build(),
 		)
 
 	case types.Resource153UnwrapperT[*dbobjectv1.DatabaseObject]:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_DatabaseObject{
-					DatabaseObject: resource.UnwrapT(),
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				DatabaseObject: proto.ValueOrDefault(resource.UnwrapT()),
+			}.Build(),
 		)
 	case types.Resource153UnwrapperT[*crownjewelv1.CrownJewel]:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_CrownJewel{
-					CrownJewel: resource.UnwrapT(),
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				CrownJewel: proto.ValueOrDefault(resource.UnwrapT()),
+			}.Build(),
 		)
 	case types.Resource153UnwrapperT[*accessgraphsecretsv1pb.PrivateKey]:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_PrivateKey{
-					PrivateKey: resource.UnwrapT(),
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				PrivateKey: proto.ValueOrDefault(resource.UnwrapT()),
+			}.Build(),
 		)
 	case types.Resource153UnwrapperT[*accessgraphsecretsv1pb.AuthorizedKey]:
 		req = putResourceEventStreamRequest(
-			&accessgraphv1.ResourceEntry{
-				Resource: &accessgraphv1.ResourceEntry_AuthorizedKey{
-					AuthorizedKey: resource.UnwrapT(),
-				},
-			},
+			accessgraphv1.ResourceEntry_builder{
+				AuthorizedKey: proto.ValueOrDefault(resource.UnwrapT()),
+			}.Build(),
 		)
 	default:
 		return trace.BadParameter("unexpected resource type: %T", resource)
@@ -1159,15 +1130,15 @@ func resourceHeaderFromMetadata(kind, version string, t interface{ GetMetadata()
 func resourceWithLabelsToEntry(resource types.ResourceWithLabels) (*accessgraphv1.ResourceEntry, error) {
 	switch r := resource.(type) {
 	case *types.ServerV2:
-		return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_Server{Server: r}}, nil
+		return accessgraphv1.ResourceEntry_builder{Server: r}.Build(), nil
 	case *types.KubernetesServerV3:
-		return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_KubernetesServer{KubernetesServer: r}}, nil
+		return accessgraphv1.ResourceEntry_builder{KubernetesServer: r}.Build(), nil
 	case *types.AppServerV3:
-		return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_AppServer{AppServer: r}}, nil
+		return accessgraphv1.ResourceEntry_builder{AppServer: r}.Build(), nil
 	case *types.DatabaseServerV3:
-		return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_DatabaseServer{DatabaseServer: r}}, nil
+		return accessgraphv1.ResourceEntry_builder{DatabaseServer: r}.Build(), nil
 	case *types.WindowsDesktopV3:
-		return &accessgraphv1.ResourceEntry{Resource: &accessgraphv1.ResourceEntry_WindowsDesktop{WindowsDesktop: r}}, nil
+		return accessgraphv1.ResourceEntry_builder{WindowsDesktop: r}.Build(), nil
 	default:
 		return nil, trace.BadParameter("unexpected resource type: %T", resource)
 	}

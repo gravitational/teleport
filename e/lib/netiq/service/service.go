@@ -378,9 +378,9 @@ func push(
 		return trace.Wrap(err)
 	}
 	err = client.Send(
-		&accessgraphv1alpha.NetIQEventsStreamRequest{
-			Operation: &accessgraphv1alpha.NetIQEventsStreamRequest_Sync{},
-		},
+		accessgraphv1alpha.NetIQEventsStreamRequest_builder{
+			Sync: &accessgraphv1alpha.NetIQSyncOperation{},
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }

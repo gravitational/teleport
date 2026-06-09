@@ -235,9 +235,9 @@ func TestResourceImportWithCyclicGroupMembers(t *testing.T) {
 
 		require.EventuallyWithT(t,
 			func(t *assert.CollectT) {
-				updatedPlugin, err := env.authClient.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+				updatedPlugin, err := env.authClient.PluginsClient().GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 					Name: plugin.GetName(),
-				})
+				}.Build())
 				require.NoError(t, err)
 
 				status := updatedPlugin.GetStatus()
@@ -285,9 +285,9 @@ func TestResourceImportWithCyclicGroupMembers(t *testing.T) {
 
 	// Update plugin to trigger re-sync.
 	// This time, the sync will skip bulk collection insert and will move to reconciler.
-	pluginToUpdate, err := env.authClient.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
+	pluginToUpdate, err := env.authClient.PluginsClient().GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{
 		Name: plugin.GetName(),
-	})
+	}.Build())
 	require.NoError(t, err)
 	settings = pluginToUpdate.Spec.GetEntraId().SyncSettings
 	settings.SyncIntervals.Full = "2h"

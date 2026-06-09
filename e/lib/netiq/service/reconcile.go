@@ -52,18 +52,14 @@ func reconcileGroups(old []*accessgraphv1alpha.NetIQGroup, new []*accessgraphv1a
 	})
 
 	for _, group := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_Group{
-				Group: group,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			Group: proto.ValueOrDefault(group),
+		}.Build()))
 	}
 	for _, group := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_Group{
-				Group: group,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			Group: proto.ValueOrDefault(group),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -78,18 +74,14 @@ func reconcileUsers(
 		return user.GetId()
 	})
 	for _, user := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_User{
-				User: user,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			User: proto.ValueOrDefault(user),
+		}.Build()))
 	}
 	for _, user := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_User{
-				User: user,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			User: proto.ValueOrDefault(user),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -104,18 +96,14 @@ func reconcileRoles(
 		return role.GetId()
 	})
 	for _, role := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_Role{
-				Role: role,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			Role: proto.ValueOrDefault(role),
+		}.Build()))
 	}
 	for _, role := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_Role{
-				Role: role,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			Role: proto.ValueOrDefault(role),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -130,18 +118,14 @@ func reconcileRoleMembers(
 		return fmt.Sprintf("%x;%x", memberAssign.GetRoleId(), memberAssign.GetDn())
 	})
 	for _, roleMember := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_RoleMemberRef{
-				RoleMemberRef: roleMember,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			RoleMemberRef: proto.ValueOrDefault(roleMember),
+		}.Build()))
 	}
 	for _, roleMember := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_RoleMemberRef{
-				RoleMemberRef: roleMember,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			RoleMemberRef: proto.ValueOrDefault(roleMember),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -156,18 +140,14 @@ func reconcileGroupMembers(
 		return fmt.Sprintf("%x;%x", groupMember.GetGroupId(), groupMember.GetUserId())
 	})
 	for _, member := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_GroupMember{
-				GroupMember: member,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			GroupMember: proto.ValueOrDefault(member),
+		}.Build()))
 	}
 	for _, member := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_GroupMember{
-				GroupMember: member,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			GroupMember: proto.ValueOrDefault(member),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -182,18 +162,14 @@ func reconcileResources(
 		return resource.GetId()
 	})
 	for _, resource := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_Resource{
-				Resource: resource,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			Resource: proto.ValueOrDefault(resource),
+		}.Build()))
 	}
 	for _, resource := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_Resource{
-				Resource: resource,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			Resource: proto.ValueOrDefault(resource),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -208,18 +184,14 @@ func reconcileRoleMappedResources(
 		return fmt.Sprintf("%x;%x", resourceAssign.GetRoleId(), resourceAssign.GetResourceId())
 	})
 	for _, ref := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_ResourceRoleRef{
-				ResourceRoleRef: ref,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			ResourceRoleRef: proto.ValueOrDefault(ref),
+		}.Build()))
 	}
 	for _, ref := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_ResourceRoleRef{
-				ResourceRoleRef: ref,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			ResourceRoleRef: proto.ValueOrDefault(ref),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -234,18 +206,14 @@ func reconcileRoleParentRoles(
 		return fmt.Sprintf("%x;%x", roleRef.GetChildRoleId(), roleRef.GetParentRoleId())
 	})
 	for _, ref := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_ParentRoleRef{
-				ParentRoleRef: ref,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			ParentRoleRef: proto.ValueOrDefault(ref),
+		}.Build()))
 	}
 	for _, ref := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.NetIQObject{
-			Object: &accessgraphv1alpha.NetIQObject_ParentRoleRef{
-				ParentRoleRef: ref,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.NetIQObject_builder{
+			ParentRoleRef: proto.ValueOrDefault(ref),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }

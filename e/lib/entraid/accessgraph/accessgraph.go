@@ -36,18 +36,14 @@ func reconcileApplications(old []*accessgraphv1alpha.EntraApplication, new []*ac
 	})
 
 	for _, app := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.EntraResource{
-			Resource: &accessgraphv1alpha.EntraResource_Application{
-				Application: app,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.EntraResource_builder{
+			Application: proto.ValueOrDefault(app),
+		}.Build()))
 	}
 	for _, app := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.EntraResource{
-			Resource: &accessgraphv1alpha.EntraResource_Application{
-				Application: app,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.EntraResource_builder{
+			Application: proto.ValueOrDefault(app),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }

@@ -407,24 +407,20 @@ func TestProcessTAGMessageUsageEvents(t *testing.T) {
 		},
 		{
 			name: "nil graph size",
-			msg: accessgraphv1alpha.EventsStreamV2Response_builder{
-				UsageEvent: &accessgraphv1alpha.UsageEvent{
-					Event: &accessgraphv1alpha.UsageEvent_GraphSize{
-						GraphSize: nil,
-					},
-				},
-			}.Build(),
+			msg: func() *accessgraphv1alpha.EventsStreamV2Response {
+				usageEvent := accessgraphv1alpha.UsageEvent_builder{}.Build()
+				usageEvent.SetGraphSize(nil)
+				return accessgraphv1alpha.EventsStreamV2Response_builder{UsageEvent: usageEvent}.Build()
+			}(),
 			wantCalls: 0,
 		},
 		{
 			name: "nil audit logs ingested",
-			msg: accessgraphv1alpha.EventsStreamV2Response_builder{
-				UsageEvent: &accessgraphv1alpha.UsageEvent{
-					Event: &accessgraphv1alpha.UsageEvent_AuditLogsIngested{
-						AuditLogsIngested: nil,
-					},
-				},
-			}.Build(),
+			msg: func() *accessgraphv1alpha.EventsStreamV2Response {
+				usageEvent := accessgraphv1alpha.UsageEvent_builder{}.Build()
+				usageEvent.SetAuditLogsIngested(nil)
+				return accessgraphv1alpha.EventsStreamV2Response_builder{UsageEvent: usageEvent}.Build()
+			}(),
 			wantCalls: 0,
 		},
 	}

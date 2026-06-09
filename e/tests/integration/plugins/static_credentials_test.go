@@ -155,14 +155,14 @@ func TestPluginUpdateCredentials(t *testing.T) {
 
 	t.Run("empty query is an error", func(t *testing.T) {
 		response, err := adminUser.AuthClient.PluginsClient().UpdatePluginStaticCredentials(ctx,
-			&pluginsv1.UpdatePluginStaticCredentialsRequest{
-				Target: &pluginsv1.UpdatePluginStaticCredentialsRequest_Query{},
+			pluginsv1.UpdatePluginStaticCredentialsRequest_builder{
+				Query: &pluginsv1.CredentialQuery{},
 				Credential: &types.PluginStaticCredentialsSpecV1{
 					Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
 						APIToken: "some random value",
 					},
 				},
-			})
+			}.Build())
 		require.True(t, trace.IsBadParameter(err), "Expected Bad Parameter error, gt %T %q", err, err)
 		require.Nil(t, response)
 	})

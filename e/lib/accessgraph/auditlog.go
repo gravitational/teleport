@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	auditlogv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
@@ -137,11 +138,9 @@ func (a *auditLogExporter) reconcileConfig(ctx context.Context, config AuditLogC
 	if !startDate.IsZero() {
 		pbConfig.SetStartDate(timestamppb.New(startDate))
 	}
-	req := &accessgraphv1.AuditLogStreamRequest{
-		Action: &accessgraphv1.AuditLogStreamRequest_Config{
-			Config: pbConfig,
-		},
-	}
+	req := accessgraphv1.AuditLogStreamRequest_builder{
+		Config: proto.ValueOrDefault(pbConfig),
+	}.Build()
 	err := a.stream.Send(req)
 	if err != nil {
 		return nil, trace.Errorf("failed to send initial audit log config on stream. Send error %w, followed by receive error %w", err, receiveUntilErr(a.stream))

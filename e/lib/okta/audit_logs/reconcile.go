@@ -42,18 +42,14 @@ func reconcileRoles(old, new []*accessgraphv1alpha.OktaRoleV1) *reconcileInterme
 	})
 
 	for _, group := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.OktaResource{
-			Resource: &accessgraphv1alpha.OktaResource_Role{
-				Role: group,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.OktaResource_builder{
+			Role: proto.ValueOrDefault(group),
+		}.Build()))
 	}
 	for _, group := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.OktaResource{
-			Resource: &accessgraphv1alpha.OktaResource_Role{
-				Role: group,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.OktaResource_builder{
+			Role: proto.ValueOrDefault(group),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -67,18 +63,14 @@ func reconcileTokens(
 		return token.GetId()
 	})
 	for _, token := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.OktaResource{
-			Resource: &accessgraphv1alpha.OktaResource_Token{
-				Token: token,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.OktaResource_builder{
+			Token: proto.ValueOrDefault(token),
+		}.Build()))
 	}
 	for _, token := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.OktaResource{
-			Resource: &accessgraphv1alpha.OktaResource_Token{
-				Token: token,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.OktaResource_builder{
+			Token: proto.ValueOrDefault(token),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }
@@ -92,18 +84,14 @@ func reconcileRoleAssignment(
 		return fmt.Sprintf("%x;%x;%v", policy.GetRoleId(), policy.GetUserId(), policy.GetOrganization())
 	})
 	for _, member := range toAdd {
-		upsert.SetResources(append(upsert.GetResources(), &accessgraphv1alpha.OktaResource{
-			Resource: &accessgraphv1alpha.OktaResource_RoleAssignment{
-				RoleAssignment: member,
-			},
-		}))
+		upsert.SetResources(append(upsert.GetResources(), accessgraphv1alpha.OktaResource_builder{
+			RoleAssignment: proto.ValueOrDefault(member),
+		}.Build()))
 	}
 	for _, member := range toRemove {
-		delete.SetResources(append(delete.GetResources(), &accessgraphv1alpha.OktaResource{
-			Resource: &accessgraphv1alpha.OktaResource_RoleAssignment{
-				RoleAssignment: member,
-			},
-		}))
+		delete.SetResources(append(delete.GetResources(), accessgraphv1alpha.OktaResource_builder{
+			RoleAssignment: proto.ValueOrDefault(member),
+		}.Build()))
 	}
 	return &reconcileIntermediateResult{upsert, delete}
 }

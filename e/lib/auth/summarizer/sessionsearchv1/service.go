@@ -7,6 +7,7 @@ import (
 	"log/slog"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/sessionsearch/v1"
@@ -290,11 +291,9 @@ func (s *Service) SearchSessionSummaries(
 	return trace.Wrap(s.streamFromAccessGraph(ctx, authCtx, agParams, func(summary *pb.SessionSummary, nextBatchToken string) error {
 		switch {
 		case summary != nil:
-			return stream.Send(&pb.SearchSessionSummariesResponse{
-				Payload: &pb.SearchSessionSummariesResponse_Summary{
-					Summary: summary,
-				},
-			})
+			return stream.Send(pb.SearchSessionSummariesResponse_builder{
+				Summary: proto.ValueOrDefault(summary),
+			}.Build())
 		default:
 			return stream.Send(pb.SearchSessionSummariesResponse_builder{
 				BatchComplete: pb.SearchSessionSummariesResponse_BatchComplete_builder{
@@ -325,11 +324,9 @@ func (s *Service) streamFromAccessGraph(
 		return trace.Wrap(err)
 	}
 
-	if err := agStream.Send(&accessgraphv1.SearchSessionSummariesRequest{
-		Payload: &accessgraphv1.SearchSessionSummariesRequest_SearchParams{
-			SearchParams: agParams,
-		},
-	}); err != nil {
+	if err := agStream.Send(accessgraphv1.SearchSessionSummariesRequest_builder{
+		SearchParams: proto.ValueOrDefault(agParams),
+	}.Build()); err != nil {
 		// Send errors on bidi streams are typically opaque (e.g. io.EOF).
 		// Drain the real server-side error via Recv.
 		var recvErr error
@@ -430,11 +427,11 @@ func (s *Service) buildAccessGraphParams(
 		StartTime:          req.GetStartTime(),
 		EndTime:            req.GetEndTime(),
 		Kinds:              req.GetKinds(),
-		Username:           req.Username,
+		Username:           proto.ValueOrNil(req.HasUsername(), req.GetUsername),
 		UserRoles:          req.GetUserRoles(),
 		AccessRequestIds:   req.GetAccessRequestIds(),
-		ResourceKind:       req.ResourceKind,
-		ResourceName:       req.ResourceName,
+		ResourceKind:       proto.ValueOrNil(req.HasResourceKind(), req.GetResourceKind),
+		ResourceName:       proto.ValueOrNil(req.HasResourceName(), req.GetResourceName),
 		ResourceLabels:     req.GetResourceLabels(),
 		ResourceProperties: convertResourceProperties(req.GetResourceProperties()),
 		Severity:           req.GetSeverity(),
@@ -541,21 +538,21 @@ func convertResourceProperties(src *pb.ResourceProperties) *accessgraphv1.Resour
 	case pb.ResourceProperties_Ssh_case:
 		return accessgraphv1.ResourceProperties_builder{
 			Ssh: accessgraphv1.SSHProperties_builder{
-				ServerHostname: src.GetSsh().ServerHostname,
-				ServerAddr:     src.GetSsh().ServerAddr,
+				ServerHostname: proto.ValueOrNil(src.GetSsh().HasServerHostname(), src.GetSsh().GetServerHostname),
+				ServerAddr:     proto.ValueOrNil(src.GetSsh().HasServerAddr(), src.GetSsh().GetServerAddr),
 			}.Build(),
 		}.Build()
 	case pb.ResourceProperties_Kubernetes_case:
 		return accessgraphv1.ResourceProperties_builder{
 			Kubernetes: accessgraphv1.KubernetesProperties_builder{
-				PodNamespace: src.GetKubernetes().PodNamespace,
-				PodName:      src.GetKubernetes().PodName,
+				PodNamespace: proto.ValueOrNil(src.GetKubernetes().HasPodNamespace(), src.GetKubernetes().GetPodNamespace),
+				PodName:      proto.ValueOrNil(src.GetKubernetes().HasPodName(), src.GetKubernetes().GetPodName),
 			}.Build(),
 		}.Build()
 	case pb.ResourceProperties_Database_case:
 		return accessgraphv1.ResourceProperties_builder{
 			Database: accessgraphv1.DatabaseProperties_builder{
-				DatabaseName: src.GetDatabase().DatabaseName,
+				DatabaseName: proto.ValueOrNil(src.GetDatabase().HasDatabaseName(), src.GetDatabase().GetDatabaseName),
 			}.Build(),
 		}.Build()
 	default:
@@ -573,21 +570,21 @@ func convertAGResourceProperties(src *accessgraphv1.ResourceProperties) *pb.Reso
 	case accessgraphv1.ResourceProperties_Ssh_case:
 		return pb.ResourceProperties_builder{
 			Ssh: pb.SSHProperties_builder{
-				ServerHostname: src.GetSsh().ServerHostname,
-				ServerAddr:     src.GetSsh().ServerAddr,
+				ServerHostname: proto.ValueOrNil(src.GetSsh().HasServerHostname(), src.GetSsh().GetServerHostname),
+				ServerAddr:     proto.ValueOrNil(src.GetSsh().HasServerAddr(), src.GetSsh().GetServerAddr),
 			}.Build(),
 		}.Build()
 	case accessgraphv1.ResourceProperties_Kubernetes_case:
 		return pb.ResourceProperties_builder{
 			Kubernetes: pb.KubernetesProperties_builder{
-				PodNamespace: src.GetKubernetes().PodNamespace,
-				PodName:      src.GetKubernetes().PodName,
+				PodNamespace: proto.ValueOrNil(src.GetKubernetes().HasPodNamespace(), src.GetKubernetes().GetPodNamespace),
+				PodName:      proto.ValueOrNil(src.GetKubernetes().HasPodName(), src.GetKubernetes().GetPodName),
 			}.Build(),
 		}.Build()
 	case accessgraphv1.ResourceProperties_Database_case:
 		return pb.ResourceProperties_builder{
 			Database: pb.DatabaseProperties_builder{
-				DatabaseName: src.GetDatabase().DatabaseName,
+				DatabaseName: proto.ValueOrNil(src.GetDatabase().HasDatabaseName(), src.GetDatabase().GetDatabaseName),
 			}.Build(),
 		}.Build()
 	default:

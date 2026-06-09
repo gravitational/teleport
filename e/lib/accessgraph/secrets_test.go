@@ -14,6 +14,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	accessgraphsecretsv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessgraph/v1"
@@ -511,11 +512,9 @@ type clientStreamAdapter struct {
 
 func (a clientStreamAdapter) Send(pb *devicepb.AssertDeviceRequest) error {
 	err := a.stream.Send(
-		&accessgraphsecretsv1pb.ReportSecretsRequest{
-			Payload: &accessgraphsecretsv1pb.ReportSecretsRequest_DeviceAssertion{
-				DeviceAssertion: pb,
-			},
-		},
+		accessgraphsecretsv1pb.ReportSecretsRequest_builder{
+			DeviceAssertion: proto.ValueOrDefault(pb),
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }

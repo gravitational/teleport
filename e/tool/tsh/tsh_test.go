@@ -15,10 +15,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
-	"github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -158,20 +159,20 @@ func TestNodeAccess(t *testing.T) {
 		require.NoError(t, err)
 
 		tokenID := token.GetName()
-		res, err := authServer.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+		res, err := authServer.CreateRegisterChallenge(ctx, &clientproto.CreateRegisterChallengeRequest{
 			TokenID:     tokenID,
-			DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
-			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+			DeviceType:  clientproto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage: clientproto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
 		})
 		require.NoError(t, err)
 		cc := wantypes.CredentialCreationFromProto(res.GetWebauthn())
 
 		ccr, err := device.SignCredentialCreation(origin, cc)
 		require.NoError(t, err)
-		_, err = authServer.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+		_, err = authServer.ChangeUserAuthentication(ctx, &clientproto.ChangeUserAuthenticationRequest{
 			TokenID: tokenID,
-			NewMFARegisterResponse: &proto.MFARegisterResponse{
-				Response: &proto.MFARegisterResponse_Webauthn{
+			NewMFARegisterResponse: &clientproto.MFARegisterResponse{
+				Response: &clientproto.MFARegisterResponse_Webauthn{
 					Webauthn: wantypes.CredentialCreationResponseToProto(ccr),
 				},
 			},
@@ -567,7 +568,7 @@ func mustLoginIdentity(t *testing.T, authServer *auth.Server, proxyAddr, user, c
 
 func setupWebAuthnChallengeSolver(device *mocku2f.Key, success bool) tshcommon.CliOption {
 	return func(c *tshcommon.CLIConf) error {
-		c.WebauthnLogin = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		c.WebauthnLogin = func(ctx context.Context, origin string, assertion *wantypes.CredentialAssertion, prompt wancli.LoginPrompt, opts *wancli.LoginOpts) (*clientproto.MFAAuthenticateResponse, string, error) {
 			car, err := device.SignAssertion(origin, assertion)
 			if err != nil {
 				return nil, "", err
@@ -578,8 +579,8 @@ func setupWebAuthnChallengeSolver(device *mocku2f.Key, success bool) tshcommon.C
 				carProto.Type = "NOT A VALID TYPE" // set to an invalid type so the ceremony fails
 			}
 
-			return &proto.MFAAuthenticateResponse{
-				Response: &proto.MFAAuthenticateResponse_Webauthn{
+			return &clientproto.MFAAuthenticateResponse{
+				Response: &clientproto.MFAAuthenticateResponse_Webauthn{
 					Webauthn: carProto,
 				},
 			}, "", nil
@@ -645,11 +646,9 @@ func setupDeviceTrust(t *testing.T, process *service.TeleportProcess) tshcommon.
 	initReq, err := macOSDev1.EnrollDeviceInit()
 	require.NoError(t, err)
 	initReq.SetToken(device.GetEnrollToken().GetToken())
-	err = stream.Send(&devicepb.EnrollDeviceRequest{
-		Payload: &devicepb.EnrollDeviceRequest_Init{
-			Init: initReq,
-		},
-	})
+	err = stream.Send(devicepb.EnrollDeviceRequest_builder{
+		Init: proto.ValueOrDefault(initReq),
+	}.Build())
 	require.NoError(t, err)
 
 	// 2. Challenge.

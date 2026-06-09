@@ -13,8 +13,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
+	"google.golang.org/protobuf/proto"
 
-	"github.com/gravitational/teleport/api/client/proto"
+	clientproto "github.com/gravitational/teleport/api/client/proto"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -57,7 +58,7 @@ type authnCeremony struct {
 	// augmentCertsFunc calls its namesake auth.Server function.
 	// May be nil for ceremonies that don't issue new certificates (like device
 	// assertion ceremonies)
-	augmentCertsFunc func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*proto.Certs, error)
+	augmentCertsFunc func(ctx context.Context, opts *auth.AugmentUserCertificateOpts) (*clientproto.Certs, error)
 	auditCallback    func(dev *devicepb.Device, auditData *deviceAuthnAuditData, err error)
 }
 
@@ -228,11 +229,9 @@ func (c *authnCeremony) authenticate(
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		resp = &devicepb.AuthenticateDeviceResponse{
-			Payload: &devicepb.AuthenticateDeviceResponse_ConfirmationToken{
-				ConfirmationToken: confirmToken,
-			},
-		}
+		resp = devicepb.AuthenticateDeviceResponse_builder{
+			ConfirmationToken: proto.ValueOrDefault(confirmToken),
+		}.Build()
 	}
 
 	// Record collected data.

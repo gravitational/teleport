@@ -5,6 +5,7 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
@@ -76,21 +77,21 @@ func TestReconcileResults(t *testing.T) {
 
 	wantUpsert := accessgraphv1alpha.GitlabResourceList_builder{
 		Resources: []*accessgraphv1alpha.GitlabResource{
-			{Resource: &accessgraphv1alpha.GitlabResource_User{User: newUsers[1]}},
-			{Resource: &accessgraphv1alpha.GitlabResource_Group{Group: newGroups[1]}},
-			{Resource: &accessgraphv1alpha.GitlabResource_Project{Project: newProjects[1]}},
-			{Resource: &accessgraphv1alpha.GitlabResource_ProjectMember{ProjectMember: newProjectMembers[1]}},
-			{Resource: &accessgraphv1alpha.GitlabResource_GroupMember{GroupMember: newGroupMembers[1]}},
+			accessgraphv1alpha.GitlabResource_builder{User: proto.ValueOrDefault(newUsers[1])}.Build(),
+			accessgraphv1alpha.GitlabResource_builder{Group: proto.ValueOrDefault(newGroups[1])}.Build(),
+			accessgraphv1alpha.GitlabResource_builder{Project: proto.ValueOrDefault(newProjects[1])}.Build(),
+			accessgraphv1alpha.GitlabResource_builder{ProjectMember: proto.ValueOrDefault(newProjectMembers[1])}.Build(),
+			accessgraphv1alpha.GitlabResource_builder{GroupMember: proto.ValueOrDefault(newGroupMembers[1])}.Build(),
 		},
 	}.Build()
 
 	wantDelete := accessgraphv1alpha.GitlabResourceList_builder{
 		Resources: []*accessgraphv1alpha.GitlabResource{
-			{Resource: &accessgraphv1alpha.GitlabResource_User{User: oldUsers[1]}},
-			{Resource: &accessgraphv1alpha.GitlabResource_Group{Group: oldGroups[1]}},
-			{Resource: &accessgraphv1alpha.GitlabResource_Project{Project: oldProjects[1]}},
-			{Resource: &accessgraphv1alpha.GitlabResource_ProjectMember{ProjectMember: oldProjectMembers[1]}},
-			{Resource: &accessgraphv1alpha.GitlabResource_GroupMember{GroupMember: oldGroupMembers[1]}},
+			accessgraphv1alpha.GitlabResource_builder{User: proto.ValueOrDefault(oldUsers[1])}.Build(),
+			accessgraphv1alpha.GitlabResource_builder{Group: proto.ValueOrDefault(oldGroups[1])}.Build(),
+			accessgraphv1alpha.GitlabResource_builder{Project: proto.ValueOrDefault(oldProjects[1])}.Build(),
+			accessgraphv1alpha.GitlabResource_builder{ProjectMember: proto.ValueOrDefault(oldProjectMembers[1])}.Build(),
+			accessgraphv1alpha.GitlabResource_builder{GroupMember: proto.ValueOrDefault(oldGroupMembers[1])}.Build(),
 		},
 	}.Build()
 

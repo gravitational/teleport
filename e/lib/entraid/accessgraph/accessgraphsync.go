@@ -309,9 +309,9 @@ func push(
 		return trace.Wrap(err)
 	}
 	err = client.Send(
-		&accessgraphv1alpha.EntraEventsStreamRequest{
-			Operation: &accessgraphv1alpha.EntraEventsStreamRequest_Sync{},
-		},
+		accessgraphv1alpha.EntraEventsStreamRequest_builder{
+			Sync: &accessgraphv1alpha.EntraSyncOperation{},
+		}.Build(),
 	)
 	return trace.Wrap(err)
 }

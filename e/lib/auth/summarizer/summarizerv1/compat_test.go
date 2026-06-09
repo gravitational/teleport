@@ -6,6 +6,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/protobuf/proto"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 )
@@ -31,7 +32,7 @@ func TestAdjustEnhancedSummaryForClient_OldClient_NewData(t *testing.T) {
 	require.Equal(t, []string{"T1059"}, cmds[0].GetMitreAttackIds())
 
 	//nolint:staticcheck // verifying downgrade populated deprecated field
-	require.NotNil(t, es.NeedsFurtherReview)
+	require.NotNil(t, proto.ValueOrNil(es.HasNeedsFurtherReview(), es.GetNeedsFurtherReview))
 	//nolint:staticcheck // verifying downgrade populated deprecated field
 	require.Equal(t, pb.NeedsReviewReason_NEEDS_REVIEW_REASON_TOO_LARGE, es.GetNeedsFurtherReview())
 }
@@ -50,7 +51,7 @@ func TestAdjustEnhancedSummaryForClient_OldClient_OldData(t *testing.T) {
 	//nolint:staticcheck // deprecated field is what old clients consume
 	require.Equal(t, "ls -la", es.GetCommands()[0].GetCommand())
 	//nolint:staticcheck // deprecated field is what old clients consume
-	require.NotNil(t, es.NeedsFurtherReview)
+	require.NotNil(t, proto.ValueOrNil(es.HasNeedsFurtherReview(), es.GetNeedsFurtherReview))
 }
 
 func TestAdjustEnhancedSummaryForClient_NewClient_OldData(t *testing.T) {
