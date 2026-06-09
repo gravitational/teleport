@@ -388,6 +388,14 @@ func (r resourceTeleportAccessList) ModifyPlan(ctx context.Context, req tfsdk.Mo
 		resp.Diagnostics.Append(diagFromWrappedErr("Error setting AccessList defaults", trace.Wrap(err), "access_list"))
 		return
 	}
+	name := accessListResource.Metadata.Name
+
+	accessListBefore, err := r.p.Client.AccessListClient().GetAccessList(ctx, name)
+	if err != nil {
+		resp.Diagnostics.Append(diagFromWrappedErr("Error reading AccessList", err, "access_list"))
+		return
+	}
+	accessListResource.Spec.Audit.NextAuditDate = accessListBefore.Spec.Audit.NextAuditDate
 
 	accessList = convert.ToProto(accessListResource)
 
