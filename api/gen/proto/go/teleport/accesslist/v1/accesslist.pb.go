@@ -23,15 +23,14 @@
 package accesslistv1
 
 import (
-	reflect "reflect"
-	unsafe "unsafe"
-
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	v11 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
+	reflect "reflect"
+	unsafe "unsafe"
 )
 
 const (
