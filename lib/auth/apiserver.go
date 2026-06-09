@@ -215,9 +215,8 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 		}
 
 		auth := &ServerWithRoles{
-			authServer: s.AuthServer,
+			serverBase: serverBase{authServer: s.AuthServer, alog: s.AuthServer},
 			context:    *authContext,
-			alog:       s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {
@@ -227,23 +226,19 @@ func (s *APIServer) WithAuth(handler HandlerWithAuthFunc) httprouter.Handle {
 	})
 }
 
-func (s *APIServer) WithScopedAuth(handler HandlerWithAuthFunc) httprouter.Handle {
+// ScopedHandlerWithAuthFunc is an HTTP handler with a scoped auth context.
+type ScopedHandlerWithAuthFunc func(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error)
+
+func (s *APIServer) WithScopedAuth(handler ScopedHandlerWithAuthFunc) httprouter.Handle {
 	return httplib.MakeHandler(func(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
 		// HTTPS server expects auth context to be set by the auth middleware
 		scopedContext, err := s.ScopedAuthorizer.AuthorizeScoped(r.Context())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		authContext, ok := scopedContext.UnscopedContext()
-		if !ok {
-			authContext = &authz.Context{}
-		}
-
-		auth := &ServerWithRoles{
-			authServer:    s.AuthServer,
-			context:       *authContext,
+		auth := &ScopedServerWithRoles{
+			serverBase:    serverBase{authServer: s.AuthServer, alog: s.AuthServer},
 			scopedContext: scopedContext,
-			alog:          s.AuthServer,
 		}
 		version := p.ByName("version")
 		if version == "" {
@@ -327,7 +322,7 @@ func (s *APIServer) upsertProxy(auth *ServerWithRoles, w http.ResponseWriter, r 
 // getProxies returns registered proxies
 //
 // TODO(kiosion) DELETE IN 21.0.0
-func (s *APIServer) getProxies(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
+func (s *APIServer) getProxies(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	servers, err := auth.GetProxies()
 	if err != nil {
@@ -354,7 +349,7 @@ func (s *APIServer) deleteProxy(auth *ServerWithRoles, w http.ResponseWriter, r 
 // getAuthServers returns registered auth servers
 //
 // TODO(kiosion) DELETE IN 21.0.0
-func (s *APIServer) getAuthServers(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
+func (s *APIServer) getAuthServers(auth *ScopedServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	//nolint:staticcheck // TODO(kiosion) DELETE IN 21.0.0
 	servers, err := auth.GetAuthServers()
 	if err != nil {
