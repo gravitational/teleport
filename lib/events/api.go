@@ -262,9 +262,7 @@ const (
 	SubsystemError = "exitError"
 
 	// X11 forwarding event
-	X11ForwardEvent   = "x11-forward"
-	X11ForwardSuccess = "success"
-	X11ForwardErr     = "error"
+	X11ForwardEvent = "x11-forward"
 
 	// Agent forwarding event
 	AgentForwardEvent = "agent-forward"

@@ -1484,6 +1484,13 @@ func (s *Server) dispatch(ctx context.Context, ch ssh.Channel, req *ssh.Request,
 func (s *Server) handleAgentForward(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *srv.ServerContext) (err error) {
 	event := scx.GetAgentForwardEvent()
 	defer func() {
+		// When ProxyingPermit is set, a downstream Teleport node enforces RBAC and
+		// emits an agent-forward event; skipped here to avoid duplication.
+		// If there is an error in the proxy/forwarding server, emit an event here.
+		if err == nil && scx.Identity.ProxyingPermit != nil {
+			return
+		}
+
 		if err != nil {
 			event.Metadata.Code = events.AgentForwardFailureCode
 			event.Status.Success = false
@@ -1588,6 +1595,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			LocalAddr:  s.sconn.LocalAddr().String(),
 			RemoteAddr: s.sconn.RemoteAddr().String(),
 		},
+		ServerMetadata: scx.ServerMetadata(),
 	}
 
 	defer func() {

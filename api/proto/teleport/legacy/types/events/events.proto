@@ -1871,6 +1871,13 @@ message X11Forward {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // ServerMetadata holds server information.
+  ServerMetadata Server = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // CommandMetadata specifies common command fields

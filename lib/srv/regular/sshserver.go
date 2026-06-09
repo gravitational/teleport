@@ -2104,17 +2104,7 @@ func (s *Server) serveAgent(ctx context.Context, scx *srv.ServerContext) error {
 // request will do nothing. To maintain interoperability, agent forwarding
 // requests should never fail, all errors should be logged and we should
 // continue processing requests.
-func (s *Server) handleAgentForwardProxy(ctx context.Context, scx *srv.ServerContext) (err error) {
-	event := scx.GetAgentForwardEvent()
-	defer func() {
-		if err != nil {
-			event.Metadata.Code = events.AgentForwardFailureCode
-			event.Status.Success = false
-			event.Status.Error = err.Error()
-		}
-		s.emitAuditEventWithLog(ctx, event)
-	}()
-
+func (s *Server) handleAgentForwardProxy(ctx context.Context, scx *srv.ServerContext) error {
 	// Forwarding an agent to the proxy is only supported when the proxy is in
 	// recording mode.
 	if !services.IsRecordAtProxy(scx.SessionRecordingConfig.GetMode()) {
@@ -2140,6 +2130,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			LocalAddr:  scx.ServerConn.LocalAddr().String(),
 			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
 		},
+		ServerMetadata: scx.ServerMetadata(),
 		Status: apievents.Status{
 			Success: true,
 		},
