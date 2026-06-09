@@ -39,9 +39,10 @@ import (
 )
 
 const (
-	defaultToBeWrittenBufferLen    = 1024
 	pollInterval                   = 100 * time.Millisecond
 	sqlitePageSize                 = 4096 // Bytes
+	auditQueueTable                = "audit_queue"
+	auditDeadLetterTable           = "audit_dead_letter"
 	defaultMaxAttempts             = 10
 	defaultDeadLetterSweepInterval = 10 * time.Minute
 	defaultDeadLetterTTL           = 30 * 24 * time.Hour // 30 days
@@ -65,13 +66,13 @@ CREATE TABLE IF NOT EXISTS audit_queue (
     id       INTEGER PRIMARY KEY,
     payload  BLOB    NOT NULL,
     attempts INTEGER NOT NULL DEFAULT 0
-);
+) STRICT;
 
 CREATE TABLE IF NOT EXISTS audit_dead_letter (
     id        INTEGER PRIMARY KEY,
     payload   BLOB    NOT NULL,
     failed_at INTEGER NOT NULL
-);
+) STRICT;
 
 CREATE INDEX IF NOT EXISTS idx_dead_letter_failed_at ON audit_dead_letter(failed_at);
 
@@ -79,7 +80,7 @@ CREATE TABLE IF NOT EXISTS teleport_info (
     id    INTEGER PRIMARY KEY,
     key   TEXT NOT NULL UNIQUE,
     value TEXT NOT NULL
-);
+) STRICT;
 `
 
 // writeRequest is a single Enqueue waiting on a commit result. The writer
@@ -151,7 +152,7 @@ func newBaseQueue(db *sql.DB, cfg Config) (*sqliteQueue, error) {
 	ctx, cancel := context.WithCancel(context.Background())
 	q := &sqliteQueue{
 		db:                      db,
-		toBeWritten:             make(chan writeRequest, defaultToBeWrittenBufferLen),
+		toBeWritten:             make(chan writeRequest),
 		maxBatch:                defaultMaxBatch,
 		ctx:                     ctx,
 		cancel:                  cancel,
@@ -453,7 +454,7 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 	}
 	defer rows.Close()
 
-	var exhausted []any
+	var exhaustedEventIDs []any
 	for rows.Next() {
 		var id int64
 		var attempts int
@@ -461,7 +462,7 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 			return 0, trace.Wrap(err)
 		}
 		if attempts >= q.maxAttempts {
-			exhausted = append(exhausted, id)
+			exhaustedEventIDs = append(exhaustedEventIDs, id)
 		}
 	}
 	if err := rows.Err(); err != nil {
@@ -470,17 +471,17 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 
 	// If no events have exhausted their attempts, then we can skip the rest of
 	// the function.
-	if len(exhausted) == 0 {
+	if len(exhaustedEventIDs) == 0 {
 		return 0, trace.Wrap(tx.Commit())
 	}
 
 	// Copy exhausted rows into audit_dead_letter then delete them from
 	// audit_queue.
-	exhaustedPlaceholders := placeholders(len(exhausted))
+	exhaustedPlaceholders := placeholders(len(exhaustedEventIDs))
 
-	insertArgs := make([]any, 0, len(exhausted)+1)
+	insertArgs := make([]any, 0, len(exhaustedEventIDs)+1)
 	insertArgs = append(insertArgs, time.Now().Unix())
-	insertArgs = append(insertArgs, exhausted...)
+	insertArgs = append(insertArgs, exhaustedEventIDs...)
 	if _, err := tx.ExecContext(q.ctx,
 		"INSERT INTO audit_dead_letter (payload, failed_at) "+
 			"SELECT payload, ? FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
@@ -491,12 +492,12 @@ func (q *sqliteQueue) processFailedDeliveries(failed []Item) (int, error) {
 
 	if _, err := tx.ExecContext(q.ctx,
 		"DELETE FROM audit_queue WHERE id IN ("+exhaustedPlaceholders+")",
-		exhausted...,
+		exhaustedEventIDs...,
 	); err != nil {
 		return 0, trace.Wrap(err)
 	}
 
-	return len(exhausted), trace.Wrap(tx.Commit())
+	return len(exhaustedEventIDs), trace.Wrap(tx.Commit())
 }
 
 // deadLetterSweepLoop periodically re-attempts delivery of dead-letter events
@@ -554,17 +555,38 @@ func (q *sqliteQueue) fetchDeadLetter(limit int) ([]Item, error) {
 
 // ackDeadLetter deletes successfully re-delivered items from audit_dead_letter.
 func (q *sqliteQueue) ackDeadLetter(items []Item) error {
-	return deleteByIDs(q.ctx, q.db, "audit_dead_letter", items)
+	return deleteByIDs(q.ctx, q.db, auditDeadLetterTable, items)
 }
 
 // expireDeadLetter deletes dead-letter rows older than the configured TTL.
 func (q *sqliteQueue) expireDeadLetter() {
 	cutoff := time.Now().Add(-q.deadLetterTTL).Unix()
-	if _, err := q.db.ExecContext(q.ctx,
-		"DELETE FROM audit_dead_letter WHERE failed_at < ?", cutoff); err != nil && q.ctx.Err() == nil {
+	result, err := q.db.ExecContext(q.ctx,
+		"DELETE FROM audit_dead_letter WHERE failed_at < ?", cutoff)
+	if err != nil {
+		if q.ctx.Err() == nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to expire dead-letter audit events.",
+				"error", err,
+			)
+		}
+		return
+	}
+
+	numExpired, err := result.RowsAffected()
+	if err != nil {
 		slog.ErrorContext(q.ctx,
-			"Failed to expire dead-letter audit events.",
+			"Failed to read number of expired dead-letter audit events.",
 			"error", err,
+		)
+		return
+	}
+	if numExpired > 0 {
+		deadLetterExpired.Add(float64(numExpired))
+		slog.WarnContext(q.ctx,
+			"Permanently dropped dead-letter audit events that exceeded their TTL.",
+			"count", numExpired,
+			"dead_letter_ttl", q.deadLetterTTL,
 		)
 	}
 }
@@ -663,7 +685,7 @@ func deleteIDsFromTable(ctx context.Context, db *sql.DB, table string, ids []int
 		return nil
 	}
 	switch table {
-	case "audit_queue", "audit_dead_letter":
+	case auditQueueTable, auditDeadLetterTable:
 	default:
 		return trace.BadParameter("unknown table %q", table)
 	}
@@ -686,7 +708,7 @@ func deleteByIDs(ctx context.Context, db *sql.DB, table string, items []Item) er
 
 // ackDB deletes the rows for items from the audit_queue table.
 func ackDB(ctx context.Context, db *sql.DB, items []Item) error {
-	return deleteByIDs(ctx, db, "audit_queue", items)
+	return deleteByIDs(ctx, db, auditQueueTable, items)
 }
 
 func recordTeleportVersion(db *sql.DB, version string) error {

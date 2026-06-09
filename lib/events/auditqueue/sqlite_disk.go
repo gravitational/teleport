@@ -223,24 +223,24 @@ func (q *sqliteQueue) softLimitLoop() {
 		case <-q.ctx.Done():
 			return
 		case <-ticker.C:
-			above, size, err := q.aboveSoftLimit()
-			if err != nil {
-				slog.ErrorContext(q.ctx,
-					"Failed to stat audit queue file.",
-					"path", q.path,
-					"error", err,
-				)
-				continue
-			}
-			if above {
-				slog.WarnContext(q.ctx,
-					"audit event queue above soft limit",
-					"path", q.path,
-					"size_bytes", size,
-					"soft_limit_bytes", q.softLimit,
-				)
-				softLimitWarnings.Inc()
-			}
+		}
+		above, size, err := q.aboveSoftLimit()
+		if err != nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to stat audit queue file.",
+				"path", q.path,
+				"error", err,
+			)
+			continue
+		}
+		if above {
+			slog.WarnContext(q.ctx,
+				"audit event queue above soft limit",
+				"path", q.path,
+				"size_bytes", size,
+				"soft_limit_bytes", q.softLimit,
+			)
+			softLimitWarnings.Inc()
 		}
 	}
 }
@@ -279,21 +279,18 @@ func (q *sqliteQueue) Run(ctx context.Context, handler Handler) error {
 }
 
 func (q *sqliteQueue) orphanScanLoop(ctx context.Context, handler Handler) {
-	q.sweepStaleTmp()
-	q.adoptOrphans(ctx, handler)
-
-	timer := time.NewTimer(q.orphanScanInterval)
-	defer timer.Stop()
+	ticker := time.NewTicker(q.orphanScanInterval)
+	defer ticker.Stop()
 	for {
+		q.sweepStaleTmp()
+		q.adoptOrphans(ctx, handler)
+
 		select {
 		case <-ctx.Done():
 			return
 		case <-q.ctx.Done():
 			return
-		case <-timer.C:
-			q.sweepStaleTmp()
-			q.adoptOrphans(ctx, handler)
-			timer.Reset(q.orphanScanInterval)
+		case <-ticker.C:
 		}
 	}
 }
@@ -336,18 +333,51 @@ func (q *sqliteQueue) sweepStaleTmp() {
 		// should have their `*.tmp` suffix removed as soon as they are done
 		// initializing, which should be a very quick process.
 		stalePath := filepath.Join(q.parentDir, dirEntry.Name())
+		tryRemoveStaleTmp(q.ctx, stalePath)
+	}
+}
 
-		// Tmp directories were orphaned before they finished initializing,
-		// therefore they will have no audit log events, hence they are safe to
-		// remove.
-		if err := os.RemoveAll(stalePath); err != nil {
-			orphanScanErrors.Inc()
-			slog.ErrorContext(q.ctx,
-				"Failed to remove stale audit-queue tmp directory.",
+func tryRemoveStaleTmp(ctx context.Context, stalePath string) {
+	unlock, err := utils.FSTryWriteLock(filepath.Join(stalePath, queueLockFile))
+	if err != nil {
+		// The lock is held, so a creator is still active. Leave the directory
+		// for its owner and try again on the next sweep.
+		if errors.Is(err, utils.ErrUnsuccessfulLockTry) {
+			slog.WarnContext(ctx,
+				"Audit-queue tmp directory is still locked past the stale threshold. Leaving it for its owner.",
+				"path", stalePath,
+				"stale_threshold", staleTmpThreshold,
+			)
+			return
+		}
+		orphanScanErrors.Inc()
+		slog.ErrorContext(ctx,
+			"Failed to lock stale audit-queue tmp directory.",
+			"path", stalePath,
+			"error", err,
+		)
+		return
+	}
+	defer func() {
+		if err := unlock(); err != nil {
+			slog.ErrorContext(ctx,
+				"Failed to release stale audit-queue tmp flock.",
 				"path", stalePath,
 				"error", err,
 			)
 		}
+	}()
+
+	// We hold the lock, so the directory is unowned. Tmp directories were
+	// orphaned before they finished initializing, therefore they will have no
+	// audit log events, hence they are safe to remove.
+	if err := os.RemoveAll(stalePath); err != nil {
+		orphanScanErrors.Inc()
+		slog.ErrorContext(ctx,
+			"Failed to remove stale audit-queue tmp directory.",
+			"path", stalePath,
+			"error", err,
+		)
 	}
 }
 
@@ -533,7 +563,7 @@ func (q *sqliteQueue) migrateOrphanDeadLetter(orphan *sql.DB) bool {
 		for i, r := range batch {
 			ids[i] = r.id
 		}
-		if err := deleteIDsFromTable(q.ctx, orphan, "audit_dead_letter", ids); err != nil {
+		if err := deleteIDsFromTable(q.ctx, orphan, auditDeadLetterTable, ids); err != nil {
 			orphanScanErrors.Inc()
 			slog.ErrorContext(q.ctx,
 				"Failed to delete migrated orphan dead-letter rows.",
@@ -578,7 +608,7 @@ func (q *sqliteQueue) insertDeadLetterBatch(batch []deadLetterRow) error {
 }
 
 func (q *sqliteQueue) Close() error {
-	var firstErr error
+	var errs []error
 	q.closeOnce.Do(func() {
 		q.cancel()
 		q.wg.Wait()
@@ -602,7 +632,7 @@ func (q *sqliteQueue) Close() error {
 		}
 
 		if err := q.db.Close(); err != nil {
-			firstErr = errors.Join(firstErr, err)
+			errs = append(errs, err)
 		}
 
 		// Remove the directory before releasing the lock. This ensures no other
@@ -615,11 +645,11 @@ func (q *sqliteQueue) Close() error {
 
 		if q.unlock != nil {
 			if err := q.unlock(); err != nil {
-				firstErr = errors.Join(firstErr, err)
+				errs = append(errs, err)
 			}
 		}
 	})
-	return trace.Wrap(firstErr)
+	return trace.NewAggregate(errs...)
 }
 
 func isQueueEmpty(db *sql.DB) (bool, error) {
