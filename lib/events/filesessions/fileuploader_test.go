@@ -21,6 +21,7 @@ package filesessions
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 
@@ -29,6 +30,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/test"
+	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -77,4 +79,30 @@ func TestStreams(t *testing.T) {
 	t.Run("DownloadNotFound", func(t *testing.T) {
 		test.DownloadNotFound(t, handler)
 	})
+}
+
+// TestStreamSessionPathTraversal verifies that session IDs containing path
+// separators cannot be used to read files outside the recordings directory.
+func TestStreamSessionPathTraversal(t *testing.T) {
+	dir := t.TempDir()
+
+	handler, err := NewHandler(Config{
+		Directory: dir,
+		OpenFile:  os.OpenFile,
+	})
+	require.NoError(t, err)
+	defer handler.Close()
+
+	// Plant a .tar file in the parent of the recordings directory.
+	secret := filepath.Join(filepath.Dir(dir), "secret.tar")
+	require.NoError(t, os.WriteFile(secret, []byte("top secret"), 0o600))
+
+	// recordingPath joins l.Directory with string(sessionID)+".tar", so
+	// "../secret" resolves to the planted file outside l.Directory.
+	rc, err := handler.StreamSessionRecording(context.Background(), session.ID("../secret"))
+	if rc != nil {
+		rc.Close()
+	}
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %T: %v", err, err)
 }
