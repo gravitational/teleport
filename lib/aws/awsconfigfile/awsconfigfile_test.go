@@ -17,7 +17,10 @@
 package awsconfigfile
 
 import (
+	"fmt"
+	"io/fs"
 	"os"
+	"path"
 	"path/filepath"
 	"testing"
 
@@ -481,8 +484,20 @@ func TestSSORemovalGuard(t *testing.T) {
 func requireUnixPermissions(t *testing.T, target string, expected os.FileMode) {
 	t.Helper()
 	info, err := os.Stat(target)
-	require.NoError(t, err)
-	require.Equal(t, expected, info.Mode().Perm())
+	require.NoError(t, err, "Filesystem object must exist at %q", target)
+
+	actual := info.Mode().Perm()
+	require.Equal(t, expected, actual,
+		"Unexpected file mode for %q, expected %q, actual %q", target, expected, actual)
+}
+
+func requireSymLink(t *testing.T, linkPath string) {
+	t.Helper()
+	linkInfo, err := os.Lstat(linkPath)
+	require.NoError(t, err, "Filesystem object must exist at %q", linkPath)
+	require.Equal(t, fs.ModeSymlink, linkInfo.Mode()&fs.ModeSymlink,
+		"%q must be a symlink, file mode is: %q",
+		linkPath, linkInfo.Mode())
 }
 
 func TestUpdateRemoveCycle(t *testing.T) {
@@ -652,4 +667,144 @@ sso_session = teleport-stale
 	// Stale sections pruned
 	require.NotContains(t, content, "[sso-session teleport-stale]")
 	require.NotContains(t, content, "[profile teleport-stale-profile]")
+}
+
+// TestWriteSSOConfig_FileResolution asserts that the AWS SSO Configuration is written
+// to the correct directory, with the correct permissions, and following any symlinks
+// in the path. Makes no assertions about the content of the file.
+func TestWriteSSOConfig_FileResolution(t *testing.T) {
+	profiles := []SSOProfile{
+		{Name: "new-profile", Session: "new-session", AccountID: "123", RoleName: "Admin"},
+	}
+	sessions := []SSOSession{
+		{Name: "new-session", StartURL: "https://new.url", Region: "us-east-1"},
+	}
+
+	testCases := []struct {
+		name       string
+		init       func(*testing.T, string)
+		targetFile string
+		checkError require.ErrorAssertionFunc
+		checkFile  func(*testing.T, string)
+	}{
+		{
+			name:       "new file",
+			targetFile: "aws.conf",
+			checkError: require.NoError,
+			checkFile: func(t *testing.T, testDir string) {
+				requireUnixPermissions(t, path.Join(testDir, "aws.conf"), 0o600)
+			},
+		},
+		{
+			name:       "existing file",
+			targetFile: "aws.conf",
+			init: func(t *testing.T, testDir string) {
+				cfgPath := path.Join(testDir, "aws.conf")
+				require.NoError(t, os.WriteFile(cfgPath, []byte("; This is an existing file"), 0o644))
+			},
+			checkError: require.NoError,
+			checkFile: func(t *testing.T, testDir string) {
+				// The existing file's permissions must be preserved
+				requireUnixPermissions(t, path.Join(testDir, "aws.conf"), 0o644)
+			},
+		},
+		{
+			name:       "new directory",
+			targetFile: path.Join("subdir", "aws.conf"),
+			checkError: require.NoError,
+			checkFile: func(t *testing.T, testDir string) {
+				requireUnixPermissions(t, path.Join(testDir, "subdir"), 0o700)
+				requireUnixPermissions(t, path.Join(testDir, "subdir", "aws.conf"), 0o600)
+			},
+		},
+		{
+			name:       "new file in existing directory",
+			targetFile: path.Join("subdir", "aws.conf"),
+			init: func(t *testing.T, testDir string) {
+				require.NoError(t, os.Mkdir(path.Join(testDir, "subdir"), 0o755))
+			},
+			checkError: require.NoError,
+			checkFile: func(t *testing.T, testDir string) {
+				// The existing subdir's permissions must be preserved
+				requireUnixPermissions(t, path.Join(testDir, "subdir"), 0o755)
+				requireUnixPermissions(t, path.Join(testDir, "subdir", "aws.conf"), 0o600)
+			},
+		},
+		{
+			name:       "new file via symlink",
+			targetFile: "symlink",
+			init: func(t *testing.T, testDir string) {
+				linkPath := path.Join(testDir, "symlink")
+				require.NoError(t, os.Symlink("actual.conf", linkPath))
+			},
+			checkError: require.NoError,
+			checkFile: func(t *testing.T, testDir string) {
+				linkPath := path.Join(testDir, "symlink")
+
+				// The symlink must still be a symlink (i.e not overwritten by the config
+				// file)
+				requireSymLink(t, linkPath)
+
+				// The content must have gone to the symlink target
+				requireUnixPermissions(t, path.Join(testDir, "actual.conf"), 0o600)
+			},
+		},
+		{
+			name:       "existing file via symlink",
+			targetFile: "symlink",
+			init: func(t *testing.T, testDir string) {
+				configPath := path.Join(testDir, "actual.conf")
+				linkPath := path.Join(testDir, "symlink")
+
+				require.NoError(t, os.WriteFile(configPath, []byte("; This is an existing file"), 0o644))
+				require.NoError(t, os.Symlink(configPath, linkPath))
+			},
+			checkError: require.NoError,
+			checkFile: func(t *testing.T, testDir string) {
+				linkPath := path.Join(testDir, "symlink")
+
+				// The symlink must still be a symlink (i.e not overwritten by the config
+				// file)
+				requireSymLink(t, linkPath)
+
+				// The content must have gone to the symlink target, preserving the
+				// existing file's permissions.
+				requireUnixPermissions(t, path.Join(testDir, "actual.conf"), 0o644)
+			},
+		},
+		{
+			name:       "symlink chain",
+			targetFile: "symlink-009",
+			init: func(t *testing.T, testDir string) {
+				linkTarget := path.Join(testDir, "actual.conf")
+
+				for i := range 10 {
+					linkPath := path.Join(testDir, fmt.Sprintf("symlink-%03d", i))
+					require.NoError(t, os.Symlink(linkTarget, linkPath))
+					linkTarget = linkPath
+				}
+			},
+			checkError: require.NoError,
+			checkFile: func(t *testing.T, testDir string) {
+				// The file content must have gone to the ultimate symlink target
+				requireUnixPermissions(t, path.Join(testDir, "actual.conf"), 0o600)
+			},
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			testDir := t.TempDir()
+			if testCase.init != nil {
+				testCase.init(t, testDir)
+			}
+
+			configPath := path.Join(testDir, testCase.targetFile)
+			testCase.checkError(t, WriteSSOConfig(configPath, profiles, sessions))
+
+			if testCase.checkFile != nil {
+				testCase.checkFile(t, testDir)
+			}
+		})
+	}
 }
