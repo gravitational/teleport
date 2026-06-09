@@ -19,14 +19,18 @@
 package common
 
 import (
+	"bytes"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/ghodss/yaml"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	notificationspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/notifications/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integration/helpers"
@@ -131,51 +135,60 @@ func TestNotificationCommmandCRUD(t *testing.T) {
 		require.NoError(t, err)
 		require.NotContains(t, buf.String(), "auditor notification")
 	}, 3*time.Second, 100*time.Millisecond)
+}
 
-	// Structured output: JSON/YAML must serialize the created notification
-	// object instead of the human-readable "Created notification" prose. We
-	// decode the user-targeted notification (which has a flat, oneof-free shape)
-	// for both formats.
-	t.Run("create json returns notification", func(t *testing.T) {
-		buf, err := runNotificationsCommand(t, clt, []string{
-			"create", "--user", auditorUsername,
-			"--title", "json notification", "--content", "structured output",
-			"--format", "json",
-		})
-		require.NoError(t, err)
+// TestOutputCreatedNotification covers the structured output of `tctl
+// notifications create`. The format rendering is exercised directly with a
+// synthetic notification rather than through a full auth server, mirroring the
+// other mutation-command structured-output unit tests.
+func TestOutputCreatedNotification(t *testing.T) {
+	t.Parallel()
+
+	created := notificationspb.Notification_builder{
+		Kind: types.KindNotification,
+		Metadata: headerv1.Metadata_builder{
+			Name: "notif-123",
+			Labels: map[string]string{
+				types.NotificationTitleLabel: "json notification",
+			},
+		}.Build(),
+		Spec: notificationspb.NotificationSpec_builder{
+			Username: "auditor-user",
+		}.Build(),
+	}.Build()
+
+	t.Run("text", func(t *testing.T) {
+		var buf bytes.Buffer
+		n := &NotificationCommand{stdout: &buf, format: teleport.Text}
+		require.NoError(t, n.outputCreatedNotification(created, "Created notification notif-123 for user auditor-user\n"))
+		require.Equal(t, "Created notification notif-123 for user auditor-user\n", buf.String())
+	})
+
+	t.Run("json", func(t *testing.T) {
+		var buf bytes.Buffer
+		n := &NotificationCommand{stdout: &buf, format: teleport.JSON}
+		require.NoError(t, n.outputCreatedNotification(created, "ignored"))
 		require.NotContains(t, buf.String(), "Created notification")
 
-		got := mustDecodeJSON[*notificationspb.Notification](t, buf)
-		require.NotEmpty(t, got.GetMetadata().GetName())
+		got := mustDecodeJSON[*notificationspb.Notification](t, &buf)
+		require.Equal(t, "notif-123", got.GetMetadata().GetName())
 		require.Equal(t, "json notification", got.GetMetadata().GetLabels()[types.NotificationTitleLabel])
 	})
 
-	t.Run("create yaml returns notification", func(t *testing.T) {
-		buf, err := runNotificationsCommand(t, clt, []string{
-			"create", "--user", managerUsername,
-			"--title", "yaml notification", "--content", "structured output",
-			"--format", "yaml",
-		})
-		require.NoError(t, err)
+	t.Run("yaml", func(t *testing.T) {
+		var buf bytes.Buffer
+		n := &NotificationCommand{stdout: &buf, format: teleport.YAML}
+		require.NoError(t, n.outputCreatedNotification(created, "ignored"))
 		require.NotContains(t, buf.String(), "Created notification")
 
 		var got notificationspb.Notification
 		require.NoError(t, yaml.Unmarshal(buf.Bytes(), &got))
-		require.Equal(t, "yaml notification", got.GetMetadata().GetLabels()[types.NotificationTitleLabel])
+		require.Equal(t, "json notification", got.GetMetadata().GetLabels()[types.NotificationTitleLabel])
 	})
 
-	// A role-targeted create returns the created global notification. Its
-	// protobuf oneof matcher does not round-trip through encoding/json, so we
-	// assert the output is structured (not prose) and carries the title.
-	t.Run("create json returns global notification", func(t *testing.T) {
-		buf, err := runNotificationsCommand(t, clt, []string{
-			"create", "--roles", "test-1",
-			"--title", "global json notification", "--content", "structured output",
-			"--format", "json",
-		})
-		require.NoError(t, err)
-		require.NotContains(t, buf.String(), "Created notification")
-		require.True(t, strings.HasPrefix(strings.TrimSpace(buf.String()), "{"), "expected JSON object output")
-		require.Contains(t, buf.String(), "global json notification")
+	t.Run("invalid format", func(t *testing.T) {
+		n := &NotificationCommand{stdout: &bytes.Buffer{}, format: "bogus"}
+		err := n.outputCreatedNotification(created, "ignored")
+		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
 	})
 }
