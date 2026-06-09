@@ -81,7 +81,7 @@ type TunnelAuthDialer struct {
 	TunnelAuthDialerConfig
 }
 
-// DialContext dials auth server via SSH tunnel
+// DialContext opens a connection to the Auth service through a Proxy.
 func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Conn, error) {
 	// Connect to the reverse tunnel server.
 	opts := []proxy.DialerOptionFunc{
