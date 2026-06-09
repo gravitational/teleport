@@ -19,7 +19,9 @@ package desktop
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"errors"
+	"log/slog"
 	"os"
 	"sync"
 
@@ -30,9 +32,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/client/proxy/transport/transportv1"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
+	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	"github.com/gravitational/teleport/api/mfa"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
@@ -112,37 +117,33 @@ func (s *Session) CloseSharedDirectory() error {
 }
 
 // Start starts a remote desktop session.
-func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse], clusterClient *client.TeleportClient, proxyClient *proxy.Client) error {
-	keyRing, err := clusterClient.IssueUserCertsWithMFA(ctx, client.ReissueParams{
-		RouteToCluster: clusterClient.SiteName,
-		TTL:            clusterClient.KeyTTL,
-		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
-			WindowsDesktop: s.desktopName(),
-			Login:          s.login,
-		},
-	})
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cert, err := keyRing.WindowsDesktopTLSCert(s.desktopName())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+func (s *Session) Start(
+	ctx context.Context,
+	stream grpc.BidiStreamingServer[api.ConnectToDesktopRequest, api.ConnectToDesktopResponse],
+	clusterClient *client.TeleportClient,
+	proxyClient *proxy.Client,
+) error {
 	tlsConfig, err := clusterClient.LoadTLSConfig()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// conn is the server connection
-	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, transportv1.WindowsDesktopSessionConfig{
-		Cluster:     clusterClient.SiteName,
-		DesktopName: s.desktopName(),
-		DesktopCert: cert,
-		RootCAs:     tlsConfig.RootCAs,
-		Protocol:    tdpb.ProtocolName,
-	})
+	// Reuse login cert if available. If no login cert is available, return trace.AccessDenied to force re-auth.
+	if len(tlsConfig.Certificates) == 0 {
+		return trace.AccessDenied("no TLS certificate available; re-authentication required")
+	}
+	cert := tlsConfig.Certificates[0]
+
+	// conn is the server connection.
+	conn, err := proxyClient.ProxyWindowsDesktopSession(
+		ctx, transportv1.WindowsDesktopSessionConfig{
+			Cluster:     clusterClient.SiteName,
+			DesktopName: s.desktopName(),
+			DesktopCert: cert,
+			RootCAs:     tlsConfig.RootCAs,
+			Protocol:    tdpb.ProtocolName,
+		},
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -158,43 +159,26 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 		return trace.Wrap(err)
 	}
 
-	// Client always speaks TDPB.
-	clientConn := tdp.NewConn(downstreamRW, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
-	// Receive, enrich, and forward the ClientHello message
-	msg, err := clientConn.ReadMessage()
+	clientConn, hello, err := s.readClientHello(downstreamRW)
 	if err != nil {
-		return trace.WrapWithMessage(err, "error listening for client hello")
+		return trace.Wrap(err)
 	}
-
-	hello, ok := msg.(*tdpb.ClientHello)
-	if !ok {
-		return trace.Errorf("expected ClientHello message but received %T", msg)
-	}
-
-	if hello.ScreenSpec == nil {
-		return trace.Errorf("received ClientHello with missing screen spec")
-	}
-
-	// Enrich with username
-	hello.Username = s.login
 
 	// Whether we forward the ClientHello as-is, or send a triple
 	// (Username, ClientScreenSpec, ClientScreenSpec) depends on
 	// the server's serverProtocol selection.
 	serverProtocol := conn.ConnectionState().NegotiatedProtocol
+
 	var tdpServerConn tdp.MessageReadWriteCloser
 	if serverProtocol == tdpb.ProtocolName {
-		// Use TDPB decoder
-		tdpServerConn = tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
-		// Send the client hello
-		if err := tdpServerConn.WriteMessage(hello); err != nil {
+		tdpServerConn, err = s.handleTDPBHandshake(ctx, clusterClient, proxyClient, conn, clientConn, hello)
+		if err != nil {
 			return trace.Wrap(err)
 		}
 	} else {
-		// Use default TDP decoder
+		// TODO(cthach): DELETE IN v20.0 when legacy TDP protocol support is removed.
+		// Use default TDP decoder.
 		tdpServerConn = tdp.NewConn(conn, legacy.Decode, legacy.WarningConstructor)
-		defer tdpServerConn.Close()
-
 		// Now that we have a connection to the desktop service, we can
 		// send the username, and clientScreenSpec messages.
 		for _, msg := range []tdp.Message{
@@ -206,17 +190,14 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 			// it does not support. Teleport Connect doesn't support non-default keyboard layouts anyhow.
 			legacy.ClientScreenSpec{Width: hello.ScreenSpec.Width, Height: hello.ScreenSpec.Height},
 		} {
-			err = tdpServerConn.WriteMessage(msg)
-			if err != nil {
+			if err := tdpServerConn.WriteMessage(msg); err != nil {
 				return trace.Wrap(err, "error sending %T message", msg)
 			}
 		}
-
 		// Aside from this block, Teleport Connect will be speaking TDPB.
 		// Install a translation layer to convert inbound messages to TDPB, and
 		// outbound messages to TDP for compatibility with this legacy WDS instance.
 		tdpServerConn = tdp.NewReadWriteInterceptor(tdpServerConn, tdpb.TranslateToModern, tdpb.TranslateToLegacy)
-
 	}
 
 	fsHandle := fsRequestHandler{
@@ -245,6 +226,233 @@ func (s *Session) Start(ctx context.Context, stream grpc.BidiStreamingServer[api
 	tdpConnProxy := tdp.NewConnProxy(clientConn, serverConn)
 
 	return trace.Wrap(tdpConnProxy.Run())
+}
+
+// readClientHello reads and validates the ClientHello message from the downstream client.
+func (s *Session) readClientHello(downstreamRW *streamutils.ReadWriter) (*tdp.Conn, *tdpb.ClientHello, error) {
+	// Client always speaks TDPB.
+	clientConn := tdp.NewConn(downstreamRW, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+
+	// Receive, enrich, and forward the ClientHello message.
+	msg, err := clientConn.ReadMessage()
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	hello, ok := msg.(*tdpb.ClientHello)
+	if !ok {
+		return nil, nil, trace.BadParameter("expected ClientHello message but received %T", msg)
+	}
+	if hello.ScreenSpec == nil {
+		return nil, nil, trace.BadParameter("received ClientHello with missing screen spec")
+	}
+
+	// Enrich with username and capabilities.
+	hello.Username = s.login
+	hello.InBandMfaSupported = true
+
+	return clientConn, hello, nil
+}
+
+// handleTDPBHandshake handles the TDPB handshake with the WDS, including in-band MFA.
+func (s *Session) handleTDPBHandshake(
+	ctx context.Context,
+	clusterClient *client.TeleportClient,
+	proxyClient *proxy.Client,
+	conn *tls.Conn,
+	clientConn *tdp.Conn,
+	hello *tdpb.ClientHello,
+) (tdp.MessageReadWriteCloser, error) {
+	// Use TDPB decoder.
+	tdpServerConn := tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+
+	// Send the client hello.
+	if err := tdpServerConn.WriteMessage(hello); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	msg, err := tdpServerConn.ReadMessage()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	switch msg := msg.(type) {
+	case *tdpb.AuthPrompt:
+		if (*tdpbv1.AuthPrompt)(msg).GetMfaPrompt() == nil {
+			return nil, trace.BadParameter("received AuthPrompt without MFAPrompt")
+		}
+
+		challengeName, err := s.performInBandMFA(ctx, clusterClient, conn)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		promptResp := (*tdpb.MFAPromptResponse)(
+			tdpbv1.MFAPromptResponse_builder{
+				Reference: &tdpbv1.MFAPromptResponseReference{
+					ChallengeName: challengeName,
+				},
+			}.Build(),
+		)
+
+		if err := tdpServerConn.WriteMessage(promptResp); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return tdpServerConn, nil
+
+	case *tdpb.ServerHello:
+		if err := clientConn.WriteMessage(msg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return tdpServerConn, nil
+
+	case *tdpb.Alert:
+		// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility with
+		// legacy clients is no longer needed.
+		slog.WarnContext(
+			ctx,
+			"Legacy WDS detected, falling back to legacy out-of-band MFA",
+			"alert",
+			msg.Message,
+		)
+
+		if os.Getenv(desktop.ForceInBandMFAEnv) == "yes" {
+			return nil,
+				trace.AccessDenied(
+					"in-band MFA is required but the server does not support it",
+				)
+		}
+
+		originalErr := trace.AccessDenied("WDS rejected connection: %s", msg.Message)
+
+		result, err := s.fallbackToLegacyMFA(ctx, clusterClient, proxyClient, hello.ScreenSpec)
+		if err != nil {
+			return nil, trace.NewAggregate(originalErr, err)
+		}
+
+		return result, nil
+
+	default:
+		return nil, trace.BadParameter("expected AuthPrompt, ServerHello, or Alert from WDS, got %T (this is a bug)", msg)
+	}
+}
+
+// performInBandMFA runs the in-band MFA ceremony with the MFA service.
+func (s *Session) performInBandMFA(
+	ctx context.Context,
+	clusterClient *client.TeleportClient,
+	tlsConn *tls.Conn,
+) (string, error) {
+	cs := tlsConn.ConnectionState()
+
+	sip, err := cs.ExportKeyingMaterial("EXPERIMENTAL-Teleport-MFA", nil, 32)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	clt, err := clusterClient.ConnectToCluster(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer clt.Close()
+
+	rootClient, err := clt.ConnectToRootCluster(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	mfaClient := rootClient.MFAServiceClientV2()
+	if mfaClient == nil {
+		_ = rootClient.Close()
+		return "", trace.BadParameter("MFA service client is not initialized")
+	}
+
+	ceremony, err := mfa.NewSessionBoundCeremony(
+		mfa.SessionBoundCeremonyConfig{
+			CreateSessionChallenge:      mfaClient.CreateSessionChallenge,
+			ValidateSessionChallenge:    mfaClient.ValidateSessionChallenge,
+			PromptConstructor:           clusterClient.NewMFAPrompt,
+			CallbackCeremonyConstructor: clusterClient.NewRedirectorMFACeremony,
+			TargetCluster:               clusterClient.SiteName,
+		},
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	name, err := ceremony.Run(
+		ctx,
+		mfav2.SessionIdentifyingPayload_builder{
+			TlsSessionId: sip,
+		}.Build(),
+	)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return name, nil
+}
+
+// fallbackToLegacyMFA closes the connection, issues a per-session MFA cert, and reconnects to the WDS.
+//
+// TODO(cthach): DELETE IN v20.0 when the legacy per-session MFA with certificates flow is removed.
+func (s *Session) fallbackToLegacyMFA(
+	ctx context.Context,
+	clusterClient *client.TeleportClient,
+	proxyClient *proxy.Client,
+	screenSpec *tdpbv1.ClientScreenSpec,
+) (tdp.MessageReadWriteCloser, error) {
+	keyRing, err := clusterClient.IssueUserCertsWithMFA(
+		ctx,
+		client.ReissueParams{
+			RouteToCluster: clusterClient.SiteName,
+			TTL:            clusterClient.KeyTTL,
+			RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
+				WindowsDesktop: s.desktopName(),
+				Login:          s.login,
+			},
+		},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cert, err := keyRing.WindowsDesktopTLSCert(s.desktopName())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tlsConfig, err := clusterClient.LoadTLSConfig()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conn, err := proxyClient.ProxyWindowsDesktopSession(ctx, transportv1.WindowsDesktopSessionConfig{
+		Cluster:     clusterClient.SiteName,
+		DesktopName: s.desktopName(),
+		DesktopCert: cert,
+		RootCAs:     tlsConfig.RootCAs,
+		Protocol:    tdpb.ProtocolName,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tdpServerConn := tdp.NewConn(conn, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
+
+	fallbackHello := &tdpb.ClientHello{
+		Username:   s.login,
+		ScreenSpec: screenSpec,
+	}
+
+	if err := tdpServerConn.WriteMessage(fallbackHello); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return tdpServerConn, nil
 }
 
 // clientStream implements the [streamutils.Source] interface
