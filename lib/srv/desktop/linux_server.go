@@ -33,13 +33,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/jezek/xgb"
-	"github.com/jezek/xgb/xproto"
-	"github.com/jonboulle/clockwork"
-	"golang.org/x/sync/errgroup"
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/gravitational/teleport"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
@@ -66,6 +59,12 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 	"github.com/gravitational/teleport/session/reexec"
+	"github.com/gravitational/trace"
+	"github.com/jezek/xgb"
+	"github.com/jezek/xgb/xproto"
+	"github.com/jonboulle/clockwork"
+	"golang.org/x/sync/errgroup"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // LinuxService implements the Linux desktop access service.
@@ -839,7 +838,8 @@ func (sess *linuxSession) innerProcessScreenChanges() (int, error) {
 		return 0, trace.Wrap(err)
 	}
 	if sess.sendFullScreen || slices.ContainsFunc(changes, func(change xproto.Rectangle) bool {
-		return uint16(change.X)+change.Width > sess.screenSize.Width ||
+		return change.X < 0 || change.Y < 0 ||
+			uint16(change.X)+change.Width > sess.screenSize.Width ||
 			uint16(change.Y)+change.Height > sess.screenSize.Height
 	}) {
 		changes = []xproto.Rectangle{
