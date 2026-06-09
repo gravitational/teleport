@@ -329,9 +329,9 @@ func (s *IssuanceService) IssueWorkloadIdentities(
 		authCtx,
 		convertLabels(req.GetLabelSelectors()),
 	) {
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		decision := decide(ctx, wi, attrs, s.getSigstorePolicyEvaluator())
 		if decision.shouldIssue {
