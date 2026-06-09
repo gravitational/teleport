@@ -224,7 +224,7 @@ func errorFromUnsuccessfulResponse(ctx context.Context, endpoint, proxyAddr stri
 	// error page, which is untrusted and may be arbitrarily large.
 	bodyBytes, err := io.ReadAll(io.LimitReader(resp.Body, maxErrorResponseBodyBytes))
 	if err != nil {
-		return trace.Wrap(err, "reading the HTTP %d response body from %s; check the network connection", resp.StatusCode, reqURL)
+		return trace.Wrap(err, "%s returned HTTP %d but the response body could not be fully read", reqURL, resp.StatusCode)
 	}
 
 	if contentType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type")); contentType != "application/json" {
