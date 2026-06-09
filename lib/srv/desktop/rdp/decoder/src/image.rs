@@ -61,7 +61,7 @@ impl RdpDecoder {
 
         let (src_buffer, src_pixel_w, src_pixel_h, opts) = if composite_cursor {
             let (cx, cy) = self.cursor_state.position();
-            let cursor_bitmap = self.cursor_state.bitmap_or_default();
+            let cursor_bitmap = self.cursor_state.bitmap();
 
             let bpp_usize = usize::from(bpp);
             let src_stride = (src_w as usize) * bpp_usize;
@@ -80,14 +80,16 @@ impl RdpDecoder {
                     .copy_from_slice(&image_data[src_off..src_off + crop_row_bytes]);
             }
 
+            let (cursor_hotspot_x, cursor_hotspot_y) = cursor_bitmap.hotspot();
+
             composite_over(
                 &mut self.composite_scratch[..scratch_bytes],
                 (crop_w, crop_h),
-                &cursor_bitmap.data,
-                (cursor_bitmap.width, cursor_bitmap.height),
+                cursor_bitmap.data(),
+                cursor_bitmap.dimensions(),
                 (
-                    i32::from(cx) - i32::from(cursor_bitmap.hotspot_x) - i32::from(crop_x),
-                    i32::from(cy) - i32::from(cursor_bitmap.hotspot_y) - i32::from(crop_y),
+                    i32::from(cx) - i32::from(cursor_hotspot_x) - i32::from(crop_x),
+                    i32::from(cy) - i32::from(cursor_hotspot_y) - i32::from(crop_y),
                 ),
             );
 

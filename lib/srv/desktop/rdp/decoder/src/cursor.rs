@@ -14,14 +14,37 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-use std::borrow::Cow;
+use ironrdp_graphics::pointer::DecodedPointer;
+use std::sync::Arc;
 
-pub(crate) struct CursorBitmap {
-    pub(crate) width: u16,
-    pub(crate) height: u16,
-    pub(crate) hotspot_x: u16,
-    pub(crate) hotspot_y: u16,
-    pub(crate) data: Cow<'static, [u8]>,
+#[derive(Default)]
+pub(crate) enum CursorBitmap {
+    #[default]
+    Default,
+    Server(Arc<DecodedPointer>),
+}
+
+impl CursorBitmap {
+    pub(crate) fn data(&self) -> &[u8] {
+        match self {
+            CursorBitmap::Default => &DEFAULT_CURSOR_RGBA,
+            CursorBitmap::Server(ptr) => &ptr.bitmap_data,
+        }
+    }
+
+    pub(crate) fn dimensions(&self) -> (u16, u16) {
+        match self {
+            CursorBitmap::Default => (DEFAULT_CURSOR_WIDTH as u16, DEFAULT_CURSOR_HEIGHT as u16),
+            CursorBitmap::Server(ptr) => (ptr.width, ptr.height),
+        }
+    }
+
+    pub(crate) fn hotspot(&self) -> (u16, u16) {
+        match self {
+            CursorBitmap::Default => (0, 0),
+            CursorBitmap::Server(ptr) => (ptr.hotspot_x, ptr.hotspot_y),
+        }
+    }
 }
 
 #[derive(Default)]
@@ -29,26 +52,20 @@ pub(crate) struct CursorState {
     visible: bool,
     x: u16,
     y: u16,
-    bitmap: Option<CursorBitmap>,
+    bitmap: CursorBitmap,
 }
 
 impl CursorState {
-    pub(crate) fn set_bitmap(&mut self, pointer: &ironrdp_graphics::pointer::DecodedPointer) {
+    pub(crate) fn set_bitmap(&mut self, pointer: Arc<DecodedPointer>) {
         if pointer.bitmap_data.is_empty() {
             return;
         }
 
-        self.bitmap = Some(CursorBitmap {
-            width: pointer.width,
-            height: pointer.height,
-            hotspot_x: pointer.hotspot_x,
-            hotspot_y: pointer.hotspot_y,
-            data: Cow::Owned(pointer.bitmap_data.clone()),
-        });
+        self.bitmap = CursorBitmap::Server(pointer);
     }
 
     pub(crate) fn clear_bitmap(&mut self) {
-        self.bitmap = None;
+        self.bitmap = CursorBitmap::Default;
     }
 
     pub(crate) fn move_cursor(&mut self, x: u16, y: u16) {
@@ -68,8 +85,8 @@ impl CursorState {
         (self.x, self.y)
     }
 
-    pub(crate) fn bitmap_or_default(&self) -> &CursorBitmap {
-        self.bitmap.as_ref().unwrap_or(&DEFAULT_CURSOR_BITMAP)
+    pub(crate) fn bitmap(&self) -> &CursorBitmap {
+        &self.bitmap
     }
 }
 
@@ -121,14 +138,6 @@ const DEFAULT_CURSOR_RGBA: [u8; DEFAULT_CURSOR_WIDTH * DEFAULT_CURSOR_HEIGHT * 4
     data
 };
 
-static DEFAULT_CURSOR_BITMAP: CursorBitmap = CursorBitmap {
-    width: DEFAULT_CURSOR_WIDTH as u16,
-    height: DEFAULT_CURSOR_HEIGHT as u16,
-    hotspot_x: 0,
-    hotspot_y: 0,
-    data: Cow::Borrowed(&DEFAULT_CURSOR_RGBA),
-};
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -145,31 +154,47 @@ mod tests {
     }
 
     fn assert_is_default(bitmap: &CursorBitmap) {
-        assert_eq!(bitmap.width, DEFAULT_CURSOR_WIDTH as u16);
-        assert_eq!(bitmap.height, DEFAULT_CURSOR_HEIGHT as u16);
-        assert_eq!(bitmap.hotspot_x, 0);
-        assert_eq!(bitmap.hotspot_y, 0);
-        assert_eq!(&*bitmap.data, &DEFAULT_CURSOR_RGBA[..]);
+        let (width, height) = bitmap.dimensions();
+
+        assert_eq!(width, DEFAULT_CURSOR_WIDTH as u16);
+        assert_eq!(height, DEFAULT_CURSOR_HEIGHT as u16);
+
+        let (hotspot_x, hotspot_y) = bitmap.hotspot();
+
+        assert_eq!(hotspot_x, 0);
+        assert_eq!(hotspot_y, 0);
+
+        let data = bitmap.data();
+
+        assert_eq!(&*data, &DEFAULT_CURSOR_RGBA[..]);
     }
 
     #[test]
     fn pointer_default_clears_cached_bitmap() {
         let mut state = CursorState::default();
 
-        assert_is_default(state.bitmap_or_default());
+        assert_is_default(state.bitmap());
 
-        state.set_bitmap(&sample_pointer());
-        let cached = state.bitmap_or_default();
-        assert_eq!(cached.width, 2);
-        assert_eq!(cached.height, 3);
-        assert_eq!(cached.hotspot_x, 1);
-        assert_eq!(cached.hotspot_y, 2);
-        assert_eq!(&*cached.data, &vec![0xAB; 2 * 3 * 4][..]);
+        state.set_bitmap(Arc::new(sample_pointer()));
+
+        let cached = state.bitmap();
+        let (width, height) = cached.dimensions();
+
+        assert_eq!(width, 2);
+        assert_eq!(height, 3);
+
+        let (hotspot_x, hotspot_y) = cached.hotspot();
+
+        assert_eq!(hotspot_x, 1);
+        assert_eq!(hotspot_y, 2);
+
+        let data = cached.data();
+        assert_eq!(&*data, &vec![0xAB; 2 * 3 * 4][..]);
 
         state.set_visible(true);
         state.clear_bitmap();
 
-        assert_is_default(state.bitmap_or_default());
+        assert_is_default(state.bitmap());
         assert!(state.is_visible());
     }
 }

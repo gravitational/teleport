@@ -114,7 +114,7 @@ impl RdpDecoder {
                     }
                     UpdateKind::PointerBitmap(pointer) => {
                         self.cursor_state.set_visible(true);
-                        self.cursor_state.set_bitmap(&pointer);
+                        self.cursor_state.set_bitmap(pointer);
                     }
                     UpdateKind::PointerDefault => {
                         self.cursor_state.set_visible(true);
