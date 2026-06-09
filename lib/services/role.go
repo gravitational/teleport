@@ -1956,6 +1956,33 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 	return trace.AccessDenied("access denied to '%s' to impersonate roles '%s'", currentUser.GetName(), roleNames(impersonateRoles))
 }
 
+// CheckSubmitForUser checks whether the current user is allowed to
+// submit reviews for other users, to be used by plugins.
+func (set RoleSet) CheckSubmitForUser(currentUser, submitForUser types.User) error {
+	for _, role := range set {
+		denyUsers := role.GetSubmitForUsers(types.Deny)
+		anyDenyUser, err := parse.NewAnyMatcher(denyUsers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if anyDenyUser.Match(submitForUser.GetName()) {
+			return trace.AccessDenied("access denied for '%s' to submit for user '%s'", currentUser.GetName(), submitForUser.GetName())
+		}
+	}
+
+	for _, role := range set {
+		allowUsers := role.GetSubmitForUsers(types.Allow)
+		anyAllowUser, err := parse.NewAnyMatcher(allowUsers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if anyAllowUser.Match(submitForUser.GetName()) {
+			return nil
+		}
+	}
+	return trace.AccessDenied("access denied for '%s' to submit for user '%s'", currentUser.GetName(), submitForUser.GetName())
+}
+
 // LockingMode returns the locking mode to apply with this RoleSet.
 func (set RoleSet) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
 	mode := defaultMode
