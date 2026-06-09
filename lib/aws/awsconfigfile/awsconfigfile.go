@@ -23,6 +23,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/google/renameio/v2/maybe"
 	"github.com/gravitational/trace"
 	ini "gopkg.in/ini.v1"
 )
@@ -250,16 +251,45 @@ func writeINIFile(iniFile *ini.File, iniFilePath string) error {
 		return trace.Wrap(err)
 	}
 
-	// Create the destination directory if it does not exist, os.WriteFile will
-	// fail if the target directory doesn't exist
+	// Create the destination directory if it does not exist; symlink resolution
+	// (and subsequent file creation) will fail if we target a non-existent
+	// directory.
 	if err := os.MkdirAll(filepath.Dir(iniFilePath), 0o700); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// [maybe.WriteFile] doesn't traverse symlinks. If the path points to a
+	// symlink we don't want to replace it with a regular file; we want to write
+	// it to the symlink target, so we need to resolve this ourselves.
+	resolvedFilePath, err := resolveFilePath(iniFilePath)
+	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// We're avoiding [*ini.File.SaveTo] here because SaveTo creates the file as
 	// globally read+write (i.e. with FileMode 0o666), and we want tighter
 	// permissions (user-only rw) on it.
-	return trace.Wrap(os.WriteFile(iniFilePath, content.Bytes(), 0o600))
+	return trace.Wrap(maybe.WriteFile(resolvedFilePath, content.Bytes(), 0o600))
+}
+
+func resolveFilePath(path string) (string, error) {
+	// Ensure a file exists in the desired filesystem location so that the
+	// symlink evaluation will work. We are about to overwrite this file
+	// anyway, so we won't worry about deleting it.
+	dst, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer dst.Close()
+
+	if err := dst.Sync(); err != nil {
+		return "", nil
+	}
+
+	// The target path might be pointing to a symlink that we need to follow
+	// rather than overwrite with the config file.
+	canonicalPath, err := filepath.EvalSymlinks(path)
+	return canonicalPath, trace.Wrap(err)
 }
 
 // RemoveTeleportManagedProfile removes the credential_process key on sections that have a specific section comment.
