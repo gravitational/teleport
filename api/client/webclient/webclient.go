@@ -301,6 +301,11 @@ func findWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 		return nil, errorFromUnsuccessfulResponse(req.Context(), endpoint.Path, cfg.ProxyAddr, resp)
 	}
 
+	// In case of a 200 response, findWithClient immediately attempts to parse
+	// the response as JSON. Attempting to check Content-Type before parsing
+	// the response would be a breaking change for Teleport deployments that
+	// sit in front of misbehaving proxies that mangle Content-Type for whatever
+	// reason. Consider introducing that change only in a major release.
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
 		return nil, trace.Wrap(err, "cannot parse server find response; is %q a Teleport proxy?", "https://"+cfg.ProxyAddr)
@@ -360,6 +365,11 @@ func pingWithClient(cfg *Config, clt *http.Client) (*PingResponse, error) {
 		return nil, errorFromUnsuccessfulResponse(req.Context(), endpoint.Path, cfg.ProxyAddr, resp)
 	}
 
+	// In case of a 200 response, pingWithClient immediately attempts to parse
+	// the response as JSON. Attempting to check Content-Type before parsing
+	// the response would be a breaking change for Teleport deployments that
+	// sit in front of misbehaving proxies that mangle Content-Type for whatever
+	// reason. Consider introducing that change only in a major release.
 	pr := &PingResponse{}
 	if err := json.NewDecoder(resp.Body).Decode(pr); err != nil {
 		return nil, trace.Wrap(err, "cannot parse server ping response; is %q a Teleport proxy?", "https://"+cfg.ProxyAddr)
