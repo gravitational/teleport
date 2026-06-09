@@ -392,6 +392,11 @@ const (
 	// DisableServerSideEncryption is an optional switch to opt out of SSE in case the provider does not support it
 	DisableServerSideEncryption = "disablesse"
 
+	// DisableTrailingChecksum is an optional switch to opt out of trailing checksums
+	// for S3 multipart uploads, for use with S3-compatible providers that do not
+	// support this feature.
+	DisableTrailingChecksum = "disablechecksum"
+
 	// ACL is the canned ACL to send to S3
 	ACL = "acl"
 
