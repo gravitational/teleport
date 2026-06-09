@@ -72,28 +72,30 @@ type AuthServer interface {
 // ServiceConfig holds configuration options for
 // the presence gRPC service.
 type ServiceConfig struct {
-	Authorizer authz.Authorizer
-	AuthServer AuthServer
-	Backend    Backend
-	Cache      Cache
-	Logger     *slog.Logger
-	Emitter    apievents.Emitter
-	Reporter   usagereporter.UsageReporter
-	Clock      clockwork.Clock
+	Authorizer       authz.Authorizer
+	ScopedAuthorizer authz.ScopedAuthorizer
+	AuthServer       AuthServer
+	Backend          Backend
+	Cache            Cache
+	Logger           *slog.Logger
+	Emitter          apievents.Emitter
+	Reporter         usagereporter.UsageReporter
+	Clock            clockwork.Clock
 }
 
 // Service implements the teleport.presence.v1.PresenceService RPC service.
 type Service struct {
 	presencepb.UnimplementedPresenceServiceServer
 
-	authorizer authz.Authorizer
-	authServer AuthServer
-	backend    Backend
-	cache      Cache
-	logger     *slog.Logger
-	emitter    apievents.Emitter
-	reporter   usagereporter.UsageReporter
-	clock      clockwork.Clock
+	authorizer       authz.Authorizer
+	scopedAuthorizer authz.ScopedAuthorizer
+	authServer       AuthServer
+	backend          Backend
+	cache            Cache
+	logger           *slog.Logger
+	emitter          apievents.Emitter
+	reporter         usagereporter.UsageReporter
+	clock            clockwork.Clock
 }
 
 var _ presencepb.PresenceServiceServer = (*Service)(nil)
@@ -105,6 +107,8 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend service is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
+	case cfg.ScopedAuthorizer == nil:
+		return nil, trace.BadParameter("scoped authorizer is required")
 	case cfg.Emitter == nil:
 		return nil, trace.BadParameter("emitter is required")
 	case cfg.Reporter == nil:
@@ -123,11 +127,12 @@ func NewService(cfg ServiceConfig) (*Service, error) {
 	}
 
 	return &Service{
-		logger:     cfg.Logger,
-		authorizer: cfg.Authorizer,
-		authServer: cfg.AuthServer,
-		backend:    cfg.Backend,
-		cache:      cfg.Cache,
+		logger:           cfg.Logger,
+		authorizer:       cfg.Authorizer,
+		scopedAuthorizer: cfg.ScopedAuthorizer,
+		authServer:       cfg.AuthServer,
+		backend:          cfg.Backend,
+		cache:            cfg.Cache,
 
 		emitter:  cfg.Emitter,
 		reporter: cfg.Reporter,
@@ -339,11 +344,12 @@ func (s *Service) DeleteRemoteCluster(
 func (s *Service) ListAuthServers(
 	ctx context.Context, req *presencepb.ListAuthServersRequest,
 ) (*presencepb.ListAuthServersResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindAuthServer, types.VerbList, types.VerbRead); err != nil {
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadAuthServers, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -376,11 +382,12 @@ func (s *Service) ListAuthServers(
 func (s *Service) ListProxyServers(
 	ctx context.Context, req *presencepb.ListProxyServersRequest,
 ) (*presencepb.ListProxyServersResponse, error) {
-	authCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := authCtx.CheckAccessToKind(types.KindProxy, types.VerbList, types.VerbRead); err != nil {
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadProxies, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

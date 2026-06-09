@@ -6108,14 +6108,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	usersv1pb.RegisterUsersServiceServer(server, usersService)
 
 	presenceService, err := presencev1.NewService(presencev1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		AuthServer: cfg.AuthServer,
-		Backend:    cfg.AuthServer.Services,
-		Cache:      cfg.AuthServer.Cache,
-		Emitter:    cfg.Emitter,
-		Reporter:   cfg.AuthServer.Services.UsageReporter,
-		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "presence.service"),
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		AuthServer:       cfg.AuthServer,
+		Backend:          cfg.AuthServer.Services,
+		Cache:            cfg.AuthServer.Cache,
+		Emitter:          cfg.Emitter,
+		Reporter:         cfg.AuthServer.Services.UsageReporter,
+		Clock:            cfg.AuthServer.GetClock(),
+		Logger:           cfg.AuthServer.logger.With(teleport.ComponentKey, "presence.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
