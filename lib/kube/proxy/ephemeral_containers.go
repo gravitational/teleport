@@ -224,7 +224,7 @@ func (f *Forwarder) mergeEphemeralPatchWithCurrentPod(
 	return patchedPod, ephemeralContName, nil
 }
 
-// impersonationHeadersFromWaitingContainer materialises Impersonate-User/Impersonate-Group headers
+// impersonationHeadersFromWaitingContainer materializes Impersonate-User/Impersonate-Group headers
 // from the impersonation captured when the waiting container was created,
 // so getPodForEphemeralPatch can re-apply the same choice on the watch path where no live request headers exist.
 func impersonationHeadersFromWaitingContainer(waitingCont *kubewaitingcontainerpb.KubernetesWaitingContainer) http.Header {
@@ -241,7 +241,7 @@ func impersonationHeadersFromWaitingContainer(waitingCont *kubewaitingcontainerp
 // getPodForEphemeralPatch fetches the target pod using a Kubernetes client
 // that impersonates the requesting user's `kubernetes_users` / `kubernetes_groups`.
 // The Kubernetes API server therefore enforces RBAC on the user's mapped identity for this read, even though
-// the surrounding moderated-session flow synthesises the patch response locally without forwarding the PATCH itself.
+// the surrounding moderated-session flow synthesizes the patch response locally without forwarding the PATCH itself.
 func (f *Forwarder) getPodForEphemeralPatch(
 	ctx context.Context,
 	authCtx *authContext,
