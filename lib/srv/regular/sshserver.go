@@ -2122,6 +2122,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			LocalAddr:  scx.ServerConn.LocalAddr().String(),
 			RemoteAddr: scx.ServerConn.RemoteAddr().String(),
 		},
+		ServerMetadata: scx.ServerMetadata(),
 		Status: apievents.Status{
 			Success: true,
 		},

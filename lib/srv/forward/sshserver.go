@@ -1588,6 +1588,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 			LocalAddr:  s.sconn.LocalAddr().String(),
 			RemoteAddr: s.sconn.RemoteAddr().String(),
 		},
+		ServerMetadata: scx.ServerMetadata(),
 	}
 
 	defer func() {
