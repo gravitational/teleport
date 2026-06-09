@@ -502,7 +502,10 @@ func (q *sqliteQueue) drainOrphanDB(db *sql.DB, handler Handler) bool {
 			return false
 		}
 	}
-	return q.migrateOrphanDeadLetter(db)
+	if !q.migrateOrphanDeadLetter(db) {
+		return false
+	}
+	return q.migrateOrphanCorruptEvents(db)
 }
 
 // migrateOrphanDeadLetter moves rows from the orphan's audit_dead_letter table
@@ -532,9 +535,9 @@ func (q *sqliteQueue) migrateOrphanDeadLetter(orphan *sql.DB) bool {
 			)
 			return false
 		}
-		ids := make([]int64, len(batch))
-		for i, r := range batch {
-			ids[i] = r.id
+		ids := make([]int64, 0, len(batch))
+		for _, r := range batch {
+			ids = append(ids, r.id)
 		}
 		if err := deleteIDsFromTable(q.ctx, orphan, "audit_dead_letter", ids); err != nil {
 			orphanScanErrors.Inc()
@@ -576,6 +579,97 @@ func (q *sqliteQueue) insertDeadLetterBatch(batch []deadLetterRow) error {
 	defer tx.Rollback()
 	if err := insertDeadLetterTx(q.ctx, tx, batch); err != nil {
 		return trace.Wrap(err)
+	}
+	return trace.Wrap(tx.Commit())
+}
+
+type orphanCorruptRow struct {
+	id       int64
+	payload  []byte
+	errMsg   string
+	source   string
+	failedAt int64
+}
+
+// migrateOrphanCorruptEvents moves rows from the orphan's corrupt_events table
+// into this queue's corrupt_events table.
+func (q *sqliteQueue) migrateOrphanCorruptEvents(orphan *sql.DB) bool {
+	for {
+		if q.ctx.Err() != nil {
+			return false
+		}
+		batch, err := fetchOrphanCorruptEvents(q.ctx, orphan, dequeueBatchSize)
+		if err != nil {
+			orphanScanErrors.Inc()
+			slog.ErrorContext(q.ctx,
+				"Failed to fetch orphan corrupt events.",
+				"error", err,
+			)
+			return false
+		}
+		if len(batch) == 0 {
+			return true
+		}
+		if err := q.insertCorruptEventsBatch(batch); err != nil {
+			orphanScanErrors.Inc()
+			slog.ErrorContext(q.ctx,
+				"Failed to migrate orphan corrupt events.",
+				"error", err,
+			)
+			return false
+		}
+		ids := make([]int64, 0, len(batch))
+		for _, r := range batch {
+			ids = append(ids, r.id)
+		}
+		if err := deleteIDsFromTable(q.ctx, orphan, corruptEventsTable, ids); err != nil {
+			orphanScanErrors.Inc()
+			slog.ErrorContext(q.ctx,
+				"Failed to delete migrated orphan corrupt-event rows.",
+				"error", err,
+			)
+			return false
+		}
+	}
+}
+
+func fetchOrphanCorruptEvents(ctx context.Context, db *sql.DB, limit int) ([]orphanCorruptRow, error) {
+	rows, err := db.QueryContext(ctx,
+		"SELECT id, payload, error, source, failed_at FROM corrupt_events ORDER BY id ASC LIMIT ?", limit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rows.Close()
+	var out []orphanCorruptRow
+	for rows.Next() {
+		var r orphanCorruptRow
+		if err := rows.Scan(&r.id, &r.payload, &r.errMsg, &r.source, &r.failedAt); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, r)
+	}
+	return out, trace.Wrap(rows.Err())
+}
+
+func (q *sqliteQueue) insertCorruptEventsBatch(batch []orphanCorruptRow) error {
+	if len(batch) == 0 {
+		return nil
+	}
+	tx, err := q.db.BeginTx(q.ctx, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer tx.Rollback()
+	stmt, err := tx.PrepareContext(q.ctx,
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer stmt.Close()
+	for _, r := range batch {
+		if _, err := stmt.ExecContext(q.ctx, r.payload, r.errMsg, r.source, r.failedAt); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	return trace.Wrap(tx.Commit())
 }
@@ -625,11 +719,13 @@ func (q *sqliteQueue) Close() error {
 	return trace.Wrap(firstErr)
 }
 
+const isEmptyQuery = `SELECT EXISTS(SELECT 1 FROM audit_queue)
+	OR EXISTS(SELECT 1 FROM audit_dead_letter)
+	OR EXISTS(SELECT 1 FROM corrupt_events)`
+
 func isQueueEmpty(db *sql.DB) (bool, error) {
 	var hasRows int
-	err := db.QueryRow(
-		"SELECT EXISTS(SELECT 1 FROM audit_queue) OR EXISTS(SELECT 1 FROM audit_dead_letter)",
-	).Scan(&hasRows)
+	err := db.QueryRow(isEmptyQuery).Scan(&hasRows)
 	if err != nil {
 		return false, trace.Wrap(err)
 	}

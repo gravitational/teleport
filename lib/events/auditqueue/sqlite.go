@@ -45,6 +45,9 @@ const (
 	defaultMaxAttempts             = 10
 	defaultDeadLetterSweepInterval = 10 * time.Minute
 	defaultDeadLetterTTL           = 30 * 24 * time.Hour // 30 days
+	auditQueueTable                = "audit_queue"
+	auditDeadLetterTable           = "audit_dead_letter"
+	corruptEventsTable             = "corrupt_events"
 
 	// We've run benchmarks and found a batch size of 25 to be a good middle
 	// ground between insertion performance and memory overhead of
@@ -75,10 +78,25 @@ CREATE TABLE IF NOT EXISTS audit_dead_letter (
 
 CREATE INDEX IF NOT EXISTS idx_dead_letter_failed_at ON audit_dead_letter(failed_at);
 
+CREATE INDEX IF NOT EXISTS idx_corrupt_events_failed_at ON corrupt_events(failed_at);
+
 CREATE TABLE IF NOT EXISTS teleport_info (
     id    INTEGER PRIMARY KEY,
     key   TEXT NOT NULL UNIQUE,
     value TEXT NOT NULL
+);
+
+-- We need AUTOINCREMENT here to ensure the recoveryWatermark has a
+-- monotonically incrementing index. We need to ensure that the 'id' is never
+-- re-used for this table. Other tables do not have this requirement, which is
+-- why this is the only table that requires AUTOINCREMENT.
+-- See: https://sqlite.org/autoinc.html
+CREATE TABLE IF NOT EXISTS corrupt_events (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    payload   BLOB    NOT NULL,
+    error     TEXT    NOT NULL,
+    source    TEXT    NOT NULL,
+    failed_at INTEGER NOT NULL
 );
 `
 
@@ -109,6 +127,11 @@ type sqliteQueue struct {
 	deadLetterSweepInterval time.Duration
 	deadLetterTTL           time.Duration
 	synchronous             SynchronousMode
+
+	// recoveryWatermark is the highest corrupt_events id that
+	// recoverCorruptEvents has already examined in this process. It only ever
+	// climbs, so each pass skips rows it has already tried.
+	recoveryWatermark int64
 }
 
 // Ensure that we implement the interface Queue at compile time.
@@ -515,6 +538,8 @@ func (q *sqliteQueue) deadLetterSweepLoop(ctx context.Context, handler Handler) 
 		case <-timer.C:
 			q.sweepDeadLetter(ctx, handler)
 			q.expireDeadLetter()
+			q.recoverCorruptEvents()
+			q.expireCorruptEvents()
 			timer.Reset(q.deadLetterSweepInterval)
 		}
 	}
@@ -551,12 +576,17 @@ func (q *sqliteQueue) fetchDeadLetter(limit int) ([]Item, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return scanItems(rows)
+	items, corrupt, err := scanItems(rows)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	handleCorrupt(q.ctx, q.db, auditDeadLetterTable, corrupt)
+	return items, nil
 }
 
 // ackDeadLetter deletes successfully re-delivered items from audit_dead_letter.
 func (q *sqliteQueue) ackDeadLetter(items []Item) error {
-	return deleteByIDs(q.ctx, q.db, "audit_dead_letter", items)
+	return deleteByIDs(q.ctx, q.db, auditDeadLetterTable, items)
 }
 
 // expireDeadLetter deletes dead-letter rows older than the configured TTL.
@@ -569,6 +599,143 @@ func (q *sqliteQueue) expireDeadLetter() {
 			"error", err,
 		)
 	}
+}
+
+func (q *sqliteQueue) expireCorruptEvents() {
+	cutoff := time.Now().Add(-q.deadLetterTTL).Unix()
+	res, err := q.db.ExecContext(q.ctx,
+		"DELETE FROM corrupt_events WHERE failed_at < ?", cutoff)
+	if err != nil {
+		if q.ctx.Err() == nil {
+			slog.ErrorContext(q.ctx,
+				"Failed to expire corrupt audit events.",
+				"error", err,
+			)
+		}
+		return
+	}
+	n, err := res.RowsAffected()
+	if err != nil || n == 0 {
+		return
+	}
+	corruptExpired.Add(float64(n))
+	slog.WarnContext(q.ctx,
+		"Permanently dropped corrupt audit events that exceeded the retention TTL.",
+		"count", n,
+		"ttl", q.deadLetterTTL,
+	)
+}
+
+func (q *sqliteQueue) recoverCorruptEvents() {
+	var total int
+	for {
+		if q.ctx.Err() != nil {
+			return
+		}
+		batch, err := fetchCorruptForRecovery(q.ctx, q.db, q.recoveryWatermark, dequeueBatchSize)
+		if err != nil {
+			if q.ctx.Err() == nil {
+				slog.ErrorContext(q.ctx,
+					"Failed to read corrupt audit events for recovery.",
+					"error", err,
+				)
+			}
+			return
+		}
+		if len(batch) == 0 {
+			break
+		}
+
+		var recovered []recoveredEvent
+		for _, r := range batch {
+			var oneOf apievents.OneOf
+			if err := oneOf.Unmarshal(r.payload); err != nil {
+				continue
+			}
+			if _, err := apievents.FromOneOf(oneOf); err != nil {
+				continue
+			}
+			// The event deserializes, so it is no longer corrupt and can be
+			// re-sent.
+			recovered = append(recovered, r)
+		}
+		if len(recovered) > 0 {
+			if err := q.reinjectRecovered(recovered); err != nil {
+				if q.ctx.Err() == nil {
+					slog.ErrorContext(q.ctx,
+						"Failed to re-queue recovered audit events.",
+						"error", err,
+						"count", len(recovered),
+					)
+				}
+				// Leave the watermark unmoved so this batch is retried next pass
+				// rather than skipped until the next process restart.
+				return
+			}
+			corruptRecovered.Add(float64(len(recovered)))
+			total += len(recovered)
+		}
+		// Advance only after the batch is fully handled.
+		q.recoveryWatermark = batch[len(batch)-1].id
+	}
+	if total > 0 {
+		slog.InfoContext(q.ctx,
+			"Recovered previously-corrupt audit events and re-queued them for delivery.",
+			"count", total,
+		)
+	}
+}
+
+type recoveredEvent struct {
+	id      int64
+	payload []byte
+}
+
+func fetchCorruptForRecovery(ctx context.Context, db *sql.DB, afterID int64, limit int) ([]recoveredEvent, error) {
+	rows, err := db.QueryContext(ctx,
+		"SELECT id, payload FROM corrupt_events WHERE id > ? ORDER BY id ASC LIMIT ?", afterID, limit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rows.Close()
+	var out []recoveredEvent
+	for rows.Next() {
+		var r recoveredEvent
+		if err := rows.Scan(&r.id, &r.payload); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, r)
+	}
+	return out, trace.Wrap(rows.Err())
+}
+
+// reinjectRecovered atomically moves recovered events back into audit_queue and
+// removes them from corrupt_events.
+func (q *sqliteQueue) reinjectRecovered(events []recoveredEvent) error {
+	tx, err := q.db.BeginTx(q.ctx, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer tx.Rollback()
+
+	insertStmt, err := tx.PrepareContext(q.ctx, "INSERT INTO audit_queue (payload) VALUES (?)")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer insertStmt.Close()
+
+	ids := make([]int64, 0, len(events))
+	for _, e := range events {
+		if _, err := insertStmt.ExecContext(q.ctx, e.payload); err != nil {
+			return trace.Wrap(err)
+		}
+		ids = append(ids, e.id)
+	}
+
+	if err := deleteIDsFromTable(q.ctx, tx, corruptEventsTable, ids); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(tx.Commit())
 }
 
 // deadLetterRow represents a row from the audit_dead_letter table.
@@ -607,37 +774,98 @@ func (q *sqliteQueue) ack(items []Item) error {
 	return err
 }
 
-func scanItems(rows *sql.Rows) ([]Item, error) {
+// corruptRow is a queue row whose payload failed to deserialize. Such rows are
+// moved to the corrupt_events table so they do not clog the queue.
+type corruptRow struct {
+	id      int64
+	payload []byte
+	err     error
+}
+
+func scanItems(rows *sql.Rows) (items []Item, corrupt []corruptRow, err error) {
 	defer rows.Close()
-	var items []Item
 	for rows.Next() {
 		var (
 			id      int64
 			payload []byte
 		)
 		if err := rows.Scan(&id, &payload); err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
-		// TODO(kkloberdanz): What should we do about events that fail to
-		// deserialize? If an event is corrupt then we will get stuck in a loop
-		// where we cannot process any events with the corrupt on clogging up
-		// the queue.
-		//
-		// To fix this: Let's add a table called `corrupt_events` and move
-		// anything that fails to deserialize to this table. This PR is already
-		// big enough, so we will cover this in a follow up.
 		var oneOf apievents.OneOf
 		if err := oneOf.Unmarshal(payload); err != nil {
-			return nil, trace.Wrap(err)
+			corrupt = append(corrupt, corruptRow{id: id, payload: payload, err: err})
+			continue
 		}
 		event, err := apievents.FromOneOf(oneOf)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			corrupt = append(corrupt, corruptRow{id: id, payload: payload, err: err})
+			continue
 		}
 		items = append(items, Item{ID: id, Event: event})
 	}
-	return items, trace.Wrap(rows.Err())
+	return items, corrupt, trace.Wrap(rows.Err())
+}
+
+func quarantineCorrupt(ctx context.Context, db *sql.DB, sourceTable string, corrupt []corruptRow) error {
+	if len(corrupt) == 0 {
+		return nil
+	}
+	switch sourceTable {
+	case auditQueueTable, auditDeadLetterTable:
+	default:
+		return trace.BadParameter("unknown table %q", sourceTable)
+	}
+
+	tx, err := db.BeginTx(ctx, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer tx.Rollback()
+
+	insertStmt, err := tx.PrepareContext(ctx,
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, ?, ?, ?)")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer insertStmt.Close()
+
+	ids := make([]int64, 0, len(corrupt))
+	failedAt := time.Now().Unix()
+	for _, c := range corrupt {
+		if _, err := insertStmt.ExecContext(ctx, c.payload, c.err.Error(), sourceTable, failedAt); err != nil {
+			return trace.Wrap(err)
+		}
+		ids = append(ids, c.id)
+	}
+
+	if err := deleteIDsFromTable(ctx, tx, sourceTable, ids); err != nil {
+		return trace.Wrap(err)
+	}
+	return trace.Wrap(tx.Commit())
+}
+
+func handleCorrupt(ctx context.Context, db *sql.DB, sourceTable string, corrupt []corruptRow) {
+	if len(corrupt) == 0 {
+		return
+	}
+	if err := quarantineCorrupt(ctx, db, sourceTable, corrupt); err != nil {
+		slog.ErrorContext(ctx,
+			"Failed to quarantine corrupt audit events.",
+			"error", err,
+			"source_table", sourceTable,
+			"count", len(corrupt),
+		)
+		return
+	}
+	corruptEvents.Add(float64(len(corrupt)))
+	slog.WarnContext(ctx,
+		"Quarantined corrupt audit events that failed to deserialize.",
+		"source_table", sourceTable,
+		"count", len(corrupt),
+		"first_error", corrupt[0].err.Error(),
+	)
 }
 
 // fetchDB reads up to `limit` oldest items from the table `audit_queue`.
@@ -650,7 +878,12 @@ func fetchDB(ctx context.Context, db *sql.DB, limit int) ([]Item, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return scanItems(rows)
+	items, corrupt, err := scanItems(rows)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	handleCorrupt(ctx, db, auditQueueTable, corrupt)
+	return items, nil
 }
 
 func placeholders(n int) string {
@@ -660,21 +893,27 @@ func placeholders(n int) string {
 	return strings.Repeat("?,", n-1) + "?"
 }
 
-func deleteIDsFromTable(ctx context.Context, db *sql.DB, table string, ids []int64) error {
+// execer is satisfied by both *sql.DB and *sql.Tx, so deleteIDsFromTable can
+// run standalone or inside a caller's transaction.
+type execer interface {
+	ExecContext(ctx context.Context, query string, args ...any) (sql.Result, error)
+}
+
+func deleteIDsFromTable(ctx context.Context, e execer, table string, ids []int64) error {
 	if len(ids) == 0 {
 		return nil
 	}
 	switch table {
-	case "audit_queue", "audit_dead_letter":
+	case auditQueueTable, auditDeadLetterTable, corruptEventsTable:
 	default:
 		return trace.BadParameter("unknown table %q", table)
 	}
-	query := "DELETE FROM " + table + " WHERE id IN (" + placeholders(len(ids)) + ")"
 	args := make([]any, len(ids))
 	for i, id := range ids {
 		args[i] = id
 	}
-	_, err := db.ExecContext(ctx, query, args...)
+	_, err := e.ExecContext(ctx,
+		"DELETE FROM "+table+" WHERE id IN ("+placeholders(len(ids))+")", args...)
 	return trace.Wrap(err)
 }
 
@@ -688,7 +927,7 @@ func deleteByIDs(ctx context.Context, db *sql.DB, table string, items []Item) er
 
 // ackDB deletes the rows for items from the audit_queue table.
 func ackDB(ctx context.Context, db *sql.DB, items []Item) error {
-	return deleteByIDs(ctx, db, "audit_queue", items)
+	return deleteByIDs(ctx, db, auditQueueTable, items)
 }
 
 func recordTeleportVersion(db *sql.DB, version string) error {
