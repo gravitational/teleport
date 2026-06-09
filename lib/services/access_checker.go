@@ -925,8 +925,14 @@ func (a *accessChecker) checkDatabaseRoles(database types.Database) (*checkDatab
 		allowedRoleSet = append(allowedRoleSet, role)
 
 	}
+	// Deny rules must be honored across the entire role set, not only the
+	// auto-create roles. A deny rule that removes database roles or permissions
+	// from an auto-provisioned user can live in a role that does not itself
+	// enable create_db_user_mode (for example, a deny-only role layered on top
+	// to fence off privileges). Per Teleport's "deny always wins" RBAC
+	// semantics, scan every role for matching deny conditions.
 	var deniedRoleSet RoleSet
-	for _, role := range autoCreateRoles {
+	for _, role := range a.RoleSet {
 		match, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Username, a.info.Traits, database, false)
 		if err != nil {
 			return nil, trace.Wrap(err)

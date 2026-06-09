@@ -5720,6 +5720,36 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		},
 	}
 
+	// roleG denies the "writer" database role but does NOT enable auto-user
+	// provisioning. Its deny rule must still be honored when computing the
+	// roles assigned to an auto-provisioned user.
+	roleG := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleG", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Deny: types.RoleConditions{
+				DatabaseLabels: types.Labels{"app": []string{"metrics"}},
+				DatabaseRoles:  []string{"writer"},
+			},
+		},
+	}
+
+	// roleH denies write database permissions but does NOT enable auto-user
+	// provisioning. Its deny rule must still be honored.
+	roleH := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleH", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Deny: types.RoleConditions{
+				DatabaseLabels: types.Labels{"app": []string{"metrics"}},
+				DatabasePermissions: []types.DatabasePermission{
+					{
+						Permissions: []string{"UPDATE", "INSERT", "DELETE"},
+						Match:       map[string]apiutils.Strings{"*": []string{"*"}},
+					},
+				},
+			},
+		},
+	}
+
 	tests := []struct {
 		name                string
 		roleSet             RoleSet
@@ -5817,6 +5847,31 @@ func TestCheckDatabaseRoles(t *testing.T) {
 			outModeError:        true,
 			outRolesError:       true,
 			outPermissionsError: true,
+		},
+		{
+			// roleC (auto-create) allows reader+writer; roleG denies writer but
+			// does not enable auto-provisioning. The deny must still apply.
+			name:             "deny db role from role without auto-provisioning is honored",
+			roleSet:          RoleSet{roleA, roleC, roleG},
+			inDatabaseLabels: map[string]string{"app": "metrics"},
+			outCreateUser:    true,
+			outRoles:         []string{"reader"},
+		},
+		{
+			// roleF (auto-create) allows SELECT/UPDATE/INSERT/DELETE; roleH
+			// denies the writes but does not enable auto-provisioning. The deny
+			// must still apply.
+			name:             "deny db permissions from role without auto-provisioning is honored",
+			roleSet:          RoleSet{roleA, roleF, roleH},
+			inDatabaseLabels: map[string]string{"app": "metrics"},
+			outCreateUser:    true,
+			outRoles:         []string{},
+			outAllowPermissions: types.DatabasePermissions{
+				types.DatabasePermission{Permissions: []string{"SELECT", "UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
+			},
+			outDenyPermissions: types.DatabasePermissions{
+				types.DatabasePermission{Permissions: []string{"UPDATE", "INSERT", "DELETE"}, Match: types.Labels{"*": apiutils.Strings{"*"}}},
+			},
 		},
 	}
 
