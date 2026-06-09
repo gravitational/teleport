@@ -465,7 +465,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			dbProtocol:   defaults.ProtocolSQLServer,
 			databaseName: "mydb",
 			execer:       &fakeExec{},
-			cmd: []string{mssqlBin,
+			cmd: []string{sqlcmdBin,
 				"-S", "localhost,12345",
 				"-U", "myUser",
 				"-P", fixtures.UUID,
@@ -480,6 +480,41 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 			execer: &fakeExec{
 				execOutput: map[string][]byte{
 					"sqlcmd": {},
+				},
+			},
+			cmd: []string{sqlcmdBin,
+				"-S", "localhost,12345",
+				"-U", "myUser",
+				"-P", fixtures.UUID,
+				"-d", "mydb",
+			},
+			wantErr: false,
+		},
+		{
+			name:         "sqlserver mssql-cli",
+			dbProtocol:   defaults.ProtocolSQLServer,
+			databaseName: "mydb",
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"mssql-cli": {},
+				},
+			},
+			cmd: []string{mssqlBin,
+				"-S", "localhost,12345",
+				"-U", "myUser",
+				"-P", fixtures.UUID,
+				"-d", "mydb",
+			},
+			wantErr: false,
+		},
+		{
+			name:         "sqlserver prefers sqlcmd over mssql-cli",
+			dbProtocol:   defaults.ProtocolSQLServer,
+			databaseName: "mydb",
+			execer: &fakeExec{
+				execOutput: map[string][]byte{
+					"sqlcmd":    {},
+					"mssql-cli": {},
 				},
 			},
 			cmd: []string{sqlcmdBin,
