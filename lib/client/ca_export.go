@@ -220,6 +220,13 @@ func exportAuth(ctx context.Context, client authclient.ClientI, req ExportAuthor
 			ExportPrivateKeys: exportSecrets,
 		}
 		return exportTLSAuthority(ctx, client, req)
+	case "app-client":
+		req := exportTLSAuthorityRequest{
+			AuthType:          types.AppClientCA,
+			UnpackPEM:         false,
+			ExportPrivateKeys: exportSecrets,
+		}
+		return exportTLSAuthority(ctx, client, req)
 	}
 
 	// If none of the above auth-types was requested, means we are dealing with SSH HostCA or SSH UserCA.
