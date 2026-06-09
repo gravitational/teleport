@@ -49,6 +49,9 @@ jobs:
         with:
           version: ${{ inputs.teleport-version }}
 
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
 
@@ -64,6 +67,19 @@ jobs:
 
       - name: Login to Source ECR Registry
         uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
+
+      - name: Validate source image signature using signing key and GitHub OIDC Token
+        env:
+          CERT_IDENTITY_REGEXP: 'https://github\.com/gravitational/teleport\.e/\.github/workflows/build-operator-oci\.yaml@refs/tags/.+'
+          CERT_OIDC_ISSUER: "https://token.actions.githubusercontent.com/teleport"
+          SIGNING_KEY_ARN: "${{ env.OCI_PENDING_SIGNING_KEY_ARN }}"
+          SRC_IMAGE_TAG: "${{ env.OPERATOR_PENDING_ECR_REPO }}:${{ steps.version.outputs.full }}"
+        run: |
+          cosign verify --key "awskms:///${SIGNING_KEY_ARN}" "${SRC_IMAGE_TAG}" > validated-image.json
+          # TODO(reed): Re-enable OIDC identity verification when signature is attached
+          # cosign verify ${SRC_IMAGE_TAG} --certificate-identity-regexp="${CERT_IDENTITY_REGEXP}" --certificate-oidc-issuer="${CERT_OIDC_ISSUER}"
+          TELEPORT_IMAGE_LIST_HASH=$(jq -r '.[0].critical.image."docker-manifest-digest"' validated-image.json)
+          echo "TELEPORT_IMAGE_LIST_HASH=$TELEPORT_IMAGE_LIST_HASH" >> "$GITHUB_ENV"
 
       - name: Login to Destination ECR Registry
         uses: aws-actions/amazon-ecr-login@fa648b43de3d4d023bcb3f89ed6940096949c419 # v2.1.5
@@ -98,3 +114,12 @@ jobs:
               echo "Published image: ${dst}"
             fi >> "$GITHUB_STEP_SUMMARY"
           done
+
+      - name: Sign production images using signing key and GitHub OIDC Token
+        env:
+          DST_REPO: ${{ env.OPERATOR_PUBLISH_ECR_REPO }}
+          SIGNING_KEY_ARN: ${{ env.OCI_PUBLIC_SIGNING_KEY_ARN }}
+        run: |
+          DST_IMAGE_HASH="${DST_REPO}@${TELEPORT_IMAGE_LIST_HASH}"
+          cosign sign --yes --key "awskms:///${SIGNING_KEY_ARN}" --recursive "${DST_IMAGE_HASH}"
+          cosign sign --yes --upload=false --recursive "${DST_IMAGE_HASH}"
