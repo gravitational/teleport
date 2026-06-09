@@ -7,11 +7,15 @@ tags:
   - how-to
   - zero-trust
   - resiliency
+page_type: how-to
 ---
 
-This guide explains how to rotate encryption keys for session recordings using
-the automatic method. In this approach, the Teleport Auth Service manages the
-selection and labeling of encryption keys for you.
+In the automatic approach for rotating session recording encryption keys, the
+Teleport Auth Service manages the selection and labeling of encryption keys for
+you.
+
+In this guide, you will use the `tctl` admin tool to rotate encryption keys for
+session recordings with the automatic method. 
 
 For instructions on manually rotating encryption keys for session recordings,
 see [Rotating Manual Session Recording Encryption
