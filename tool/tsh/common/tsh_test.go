@@ -497,6 +497,27 @@ func TestDefaultPrintUsage(t *testing.T) {
 	require.Equal(t, string(flagOutput), string(commandOutput))
 }
 
+// TestGlobalProfileFlagInUsage verifies that the global --profile flag is
+// listed in the top-level usage/help output (regression test: a visible
+// global flag must appear in `tsh --help`).
+func TestGlobalProfileFlagInUsage(t *testing.T) {
+	t.Parallel()
+	testExecutable, err := os.Executable()
+	require.NoError(t, err)
+
+	ctx := context.Background()
+	cmd := exec.CommandContext(ctx, testExecutable, "--help")
+	cmd.Env = []string{fmt.Sprintf("%s=1", tshBinMainTestEnv), "TELEPORT_TOOLS_VERSION=off"}
+	output, err := cmd.CombinedOutput()
+	// kingpin's --help exits 0 via Terminate; CombinedOutput returns the text.
+	require.NoError(t, trace.NewAggregate(err, ctx.Err()))
+
+	require.Contains(t, string(output), "--profile",
+		"global --profile flag must be listed in top-level help; got:\n%s", string(output))
+	require.Contains(t, string(output), "TELEPORT_PROFILE",
+		"--profile help must mention the TELEPORT_PROFILE env var")
+}
+
 func TestFailedLogin(t *testing.T) {
 	t.Parallel()
 	tmpHomePath := t.TempDir()
