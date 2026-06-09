@@ -6408,7 +6408,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 }
 
 // SubmitAccessReview is used to process a review of an Access Request.
-// This is implemented by Server.submitAccessRequest but this method exists
+// This is implemented by Server.submitAccessReview but this method exists
 // to provide a matching signature with the auth client. This allows the
 // hosted plugins to use the Server struct directly as a client.
 func (a *Server) SubmitAccessReview(
@@ -6437,6 +6437,15 @@ func (a *Server) submitAccessReview(
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// For identities (eg. plugins) that submit the review on behalf of the author, we zero out
+	// the identity as a protection measure. This is because the identity no longer
+	// correlates with the review author, and is not used for checking the author's permissions.
+	// The caller should already pass in a nil identity for this case, but this measure ensures
+	// we correctly handle identity and review author correlation.
+	if params.Review.SubmittedBy != "" {
+		identity = nil
 	}
 
 	// set up a checker for the review author
@@ -6471,6 +6480,7 @@ func (a *Server) submitAccessReview(
 		ProposedState:          params.Review.ProposedState.String(),
 		Reason:                 params.Review.Reason,
 		Reviewer:               params.Review.Author,
+		SubmittedBy:            params.Review.SubmittedBy,
 		MaxDuration:            req.GetMaxDuration(),
 		PromotedAccessListName: req.GetPromotedAccessListName(),
 	}
