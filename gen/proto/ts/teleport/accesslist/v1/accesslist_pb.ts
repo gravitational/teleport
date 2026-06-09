@@ -399,7 +399,7 @@ export interface UserDisplay {
      */
     primary: string;
     /**
-     * secondary is extra context, usually email, when distinct from the username.
+     * secondary is extra context, when distinct from the username.
      *
      * @generated from protobuf field: string secondary = 2;
      */
