@@ -25,25 +25,27 @@ The Teleport SSH Service SELinux module allows SELinux to confine the Teleport S
   Service SELinux module is officially supported on these platforms only.
 - Root or `sudo` access on the host. The `install-selinux.sh` script must be run
   as `root`.
-- SELinux installed and enabled on the host, in either permissive or enforcing
-  mode. Teleport exits with an error if SELinux is disabled. Check the current
-  mode with `getenforce` or `sestatus`. Enforcing mode is required for production
-  use.
+- SELinux enabled on the host in permissive or enforcing mode (not disabled). See
+  [SELinux modes](#selinux-modes) for the difference between the two.
 - The `selinux-policy-devel` package installed on the host, which provides the
-  toolchain used to compile the module. The [Installation](#installation)
-  section below covers this.
-- A Teleport SSH Service agent installed from a Teleport tarball and configured
-  to point at your cluster. Follow
-  [SSH getting started](../../../enroll-resources/server-access/getting-started.mdx)
-  to enroll the host. The `install-selinux.sh` script and SELinux module ship
-  only in the Linux tarball, not in package-manager or container installs, and
-  the agent must run only the SSH Service.
-- The Teleport SSH Service agent must run as a **systemd service**. Teleport only
-  runs under the correct `teleport_ssh_t` SELinux domain (and is therefore only
-  enforced) when started by systemd, not when launched manually.
+  toolchain used to compile the module. The [Installation](#installation) section
+  covers this.
 - A Teleport configuration file on the host (`/etc/teleport.yaml` by default).
   The install script reads this file to customize the module and label files
   correctly.
+- A Teleport SSH Service agent configured to point at your cluster and enrolled by
+  following
+  [SSH getting started](../../../enroll-resources/server-access/getting-started.mdx).
+  This agent has three SELinux-specific requirements:
+  - **Tarball installation only.** The `install-selinux.sh` script and SELinux
+    module ship only in the Linux tarball. Package-manager and container installs
+    are not supported.
+  - **SSH Service only.** The agent must run only the SSH Service. Teleport exits
+    with an error if `--enable-selinux` is set while other services are enabled or
+    the SSH Service is disabled.
+  - **Runs as a systemd service.** Teleport only runs under the correct
+    `teleport_ssh_t` SELinux domain — and is therefore only enforced — when started
+    by systemd, not when launched manually.
 
 (!docs/pages/includes/tctl.mdx!)
 
