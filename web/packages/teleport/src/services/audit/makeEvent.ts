@@ -1432,6 +1432,18 @@ export const formatters: Formatters = {
     format: ({ user }) =>
       `User [${user}] was denied x11 forwarding for a session`,
   },
+  [eventCodes.AGENT_FORWARD]: {
+    type: 'agent-forward',
+    desc: 'Agent Forwarding Requested',
+    format: ({ user }) =>
+      `User [${user}] has requested SSH agent forwarding for a session`,
+  },
+  [eventCodes.AGENT_FORWARD_FAILURE]: {
+    type: 'agent-forward',
+    desc: 'Agent Forwarding Request Failed',
+    format: ({ user }) =>
+      `User [${user}] was denied SSH agent forwarding for a session`,
+  },
   [eventCodes.SESSION_CONNECT]: {
     type: 'session.connect',
     desc: 'Session Connected',
