@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -1121,6 +1122,94 @@ func (s *ServicesTestSuite) OIDCPagination(t *testing.T) {
 
 		require.Empty(t, cmp.Diff(want, append(page1, page2...), cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 	})
+}
+
+// TestListOIDCConnectors_SkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
+// return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
+func TestListOIDCConnectors_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service, err := NewTestIdentityService(mem)
+	require.NoError(t, err)
+
+	var allExpected []types.OIDCConnector
+
+	createResource := func(name string) {
+		connector := &types.OIDCConnectorV3{
+			Kind:    types.KindOIDC,
+			Version: types.V2,
+			Metadata: types.Metadata{
+				Name:      name,
+				Namespace: apidefaults.Namespace,
+			},
+			Spec: types.OIDCConnectorSpecV3{
+				Display:      "SAML",
+				IssuerURL:    "http://example.com",
+				ClientID:     "aaa",
+				ClientSecret: "bbb",
+				RedirectURLs: []string{"https://localhost:3080/v1/webapi/github/callback"},
+				ClaimsToRoles: []types.ClaimMapping{
+					{
+						Claim: "abc",
+						Value: "xyz",
+						Roles: []string{"admin"},
+					},
+				},
+			},
+		}
+		_, err = service.UpsertOIDCConnector(ctx, connector)
+		require.NoError(t, err)
+		allExpected = append(allExpected, connector)
+
+	}
+
+	createMalformedEntry := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(webPrefix, connectorsPrefix, oidcPrefix, connectorsPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedEntry(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListOIDCConnectors(ctx, pageLimit, "", true)
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListOIDCConnectors(ctx, pageLimit, next, true)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListOIDCConnectors(ctx, pageLimit, next, true)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	allActual := append(append(page1, page2...), page3...)
+	require.Empty(t, cmp.Diff(allExpected, allActual,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.SortSlices(func(a, b types.OIDCConnector) bool { return a.GetName() < b.GetName() }),
+	))
 }
 
 func (s *ServicesTestSuite) TunnelConnectionsCRUD(t *testing.T) {

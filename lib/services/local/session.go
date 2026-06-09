@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"log/slog"
 	"slices"
 
 	"github.com/gravitational/trace"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // GetAppSession gets an application web session.
@@ -476,27 +478,40 @@ func (r *IdentityService) ListWebTokens(ctx context.Context, limit int, start st
 	startKey := tokenKey.AppendKey(backend.KeyFromString(start))
 	endKey := backend.RangeEnd(tokenKey)
 
-	var out []types.WebToken
-	result, err := r.Backend.GetRange(ctx, startKey, endKey, limit+1)
-	if err != nil {
+	out := make([]types.WebToken, 0, limit)
+	var nextPage string
+
+	if err := backend.IterateRange(
+		ctx,
+		r.Backend,
+		startKey,
+		endKey,
+		limit+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				token, err := services.UnmarshalWebToken(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "Failed to web token",
+						"key", logutils.StringerAttr(item.Key),
+						"error", err)
+					continue
+				}
+
+				if len(out) >= limit {
+					nextPage = token.GetToken()
+					return true, nil
+				} else {
+					out = append(out, token)
+				}
+			}
+			return false, nil
+		}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	for _, item := range result.Items {
-		token, err := services.UnmarshalWebToken(item.Value, services.WithRevision(item.Revision))
-
-		if err != nil {
-			continue
-		}
-
-		if len(out) >= limit {
-			return out, token.GetToken(), nil
-		}
-
-		out = append(out, token)
-	}
-
-	return out, "", nil
+	return out, nextPage, nil
 }
 
 // UpsertWebToken updates the existing or inserts a new web token.

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // CA is local implementation of Trust service that
@@ -726,45 +727,50 @@ func (s *CA) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, er
 }
 
 // ListTrustedClusters returns a page of Trusted Cluster resources.
-func (s *CA) ListTrustedClusters(ctx context.Context, limit int, startKey string) ([]types.TrustedCluster, string, error) {
+func (s *CA) ListTrustedClusters(ctx context.Context, limit int, pageToken string) ([]types.TrustedCluster, string, error) {
 	// Adjust page size, so it can't be too large.
 	if limit <= 0 || limit > defaults.DefaultChunkSize {
 		limit = defaults.DefaultChunkSize
 	}
 
 	clusterKey := backend.NewKey(trustedClustersPrefix)
-	var out []types.TrustedCluster
-	result, err := s.Backend.GetRange(
+	startKey := clusterKey.AppendKey(backend.KeyFromString(pageToken))
+	endKey := backend.RangeEnd(clusterKey)
+
+	out := make([]types.TrustedCluster, 0, limit)
+	var nextPage string
+
+	if err := backend.IterateRange(
 		ctx,
-		clusterKey.AppendKey(backend.KeyFromString(startKey)),
-		backend.RangeEnd(clusterKey),
+		s.Backend,
+		startKey,
+		endKey,
 		limit+1,
-	)
-	if err != nil {
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				tc, err := services.UnmarshalTrustedCluster(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "Failed to unmarshal TrustedCluster",
+						"key", logutils.StringerAttr(item.Key),
+						"error", err)
+					continue
+				}
+
+				if len(out) >= limit {
+					nextPage = tc.GetName()
+					return true, nil
+				} else {
+					out = append(out, tc)
+				}
+			}
+			return false, nil
+		}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	for _, item := range result.Items {
-		tc, err := services.UnmarshalTrustedCluster(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal TrustedCluster",
-				"key", item.Key,
-				"error", err,
-			)
-			continue
-		}
-
-		if len(out) >= limit {
-			return out, tc.GetName(), nil
-		}
-
-		out = append(out, tc)
-	}
-
-	return out, "", nil
-
+	return out, nextPage, nil
 }
 
 // DeleteTrustedCluster removes a TrustedCluster from the backend by name.

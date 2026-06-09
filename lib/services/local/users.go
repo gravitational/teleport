@@ -26,6 +26,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"io"
+	"log/slog"
 	"sort"
 	"strings"
 	"sync"
@@ -51,6 +52,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // GlobalSessionDataMaxEntries represents the maximum number of in-flight
@@ -1627,37 +1629,45 @@ func (s *IdentityService) ListOIDCConnectors(ctx context.Context, limit int, sta
 	startKey := connectorKey.AppendKey(backend.KeyFromString(start))
 	endKey := backend.RangeEnd(connectorKey)
 
-	var out []types.OIDCConnector
-	result, err := s.Backend.GetRange(ctx, startKey, endKey, limit+1)
-	if err != nil {
+	out := make([]types.OIDCConnector, 0, limit)
+	var nextPage string
+
+	if err := backend.IterateRange(
+		ctx,
+		s.Backend,
+		startKey,
+		endKey,
+		limit+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				connector, err := services.UnmarshalOIDCConnector(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "Failed to unmarshal OIDC Connector",
+						"key", logutils.StringerAttr(item.Key),
+						"error", err)
+					continue
+				}
+
+				if !withSecrets {
+					connector.SetClientSecret("")
+					connector.SetGoogleServiceAccount("")
+				}
+
+				if len(out) >= limit {
+					nextPage = connector.GetName()
+					return true, nil
+				} else {
+					out = append(out, connector)
+				}
+			}
+			return false, nil
+		}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	for _, item := range result.Items {
-		conn, err := services.UnmarshalOIDCConnector(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-		if err != nil {
-			logrus.
-				WithError(err).
-				WithField("key", item.Key).
-				Errorf("Error unmarshaling SAML Connector")
-			continue
-		}
-
-		if len(out) >= limit {
-			return out, conn.GetName(), nil
-		}
-
-		if !withSecrets {
-			conn.SetClientSecret("")
-			conn.SetGoogleServiceAccount("")
-		}
-
-		out = append(out, conn)
-	}
-
-	return out, "", nil
+	return out, nextPage, nil
 }
 
 // CreateOIDCAuthRequest creates new auth request
