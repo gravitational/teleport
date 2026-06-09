@@ -106,7 +106,7 @@ test('shared directory management', async () => {
   });
   await transportOpen;
 
-  await Array.from({ length: 10 }, () => client.shareDirectory());
+  await Promise.all(Array.from({ length: 10 }, () => client.shareDirectory()));
   // Identifiers begin at 2
   const directories = client.listSharedDirectories();
   expect(directories).toHaveLength(10);
