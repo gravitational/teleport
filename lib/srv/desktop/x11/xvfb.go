@@ -205,6 +205,7 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 	defer func() {
+		authorityFile.Close()
 		if !success {
 			os.Remove(authorityFile.Name())
 		}
@@ -227,14 +228,6 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	go func() {
-		scanner := bufio.NewScanner(stderr)
-		for scanner.Scan() {
-			line := scanner.Text()
-			config.Logger.Log(ctx, logutils.TraceLevel, "backend output", "line", line)
-		}
-	}()
-
 	if err := cmd.Start(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -243,6 +236,14 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 		if !success {
 			cancel()
 			cmd.Wait()
+		}
+	}()
+
+	go func() {
+		scanner := bufio.NewScanner(stderr)
+		for scanner.Scan() {
+			line := scanner.Text()
+			config.Logger.Log(ctx, logutils.TraceLevel, "backend output", "line", line)
 		}
 	}()
 
@@ -270,7 +271,6 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 	if _, err := authorityFile.Write(entry); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authorityFile.Close()
 
 	conn, setup, err := connectToDisplay(display, cookie)
 	if err != nil {
@@ -434,7 +434,7 @@ func (x *Backend) processEvents() {
 		case xfixes.SelectionNotifyEvent:
 			xproto.ConvertSelection(x.conn, x.clipboardWindow, x.clipboardAtom, x.utf8Atom, x.selectionAtom, 0)
 		default:
-			x.config.Logger.WarnContext(x.ctx, "Unrecognized event", "event", event)
+			x.config.Logger.DebugContext(x.ctx, "unrecognized event", "event", event)
 		}
 	}
 }
@@ -467,23 +467,19 @@ func connectToDisplay(display string, cookie []byte) (*xgb.Conn, *xproto.SetupIn
 		return nil, nil, trace.Wrap(err)
 	}
 
-	defer func() {
-		if !success {
-			dial.Close()
-		}
-	}()
-
 	conn, err := xgb.NewConnNetWithCookieHex(dial, fmt.Sprintf("%x", cookie))
 	if err != nil {
+		dial.Close()
 		return nil, nil, trace.Wrap(err)
 	}
-	setup := xproto.Setup(conn)
 
 	defer func() {
 		if !success {
 			conn.Close()
 		}
 	}()
+
+	setup := xproto.Setup(conn)
 
 	if err := xtest.Init(conn); err != nil {
 		return nil, nil, trace.Wrap(err)

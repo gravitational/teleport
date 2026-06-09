@@ -174,6 +174,9 @@ func (cfg *LinuxServiceConfig) CheckAndSetDefaults() error {
 // To start serving connections, call Serve.
 // When done serving connections, call Close.
 func NewLinuxService(cfg LinuxServiceConfig) (*LinuxService, error) {
+	if !rdpclient.EncodeQOIZAvailable() {
+		return nil, trace.BadParameter("Teleport was built without required desktop_access_rdp tag")
+	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -805,6 +808,9 @@ func (sess *linuxSession) handleClientScreenSpec(m *tdpb.ClientScreenSpec) error
 	return nil
 }
 
+const desiredFPS = 25
+const frameDelay = time.Second / desiredFPS
+
 func (sess *linuxSession) processScreenChanges() error {
 	for {
 		start := time.Now()
@@ -819,8 +825,7 @@ func (sess *linuxSession) processScreenChanges() error {
 		select {
 		case <-sess.ctx.Done():
 			return nil
-			// We want to keep 25fps, so we want to wait ~40ms between frames
-		case <-sess.service.cfg.Clock.After(40*time.Millisecond - delta):
+		case <-sess.service.cfg.Clock.After(frameDelay - delta):
 		}
 	}
 }

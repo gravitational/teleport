@@ -14,6 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
+use crate::linux_desktop_encoder::EncodeError::Qoi;
 use crate::CGOErrCode;
 use ironrdp_core::{encode_vec, Encode, WriteCursor};
 use ironrdp_pdu::fast_path::{
@@ -21,6 +22,7 @@ use ironrdp_pdu::fast_path::{
 };
 use ironrdp_pdu::geometry::ExclusiveRectangle;
 use ironrdp_pdu::surface_commands::{ExtendedBitmapDataPdu, SurfaceBitsPdu, SurfaceCommand};
+use qoi::Error::UnexpectedBufferEnd;
 use std::fmt::Display;
 use std::{ptr, slice};
 
@@ -107,6 +109,9 @@ fn inner_encode_qoiz(
     height: u16,
 ) -> Result<Vec<Vec<u8>>, EncodeError> {
     let mut data = qoi::encode_to_vec(input, width as u32, height as u32)?;
+    if data.len() < 13 {
+        return Err(Qoi(UnexpectedBufferEnd));
+    }
     // our frames always have alpha set to 0xFF so we set channels number to 3 as it is
     // required by ironrdp decoding routine
     data[12] = 3;

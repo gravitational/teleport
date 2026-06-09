@@ -78,3 +78,7 @@ func (c *Client) DisableNLA() {}
 func EncodeQOIZ(frame []byte, x, y, width, height uint16) ([]*tdpb.FastPathPDU, error) {
 	return nil, errors.New("the real rdpclient implementation was not included in this build")
 }
+
+func EncodeQOIZAvailable() bool {
+	return false
+}

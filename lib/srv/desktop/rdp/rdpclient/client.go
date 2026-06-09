@@ -76,7 +76,6 @@ import (
 	"net"
 	"os"
 	"runtime/cgo"
-	"slices"
 	"strconv"
 	"sync"
 	"sync/atomic"
@@ -326,7 +325,7 @@ func readClientKeyboardLayout(conn *tdp.Conn, logger *slog.Logger) (uint32, erro
 	return k.KeyboardLayout, nil
 }
 
-func (c *Client) sendTDBPAlert(message string, severity tdpbv1.AlertSeverity) error {
+func (c *Client) sendTDPBAlert(message string, severity tdpbv1.AlertSeverity) error {
 	return c.conn.WriteMessage(&tdpb.Alert{Message: message, Severity: severity})
 }
 
@@ -490,7 +489,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 			err = trace.Errorf("RDP client exited with an unknown error")
 		}
 
-		c.sendTDBPAlert(err.Error(), tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
+		c.sendTDPBAlert(err.Error(), tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
 		return err
 	}
 
@@ -502,7 +501,7 @@ func (c *Client) startRustRDP(ctx context.Context, certDER, keyDER []byte) error
 
 	c.cfg.Logger.InfoContext(ctx, message)
 
-	c.sendTDBPAlert(message, tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
+	c.sendTDPBAlert(message, tdpbv1.AlertSeverity_ALERT_SEVERITY_ERROR)
 
 	return nil
 }
@@ -1330,21 +1329,29 @@ func (c *Client) DisableNLA() {
 // Resulting frames can be consumed directly by the FastPath processor from IronRDP if qoiz
 // feature is enabled in ironrdp-session crate
 func EncodeQOIZ(frame []byte, x, y, width, height uint16) ([]*tdpb.FastPathPDU, error) {
+	if len(frame) == 0 {
+		return nil, nil
+	}
+	if len(frame) != int(width)*int(height)*4 {
+		return nil, trace.BadParameter("incorrect frame size")
+	}
 	data := unsafe.SliceData(frame)
 	encodingResult := C.encode_qoiz((*C.uint8_t)(data), C.uint16_t(x), C.uint16_t(y), C.uint16_t(width), C.uint16_t(height))
 	defer C.free_encoding_result(encodingResult)
 	if encodingResult.error_code != C.ErrCodeSuccess {
-		buf := unsafe.Slice((*uint8)(encodingResult.error_msg), encodingResult.length)
-		return nil, trace.Errorf("Couldn't encode frame: %s", string(slices.Clone(buf)))
+		msg := C.GoBytes(unsafe.Pointer(encodingResult.error_msg), C.int(encodingResult.length))
+		return nil, trace.Errorf("Couldn't encode frame: %s", string(msg))
 	}
 	pdus := unsafe.Slice((*C.Pdu)(encodingResult.pdus), encodingResult.length)
 	messages := make([]*tdpb.FastPathPDU, 0, encodingResult.length)
 	for _, frame := range pdus {
-		// copy Rust memory to Go
-		buf := unsafe.Slice((*uint8)(frame.data), frame.length)
 		messages = append(messages, &tdpb.FastPathPDU{
-			Pdu: slices.Clone(buf),
+			Pdu: C.GoBytes(unsafe.Pointer(frame.data), C.int(frame.length)),
 		})
 	}
 	return messages, nil
+}
+
+func EncodeQOIZAvailable() bool {
+	return true
 }
