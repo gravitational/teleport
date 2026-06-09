@@ -548,6 +548,28 @@ func TestValidateTokenWithJWKS(t *testing.T) {
 			wantErr: "static_jwks joining requires the use of projected pod bound service account token",
 		},
 		{
+			// A token with a pod claim but no service account claim must be rejected, not panic.
+			name:   "missing service account claim",
+			signer: signer,
+			claims: claims.ServiceAccountClaims{
+				Claims: jwt.Claims{
+					Subject:   "system:serviceaccount:default:my-service-account",
+					Audience:  jwt.Audience{clusterName},
+					IssuedAt:  jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					NotBefore: jwt.NewNumericDate(now.Add(-1 * time.Minute)),
+					Expiry:    jwt.NewNumericDate(now.Add(10 * time.Minute)),
+				},
+				Kubernetes: &claims.KubernetesSubClaim{
+					Pod: &claims.PodSubClaim{
+						Name: "my-pod-797959fdf-wptbj",
+						UID:  "413b22ca-4833-48d9-b6db-76219d583173",
+					},
+					Namespace: "default",
+				},
+			},
+			wantErr: "static_jwks joining requires the use of projected pod bound service account token",
+		},
+		{
 			name:   "signed by unknown key",
 			signer: wrongSigner,
 			claims: claims.ServiceAccountClaims{
@@ -848,6 +870,29 @@ func TestValidateTokenWithOIDC(t *testing.T) {
 			)),
 			assertError: func(t require.TestingT, err error, i ...any) {
 				require.ErrorContains(t, err, "signature verification failed")
+			},
+			want: nil,
+		},
+		{
+			// A token with a pod claim but no service account claim must be rejected, not panic.
+			name:     "missing-service-account",
+			audience: idpAudience,
+			token: mustIssueToken(idp.IssueToken(
+				idp.IssuerURL(),
+				idpAudience,
+				"example",
+				time.Now().Add(-5*time.Minute),
+				time.Now().Add(5*time.Minute),
+				&claims.KubernetesSubClaim{
+					Namespace: "default",
+					Pod: &claims.PodSubClaim{
+						Name: "example-pod",
+						UID:  "zxcv-1234",
+					},
+				},
+			)),
+			assertError: func(t require.TestingT, err error, i ...any) {
+				require.ErrorContains(t, err, "requires the use of a projected pod")
 			},
 			want: nil,
 		},
