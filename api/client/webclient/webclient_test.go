@@ -214,7 +214,7 @@ func TestErrorFromUnsuccessfulResponse(t *testing.T) {
 			statusCode:  http.StatusInternalServerError,
 			contentType: "application/json",
 			bodyReadErr: true,
-			errContains: []string{"reading the HTTP 500 response body", "check the network connection"},
+			errContains: []string{"HTTP 500", "could not be fully read"},
 		},
 	}
 
