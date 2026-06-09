@@ -143,7 +143,7 @@ func instanceKey(instance *accessgraphv1alpha.AWSInstanceV1) string {
 }
 
 func instanceWrap(instance *accessgraphv1alpha.AWSInstanceV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_Instance{Instance: instance}}
+	return accessgraphv1alpha.AWSResource_builder{Instance: proto.ValueOrDefault(instance)}.Build()
 }
 
 func usersKey(user *accessgraphv1alpha.AWSUserV1) string {
@@ -151,7 +151,7 @@ func usersKey(user *accessgraphv1alpha.AWSUserV1) string {
 }
 
 func usersWrap(user *accessgraphv1alpha.AWSUserV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_User{User: user}}
+	return accessgraphv1alpha.AWSResource_builder{User: proto.ValueOrDefault(user)}.Build()
 }
 
 func userInlinePolKey(policy *accessgraphv1alpha.AWSUserInlinePolicyV1) string {
@@ -159,7 +159,7 @@ func userInlinePolKey(policy *accessgraphv1alpha.AWSUserInlinePolicyV1) string {
 }
 
 func userInlinePolWrap(policy *accessgraphv1alpha.AWSUserInlinePolicyV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_UserInlinePolicy{UserInlinePolicy: policy}}
+	return accessgraphv1alpha.AWSResource_builder{UserInlinePolicy: proto.ValueOrDefault(policy)}.Build()
 }
 
 func userAttchPolKey(policy *accessgraphv1alpha.AWSUserAttachedPolicies) string {
@@ -167,7 +167,7 @@ func userAttchPolKey(policy *accessgraphv1alpha.AWSUserAttachedPolicies) string 
 }
 
 func userAttchPolWrap(policy *accessgraphv1alpha.AWSUserAttachedPolicies) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_UserAttachedPolicies{UserAttachedPolicies: policy}}
+	return accessgraphv1alpha.AWSResource_builder{UserAttachedPolicies: proto.ValueOrDefault(policy)}.Build()
 }
 
 func userGroupKey(group *accessgraphv1alpha.AWSUserGroupsV1) string {
@@ -175,7 +175,7 @@ func userGroupKey(group *accessgraphv1alpha.AWSUserGroupsV1) string {
 }
 
 func userGroupWrap(group *accessgraphv1alpha.AWSUserGroupsV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_UserGroups{UserGroups: group}}
+	return accessgraphv1alpha.AWSResource_builder{UserGroups: proto.ValueOrDefault(group)}.Build()
 }
 
 func groupKey(group *accessgraphv1alpha.AWSGroupV1) string {
@@ -183,7 +183,7 @@ func groupKey(group *accessgraphv1alpha.AWSGroupV1) string {
 }
 
 func groupWrap(group *accessgraphv1alpha.AWSGroupV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_Group{Group: group}}
+	return accessgraphv1alpha.AWSResource_builder{Group: proto.ValueOrDefault(group)}.Build()
 }
 
 func grpInlinePolKey(policy *accessgraphv1alpha.AWSGroupInlinePolicyV1) string {
@@ -191,7 +191,7 @@ func grpInlinePolKey(policy *accessgraphv1alpha.AWSGroupInlinePolicyV1) string {
 }
 
 func grpInlinePolWrap(policy *accessgraphv1alpha.AWSGroupInlinePolicyV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_GroupInlinePolicy{GroupInlinePolicy: policy}}
+	return accessgraphv1alpha.AWSResource_builder{GroupInlinePolicy: proto.ValueOrDefault(policy)}.Build()
 }
 
 func grpAttchPolKey(policy *accessgraphv1alpha.AWSGroupAttachedPolicies) string {
@@ -199,7 +199,7 @@ func grpAttchPolKey(policy *accessgraphv1alpha.AWSGroupAttachedPolicies) string 
 }
 
 func grpAttchPolWrap(policy *accessgraphv1alpha.AWSGroupAttachedPolicies) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_GroupAttachedPolicies{GroupAttachedPolicies: policy}}
+	return accessgraphv1alpha.AWSResource_builder{GroupAttachedPolicies: proto.ValueOrDefault(policy)}.Build()
 }
 
 func policyKey(policy *accessgraphv1alpha.AWSPolicyV1) string {
@@ -207,7 +207,7 @@ func policyKey(policy *accessgraphv1alpha.AWSPolicyV1) string {
 }
 
 func policyWrap(policy *accessgraphv1alpha.AWSPolicyV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_Policy{Policy: policy}}
+	return accessgraphv1alpha.AWSResource_builder{Policy: proto.ValueOrDefault(policy)}.Build()
 }
 
 func s3bucketKey(s3 *accessgraphv1alpha.AWSS3BucketV1) string {
@@ -215,7 +215,7 @@ func s3bucketKey(s3 *accessgraphv1alpha.AWSS3BucketV1) string {
 }
 
 func s3bucketWrap(s3 *accessgraphv1alpha.AWSS3BucketV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_S3Bucket{S3Bucket: s3}}
+	return accessgraphv1alpha.AWSResource_builder{S3Bucket: proto.ValueOrDefault(s3)}.Build()
 }
 
 func roleKey(role *accessgraphv1alpha.AWSRoleV1) string {
@@ -223,7 +223,7 @@ func roleKey(role *accessgraphv1alpha.AWSRoleV1) string {
 }
 
 func roleWrap(role *accessgraphv1alpha.AWSRoleV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_Role{Role: role}}
+	return accessgraphv1alpha.AWSResource_builder{Role: proto.ValueOrDefault(role)}.Build()
 }
 
 func roleInlinePolKey(policy *accessgraphv1alpha.AWSRoleInlinePolicyV1) string {
@@ -231,7 +231,7 @@ func roleInlinePolKey(policy *accessgraphv1alpha.AWSRoleInlinePolicyV1) string {
 }
 
 func roleInlinePolWrap(policy *accessgraphv1alpha.AWSRoleInlinePolicyV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_RoleInlinePolicy{RoleInlinePolicy: policy}}
+	return accessgraphv1alpha.AWSResource_builder{RoleInlinePolicy: proto.ValueOrDefault(policy)}.Build()
 }
 
 func roleAttchPolKey(policy *accessgraphv1alpha.AWSRoleAttachedPolicies) string {
@@ -239,7 +239,7 @@ func roleAttchPolKey(policy *accessgraphv1alpha.AWSRoleAttachedPolicies) string 
 }
 
 func roleAttchPolWrap(policy *accessgraphv1alpha.AWSRoleAttachedPolicies) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_RoleAttachedPolicies{RoleAttachedPolicies: policy}}
+	return accessgraphv1alpha.AWSResource_builder{RoleAttachedPolicies: proto.ValueOrDefault(policy)}.Build()
 }
 
 func instanceProfKey(profile *accessgraphv1alpha.AWSInstanceProfileV1) string {
@@ -247,7 +247,7 @@ func instanceProfKey(profile *accessgraphv1alpha.AWSInstanceProfileV1) string {
 }
 
 func instanceProfWrap(profile *accessgraphv1alpha.AWSInstanceProfileV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_InstanceProfile{InstanceProfile: profile}}
+	return accessgraphv1alpha.AWSResource_builder{InstanceProfile: proto.ValueOrDefault(profile)}.Build()
 }
 
 func eksClusterKey(cluster *accessgraphv1alpha.AWSEKSClusterV1) string {
@@ -255,7 +255,7 @@ func eksClusterKey(cluster *accessgraphv1alpha.AWSEKSClusterV1) string {
 }
 
 func eksClusterWrap(cluster *accessgraphv1alpha.AWSEKSClusterV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_EksCluster{EksCluster: cluster}}
+	return accessgraphv1alpha.AWSResource_builder{EksCluster: proto.ValueOrDefault(cluster)}.Build()
 }
 
 func assocAccPolKey(policy *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) string {
@@ -263,7 +263,7 @@ func assocAccPolKey(policy *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) s
 }
 
 func assocAccPolWrap(policy *accessgraphv1alpha.AWSEKSAssociatedAccessPolicyV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_EksClusterAssociatedPolicy{EksClusterAssociatedPolicy: policy}}
+	return accessgraphv1alpha.AWSResource_builder{EksClusterAssociatedPolicy: proto.ValueOrDefault(policy)}.Build()
 }
 
 func accessEntryKey(entry *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) string {
@@ -271,7 +271,7 @@ func accessEntryKey(entry *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) string
 }
 
 func accessEntryWrap(entry *accessgraphv1alpha.AWSEKSClusterAccessEntryV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_EksClusterAccessEntry{EksClusterAccessEntry: entry}}
+	return accessgraphv1alpha.AWSResource_builder{EksClusterAccessEntry: proto.ValueOrDefault(entry)}.Build()
 }
 
 func rdsDbKey(db *accessgraphv1alpha.AWSRDSDatabaseV1) string {
@@ -279,7 +279,7 @@ func rdsDbKey(db *accessgraphv1alpha.AWSRDSDatabaseV1) string {
 }
 
 func rdsDbWrap(db *accessgraphv1alpha.AWSRDSDatabaseV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_Rds{Rds: db}}
+	return accessgraphv1alpha.AWSResource_builder{Rds: proto.ValueOrDefault(db)}.Build()
 }
 
 func samlProvKey(provider *accessgraphv1alpha.AWSSAMLProviderV1) string {
@@ -287,7 +287,7 @@ func samlProvKey(provider *accessgraphv1alpha.AWSSAMLProviderV1) string {
 }
 
 func samlProvWrap(provider *accessgraphv1alpha.AWSSAMLProviderV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_SamlProvider{SamlProvider: provider}}
+	return accessgraphv1alpha.AWSResource_builder{SamlProvider: proto.ValueOrDefault(provider)}.Build()
 }
 
 func oidcProvKey(provider *accessgraphv1alpha.AWSOIDCProviderV1) string {
@@ -295,7 +295,7 @@ func oidcProvKey(provider *accessgraphv1alpha.AWSOIDCProviderV1) string {
 }
 
 func oidcProvWrap(provider *accessgraphv1alpha.AWSOIDCProviderV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_OidcProvider{OidcProvider: provider}}
+	return accessgraphv1alpha.AWSResource_builder{OidcProvider: proto.ValueOrDefault(provider)}.Build()
 }
 
 func kmsKeyKey(key *accessgraphv1alpha.AWSKMSKeyV1) string {
@@ -303,5 +303,5 @@ func kmsKeyKey(key *accessgraphv1alpha.AWSKMSKeyV1) string {
 }
 
 func kmsKeyWrap(key *accessgraphv1alpha.AWSKMSKeyV1) *accessgraphv1alpha.AWSResource {
-	return &accessgraphv1alpha.AWSResource{Resource: &accessgraphv1alpha.AWSResource_KmsKey{KmsKey: key}}
+	return accessgraphv1alpha.AWSResource_builder{KmsKey: proto.ValueOrDefault(key)}.Build()
 }

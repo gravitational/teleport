@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 
 	accessgraphv1alpha "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha"
 	aws_sync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
@@ -277,9 +278,9 @@ func mapDifference[K comparable, V1 any, V2 any](m1 map[K]V1, m2 map[K]V2) iter.
 
 func sendTAGKubeAuditLogConfig(ctx context.Context, stream accessgraphv1alpha.AccessGraphService_KubeAuditLogStreamClient, config *accessgraphv1alpha.KubeAuditLogConfig) error {
 	err := stream.Send(
-		&accessgraphv1alpha.KubeAuditLogStreamRequest{
-			Action: &accessgraphv1alpha.KubeAuditLogStreamRequest_Config{Config: config},
-		},
+		accessgraphv1alpha.KubeAuditLogStreamRequest_builder{
+			Config: proto.ValueOrDefault(config),
+		}.Build(),
 	)
 	if err != nil {
 		err = consumeTillErr(stream)

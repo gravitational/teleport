@@ -529,9 +529,9 @@ func (s *FakeDeviceService) AssertDevice(ctx context.Context, stream assertserve
 	}
 
 	// Success.
-	return dev.pb, trace.Wrap(stream.Send(&devicepb.AssertDeviceResponse{
-		Payload: &devicepb.AssertDeviceResponse_DeviceAsserted{},
-	}))
+	return dev.pb, trace.Wrap(stream.Send(devicepb.AssertDeviceResponse_builder{
+		DeviceAsserted: &devicepb.DeviceAsserted{},
+	}.Build()))
 }
 
 // AuthenticateDevice implements a fake, server-side device authentication
@@ -599,11 +599,9 @@ func (s *FakeDeviceService) AuthenticateDevice(stream devicepb.DeviceTrustServic
 	}
 
 	// Web authentication.
-	return trace.Wrap(stream.Send(&devicepb.AuthenticateDeviceResponse{
-		Payload: &devicepb.AuthenticateDeviceResponse_ConfirmationToken{
-			ConfirmationToken: confirmToken,
-		},
-	}))
+	return trace.Wrap(stream.Send(devicepb.AuthenticateDeviceResponse_builder{
+		ConfirmationToken: proto.ValueOrDefault(confirmToken),
+	}.Build()))
 }
 
 func (s *FakeDeviceService) spendDeviceWebToken(webToken *devicepb.DeviceWebToken, dev *storedDevice) (*devicepb.DeviceConfirmationToken, error) {
@@ -836,13 +834,9 @@ func (s assertStreamAdapter) Recv() (*devicepb.AuthenticateDeviceRequest, error)
 	authnReq := &devicepb.AuthenticateDeviceRequest{}
 	switch req.WhichPayload() {
 	case devicepb.AssertDeviceRequest_ChallengeResponse_case:
-		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
-			ChallengeResponse: req.GetChallengeResponse(),
-		}
+		authnReq.SetChallengeResponse(proto.ValueOrDefault(req.GetChallengeResponse()))
 	case devicepb.AssertDeviceRequest_TpmChallengeResponse_case:
-		authnReq.Payload = &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
-			TpmChallengeResponse: req.GetTpmChallengeResponse(),
-		}
+		authnReq.SetTpmChallengeResponse(proto.ValueOrDefault(req.GetTpmChallengeResponse()))
 	default:
 		return nil, trace.BadParameter("unexpected assert request payload: %T", req.Payload)
 	}
@@ -859,13 +853,9 @@ func (s assertStreamAdapter) Send(authnResp *devicepb.AuthenticateDeviceResponse
 	resp := &devicepb.AssertDeviceResponse{}
 	switch authnResp.WhichPayload() {
 	case devicepb.AuthenticateDeviceResponse_Challenge_case:
-		resp.Payload = &devicepb.AssertDeviceResponse_Challenge{
-			Challenge: authnResp.GetChallenge(),
-		}
+		resp.SetChallenge(proto.ValueOrDefault(authnResp.GetChallenge()))
 	case devicepb.AuthenticateDeviceResponse_TpmChallenge_case:
-		resp.Payload = &devicepb.AssertDeviceResponse_TpmChallenge{
-			TpmChallenge: authnResp.GetTpmChallenge(),
-		}
+		resp.SetTpmChallenge(proto.ValueOrDefault(authnResp.GetTpmChallenge()))
 	default:
 		return trace.BadParameter("unexpected authentication response payload: %T", authnResp.Payload)
 	}
