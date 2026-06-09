@@ -399,30 +399,27 @@ func (s *APIServer) validateTrustedCluster(auth *ServerWithRoles, w http.Respons
 	return validateResponseRaw, nil
 }
 
+// nb(strideynet): This RPC no longer creates web sessions, it only extends
+// existing ones.
 func (s *APIServer) createWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
-	// nb(strideynet): Whilst CreateWebSession seems not to be invoked for the
-	// purposes of creation anymore - it does appear that this RPC is still
-	// in the hot-path for the Extend behavior.
-
 	var req authclient.WebSessionReq
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if req.PrevSessionID != "" {
-		sess, err := auth.ExtendWebSession(r.Context(), req)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return sess, nil
+	// Prohibit the use of this RPC for the creation of new web sessions. For
+	// quite some time, this RPC has only been used for the extension of web
+	// sessions. Creation of new web sessions occurs only through RPCs designed
+	// for initial authentication.
+	if req.PrevSessionID == "" {
+		return nil, trace.BadParameter("RPC cannot be used to create new web sessions")
 	}
 
-	sess, err := auth.CreateWebSession(r.Context(), req.User)
+	sess, err := auth.ExtendWebSession(r.Context(), req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	return rawMessage(services.MarshalWebSession(sess, services.WithVersion(version)))
+	return sess, nil
 }
 
 func (s *APIServer) authenticateWebUser(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
