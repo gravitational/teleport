@@ -73,7 +73,7 @@ func (a *Server) CreateWebSessionFromReq(ctx context.Context, req NewWebSessionR
 	// Issue and assign the DeviceWebToken, but never persist it with the
 	// session.
 	if req.CreateDeviceWebToken {
-		if err := a.augmentSessionForDeviceTrust(ctx, session, req.LoginIP, req.LoginUserAgent); err != nil {
+		if err := a.augmentSessionForDeviceTrust(ctx, session, req.LoginIP, req.LoginUserAgent, req.LoginMaxTouchPoints); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -85,6 +85,7 @@ func (a *Server) augmentSessionForDeviceTrust(
 	ctx context.Context,
 	session types.WebSession,
 	loginIP, userAgent string,
+	maxTouchPoints int,
 ) error {
 	// IP and user agent are mandatory for device web authentication.
 	if loginIP == "" || userAgent == "" {
@@ -95,10 +96,11 @@ func (a *Server) augmentSessionForDeviceTrust(
 	// We only get a token if the server is enabled for Device Trust and the user
 	// has a suitable trusted device.
 	webToken, err := a.createDeviceWebToken(ctx, &devicepb.DeviceWebToken{
-		WebSessionId:     session.GetName(),
-		BrowserUserAgent: userAgent,
-		BrowserIp:        loginIP,
-		User:             session.GetUser(),
+		WebSessionId:          session.GetName(),
+		BrowserMaxTouchPoints: uint32(maxTouchPoints),
+		BrowserUserAgent:      userAgent,
+		BrowserIp:             loginIP,
+		User:                  session.GetUser(),
 	})
 	switch {
 	case err != nil:

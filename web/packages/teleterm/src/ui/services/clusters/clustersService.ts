@@ -72,31 +72,6 @@ export class ClustersService extends ImmutableStore<ClustersServiceState> {
     this.subscribeToClusterStore();
   }
 
-  async authenticateWebDevice(
-    rootClusterUri: uri.RootClusterUri,
-    {
-      id,
-      token,
-    }: {
-      id: string;
-      token: string;
-    }
-  ) {
-    return await this.client.authenticateWebDevice({
-      rootClusterUri,
-      deviceWebToken: {
-        id,
-        token,
-        // empty fields, ignore
-        webSessionId: '',
-        browserIp: '',
-        browserUserAgent: '',
-        user: '',
-        expectedDeviceIds: [],
-      },
-    });
-  }
-
   /**
    * Synchronizes the cluster state and starts a headless watcher for it.
    * It shows errors as notifications.
