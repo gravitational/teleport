@@ -53,6 +53,7 @@ impl ICredentialProviderCredential_Impl for Credential_Impl {
         debug!("Credential::GetFieldState");
         if pcpfis.is_null() || pcpfs.is_null() {
             error!("Pointer is invalid");
+            return Err(E_INVALIDARG.into());
         }
         unsafe {
             *pcpfs = CPFS_DISPLAY_IN_BOTH;

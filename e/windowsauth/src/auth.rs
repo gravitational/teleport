@@ -213,7 +213,7 @@ fn ensure_user(name: &str) -> Result<()> {
     match res {
         NERR_Success => {
             // User created, let's add it to Teleport Users group
-            let user = lookup_account(name, vec![SidTypeUser])?;
+            let user = lookup_account(name, &[SidTypeUser])?;
             let ugroup = UTF16::from(&group);
             let members_info = &LOCALGROUP_MEMBERS_INFO_0 {
                 lgrmi0_sid: user.psid(),
@@ -329,7 +329,7 @@ unsafe fn lsa_ap_logon_user(
     AllocateLocallyUniqueId(logon_id).context("Can't allocate logon id")?;
     create_logon_session(logon_id).context("Can't create logon session")?;
 
-    let user = lookup_account(&name, vec![SidTypeUser])?;
+    let user = lookup_account(&name, &[SidTypeUser])?;
     *authenticating_authority =
         lsa_string(&user.domain).context("Can't create authenticating authority")?;
 
@@ -487,29 +487,27 @@ fn sync_groups(
             managed_by = ManagedBy::Teleport;
             for group in requested_groups.difference(&groups) {
                 create_group(group)?;
-                unsafe {
-                    let psid = user.psid();
-                    NetLocalGroupAddMembers(
-                        None,
-                        UTF16::from(group).pcwstr(),
-                        0,
-                        (&psid as *const PSID) as *const u8,
-                        1,
-                    );
+                let ugroup = UTF16::from(group);
+                let members_info = LOCALGROUP_MEMBERS_INFO_0 { lgrmi0_sid: user.psid() };
+                match unsafe {
+                    NetLocalGroupAddMembers(None, ugroup.pcwstr(), 0, &members_info as *const LOCALGROUP_MEMBERS_INFO_0 as _, 1)
+                } {
+                    NERR_Success => {}
+                    e => return Err(Error::from(WIN32_ERROR(e)))
+                        .context(format!("Can't add user {} to group {}", name, group)),
                 }
             }
 
             groups.remove(TELEPORT_USERS_GROUP);
             for group in groups.difference(&requested_groups) {
-                unsafe {
-                    let psid = user.psid();
-                    NetLocalGroupDelMembers(
-                        None,
-                        UTF16::from(group).pcwstr(),
-                        0,
-                        (&psid as *const PSID) as *const u8,
-                        1,
-                    );
+                let ugroup = UTF16::from(group);
+                let members_info = LOCALGROUP_MEMBERS_INFO_0 { lgrmi0_sid: user.psid() };
+                match unsafe {
+                    NetLocalGroupDelMembers(None, ugroup.pcwstr(), 0, &members_info as *const LOCALGROUP_MEMBERS_INFO_0 as _, 1)
+                } {
+                    NERR_Success => {}
+                    e => return Err(Error::from(WIN32_ERROR(e)))
+                        .context(format!("Can't remove user {} from group {}", name, group)),
                 }
             }
             groups = requested_groups;
@@ -561,7 +559,7 @@ unsafe fn copy_groups_to_token(
             group,
             // group can be represented by multiple different types,
             // depending on if the group is built-in or created by user
-            vec![SidTypeGroup, SidTypeWellKnownGroup, SidTypeAlias],
+            &[SidTypeGroup, SidTypeWellKnownGroup, SidTypeAlias],
         )
         .context(format!("Can't lookup SID for group {}", group))?;
         copy_sid(token_groups, i + 1, group.sid_length()?, group.psid())?;
@@ -647,7 +645,7 @@ impl Account {
     }
 
     fn sid_length(&self) -> Result<u32> {
-        self.sid.len().try_into().context("SID to long")
+        self.sid.len().try_into().context("SID too long")
     }
 }
 
@@ -666,7 +664,7 @@ fn is_domain_joined() -> Result<bool> {
 /// https://support.microsoft.com/en-us/help/297951/how-to-use-the-primarygroupid-attribute-to-find-the-primary-group-for
 /// The method follows this formula: domainRID + "-" + primaryGroupRID
 unsafe fn lookup_primary_group(name: &str, domain: &str) -> Result<Account> {
-    let mut domain_acc = lookup_account(domain, vec![SidTypeDomain])
+    let mut domain_acc = lookup_account(domain, &[SidTypeDomain])
         .context(format!("Can't lookup domain {}", domain))?;
     let mut domain_rid = to_string(domain_acc.psid())?;
 
@@ -702,7 +700,7 @@ unsafe fn lookup_primary_group(name: &str, domain: &str) -> Result<Account> {
 /// lookup_account gets account information for given name and checks if account is of correct type.
 /// Note: Windows treats many things as an account - user, group, domain, computer etc.
 /// See: https://learn.microsoft.com/en-us/windows/win32/api/winnt/ne-winnt-sid_name_use
-fn lookup_account(name: &str, sid_types: Vec<SID_NAME_USE>) -> Result<Account> {
+fn lookup_account(name: &str, sid_types: &[SID_NAME_USE]) -> Result<Account> {
     let mut cb = 0u32;
     let mut cd = 0u32;
     let mut name_use = SidTypeInvalid;

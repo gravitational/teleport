@@ -103,7 +103,10 @@ impl CryptContext {
             CERT_TRUST_IS_UNTRUSTED_ROOT => Err(Error::from(STATUS_ISSUING_CA_UNTRUSTED).into()),
             CERT_TRUST_IS_NOT_TIME_VALID => Err(Error::from(STATUS_SMARTCARD_CERT_EXPIRED).into()),
             CERT_TRUST_IS_REVOKED => Err(Error::from(STATUS_SMARTCARD_CERT_REVOKED).into()),
-            _ => Err(Error::from(STATUS_PKINIT_CLIENT_FAILURE).into()),
+            other => {
+                warn!("Certificate chain validation failed with error status: {:#010x}", other);
+                Err(Error::from(STATUS_PKINIT_CLIENT_FAILURE).into())
+            }
         };
         unsafe { CertFreeCertificateChain(chain_ctx) };
         status.context("Certificate is invalid")
@@ -270,44 +273,26 @@ impl Drop for CryptContext {
     }
 }
 
-struct UserKey(usize);
+macro_rules! crypt_handle {
+    ($name:ident, $destroy:path, $desc:literal) => {
+        struct $name(usize);
 
-impl Drop for UserKey {
-    fn drop(&mut self) {
-        if self.0 == 0 {
-            return;
+        impl Drop for $name {
+            fn drop(&mut self) {
+                if self.0 == 0 {
+                    return;
+                }
+                if let Err(e) = unsafe { $destroy(self.0) } {
+                    warn!("Can't destroy {}: {}", $desc, e)
+                }
+            }
         }
-        if let Err(e) = unsafe { CryptDestroyKey(self.0) } {
-            warn!("Can't destroy user key: {}", e)
-        }
-    }
+    };
 }
 
-struct Hash(usize);
-
-impl Drop for Hash {
-    fn drop(&mut self) {
-        if self.0 == 0 {
-            return;
-        }
-        if let Err(e) = unsafe { CryptDestroyHash(self.0) } {
-            warn!("Can't destroy hash: {}", e)
-        }
-    }
-}
-
-struct Key(usize);
-
-impl Drop for Key {
-    fn drop(&mut self) {
-        if self.0 == 0 {
-            return;
-        }
-        if let Err(e) = unsafe { CryptDestroyKey(self.0) } {
-            warn!("Can't destroy key: {}", e)
-        }
-    }
-}
+crypt_handle!(UserKey, CryptDestroyKey, "user key");
+crypt_handle!(Hash, CryptDestroyHash, "hash");
+crypt_handle!(Key, CryptDestroyKey, "key");
 
 /// If res is FALSE this function will return last error by calling GetLastError. It only makes sense
 /// if the call to checked is right after function call returning BOOL so last error is not lost.
