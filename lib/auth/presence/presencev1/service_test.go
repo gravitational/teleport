@@ -853,7 +853,8 @@ func TestListProxyServers(t *testing.T) {
 				Addr: fmt.Sprintf("127.0.0.1:%d", 3080+i),
 			},
 		}
-		require.NoError(t, srv.Auth().UpsertProxy(ctx, server))
+		_, err := srv.Auth().UpsertProxyServer(ctx, server)
+		require.NoError(t, err)
 		created = append(created, server)
 	}
 
