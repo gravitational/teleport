@@ -239,6 +239,7 @@ func errorFromUnsuccessfulResponse(ctx context.Context, endpoint, proxyAddr stri
 	}
 
 	if errResp.Error.Message == "" {
+		slog.DebugContext(ctx, "Parsed JSON response did not contain an error message", "url", reqURL, "body", string(bodyBytes))
 		return trace.Errorf("%s returned an HTTP %d JSON response with no error message; %s", reqURL, resp.StatusCode, helpMessage)
 	}
 
