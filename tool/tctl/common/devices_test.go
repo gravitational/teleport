@@ -79,14 +79,14 @@ func TestWriteEnrollToken(t *testing.T) {
 
 	t.Run("text", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, writeEnrollToken(teleport.Text, "dev-123", "asset-1", token, &buf))
+		require.NoError(t, writeEnrollToken(teleport.Text, "dev-123", "display-name", "asset-1", token, &buf))
 		require.Contains(t, buf.String(), "sometoken")
 		require.Contains(t, buf.String(), "tsh device enroll")
 	})
 
 	t.Run("json", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, writeEnrollToken(teleport.JSON, "dev-123", "asset-1", token, &buf))
+		require.NoError(t, writeEnrollToken(teleport.JSON, "dev-123", "display-name", "asset-1", token, &buf))
 		got := mustDecodeJSON[deviceEnrollTokenOutput](t, &buf)
 		require.Equal(t, "sometoken", got.Token)
 		require.Equal(t, "asset-1", got.AssetTag)
@@ -97,7 +97,7 @@ func TestWriteEnrollToken(t *testing.T) {
 
 	t.Run("yaml", func(t *testing.T) {
 		var buf bytes.Buffer
-		require.NoError(t, writeEnrollToken(teleport.YAML, "dev-123", "asset-1", token, &buf))
+		require.NoError(t, writeEnrollToken(teleport.YAML, "dev-123", "display-name", "asset-1", token, &buf))
 		got := mustDecodeJSON[deviceEnrollTokenOutput](t, bytes.NewReader(mustTranscodeYAMLToJSON(t, &buf)))
 		require.Equal(t, "sometoken", got.Token)
 		require.Equal(t, "asset-1", got.AssetTag)
@@ -106,7 +106,7 @@ func TestWriteEnrollToken(t *testing.T) {
 	})
 
 	t.Run("invalid format", func(t *testing.T) {
-		err := writeEnrollToken("bogus", "dev-123", "asset-1", token, &bytes.Buffer{})
+		err := writeEnrollToken("bogus", "dev-123", "display-name", "asset-1", token, &bytes.Buffer{})
 		require.True(t, trace.IsBadParameter(err), "expected BadParameter, got %v", err)
 	})
 }

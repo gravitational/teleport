@@ -435,7 +435,7 @@ func (c *deviceEnrollCommand) Run(ctx context.Context, authClient *authclient.Cl
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(writeEnrollToken(c.format, deviceID, name, token, c.stdout))
+	return trace.Wrap(writeEnrollToken(c.format, deviceID, name, c.assetTag, token, c.stdout))
 }
 
 // deviceEnrollTokenOutput is the stable structured-output shape for a device
@@ -462,10 +462,10 @@ func newDeviceEnrollTokenOutput(deviceID, assetTag string, token *devicepb.Devic
 // writeEnrollToken renders a freshly created device enrollment token in the
 // requested output format. For text it preserves the existing human-readable
 // enroll instructions; for json/yaml it serializes a stable DTO.
-func writeEnrollToken(format, deviceID, assetTag string, token *devicepb.DeviceEnrollToken, stdout io.Writer) error {
+func writeEnrollToken(format, deviceID, name, assetTag string, token *devicepb.DeviceEnrollToken, stdout io.Writer) error {
 	switch format {
 	case teleport.Text:
-		printEnrollMessage(assetTag, token, stdout)
+		printEnrollMessage(name, token, stdout)
 		return nil
 	case teleport.JSON:
 		return trace.Wrap(utils.WriteJSON(stdout, newDeviceEnrollTokenOutput(deviceID, assetTag, token)), "failed to marshal enrollment token")
