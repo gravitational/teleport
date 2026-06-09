@@ -1,5 +1,12 @@
 # Changelog
 
+## 17.7.25 (06/09/26)
+
+* Fixed minor formatting bug on `tsh request show` output. [#67446](https://github.com/gravitational/teleport/pull/67446)
+* Prevented ssh users from being able to cancel other users' remote port forwards. [#67443](https://github.com/gravitational/teleport/pull/67443)
+* Updated Go to 1.25.11. [#67422](https://github.com/gravitational/teleport/pull/67422)
+* Fixed "error gathering metrics" log spam. [#67352](https://github.com/gravitational/teleport/pull/67352)
+
 ## 17.7.24 (06/01/26)
 
 * Fixed an issue where generated installer scripts could incorrectly escape special characters in some values. [#67192](https://github.com/gravitational/teleport/pull/67192)
