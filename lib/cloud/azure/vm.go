@@ -39,6 +39,9 @@ import (
 // virtual scale set VMs.
 const virtualScaleSetUniformVMResourceType = "virtualMachineScaleSets/virtualMachines"
 
+// runCommandResultPollingFrequency is the time to wait between polling for Azure run-command completion.
+const runCommandResultPollingFrequency = 30 * time.Second
+
 // virtualMachinesLister provides an interface for an Azure virtual machine client.
 type virtualMachinesLister interface {
 	// Get retrieves information about an Azure virtual machine.
@@ -528,7 +531,7 @@ func (c *runCommandClient) regularVirtualMachineRunCommand(ctx context.Context, 
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 
-	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: runCommandResultPollingFrequency})
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
@@ -551,7 +554,7 @@ func (c *runCommandClient) uniformScaleSetVirtualMachineRunCommand(ctx context.C
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}
 
-	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: 10 * time.Second})
+	_, err = poller.PollUntilDone(ctx, &runtime.PollUntilDoneOptions{Frequency: runCommandResultPollingFrequency})
 	if err != nil {
 		return nil, trace.Wrap(ConvertResponseError(err))
 	}

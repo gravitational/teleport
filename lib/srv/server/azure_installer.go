@@ -31,11 +31,14 @@ import (
 // AzureInstallRequest combines parameters for running commands on a set of Azure
 // virtual machines.
 type AzureInstallRequest struct {
-	Instances            []*azure.VirtualMachine
-	InstallerParams      *types.InstallerParams
-	ProxyAddrGetter      func(context.Context) (string, error)
-	Region               string
-	ResourceGroup        string
+	Instances       []*azure.VirtualMachine
+	InstallerParams *types.InstallerParams
+	ProxyAddrGetter func(context.Context) (string, error)
+	Region          string
+	ResourceGroup   string
+	// AcquireLease acquires a lease before the install request runs a command.
+	// This limits the number of installers that are run and polled concurrently.
+	AcquireLease         func(ctx context.Context) (release func(), err error)
 	OnRunCommandFinished func(result AzureInstallResult)
 }
 
@@ -66,16 +69,28 @@ func (req *AzureInstallRequest) Run(ctx context.Context, client azure.RunCommand
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	g, ctx := errgroup.WithContext(ctx)
 
-	// Somewhat arbitrary limit to make sure Teleport doesn't have to install
-	// hundreds of nodes at once.
-	// TODO (Tener): increase limit/make it configurable.
-	const azureParallelInstallLimit = 10
-	g.SetLimit(azureParallelInstallLimit)
+	acquireLease := req.AcquireLease
+	if acquireLease == nil {
+		// enforce an arbitrary limit if the caller didn't provide a lease func.
+		g.SetLimit(10)
+		acquireLease = func(context.Context) (func(), error) {
+			return func() {}, nil
+		}
+	}
 
 	for _, inst := range req.Instances {
+		release, err := acquireLease(ctx)
+		if err != nil {
+			cancel()
+			_ = g.Wait()
+			return trace.Wrap(err)
+		}
 		g.Go(func() error {
+			defer release()
 			// If the caller cancels, stop trying to run more commands.
 			if err := ctx.Err(); err != nil {
 				return err

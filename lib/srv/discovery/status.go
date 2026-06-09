@@ -930,6 +930,7 @@ type azureVMTaskKey struct {
 
 // azureVMTasks contains the Discover Azure VM User Tasks that must be reported to the user.
 type azureVMTasks struct {
+	mu         sync.Mutex
 	taskGroups map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM
 }
 
@@ -942,6 +943,9 @@ func (t *azureVMTasks) addFailedEnrollment(tg usertasks.TaskGroup, key azureVMTa
 	if tg.IssueType == "" {
 		return
 	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
 
 	if t.taskGroups == nil {
 		t.taskGroups = make(map[usertasks.TaskGroup]map[azureVMTaskKey]*usertasksv1.DiscoverAzureVM)
@@ -971,6 +975,8 @@ func (t *azureVMTasks) addFailedEnrollment(tg usertasks.TaskGroup, key azureVMTa
 func (t *azureVMTasks) upsertAll(s *taskUpdater) {
 	expiryTime := s.clock.Now().Add(2 * s.PollInterval)
 
+	t.mu.Lock()
+	defer t.mu.Unlock()
 	for taskGroup, group := range t.taskGroups {
 		for azureKey, vmData := range group {
 			// skip empty entries
