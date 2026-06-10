@@ -208,22 +208,22 @@ func TestGlobToRegexp(t *testing.T) {
 		{
 			comment: "simple values are not replaced",
 			in:      "value-value",
-			out:     "value-value",
+			out:     "^value-value$",
 		},
 		{
 			comment: "wildcard and start of string is replaced with regexp wildcard expression",
 			in:      "*",
-			out:     "(.*)",
+			out:     "^(.*)$",
 		},
 		{
 			comment: "wildcard is replaced with regexp wildcard expression",
 			in:      "a-*-b-*",
-			out:     "a-(.*)-b-(.*)",
+			out:     "^a-(.*)-b-(.*)$",
 		},
 		{
 			comment: "special chars are quoted",
 			in:      "a-.*-b-*$",
-			out:     `a-\.(.*)-b-(.*)\$`,
+			out:     `^a-\.(.*)-b-(.*)\$$`,
 		},
 	}
 	for _, testCase := range testCases {

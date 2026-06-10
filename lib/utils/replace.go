@@ -40,7 +40,7 @@ func ContainsExpansion(val string) bool {
 // with real .* regexp-friendly values, does not modify regexp-compatible values,
 // quotes non-wildcard values
 func GlobToRegexp(in string) string {
-	return replaceWildcard.ReplaceAllString(regexp.QuoteMeta(in), "(.*)")
+	return "^" + replaceWildcard.ReplaceAllString(regexp.QuoteMeta(in), "(.*)") + "$"
 }
 
 // ErrReplaceRegexNotFound is a marker error returned by
@@ -427,7 +427,7 @@ func expressionToRegexp(expression string) string {
 	// replace glob-style wildcards with regexp wildcards
 	// for plain strings, and quote all characters that could
 	// be interpreted in regular expression
-	return "^" + GlobToRegexp(expression) + "$"
+	return GlobToRegexp(expression)
 }
 
 // CompileExpression compiles the given regex expression with Teleport's custom globbing
