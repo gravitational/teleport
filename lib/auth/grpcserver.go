@@ -885,7 +885,7 @@ var icsServiceToMetricName = map[types.SystemRole]string{
 }
 
 func (g *GRPCServer) InventoryControlStream(stream authpb.AuthService_InventoryControlStreamServer) error {
-	auth, err := g.authenticate(stream.Context())
+	auth, err := g.scopedAuthenticate(stream.Context())
 	if err != nil {
 		return trail.ToGRPC(err)
 	}

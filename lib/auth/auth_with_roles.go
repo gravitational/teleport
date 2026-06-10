@@ -877,10 +877,19 @@ func (a *ServerWithRoles) AssertSystemRole(ctx context.Context, req proto.System
 // RegisterInventoryControlStream handles the upstream half of the control stream handshake, then passes the control stream to
 // the auth server's main control logic. We also return the post-auth hello message back up to the grpcserver layer in order to
 // use it for metrics purposes.
-func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (*proto.UpstreamInventoryHello, error) {
+func (a *ScopedServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInventoryControlStream) (*proto.UpstreamInventoryHello, error) {
 	// Ensure that caller is a teleport server
-	role, ok := a.context.Identity.(authz.BuiltinRole)
-	if !ok || !role.IsServer() {
+	var serverID string
+	var isBuiltinServer bool
+	switch role := a.scopedContext.Identity.(type) {
+	case authz.BuiltinRole:
+		isBuiltinServer = role.IsServer()
+		serverID = role.GetServerID()
+	case authz.ScopedBuiltinRole:
+		isBuiltinServer = role.IsServer()
+		serverID = role.GetServerID()
+	}
+	if !isBuiltinServer {
 		return nil, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
 
@@ -901,8 +910,8 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	}
 
 	// verify that server is creating stream on behalf of itself.
-	if hello.GetServerID() != role.GetServerID() {
-		return nil, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", role.GetServerID(), hello.GetServerID())
+	if hello.GetServerID() != serverID {
+		return nil, trace.AccessDenied("control streams do not support impersonation (%q -> %q)", serverID, hello.GetServerID())
 	}
 
 	// in order to reduce sensitivity to downgrades/misconfigurations, we simply filter out
@@ -912,7 +921,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 		if !a.hasBuiltinRole(types.SystemRole(service)) {
 			a.authServer.logger.WarnContext(a.CloseContext(), "Omitting unknown or unauthorized service for instance control stream",
 				"omitted_service", service,
-				"instance", role.GetServerID(),
+				"instance", serverID,
 			)
 			continue
 		}
@@ -924,12 +933,12 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	// If the hello message's scope is non-empty, we can verify that it matches the authenticated
 	// scope in the identity. Otherwise, in order to support agents unaware of scopes, we fall back
 	// to the authenticated identity's scope.
-	agentScope := a.context.Identity.GetIdentity().GetAgentScope()
+	agentScope := a.scopedContext.Identity.GetIdentity().GetAgentScope()
 	if hello.GetScope() != "" && hello.GetScope() != agentScope {
 		return nil, trace.AccessDenied("provided scope %q does not match agent identity %q", hello.GetScope(), agentScope)
 	}
 	hello.SetScope(agentScope)
-	labelHash := a.context.Identity.GetIdentity().ImmutableLabelHash
+	labelHash := a.scopedContext.Identity.GetIdentity().ImmutableLabelHash
 	if labels := hello.GetImmutableLabels(); labels != nil || labelHash != "" {
 		if !joining.VerifyImmutableLabelsHash(labels, labelHash) {
 			return nil, trace.AccessDenied("immutable labels do not match their agent identity")

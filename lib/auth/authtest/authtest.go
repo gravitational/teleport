@@ -1257,6 +1257,7 @@ func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole
 			Username:              username,
 			AdditionalSystemRoles: types.SystemRoles(roles),
 			Identity: tlsca.Identity{
+				Username:   hostID,
 				AgentScope: scope,
 			},
 		},
@@ -1280,8 +1281,9 @@ func TestScopePinnedHost(clusterName, hostID, scope string, roles ...types.Syste
 	}
 	return TestIdentity{
 		I: authz.ScopedBuiltinRole{
-			ServerFQDN: serverFQDN,
-			ScopePin:   pin,
+			ClusterName: clusterName,
+			ServerFQDN:  serverFQDN,
+			ScopePin:    pin,
 			Identity: tlsca.Identity{
 				ScopePin: pin,
 			},

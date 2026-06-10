@@ -12875,34 +12875,81 @@ func TestClusterAlertOperations(t *testing.T) {
 }
 
 type inventoryControlStreamHarness struct {
-	server     *auth.ServerWithRoles
+	server     *auth.ScopedServerWithRoles
 	upstream   apiclient.UpstreamInventoryControlStream
 	downstream apiclient.DownstreamInventoryControlStream
 }
 
-func newInventoryControlStreamHarness(t *testing.T, srv *authtest.AuthServer, serverID, scope, labelHash string, role types.SystemRole) inventoryControlStreamHarness {
+// func newInventoryControlStreamHarness(t *testing.T, srv *authtest.AuthServer, serverID, scope, labelHash string, role types.SystemRole) inventoryControlStreamHarness {
+// 	t.Helper()
+
+// 	serverFQDN := serverID + "." + srv.ClusterName
+// 	identity := authz.BuiltinRole{
+// 		Role:                  types.RoleInstance,
+// 		AdditionalSystemRoles: types.SystemRoles{role},
+// 		Username:              serverFQDN,
+// 		ClusterName:           srv.ClusterName,
+// 		Identity: tlsca.Identity{
+// 			Username:           serverFQDN,
+// 			AgentScope:         scope,
+// 			ImmutableLabelHash: labelHash,
+// 		},
+// 	}
+
+// 	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(t.Context(), identity))
+// 	require.NoError(t, err)
+
+// 	authWithRole := auth.NewServerWithRoles(
+// 		srv.AuthServer,
+// 		srv.AuditLog,
+// 		*authContext,
+// 	)
+// 	upstream, downstream := apiclient.InventoryControlStreamPipe()
+
+// 	t.Cleanup(func() {
+// 		_ = upstream.Close()
+// 		_ = downstream.Close()
+// 	})
+
+// 	return inventoryControlStreamHarness{
+// 		server:     authWithRole.ScopedServerWithRoles(),
+// 		upstream:   upstream,
+// 		downstream: downstream,
+// 	}
+// }
+
+func scopedHostWithLabelHash(t *testing.T, clusterName, serverID, scope, labelHash string, role types.SystemRole) authtest.TestIdentity {
 	t.Helper()
 
-	username := serverID + "." + srv.ClusterName
-	identity := authz.BuiltinRole{
-		Role:                  types.RoleInstance,
-		AdditionalSystemRoles: types.SystemRoles{role},
-		Username:              username,
-		ClusterName:           srv.ClusterName,
-		Identity: tlsca.Identity{
-			Username:           username,
-			AgentScope:         scope,
-			ImmutableLabelHash: labelHash,
-		},
-	}
+	ident := authtest.TestScopedHost(clusterName, serverID, scope, role)
+	builtinRole, ok := ident.I.(authz.BuiltinRole)
+	require.True(t, ok, "expected BuiltinRole")
+	builtinRole.Identity.ImmutableLabelHash = labelHash
+	ident.I = builtinRole
+	return ident
+}
 
-	authContext, err := srv.Authorizer.Authorize(authz.ContextWithUser(t.Context(), identity))
+func scopePinnedHostWithLabelHash(t *testing.T, clusterName, serverID, scope, labelHash string, role types.SystemRole) authtest.TestIdentity {
+	t.Helper()
+
+	ident := authtest.TestScopePinnedHost(clusterName, serverID, scope, role)
+	scopedBuiltinRole, ok := ident.I.(authz.ScopedBuiltinRole)
+	require.True(t, ok, "expected ScopedBuiltinRole")
+	scopedBuiltinRole.Identity.ImmutableLabelHash = labelHash
+	ident.I = scopedBuiltinRole
+	return ident
+}
+
+func newInventoryControlStreamHarness(t *testing.T, srv *authtest.AuthServer, ident authtest.TestIdentity) inventoryControlStreamHarness {
+	t.Helper()
+
+	scopedContext, err := srv.ScopedAuthorizer.AuthorizeScoped(authz.ContextWithUser(t.Context(), ident.I))
 	require.NoError(t, err)
 
-	authWithRole := auth.NewServerWithRoles(
+	authWithRole := auth.NewScopedServerWithRoles(
 		srv.AuthServer,
 		srv.AuditLog,
-		*authContext,
+		scopedContext,
 	)
 	upstream, downstream := apiclient.InventoryControlStreamPipe()
 
@@ -12922,71 +12969,108 @@ func TestRegisterInventoryControlStreamScopes(t *testing.T) {
 	t.Parallel()
 
 	ctx := t.Context()
-	as, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
+	authServer, err := authtest.NewAuthServer(authtest.AuthServerConfig{Dir: t.TempDir()})
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, as.Close()) })
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
+
+	scopePinnedAuth, err := authtest.NewAuthServer(authtest.AuthServerConfig{
+		Dir: t.TempDir(),
+		ScopesFeatures: scopes.Features{
+			Enabled:         true,
+			AgentPinEnabled: true,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, authServer.Close()) })
 
 	const serverID = "test-server"
 	const agentScope = "/test/one"
+	const role = types.RoleNode
 
 	cases := []struct {
-		name        string
-		helloScope  string
-		expectScope string
-		expectErr   func(error) bool
+		name       string
+		helloScope string
+		agentScope string
+		expectErr  func(error) bool
 	}{
 		{
-			name:        "empty scope defaults to agent scope",
-			helloScope:  "",
-			expectScope: agentScope,
-			expectErr:   nil,
+			name:       "empty scope defaults to agent scope",
+			helloScope: "",
+			agentScope: agentScope,
+			expectErr:  nil,
 		},
 		{
-			name:        "matching scope accepted",
-			helloScope:  agentScope,
-			expectScope: agentScope,
-			expectErr:   nil,
+			name:       "matching scope accepted",
+			helloScope: agentScope,
+			agentScope: agentScope,
+			expectErr:  nil,
 		},
 		{
 			name:       "mismatched scope denied",
+			helloScope: "/test/two",
+			agentScope: "/test/one",
+			expectErr:  trace.IsAccessDenied,
+		},
+		{
+			name:       "hello scope with empty agent scope denied",
 			helloScope: "/test/two",
 			expectErr:  trace.IsAccessDenied,
 		},
 	}
 
 	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			h := newInventoryControlStreamHarness(t, as, serverID, agentScope, "", types.RoleNode)
-			type registerResult struct {
-				hello *proto.UpstreamInventoryHello
-				err   error
+		for _, agentScopePin := range []bool{false, true} {
+			if agentScopePin && c.agentScope == "" {
+				// We skip test cases for scope pinned agents with an empty scope because they cannot be
+				// authorized and will fail while building the harness, so the intended behavior we're testing
+				// is never reached
+				continue
 			}
-			resultCh := make(chan registerResult)
-			go func() {
-				hello, err := h.server.RegisterInventoryControlStream(h.upstream)
-				resultCh <- registerResult{hello: hello, err: err}
-			}()
+			t.Run(fmt.Sprintf("%s agentScopePin=%t", c.name, agentScopePin), func(t *testing.T) {
+				as := authServer
+				ident := scopedHostWithLabelHash(t, as.ClusterName, serverID, c.agentScope, "", role)
+				if agentScopePin {
+					as = scopePinnedAuth
+					ident = scopePinnedHostWithLabelHash(t, as.ClusterName, serverID, c.agentScope, "", role)
+				}
+				h := newInventoryControlStreamHarness(t, as, ident)
+				type registerResult struct {
+					hello *proto.UpstreamInventoryHello
+					err   error
+				}
+				resultCh := make(chan registerResult)
+				go func() {
+					hello, err := h.server.RegisterInventoryControlStream(h.upstream)
+					resultCh <- registerResult{hello: hello, err: err}
+				}()
 
-			err := h.downstream.Send(ctx, proto.UpstreamInventoryHello_builder{
-				ServerID: serverID,
-				Scope:    c.helloScope,
-			}.Build())
-			require.NoError(t, err)
+				err := h.downstream.Send(ctx, proto.UpstreamInventoryHello_builder{
+					ServerID: serverID,
+					Scope:    c.helloScope,
+				}.Build())
+				require.NoError(t, err)
 
-			if c.expectErr != nil {
+				if c.expectErr != nil {
+					result := <-resultCh
+					require.True(t, c.expectErr(result.err), "expected error")
+					return
+				}
+
+				select {
+				case msg := <-h.downstream.Recv():
+					require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
+				case <-time.After(time.Second * 1):
+					require.Fail(t, "downstream message not received")
+				}
+				// msg := <-h.downstream.Recv()
+				// require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
+
 				result := <-resultCh
-				require.True(t, c.expectErr(result.err), "expected error")
-				return
-			}
-
-			msg := <-h.downstream.Recv()
-			require.IsType(t, *new(*proto.DownstreamInventoryHello), msg)
-
-			result := <-resultCh
-			require.NoError(t, result.err)
-			require.NotNil(t, result.hello)
-			require.Equal(t, c.expectScope, result.hello.GetScope())
-		})
+				require.NoError(t, result.err)
+				require.NotNil(t, result.hello)
+				require.Equal(t, c.agentScope, result.hello.GetScope())
+			})
+		}
 	}
 }
 
@@ -13047,7 +13131,8 @@ func TestRegisterInventoryControlStreamImmutableLabels(t *testing.T) {
 
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
-			h := newInventoryControlStreamHarness(t, as, serverID, "", c.identHash, types.RoleNode)
+			ident := scopedHostWithLabelHash(t, as.ClusterName, serverID, "", c.identHash, types.RoleNode)
+			h := newInventoryControlStreamHarness(t, as, ident)
 			type registerResult struct {
 				hello *proto.UpstreamInventoryHello
 				err   error
