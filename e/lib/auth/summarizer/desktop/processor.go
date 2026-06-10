@@ -107,10 +107,9 @@ type RecordingProcessor struct {
 	pending         *pendingScreenshot
 	hadActiveWindow bool
 
-	encoder         *png.Encoder
-	snapshotScratch []uint8      // reusable Pix backing for the captured crop snapshot
-	finalScratch    []uint8      // reusable Pix backing for the composed emit image
-	encodeBuf       bytes.Buffer // reusable PNG output buffer
+	encoder      *png.Encoder
+	finalScratch []uint8      // reusable Pix backing for the composed emit image
+	encodeBuf    bytes.Buffer // reusable PNG output buffer
 }
 
 // pendingScreenshot holds a captured frame held until the next capture, then composited with a duration label and emitted.
@@ -270,8 +269,16 @@ func (d *RecordingProcessor) captureFrame(eventTime time.Time, forceFullScreen b
 
 		// Fixed-grid hash can miss off-grid edits (single chars, caret blinks); refresh the snapshot when there's any dirt.
 		if !unionDirty.Empty() {
-			if withCursor, _ := d.state.ImageWithCursor(); withCursor != nil {
-				draw.Draw(d.pending.img, d.pending.img.Bounds(), withCursor, d.pending.img.Bounds().Min, draw.Src)
+			b := d.pending.img.Bounds()
+			//nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+			fresh, err := d.state.ResizeCrop(
+				uint16(b.Min.X), uint16(b.Min.Y),
+				uint16(b.Dx()), uint16(b.Dy()),
+				uint16(b.Dx()), uint16(b.Dy()),
+				true,
+			)
+			if err == nil { //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+				copy(d.pending.img.Pix, fresh.Pix)
 			}
 		}
 
@@ -296,13 +303,19 @@ func (d *RecordingProcessor) captureFrame(eventTime time.Time, forceFullScreen b
 	worstCaseMinWidth := maxTimestampLabelChars*d.glyphs.glyphW + glyphPadding
 	snapshotBounds := expandCropForTimestamp(cropBounds, worstCaseMinWidth, bounds)
 
-	withCursor, _ := d.state.ImageWithCursor()
-	if withCursor == nil {
-		return nil, trace.BadParameter("decoder has no image with cursor available")
+	//nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+	snapshot, err := d.state.ResizeCrop(
+		uint16(snapshotBounds.Min.X), uint16(snapshotBounds.Min.Y),
+		uint16(snapshotBounds.Dx()), uint16(snapshotBounds.Dy()),
+		uint16(snapshotBounds.Dx()), uint16(snapshotBounds.Dy()),
+		true,
+	)
+	if err != nil { //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+		return nil, trace.Wrap(err)
 	}
-
-	snapshot := d.acquireSnapshot(snapshotBounds)
-	draw.Draw(snapshot, snapshot.Bounds(), withCursor, snapshotBounds.Min, draw.Src)
+	// ResizeCrop returns an image with origin (0,0); reinterpret it under the original screen
+	// coord system so emit's cropBounds-based indexing keeps working.
+	snapshot.Rect = snapshotBounds
 
 	d.pending = &pendingScreenshot{
 		img:        snapshot,
@@ -318,23 +331,6 @@ func (d *RecordingProcessor) captureFrame(eventTime time.Time, forceFullScreen b
 	d.screenshotsTaken++
 
 	return emitted, nil
-}
-
-// acquireSnapshot returns an *image.RGBA backed by the processor's reusable snapshot buffer, grown as needed.
-func (d *RecordingProcessor) acquireSnapshot(r image.Rectangle) *image.RGBA {
-	w, h := r.Dx(), r.Dy()
-	need := w * h * bytesPerPixel
-	if cap(d.snapshotScratch) < need {
-		d.snapshotScratch = make([]uint8, need)
-	} else {
-		d.snapshotScratch = d.snapshotScratch[:need]
-	}
-
-	return &image.RGBA{
-		Pix:    d.snapshotScratch,
-		Stride: w * bytesPerPixel,
-		Rect:   r,
-	}
 }
 
 // analyzeFrame drains the decoder's accumulated update regions and current cursor through the window tracker, returning
