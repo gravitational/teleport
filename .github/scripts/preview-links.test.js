@@ -54,6 +54,28 @@ test('pageUrl: deeply nested page', () => {
   );
 });
 
+test('pageUrl: section index page (dir/dir.mdx) maps to the directory URL', () => {
+  assert.equal(
+    pageUrl(HOST, 'docs/pages/enroll-resources/enroll-resources.mdx'),
+    `${HOST}/docs/enroll-resources/`
+  );
+});
+
+test('pageUrl: nested section index page maps to its directory URL', () => {
+  assert.equal(
+    pageUrl(HOST, 'docs/pages/admin-guides/management/management.mdx'),
+    `${HOST}/docs/admin-guides/management/`
+  );
+});
+
+test('pageUrl: a normal page is not mistaken for a section index', () => {
+  // Parent dir and file name differ, so no collapsing should happen.
+  assert.equal(
+    pageUrl(HOST, 'docs/pages/enroll-resources/server-access.mdx'),
+    `${HOST}/docs/enroll-resources/server-access/`
+  );
+});
+
 // --- getChangedPaths -------------------------------------------------------
 
 test('getChangedPaths: drops removed files, keeps the rest', () => {

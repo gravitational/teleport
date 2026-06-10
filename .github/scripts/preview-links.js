@@ -18,7 +18,12 @@ const END_MARKER = '<!-- amplify-per-page-preview:end -->';
 //   p:           e.g. "docs/pages/foo/bar.mdx"
 function pageUrl(previewHost, p) {
   let urlPath = p.replace(/^docs\/pages\//, '').replace(/\.mdx$/, '');
-  // index pages map to their parent directory; handle both
+  // Section index pages are named after their parent directory
+  // (e.g. enroll-resources/enroll-resources.mdx) and render at the directory
+  // URL (/docs/enroll-resources/), not /docs/enroll-resources/enroll-resources/.
+  // Collapse a trailing foo/bar/bar -> foo/bar.
+  urlPath = urlPath.replace(/(^|\/)([^/]+)\/\2$/, '$1$2');
+  // index pages also map to their parent directory; handle both
   // top-level (docs/pages/index.mdx) and nested (foo/bar/index.mdx).
   urlPath = urlPath.replace(/(^|\/)index$/, '');
   // Trim any trailing slash the index strip may have left
