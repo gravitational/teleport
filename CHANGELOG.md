@@ -10,6 +10,15 @@ Application access session cookies are now compatible with Google's Device Bound
 Session Credentials, adding a layer of protection against session hijacking and
 cookie theft.
 
+### Kubernetes proxy subresource access
+
+Access to the Kubernetes API server proxy subresources
+(`pods/{name}/proxy/{path}`, `services/{name}/proxy/{path}`, and
+`nodes/{name}/proxy/{path}`) now requires the new `proxy` verb in
+`kubernetes_resources`. Previously these endpoints were authorized as
+the `get` verb. Roles that use the Kubernetes API server proxy must
+add `"proxy"` to the relevant `verbs` list.
+
 ### High-DPI support for Windows desktop sessions
 
 Remote desktop sessions now support high-DPI mode, improving the clarity and
