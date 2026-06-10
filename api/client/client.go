@@ -117,6 +117,7 @@ import (
 	userprovisioningpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	usertaskv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/usertasks/v1"
+	clientiprestrictionv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/clientiprestriction/v1"
 	"github.com/gravitational/teleport/api/gen/proto/go/teleport/vnet/v1"
 	workloadclusterv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1"
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
@@ -6227,6 +6228,11 @@ func (c *Client) CreateAppSessionWithJWT(ctx context.Context, req *appauthconfig
 // WorkloadClustersClient returns an [workloadclusterv1.WorkloadClusterServiceClient].
 func (c *Client) WorkloadClustersClient() workloadclusterv1.WorkloadClusterServiceClient {
 	return workloadclusterv1.NewWorkloadClusterServiceClient(c.conn)
+}
+
+// ClientIPRestrictionClient returns a [clientiprestrictionv1.ClientIPRestrictionServiceClient].
+func (c *Client) ClientIPRestrictionClient() clientiprestrictionv1.ClientIPRestrictionServiceClient {
+	return clientiprestrictionv1.NewClientIPRestrictionServiceClient(c.conn)
 }
 
 // ListWorkloadClusters returns a list of WorkloadClusters.
