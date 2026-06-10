@@ -2,10 +2,10 @@
 
 package api
 
-const Version = "18.8.3"
+const Version = "18.8.3-dev.fix-kube-exec-ratelimit.1"
 
 const VersionMajor = 18
 const VersionMinor = 8
 const VersionPatch = 3
-const VersionPreRelease = ""
+const VersionPreRelease = "dev.fix-kube-exec-ratelimit.1"
 const VersionMetadata = ""
