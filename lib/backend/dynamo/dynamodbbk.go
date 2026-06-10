@@ -164,13 +164,20 @@ type dynamoClient interface {
 	TransactWriteItems(ctx context.Context, params *dynamodb.TransactWriteItemsInput, optFns ...func(*dynamodb.Options)) (*dynamodb.TransactWriteItemsOutput, error)
 }
 
+type streamsClient interface {
+	DescribeStream(ctx context.Context, params *dynamodbstreams.DescribeStreamInput, optFns ...func(*dynamodbstreams.Options)) (*dynamodbstreams.DescribeStreamOutput, error)
+	GetRecords(ctx context.Context, params *dynamodbstreams.GetRecordsInput, optFns ...func(*dynamodbstreams.Options)) (*dynamodbstreams.GetRecordsOutput, error)
+	GetShardIterator(ctx context.Context, params *dynamodbstreams.GetShardIteratorInput, optFns ...func(*dynamodbstreams.Options)) (*dynamodbstreams.GetShardIteratorOutput, error)
+	ListStreams(ctx context.Context, params *dynamodbstreams.ListStreamsInput, optFns ...func(*dynamodbstreams.Options)) (*dynamodbstreams.ListStreamsOutput, error)
+}
+
 // Backend is a DynamoDB-backed key value backend implementation.
 type Backend struct {
-	svc     dynamoClient
 	clock   clockwork.Clock
 	logger  *slog.Logger
-	streams *dynamodbstreams.Client
 	buf     *backend.CircularBuffer
+	svc     dynamoClient
+	streams streamsClient
 	Config
 	// closedFlag is set to indicate that the database is closed
 	closedFlag int32
