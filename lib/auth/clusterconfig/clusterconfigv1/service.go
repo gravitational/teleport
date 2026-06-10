@@ -1170,12 +1170,13 @@ func (s *Service) ResetAccessGraphSettings(ctx context.Context, _ *clusterconfig
 }
 
 func (s *Service) GetClusterName(ctx context.Context, _ *clusterconfigpb.GetClusterNameRequest) (*types.ClusterNameV2, error) {
-	authzCtx, err := s.authorizer.Authorize(ctx)
+	authzCtx, err := s.scopedAuthorizer.AuthorizeScoped(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToKind(types.KindClusterName, types.VerbRead); err != nil {
+	ruleCtx := authzCtx.RuleContext()
+	if err := authzCtx.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadClusterName, &ruleCtx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
