@@ -334,7 +334,7 @@ Present the commands to the user:
 > terraform apply
 > ```
 >
-> Run these when you're ready. Once applied, come back and I can verify that discovery is working.
+> Run these when you're ready, or ask to apply Terraform to continue the setup.
 
 **If the user asks you to apply**, execute the commands. Env vars do not persist between Bash calls, so chain the credential generation with terraform commands in a single Bash call.
 
@@ -359,6 +359,11 @@ eval "$($TCTL terraform env)" && terraform apply -auto-approve
 - **Exit code 0** → command succeeded. Proceed to next step.
 - **Non-zero** → tell the user the command failed but the error was cut off, then re-run with `| tail` to capture the error.
 
+**After a successful apply**, resolve `INTEGRATION_NAME`:
+
+1. Try `terraform output -json azure_discovery` and parse `teleport_integration_name` from the result.
+2. If no output is available, fall back to `$TCTL get integrations --format=json` and find the `azure-oidc` integration.
+
 ## Verify
 
 Run silently after the user confirms apply is complete:
@@ -375,4 +380,6 @@ Parse the JSON output and present it as a readable table listing each VM Telepor
 > tctl discovery nodes --cloud=azure
 > ```"
 
-Link to the web UI: `https://<PROXY_HOST>/web/integrations` — use the hostname from the proxy address, without the port (e.g. `example.teleport.sh:443` → `https://example.teleport.sh/web/integrations`)
+Link to the integration in the web UI — use the hostname from the proxy address, without the port (e.g. `example.teleport.sh:443` → `https://example.teleport.sh`):
+- If `INTEGRATION_NAME` is available: `https://<PROXY_HOST>/web/integrations/overview/azure-oidc/<INTEGRATION_NAME>`
+- Otherwise: `https://<PROXY_HOST>/web/integrations`
