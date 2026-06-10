@@ -29,6 +29,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/testutil"
 	dto "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/require"
 
@@ -883,9 +884,73 @@ func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, dlItems, 1, "row should exist before expiry")
 
+	beforeExpired := testutil.ToFloat64(deadLetterExpired)
+
 	q.expireDeadLetter()
+
+	require.InDelta(t, beforeExpired+1, testutil.ToFloat64(deadLetterExpired), 0.0001,
+		"deadLetterExpired counter should increment by the number of expired rows")
 
 	dlItems, err = q.fetchDeadLetter(10)
 	require.NoError(t, err)
 	require.Empty(t, dlItems, "row should have been deleted by expireDeadLetter")
+}
+
+func TestItemsNotIn(t *testing.T) {
+	t.Parallel()
+
+	mk := func(ids ...int64) []Item {
+		items := make([]Item, len(ids))
+		for i, id := range ids {
+			items[i] = Item{ID: id}
+		}
+		return items
+	}
+
+	tests := []struct {
+		name      string
+		all       []Item
+		delivered []Item
+		want      []Item
+	}{
+		{
+			name:      "partial delivery returns only undelivered items",
+			all:       mk(1, 2, 3),
+			delivered: mk(1),
+			want:      mk(2, 3),
+		},
+		{
+			name:      "single undelivered item among many delivered",
+			all:       mk(1, 2, 3, 4),
+			delivered: mk(1, 2, 4),
+			want:      mk(3),
+		},
+		{
+			name:      "nothing delivered returns all",
+			all:       mk(1, 2, 3),
+			delivered: nil,
+			want:      mk(1, 2, 3),
+		},
+		{
+			name:      "everything delivered returns empty",
+			all:       mk(1, 2, 3),
+			delivered: mk(1, 2, 3),
+			want:      nil,
+		},
+		{
+			name:      "more delivered than all does not panic",
+			all:       mk(1, 9),
+			delivered: mk(1, 2, 3, 4, 5),
+			want:      mk(9),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			got := itemsNotIn(tt.all, tt.delivered)
+			require.Equal(t, tt.want, got)
+			require.Len(t, got, len(tt.want))
+		})
+	}
 }
