@@ -51,22 +51,23 @@ func TestProperty_TTYThumbnail_NeverPanicsOnRandomEventSequence(t *testing.T) {
 var extremeResizeSizes = []string{
 	"0:0", "1:0", "0:1", "1:1", "2:2",
 	"1000:500", "2000:1000",
+	"2048:2048", "2049:2049",
 	"99999:99999", "9999999:9999999",
 }
 
-func TestProperty_TTYThumbnail_NeverPanicsOnZeroOrExtremeResize(t *testing.T) {
-	rapid.Check(t, func(t *rapid.T) {
-		size := rapid.SampledFrom(extremeResizeSizes).Draw(t, "size")
+func TestTTYThumbnail_NeverPanicsOnZeroOrExtremeResize(t *testing.T) {
+	for _, size := range extremeResizeSizes {
+		t.Run(size, func(t *testing.T) {
+			testutils.RunWithTimeout(t, 10*time.Second, func() {
+				gen := newTTYThumbnailGenerator()
+				defer gen.release()
 
-		testutils.RunWithTimeout(t, 1*time.Second, func() {
-			gen := newTTYThumbnailGenerator()
-			defer gen.release()
-
-			_ = gen.handleEvent(&apievents.SessionStart{TerminalSize: size})
-			_ = gen.handleEvent(&apievents.SessionPrint{Data: []byte("hello world\r\n")})
-			_, _ = gen.produceThumbnail(0)
+				_ = gen.handleEvent(&apievents.SessionStart{TerminalSize: size})
+				_ = gen.handleEvent(&apievents.SessionPrint{Data: []byte("hello world\r\n")})
+				_, _ = gen.produceThumbnail(0)
+			})
 		})
-	})
+	}
 }
 
 func TestProperty_TTYThumbnail_NeverPanicsBeforeSessionStart(t *testing.T) {
@@ -134,7 +135,8 @@ func genEvent(t *rapid.T, label string) apievents.AuditEvent {
 	}
 }
 
-// genTerminalSize produces "W:H" strings biased toward edge cases, including values exceeding session.MaxTTYCols / session.MaxTTYRows.
+// genTerminalSize produces "W:H" strings biased toward edge cases, including values exceeding the vt10x resize cap
+// (2048 per dimension), which the terminal silently ignores. UnmarshalTerminalParams itself imposes no range limit.
 func genTerminalSize(t *rapid.T, label string) string {
 	t.Helper()
 
