@@ -1881,7 +1881,7 @@ func (s *session) checkIfFileTransferApproved(req *fileTransferRequestWithApprov
 	var participants []moderation.SessionAccessContext
 
 	for _, party := range req.approvers {
-		if party.ctx.Identity.TeleportUser == s.initiator.user {
+		if party.ctx.Identity.TeleportUser == s.initiator.user && party.ctx.Identity.OriginClusterName == s.initiator.cluster {
 			continue
 		}
 
@@ -2025,7 +2025,7 @@ func (s *session) checkIfStartUnderLock() (bool, moderation.PolicyOptions, error
 	var participants []moderation.SessionAccessContext
 
 	for _, party := range s.parties {
-		if party.ctx.Identity.TeleportUser == s.initiator.user {
+		if party.ctx.Identity.TeleportUser == s.initiator.user && party.ctx.Identity.OriginClusterName == s.initiator.cluster {
 			continue
 		}
 
@@ -2155,7 +2155,7 @@ func (s *session) addParty(p *party, mode types.SessionParticipantMode) error {
 }
 
 func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionParticipantMode) error {
-	if scx.Identity.TeleportUser != s.initiator.user {
+	if scx.Identity.TeleportUser != s.initiator.user || scx.Identity.OriginClusterName != s.initiator.cluster {
 		var roles []types.Role
 		if scx.Identity.UnstableSessionJoiningAccessChecker != nil {
 			roles = scx.Identity.UnstableSessionJoiningAccessChecker.Roles()
