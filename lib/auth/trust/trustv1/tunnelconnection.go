@@ -100,21 +100,21 @@ func (s *Service) ListTunnelConnections(ctx context.Context, req *trustpb.ListTu
 		return nil, trace.Wrap(err)
 	}
 
-	conns, next, err := s.cache.ListTunnelConnections(ctx, int(req.PageSize), req.PageToken, req.Filter)
+	conns, next, err := s.cache.ListTunnelConnections(ctx, int(req.GetPageSize()), req.GetPageToken(), req.GetFilter())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp := &trustpb.ListTunnelConnectionsResponse{
-		TunnelConnections: make([]*types.TunnelConnectionV2, 0, len(conns)),
-		NextPageToken:     next,
-	}
+	tcs := make([]*types.TunnelConnectionV2, 0, len(conns))
 	for _, c := range conns {
 		v2, ok := c.(*types.TunnelConnectionV2)
 		if !ok {
 			return nil, trace.Errorf("unexpected TunnelConnection type: %T", c)
 		}
-		resp.TunnelConnections = append(resp.TunnelConnections, v2)
+		tcs = append(tcs, v2)
 	}
-	return resp, nil
+	return trustpb.ListTunnelConnectionsResponse_builder{
+		TunnelConnections: tcs,
+		NextPageToken:     next,
+	}.Build(), nil
 }

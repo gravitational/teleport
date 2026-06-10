@@ -315,7 +315,7 @@ func TestListTunnelConnections(t *testing.T) {
 				return
 			}
 			var gotClusters, gotNames []string
-			for _, c := range resp.TunnelConnections {
+			for _, c := range resp.GetTunnelConnections() {
 				gotClusters = append(gotClusters, c.GetClusterName())
 				gotNames = append(gotNames, c.GetName())
 			}
@@ -366,13 +366,13 @@ func TestListTunnelConnections_Pagination(t *testing.T) {
 			PageToken: pageToken,
 		})
 		require.NoError(t, err)
-		for _, c := range resp.TunnelConnections {
+		for _, c := range resp.GetTunnelConnections() {
 			gotNames = append(gotNames, c.GetName())
 		}
-		if resp.NextPageToken == "" {
+		if resp.GetNextPageToken() == "" {
 			break
 		}
-		pageToken = resp.NextPageToken
+		pageToken = resp.GetNextPageToken()
 	}
 	require.Equal(t, []string{"conn-0", "conn-1", "conn-2", "conn-3", "conn-4"}, gotNames)
 }

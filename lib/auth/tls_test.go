@@ -1694,13 +1694,13 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 		Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: clusterName},
 	})
 	require.NoError(t, err)
-	require.Len(t, resp.TunnelConnections, 3)
+	require.Len(t, resp.GetTunnelConnections(), 3)
 
 	resp, err = clt.TrustClient().ListTunnelConnections(ctx, &trustpb.ListTunnelConnectionsRequest{
 		Filter: &trustpb.ListTunnelConnectionsFilter{ClusterName: "other.example.com"},
 	})
 	require.NoError(t, err)
-	require.Empty(t, resp.TunnelConnections)
+	require.Empty(t, resp.GetTunnelConnections())
 }
 
 // TestTunnelConnectionsLegacyHTTP exercises the legacy HTTP handlers for
@@ -1737,7 +1737,7 @@ func TestTunnelConnectionsLegacyHTTP(t *testing.T) {
 	require.Equal(t, conn.GetName(), stored[0].GetName())
 
 	// Exercise the legacy HTTP GET endpoints directly, so they stay covered
-	// during the v19→v21 fallback window.
+	// during the v19→v20 fallback window.
 	readFromHTTP := func(path ...string) []types.TunnelConnection {
 		out, err := clt.HTTPClient.Get(ctx, clt.HTTPClient.Endpoint(path...), url.Values{})
 		require.NoError(t, err)

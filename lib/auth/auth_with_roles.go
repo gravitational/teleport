@@ -5871,7 +5871,7 @@ func (a *ServerWithRoles) UpsertTunnelConnection(ctx context.Context, conn types
 
 // Deprecated: Prefer the [trustv1.Service.ListTunnelConnections] RPC.
 //
-// TODO(noah): DELETE IN v21.0.0
+// TODO(noah): DELETE IN v20.0.0
 func (a *ServerWithRoles) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
 	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)
@@ -5881,7 +5881,7 @@ func (a *ServerWithRoles) GetTunnelConnections(ctx context.Context, clusterName 
 
 // Deprecated: Prefer the [trustv1.Service.ListTunnelConnections] RPC.
 //
-// TODO(noah): DELETE IN v21.0.0
+// TODO(noah): DELETE IN v20.0.0
 func (a *ServerWithRoles) GetAllTunnelConnections(ctx context.Context) ([]types.TunnelConnection, error) {
 	if err := a.authorizeAction(types.KindTunnelConnection, types.VerbList); err != nil {
 		return nil, trace.Wrap(err)

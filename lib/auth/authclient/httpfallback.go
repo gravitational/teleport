@@ -147,6 +147,9 @@ func (c *HTTPClient) deleteTunnelConnection(ctx context.Context, clusterName, co
 // TODO(noah): DELETE IN 20.0.0 — inline the gRPC page-loop directly once the
 // HTTP fallback is removed; keep the method signature.
 func (c *Client) GetTunnelConnections(ctx context.Context, clusterName string) ([]types.TunnelConnection, error) {
+	if clusterName == "" {
+		return nil, trace.BadParameter("missing cluster name parameter")
+	}
 	return c.listAllTunnelConnections(ctx, clusterName)
 }
 
