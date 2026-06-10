@@ -234,7 +234,7 @@ func (s *LinuxService) startServiceHeartbeat() error {
 	}
 
 	s.heartbeat = heartbeat
-	
+
 	go func() {
 		if err := heartbeat.Run(); err != nil {
 			s.cfg.Logger.ErrorContext(s.closeCtx, "service heartbeat ended", "error", err)
@@ -279,7 +279,6 @@ type linuxSession struct {
 	log         *slog.Logger
 	ctx         context.Context
 	errGroup    *errgroup.Group
-	cancel      context.CancelFunc
 	tdpConn     *tdp.Conn
 	auditedConn tdp.MessageReadWriteCloser
 	sessionID   session.ID
@@ -422,7 +421,6 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 		log:            log,
 		ctx:            ctx,
 		errGroup:       errGroup,
-		cancel:         cancel,
 		tdpConn:        tdpConn,
 		auditedConn:    tdpConn,
 		sessionID:      sessionID,
