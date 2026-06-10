@@ -60,12 +60,14 @@ Example:
 ```yaml
 external_id: "string"
 roles_anywhere_profile: # [...]
+source_identity: false
 ```
 
 |Field Name|Description|Type|
 |---|---|---|
 |external_id|The AWS External ID used when assuming roles in this app.|string|
 |roles_anywhere_profile|Contains the IAM Roles Anywhere fields associated with this Application. These fields are set when performing the synchronization of AWS IAM Roles Anywhere Profiles into Teleport Apps.|[App AWS Roles Anywhere Profile](#app-aws-roles-anywhere-profile)|
+|source_identity|When true, sets the Teleport username as the AWS STS source identity on assumed role sessions. Persists across role chaining and is logged in CloudTrail. Requires `sts:SetSourceIdentity` in the target role's trust policy.|bool|
 
 ## App AWS Roles Anywhere Profile
 
