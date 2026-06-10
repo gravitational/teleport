@@ -40,6 +40,10 @@ type UserListEntry struct {
 	Origin string `json:"origin"`
 	// IsBot is true if the user is a Bot User.
 	IsBot bool `json:"isBot"`
+	// DisplayPrimary is a display name when distinct from the username. May be empty.
+	DisplayPrimary string `json:"displayPrimary"`
+	// DisplaySecondary is extra context (usually email) when distinct from the username. May be empty.
+	DisplaySecondary string `json:"displaySecondary"`
 }
 
 type userTraits struct {
@@ -87,13 +91,17 @@ func NewUserListEntry(teleUser types.User) (*UserListEntry, error) {
 		}
 	}
 
+	display := teleUser.GetDisplay()
+
 	return &UserListEntry{
-		Name:      teleUser.GetName(),
-		Roles:     teleUser.GetRoles(),
-		AuthType:  authType,
-		Origin:    teleUser.Origin(),
-		AllTraits: teleUser.GetTraits(),
-		IsBot:     teleUser.IsBot(),
+		Name:             teleUser.GetName(),
+		Roles:            teleUser.GetRoles(),
+		AuthType:         authType,
+		Origin:           teleUser.Origin(),
+		AllTraits:        teleUser.GetTraits(),
+		IsBot:            teleUser.IsBot(),
+		DisplayPrimary:   display.Primary,
+		DisplaySecondary: display.Secondary,
 	}, nil
 }
 

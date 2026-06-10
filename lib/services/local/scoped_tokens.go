@@ -139,10 +139,10 @@ func (s *ScopedTokenService) CreateScopedToken(ctx context.Context, req *joining
 	}
 
 	created := proto.CloneOf(req.GetToken())
-	created.Metadata.Revision = revision
-	return &joiningv1.CreateScopedTokenResponse{
+	created.GetMetadata().SetRevision(revision)
+	return joiningv1.CreateScopedTokenResponse_builder{
 		Token: created,
-	}, nil
+	}.Build(), nil
 }
 
 // GetScopedToken finds and returns a scoped token by name.
@@ -159,7 +159,7 @@ func (s *ScopedTokenService) GetScopedToken(ctx context.Context, req *joiningv1.
 	if !req.GetWithSecret() {
 		setScopedTokenWithoutSecret(token)
 	}
-	return &joiningv1.GetScopedTokenResponse{Token: token}, nil
+	return joiningv1.GetScopedTokenResponse_builder{Token: token}.Build(), nil
 }
 
 // tokenReuseDuration is how long a scoped token can be reused by the host that consumed it
@@ -176,19 +176,17 @@ func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv
 		return nil, trace.Wrap(err)
 	}
 
-	if joining.TokenUsageMode(token.Spec.UsageMode) != joining.TokenUsageModeSingle {
+	if joining.TokenUsageMode(token.GetSpec().GetUsageMode()) != joining.TokenUsageModeSingle {
 		return token, nil
 	}
 
 	// make sure the correct, non-nil usage status is set
-	token.Status = cmp.Or(token.Status, &joiningv1.ScopedTokenStatus{})
-	token.Status.Usage = cmp.Or(token.Status.Usage, &joiningv1.UsageStatus{})
-	if token.Status.Usage.Status == nil {
-		token.Status.Usage.Status = &joiningv1.UsageStatus_SingleUse{
-			SingleUse: &joiningv1.SingleUseStatus{},
-		}
+	token.SetStatus(cmp.Or(token.GetStatus(), &joiningv1.ScopedTokenStatus{}))
+	token.GetStatus().SetUsage(cmp.Or(token.GetStatus().GetUsage(), &joiningv1.UsageStatus{}))
+	if !token.GetStatus().GetUsage().HasStatus() {
+		token.GetStatus().GetUsage().SetSingleUse(&joiningv1.SingleUseStatus{})
 	}
-	usage := token.Status.Usage.GetSingleUse()
+	usage := token.GetStatus().GetUsage().GetSingleUse()
 	if usage == nil {
 		return nil, trace.Errorf("single use token does not have a single use status")
 	}
@@ -204,9 +202,9 @@ func (s *ScopedTokenService) UseScopedToken(ctx context.Context, token *joiningv
 	}
 
 	// set the public key if this is the first time this token has been used
-	usage.UsedByFingerprint = fp[:]
-	usage.UsedAt = timestamppb.New(time.Now())
-	usage.ReusableUntil = timestamppb.New(time.Now().Add(tokenReuseDuration))
+	usage.SetUsedByFingerprint(fp[:])
+	usage.SetUsedAt(timestamppb.New(time.Now()))
+	usage.SetReusableUntil(timestamppb.New(time.Now().Add(tokenReuseDuration)))
 
 	token, err := s.svc.ConditionalUpdateResource(ctx, token)
 	if err != nil {
@@ -221,11 +219,11 @@ func evalScopeFilter(filter *scopesv1.Filter, scope string) bool {
 		return true
 	}
 
-	switch filter.Mode {
+	switch filter.GetMode() {
 	case scopesv1.Mode_MODE_RESOURCES_SUBJECT_TO_SCOPE:
-		return scopes.ResourceScope(scope).IsSubjectToScopeOfEffect(filter.Scope)
+		return scopes.ResourceScope(scope).IsSubjectToScopeOfEffect(filter.GetScope())
 	case scopesv1.Mode_MODE_POLICIES_APPLICABLE_TO_SCOPE:
-		return scopes.ScopeOfEffect(scope).AppliesToResourceScope(filter.Scope)
+		return scopes.ScopeOfEffect(scope).AppliesToResourceScope(filter.GetScope())
 	}
 
 	return true
@@ -238,10 +236,10 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 	// backend can choose to perform a simple list operation instead
 	// of a list with filter
 	switch {
-	case req.ResourceScope != nil:
-	case req.AssignedScope != nil:
-	case len(req.Roles) > 0:
-	case len(req.Labels) > 0:
+	case req.HasResourceScope():
+	case req.HasAssignedScope():
+	case len(req.GetRoles()) > 0:
+	case len(req.GetLabels()) > 0:
 	default:
 		tokens, cursor, err := s.svc.ListResources(ctx, int(req.GetLimit()), req.GetCursor())
 
@@ -251,10 +249,10 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 		if !req.GetWithSecrets() {
 			setScopedTokenWithoutSecret(tokens...)
 		}
-		return &joiningv1.ListScopedTokensResponse{
+		return joiningv1.ListScopedTokensResponse_builder{
 			Tokens: tokens,
 			Cursor: cursor,
-		}, nil
+		}.Build(), nil
 	}
 
 	if req.GetAssignedScope().GetScope() != "" {
@@ -277,7 +275,7 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 
 	filterFn := func(token *joiningv1.ScopedToken) bool {
 		if len(req.GetRoles()) > 0 {
-			roles, err := types.NewTeleportRoles(token.Spec.Roles)
+			roles, err := types.NewTeleportRoles(token.GetSpec().GetRoles())
 			if err != nil {
 				return false
 			}
@@ -287,11 +285,11 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 			}
 		}
 
-		if !evalScopeFilter(req.GetAssignedScope(), token.Spec.AssignedScope) {
+		if !evalScopeFilter(req.GetAssignedScope(), token.GetSpec().GetAssignedScope()) {
 			return false
 		}
 
-		if !evalScopeFilter(req.GetResourceScope(), token.Scope) {
+		if !evalScopeFilter(req.GetResourceScope(), token.GetScope()) {
 			return false
 		}
 
@@ -317,10 +315,10 @@ func (s *ScopedTokenService) ListScopedTokens(ctx context.Context, req *joiningv
 		setScopedTokenWithoutSecret(tokens...)
 	}
 
-	return &joiningv1.ListScopedTokensResponse{
+	return joiningv1.ListScopedTokensResponse_builder{
 		Tokens: tokens,
 		Cursor: cursor,
-	}, nil
+	}.Build(), nil
 }
 
 // DeleteScopedToken deletes a scoped token by name.
@@ -359,11 +357,11 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 			// Use conditional update with revision checking to ensure the token hasn't changed since we validated it.
 			// This prevents race conditions where the token could be deleted and recreated with
 			// different properties between our validation check and the write.
-			tokenUpsert.GetMetadata().Revision = existingToken.GetMetadata().GetRevision()
+			tokenUpsert.GetMetadata().SetRevision(existingToken.GetMetadata().GetRevision())
 
 			// The status and its secret shouldn't ever change, so preserve it when updates occur. The secret is
 			// should not be changed after creation
-			tokenUpsert.Status = existingToken.GetStatus()
+			tokenUpsert.SetStatus(existingToken.GetStatus())
 
 			if err := joining.StrongValidateToken(tokenUpsert); err != nil {
 				return nil, trace.Wrap(err)
@@ -377,9 +375,9 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 				return nil, trace.Wrap(err)
 			}
 
-			return &joiningv1.UpsertScopedTokenResponse{
+			return joiningv1.UpsertScopedTokenResponse_builder{
 				Token: upsertedToken,
-			}, nil
+			}.Build(), nil
 		}
 
 		if err := maybeSetTokenSecret(tokenUpsert); err != nil {
@@ -404,9 +402,9 @@ func (s *ScopedTokenService) UpsertScopedToken(ctx context.Context, req *joining
 			return nil, trace.Wrap(err)
 		}
 
-		return &joiningv1.UpsertScopedTokenResponse{
+		return joiningv1.UpsertScopedTokenResponse_builder{
 			Token: createdToken,
-		}, nil
+		}.Build(), nil
 	}
 
 	return nil, trace.LimitExceeded("exceeded max retries attempting to upsert scoped token - too many concurrent modifications")
@@ -427,7 +425,7 @@ func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, req *joining
 
 	// The status and its secret shouldn't ever change, so preserve it when updates occur. The secret
 	// should not be changed after creation.
-	tokenUpdate.Status = existingToken.GetStatus()
+	tokenUpdate.SetStatus(existingToken.GetStatus())
 
 	if err := joining.StrongValidateToken(tokenUpdate); err != nil {
 		return nil, trace.Wrap(err)
@@ -437,9 +435,9 @@ func (s *ScopedTokenService) UpdateScopedToken(ctx context.Context, req *joining
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &joiningv1.UpdateScopedTokenResponse{
+	return joiningv1.UpdateScopedTokenResponse_builder{
 		Token: updatedToken,
-	}, nil
+	}.Build(), nil
 }
 
 // PatchScopedToken uses the supplied function to attempt to patch a scoped
@@ -499,14 +497,14 @@ func setScopedTokenWithoutSecret(token ...*joiningv1.ScopedToken) {
 		}
 
 		if ob := t.GetSpec().GetBoundKeypair().GetOnboarding(); ob != nil {
-			ob.RegistrationSecret = ""
+			ob.SetRegistrationSecret("")
 		}
 
-		if t.Status != nil {
-			t.Status.Secret = ""
+		if t.HasStatus() {
+			t.GetStatus().SetSecret("")
 
-			if t.Status.GetUsage().GetBoundKeypair() != nil {
-				t.Status.GetUsage().GetBoundKeypair().RegistrationSecret = ""
+			if t.GetStatus().GetUsage().GetBoundKeypair() != nil {
+				t.GetStatus().GetUsage().GetBoundKeypair().SetRegistrationSecret("")
 			}
 		}
 	}
@@ -605,7 +603,7 @@ func maybeInitBoundKeypair(token *joiningv1.ScopedToken) error {
 	// can assume defaults. (That field is initialized automatically anyway.)
 
 	if spec.GetRecovery() == nil {
-		spec.Recovery = &joiningv1.BoundKeypairSpec_RecoverySpec{}
+		spec.SetRecovery(&joiningv1.BoundKeypairSpec_RecoverySpec{})
 	}
 
 	// Tokens should have a limit of 1 at creation to allow first use without
@@ -613,25 +611,23 @@ func maybeInitBoundKeypair(token *joiningv1.ScopedToken) error {
 	// `RecoveryModeStandard` at join time, and a registration secret is
 	// generated if needed.
 	if spec.GetRecovery().GetLimit() == 0 {
-		spec.GetRecovery().Limit = 1
+		spec.GetRecovery().SetLimit(1)
 	}
 
 	if spec.GetOnboarding() == nil {
-		spec.Onboarding = &joiningv1.BoundKeypairSpec_OnboardingSpec{}
+		spec.SetOnboarding(&joiningv1.BoundKeypairSpec_OnboardingSpec{})
 	}
 
 	if token.GetStatus() == nil {
-		token.Status = &joiningv1.ScopedTokenStatus{}
+		token.SetStatus(&joiningv1.ScopedTokenStatus{})
 	}
 
-	status := token.Status.GetUsage().GetBoundKeypair()
+	status := token.GetStatus().GetUsage().GetBoundKeypair()
 	if status == nil {
 		status = &joiningv1.BoundKeypairStatus{}
-		token.Status.Usage = &joiningv1.UsageStatus{
-			Status: &joiningv1.UsageStatus_BoundKeypair{
-				BoundKeypair: status,
-			},
-		}
+		token.GetStatus().SetUsage(joiningv1.UsageStatus_builder{
+			BoundKeypair: proto.ValueOrDefault(status),
+		}.Build())
 	}
 
 	// If necessary, generate a registration secret.
@@ -646,7 +642,7 @@ func maybeInitBoundKeypair(token *joiningv1.ScopedToken) error {
 
 	// If the user specified their own secret, copy that into status.
 	if secret := spec.GetOnboarding().GetRegistrationSecret(); secret != "" {
-		status.RegistrationSecret = secret
+		status.SetRegistrationSecret(secret)
 		return nil
 	}
 
@@ -657,23 +653,23 @@ func maybeInitBoundKeypair(token *joiningv1.ScopedToken) error {
 		return trace.Wrap(err)
 	}
 
-	status.RegistrationSecret = s
+	status.SetRegistrationSecret(s)
 	return nil
 }
 
 // maybeSetTokenSecret sets a random secret if not provided.
 func maybeSetTokenSecret(token *joiningv1.ScopedToken) error {
 	if token.GetSpec().GetJoinMethod() == string(types.JoinMethodToken) {
-		if token.Status == nil {
-			token.Status = &joiningv1.ScopedTokenStatus{}
+		if !token.HasStatus() {
+			token.SetStatus(&joiningv1.ScopedTokenStatus{})
 		}
 
-		if token.Status.Secret == "" {
+		if token.GetStatus().GetSecret() == "" {
 			secret, err := utils.CryptoRandomHex(defaults.TokenLenBytes)
 			if err != nil {
 				return trace.Wrap(err, "generating token secret")
 			}
-			token.Status.Secret = secret
+			token.GetStatus().SetSecret(secret)
 		}
 	}
 

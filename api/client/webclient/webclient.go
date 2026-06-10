@@ -464,7 +464,7 @@ type ProxySettings struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
-	// ScopesEnabled determines if the TELEPORT_UNSTABLE_SCOPES env var is set to yes or not.
+	// ScopesEnabled determines if the scoped rbac feature set is enabled.
 	ScopesEnabled bool `json:"scopes_enabled"`
 }
 

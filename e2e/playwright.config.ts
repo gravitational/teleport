@@ -36,6 +36,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 1 : undefined,
+  globalSetup: './global-setup.ts',
   reporter: [
     ['html', { open: 'never' }],
     ['json', { outputFile: 'test-results/results.json' }],
@@ -49,28 +50,18 @@ export default defineConfig({
   },
 
   projects: [
-    ...browserList.flatMap(browser => {
-      const setupName = `${browser}:setup`;
-      return [
-        {
-          name: setupName,
-          testDir: './tests/web',
-          testMatch: /.*\.setup\.ts/,
-          use: browserDevices[browser],
-        },
-        {
-          name: `${browser}:authenticated`,
-          testDir: './tests/web/authenticated',
-          use: { ...browserDevices[browser] },
-          dependencies: [setupName],
-        },
-        {
-          name: `${browser}:unauthenticated`,
-          testDir: './tests/web/unauthenticated',
-          use: { ...browserDevices[browser] },
-        },
-      ];
-    }),
+    ...browserList.flatMap(browser => [
+      {
+        name: `${browser}:authenticated`,
+        testDir: './tests/web/authenticated',
+        use: { ...browserDevices[browser] },
+      },
+      {
+        name: `${browser}:unauthenticated`,
+        testDir: './tests/web/unauthenticated',
+        use: { ...browserDevices[browser] },
+      },
+    ]),
 
     {
       name: 'connect',

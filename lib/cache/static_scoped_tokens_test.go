@@ -31,31 +31,31 @@ import (
 )
 
 func newStaticScopedTokens() *joiningv1.StaticScopedTokens {
-	return &joiningv1.StaticScopedTokens{
+	return joiningv1.StaticScopedTokens_builder{
 		Kind:  types.KindStaticScopedTokens,
 		Scope: "/",
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: types.MetaNameStaticScopedTokens,
-		},
-		Spec: &joiningv1.StaticScopedTokensSpec{
+		}.Build(),
+		Spec: joiningv1.StaticScopedTokensSpec_builder{
 			Tokens: []*joiningv1.ScopedToken{
-				{
+				joiningv1.ScopedToken_builder{
 					Kind:  types.KindScopedToken,
 					Scope: "/",
-					Metadata: &headerv1.Metadata{
+					Metadata: headerv1.Metadata_builder{
 						Name:    "tok1",
 						Expires: timestamppb.New(time.Now().UTC().Add(time.Hour)),
-					},
-					Spec: &joiningv1.ScopedTokenSpec{
+					}.Build(),
+					Spec: joiningv1.ScopedTokenSpec_builder{
 						Roles:         []string{types.RoleNode.String()},
 						JoinMethod:    string(types.JoinMethodToken),
 						UsageMode:     string(joining.TokenUsageModeUnlimited),
 						AssignedScope: "/local",
-					},
-				},
+					}.Build(),
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // TestStaticScopedTokens tests that CRUD operations on the StaticScopedTokens resource are

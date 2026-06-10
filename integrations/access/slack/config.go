@@ -129,7 +129,8 @@ func (c *Config) CheckAndSetDefaults() error {
 		// However, if user sets `review.allow_email_username_match` to true, and the field is unset,
 		// we assume no trait is set up in Teleport and user wants the fallback logic.
 		if c.Review.SlackUserIDTrait == "" && !c.Review.AllowEmailUsernameMatch {
-			return trace.BadParameter("missing required value review.slack_user_id_trait")
+			return trace.BadParameter("missing required value review.slack_user_id_trait." +
+				" Either set up a Teleport trait binding Slack user ID (preferred), or enable review.allow_email_username_match (less secure)")
 		}
 	}
 

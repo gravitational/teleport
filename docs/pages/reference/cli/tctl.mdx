@@ -249,8 +249,14 @@ List acknowledged cluster alerts.
 Usage:
 
 ```code
-$ tctl alerts ack ls
+$ tctl alerts ack ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl alerts create
 
@@ -653,8 +659,14 @@ per update group.
 Usage:
 
 ```code
-$ tctl autoupdate agents report
+$ tctl autoupdate agents report [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl autoupdate agents rollback
 
@@ -701,8 +713,14 @@ Prints agents auto update status.
 Usage:
 
 ```code
-$ tctl autoupdate agents status
+$ tctl autoupdate agents status [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl autoupdate client-tools disable
 
@@ -877,8 +895,14 @@ List all certificate renewal bots registered with the cluster.
 Usage:
 
 ```code
-$ tctl bots ls
+$ tctl bots ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl bots rm
 
@@ -1012,6 +1036,43 @@ Flags:
 |`--format`|`text`|Output format, 'text', 'json' or 'yaml'|
 |`-v`, `--[no-]verbose`|`false`|Verbose table output, shows full label output|
 
+## tctl detections get
+
+Get Identity Security detection details.
+
+Usage:
+
+```code
+$ tctl detections get <id>
+```
+
+Arguments:
+
+|Argument|Default|Description|
+|---|---|---|
+|id|*no default* (required)|The detection ID to retrieve.|
+
+## tctl detections ls
+
+List Identity Security detections.
+
+Usage:
+
+```code
+$ tctl detections ls [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--limit`|`100`|Maximum number of detections to return.|
+|`--[no-]detailed`|`false`|Include extra columns (Reported By, Type, Affected Entity, Tags, Description, Start Time, End Time, Updated) in text output.|
+|`--severity`|*no default* (any of (repeatable): `low`, `medium`, `high`, `critical`)|Filter detections by severity (Values: low, medium, high, critical).|
+|`--source`|*no default*|Filter detections by source.|
+|`--status`|`in_progress`,`triaged` (any of (repeatable): `in_progress`, `triaged`, `resolved`, `closed`)|Filter detections by status (Values: in_progress, triaged, resolved, closed). Default: in_progress, triaged.|
+|`--type`|*no default*|Filter detections by type.|
+
 ## tctl devices add
 
 Register managed devices.
@@ -1134,13 +1195,14 @@ Edit a Teleport resource.
 Usage:
 
 ```code
-$ tctl edit [<resource type/resource name>]
+$ tctl edit [<resource type/resource name>] [<id>]
 ```
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
+|id|*no default* (optional)|Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds|
 |resource type/resource name|*no default* (optional)|Resource to update, e.g., "user/myuser"|
 
 ## tctl get
@@ -1150,7 +1212,7 @@ Print a YAML declaration of various Teleport resources.
 Usage:
 
 ```code
-$ tctl get [<flags>] <resources>
+$ tctl get [<flags>] <resources> [<id>]
 ```
 
 Flags:
@@ -1165,6 +1227,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
+|id|*no default* (optional)|Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds|
 |resources|*no default* (required)|Resource spec: 'type/\[name\]\[,...\]' or 'all'|
 
 ## tctl help
@@ -1216,7 +1279,7 @@ Flags:
 |Flag|Default|Description|
 |---|---|---|
 |`--exact-version`|*no default*|Filter output by teleport version|
-|`--format`|`text` (one of: `text`, `json`)|Output format, 'text' or 'json'|
+|`--format`|`text` (one of: `text`, `json`)|Output format.|
 |`--newer-than`|*no default*|Filter for newer teleport versions|
 |`--older-than`|*no default*|Filter for older teleport versions|
 |`--services`|*no default*|Filter output by service (node,kube,proxy,etc)|
@@ -1253,7 +1316,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format, 'text', 'json', or 'yaml'|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]connected`|`false`|Show locally connected instances summary|
 
 ## tctl kube ls
@@ -1295,6 +1358,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--[no-]wide`|`false`|Do not truncate the Description column, even if it exceeds terminal width|
 
 ## tctl lock
@@ -1364,6 +1428,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--roles`|`node`|Comma-separated list of roles for the new node to assume \[node\]|
 |`--token`|*no default*|Override the default random generated token with a specified value|
 |`--ttl`|`30m0s`|Time to live for a generated token|
@@ -1382,7 +1447,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
-|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format, 'text', 'json', or 'yaml'|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--query`|*no default*|Query by predicate language enclosed in single quotes. Supports ==, !=, &&, and \|\| (e.g. --query='labels\["key1"\] == "value1" && labels\["key2"\] != "value2"')|
 |`--search`|*no default*|List of comma separated search keywords or phrases enclosed in quotations (e.g. --search=foo,bar,"some phrase")|
 |`-v`, `--[no-]verbose`|`false`|Verbose table output, shows full label output|
@@ -1799,7 +1864,7 @@ Flags:
 |`--access-request`|*no default*|Filter by access request ID. Can be specified multiple times.|
 |`--database-name`|*no default*|Filter database sessions by database name.|
 |`--format`|`text`|Format output (text, json, yaml).. Defaults to 'text'.|
-|`--from`|*no default*|Start of time range. Format 2006-01-02. Defaults to 24 hours ago.|
+|`--from-utc`|*no default*|Start of time range. Format 2006-01-02. Defaults to 24 hours ago.|
 |`--kind`|*no default*|Filter by session kind (ssh, db, k8s, desktop). Can be specified multiple times.|
 |`--label`|*no default*|Filter by resource labels (key=value pairs), e.g. env/prod=true,db/type=postgres.|
 |`--limit`|`50`|Maximum number of results to return.|
@@ -1807,12 +1872,13 @@ Flags:
 |`--pod-namespace`|*no default*|Filter Kubernetes sessions by pod namespace.|
 |`--resource-kind`|*no default*|Filter by Teleport resource type (node, kube_cluster, db).|
 |`--resource-name`|*no default*|Filter by resource name.|
+|`--resume-token`|*no default*|Resume a previous JSON/YAML search from a truncated result set (token printed to stderr when results are truncated).|
 |`--role`|*no default*|Filter by role held during the session. Can be specified multiple times.|
 |`--search-mode`|`hybrid` (one of: `hybrid`, `keyword`, `embeddings`)|Search strategy to use when search queries are provided.|
 |`--server-addr`|*no default*|Filter SSH sessions by server address.|
 |`--server-hostname`|*no default*|Filter SSH sessions by server hostname.|
 |`--severity`|*no default*|Minimum severity level to include (low, medium, high, critical).|
-|`--to`|*no default*|End of time range. Format 2006-01-02. Defaults to current time.|
+|`--to-utc`|*no default*|End of time range. Format 2006-01-02. Defaults to current time.|
 |`--username`|*no default*|Filter by the Teleport username that initiated the session.|
 
 Arguments:
@@ -1903,8 +1969,14 @@ Show Access Request by ID.
 Usage:
 
 ```code
-$ tctl requests get <request-id>
+$ tctl requests get [<flags>] <request-id>
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 Arguments:
 
@@ -1926,6 +1998,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--sort-index`|`created`|Request sort index, 'created' or 'state'|
 |`--sort-order`|`descending`|Request sort order, 'ascending' or 'descending'|
 
@@ -1982,13 +2055,14 @@ Delete a resource.
 Usage:
 
 ```code
-$ tctl rm [<resource type/resource name>]
+$ tctl rm [<resource type/resource name>] [<id>]
 ```
 
 Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
+|id|*no default* (optional)|Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds|
 |resource type/resource name|*no default* (optional)|Resource to delete
 	\<resource type\>  Type of a resource \[for example: connector,user,cluster,token\]
 	\<resource name\>  Resource name to delete
@@ -2235,8 +2309,14 @@ Report cluster status.
 Usage:
 
 ```code
-$ tctl status
+$ tctl status [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl terraform env
 
@@ -2367,7 +2447,7 @@ Update resource fields.
 Usage:
 
 ```code
-$ tctl update [<flags>] [<resource type/resource name>]
+$ tctl update [<flags>] [<resource type/resource name>] [<id>]
 ```
 
 Flags:
@@ -2381,6 +2461,7 @@ Arguments:
 
 |Argument|Default|Description|
 |---|---|---|
+|id|*no default* (optional)|Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds|
 |resource type/resource name|*no default* (optional)|Resource to update
 	\<resource type\>  Type of a resource \[for example: rc\]
 	\<resource name\>  Resource name to update
@@ -2408,6 +2489,7 @@ Flags:
 |`--db-roles`|*no default*|List of database roles for automatic database user provisioning|
 |`--db-users`|*no default*|List of allowed database users for the new user|
 |`--default-relay-addr`|*no default*|Relay address that clients should use by default|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--gcp-service-accounts`|*no default*|List of allowed GCP service accounts for the new user|
 |`--host-user-gid`|*no default*|GID for auto provisioned host users to use|
 |`--host-user-uid`|*no default*|UID for auto provisioned host users to use|
@@ -2432,8 +2514,14 @@ Lists all user accounts.
 Usage:
 
 ```code
-$ tctl users ls
+$ tctl users ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl users reset
 
@@ -2449,6 +2537,7 @@ Flags:
 
 |Flag|Default|Description|
 |---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 |`--ttl`|`8h0m0s`|Set expiration time for token, default is 8h0m0s, maximum is 24h0m0s|
 
 Arguments:
@@ -2516,8 +2605,14 @@ Print the version of your tctl binary.
 Usage:
 
 ```code
-$ tctl version
+$ tctl version [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl workload-identity ls
 
@@ -2526,8 +2621,14 @@ List workload identity configurations.
 Usage:
 
 ```code
-$ tctl workload-identity ls
+$ tctl workload-identity ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl workload-identity revocations add
 
@@ -2572,8 +2673,14 @@ List revocations.
 Usage:
 
 ```code
-$ tctl workload-identity revocations ls
+$ tctl workload-identity revocations ls [<flags>]
 ```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--format`|`text` (one of: `text`, `json`, `yaml`)|Output format.|
 
 ## tctl workload-identity revocations rm
 

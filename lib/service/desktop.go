@@ -166,10 +166,11 @@ func (process *TeleportProcess) initWindowsDesktopServiceRegistered(logger *slog
 	clusterName := conn.ClusterName()
 
 	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
-		ClusterName: clusterName,
-		AccessPoint: accessPoint,
-		LockWatcher: lockWatcher,
-		Logger:      process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		ClusterName:    clusterName,
+		AccessPoint:    accessPoint,
+		LockWatcher:    lockWatcher,
+		Logger:         process.logger.With(teleport.ComponentKey, teleport.Component(teleport.ComponentWindowsDesktop, process.id)),
+		ScopesFeatures: process.scopesFeatures,
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			// Ignore the global device_trust.mode toggle, but allow role-based
 			// settings to be applied.

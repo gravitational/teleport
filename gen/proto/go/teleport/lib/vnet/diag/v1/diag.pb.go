@@ -20,6 +20,8 @@
 // 	protoc        (unknown)
 // source: teleport/lib/vnet/diag/v1/diag.proto
 
+//go:build !protoopaque
+
 package diagv1
 
 import (
@@ -27,7 +29,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -87,11 +88,6 @@ func (x CheckAttemptStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use CheckAttemptStatus.Descriptor instead.
-func (CheckAttemptStatus) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{0}
-}
-
 // CheckReportStatus describes the outcome of a successful attempt at running a check.
 type CheckReportStatus int32
 
@@ -139,11 +135,6 @@ func (x CheckReportStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use CheckReportStatus.Descriptor instead.
-func (CheckReportStatus) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{1}
-}
-
 // CommandAttemptStatus describes the status of CommandAttempt.
 type CommandAttemptStatus int32
 
@@ -189,16 +180,11 @@ func (x CommandAttemptStatus) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use CommandAttemptStatus.Descriptor instead.
-func (CommandAttemptStatus) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{2}
-}
-
 // Report represents the attempts at running individual checks. It also includes general information
 // about the network stack managed by VNet. It assumes that each individual check as well as getting
 // info about the network stack can fail.
 type Report struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// created_at is the UTC timestamp at which the report was generated.
 	CreatedAt           *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=created_at,json=createdAt,proto3" json:"created_at,omitempty"`
 	NetworkStackAttempt *NetworkStackAttempt   `protobuf:"bytes,2,opt,name=network_stack_attempt,json=networkStackAttempt,proto3" json:"network_stack_attempt,omitempty"`
@@ -232,11 +218,6 @@ func (x *Report) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Report.ProtoReflect.Descriptor instead.
-func (*Report) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *Report) GetCreatedAt() *timestamppb.Timestamp {
 	if x != nil {
 		return x.CreatedAt
@@ -258,10 +239,63 @@ func (x *Report) GetChecks() []*CheckAttempt {
 	return nil
 }
 
+func (x *Report) SetCreatedAt(v *timestamppb.Timestamp) {
+	x.CreatedAt = v
+}
+
+func (x *Report) SetNetworkStackAttempt(v *NetworkStackAttempt) {
+	x.NetworkStackAttempt = v
+}
+
+func (x *Report) SetChecks(v []*CheckAttempt) {
+	x.Checks = v
+}
+
+func (x *Report) HasCreatedAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.CreatedAt != nil
+}
+
+func (x *Report) HasNetworkStackAttempt() bool {
+	if x == nil {
+		return false
+	}
+	return x.NetworkStackAttempt != nil
+}
+
+func (x *Report) ClearCreatedAt() {
+	x.CreatedAt = nil
+}
+
+func (x *Report) ClearNetworkStackAttempt() {
+	x.NetworkStackAttempt = nil
+}
+
+type Report_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// created_at is the UTC timestamp at which the report was generated.
+	CreatedAt           *timestamppb.Timestamp
+	NetworkStackAttempt *NetworkStackAttempt
+	Checks              []*CheckAttempt
+}
+
+func (b0 Report_builder) Build() *Report {
+	m0 := &Report{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CreatedAt = b.CreatedAt
+	x.NetworkStackAttempt = b.NetworkStackAttempt
+	x.Checks = b.Checks
+	return m0
+}
+
 // NetworkStackAttempt represents the attempt at getting information about the network stack managed
 // by VNet.
 type NetworkStackAttempt struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
+	state  protoimpl.MessageState `protogen:"hybrid.v1"`
 	Status CheckAttemptStatus     `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.lib.vnet.diag.v1.CheckAttemptStatus" json:"status,omitempty"`
 	// error is present if status is CHECK_ATTEMPT_STATUS_ERROR.
 	Error         string        `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
@@ -295,11 +329,6 @@ func (x *NetworkStackAttempt) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetworkStackAttempt.ProtoReflect.Descriptor instead.
-func (*NetworkStackAttempt) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *NetworkStackAttempt) GetStatus() CheckAttemptStatus {
 	if x != nil {
 		return x.Status
@@ -321,9 +350,51 @@ func (x *NetworkStackAttempt) GetNetworkStack() *NetworkStack {
 	return nil
 }
 
+func (x *NetworkStackAttempt) SetStatus(v CheckAttemptStatus) {
+	x.Status = v
+}
+
+func (x *NetworkStackAttempt) SetError(v string) {
+	x.Error = v
+}
+
+func (x *NetworkStackAttempt) SetNetworkStack(v *NetworkStack) {
+	x.NetworkStack = v
+}
+
+func (x *NetworkStackAttempt) HasNetworkStack() bool {
+	if x == nil {
+		return false
+	}
+	return x.NetworkStack != nil
+}
+
+func (x *NetworkStackAttempt) ClearNetworkStack() {
+	x.NetworkStack = nil
+}
+
+type NetworkStackAttempt_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Status CheckAttemptStatus
+	// error is present if status is CHECK_ATTEMPT_STATUS_ERROR.
+	Error        string
+	NetworkStack *NetworkStack
+}
+
+func (b0 NetworkStackAttempt_builder) Build() *NetworkStackAttempt {
+	m0 := &NetworkStackAttempt{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Status = b.Status
+	x.Error = b.Error
+	x.NetworkStack = b.NetworkStack
+	return m0
+}
+
 // NetworkStack describes the network stack managed by VNet.
 type NetworkStack struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// interface_name is the name of the interface set up and used by VNet.
 	InterfaceName string `protobuf:"bytes,1,opt,name=interface_name,json=interfaceName,proto3" json:"interface_name,omitempty"`
 	// ipv4_cidr_ranges are all the possible ranges under which VNet is going to assign IPv4 addresses
@@ -364,11 +435,6 @@ func (x *NetworkStack) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetworkStack.ProtoReflect.Descriptor instead.
-func (*NetworkStack) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *NetworkStack) GetInterfaceName() string {
 	if x != nil {
 		return x.InterfaceName
@@ -397,6 +463,49 @@ func (x *NetworkStack) GetDnsZones() []string {
 	return nil
 }
 
+func (x *NetworkStack) SetInterfaceName(v string) {
+	x.InterfaceName = v
+}
+
+func (x *NetworkStack) SetIpv4CidrRanges(v []string) {
+	x.Ipv4CidrRanges = v
+}
+
+func (x *NetworkStack) SetIpv6Prefix(v string) {
+	x.Ipv6Prefix = v
+}
+
+func (x *NetworkStack) SetDnsZones(v []string) {
+	x.DnsZones = v
+}
+
+type NetworkStack_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// interface_name is the name of the interface set up and used by VNet.
+	InterfaceName string
+	// ipv4_cidr_ranges are all the possible ranges under which VNet is going to assign IPv4 addresses
+	// for apps. The first IP of the first range is used for the TUN device.
+	// Each root cluster can specify its own CIDR range to be used for apps within that profile.
+	Ipv4CidrRanges []string
+	// ipv6_prefix is the IPv6 prefix under which VNet creates IPv6 addresses for apps and its DNS
+	// server.
+	Ipv6Prefix string
+	// dns_zones lists domains for which DNS queries are supposed to be captured by VNet.
+	DnsZones []string
+}
+
+func (b0 NetworkStack_builder) Build() *NetworkStack {
+	m0 := &NetworkStack{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.InterfaceName = b.InterfaceName
+	x.Ipv4CidrRanges = b.Ipv4CidrRanges
+	x.Ipv6Prefix = b.Ipv6Prefix
+	x.DnsZones = b.DnsZones
+	return m0
+}
+
 // CheckAttempt describes the attempt at running a particular diagnostic check. If it succeeds
 // (status is CHECK_ATTEMPT_STATUS_OK), check_report can be inspected to see if the check has found
 // any issues.
@@ -406,7 +515,7 @@ func (x *NetworkStack) GetDnsZones() []string {
 // CHECK_REPORT_STATUS_OK). But it can also fail to run (CHECK_ATTEMPT_STATUS_ERROR) because the
 // syscall to list routes has failed.
 type CheckAttempt struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// status represents the status of an attempt at running a particular diagnostic check. This is
 	// not the same as the status of CheckReport.
 	Status CheckAttemptStatus `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.lib.vnet.diag.v1.CheckAttemptStatus" json:"status,omitempty"`
@@ -453,11 +562,6 @@ func (x *CheckAttempt) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CheckAttempt.ProtoReflect.Descriptor instead.
-func (*CheckAttempt) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *CheckAttempt) GetStatus() CheckAttemptStatus {
 	if x != nil {
 		return x.Status
@@ -486,9 +590,69 @@ func (x *CheckAttempt) GetCommands() []*CommandAttempt {
 	return nil
 }
 
+func (x *CheckAttempt) SetStatus(v CheckAttemptStatus) {
+	x.Status = v
+}
+
+func (x *CheckAttempt) SetError(v string) {
+	x.Error = v
+}
+
+func (x *CheckAttempt) SetCheckReport(v *CheckReport) {
+	x.CheckReport = v
+}
+
+func (x *CheckAttempt) SetCommands(v []*CommandAttempt) {
+	x.Commands = v
+}
+
+func (x *CheckAttempt) HasCheckReport() bool {
+	if x == nil {
+		return false
+	}
+	return x.CheckReport != nil
+}
+
+func (x *CheckAttempt) ClearCheckReport() {
+	x.CheckReport = nil
+}
+
+type CheckAttempt_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// status represents the status of an attempt at running a particular diagnostic check. This is
+	// not the same as the status of CheckReport.
+	Status CheckAttemptStatus
+	// error is present if the check failed to run (status is CHECK_ATTEMPT_STATUS_ERROR).
+	Error string
+	// check_report is the output of a particular check.
+	//
+	// If check failed to run (status is CHECK_ATTEMPT_STATUS_ERROR), the report oneof in check_report
+	// is set to a specific member while the member itself is empty. This means that a particular
+	// CheckAttempt can be distinguished from other attempts describing other checks even if the check
+	// failed to run.
+	CheckReport *CheckReport
+	// commands are the outputs from additional diagnostic commands executed by the diagnostic
+	// check. They are meant to help inspect the general state of the OS related to the given check.
+	// Unless a callsite specifically requests commands to be skipped, commands are present even if
+	// status is CHECK_ATTEMPT_STATUS_ERROR, as they are useful even if the check failed.
+	Commands []*CommandAttempt
+}
+
+func (b0 CheckAttempt_builder) Build() *CheckAttempt {
+	m0 := &CheckAttempt{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Status = b.Status
+	x.Error = b.Error
+	x.CheckReport = b.CheckReport
+	x.Commands = b.Commands
+	return m0
+}
+
 // CheckReport is the output of a successful attempt at running a particular check.
 type CheckReport struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// status indicates if the check has found any issues. This is so that a callsite operating on
 	// a CheckReport can understand the outcome of the check without having to understand the
 	// semantics of the output included under report.
@@ -527,11 +691,6 @@ func (x *CheckReport) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CheckReport.ProtoReflect.Descriptor instead.
-func (*CheckReport) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *CheckReport) GetStatus() CheckReportStatus {
 	if x != nil {
 		return x.Status
@@ -564,6 +723,123 @@ func (x *CheckReport) GetSshConfigurationReport() *SSHConfigurationReport {
 	return nil
 }
 
+func (x *CheckReport) SetStatus(v CheckReportStatus) {
+	x.Status = v
+}
+
+func (x *CheckReport) SetRouteConflictReport(v *RouteConflictReport) {
+	if v == nil {
+		x.Report = nil
+		return
+	}
+	x.Report = &CheckReport_RouteConflictReport{v}
+}
+
+func (x *CheckReport) SetSshConfigurationReport(v *SSHConfigurationReport) {
+	if v == nil {
+		x.Report = nil
+		return
+	}
+	x.Report = &CheckReport_SshConfigurationReport{v}
+}
+
+func (x *CheckReport) HasReport() bool {
+	if x == nil {
+		return false
+	}
+	return x.Report != nil
+}
+
+func (x *CheckReport) HasRouteConflictReport() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Report.(*CheckReport_RouteConflictReport)
+	return ok
+}
+
+func (x *CheckReport) HasSshConfigurationReport() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Report.(*CheckReport_SshConfigurationReport)
+	return ok
+}
+
+func (x *CheckReport) ClearReport() {
+	x.Report = nil
+}
+
+func (x *CheckReport) ClearRouteConflictReport() {
+	if _, ok := x.Report.(*CheckReport_RouteConflictReport); ok {
+		x.Report = nil
+	}
+}
+
+func (x *CheckReport) ClearSshConfigurationReport() {
+	if _, ok := x.Report.(*CheckReport_SshConfigurationReport); ok {
+		x.Report = nil
+	}
+}
+
+const CheckReport_Report_not_set_case case_CheckReport_Report = 0
+const CheckReport_RouteConflictReport_case case_CheckReport_Report = 2
+const CheckReport_SshConfigurationReport_case case_CheckReport_Report = 3
+
+func (x *CheckReport) WhichReport() case_CheckReport_Report {
+	if x == nil {
+		return CheckReport_Report_not_set_case
+	}
+	switch x.Report.(type) {
+	case *CheckReport_RouteConflictReport:
+		return CheckReport_RouteConflictReport_case
+	case *CheckReport_SshConfigurationReport:
+		return CheckReport_SshConfigurationReport_case
+	default:
+		return CheckReport_Report_not_set_case
+	}
+}
+
+type CheckReport_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// status indicates if the check has found any issues. This is so that a callsite operating on
+	// a CheckReport can understand the outcome of the check without having to understand the
+	// semantics of the output included under report.
+	Status CheckReportStatus
+	// Fields of oneof Report:
+	// route_conflict reports whether there are routes that might conflict with routes set up by
+	// VNet.
+	RouteConflictReport *RouteConflictReport
+	// ssh_configuration_report reports the status of the system's SSH configuration.
+	SshConfigurationReport *SSHConfigurationReport
+	// -- end of Report
+}
+
+func (b0 CheckReport_builder) Build() *CheckReport {
+	m0 := &CheckReport{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Status = b.Status
+	if b.RouteConflictReport != nil {
+		x.Report = &CheckReport_RouteConflictReport{b.RouteConflictReport}
+	}
+	if b.SshConfigurationReport != nil {
+		x.Report = &CheckReport_SshConfigurationReport{b.SshConfigurationReport}
+	}
+	return m0
+}
+
+type case_CheckReport_Report protoreflect.FieldNumber
+
+func (x case_CheckReport_Report) String() string {
+	md := file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes[4].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isCheckReport_Report interface {
 	isCheckReport_Report()
 }
@@ -586,7 +862,7 @@ func (*CheckReport_SshConfigurationReport) isCheckReport_Report() {}
 // CommandAttempt describes the attempt at running a particular command associated with a diagnostic
 // check.
 type CommandAttempt struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
+	state  protoimpl.MessageState `protogen:"hybrid.v1"`
 	Status CommandAttemptStatus   `protobuf:"varint,1,opt,name=status,proto3,enum=teleport.lib.vnet.diag.v1.CommandAttemptStatus" json:"status,omitempty"`
 	// error is present if status is COMMAND_ATTEMPT_STATUS_ERROR.
 	Error string `protobuf:"bytes,2,opt,name=error,proto3" json:"error,omitempty"`
@@ -623,11 +899,6 @@ func (x *CommandAttempt) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CommandAttempt.ProtoReflect.Descriptor instead.
-func (*CommandAttempt) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *CommandAttempt) GetStatus() CommandAttemptStatus {
 	if x != nil {
 		return x.Status
@@ -656,9 +927,48 @@ func (x *CommandAttempt) GetOutput() string {
 	return ""
 }
 
+func (x *CommandAttempt) SetStatus(v CommandAttemptStatus) {
+	x.Status = v
+}
+
+func (x *CommandAttempt) SetError(v string) {
+	x.Error = v
+}
+
+func (x *CommandAttempt) SetCommand(v string) {
+	x.Command = v
+}
+
+func (x *CommandAttempt) SetOutput(v string) {
+	x.Output = v
+}
+
+type CommandAttempt_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Status CommandAttemptStatus
+	// error is present if status is COMMAND_ATTEMPT_STATUS_ERROR.
+	Error string
+	// command shows which command was executed along with its arguments, e.g., "netstat -rn -f inet".
+	Command string
+	// output is stdout from the command if status is COMMAND_ATTEMPT_STATUS_OK.
+	Output string
+}
+
+func (b0 CommandAttempt_builder) Build() *CommandAttempt {
+	m0 := &CommandAttempt{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Status = b.Status
+	x.Error = b.Error
+	x.Command = b.Command
+	x.Output = b.Output
+	return m0
+}
+
 // RouteConflictReport describes conflicting routes found by RouteConflictDiag.
 type RouteConflictReport struct {
-	state          protoimpl.MessageState `protogen:"open.v1"`
+	state          protoimpl.MessageState `protogen:"hybrid.v1"`
 	RouteConflicts []*RouteConflict       `protobuf:"bytes,1,rep,name=route_conflicts,json=routeConflicts,proto3" json:"route_conflicts,omitempty"`
 	unknownFields  protoimpl.UnknownFields
 	sizeCache      protoimpl.SizeCache
@@ -689,11 +999,6 @@ func (x *RouteConflictReport) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RouteConflictReport.ProtoReflect.Descriptor instead.
-func (*RouteConflictReport) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *RouteConflictReport) GetRouteConflicts() []*RouteConflict {
 	if x != nil {
 		return x.RouteConflicts
@@ -701,10 +1006,28 @@ func (x *RouteConflictReport) GetRouteConflicts() []*RouteConflict {
 	return nil
 }
 
+func (x *RouteConflictReport) SetRouteConflicts(v []*RouteConflict) {
+	x.RouteConflicts = v
+}
+
+type RouteConflictReport_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	RouteConflicts []*RouteConflict
+}
+
+func (b0 RouteConflictReport_builder) Build() *RouteConflictReport {
+	m0 := &RouteConflictReport{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RouteConflicts = b.RouteConflicts
+	return m0
+}
+
 // RouteConflict describes a conflict between a route set up by a 3rd-party app where the
 // destination overlaps with a destination in a route set up by VNet.
 type RouteConflict struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// dest is the destination of the conflicting route.
 	Dest string `protobuf:"bytes,1,opt,name=dest,proto3" json:"dest,omitempty"`
 	// vnet_dest is the destination of a VNet route that Dest overlaps with.
@@ -745,11 +1068,6 @@ func (x *RouteConflict) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RouteConflict.ProtoReflect.Descriptor instead.
-func (*RouteConflict) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *RouteConflict) GetDest() string {
 	if x != nil {
 		return x.Dest
@@ -778,9 +1096,52 @@ func (x *RouteConflict) GetInterfaceApp() string {
 	return ""
 }
 
+func (x *RouteConflict) SetDest(v string) {
+	x.Dest = v
+}
+
+func (x *RouteConflict) SetVnetDest(v string) {
+	x.VnetDest = v
+}
+
+func (x *RouteConflict) SetInterfaceName(v string) {
+	x.InterfaceName = v
+}
+
+func (x *RouteConflict) SetInterfaceApp(v string) {
+	x.InterfaceApp = v
+}
+
+type RouteConflict_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// dest is the destination of the conflicting route.
+	Dest string
+	// vnet_dest is the destination of a VNet route that Dest overlaps with.
+	VnetDest string
+	// interface_name is the name of the interface the route uses, e.g. "utun4".
+	InterfaceName string
+	// interface_app may contain the name of the application responsible for setting up the interface.
+	// At the moment, the only source of this information is NetworkExtension description included in
+	// the output of `ifconfig -v <interface name>`. Not all VPN applications use this framework, so
+	// it's likely to be empty.
+	InterfaceApp string
+}
+
+func (b0 RouteConflict_builder) Build() *RouteConflict {
+	m0 := &RouteConflict{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Dest = b.Dest
+	x.VnetDest = b.VnetDest
+	x.InterfaceName = b.InterfaceName
+	x.InterfaceApp = b.InterfaceApp
+	return m0
+}
+
 // SSHConfigurationReport describes the state of the system's SSH configuration.
 type SSHConfigurationReport struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// user_openssh_config_path is the full path to the user's default OpenSSH
 	// config file (~/.ssh/config).
 	UserOpensshConfigPath string `protobuf:"bytes,1,opt,name=user_openssh_config_path,json=userOpensshConfigPath,proto3" json:"user_openssh_config_path,omitempty"`
@@ -825,11 +1186,6 @@ func (x *SSHConfigurationReport) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use SSHConfigurationReport.ProtoReflect.Descriptor instead.
-func (*SSHConfigurationReport) Descriptor() ([]byte, []int) {
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *SSHConfigurationReport) GetUserOpensshConfigPath() string {
 	if x != nil {
 		return x.UserOpensshConfigPath
@@ -863,6 +1219,58 @@ func (x *SSHConfigurationReport) GetUserOpensshConfigContents() string {
 		return x.UserOpensshConfigContents
 	}
 	return ""
+}
+
+func (x *SSHConfigurationReport) SetUserOpensshConfigPath(v string) {
+	x.UserOpensshConfigPath = v
+}
+
+func (x *SSHConfigurationReport) SetVnetSshConfigPath(v string) {
+	x.VnetSshConfigPath = v
+}
+
+func (x *SSHConfigurationReport) SetUserOpensshConfigIncludesVnetSshConfig(v bool) {
+	x.UserOpensshConfigIncludesVnetSshConfig = v
+}
+
+func (x *SSHConfigurationReport) SetUserOpensshConfigExists(v bool) {
+	x.UserOpensshConfigExists = v
+}
+
+func (x *SSHConfigurationReport) SetUserOpensshConfigContents(v string) {
+	x.UserOpensshConfigContents = v
+}
+
+type SSHConfigurationReport_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// user_openssh_config_path is the full path to the user's default OpenSSH
+	// config file (~/.ssh/config).
+	UserOpensshConfigPath string
+	// vnet_ssh_config_path is the path to VNet's generated OpenSSH-compatible
+	// config file.
+	VnetSshConfigPath string
+	// user_openssh_config_includes_vnet_ssh_config is true if the default
+	// OpenSSH user configuration file includes VNet's SSH config file.
+	UserOpensshConfigIncludesVnetSshConfig bool
+	// user_openssh_config_exists is true if a file exists at
+	// user_openssh_config_path (~/.ssh/config).
+	UserOpensshConfigExists bool
+	// user_openssh_config_contents contains the contents of the file at
+	// user_openssh_config_path if it exists.
+	UserOpensshConfigContents string
+}
+
+func (b0 SSHConfigurationReport_builder) Build() *SSHConfigurationReport {
+	m0 := &SSHConfigurationReport{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.UserOpensshConfigPath = b.UserOpensshConfigPath
+	x.VnetSshConfigPath = b.VnetSshConfigPath
+	x.UserOpensshConfigIncludesVnetSshConfig = b.UserOpensshConfigIncludesVnetSshConfig
+	x.UserOpensshConfigExists = b.UserOpensshConfigExists
+	x.UserOpensshConfigContents = b.UserOpensshConfigContents
+	return m0
 }
 
 var File_teleport_lib_vnet_diag_v1_diag_proto protoreflect.FileDescriptor
@@ -925,18 +1333,6 @@ const file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc = "" +
 	"\"COMMAND_ATTEMPT_STATUS_UNSPECIFIED\x10\x00\x12\x1d\n" +
 	"\x19COMMAND_ATTEMPT_STATUS_OK\x10\x01\x12 \n" +
 	"\x1cCOMMAND_ATTEMPT_STATUS_ERROR\x10\x02BQZOgithub.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/diag/v1;diagv1b\x06proto3"
-
-var (
-	file_teleport_lib_vnet_diag_v1_diag_proto_rawDescOnce sync.Once
-	file_teleport_lib_vnet_diag_v1_diag_proto_rawDescData []byte
-)
-
-func file_teleport_lib_vnet_diag_v1_diag_proto_rawDescGZIP() []byte {
-	file_teleport_lib_vnet_diag_v1_diag_proto_rawDescOnce.Do(func() {
-		file_teleport_lib_vnet_diag_v1_diag_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc), len(file_teleport_lib_vnet_diag_v1_diag_proto_rawDesc)))
-	})
-	return file_teleport_lib_vnet_diag_v1_diag_proto_rawDescData
-}
 
 var file_teleport_lib_vnet_diag_v1_diag_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
 var file_teleport_lib_vnet_diag_v1_diag_proto_msgTypes = make([]protoimpl.MessageInfo, 9)

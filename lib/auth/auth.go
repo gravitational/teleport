@@ -435,6 +435,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			Backend:                     cfg.Backend,
 			Modules:                     cfg.Modules,
 			RunWhileLockedRetryInterval: cfg.RunWhileLockedRetryInterval,
+			ScopesFeatures:              cfg.ScopesFeatures,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -760,6 +761,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 	as = &Server{
 		bk:                           cfg.Backend,
 		clock:                        cfg.Clock,
+		scopesFeatures:               cfg.ScopesFeatures,
 		fakePasswordHash:             cfg.FakePasswordHash,
 		fakeRecoveryCodeHash:         cfg.FakeRecoveryCodeHash,
 		modules:                      cfg.Modules,
@@ -1290,6 +1292,8 @@ type Server struct {
 	clock   clockwork.Clock
 	bk      backend.Backend
 	modules modules.Modules
+	// scopesFeatures dictates which scoped components are enabled for this auth server.
+	scopesFeatures scopes.Features
 
 	insecureMode bool
 	closeCtx     context.Context
@@ -2366,7 +2370,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	// server is up to date, but instances not connected to this auth need update.
 	var instanceVisitor vc.Visitor
 	a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
-		v := vc.Normalize(handle.Hello().Version)
+		v := vc.Normalize(handle.Hello().GetVersion())
 		instanceVisitor.Visit(vc.NewTarget(v))
 	})
 
@@ -3620,7 +3624,7 @@ func generateCert(ctx context.Context, a *Server, req cert.Request, caType types
 	_, isScoped := req.CheckerContext.ScopePin()
 	if isScoped {
 		// require that the scope feature is enabled for scoped certificate creation
-		if err := scopes.AssertFeatureEnabled(); err != nil {
+		if err := a.scopesFeatures.AssertEnabled(); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -5369,22 +5373,6 @@ func (a *Server) getValidatedAccessRequest(ctx context.Context, identity tlsca.I
 	return req, nil
 }
 
-// CreateWebSession creates a new web session for user without any
-// checks, is used by admins
-func (a *Server) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	u, err := a.GetUserOrLoginState(ctx, user)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	session, err := a.CreateWebSessionFromReq(ctx, NewWebSessionRequest{
-		User:      user,
-		Roles:     u.GetRoles(),
-		Traits:    u.GetTraits(),
-		LoginTime: a.clock.Now().UTC(),
-	})
-	return session, trace.Wrap(err)
-}
-
 // ExtractHostID returns host id based on the hostname
 func ExtractHostID(hostName string, clusterName string) (string, error) {
 	suffix := "." + clusterName
@@ -5539,7 +5527,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 	if params.AgentScope != "" {
 		// We are in the process of switching over the format of scoped agent certificates. Until the
 		// transition is complete, the new agent pin format is behind a feature flag.
-		useAgentPin = scopes.AgentPinEnabled()
+		useAgentPin = a.scopesFeatures.AgentPinEnabled
 	}
 
 	if req.Role == types.RoleInstance && len(req.SystemRoles) == 0 {
@@ -5553,14 +5541,14 @@ func (a *Server) GenerateHostCerts(ctx context.Context, params HostCertsParams) 
 
 	var agentScopePin *scopesv1.Pin
 	if useAgentPin {
-		agentScopePin = &scopesv1.Pin{
+		agentScopePin = scopesv1.Pin_builder{
 			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
 			Scope: params.AgentScope,
-			SystemRoles: &scopesv1.SystemRoles{
+			SystemRoles: scopesv1.SystemRoles_builder{
 				Primary:    req.Role.String(),
 				Additional: systemRoles,
-			},
-		}
+			}.Build(),
+		}.Build()
 	}
 
 	// Agent scope pins encode role and scope solely via ScopePin; setting the
@@ -5678,10 +5666,10 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 	// in order to simplify creation of in-memory streams when dealing with local auth (note: in theory we could
 	// send hellos simultaneously to slightly improve perf, but there is a potential benefit to having the
 	// downstream hello serve double-duty as an indicator of having successfully transitioned the rbac layer).
-	downstreamHello := &proto.DownstreamInventoryHello{
+	downstreamHello := proto.DownstreamInventoryHello_builder{
 		Version:  teleport.Version,
 		ServerID: a.ServerID,
-		Capabilities: &proto.DownstreamInventoryHello_SupportedCapabilities{
+		Capabilities: proto.DownstreamInventoryHello_SupportedCapabilities_builder{
 			NodeHeartbeats:                true,
 			AppHeartbeats:                 true,
 			AppCleanup:                    true,
@@ -5691,8 +5679,8 @@ func (a *Server) RegisterInventoryControlStream(ics client.UpstreamInventoryCont
 			KubernetesHeartbeats:          true,
 			KubernetesCleanup:             true,
 			RelayServerHeartbeatsCleanup:  true,
-		},
-	}
+		}.Build(),
+	}.Build()
 	if err := ics.Send(a.CloseContext(), downstreamHello); err != nil {
 		return trace.Wrap(err)
 	}
@@ -5726,35 +5714,35 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 
 func (a *Server) GetInventoryStatus(ctx context.Context, req *proto.InventoryStatusRequest) (*proto.InventoryStatusSummary, error) {
 	rsp := new(proto.InventoryStatusSummary)
-	if req.Connected {
+	if req.GetConnected() {
 		a.inventory.UniqueHandles(func(handle inventory.UpstreamHandle) {
-			rsp.Connected = append(rsp.Connected, handle.Hello())
+			rsp.SetConnected(append(rsp.GetConnected(), handle.Hello()))
 		})
 
 		// connected instance list is a special case, don't bother aggregating heartbeats
 		return rsp, nil
 	}
 
-	rsp.VersionCounts = make(map[string]uint32)
-	rsp.UpgraderCounts = make(map[string]uint32)
-	rsp.ServiceCounts = make(map[string]uint32)
+	rsp.SetVersionCounts(make(map[string]uint32))
+	rsp.SetUpgraderCounts(make(map[string]uint32))
+	rsp.SetServiceCounts(make(map[string]uint32))
 
 	ins := a.GetInstances(ctx, types.InstanceFilter{})
 
 	for ins.Next() {
-		rsp.InstanceCount++
+		rsp.SetInstanceCount(rsp.GetInstanceCount() + 1)
 
-		rsp.VersionCounts[vc.Normalize(ins.Item().GetTeleportVersion())]++
+		rsp.GetVersionCounts()[vc.Normalize(ins.Item().GetTeleportVersion())]++
 
 		upgrader := ins.Item().GetExternalUpgrader()
 		if upgrader == "" {
 			upgrader = "none"
 		}
 
-		rsp.UpgraderCounts[upgrader]++
+		rsp.GetUpgraderCounts()[upgrader]++
 
 		for _, service := range ins.Item().GetServices() {
-			rsp.ServiceCounts[string(service)]++
+			rsp.GetServiceCounts()[string(service)]++
 		}
 	}
 
@@ -6156,31 +6144,29 @@ func (a *Server) CreateAccessRequestV2(ctx context.Context, req types.AccessRequ
 		}
 	}
 
-	_, err = a.Services.CreateGlobalNotification(ctx, &notificationsv1.GlobalNotification{
-		Spec: &notificationsv1.GlobalNotificationSpec{
-			Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
-				ByPermissions: &notificationsv1.ByPermissions{
-					RoleConditions: []*types.RoleConditions{
-						{
-							ReviewRequests: &types.AccessReviewConditions{
-								Roles: req.GetOriginalRoles(),
-							},
+	_, err = a.Services.CreateGlobalNotification(ctx, notificationsv1.GlobalNotification_builder{
+		Spec: notificationsv1.GlobalNotificationSpec_builder{
+			ByPermissions: notificationsv1.ByPermissions_builder{
+				RoleConditions: []*types.RoleConditions{
+					{
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: req.GetOriginalRoles(),
 						},
 					},
 				},
-			},
+			}.Build(),
 			// Prevent the requester from seeing the notification for their own access request.
 			ExcludeUsers: []string{req.GetUser()},
-			Notification: &notificationsv1.Notification{
+			Notification: notificationsv1.Notification_builder{
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: types.NotificationAccessRequestPendingSubKind,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Labels:  map[string]string{types.NotificationTitleLabel: notificationText, "request-id": req.GetName()},
 					Expires: timestamppb.New(req.Expiry()),
-				},
-			},
-		},
-	})
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		a.logger.WarnContext(ctx, "Failed to create access request notification", "error", err)
 	}
@@ -6406,7 +6392,7 @@ func (a *Server) SetAccessRequestState(ctx context.Context, params types.AccessR
 }
 
 // SubmitAccessReview is used to process a review of an Access Request.
-// This is implemented by Server.submitAccessRequest but this method exists
+// This is implemented by Server.submitAccessReview but this method exists
 // to provide a matching signature with the auth client. This allows the
 // hosted plugins to use the Server struct directly as a client.
 func (a *Server) SubmitAccessReview(
@@ -6435,6 +6421,15 @@ func (a *Server) submitAccessReview(
 	clusterName, err := a.GetClusterName(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	// For identities (eg. plugins) that submit the review on behalf of the author, we zero out
+	// the identity as a protection measure. This is because the identity no longer
+	// correlates with the review author, and is not used for checking the author's permissions.
+	// The caller should already pass in a nil identity for this case, but this measure ensures
+	// we correctly handle identity and review author correlation.
+	if params.Review.SubmittedBy != "" {
+		identity = nil
 	}
 
 	// set up a checker for the review author
@@ -6469,6 +6464,7 @@ func (a *Server) submitAccessReview(
 		ProposedState:          params.Review.ProposedState.String(),
 		Reason:                 params.Review.Reason,
 		Reviewer:               params.Review.Author,
+		SubmittedBy:            params.Review.SubmittedBy,
 		MaxDuration:            req.GetMaxDuration(),
 		PromotedAccessListName: req.GetPromotedAccessListName(),
 	}
@@ -6562,12 +6558,12 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 		assumableTime = req.GetAssumeStartTime().Format("2006-01-02T15:04:05.000Z0700")
 	}
 
-	return &notificationsv1.Notification{
-		Spec: &notificationsv1.NotificationSpec{
+	return notificationsv1.Notification_builder{
+		Spec: notificationsv1.NotificationSpec_builder{
 			Username: req.GetUser(),
-		},
+		}.Build(),
 		SubKind: subKind,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Labels: map[string]string{
 				types.NotificationTitleLabel: notificationText,
 				"request-id":                 params.RequestID,
@@ -6575,8 +6571,8 @@ func generateAccessRequestReviewedNotification(req types.AccessRequest, params t
 				"assumable-time":             assumableTime,
 			},
 			Expires: timestamppb.New(req.Expiry()),
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 func (a *Server) GetAccessCapabilities(ctx context.Context, req types.AccessCapabilitiesRequest) (*types.AccessCapabilities, error) {
@@ -7319,7 +7315,7 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts
 		accessListIDs := set.New[string]()
 		for _, id := range identifiers {
 			// id.Spec.UniqueIdentifier is the access list ID
-			accessListIDs.Add(id.Spec.UniqueIdentifier)
+			accessListIDs.Add(id.GetSpec().GetUniqueIdentifier())
 		}
 
 		// owners is the combined list of owners for relevant access lists we are creating the notification for.
@@ -7376,54 +7372,50 @@ func (a *Server) CreateAccessListReminderNotifications(ctx context.Context, opts
 
 // createAccessListReminderNotification is a helper function to create a notification for an access list reminder.
 func (a *Server) createAccessListReminderNotification(ctx context.Context, owners []string, subkind string, title string) error {
-	_, err := a.Services.CreateGlobalNotification(ctx, &notificationsv1.GlobalNotification{
-		Spec: &notificationsv1.GlobalNotificationSpec{
-			Matcher: &notificationsv1.GlobalNotificationSpec_ByUsers{
-				ByUsers: &notificationsv1.ByUsers{
-					Users: owners,
-				},
-			},
-			Notification: &notificationsv1.Notification{
+	_, err := a.Services.CreateGlobalNotification(ctx, notificationsv1.GlobalNotification_builder{
+		Spec: notificationsv1.GlobalNotificationSpec_builder{
+			ByUsers: notificationsv1.ByUsers_builder{
+				Users: owners,
+			}.Build(),
+			Notification: notificationsv1.Notification_builder{
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: subkind,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Labels: map[string]string{types.NotificationTitleLabel: title},
-				},
-			},
-		},
-	})
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return err
 	}
 
 	// Also create a notification for users who have CRUD permissions for access lists. This is because they can also review access lists.
-	_, err = a.Services.CreateGlobalNotification(ctx, &notificationsv1.GlobalNotification{
-		Spec: &notificationsv1.GlobalNotificationSpec{
-			Matcher: &notificationsv1.GlobalNotificationSpec_ByPermissions{
-				ByPermissions: &notificationsv1.ByPermissions{
-					RoleConditions: []*types.RoleConditions{
-						{
-							Rules: []types.Rule{
-								{
-									Resources: []string{types.KindAccessList},
-									Verbs:     services.RW(),
-								},
+	_, err = a.Services.CreateGlobalNotification(ctx, notificationsv1.GlobalNotification_builder{
+		Spec: notificationsv1.GlobalNotificationSpec_builder{
+			ByPermissions: notificationsv1.ByPermissions_builder{
+				RoleConditions: []*types.RoleConditions{
+					{
+						Rules: []types.Rule{
+							{
+								Resources: []string{types.KindAccessList},
+								Verbs:     services.RW(),
 							},
 						},
 					},
 				},
-			},
+			}.Build(),
 			// Exclude the list of owners so that they don't get a duplicate notification, since we already created a notification for them.
 			ExcludeUsers: owners,
-			Notification: &notificationsv1.Notification{
+			Notification: notificationsv1.Notification_builder{
 				Spec:    &notificationsv1.NotificationSpec{},
 				SubKind: subkind,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Labels: map[string]string{types.NotificationTitleLabel: title},
-				},
-			},
-		},
-	})
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return err
 	}
@@ -7847,12 +7839,12 @@ func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
 		LoadAllCAs:              a.loadAllCAs,
 		SignatureAlgorithmSuite: authPref.GetSignatureAlgorithmSuite(),
 		LicenseExpiry:           &licenseExpiry,
-		ScopesStatus:            scopesStatusFromFeatureFlag(),
+		ScopesStatus:            a.scopesStatusFromFeatureFlag(),
 	}, nil
 }
 
-func scopesStatusFromFeatureFlag() proto.ScopesStatus {
-	if scopes.FeatureEnabled() {
+func (a *Server) scopesStatusFromFeatureFlag() proto.ScopesStatus {
+	if a.scopesFeatures.Enabled {
 		return proto.ScopesStatus_SCOPES_STATUS_ENABLED
 	}
 	return proto.ScopesStatus_SCOPES_STATUS_DISABLED
@@ -8083,18 +8075,13 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 		if t.KubernetesCluster == "" {
 			return nil, trace.BadParameter("missing KubernetesCluster field in a kubernetes-only UserCertsRequest")
 		}
-		// Find the target cluster and check whether MFA is required.
-		svcs, err := a.GetKubernetesServers(ctx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
 		var cluster types.KubeCluster
-		for _, svc := range svcs {
-			kubeCluster := svc.GetCluster()
-			if kubeCluster.GetName() == t.KubernetesCluster {
-				cluster = kubeCluster
-				break
+		for server, err := range a.RangeKubernetesServersWithName(ctx, t.KubernetesCluster) {
+			if err != nil {
+				return nil, trace.Wrap(err)
 			}
+			cluster = server.GetCluster()
+			break
 		}
 		if cluster == nil {
 			return nil, trace.NotFound("kubernetes cluster %q not found", t.KubernetesCluster)
@@ -8125,15 +8112,18 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 		noMFAAccessErr = checker.CheckAccess(db, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
-		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
+		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+			WindowsDesktopFilter: types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()},
+			Limit:                1,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if len(desktops) == 0 {
+		if len(resp.Desktops) == 0 {
 			return nil, trace.NotFound("windows desktop %q not found", t.WindowsDesktop.GetWindowsDesktop())
 		}
 
-		noMFAAccessErr = checker.CheckAccess(desktops[0],
+		noMFAAccessErr = checker.CheckAccess(resp.Desktops[0],
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
@@ -8142,19 +8132,18 @@ func (a *Server) isMFARequired(ctx context.Context, scopedCtx *authz.ScopedConte
 			return nil, trace.BadParameter("missing Name field in an app-only UserCertsRequest")
 		}
 
-		servers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var app types.Application
+		for server, err := range a.RangeApplicationServersWithName(ctx, t.App.Name) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			app = server.GetApp()
+			break
 		}
-
-		i := slices.IndexFunc(servers, func(server types.AppServer) bool {
-			return server.GetApp().GetName() == t.App.Name
-		})
-		if i == -1 {
+		if app == nil {
 			return nil, trace.NotFound("application service %q not found", t.App.Name)
 		}
 
-		app := servers[i].GetApp()
 		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
 
 	default:

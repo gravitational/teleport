@@ -31,22 +31,22 @@ import (
 const testDownstreamID = services.DownstreamID("weyland-yutani")
 
 func newProvisioningPrincipalState(id string) *provisioningv1.PrincipalState {
-	return &provisioningv1.PrincipalState{
+	return provisioningv1.PrincipalState_builder{
 		Kind:    types.KindProvisioningPrincipalState,
 		SubKind: "",
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: id,
-		},
-		Spec: &provisioningv1.PrincipalStateSpec{
+		}.Build(),
+		Spec: provisioningv1.PrincipalStateSpec_builder{
 			DownstreamId:  string(testDownstreamID),
 			PrincipalType: provisioningv1.PrincipalType_PRINCIPAL_TYPE_USER,
 			PrincipalId:   id,
-		},
-		Status: &provisioningv1.PrincipalStateStatus{
+		}.Build(),
+		Status: provisioningv1.PrincipalStateStatus_builder{
 			ProvisioningState: provisioningv1.ProvisioningState_PROVISIONING_STATE_PROVISIONED,
-		},
-	}
+		}.Build(),
+	}.Build()
 }
 
 // TestProvisioningPrincipalState asserts that a ProvisioningPrincipalState can be cached

@@ -44,7 +44,8 @@ type Server struct {
 	Dir      string
 }
 
-// NewServer returns a new [Server].
+// NewServer returns a new [Server]. The agent getter must be safe to call
+// concurrently.
 func NewServer(agentClient ClientGetter) *Server {
 	return &Server{getAgent: agentClient}
 }
@@ -81,46 +82,35 @@ func (a *Server) Serve() error {
 	}
 
 	ctx := context.Background()
-	var tempDelay time.Duration // how long to sleep on accept failure
+	var tempDelay time.Duration // how long to sleep on temporary accept failure
 	for {
 		conn, err := a.listener.Accept()
 		if err != nil {
-			var neterr net.Error
-			if !errors.As(err, &neterr) {
-				return trace.Wrap(err, "unknown error")
+			// same logic as net/http.Server.Serve
+			if t := *new(interface{ Temporary() bool }); errors.As(err, &t) && t.Temporary() {
+				tempDelay = min(max(5*time.Millisecond, tempDelay*2), time.Second)
+				slog.ErrorContext(ctx, "Got temporary accept error, backing off", "delay_time", tempDelay.String(), "error", err)
+				time.Sleep(tempDelay)
+				continue
 			}
-			if utils.IsUseOfClosedNetworkError(neterr) {
+			if utils.IsUseOfClosedNetworkError(err) {
 				return nil
 			}
-			if !neterr.Timeout() {
-				slog.ErrorContext(ctx, "Got non-timeout error", "error", err)
-				return trace.Wrap(err)
-			}
-			if tempDelay == 0 {
-				tempDelay = 5 * time.Millisecond
-			} else {
-				tempDelay *= 2
-			}
-			if max := 1 * time.Second; tempDelay > max {
-				tempDelay = max
-			}
-			slog.ErrorContext(ctx, "Got timeout error - backing off", "delay_time", tempDelay, "error", err)
-			time.Sleep(tempDelay)
-			continue
+			return trace.Wrap(err)
 		}
 		tempDelay = 0
 
-		// get an agent instance for serving this conn
-		instance, err := a.getAgent()
-		if err != nil {
-			slog.ErrorContext(ctx, "Failed to get agent", "error", err)
-			return trace.Wrap(err)
-		}
-
-		// serve agent protocol against conn in a
-		// separate goroutine.
 		go func() {
+			defer conn.Close()
+
+			// get an agent instance for serving this conn
+			instance, err := a.getAgent()
+			if err != nil {
+				slog.ErrorContext(ctx, "Failed to get agent", "error", err)
+				return
+			}
 			defer instance.Close()
+
 			if err := agent.ServeAgent(instance, conn); err != nil && !errors.Is(err, io.EOF) {
 				slog.ErrorContext(ctx, "Serving agent terminated unexpectedly", "error", err)
 			}

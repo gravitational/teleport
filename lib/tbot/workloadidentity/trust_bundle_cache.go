@@ -743,7 +743,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				return
 			}
 
-			if existingBundle, ok := bundleSet.Federated[federation.Metadata.Name]; ok && existingBundle.Equal(bundle) {
+			if existingBundle, ok := bundleSet.Federated[federation.GetMetadata().GetName()]; ok && existingBundle.Equal(bundle) {
 				log.DebugContext(
 					ctx,
 					"Event resulted in no change to federated trust bundle, ignoring",
@@ -755,7 +755,7 @@ func (m *TrustBundleCache) processEvent(ctx context.Context, event types.Event) 
 				"Processed update for federated trust bundle",
 				"x509_authorities", len(bundle.X509Authorities()),
 			)
-			bundleSet.Federated[federation.Metadata.Name] = bundle
+			bundleSet.Federated[federation.GetMetadata().GetName()] = bundle
 			m.setBundleSet(bundleSet)
 		}
 	default:
@@ -783,11 +783,11 @@ func FetchInitialBundleSet(
 	bs := &BundleSet{
 		Federated: make(map[string]*spiffebundle.Bundle),
 	}
-	spiffeCA, err := trustClient.GetCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
+	spiffeCA, err := trustClient.GetCertAuthority(ctx, trustv1.GetCertAuthorityRequest_builder{
 		Type:       string(types.SPIFFECA),
 		Domain:     clusterName,
 		IncludeKey: false,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching spiffe CA")
 	}
@@ -796,11 +796,11 @@ func FetchInitialBundleSet(
 		return nil, trace.Wrap(err, "converting SPIFFE CA to trust bundle")
 	}
 
-	appClientCA, err := trustClient.GetCertAuthority(ctx, &trustv1.GetCertAuthorityRequest{
+	appClientCA, err := trustClient.GetCertAuthority(ctx, trustv1.GetCertAuthorityRequest_builder{
 		Type:       string(types.AppClientCA),
 		Domain:     clusterName,
 		IncludeKey: false,
-	})
+	}.Build())
 	switch {
 	case types.IsUnsupportedAuthorityErr(err) || trace.IsNotFound(err):
 		log.InfoContext(ctx, "AppClient CA not found, it won't be included into the trust bundle if necessary")
@@ -826,12 +826,12 @@ func FetchInitialBundleSet(
 				log.WarnContext(
 					ctx,
 					"Failed to convert SPIFFEFederation to trust bundle, it may not be ready yet",
-					"trust_domain", federation.GetMetadata().Name,
+					"trust_domain", federation.GetMetadata().GetName(),
 					"error", err,
 				)
 				continue
 			}
-			bs.Federated[federation.Metadata.Name] = bundle
+			bs.Federated[federation.GetMetadata().GetName()] = bundle
 		}
 	}
 
@@ -845,18 +845,18 @@ func listAllSPIFFEFederations(
 	var spiffeFeds []*machineidv1pb.SPIFFEFederation
 	var token string
 	for {
-		res, err := client.ListSPIFFEFederations(ctx, &machineidv1pb.ListSPIFFEFederationsRequest{
+		res, err := client.ListSPIFFEFederations(ctx, machineidv1pb.ListSPIFFEFederationsRequest_builder{
 			PageSize:  100,
 			PageToken: token,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err, "listing SPIFFEFederations")
 		}
-		spiffeFeds = append(spiffeFeds, res.SpiffeFederations...)
-		if res.NextPageToken == "" {
+		spiffeFeds = append(spiffeFeds, res.GetSpiffeFederations()...)
+		if res.GetNextPageToken() == "" {
 			break
 		}
-		token = res.NextPageToken
+		token = res.GetNextPageToken()
 	}
 	return spiffeFeds, nil
 }
@@ -904,19 +904,19 @@ func convertCAToBundle(ca types.CertAuthority) (*spiffebundle.Bundle, error) {
 func convertSPIFFEFederationToBundle(
 	federation *machineidv1pb.SPIFFEFederation,
 ) (*spiffebundle.Bundle, error) {
-	if federation.Status == nil {
+	if !federation.HasStatus() {
 		return nil, trace.BadParameter("federation missing status")
 	}
-	if federation.Status.CurrentBundle == "" {
+	if federation.GetStatus().GetCurrentBundle() == "" {
 		return nil, trace.BadParameter("federation missing status.current_bundle")
 	}
 
-	td, err := spiffeid.TrustDomainFromString(federation.Metadata.Name)
+	td, err := spiffeid.TrustDomainFromString(federation.GetMetadata().GetName())
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing trust domain name")
 	}
 
-	bundle, err := spiffebundle.Parse(td, []byte(federation.Status.CurrentBundle))
+	bundle, err := spiffebundle.Parse(td, []byte(federation.GetStatus().GetCurrentBundle()))
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing bundle")
 	}

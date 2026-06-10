@@ -21,6 +21,8 @@
 // 	protoc        (unknown)
 // source: accessgraph/v1alpha/netiq.proto
 
+//go:build !protoopaque
+
 package accessgraphv1alpha
 
 import (
@@ -28,7 +30,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -87,14 +88,9 @@ func (x RoleRecipientType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use RoleRecipientType.Descriptor instead.
-func (RoleRecipientType) EnumDescriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{0}
-}
-
 // NetIQResourceList is a request that contains resources to be sync.
 type NetIQResourceList struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// resources is a list of NetIQ resources to sync.
 	Resources     []*NetIQObject `protobuf:"bytes,1,rep,name=resources,proto3" json:"resources,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -126,11 +122,6 @@ func (x *NetIQResourceList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQResourceList.ProtoReflect.Descriptor instead.
-func (*NetIQResourceList) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *NetIQResourceList) GetResources() []*NetIQObject {
 	if x != nil {
 		return x.Resources
@@ -138,9 +129,28 @@ func (x *NetIQResourceList) GetResources() []*NetIQObject {
 	return nil
 }
 
+func (x *NetIQResourceList) SetResources(v []*NetIQObject) {
+	x.Resources = v
+}
+
+type NetIQResourceList_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// resources is a list of NetIQ resources to sync.
+	Resources []*NetIQObject
+}
+
+func (b0 NetIQResourceList_builder) Build() *NetIQResourceList {
+	m0 := &NetIQResourceList{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Resources = b.Resources
+	return m0
+}
+
 // NetIQObject represents a NetIQ resource
 type NetIQObject struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Types that are valid to be assigned to Object:
 	//
 	//	*NetIQObject_Group
@@ -179,11 +189,6 @@ func (x *NetIQObject) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NetIQObject.ProtoReflect.Descriptor instead.
-func (*NetIQObject) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *NetIQObject) GetObject() isNetIQObject_Object {
@@ -265,6 +270,293 @@ func (x *NetIQObject) GetRoleMemberRef() *NetIQMemberAssignmentRef {
 	return nil
 }
 
+func (x *NetIQObject) SetGroup(v *NetIQGroup) {
+	if v == nil {
+		x.Object = nil
+		return
+	}
+	x.Object = &NetIQObject_Group{v}
+}
+
+func (x *NetIQObject) SetGroupMember(v *NetIQGroupMember) {
+	if v == nil {
+		x.Object = nil
+		return
+	}
+	x.Object = &NetIQObject_GroupMember{v}
+}
+
+func (x *NetIQObject) SetResource(v *NetIQResource) {
+	if v == nil {
+		x.Object = nil
+		return
+	}
+	x.Object = &NetIQObject_Resource{v}
+}
+
+func (x *NetIQObject) SetRole(v *NetIQRole) {
+	if v == nil {
+		x.Object = nil
+		return
+	}
+	x.Object = &NetIQObject_Role{v}
+}
+
+func (x *NetIQObject) SetParentRoleRef(v *NetIQRoleRef) {
+	if v == nil {
+		x.Object = nil
+		return
+	}
+	x.Object = &NetIQObject_ParentRoleRef{v}
+}
+
+func (x *NetIQObject) SetUser(v *NetIQUser) {
+	if v == nil {
+		x.Object = nil
+		return
+	}
+	x.Object = &NetIQObject_User{v}
+}
+
+func (x *NetIQObject) SetResourceRoleRef(v *NetIQResourceAssignmentRef) {
+	if v == nil {
+		x.Object = nil
+		return
+	}
+	x.Object = &NetIQObject_ResourceRoleRef{v}
+}
+
+func (x *NetIQObject) SetRoleMemberRef(v *NetIQMemberAssignmentRef) {
+	if v == nil {
+		x.Object = nil
+		return
+	}
+	x.Object = &NetIQObject_RoleMemberRef{v}
+}
+
+func (x *NetIQObject) HasObject() bool {
+	if x == nil {
+		return false
+	}
+	return x.Object != nil
+}
+
+func (x *NetIQObject) HasGroup() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Object.(*NetIQObject_Group)
+	return ok
+}
+
+func (x *NetIQObject) HasGroupMember() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Object.(*NetIQObject_GroupMember)
+	return ok
+}
+
+func (x *NetIQObject) HasResource() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Object.(*NetIQObject_Resource)
+	return ok
+}
+
+func (x *NetIQObject) HasRole() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Object.(*NetIQObject_Role)
+	return ok
+}
+
+func (x *NetIQObject) HasParentRoleRef() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Object.(*NetIQObject_ParentRoleRef)
+	return ok
+}
+
+func (x *NetIQObject) HasUser() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Object.(*NetIQObject_User)
+	return ok
+}
+
+func (x *NetIQObject) HasResourceRoleRef() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Object.(*NetIQObject_ResourceRoleRef)
+	return ok
+}
+
+func (x *NetIQObject) HasRoleMemberRef() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Object.(*NetIQObject_RoleMemberRef)
+	return ok
+}
+
+func (x *NetIQObject) ClearObject() {
+	x.Object = nil
+}
+
+func (x *NetIQObject) ClearGroup() {
+	if _, ok := x.Object.(*NetIQObject_Group); ok {
+		x.Object = nil
+	}
+}
+
+func (x *NetIQObject) ClearGroupMember() {
+	if _, ok := x.Object.(*NetIQObject_GroupMember); ok {
+		x.Object = nil
+	}
+}
+
+func (x *NetIQObject) ClearResource() {
+	if _, ok := x.Object.(*NetIQObject_Resource); ok {
+		x.Object = nil
+	}
+}
+
+func (x *NetIQObject) ClearRole() {
+	if _, ok := x.Object.(*NetIQObject_Role); ok {
+		x.Object = nil
+	}
+}
+
+func (x *NetIQObject) ClearParentRoleRef() {
+	if _, ok := x.Object.(*NetIQObject_ParentRoleRef); ok {
+		x.Object = nil
+	}
+}
+
+func (x *NetIQObject) ClearUser() {
+	if _, ok := x.Object.(*NetIQObject_User); ok {
+		x.Object = nil
+	}
+}
+
+func (x *NetIQObject) ClearResourceRoleRef() {
+	if _, ok := x.Object.(*NetIQObject_ResourceRoleRef); ok {
+		x.Object = nil
+	}
+}
+
+func (x *NetIQObject) ClearRoleMemberRef() {
+	if _, ok := x.Object.(*NetIQObject_RoleMemberRef); ok {
+		x.Object = nil
+	}
+}
+
+const NetIQObject_Object_not_set_case case_NetIQObject_Object = 0
+const NetIQObject_Group_case case_NetIQObject_Object = 1
+const NetIQObject_GroupMember_case case_NetIQObject_Object = 2
+const NetIQObject_Resource_case case_NetIQObject_Object = 3
+const NetIQObject_Role_case case_NetIQObject_Object = 4
+const NetIQObject_ParentRoleRef_case case_NetIQObject_Object = 5
+const NetIQObject_User_case case_NetIQObject_Object = 6
+const NetIQObject_ResourceRoleRef_case case_NetIQObject_Object = 7
+const NetIQObject_RoleMemberRef_case case_NetIQObject_Object = 8
+
+func (x *NetIQObject) WhichObject() case_NetIQObject_Object {
+	if x == nil {
+		return NetIQObject_Object_not_set_case
+	}
+	switch x.Object.(type) {
+	case *NetIQObject_Group:
+		return NetIQObject_Group_case
+	case *NetIQObject_GroupMember:
+		return NetIQObject_GroupMember_case
+	case *NetIQObject_Resource:
+		return NetIQObject_Resource_case
+	case *NetIQObject_Role:
+		return NetIQObject_Role_case
+	case *NetIQObject_ParentRoleRef:
+		return NetIQObject_ParentRoleRef_case
+	case *NetIQObject_User:
+		return NetIQObject_User_case
+	case *NetIQObject_ResourceRoleRef:
+		return NetIQObject_ResourceRoleRef_case
+	case *NetIQObject_RoleMemberRef:
+		return NetIQObject_RoleMemberRef_case
+	default:
+		return NetIQObject_Object_not_set_case
+	}
+}
+
+type NetIQObject_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Fields of oneof Object:
+	// group represents a NetIQ group in an organization.
+	Group *NetIQGroup
+	// group_member represents a NetIQ group member.
+	GroupMember *NetIQGroupMember
+	// resource represents a NetIQ resource.
+	Resource *NetIQResource
+	// role represents a role with certain access levels to a resource.
+	Role *NetIQRole
+	// parent_role_ref represents a parent relationship between roles.
+	ParentRoleRef *NetIQRoleRef
+	// user represents a NetIQ user.
+	User *NetIQUser
+	// resource_role_ref represents a resource assignment to a role.
+	ResourceRoleRef *NetIQResourceAssignmentRef
+	// role_member_ref represents a member being member of a role.
+	RoleMemberRef *NetIQMemberAssignmentRef
+	// -- end of Object
+}
+
+func (b0 NetIQObject_builder) Build() *NetIQObject {
+	m0 := &NetIQObject{}
+	b, x := &b0, m0
+	_, _ = b, x
+	if b.Group != nil {
+		x.Object = &NetIQObject_Group{b.Group}
+	}
+	if b.GroupMember != nil {
+		x.Object = &NetIQObject_GroupMember{b.GroupMember}
+	}
+	if b.Resource != nil {
+		x.Object = &NetIQObject_Resource{b.Resource}
+	}
+	if b.Role != nil {
+		x.Object = &NetIQObject_Role{b.Role}
+	}
+	if b.ParentRoleRef != nil {
+		x.Object = &NetIQObject_ParentRoleRef{b.ParentRoleRef}
+	}
+	if b.User != nil {
+		x.Object = &NetIQObject_User{b.User}
+	}
+	if b.ResourceRoleRef != nil {
+		x.Object = &NetIQObject_ResourceRoleRef{b.ResourceRoleRef}
+	}
+	if b.RoleMemberRef != nil {
+		x.Object = &NetIQObject_RoleMemberRef{b.RoleMemberRef}
+	}
+	return m0
+}
+
+type case_NetIQObject_Object protoreflect.FieldNumber
+
+func (x case_NetIQObject_Object) String() string {
+	md := file_accessgraph_v1alpha_netiq_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isNetIQObject_Object interface {
 	isNetIQObject_Object()
 }
@@ -327,7 +619,7 @@ func (*NetIQObject_RoleMemberRef) isNetIQObject_Object() {}
 
 // NetIQGroup represents a NetIQ group
 type NetIQGroup struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the group name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// id is the universal identifier for the group.
@@ -363,11 +655,6 @@ func (x *NetIQGroup) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQGroup.ProtoReflect.Descriptor instead.
-func (*NetIQGroup) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *NetIQGroup) GetName() string {
 	if x != nil {
 		return x.Name
@@ -389,9 +676,42 @@ func (x *NetIQGroup) GetDescription() string {
 	return ""
 }
 
+func (x *NetIQGroup) SetName(v string) {
+	x.Name = v
+}
+
+func (x *NetIQGroup) SetId(v string) {
+	x.Id = v
+}
+
+func (x *NetIQGroup) SetDescription(v string) {
+	x.Description = v
+}
+
+type NetIQGroup_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the group name.
+	Name string
+	// id is the universal identifier for the group.
+	Id string
+	// description is the group description.
+	Description string
+}
+
+func (b0 NetIQGroup_builder) Build() *NetIQGroup {
+	m0 := &NetIQGroup{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Id = b.Id
+	x.Description = b.Description
+	return m0
+}
+
 // NetIQGroupMember represents a NetIQ group member
 type NetIQGroupMember struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// group_id is the group id.
 	GroupId string `protobuf:"bytes,1,opt,name=group_id,json=groupId,proto3" json:"group_id,omitempty"`
 	// user_id is the universal identifier for the user.
@@ -427,11 +747,6 @@ func (x *NetIQGroupMember) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQGroupMember.ProtoReflect.Descriptor instead.
-func (*NetIQGroupMember) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *NetIQGroupMember) GetGroupId() string {
 	if x != nil {
 		return x.GroupId
@@ -453,9 +768,42 @@ func (x *NetIQGroupMember) GetIsGroupAssignment() bool {
 	return false
 }
 
+func (x *NetIQGroupMember) SetGroupId(v string) {
+	x.GroupId = v
+}
+
+func (x *NetIQGroupMember) SetUserId(v string) {
+	x.UserId = v
+}
+
+func (x *NetIQGroupMember) SetIsGroupAssignment(v bool) {
+	x.IsGroupAssignment = v
+}
+
+type NetIQGroupMember_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// group_id is the group id.
+	GroupId string
+	// user_id is the universal identifier for the user.
+	UserId string
+	// is_group_assignment is a flag that determines whether the member is a group assignment.
+	IsGroupAssignment bool
+}
+
+func (b0 NetIQGroupMember_builder) Build() *NetIQGroupMember {
+	m0 := &NetIQGroupMember{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.GroupId = b.GroupId
+	x.UserId = b.UserId
+	x.IsGroupAssignment = b.IsGroupAssignment
+	return m0
+}
+
 // NetIQResource represents a NetIQ resource
 type NetIQResource struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the resource name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// id is the universal identifier for the resource.
@@ -493,11 +841,6 @@ func (x *NetIQResource) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQResource.ProtoReflect.Descriptor instead.
-func (*NetIQResource) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *NetIQResource) GetName() string {
 	if x != nil {
 		return x.Name
@@ -526,9 +869,49 @@ func (x *NetIQResource) GetCategories() []*NetIQCategory {
 	return nil
 }
 
+func (x *NetIQResource) SetName(v string) {
+	x.Name = v
+}
+
+func (x *NetIQResource) SetId(v string) {
+	x.Id = v
+}
+
+func (x *NetIQResource) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *NetIQResource) SetCategories(v []*NetIQCategory) {
+	x.Categories = v
+}
+
+type NetIQResource_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the resource name.
+	Name string
+	// id is the universal identifier for the resource.
+	Id string
+	// description is the project description.
+	Description string
+	// categories is the list of categories the resource belongs to.
+	Categories []*NetIQCategory
+}
+
+func (b0 NetIQResource_builder) Build() *NetIQResource {
+	m0 := &NetIQResource{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Id = b.Id
+	x.Description = b.Description
+	x.Categories = b.Categories
+	return m0
+}
+
 // NetIQCategory is a resource category.
 type NetIQCategory struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the resource name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// id is the universal identifier for the category.
@@ -562,11 +945,6 @@ func (x *NetIQCategory) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQCategory.ProtoReflect.Descriptor instead.
-func (*NetIQCategory) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *NetIQCategory) GetName() string {
 	if x != nil {
 		return x.Name
@@ -581,9 +959,35 @@ func (x *NetIQCategory) GetId() string {
 	return ""
 }
 
+func (x *NetIQCategory) SetName(v string) {
+	x.Name = v
+}
+
+func (x *NetIQCategory) SetId(v string) {
+	x.Id = v
+}
+
+type NetIQCategory_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the resource name.
+	Name string
+	// id is the universal identifier for the category.
+	Id string
+}
+
+func (b0 NetIQCategory_builder) Build() *NetIQCategory {
+	m0 := &NetIQCategory{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Id = b.Id
+	return m0
+}
+
 // NetIQRole represents a NetIQ role
 type NetIQRole struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the resource name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// id is the universal identifier for the role.
@@ -622,11 +1026,6 @@ func (x *NetIQRole) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQRole.ProtoReflect.Descriptor instead.
-func (*NetIQRole) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *NetIQRole) GetName() string {
 	if x != nil {
 		return x.Name
@@ -662,9 +1061,66 @@ func (x *NetIQRole) GetLevel() *NetIQRole_RoleLevel {
 	return nil
 }
 
+func (x *NetIQRole) SetName(v string) {
+	x.Name = v
+}
+
+func (x *NetIQRole) SetId(v string) {
+	x.Id = v
+}
+
+func (x *NetIQRole) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *NetIQRole) SetCategories(v []*NetIQCategory) {
+	x.Categories = v
+}
+
+func (x *NetIQRole) SetLevel(v *NetIQRole_RoleLevel) {
+	x.Level = v
+}
+
+func (x *NetIQRole) HasLevel() bool {
+	if x == nil {
+		return false
+	}
+	return x.Level != nil
+}
+
+func (x *NetIQRole) ClearLevel() {
+	x.Level = nil
+}
+
+type NetIQRole_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the resource name.
+	Name string
+	// id is the universal identifier for the role.
+	Id string
+	// description is the project description.
+	Description string
+	// categories is the list of categories the resource belongs to.
+	Categories []*NetIQCategory
+	Level      *NetIQRole_RoleLevel
+}
+
+func (b0 NetIQRole_builder) Build() *NetIQRole {
+	m0 := &NetIQRole{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Id = b.Id
+	x.Description = b.Description
+	x.Categories = b.Categories
+	x.Level = b.Level
+	return m0
+}
+
 // NetIQRoleRef represents a NetIQ Role reference.
 type NetIQRoleRef struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// child_role_id is the group id of a role that is a child role of parent_role_id.
 	ChildRoleId string `protobuf:"bytes,1,opt,name=child_role_id,json=childRoleId,proto3" json:"child_role_id,omitempty"`
 	// parent_role_id is the universal identifier for the role that is parent to child_role_id.
@@ -702,11 +1158,6 @@ func (x *NetIQRoleRef) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQRoleRef.ProtoReflect.Descriptor instead.
-func (*NetIQRoleRef) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *NetIQRoleRef) GetChildRoleId() string {
 	if x != nil {
 		return x.ChildRoleId
@@ -735,9 +1186,49 @@ func (x *NetIQRoleRef) GetRequestDescription() string {
 	return ""
 }
 
+func (x *NetIQRoleRef) SetChildRoleId(v string) {
+	x.ChildRoleId = v
+}
+
+func (x *NetIQRoleRef) SetParentRoleId(v string) {
+	x.ParentRoleId = v
+}
+
+func (x *NetIQRoleRef) SetLevel(v int32) {
+	x.Level = v
+}
+
+func (x *NetIQRoleRef) SetRequestDescription(v string) {
+	x.RequestDescription = v
+}
+
+type NetIQRoleRef_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// child_role_id is the group id of a role that is a child role of parent_role_id.
+	ChildRoleId string
+	// parent_role_id is the universal identifier for the role that is parent to child_role_id.
+	ParentRoleId string
+	// level is the level of the role.
+	Level int32
+	// request_description is the description of the request.
+	RequestDescription string
+}
+
+func (b0 NetIQRoleRef_builder) Build() *NetIQRoleRef {
+	m0 := &NetIQRoleRef{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ChildRoleId = b.ChildRoleId
+	x.ParentRoleId = b.ParentRoleId
+	x.Level = b.Level
+	x.RequestDescription = b.RequestDescription
+	return m0
+}
+
 // NetIQUser represents a NetIQ user.
 type NetIQUser struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// id is the id of the user.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// email is the user's email.
@@ -775,11 +1266,6 @@ func (x *NetIQUser) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQUser.ProtoReflect.Descriptor instead.
-func (*NetIQUser) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *NetIQUser) GetId() string {
 	if x != nil {
 		return x.Id
@@ -808,9 +1294,49 @@ func (x *NetIQUser) GetIsDisabled() bool {
 	return false
 }
 
+func (x *NetIQUser) SetId(v string) {
+	x.Id = v
+}
+
+func (x *NetIQUser) SetEmail(v string) {
+	x.Email = v
+}
+
+func (x *NetIQUser) SetName(v string) {
+	x.Name = v
+}
+
+func (x *NetIQUser) SetIsDisabled(v bool) {
+	x.IsDisabled = v
+}
+
+type NetIQUser_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// id is the id of the user.
+	Id string
+	// email is the user's email.
+	Email string
+	// name is the user's name.
+	Name string
+	// is_disabled indicates if a user is disabled.
+	IsDisabled bool
+}
+
+func (b0 NetIQUser_builder) Build() *NetIQUser {
+	m0 := &NetIQUser{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Email = b.Email
+	x.Name = b.Name
+	x.IsDisabled = b.IsDisabled
+	return m0
+}
+
 // NetIQResourceAssignmentRef represents a NetIQ resource assignment reference.
 type NetIQResourceAssignmentRef struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// role_id is the group id of a role that is assigned to resource_id.
 	RoleId string `protobuf:"bytes,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
 	// resource_id is the universal identifier for the resource that is assigned to role_id.
@@ -850,11 +1376,6 @@ func (x *NetIQResourceAssignmentRef) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQResourceAssignmentRef.ProtoReflect.Descriptor instead.
-func (*NetIQResourceAssignmentRef) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *NetIQResourceAssignmentRef) GetRoleId() string {
 	if x != nil {
 		return x.RoleId
@@ -890,9 +1411,56 @@ func (x *NetIQResourceAssignmentRef) GetEntitlements() []*Entitlement {
 	return nil
 }
 
+func (x *NetIQResourceAssignmentRef) SetRoleId(v string) {
+	x.RoleId = v
+}
+
+func (x *NetIQResourceAssignmentRef) SetResourceId(v string) {
+	x.ResourceId = v
+}
+
+func (x *NetIQResourceAssignmentRef) SetMappingDescription(v string) {
+	x.MappingDescription = v
+}
+
+func (x *NetIQResourceAssignmentRef) SetStatusCode(v uint32) {
+	x.StatusCode = v
+}
+
+func (x *NetIQResourceAssignmentRef) SetEntitlements(v []*Entitlement) {
+	x.Entitlements = v
+}
+
+type NetIQResourceAssignmentRef_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// role_id is the group id of a role that is assigned to resource_id.
+	RoleId string
+	// resource_id is the universal identifier for the resource that is assigned to role_id.
+	ResourceId string
+	// mapping_description is the description of the mapping.
+	MappingDescription string
+	// status_code is the status code of the role assignment.
+	StatusCode uint32
+	// entitlements is the list of entitlement values associated with the resource.
+	Entitlements []*Entitlement
+}
+
+func (b0 NetIQResourceAssignmentRef_builder) Build() *NetIQResourceAssignmentRef {
+	m0 := &NetIQResourceAssignmentRef{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RoleId = b.RoleId
+	x.ResourceId = b.ResourceId
+	x.MappingDescription = b.MappingDescription
+	x.StatusCode = b.StatusCode
+	x.Entitlements = b.Entitlements
+	return m0
+}
+
 // Entitlement represents an entitlement value in the Identity Vault.
 type Entitlement struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// id is the unique identifier of the resource.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// name is the name of the resource.
@@ -928,11 +1496,6 @@ func (x *Entitlement) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Entitlement.ProtoReflect.Descriptor instead.
-func (*Entitlement) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *Entitlement) GetId() string {
 	if x != nil {
 		return x.Id
@@ -954,9 +1517,42 @@ func (x *Entitlement) GetValue() string {
 	return ""
 }
 
+func (x *Entitlement) SetId(v string) {
+	x.Id = v
+}
+
+func (x *Entitlement) SetName(v string) {
+	x.Name = v
+}
+
+func (x *Entitlement) SetValue(v string) {
+	x.Value = v
+}
+
+type Entitlement_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// id is the unique identifier of the resource.
+	Id string
+	// name is the name of the resource.
+	Name string
+	// value is the value of the entitlement.
+	Value string
+}
+
+func (b0 Entitlement_builder) Build() *Entitlement {
+	m0 := &Entitlement{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Name = b.Name
+	x.Value = b.Value
+	return m0
+}
+
 // NetIQMemberAssignmentRef represents a NetIQ resource assignment reference.
 type NetIQMemberAssignmentRef struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// role_id is the group id of a role that user_id is member of.
 	RoleId string `protobuf:"bytes,1,opt,name=role_id,json=roleId,proto3" json:"role_id,omitempty"`
 	// dn is the universal identifier for the user that is member of role_id.
@@ -1004,11 +1600,6 @@ func (x *NetIQMemberAssignmentRef) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use NetIQMemberAssignmentRef.ProtoReflect.Descriptor instead.
-func (*NetIQMemberAssignmentRef) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *NetIQMemberAssignmentRef) GetRoleId() string {
@@ -1081,9 +1672,113 @@ func (x *NetIQMemberAssignmentRef) GetGrant() bool {
 	return false
 }
 
+func (x *NetIQMemberAssignmentRef) SetRoleId(v string) {
+	x.RoleId = v
+}
+
+func (x *NetIQMemberAssignmentRef) SetDn(v string) {
+	x.Dn = v
+}
+
+func (x *NetIQMemberAssignmentRef) SetRecipientType(v RoleRecipientType) {
+	x.RecipientType = v
+}
+
+func (x *NetIQMemberAssignmentRef) SetRecipientTypeSubcontainer(v string) {
+	x.RecipientTypeSubcontainer = v
+}
+
+func (x *NetIQMemberAssignmentRef) SetStatusCode(v uint32) {
+	x.StatusCode = v
+}
+
+func (x *NetIQMemberAssignmentRef) SetStatusDisplay(v string) {
+	x.StatusDisplay = v
+}
+
+func (x *NetIQMemberAssignmentRef) SetEffectiveDate(v *timestamppb.Timestamp) {
+	x.EffectiveDate = v
+}
+
+func (x *NetIQMemberAssignmentRef) SetExpiryDate(v *timestamppb.Timestamp) {
+	x.ExpiryDate = v
+}
+
+func (x *NetIQMemberAssignmentRef) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *NetIQMemberAssignmentRef) SetGrant(v bool) {
+	x.Grant = v
+}
+
+func (x *NetIQMemberAssignmentRef) HasEffectiveDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.EffectiveDate != nil
+}
+
+func (x *NetIQMemberAssignmentRef) HasExpiryDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.ExpiryDate != nil
+}
+
+func (x *NetIQMemberAssignmentRef) ClearEffectiveDate() {
+	x.EffectiveDate = nil
+}
+
+func (x *NetIQMemberAssignmentRef) ClearExpiryDate() {
+	x.ExpiryDate = nil
+}
+
+type NetIQMemberAssignmentRef_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// role_id is the group id of a role that user_id is member of.
+	RoleId string
+	// dn is the universal identifier for the user that is member of role_id.
+	Dn string
+	// recipient_type identifies the recipient provenance.
+	RecipientType RoleRecipientType
+	// recipient_type_subcontainer is the sub container of the recipient type.
+	RecipientTypeSubcontainer string
+	// status_code is the status code of the role assignment.
+	StatusCode uint32
+	// StatusDstatus_displayisplay is the display of the status.
+	StatusDisplay string
+	// effective_date is the effective date of the role assignment.
+	EffectiveDate *timestamppb.Timestamp
+	// expiry_date is the expiry date of the role assignment.
+	ExpiryDate *timestamppb.Timestamp
+	// description is the description of the role assignment.
+	Description string
+	// grant is a flag that determines whether the role assignment is granted.
+	Grant bool
+}
+
+func (b0 NetIQMemberAssignmentRef_builder) Build() *NetIQMemberAssignmentRef {
+	m0 := &NetIQMemberAssignmentRef{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RoleId = b.RoleId
+	x.Dn = b.Dn
+	x.RecipientType = b.RecipientType
+	x.RecipientTypeSubcontainer = b.RecipientTypeSubcontainer
+	x.StatusCode = b.StatusCode
+	x.StatusDisplay = b.StatusDisplay
+	x.EffectiveDate = b.EffectiveDate
+	x.ExpiryDate = b.ExpiryDate
+	x.Description = b.Description
+	x.Grant = b.Grant
+	return m0
+}
+
 // RoleLevel represents the role level.
 type NetIQRole_RoleLevel struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the role level.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// level is the level of the role level.
@@ -1119,11 +1814,6 @@ func (x *NetIQRole_RoleLevel) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use NetIQRole_RoleLevel.ProtoReflect.Descriptor instead.
-func (*NetIQRole_RoleLevel) Descriptor() ([]byte, []int) {
-	return file_accessgraph_v1alpha_netiq_proto_rawDescGZIP(), []int{6, 0}
-}
-
 func (x *NetIQRole_RoleLevel) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1143,6 +1833,39 @@ func (x *NetIQRole_RoleLevel) GetCn() string {
 		return x.Cn
 	}
 	return ""
+}
+
+func (x *NetIQRole_RoleLevel) SetName(v string) {
+	x.Name = v
+}
+
+func (x *NetIQRole_RoleLevel) SetLevel(v int32) {
+	x.Level = v
+}
+
+func (x *NetIQRole_RoleLevel) SetCn(v string) {
+	x.Cn = v
+}
+
+type NetIQRole_RoleLevel_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the role level.
+	Name string
+	// level is the level of the role level.
+	Level int32
+	// cn is the common name.
+	Cn string
+}
+
+func (b0 NetIQRole_RoleLevel_builder) Build() *NetIQRole_RoleLevel {
+	m0 := &NetIQRole_RoleLevel{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Level = b.Level
+	x.Cn = b.Cn
+	return m0
 }
 
 var File_accessgraph_v1alpha_netiq_proto protoreflect.FileDescriptor
@@ -1234,18 +1957,6 @@ const file_accessgraph_v1alpha_netiq_proto_rawDesc = "" +
 	"\x1fROLE_RECIPIENT_TYPE_UNSPECIFIED\x10\x00\x12\x1c\n" +
 	"\x18ROLE_RECIPIENT_TYPE_USER\x10\x01\x12\x1d\n" +
 	"\x19ROLE_RECIPIENT_TYPE_GROUP\x10\x02BWZUgithub.com/gravitational/teleport/gen/proto/go/accessgraph/v1alpha;accessgraphv1alphab\x06proto3"
-
-var (
-	file_accessgraph_v1alpha_netiq_proto_rawDescOnce sync.Once
-	file_accessgraph_v1alpha_netiq_proto_rawDescData []byte
-)
-
-func file_accessgraph_v1alpha_netiq_proto_rawDescGZIP() []byte {
-	file_accessgraph_v1alpha_netiq_proto_rawDescOnce.Do(func() {
-		file_accessgraph_v1alpha_netiq_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_accessgraph_v1alpha_netiq_proto_rawDesc), len(file_accessgraph_v1alpha_netiq_proto_rawDesc)))
-	})
-	return file_accessgraph_v1alpha_netiq_proto_rawDescData
-}
 
 var file_accessgraph_v1alpha_netiq_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_accessgraph_v1alpha_netiq_proto_msgTypes = make([]protoimpl.MessageInfo, 13)

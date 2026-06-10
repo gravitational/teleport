@@ -51,12 +51,14 @@ export function Welcome({ NewCredentials }: WelcomeProps) {
     history.push(cfg.getUserResetTokenContinueRoute(tokenId));
   };
 
+  const productName = cfg.getBeamsUi() ? 'Beams' : 'Teleport';
+
   return (
     <Switch>
       <Route exact path={cfg.routes.userInvite}>
         <WelcomeWrapper>
           <CardWelcome
-            title="Welcome to Teleport"
+            title={`Welcome to ${productName}`}
             subTitle="Please click the button below to create an account"
             btnText="Get started"
             onClick={handleOnInviteContinue}

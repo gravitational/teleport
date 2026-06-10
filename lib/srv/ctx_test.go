@@ -27,9 +27,11 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshca"
 )
@@ -49,33 +51,33 @@ func TestCheckSFTPAllowed(t *testing.T) {
 		{
 			name:                 "node disallowed",
 			nodeAllowFileCopying: false,
-			permit: &decisionpb.SSHAccessPermit{
+			permit: decisionpb.SSHAccessPermit_builder{
 				SshFileCopy: true,
-			},
+			}.Build(),
 			expectedErr: ErrNodeFileCopyingNotPermitted,
 		},
 		{
 			name:                 "node allowed",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
+			permit: decisionpb.SSHAccessPermit_builder{
 				SshFileCopy: true,
-			},
+			}.Build(),
 			expectedErr: nil,
 		},
 		{
 			name:                 "role disallowed",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
+			permit: decisionpb.SSHAccessPermit_builder{
 				SshFileCopy: false,
-			},
+			}.Build(),
 			expectedErr: errRoleFileCopyingNotPermitted,
 		},
 		{
 			name:                 "role allowed",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
+			permit: decisionpb.SSHAccessPermit_builder{
 				SshFileCopy: true,
-			},
+			}.Build(),
 			expectedErr: nil,
 		},
 		{
@@ -97,9 +99,9 @@ func TestCheckSFTPAllowed(t *testing.T) {
 		{
 			name:                 "moderated sessions enforced",
 			nodeAllowFileCopying: true,
-			permit: &decisionpb.SSHAccessPermit{
+			permit: decisionpb.SSHAccessPermit_builder{
 				SshFileCopy: true,
-			},
+			}.Build(),
 			sessionPolicies: []*types.SessionRequirePolicy{
 				{
 					Name:   "test",
@@ -219,6 +221,76 @@ func TestIdentityContext_GetUserMetadata(t *testing.T) {
 				UserKind:      apievents.UserKind_USER_KIND_BOT,
 				BotName:       "alpaca",
 				BotInstanceID: "123-123-123",
+			},
+		},
+		{
+			name: "scoped user metadata",
+			idCtx: IdentityContext{
+				TeleportUser: "alpaca",
+				Login:        "alpaca1",
+				UnmappedIdentity: &sshca.Identity{
+					ScopePin: scopesv1.Pin_builder{
+						Kind:  scopesv1.PinKind_PIN_KIND_USER,
+						Scope: "/staging",
+						AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+							"/staging": {
+								"/staging":       {"staging-admin"},
+								"/staging/blue":  {"staging-access"},
+								"/staging/green": {"staging-access"},
+							},
+						}),
+					}.Build(),
+				},
+			},
+			want: apievents.UserMetadata{
+				User:     "alpaca",
+				Login:    "alpaca1",
+				UserKind: apievents.UserKind_USER_KIND_HUMAN,
+				ScopePin: &apievents.ScopePin{
+					Scope: "/staging",
+					Assignments: map[string]*apievents.ScopePinnedAssignments{
+						"/staging":       {Roles: []string{"staging-admin"}},
+						"/staging/blue":  {Roles: []string{"staging-access"}},
+						"/staging/green": {Roles: []string{"staging-access"}},
+					},
+				},
+			},
+		},
+		{
+			name: "scoped bot metadata",
+			idCtx: IdentityContext{
+				TeleportUser:  "bot-alpaca",
+				Login:         "alpaca1",
+				BotName:       "alpaca",
+				BotInstanceID: "123-123-123",
+				UnmappedIdentity: &sshca.Identity{
+					ScopePin: scopesv1.Pin_builder{
+						Kind:  scopesv1.PinKind_PIN_KIND_USER,
+						Scope: "/staging",
+						AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+							"/staging": {
+								"/staging":       {"staging-admin"},
+								"/staging/blue":  {"staging-access"},
+								"/staging/green": {"staging-access"},
+							},
+						}),
+					}.Build(),
+				},
+			},
+			want: apievents.UserMetadata{
+				User:          "bot-alpaca",
+				Login:         "alpaca1",
+				UserKind:      apievents.UserKind_USER_KIND_BOT,
+				BotName:       "alpaca",
+				BotInstanceID: "123-123-123",
+				ScopePin: &apievents.ScopePin{
+					Scope: "/staging",
+					Assignments: map[string]*apievents.ScopePinnedAssignments{
+						"/staging":       {Roles: []string{"staging-admin"}},
+						"/staging/blue":  {Roles: []string{"staging-access"}},
+						"/staging/green": {Roles: []string{"staging-access"}},
+					},
+				},
 			},
 		},
 	}

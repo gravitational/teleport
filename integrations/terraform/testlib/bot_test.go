@@ -268,11 +268,9 @@ func (s *TerraformSuiteOSS) TestImportBot() {
 	})
 }
 
-func (s *TerraformSuiteOSS) TestBotWithScope() {
+func (s *TerraformSuiteOSSScopedResources) TestBotWithScope() {
 	t := s.T()
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+	ctx := t.Context()
 
 	checkResourcesDestroyed := func(state *terraform.State) error {
 		var errs []error

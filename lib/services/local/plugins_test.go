@@ -27,10 +27,12 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
 )
 
@@ -323,4 +325,83 @@ func TestPlugins_validate_okta(t *testing.T) {
 			tt.requireErrFn(t, err, "UpdatePlugin")
 		})
 	}
+}
+
+func TestPlugins_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+	service := NewPluginsService(mem)
+
+	createApp := func(name string) {
+		dummyStaticCreds := &types.PluginCredentialsV1{
+			Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+				StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+					Labels: map[string]string{"test_cred_label_1": "test_cred_value_1"},
+				},
+			},
+		}
+
+		plugin := types.NewPluginV1(types.Metadata{Name: name}, types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Okta{
+				Okta: &types.PluginOktaSettings{
+					OrgUrl: "https://my.okta.org.example.com",
+				},
+			},
+		}, nil)
+		require.NoError(t, err)
+
+		plugin.Credentials = dummyStaticCreds
+
+		err = service.CreatePlugin(ctx, plugin)
+		require.NoError(t, err)
+	}
+
+	createMalformedApp := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(pluginsPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedApp(key)
+		} else {
+			createApp(key)
+		}
+	}
+
+	page1, next, err := service.ListPlugins(ctx, pageLimit, "", false)
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListPlugins(ctx, pageLimit, next, false)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListPlugins(ctx, pageLimit, next, false)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	slices := [][]types.Plugin{page1, page2, page3}
+	for i := range len(slices) {
+		for j := i + 1; j < len(slices); j++ {
+			assert.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
+		}
+	}
+
 }

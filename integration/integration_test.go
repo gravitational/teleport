@@ -311,17 +311,17 @@ func testAuthLocalNodeControlStream(t *testing.T, suite *integrationTestSuite) {
 	var nodeID string
 	// verify node control stream registers, extracting the id.
 	require.Eventually(t, func() bool {
-		status, err := clt.GetInventoryStatus(context.Background(), &proto.InventoryStatusRequest{
+		status, err := clt.GetInventoryStatus(context.Background(), proto.InventoryStatusRequest_builder{
 			Connected: true,
-		})
+		}.Build())
 		require.NoError(t, err)
 
-		for _, hello := range status.Connected {
-			for _, s := range hello.Services {
+		for _, hello := range status.GetConnected() {
+			for _, s := range hello.GetServices() {
 				if s != string(types.RoleNode) {
 					continue
 				}
-				nodeID = hello.ServerID
+				nodeID = hello.GetServerID()
 				return true
 			}
 		}

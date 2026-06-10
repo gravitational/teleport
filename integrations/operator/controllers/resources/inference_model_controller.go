@@ -40,13 +40,13 @@ func (c inferenceModelClient) Get(
 	ctx context.Context, name string,
 ) (*summarizerv1.InferenceModel, error) {
 	resp, err := c.teleportClient.SummarizerServiceClient().GetInferenceModel(
-		ctx, &summarizerv1.GetInferenceModelRequest{Name: name},
+		ctx, summarizerv1.GetInferenceModelRequest_builder{Name: name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return resp.Model, nil
+	return resp.GetModel(), nil
 }
 
 // Create creates an inference model in Teleport.
@@ -54,7 +54,7 @@ func (c inferenceModelClient) Create(
 	ctx context.Context, model *summarizerv1.InferenceModel,
 ) error {
 	_, err := c.teleportClient.SummarizerServiceClient().CreateInferenceModel(
-		ctx, &summarizerv1.CreateInferenceModelRequest{Model: model},
+		ctx, summarizerv1.CreateInferenceModelRequest_builder{Model: model}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -64,7 +64,7 @@ func (c inferenceModelClient) Update(
 	ctx context.Context, model *summarizerv1.InferenceModel,
 ) error {
 	_, err := c.teleportClient.SummarizerServiceClient().UpdateInferenceModel(
-		ctx, &summarizerv1.UpdateInferenceModelRequest{Model: model},
+		ctx, summarizerv1.UpdateInferenceModelRequest_builder{Model: model}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -72,7 +72,7 @@ func (c inferenceModelClient) Update(
 // Delete deletes an inference model with a given name from Teleport.
 func (c inferenceModelClient) Delete(ctx context.Context, name string) error {
 	_, err := c.teleportClient.SummarizerServiceClient().DeleteInferenceModel(
-		ctx, &summarizerv1.DeleteInferenceModelRequest{Name: name},
+		ctx, summarizerv1.DeleteInferenceModelRequest_builder{Name: name}.Build(),
 	)
 	return trace.Wrap(err)
 }

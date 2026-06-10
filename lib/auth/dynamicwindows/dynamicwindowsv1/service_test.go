@@ -70,7 +70,7 @@ func TestFailedAccessCheck(t *testing.T) {
 		}
 		resp, err := s.ListDynamicWindowsDesktops(context.Background(), &req)
 		require.NoError(t, err)
-		require.Empty(t, resp.Desktops)
+		require.Empty(t, resp.GetDesktops())
 	})
 }
 
@@ -211,7 +211,7 @@ func callMethod(service *Service, method string) error {
 			_, err := desc.Handler(service, context.Background(), func(arg any) error {
 				switch arg := arg.(type) {
 				case *dynamicwindowsv1.GetDynamicWindowsDesktopRequest:
-					arg.Name = "test2"
+					arg.SetName("test2")
 
 				case *dynamicwindowsv1.CreateDynamicWindowsDesktopRequest:
 					arg.Desktop, _ = types.NewDynamicWindowsDesktopV1("test", nil, types.DynamicWindowsDesktopSpecV1{

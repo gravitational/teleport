@@ -86,9 +86,9 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 		return nil, trace.BadParameter("cannot build checker for non-user role kind %q (this is a bug)", key.RoleKind)
 	}
 
-	rsp, err := b.reader.GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+	rsp, err := b.reader.GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
 		Name: key.RoleName,
-	})
+	}.Build())
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, errMissingAssignedRole
@@ -99,7 +99,7 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 	// verify that the role is enforceable at this enforcement point. if not, the assignment is
 	// skipped. this check is a critical part of the scopes security model and must always be
 	// performed prior to any enforcement logic related to a scoped role.
-	if !scopedaccess.RoleIsEnforceableAt(rsp.Role, scopes.EnforcementPoint{
+	if !scopedaccess.RoleIsEnforceableAt(rsp.GetRole(), scopes.EnforcementPoint{
 		ScopeOfOrigin: key.ScopeOfOrigin,
 		ScopeOfEffect: key.ScopeOfEffect,
 	}) {
@@ -108,7 +108,7 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 
 	// Convert the scoped role to a classic role using the scope of effect.
 	// The scope of effect determines which resources this role's privileges apply to.
-	role, err := scopedaccess.ScopedRoleToRole(rsp.Role, key.ScopeOfEffect)
+	role, err := scopedaccess.ScopedRoleToRole(rsp.GetRole(), key.ScopeOfEffect)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,7 +123,7 @@ func (b *scopedAccessCheckerBuilder) newCheckerForRole(ctx context.Context, key 
 	return &ScopedAccessChecker{
 		scopeOfOrigin:       key.ScopeOfOrigin,
 		scopeOfEffect:       key.ScopeOfEffect,
-		role:                rsp.Role,
+		role:                rsp.GetRole(),
 		scopedCompatChecker: checker,
 	}, nil
 }
@@ -139,16 +139,16 @@ func (b *scopedAccessCheckerBuilder) newDefaultImplicitChecker(_ context.Context
 		scopeOfOrigin:       scopes.Root,
 		scopeOfEffect:       scopes.Root,
 		scopedCompatChecker: newAccessChecker(b.info, b.localCluster, NewRoleSet()), // default implicit role definition is auto-populated by NewRoleSet()
-		role: &scopedaccessv1.ScopedRole{
-			Metadata: &headerv1.Metadata{
+		role: scopedaccessv1.ScopedRole_builder{
+			Metadata: headerv1.Metadata_builder{
 				Name: constants.DefaultImplicitRole,
-			},
+			}.Build(),
 			Scope: scopes.Root,
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scopes.Root},
-			},
+			}.Build(),
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 }
 
@@ -201,16 +201,16 @@ func NewScopedAccessCheckerForSystemRole(roleName string, checker AccessChecker)
 	return &ScopedAccessChecker{
 		scopeOfOrigin: scopes.Root,
 		scopeOfEffect: scopes.Root,
-		role: &scopedaccessv1.ScopedRole{
-			Metadata: &headerv1.Metadata{
+		role: scopedaccessv1.ScopedRole_builder{
+			Metadata: headerv1.Metadata_builder{
 				Name: "system/" + roleName,
-			},
+			}.Build(),
 			Scope:   scopes.Root,
 			Version: types.V1,
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{scopes.Root},
-			},
-		},
+			}.Build(),
+		}.Build(),
 		scopedCompatChecker: checker,
 	}
 }

@@ -256,7 +256,7 @@ func (c *crownJewelCollection) WriteText(w io.Writer, verbose bool) error {
 	var rows [][]string
 	for _, item := range c.items {
 		labels := common.FormatLabels(item.GetMetadata().GetLabels(), verbose)
-		rows = append(rows, []string{item.Metadata.GetName(), item.GetSpec().String(), labels})
+		rows = append(rows, []string{item.GetMetadata().GetName(), item.GetSpec().String(), labels})
 	}
 	headers := []string{"Name", "Spec", "Labels"}
 	var t asciitable.Table
@@ -371,12 +371,12 @@ func (c *deviceCollection) WriteText(w io.Writer, verbose bool) error {
 	t := asciitable.MakeTable([]string{"ID", "OS Type", "Asset Tag", "Enrollment Status", "Creation Time", "Last Updated"})
 	for _, device := range c.devices {
 		t.AddRow([]string{
-			device.Id,
-			devicetrust.FriendlyOSType(device.OsType),
-			device.AssetTag,
-			devicetrust.FriendlyDeviceEnrollStatus(device.EnrollStatus),
-			device.CreateTime.AsTime().Format(time.RFC3339),
-			device.UpdateTime.AsTime().Format(time.RFC3339),
+			device.GetId(),
+			devicetrust.FriendlyOSType(device.GetOsType()),
+			device.GetAssetTag(),
+			devicetrust.FriendlyDeviceEnrollStatus(device.GetEnrollStatus()),
+			device.GetCreateTime().AsTime().Format(time.RFC3339),
+			device.GetUpdateTime().AsTime().Format(time.RFC3339),
 		})
 	}
 	_, err := t.AsBuffer().WriteTo(w)

@@ -28,6 +28,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 
 	integrationv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -68,12 +69,12 @@ func TestGenerateAWSRACredentials(t *testing.T) {
 			}},
 		}, localClient)
 
-		_, err := resourceSvc.GenerateAWSRACredentials(ctx, &integrationv1.GenerateAWSRACredentialsRequest{
+		_, err := resourceSvc.GenerateAWSRACredentials(ctx, integrationv1.GenerateAWSRACredentialsRequest_builder{
 			Integration: integrationName,
 			RoleArn:     "arn:aws:iam::123456789012:role/OpsTeam",
 			ProfileArn:  "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
 			SubjectName: "test",
-		})
+		}.Build())
 		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied error, got %T", err)
 	})
 
@@ -88,13 +89,13 @@ func TestGenerateAWSRACredentials(t *testing.T) {
 				},
 			})
 
-			_, err := resourceSvc.GenerateAWSRACredentials(ctx, &integrationv1.GenerateAWSRACredentialsRequest{
+			_, err := resourceSvc.GenerateAWSRACredentials(ctx, integrationv1.GenerateAWSRACredentialsRequest_builder{
 				Integration:                   integrationName,
 				RoleArn:                       "arn:aws:iam::123456789012:role/OpsTeam",
 				ProfileArn:                    "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
 				ProfileAcceptsRoleSessionName: true,
 				SubjectName:                   "test",
-			})
+			}.Build())
 			require.NoError(t, err)
 		}
 	})
@@ -133,33 +134,33 @@ func TestAWSRolesAnywhereProfileSyncFilters(t *testing.T) {
 
 	t.Run("valid without filters", func(t *testing.T) {
 		ig := integrationWithFilters(t, "integration1", []string{})
-		_, err := resourceSvc.CreateIntegration(ctx, &integrationv1.CreateIntegrationRequest{
+		_, err := resourceSvc.CreateIntegration(ctx, integrationv1.CreateIntegrationRequest_builder{
 			Integration: ig,
-		})
+		}.Build())
 		require.NoError(t, err)
 	})
 
 	t.Run("valid with glob filter", func(t *testing.T) {
 		ig := integrationWithFilters(t, "integration2", []string{"MyTeam-*"})
-		_, err := resourceSvc.CreateIntegration(ctx, &integrationv1.CreateIntegrationRequest{
+		_, err := resourceSvc.CreateIntegration(ctx, integrationv1.CreateIntegrationRequest_builder{
 			Integration: ig,
-		})
+		}.Build())
 		require.NoError(t, err)
 	})
 
 	t.Run("valid with regex filter", func(t *testing.T) {
 		ig := integrationWithFilters(t, "integration3", []string{"^MyTeam-.*$"})
-		_, err := resourceSvc.CreateIntegration(ctx, &integrationv1.CreateIntegrationRequest{
+		_, err := resourceSvc.CreateIntegration(ctx, integrationv1.CreateIntegrationRequest_builder{
 			Integration: ig,
-		})
+		}.Build())
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid with invalid regex", func(t *testing.T) {
 		ig := integrationWithFilters(t, "integration5", []string{`^[invalid-regex{$`})
-		_, err := resourceSvc.CreateIntegration(ctx, &integrationv1.CreateIntegrationRequest{
+		_, err := resourceSvc.CreateIntegration(ctx, integrationv1.CreateIntegrationRequest_builder{
 			Integration: ig,
-		})
+		}.Build())
 		require.Error(t, err)
 	})
 }
@@ -222,31 +223,27 @@ func TestAWSRolesAnywherePing(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Run("test connection using an integration", func(t *testing.T) {
-		pingResp, err := awsRolesAnywhereService.AWSRolesAnywherePing(ctx, &integrationv1.AWSRolesAnywherePingRequest{
-			Mode: &integrationv1.AWSRolesAnywherePingRequest_Integration{
-				Integration: integrationName,
-			},
-		})
+		pingResp, err := awsRolesAnywhereService.AWSRolesAnywherePing(ctx, integrationv1.AWSRolesAnywherePingRequest_builder{
+			Integration: proto.String(integrationName),
+		}.Build())
 		require.NoError(t, err)
 		require.NotNil(t, pingResp)
-		require.Equal(t, "123456789012", pingResp.AccountId)
-		require.Equal(t, int32(1), pingResp.ProfileCount)
+		require.Equal(t, "123456789012", pingResp.GetAccountId())
+		require.Equal(t, int32(1), pingResp.GetProfileCount())
 	})
 
 	t.Run("test connection using provided trust anchor", func(t *testing.T) {
-		pingResp, err := awsRolesAnywhereService.AWSRolesAnywherePing(ctx, &integrationv1.AWSRolesAnywherePingRequest{
-			Mode: &integrationv1.AWSRolesAnywherePingRequest_Custom{
-				Custom: &integrationv1.AWSRolesAnywherePingRequestWithoutIntegration{
-					TrustAnchorArn: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
-					RoleArn:        "arn:aws:iam::123456789012:role/SyncRole",
-					ProfileArn:     "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
-				},
-			},
-		})
+		pingResp, err := awsRolesAnywhereService.AWSRolesAnywherePing(ctx, integrationv1.AWSRolesAnywherePingRequest_builder{
+			Custom: integrationv1.AWSRolesAnywherePingRequestWithoutIntegration_builder{
+				TrustAnchorArn: "arn:aws:rolesanywhere:eu-west-2:123456789012:trust-anchor/12345678-1234-1234-1234-123456789012",
+				RoleArn:        "arn:aws:iam::123456789012:role/SyncRole",
+				ProfileArn:     "arn:aws:rolesanywhere:eu-west-2:123456789012:profile/12345678-1234-1234-1234-123456789012",
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 		require.NotNil(t, pingResp)
-		require.Equal(t, "123456789012", pingResp.AccountId)
-		require.Equal(t, int32(1), pingResp.ProfileCount)
+		require.Equal(t, "123456789012", pingResp.GetAccountId())
+		require.Equal(t, int32(1), pingResp.GetProfileCount())
 	})
 }
 
