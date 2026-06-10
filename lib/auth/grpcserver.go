@@ -6898,3 +6898,29 @@ func (g *GRPCServer) ValidateTrustedCluster(
 
 	return protoResp, nil
 }
+
+// ValidateGithubAuthCallback validates a GitHub OAuth2 authentication callback.
+// It is called by the Proxy on behalf of a user completing a GitHub SSO login.
+func (g *GRPCServer) ValidateGithubAuthCallback(
+	ctx context.Context,
+	req *authpb.ValidateGithubAuthCallbackRequest,
+) (*authpb.ValidateGithubAuthCallbackResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := auth.ValidateGithubAuthCallback(ctx, authclient.GithubAuthQueryFromProto(req.GetQuery()))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protoResp, err := resp.ToProto()
+	if err != nil {
+		return nil, trace.Wrap(
+			err,
+			"converting native GithubAuthResponse to proto representation",
+		)
+	}
+
+	return protoResp, nil
+}
