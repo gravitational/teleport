@@ -58,6 +58,7 @@ type Command struct {
 	reviewsCreate *kingpin.CmdClause
 	reviewsList   *kingpin.CmdClause
 	remove        *kingpin.CmdClause
+	update        *kingpin.CmdClause
 
 	// Used for managing a particular access list.
 	accessListName string
@@ -75,6 +76,85 @@ type Command struct {
 
 	// Some extra options that control output.
 	reviewOnly bool // lists only access lists due for review
+
+	// Used to hold access list metadata.
+	title                string
+	description          string
+	auditFrequency       int
+	auditDay             int
+	owners               string
+	ownerAccessLists     string
+	ownerRequiredRoles   string
+	ownerRequiredTraits  string
+	ownerGrantRoles      string
+	ownerGrantTraits     string
+	members              string
+	memberAccessLists    string
+	memberRequiredRoles  string
+	memberRequiredTraits string
+	memberGrantRoles     string
+	memberGrantTraits    string
+
+	// Used to hold resource access related fields.
+	nodeLabels         string
+	logins             string
+	dbLabels           string
+	dbUsers            string
+	dbNames            string
+	kubeLabels         string
+	kubeUsers          string
+	kubeGroups         string
+	appLabels          string
+	awsRoleARNs        string
+	azureIdentities    string
+	gcpServiceAccounts string
+	mcpTools           string
+	windowsLabels      string
+	windowsLogins      string
+	gitHubOrgs         string
+	awsicAssignments   string
+
+	// removeAccess, when set, removes all resource-access roles from
+	// access list grants or supporting roles (requester/reviewer).
+	// Only applicable to access list created with an access type.
+	removeAccess bool
+
+	// Flags to determine if user set resource access related fields.
+	nodeLabelsSet         bool
+	loginsSet             bool
+	dbLabelsSet           bool
+	dbUsersSet            bool
+	dbNamesSet            bool
+	kubeLabelsSet         bool
+	kubeUsersSet          bool
+	kubeGroupsSet         bool
+	appLabelsSet          bool
+	awsRoleARNsSet        bool
+	azureIdentitiesSet    bool
+	gcpServiceAccountsSet bool
+	mcpToolsSet           bool
+	windowsLabelsSet      bool
+	windowsLoginsSet      bool
+	gitHubOrgsSet         bool
+	awsicAssignmentsSet   bool
+
+	// Flags to determine if user set these access list metadata fields.
+	titleSet                bool
+	descriptionSet          bool
+	auditFrequencySet       bool
+	auditDaySet             bool
+	ownersSet               bool
+	ownerAccessListsSet     bool
+	ownerGrantRolesSet      bool
+	ownerGrantTraitsSet     bool
+	ownerRequiredRolesSet   bool
+	ownerRequiredTraitsSet  bool
+	membersSet              bool
+	memberAccessListsSet    bool
+	memberGrantRolesSet     bool
+	memberGrantTraitsSet    bool
+	memberRequiredRolesSet  bool
+	memberRequiredTraitsSet bool
 
 	// Stdout allows to switch the standard output source. Used in tests.
 	Stdout io.Writer
@@ -136,6 +216,59 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.remove.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
 	c.remove.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
+	c.update = acl.Command("update", "Update an existing access list. Only flags you pass are changed; everything else is left as-is. For an access list created with an access type, resource flags edit the supporting roles.")
+	c.update.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
+	c.update.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	// Access list metadata:
+	c.update.Flag("title", "New display name for the access list.").IsSetByUser(&c.titleSet).StringVar(&c.title)
+	c.update.Flag("description", "New description.").IsSetByUser(&c.descriptionSet).StringVar(&c.description)
+	c.update.Flag("audit-frequency", "Audit recurrence in months (1, 3, 6, or 12).").PlaceHolder("6").IsSetByUser(&c.auditFrequencySet).IntVar(&c.auditFrequency)
+	c.update.Flag("audit-day", "Day of month for audit (1, 15, or 31).").PlaceHolder("1").IsSetByUser(&c.auditDaySet).IntVar(&c.auditDay)
+	// Access list owners:
+	c.update.Flag("owners", "Replace the user owners with this list of usernames or emails.").PlaceHolder("user1,user2,...").IsSetByUser(&c.ownersSet).StringVar(&c.owners)
+	c.update.Flag("owner-access-lists", "Replace the access-list owners with this list of access list names.").PlaceHolder("name1,name2,...").IsSetByUser(&c.ownerAccessListsSet).StringVar(&c.ownerAccessLists)
+	c.update.Flag("owner-grant-roles", "Roles granted to owners of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.ownerGrantRolesSet).StringVar(&c.ownerGrantRoles)
+	c.update.Flag("owner-grant-traits", "Traits granted to owners of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.ownerGrantTraitsSet).StringVar(&c.ownerGrantTraits)
+	c.update.Flag("owner-required-roles", "Roles a user must already have to be an owner of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.ownerRequiredRolesSet).StringVar(&c.ownerRequiredRoles)
+	c.update.Flag("owner-required-traits", "Traits a user must already have to be an owner of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.ownerRequiredTraitsSet).StringVar(&c.ownerRequiredTraits)
+	// Access list members:
+	c.update.Flag("members", "Replace the user members with this list of usernames or emails.").PlaceHolder("user1,user2,...").IsSetByUser(&c.membersSet).StringVar(&c.members)
+	c.update.Flag("member-access-lists", "Replace the nested access-list members with this list of access list names.").PlaceHolder("name1,name2,...").IsSetByUser(&c.memberAccessListsSet).StringVar(&c.memberAccessLists)
+	c.update.Flag("member-grant-roles", "Roles granted to members of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.memberGrantRolesSet).StringVar(&c.memberGrantRoles)
+	c.update.Flag("member-grant-traits", "Traits granted to members of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.memberGrantTraitsSet).StringVar(&c.memberGrantTraits)
+	c.update.Flag("member-required-roles", "Roles a user must already have to be a member of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.memberRequiredRolesSet).StringVar(&c.memberRequiredRoles)
+	c.update.Flag("member-required-traits", "Traits a user must already have to be a member of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.memberRequiredTraitsSet).StringVar(&c.memberRequiredTraits)
+
+	// Resource access flags (only valid for access lists created with an access type):
+	// Nodes
+	c.update.Flag("node-labels", "Selects SSH servers members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.nodeLabelsSet).StringVar(&c.nodeLabels)
+	c.update.Flag("logins", "OS logins members may use to connect to matched SSH servers.").PlaceHolder("login1,login2,...").IsSetByUser(&c.loginsSet).StringVar(&c.logins)
+	// Dbs
+	c.update.Flag("db-labels", "Selects databases members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.dbLabelsSet).StringVar(&c.dbLabels)
+	c.update.Flag("db-users", "Database users members may connect as on matched databases.").PlaceHolder("user1,user2,...").IsSetByUser(&c.dbUsersSet).StringVar(&c.dbUsers)
+	c.update.Flag("db-names", "Database names members may connect to on matched databases.").PlaceHolder("name1,name2,...").IsSetByUser(&c.dbNamesSet).StringVar(&c.dbNames)
+	// Kubes
+	c.update.Flag("kubernetes-labels", "Selects Kubernetes clusters members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.kubeLabelsSet).StringVar(&c.kubeLabels)
+	c.update.Flag("kubernetes-users", "Kubernetes users members may impersonate on matched clusters.").PlaceHolder("user1,user2,...").IsSetByUser(&c.kubeUsersSet).StringVar(&c.kubeUsers)
+	c.update.Flag("kubernetes-groups", "Kubernetes groups members may impersonate on matched clusters.").PlaceHolder("group1,group2,...").IsSetByUser(&c.kubeGroupsSet).StringVar(&c.kubeGroups)
+	// Apps
+	c.update.Flag("app-labels", "Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.").PlaceHolder("key=value,...").IsSetByUser(&c.appLabelsSet).StringVar(&c.appLabels)
+	c.update.Flag("aws-role-arns", "AWS role ARNs members may assume via matched apps.").PlaceHolder("arn1,arn2,...").IsSetByUser(&c.awsRoleARNsSet).StringVar(&c.awsRoleARNs)
+	c.update.Flag("azure-identities", "Azure managed identities members may assume via matched apps.").PlaceHolder("id1,id2,...").IsSetByUser(&c.azureIdentitiesSet).StringVar(&c.azureIdentities)
+	c.update.Flag("gcp-service-accounts", "GCP service accounts members may assume via matched apps.").PlaceHolder("email1,email2,...").IsSetByUser(&c.gcpServiceAccountsSet).StringVar(&c.gcpServiceAccounts)
+	c.update.Flag("mcp-tools", "MCP tools members may call on matched MCP apps.").PlaceHolder("pattern1,pattern2,...").IsSetByUser(&c.mcpToolsSet).StringVar(&c.mcpTools)
+	// Windows
+	c.update.Flag("windows-labels", "Selects Windows desktops members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.windowsLabelsSet).StringVar(&c.windowsLabels)
+	c.update.Flag("windows-logins", "Logins members may use to connect to matched Windows desktops.").PlaceHolder("login1,login2,...").IsSetByUser(&c.windowsLoginsSet).StringVar(&c.windowsLogins)
+	// GitHub
+	c.update.Flag("github-orgs", "Selects git servers members may access by GitHub organization name.").PlaceHolder("org1,org2,...").IsSetByUser(&c.gitHubOrgsSet).StringVar(&c.gitHubOrgs)
+
+	// AWS IC
+	c.update.Flag("aws-ic-assignments", "Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID:permissionSetARN' pairs).").PlaceHolder("accountID:permSetARN,...").IsSetByUser(&c.awsicAssignmentsSet).StringVar(&c.awsicAssignments)
+
+	// Removes all resource access from an access list created with an access type:
+	c.update.Flag("remove-access", "Remove all resource-access roles (and their grants) from an access list created with an access type. No-op if the list has none. Cannot be combined with the resource access flags above.").BoolVar(&c.removeAccess)
+
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
 	}
@@ -163,6 +296,8 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 		commandFunc = c.ReviewsList
 	case c.remove.FullCommand():
 		commandFunc = c.Remove
+	case c.update.FullCommand():
+		commandFunc = c.Update
 	default:
 		return false, nil
 	}
