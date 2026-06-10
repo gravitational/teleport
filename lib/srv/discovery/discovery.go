@@ -1698,8 +1698,6 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		return status
 	}
 	instances.FilterExistingNodes(nodes)
-	// re-evaluate the instances log value after filtering
-	log = s.Log.With("group", instances)
 
 	// count machines that have already been enrolled in previous cycles.
 	needInstall := len(instances.Instances)
@@ -1709,6 +1707,8 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		log.DebugContext(s.ctx, "Filtered out Azure instances that have already been enrolled",
 			"enrolled", enrolled,
 		)
+		// re-evaluate the instances log value after filtering
+		log = s.Log.With("group", instances)
 	}
 
 	if len(instances.Instances) == 0 {
