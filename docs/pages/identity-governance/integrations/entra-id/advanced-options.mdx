@@ -13,6 +13,102 @@ enterprise: Identity Governance
 This page lists advanced configuration options related to the
 Teleport Entra ID integration. 
 
+## Sync mode and intervals 
+
+Teleport supports two sync modes - full and delta sync.
+
+### Full sync
+
+Full sync is the default sync mode in which Teleport pulls full sets of users, 
+groups, group members and owners that exist in your Microsoft Entra ID directory,
+and syncs them to Teleport. 
+
+It runs every five minutes. 
+
+### Delta sync
+
+In delta sync mode, Teleport only tracks incremental changes made in your Microsoft
+Entra ID directory and syncs them to Teleport. 
+
+Delta sync is not enabled by default. 
+It is an opt-in feature available only in Teleport version v18.9 and above.
+
+### Choosing between `full` and `delta` sync
+
+The key factor when choosing between full sync or delta sync boils down to 
+how susceptible your Graph API tenant is to throttling.
+
+The Graph API limit quota is metered based on the number of resources queried in 
+a single API call and the frequency of the API call. For example, in a large Entra 
+ID directory with 1k+ users, 50k+ groups with varying 100-1k group members each, 
+frequent full scans of the directory by the Teleport plugin is susceptible 
+to throttling. 
+
+Further, the Graph API quota is shared amongst all the clients configured in the 
+Entra ID tenant. It's possible for an unrelated 3rd party application to consume all 
+the Graph API quota, in which case Teleport will be throttled too. 
+
+When integrating with a smaller directory or if Teleport is the only API 
+consumer to query the directory, keeping the default full sync is recommended. 
+To ensure additional cushion against throttling, you may wish to increase the full 
+sync interval if instant sync is not important. 
+
+In a large directory, configuring both delta sync and a full sync is recommended
+where delta sync runs on a shorter sync interval (e.g. 2 min) and full sync
+runs on a longer sync interval (e.g. 1 hour).
+
+If your tenant is very sensitive due to multiple clients frequently polling large
+datasets, you can entirely disable the full sync and only run the delta sync. 
+
+### Configure sync mode and intervals
+
+Sync mode and interval configuration is gated behind the `sync_intervals` 
+setting and can only be updated by using `tctl`.
+
+Below is an example to configure both delta and full sync where delta sync
+runs at 2 a minute interval and the full sync runs at 1 hour interval.
+```bash
+$ tctl edit plugins/entra-id-default
+```
+```yaml
+kind: plugin
+  name: entra-id-default
+spec:
+  Settings:
+    entra_id:
+      sync_settings:
+        # omitted for brevity
+        ... 
++       sync_intervals:
++         delta: 2m
++         full: 1h
+version: v1
+```
+
+Both `delta` and `full` expect [Golang](https://pkg.go.dev/time#Duration.String) 
+time duration string value. For example, `2m` for two minutes, `1h` for one hour etc. 
+
+Zero (`0`) interval value disables the respective sync mode. 
+If both delta and full sync are disabled, the service falls back to using full sync 
+with a five-minute interval. 
+
+When both delta and full sync intervals are configured, delta sync runs between 
+two consecutive full sync intervals. 
+```
+T+0m   FULL   (initial one)
+T+2m   DELTA
+T+4m  DELTA
+T+6m  DELTA
+...
+T+60m  FULL
+T+62m  DELTA
+T+64m  DELTA
+T+66m  DELTA
+...
+T+120m  FULL
+```
+
+
 ## Group filters
 
 By default, all the groups that exists in the Microsoft Entra ID directory gets 
@@ -107,6 +203,10 @@ The following options are supported:
    owners.
 3. Source `plugin-and-entraid`: Use both the `plugin` and `entraid` source to 
    configure Access List owners.  
+
+<Admonition type="important">
+
+</Admonition>
 
 
 ### Configuring source during installation
