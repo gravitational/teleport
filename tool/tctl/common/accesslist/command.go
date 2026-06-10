@@ -255,8 +255,8 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.update.Flag("app-labels", "Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.").PlaceHolder("key=value,...").IsSetByUser(&c.appLabelsSet).StringVar(&c.appLabels)
 	c.update.Flag("aws-role-arns", "AWS role ARNs members may assume via matched apps.").PlaceHolder("arn1,arn2,...").IsSetByUser(&c.awsRoleARNsSet).StringVar(&c.awsRoleARNs)
 	c.update.Flag("azure-identities", "Azure managed identities members may assume via matched apps.").PlaceHolder("id1,id2,...").IsSetByUser(&c.azureIdentitiesSet).StringVar(&c.azureIdentities)
-	c.update.Flag("gcp-service-accounts", "GCP service accounts members may assume via matched apps.").PlaceHolder("email1,email2,...").IsSetByUser(&c.gcpServiceAccountsSet).StringVar(&c.gcpServiceAccounts)
-	c.update.Flag("mcp-tools", "MCP tools members may call on matched MCP apps.").PlaceHolder("pattern1,pattern2,...").IsSetByUser(&c.mcpToolsSet).StringVar(&c.mcpTools)
+	c.update.Flag("gcp-service-accounts", "GCP service accounts members may assume via matched apps.").PlaceHolder("account1,account2,...").IsSetByUser(&c.gcpServiceAccountsSet).StringVar(&c.gcpServiceAccounts)
+	c.update.Flag("mcp-tools", "MCP tools members may call on matched MCP apps.").PlaceHolder("tool1,tool2,...").IsSetByUser(&c.mcpToolsSet).StringVar(&c.mcpTools)
 	// Windows
 	c.update.Flag("windows-labels", "Selects Windows desktops members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.windowsLabelsSet).StringVar(&c.windowsLabels)
 	c.update.Flag("windows-logins", "Logins members may use to connect to matched Windows desktops.").PlaceHolder("login1,login2,...").IsSetByUser(&c.windowsLoginsSet).StringVar(&c.windowsLogins)
