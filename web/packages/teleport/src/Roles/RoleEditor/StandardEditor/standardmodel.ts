@@ -368,6 +368,7 @@ export const kubernetesVerbOptions: KubernetesVerbOption[] = [
       // in our config. We may want to explain them in the UI somehow.
       'exec',
       'portforward',
+      'proxy',
     ] as const
   )
     .toSorted((a, b) => a.localeCompare(b))
