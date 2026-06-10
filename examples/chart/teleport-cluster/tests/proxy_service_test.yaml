@@ -1,15 +1,18 @@
 suite: Proxy Service
 templates:
-  - proxy/service.yaml
+  - proxy.yaml
 tests:
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
   - it: uses a LoadBalancer by default
     set:
       clusterName: teleport.example.com
+    documentIndex: 5
     asserts:
-      - hasDocuments:
-          count: 1
       - isKind:
           of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: spec.type
           value: LoadBalancer
@@ -19,11 +22,13 @@ tests:
       clusterName: teleport.example.com
       service:
         type: ClusterIP
+    documentIndex: 5
     asserts:
-      - hasDocuments:
-          count: 1
       - isKind:
           of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: spec.type
           value: ClusterIP
@@ -36,36 +41,56 @@ tests:
       proxy:
         service:
           type: ClusterIP
+    documentIndex: 5
     asserts:
-      - hasDocuments:
-          count: 1
       - isKind:
           of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: spec.type
           value: ClusterIP
 
-  - it: fails to deploy when ingress.enabled=true and proxy.service.type is set to LoadBalancer (default)
+  # TODO(adamcarheden): identical to the teleport-proxy-lib test; kept so this PR's diff stays minimal, remove next PR
+  - it: fails to deploy when ingress.enabled=true and service.type is set to LoadBalancer (default)
     set:
       clusterName: teleport.example.com
+      proxyListenerMode: multiplex
       ingress:
         enabled: true
     asserts:
       - failedTemplate:
-          errorMessage: "proxy.service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set proxy.service.type=ClusterIP instead"
+          errorMessage: "service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set service.type=ClusterIP instead"
+
+  - it: fails to deploy when ingress.enabled=true and proxy.service.type is set to LoadBalancer (default)
+    set:
+      clusterName: teleport.example.com
+      proxyListenerMode: multiplex
+      ingress:
+        enabled: true
+      proxy:
+        service:
+          type: LoadBalancer
+    asserts:
+      - failedTemplate:
+          errorMessage: "service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set service.type=ClusterIP instead"
 
   - it: uses a ClusterIP when ingress.enabled=true and service.type=ClusterIP
     set:
       clusterName: teleport.example.com
+      proxyListenerMode: multiplex
       ingress:
         enabled: true
       service:
         type: ClusterIP
+    documentIndex: 6
     asserts:
-      - hasDocuments:
-          count: 1
       - isKind:
           of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: spec.type
           value: ClusterIP
@@ -73,16 +98,19 @@ tests:
   - it: uses a ClusterIP when ingress.enabled=true and proxy.service.type=ClusterIP
     set:
       clusterName: teleport.example.com
+      proxyListenerMode: multiplex
       ingress:
         enabled: true
       proxy:
         service:
           type: ClusterIP
+    documentIndex: 6
     asserts:
-      - hasDocuments:
-          count: 1
       - isKind:
           of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: spec.type
           value: ClusterIP
@@ -90,16 +118,19 @@ tests:
   - it: uses a NodePort when ingress.enabled=true and proxy.service.type=NodePort
     set:
       clusterName: teleport.example.com
+      proxyListenerMode: multiplex
       ingress:
         enabled: true
       proxy:
         service:
           type: NodePort
+    documentIndex: 6
     asserts:
-      - hasDocuments:
-          count: 1
       - isKind:
           of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: spec.type
           value: NodePort
@@ -107,15 +138,18 @@ tests:
   - it: uses a NodePort when ingress.enabled=true and service.type=NodePort
     set:
       clusterName: teleport.example.com
+      proxyListenerMode: multiplex
       ingress:
         enabled: true
       service:
         type: NodePort
+    documentIndex: 6
     asserts:
-      - hasDocuments:
-          count: 1
       - isKind:
           of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: spec.type
           value: NodePort
@@ -123,16 +157,19 @@ tests:
   - it: uses a NodePort when ingress.enabled=true and proxy.service.type is overridden
     set:
       clusterName: teleport.example.com
+      proxyListenerMode: multiplex
       ingress:
         enabled: true
       proxy:
         service:
           type: NodePort
+    documentIndex: 6
     asserts:
-      - hasDocuments:
-          count: 1
       - isKind:
           of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: spec.type
           value: NodePort
@@ -141,11 +178,13 @@ tests:
     set:
       clusterName: teleport.example.com
       chartMode: aws
+    documentIndex: 5
     asserts:
-      - hasDocuments:
-          count: 1
       - isKind:
           of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: spec.type
           value: LoadBalancer
@@ -162,7 +201,13 @@ tests:
   - it: sets service annotations when specified
     values:
       - ../.lint/annotations.yaml
+    documentIndex: 5
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: metadata.annotations.kubernetes\.io/service
           value: test-annotation
@@ -173,7 +218,13 @@ tests:
   - it: adds a separate Postgres listener port when separatePostgresListener is true
     values:
       - ../.lint/separate-postgres-listener.yaml
+    documentIndex: 5
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - contains:
           path: spec.ports
           content:
@@ -191,7 +242,13 @@ tests:
       proxyListenerMode: multiplex
       service:
         type: ClusterIP
+    documentIndex: 6
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - notContains:
           path: spec.ports
           content:
@@ -203,7 +260,13 @@ tests:
   - it: adds a separate Mongo listener port when separateMongoListener is true
     values:
       - ../.lint/separate-mongo-listener.yaml
+    documentIndex: 5
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - contains:
           path: spec.ports
           content:
@@ -221,7 +284,13 @@ tests:
       proxyListenerMode: multiplex
       service:
         type: ClusterIP
+    documentIndex: 6
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - notContains:
           path: spec.ports
           content:
@@ -238,7 +307,13 @@ tests:
         service:
           service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-1:1234567890:certificate/a857a76c-51d0-4d3d-8000-465bb3e9829b
           service.beta.kubernetes.io/aws-load-balancer-ssl-ports: 443
+    documentIndex: 5
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol
           value: ssl
@@ -247,6 +322,7 @@ tests:
     values:
       - ../.lint/aws-ha.yaml
     set:
+      proxyListenerMode: multiplex
       ingress:
         enabled: true
       service:
@@ -255,14 +331,26 @@ tests:
         service:
           service.beta.kubernetes.io/aws-load-balancer-ssl-cert: arn:aws:acm:us-east-1:1234567890:certificate/a857a76c-51d0-4d3d-8000-465bb3e9829b
           service.beta.kubernetes.io/aws-load-balancer-ssl-ports: 443
+    documentIndex: 6
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - isNull:
           path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol
 
   - it: sets AWS backend protocol annotation to tcp when in AWS mode and ACM annotation is not set
     values:
       - ../.lint/aws-ha.yaml
+    documentIndex: 5
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol
           value: tcp
@@ -271,6 +359,7 @@ tests:
     values:
       - ../.lint/aws-ha.yaml
     set:
+      proxyListenerMode: multiplex
       ingress:
         enabled: true
       service:
@@ -279,14 +368,26 @@ tests:
         service:
           # required so at least one service annotation exists, to avoid non map type error
           service.beta.kubernetes.io/random-annotation: helm-lint
+    documentIndex: 6
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - isNull:
           path: metadata.annotations.service\.beta\.kubernetes\.io/aws-load-balancer-backend-protocol
 
   - it: exposes separate listener ports by default
     values:
       - ../.lint/example-minimal-standalone.yaml
+    documentIndex: 5
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - matchSnapshot:
           path: spec.ports
 
@@ -299,7 +400,13 @@ tests:
       proxyListenerMode: multiplex
       service:
         type: ClusterIP
+    documentIndex: 6
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - notContains:
           path: spec.ports
           content:
@@ -325,7 +432,13 @@ tests:
   - it: exposes separate listener ports when running in separate mode
     values:
       - ../.lint/proxy-listener-mode-separate.yaml
+    documentIndex: 5
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - matchSnapshot:
           path: spec.ports
 
@@ -338,7 +451,13 @@ tests:
       proxyListenerMode: multiplex
       service:
         type: ClusterIP
+    documentIndex: 6
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - notContains:
           path: spec.ports
           content:
@@ -364,7 +483,13 @@ tests:
   - it: exposes a single port when running in multiplex mode
     values:
       - ../.lint/proxy-listener-mode-multiplex.yaml
+    documentIndex: 5
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - matchSnapshot:
           path: spec.ports
 
@@ -376,7 +501,13 @@ tests:
         enabled: true
       service:
         type: ClusterIP
+    documentIndex: 6
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - matchSnapshot:
           path: spec.ports
 
@@ -392,7 +523,13 @@ tests:
         extraLabels:
           service:
             baz: overridden
+    documentIndex: 5
     asserts:
+      - isKind:
+          of: Service
+      - equal:
+          path: metadata.name
+          value: RELEASE-NAME
       - equal:
           path: metadata.labels.foo
           value: bar
