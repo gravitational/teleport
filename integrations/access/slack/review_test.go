@@ -22,14 +22,15 @@ import (
 	"context"
 	"testing"
 
+	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
+
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
-	"github.com/jonboulle/clockwork"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
 )
 
 type mockReviewBot struct {
@@ -67,62 +68,75 @@ func newTestAuth(t *testing.T, m *modulestest.Modules) *auth.Server {
 	return authServer
 }
 
-type slackUser struct {
-	uid   string
-	email string
+type user struct {
+	slackUserId      string
+	slackEmail       string
+	teleportUsername string
+	teleportTraits   map[string][]string
 }
 
-type teleportUser struct {
-	name   string
-	traits map[string][]string
+func createUserInSlackAndTeleport(t *testing.T, mockBot *mockReviewBot, authServer *auth.Server, u user) {
+	t.Helper()
+
+	// Link some emails to Slack users
+	if u.slackEmail != "" {
+		mockBot.On("LookupEmailByUserID", mock.Anything, u.slackUserId).Return(u.slackEmail, nil)
+	} else {
+		mockBot.On("LookupEmailByUserID", mock.Anything, u.slackUserId).Return("", nil)
+	}
+
+	// Create Teleport user with traits
+	teleportUser, err := types.NewUser(u.teleportUsername)
+	require.NoError(t, err)
+	teleportUser.SetTraits(u.teleportTraits)
+
+	_, err = authServer.CreateUser(t.Context(), teleportUser)
+	require.NoError(t, err)
 }
 
 func TestResolveTeleportUser(t *testing.T) {
 	authServer := newTestAuth(t, modulestest.OSSModules())
 
-	// Create Slack users
-	aliceSlackUser := slackUser{
-		uid: "U_alice",
+	aliceUser := user{
+		slackUserId:      "U_alice",
+		teleportUsername: "alice",
+		teleportTraits:   map[string][]string{"slack_uid": {"U_alice"}},
 	}
-	bobSlackUser := slackUser{
-		uid:   "U_bob",
-		email: "bob@example.com",
+	bobUser := user{
+		slackUserId:      "U_bob",
+		slackEmail:       "bob@example.com",
+		teleportUsername: "bob@example.com",
+		teleportTraits:   nil,
 	}
-	carolSlackUser := slackUser{
-		uid: "U_carol",
+	carolUser := user{
+		slackUserId:      "U_carol",
+		teleportUsername: "carol",
+		teleportTraits:   nil,
 	}
-	daveSlackUser := slackUser{
-		uid: "U_dave",
+	daveUser := user{
+		slackUserId:      "U_dave",
+		teleportUsername: "dave",
+		teleportTraits:   map[string][]string{"test_trait_name": {"U_dave"}},
+	}
+	eveUser := user{
+		slackUserId:      "U_eve",
+		teleportUsername: "eve",
+		teleportTraits:   map[string][]string{"slack_uid": {"U_eve"}},
+	}
+	eveDupeUser := user{
+		slackUserId:      "U_eveDupe",
+		teleportUsername: "eveDupe",
+		teleportTraits:   map[string][]string{"slack_uid": {"U_eve"}},
 	}
 
 	// Link some emails to Slack users
 	mockBot := &mockReviewBot{}
-	mockBot.On("LookupEmailByUserID", mock.Anything, aliceSlackUser.uid).Return("", nil)
-	mockBot.On("LookupEmailByUserID", mock.Anything, bobSlackUser.uid).Return(bobSlackUser.email, nil)
-	mockBot.On("LookupEmailByUserID", mock.Anything, carolSlackUser.uid).Return("", nil)
-	mockBot.On("LookupEmailByUserID", mock.Anything, daveSlackUser.uid).Return("", nil)
-
-	// Create Teleport users with traits
-	aliceTeleportUser := teleportUser{
-		name:   "alice",
-		traits: map[string][]string{"slack_uid": {aliceSlackUser.uid}},
-	}
-	bobTeleportUser := teleportUser{
-		name:   "bob@example.com",
-		traits: nil,
-	}
-	carolTeleportUser := teleportUser{
-		name:   "carol",
-		traits: nil,
-	}
-	daveTeleportUser := teleportUser{
-		name:   "dave",
-		traits: map[string][]string{"test_trait_name": {daveSlackUser.uid}},
-	}
-	createTeleportUserWithTraits(t, authServer, aliceTeleportUser)
-	createTeleportUserWithTraits(t, authServer, bobTeleportUser)
-	createTeleportUserWithTraits(t, authServer, carolTeleportUser)
-	createTeleportUserWithTraits(t, authServer, daveTeleportUser)
+	createUserInSlackAndTeleport(t, mockBot, authServer, aliceUser)
+	createUserInSlackAndTeleport(t, mockBot, authServer, bobUser)
+	createUserInSlackAndTeleport(t, mockBot, authServer, carolUser)
+	createUserInSlackAndTeleport(t, mockBot, authServer, daveUser)
+	createUserInSlackAndTeleport(t, mockBot, authServer, eveUser)
+	createUserInSlackAndTeleport(t, mockBot, authServer, eveDupeUser)
 
 	tests := []struct {
 		name         string
@@ -137,8 +151,8 @@ func TestResolveTeleportUser(t *testing.T) {
 				SlackUserIDTrait:        "slack_uid",
 				AllowEmailUsernameMatch: false,
 			},
-			slackUID: aliceSlackUser.uid,
-			want:     aliceTeleportUser.name,
+			slackUID: aliceUser.slackUserId,
+			want:     aliceUser.teleportUsername,
 		},
 		{
 			name: "trait match, allow email match - no linked email",
@@ -146,8 +160,8 @@ func TestResolveTeleportUser(t *testing.T) {
 				SlackUserIDTrait:        "slack_uid",
 				AllowEmailUsernameMatch: true,
 			},
-			slackUID: aliceSlackUser.uid,
-			want:     aliceTeleportUser.name,
+			slackUID: aliceUser.slackUserId,
+			want:     aliceUser.teleportUsername,
 		},
 		{
 			name: "no trait match",
@@ -155,7 +169,7 @@ func TestResolveTeleportUser(t *testing.T) {
 				SlackUserIDTrait:        "slack_uid",
 				AllowEmailUsernameMatch: false,
 			},
-			slackUID: bobSlackUser.uid,
+			slackUID: bobUser.slackUserId,
 			wantErr:  true,
 		},
 		{
@@ -164,8 +178,8 @@ func TestResolveTeleportUser(t *testing.T) {
 				SlackUserIDTrait:        "slack_uid",
 				AllowEmailUsernameMatch: true,
 			},
-			slackUID: bobSlackUser.uid,
-			want:     bobTeleportUser.name,
+			slackUID: bobUser.slackUserId,
+			want:     bobUser.teleportUsername,
 		},
 		{
 			name: "no trait match, allow email match - no linked email",
@@ -173,7 +187,7 @@ func TestResolveTeleportUser(t *testing.T) {
 				SlackUserIDTrait:        "slack_uid",
 				AllowEmailUsernameMatch: true,
 			},
-			slackUID: carolSlackUser.uid,
+			slackUID: carolUser.slackUserId,
 			wantErr:  true,
 		},
 		{
@@ -182,8 +196,8 @@ func TestResolveTeleportUser(t *testing.T) {
 				SlackUserIDTrait:        "test_trait_name",
 				AllowEmailUsernameMatch: false,
 			},
-			slackUID: daveSlackUser.uid,
-			want:     daveTeleportUser.name,
+			slackUID: daveUser.slackUserId,
+			want:     daveUser.teleportUsername,
 		},
 		{
 			name: "no teleport user",
@@ -192,6 +206,15 @@ func TestResolveTeleportUser(t *testing.T) {
 				AllowEmailUsernameMatch: false,
 			},
 			slackUID: "U_slackonly_user",
+			wantErr:  true,
+		},
+		{
+			name: "trait matches multiple teleport users",
+			reviewConfig: ReviewConfig{
+				SlackUserIDTrait:        "slack_uid",
+				AllowEmailUsernameMatch: false,
+			},
+			slackUID: eveUser.slackUserId,
 			wantErr:  true,
 		},
 	}
@@ -212,15 +235,4 @@ func TestResolveTeleportUser(t *testing.T) {
 
 		require.Equal(t, tt.want, got)
 	}
-}
-
-func createTeleportUserWithTraits(t *testing.T, authServer *auth.Server, teleportUser teleportUser) {
-	t.Helper()
-
-	user, err := types.NewUser(teleportUser.name)
-	require.NoError(t, err)
-	user.SetTraits(teleportUser.traits)
-
-	_, err = authServer.CreateUser(t.Context(), user)
-	require.NoError(t, err)
 }

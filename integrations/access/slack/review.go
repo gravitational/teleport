@@ -23,6 +23,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
+
 	usersv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -30,9 +33,8 @@ import (
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
+	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 )
 
 const (
@@ -231,10 +233,10 @@ func (a *ReviewApp) resolveReview(ctx context.Context, reqID, slackUserID string
 	if _, err := a.apiClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 		RequestID: reqID,
 		Review: types.AccessReview{
-			Author:              username,
-			IsSubmittedByPlugin: true,
-			ProposedState:       proposedState,
-			Created:             time.Now(),
+			Author:                    username,
+			SubmittedOnBehalfOfAuthor: true,
+			ProposedState:             proposedState,
+			Created:                   a.clock.Now(),
 		},
 	}); err != nil {
 		log.DebugContext(ctx, "Error submitting access review", "error", err.Error())
@@ -291,40 +293,33 @@ func (a *ReviewApp) resolveTeleportUser(ctx context.Context, slackUserID string)
 	}
 }
 
-// getUsersByTrait filters Teleport users by trait name and value.
+// getUsersByTrait filters Teleport users by trait name and value and returns list of matched Teleport usernames.
 func (a *ReviewApp) getUsersByTrait(ctx context.Context, trait, value string) ([]string, error) {
 	// Don't bother listing if trait name or value are empty.
 	if trait == "" || value == "" {
 		return []string{}, nil
 	}
 
-	userstream := clientutils.Resources(
-		ctx,
-		func(ctx context.Context, limit int, token string) ([]*types.UserV2, string, error) {
-			rsp, err := a.apiClient.ListUsers(ctx, &usersv1.ListUsersRequest{
-				PageToken: token,
-				PageSize:  int32(limit),
-				Filter: &types.UserFilter{
-					Traits: map[string][]string{trait: {value}},
-				},
-			})
+	return stream.Collect(
+		stream.FilterMap(
+			clientutils.Resources(ctx, func(ctx context.Context, pageSize int, token string) ([]*types.UserV2, string, error) {
+				resp, err := a.apiClient.ListUsers(ctx, usersv1.ListUsersRequest_builder{
+					PageToken: token,
+					PageSize:  int32(pageSize),
+					Filter: &types.UserFilter{
+						Traits: map[string][]string{trait: {value}},
+					},
+				}.Build())
 
-			if err != nil {
-				return nil, "", trace.Wrap(err)
-			}
+				if err != nil {
+					return nil, "", trace.Wrap(err)
+				}
 
-			return rsp.Users, rsp.NextPageToken, nil
-		})
-
-	var usernames []string
-	for user, err := range userstream {
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		usernames = append(usernames, user.GetName())
-	}
-	return usernames, nil
+				return resp.GetUsers(), resp.GetNextPageToken(), nil
+			}), func(u *types.UserV2) (string, bool) {
+				return u.GetName(), true
+			}),
+	)
 }
 
 // MsgReviewErr returns a user-facing error for bad review requests.
