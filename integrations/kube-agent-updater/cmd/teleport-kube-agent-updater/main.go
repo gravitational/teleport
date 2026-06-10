@@ -83,24 +83,28 @@ func main() {
 	logger := logr.FromSlogHandler(slogLogger.Handler())
 	ctrl.SetLogger(logger)
 
-	var agentName string
-	var agentNamespace string
-	var metricsAddr string
-	var probeAddr string
-	var syncPeriod time.Duration
-	var baseImageName string
-	var versionServer string
-	var versionChannel string
-	var insecureNoVerify bool
-	var insecureNoResolve bool
-	var disableLeaderElection bool
-	var credSource string
-	var logLevel string
-	var proxyAddress string
-	var updateGroup string
+	var (
+		agentName             string
+		agentNamespace        string
+		containerName         string
+		metricsAddr           string
+		probeAddr             string
+		syncPeriod            time.Duration
+		baseImageName         string
+		versionServer         string
+		versionChannel        string
+		insecureNoVerify      bool
+		insecureNoResolve     bool
+		disableLeaderElection bool
+		credSource            string
+		logLevel              string
+		proxyAddress          string
+		updateGroup           string
+	)
 
 	flag.StringVar(&agentName, "agent-name", "", "The name of the agent that should be updated. This is mandatory.")
 	flag.StringVar(&agentNamespace, "agent-namespace", "", "The namespace of the agent that should be updated. This is mandatory.")
+	flag.StringVar(&containerName, "container-name", "teleport", "The name of the container that should be updated.")
 	flag.StringVar(&metricsAddr, "metrics-addr", ":8080", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "healthz-addr", ":8081", "The address the probe endpoint binds to.")
 	flag.DurationVar(&syncPeriod, "sync-period", 10*time.Hour, "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
@@ -315,6 +319,7 @@ func main() {
 		StatusWriter:   statusWriter,
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),
+		ContainerName:  containerName,
 	}
 
 	if err := deploymentController.SetupWithManager(mgr); err != nil {
@@ -327,6 +332,7 @@ func main() {
 		StatusWriter:   statusWriter,
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),
+		ContainerName:  containerName,
 	}
 
 	if err := statefulsetController.SetupWithManager(mgr); err != nil {
