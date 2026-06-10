@@ -246,49 +246,32 @@ func ValidateRoleName(role types.Role) error {
 	return nil
 }
 
-type validateRoleOptions struct {
-	warningReporter func(error)
-}
-
-func defaultValidateRoleOptions() validateRoleOptions {
-	return validateRoleOptions{
-		warningReporter: func(error) {},
-	}
-}
-
-type validateRoleOption func(*validateRoleOptions)
-
-// withWarningReporter is meant for tests to assert the presence of expected
-// warnings.
-func withWarningReporter(f func(error)) validateRoleOption {
-	return func(opts *validateRoleOptions) {
-		opts.warningReporter = f
-	}
-}
-
-// ValidateRole parses, validates, and sets default values on a role.
-func ValidateRole(r types.Role, opts ...validateRoleOption) error {
-	options := defaultValidateRoleOptions()
-	for _, opt := range opts {
-		opt(&options)
-	}
-
+// ValidateRole checks and sets defaults for role fields and validates
+// expression syntax.
+//
+// This function should be called on the write path (role create/update)
+// and NOT on read paths to avoid bricking clusters with existing roles
+// that may not parse with newer parsers. Read paths should call plain
+// CheckAndSetDefaults to reject truly unusable roles.
+func ValidateRole(r types.Role) error {
 	if err := CheckAndSetDefaults(r); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Expression parsers in new versions sometimes get smarter/more strict and
-	// catch more syntax or type errors that previously would only be caught
-	// when they were evaluated. To avoid any possibility of bricking a cluster
-	// by making all roles invalid due to a buggy expression that may not even
-	// be used, only log expression parse errors as a warning.
+	var errs []error
 	if err := validateRoleExpressions(r); err != nil {
-		options.warningReporter(err)
-		slog.WarnContext(context.Background(), "Detected invalid role", "role", r.GetName(), "error", err)
+		errs = append(errs, err)
 	}
-	return nil
+	if err := validateRoleWildcards(r); err != nil {
+		errs = append(errs, err)
+	}
+	if err := validateSessionPolicies(r); err != nil {
+		errs = append(errs, err)
+	}
+	return trace.NewAggregate(errs...)
 }
 
+// validateRoleExpressions validates all expression and predicate syntax in a role.
 func validateRoleExpressions(r types.Role) error {
 	var errs []error
 	for _, condition := range []struct {
@@ -298,19 +281,21 @@ func validateRoleExpressions(r types.Role) error {
 		{"allow", types.Allow},
 		{"deny", types.Deny},
 	} {
-		for _, rule := range r.GetRules(condition.condition) {
+		// Rules
+		for i, rule := range r.GetRules(condition.condition) {
 			if err := validateRule(rule); err != nil {
-				err = trace.BadParameter("parsing %s rule: %v", condition.name, err)
-				errs = append(errs, err)
+				errs = append(errs, trace.BadParameter("parsing %s.rules[%d]: %v", condition.name, i, err))
 			}
 		}
 
+		// Trait templates in slice fields
 		for _, values := range []struct {
 			name   string
 			values []string
 		}{
 			{"logins", r.GetLogins(condition.condition)},
 			{"windows_desktop_logins", r.GetWindowsLogins(condition.condition)},
+			{"linux_desktop_logins", r.GetLinuxDesktopLogins(condition.condition)},
 			{"aws_role_arns", r.GetAWSRoleARNs(condition.condition)},
 			{"azure_identities", r.GetAzureIdentities(condition.condition)},
 			{"gcp_service_accounts", r.GetGCPServiceAccounts(condition.condition)},
@@ -318,6 +303,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"kubernetes_users", r.GetKubeUsers(condition.condition)},
 			{"db_names", r.GetDatabaseNames(condition.condition)},
 			{"db_users", r.GetDatabaseUsers(condition.condition)},
+			{"db_roles", r.GetDatabaseRoles(condition.condition)},
 			{"host_groups", r.GetHostGroups(condition.condition)},
 			{"host_sudoers", r.GetHostSudoers(condition.condition)},
 			{"desktop_groups", r.GetDesktopGroups(condition.condition)},
@@ -325,34 +311,44 @@ func validateRoleExpressions(r types.Role) error {
 			{"impersonate.roles", r.GetImpersonateConditions(condition.condition).Roles},
 		} {
 			for _, value := range values.values {
-				_, err := parse.NewTraitsTemplateExpression(value)
-				if err != nil {
-					err = trace.BadParameter("parsing %s.%s expression: %v", condition.name, values.name, err)
-					errs = append(errs, err)
+				if _, err := parse.NewTraitsTemplateExpression(value); err != nil {
+					errs = append(errs, trace.BadParameter("parsing %s.%s expression: %v", condition.name, values.name, err))
 				}
 			}
 		}
 
-		for _, ks := range r.GetKubeResources(condition.condition) {
-			_, err := parse.NewTraitsTemplateExpression(ks.Namespace)
+		// Impersonate where clause
+		if where := r.GetImpersonateConditions(condition.condition).Where; where != "" {
+			// Stub the context, the predicate parser resolves identifiers at parse
+			// time, so a nil context rejects valid expressions.
+			parser, err := newImpersonateWhereParser(&impersonateContext{
+				user:            emptyUser,
+				impersonateUser: emptyUser,
+				impersonateRole: &types.RoleV6{},
+			})
 			if err != nil {
-				err = trace.BadParameter("parsing %s.kubernetes_resources.namespace expression: %v", condition.name, err)
-				errs = append(errs, err)
+				errs = append(errs, trace.BadParameter("%s.impersonate.where: failed to create parser: %v", condition.name, err))
+			} else if _, err = parser.Parse(where); err != nil {
+				errs = append(errs, trace.BadParameter("%s.impersonate.where: invalid expression %q: %v", condition.name, where, err))
 			}
-			_, err = parse.NewTraitsTemplateExpression(ks.Name)
-			if err != nil {
-				err = trace.BadParameter("parsing %s.kubernetes_resources.name expression: %v", condition.name, err)
-				errs = append(errs, err)
+		}
+
+		// Trait templates in kubernetes_resources
+		for i, ks := range r.GetKubeResources(condition.condition) {
+			if _, err := parse.NewTraitsTemplateExpression(ks.Namespace); err != nil {
+				errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources[%d].namespace expression: %v", condition.name, i, err))
+			}
+			if _, err := parse.NewTraitsTemplateExpression(ks.Name); err != nil {
+				errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources[%d].name expression: %v", condition.name, i, err))
 			}
 			for _, verb := range ks.Verbs {
-				_, err = parse.NewTraitsTemplateExpression(verb)
-				if err != nil {
-					err = trace.BadParameter("parsing %s.kubernetes_resources.verbs expression: %v", condition.name, err)
-					errs = append(errs, err)
+				if _, err := parse.NewTraitsTemplateExpression(verb); err != nil {
+					errs = append(errs, trace.BadParameter("parsing %s.kubernetes_resources[%d].verbs expression: %v", condition.name, i, err))
 				}
 			}
 		}
 
+		// Label value trait templates and label expressions
 		for _, labels := range []struct {
 			name string
 			kind string
@@ -367,6 +363,7 @@ func validateRoleExpressions(r types.Role) error {
 			{"windows_desktop_labels", types.KindWindowsDesktop},
 			{"windows_desktop_labels", types.KindDynamicWindowsDesktop},
 			{"group_labels", types.KindUserGroup},
+			{"workload_identity_labels", types.KindWorkloadIdentity},
 			{"beam_labels", types.KindBeam},
 		} {
 			labelMatchers, err := r.GetLabelMatchers(condition.condition, labels.kind)
@@ -375,22 +372,195 @@ func validateRoleExpressions(r types.Role) error {
 			}
 			for _, labelValues := range labelMatchers.Labels {
 				for _, label := range labelValues {
-					_, err := parse.NewTraitsTemplateExpression(label)
-					if err != nil {
-						err = trace.BadParameter("parsing %s.%s template expression: %v", condition.name, labels.name, err)
-						errs = append(errs, err)
+					if _, err := parse.NewTraitsTemplateExpression(label); err != nil {
+						errs = append(errs, trace.BadParameter("parsing %s.%s template expression: %v", condition.name, labels.name, err))
 					}
 				}
 			}
 			if len(labelMatchers.Expression) > 0 {
 				if _, err := parseLabelExpression(labelMatchers.Expression); err != nil {
-					err = trace.BadParameter("parsing %s.%s_expression: %v", condition.name, labels.name, err)
-					errs = append(errs, err)
+					errs = append(errs, trace.BadParameter("parsing %s.%s_expression: %v", condition.name, labels.name, err))
+				}
+			}
+		}
+
+		// Trait templates in github_permissions.organizations
+		for i, perm := range r.GetGitHubPermissions(condition.condition) {
+			for _, org := range perm.Organizations {
+				if _, err := parse.NewTraitsTemplateExpression(org); err != nil {
+					errs = append(errs, trace.BadParameter("parsing %s.github_permissions[%d].organizations expression: %v", condition.name, i, err))
+				}
+			}
+		}
+
+		// Trait templates in mcp.tools
+		if mcp := r.GetMCPPermissions(condition.condition); mcp != nil {
+			for i, tool := range mcp.Tools {
+				if _, err := parse.NewTraitsTemplateExpression(tool); err != nil {
+					errs = append(errs, trace.BadParameter("parsing %s.mcp.tools[%d] %q: %v", condition.name, i, tool, err))
 				}
 			}
 		}
 	}
+
+	// Trait templates in options.cert_extensions.value
+	for i, ext := range r.GetOptions().CertExtensions {
+		if ext == nil {
+			continue
+		}
+		if _, err := parse.NewTraitsTemplateExpression(ext.Value); err != nil {
+			errs = append(errs, trace.BadParameter("parsing options.cert_extensions[%d].value expression: %v", i, err))
+		}
+	}
+
+	// Session require policy expressions
+	for i, policy := range r.GetSessionRequirePolicies() {
+		if policy == nil || policy.Filter == "" {
+			continue
+		}
+		parser, err := NewWhereParser(sessionFilterValidationContext{})
+		if err != nil {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: failed to create where parser: %v", i, err))
+			continue
+		}
+		if _, err = parser.Parse(policy.Filter); err != nil {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: invalid filter %q: %v", i, policy.Filter, err))
+		}
+	}
+
+	// Access predicates
+	if err := ValidateAccessPredicates(r); err != nil {
+		errs = append(errs, err)
+	}
+
 	return trace.NewAggregate(errs...)
+}
+
+// sessionFilterValidationContext validates require_session_join filters using
+// the same identifiers as moderation.SessionAccessContext at runtime including
+// the legacy user.roles alias for user.spec.roles.
+//
+// Keep in sync with moderation.SessionAccessContext.GetIdentifier in
+// lib/auth/moderation/session_access.go.
+type sessionFilterValidationContext struct{}
+
+func (sessionFilterValidationContext) GetIdentifier(fields []string) (any, error) {
+	if fields[0] == "user" && (len(fields) == 2 || len(fields) == 3) {
+		idx := 1
+		if len(fields) == 3 && fields[1] == "spec" {
+			idx = 2
+		}
+		switch fields[idx] {
+		case "name":
+			return "", nil
+		case "roles":
+			return []string{}, nil
+		}
+	}
+	return nil, trace.NotFound("%v is not defined", strings.Join(fields, "."))
+}
+
+func (sessionFilterValidationContext) GetResource() (types.Resource, error) {
+	return nil, trace.NotFound("resource is not used in session filter validation")
+}
+
+func (sessionFilterValidationContext) GetAccessChecker() (AccessChecker, error) {
+	return nil, trace.NotFound("access checker is not used in session filter validation")
+}
+
+// validateRoleWildcards rejects wildcards in fields that don't support them.
+func validateRoleWildcards(r types.Role) error {
+	var errs []error
+	for _, side := range []struct {
+		name string
+		rct  types.RoleConditionType
+	}{
+		{"allow", types.Allow},
+		{"deny", types.Deny},
+	} {
+		for _, field := range []struct {
+			name   string
+			values []string
+		}{
+			{"request.search_as_roles", r.GetSearchAsRoles(side.rct)},
+			{"review_requests.preview_as_roles", r.GetPreviewAsRoles(side.rct)},
+		} {
+			if slices.Contains(field.values, types.Wildcard) {
+				errs = append(errs, trace.BadParameter("wildcard is not allowed in %s.%s", side.name, field.name))
+			}
+		}
+	}
+	return trace.NewAggregate(errs...)
+}
+
+// validateSessionPolicies validates fields (kinds, modes,
+// on_leave) on require_session_join join_sessions policies.
+func validateSessionPolicies(r types.Role) error {
+	var errs []error
+
+	// require_session_join
+	for i, p := range r.GetSessionRequirePolicies() {
+		if p == nil {
+			continue
+		}
+		if p.Count < 0 {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: count cannot be negative, got %d", i, p.Count))
+		}
+		if err := validateSessionKinds(p.Kinds); err != nil {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: %v", i, err))
+		}
+		if err := validateSessionParticipantModes(p.Modes); err != nil {
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: %v", i, err))
+		}
+		switch types.OnSessionLeaveAction(p.OnLeave) {
+		case "", types.OnSessionLeaveTerminate, types.OnSessionLeavePause:
+		default:
+			errs = append(errs, trace.BadParameter("require_session_join[%d]: invalid on_leave action %q, expected one of %q, %q",
+				i, p.OnLeave, types.OnSessionLeaveTerminate, types.OnSessionLeavePause))
+		}
+	}
+
+	// join_sessions
+	for i, p := range r.GetSessionJoinPolicies() {
+		if p == nil {
+			continue
+		}
+		if err := validateSessionKinds(p.Kinds); err != nil {
+			errs = append(errs, trace.BadParameter("join_sessions[%d]: %v", i, err))
+		}
+		if err := validateSessionParticipantModes(p.Modes); err != nil {
+			errs = append(errs, trace.BadParameter("join_sessions[%d]: %v", i, err))
+		}
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
+func validateSessionKinds(kinds []string) error {
+	for _, kind := range kinds {
+		// "*" is accepted by SessionAccessEvaluator.matchesKind at runtime
+		if kind == types.Wildcard {
+			continue
+		}
+		switch types.SessionKind(kind) {
+		case types.SSHSessionKind, types.KubernetesSessionKind, types.DatabaseSessionKind,
+			types.AppSessionKind, types.WindowsDesktopSessionKind, types.GitSessionKind:
+		default:
+			return trace.BadParameter("invalid session kind %q", kind)
+		}
+	}
+	return nil
+}
+
+func validateSessionParticipantModes(modes []string) error {
+	for _, mode := range modes {
+		switch types.SessionParticipantMode(mode) {
+		case types.SessionObserverMode, types.SessionModeratorMode, types.SessionPeerMode:
+		default:
+			return trace.BadParameter("invalid participant mode %q", mode)
+		}
+	}
+	return nil
 }
 
 // validateRule parses the where and action fields to validate the rule.
@@ -497,6 +667,8 @@ func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 
 // ApplyTraitsWithContext applies the passed in role template context to any
 // variables within the role and returns itself.
+//
+// Keep in sync with validateRoleExpressions.
 func ApplyTraitsWithContext(r types.Role, ctx RoleTemplateContext) (types.Role, error) {
 	for _, condition := range []types.RoleConditionType{types.Allow, types.Deny} {
 
@@ -1964,6 +2136,33 @@ func (set RoleSet) CheckImpersonateRoles(currentUser types.User, impersonateRole
 	return trace.AccessDenied("access denied to '%s' to impersonate roles '%s'", currentUser.GetName(), roleNames(impersonateRoles))
 }
 
+// CheckSubmitForUser checks whether the current user is allowed to
+// submit reviews for other users, to be used by plugins.
+func (set RoleSet) CheckSubmitForUser(currentUser, submitForUser types.User) error {
+	for _, role := range set {
+		denyUsers := role.GetSubmitForUsers(types.Deny)
+		anyDenyUser, err := parse.NewAnyMatcher(denyUsers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if anyDenyUser.Match(submitForUser.GetName()) {
+			return trace.AccessDenied("access denied for '%s' to submit for user '%s'", currentUser.GetName(), submitForUser.GetName())
+		}
+	}
+
+	for _, role := range set {
+		allowUsers := role.GetSubmitForUsers(types.Allow)
+		anyAllowUser, err := parse.NewAnyMatcher(allowUsers)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if anyAllowUser.Match(submitForUser.GetName()) {
+			return nil
+		}
+	}
+	return trace.AccessDenied("access denied for '%s' to submit for user '%s'", currentUser.GetName(), submitForUser.GetName())
+}
+
 // LockingMode returns the locking mode to apply with this RoleSet.
 func (set RoleSet) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
 	mode := defaultMode
@@ -2743,7 +2942,7 @@ func (set RoleSet) checkAccess(
 		}
 
 		// Mark that MFA is required and continue evaluating access.
-		preconds = append(preconds, &decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+		preconds = append(preconds, decisionpb.Precondition_builder{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}.Build())
 	}
 
 	requiresLabelMatching := resourceRequiresLabelMatching(r)
@@ -2896,7 +3095,7 @@ func (set RoleSet) checkAccess(
 			}
 
 			// Mark that MFA is required and continue evaluating access.
-			preconds = append(preconds, &decisionpb.Precondition{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA})
+			preconds = append(preconds, decisionpb.Precondition_builder{Kind: decisionpb.PreconditionKind_PRECONDITION_KIND_IN_BAND_MFA}.Build())
 		}
 
 		// Device verification.
@@ -2937,7 +3136,7 @@ func deduplicateAndSortPreconditions(preconds []*decisionpb.Precondition) []*dec
 	// Deduplicate preconditions by kind.
 	preconds = slices.CompactFunc(
 		preconds, func(a, b *decisionpb.Precondition) bool {
-			return a.Kind == b.Kind
+			return a.GetKind() == b.GetKind()
 		},
 	)
 
@@ -2945,7 +3144,7 @@ func deduplicateAndSortPreconditions(preconds []*decisionpb.Precondition) []*dec
 	slices.SortFunc(
 		preconds,
 		func(a, b *decisionpb.Precondition) int {
-			return cmp.Compare(a.Kind, b.Kind)
+			return cmp.Compare(a.GetKind(), b.GetKind())
 		},
 	)
 
@@ -3873,7 +4072,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 		}
 	}
 
-	if err := ValidateRole(&role); err != nil {
+	if err := CheckAndSetDefaults(&role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -3888,7 +4087,7 @@ func UnmarshalRoleV6(bytes []byte, opts ...MarshalOption) (*types.RoleV6, error)
 
 // MarshalRole marshals the Role resource to JSON.
 func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
-	if err := ValidateRole(role); err != nil {
+	if err := CheckAndSetDefaults(role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 

@@ -69,7 +69,7 @@ $ cat /proc/$(pidof teleport)/limits
 ## DynamoDB configuration
 
 When using Teleport with DynamoDB, we recommend using on-demand provisioning.
-This allow DynamoDB to scale with cluster load.
+This allows DynamoDB to scale with cluster load.
 
 For customers that can not use on-demand provisioning, we recommend at least
 250 WCU and 100 RCU for 10k clusters.
@@ -128,7 +128,7 @@ has default limits of 4CPU and 4Gi memory.
 
 Windows Desktop Service resource utilization can vary significantly based on workload, user behavior, and environment. For this reason it is challenging to provide absolute CPU and RAM requirements. This worked example is an illustration of one potential approach in determining the resource limits for a given Windows Desktop Service instance.
 
-There are three primary factors that influence resource utilization by the Windows Desktop Service:
+There are four primary factors that influence resource utilization by the Windows Desktop Service:
 1. Number of concurrent sessions.
 1. Number of registered desktops.
 1. Screen update frequency per session.

@@ -52,14 +52,14 @@ func (c *EvaluateDatabaseCommand) FullCommand() string {
 
 // Run executes the subcommand.
 func (c *EvaluateDatabaseCommand) Run(ctx context.Context, clt Client) error {
-	resp, err := clt.DecisionClient().EvaluateDatabaseAccess(ctx, &decisionpb.EvaluateDatabaseAccessRequest{
-		Metadata:    &decisionpb.RequestMetadata{PepVersionHint: teleport.Version},
+	resp, err := clt.DecisionClient().EvaluateDatabaseAccess(ctx, decisionpb.EvaluateDatabaseAccessRequest_builder{
+		Metadata:    decisionpb.RequestMetadata_builder{PepVersionHint: teleport.Version}.Build(),
 		TlsIdentity: &decisionpb.TLSIdentity{},
-		Database: &decisionpb.Resource{
+		Database: decisionpb.Resource_builder{
 			Kind: types.KindDatabase,
 			Name: c.DatabaseID,
-		},
-	})
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}

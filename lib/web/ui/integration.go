@@ -191,6 +191,12 @@ type ResourceTypeSummary struct {
 	ResourcesEnrollmentSuccess int `json:"resourcesEnrollmentSuccess,omitempty"`
 	// DiscoverLastSync contains the time when this integration tried to auto-enroll resources.
 	DiscoverLastSync *time.Time `json:"discoverLastSync,omitempty"`
+	// SyncStart is when the current or most recent discovery scan started.
+	SyncStart *time.Time `json:"syncStart,omitempty"`
+	// SyncEnd is when the most recent discovery scan ended.
+	SyncEnd *time.Time `json:"syncEnd,omitempty"`
+	// PollIntervalSeconds is the interval in seconds between discovery scans.
+	PollIntervalSeconds int `json:"pollIntervalSeconds,omitempty"`
 	// UnresolvedUserTasks contains the count of unresolved user tasks related to this integration and resource type.
 	UnresolvedUserTasks int `json:"unresolvedUserTasks,omitempty"`
 	// ECSDatabaseServiceCount is the total number of DatabaseServices that were deployed into Amazon ECS.

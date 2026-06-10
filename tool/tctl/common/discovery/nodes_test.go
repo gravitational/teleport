@@ -30,23 +30,23 @@ func makeEC2Task(t *testing.T, issueType string, instanceIDs ...string) *usertas
 	t.Helper()
 	instances := make(map[string]*usertasksv1.DiscoverEC2Instance, len(instanceIDs))
 	for _, id := range instanceIDs {
-		instances[id] = &usertasksv1.DiscoverEC2Instance{
+		instances[id] = usertasksv1.DiscoverEC2Instance_builder{
 			InstanceId:      id,
 			DiscoveryConfig: "dc01",
 			DiscoveryGroup:  "dg01",
-		}
+		}.Build()
 	}
-	task, err := usertaskstypes.NewDiscoverEC2UserTask(&usertasksv1.UserTaskSpec{
+	task, err := usertaskstypes.NewDiscoverEC2UserTask(usertasksv1.UserTaskSpec_builder{
 		Integration: "my-integration",
 		TaskType:    "discover-ec2",
 		IssueType:   issueType,
 		State:       "OPEN",
-		DiscoverEc2: &usertasksv1.DiscoverEC2{
+		DiscoverEc2: usertasksv1.DiscoverEC2_builder{
 			AccountId: "111",
 			Region:    "us-east-1",
 			Instances: instances,
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	return task
 }
@@ -55,21 +55,21 @@ func makeAzureVMTask(t *testing.T, issueType string, vmIDs ...string) *usertasks
 	t.Helper()
 	instances := make(map[string]*usertasksv1.DiscoverAzureVMInstance, len(vmIDs))
 	for _, id := range vmIDs {
-		instances[id] = &usertasksv1.DiscoverAzureVMInstance{
+		instances[id] = usertasksv1.DiscoverAzureVMInstance_builder{
 			VmId:            id,
 			DiscoveryConfig: "dc01",
 			DiscoveryGroup:  "dg01",
-		}
+		}.Build()
 	}
 	task, err := usertaskstypes.NewDiscoverAzureVMUserTask(usertaskstypes.TaskGroup{
 		Integration: "my-integration",
 		IssueType:   issueType,
-	}, time.Now().Add(time.Hour), &usertasksv1.DiscoverAzureVM{
+	}, time.Now().Add(time.Hour), usertasksv1.DiscoverAzureVM_builder{
 		SubscriptionId: "sub-1",
 		ResourceGroup:  "rg-1",
 		Region:         "eastus",
 		Instances:      instances,
-	})
+	}.Build())
 	require.NoError(t, err)
 	return task
 }

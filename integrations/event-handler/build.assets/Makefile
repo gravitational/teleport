@@ -1,5 +1,4 @@
 VERSION=0.0.1
-GO_VERSION=1.21.9
 LOCALDIR := $(dir $(CURDIR)/$(word $(words $(MAKEFILE_LIST)),$(MAKEFILE_LIST)))
 TOP ?= $(abspath $(LOCALDIR)/../..)
 SRCDIR=/go/src/github.com/gravitational/teleport/integrations/event-handler
@@ -30,7 +29,6 @@ BINDIR=/usr/local/bin
 .PHONY: buildbox
 buildbox:
 	docker build \
-		--build-arg GO_VERSION=$(GO_VERSION) \
 		--build-arg UID=$(shell id -u) \
 		--build-arg GID=$(shell id -g) \
 		--build-arg ARCH=$(ARCH) \

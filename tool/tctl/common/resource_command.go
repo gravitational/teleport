@@ -163,6 +163,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, _ *tctlcfg.Globa
 
 	rc.listKindsCmd = app.Command("list-kinds", "Lists all resource kinds supported by this tctl version.").Alias("api-resources")
 	rc.listKindsCmd.Flag("wide", "Do not truncate the Description column, even if it exceeds terminal width").BoolVar(&rc.verbose)
+	rc.listKindsCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&rc.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	if rc.Stdout == nil {
 		rc.Stdout = os.Stdout
@@ -500,16 +501,16 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.
 	}
 
 	if rc.IsForced() {
-		_, err = client.DevicesClient().UpsertDevice(ctx, &devicepb.UpsertDeviceRequest{
+		_, err = client.DevicesClient().UpsertDevice(ctx, devicepb.UpsertDeviceRequest_builder{
 			Device:           dev,
 			CreateAsResource: true,
-		})
+		}.Build())
 		// err checked below
 	} else {
-		_, err = client.DevicesClient().CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		_, err = client.DevicesClient().CreateDevice(ctx, devicepb.CreateDeviceRequest_builder{
 			Device:           dev,
 			CreateAsResource: true,
-		})
+		}.Build())
 		// err checked below
 	}
 	if err != nil {
@@ -522,8 +523,8 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client *authclient.
 	}
 
 	fmt.Printf("Device %v/%v %v\n",
-		dev.AssetTag,
-		devicetrust.FriendlyOSType(dev.OsType),
+		dev.GetAssetTag(),
+		devicetrust.FriendlyOSType(dev.GetOsType()),
 		verb,
 	)
 	return nil
@@ -708,9 +709,9 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client *authclient.Client
 			return trace.Wrap(err)
 		}
 
-		if _, err := remote.DeleteDevice(ctx, &devicepb.DeleteDeviceRequest{
-			DeviceId: device[0].Id,
-		}); err != nil {
+		if _, err := remote.DeleteDevice(ctx, devicepb.DeleteDeviceRequest_builder{
+			DeviceId: device[0].GetId(),
+		}.Build()); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Device %q removed\n", rc.ref.Name)
@@ -948,19 +949,19 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 	case types.KindDevice:
 		remote := client.DevicesClient()
 		if rc.ref.Name != "" {
-			resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
+			resp, err := remote.FindDevices(ctx, devicepb.FindDevicesRequest_builder{
 				IdOrTag: rc.ref.Name,
-			})
+			}.Build())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
-			return &deviceCollection{resp.Devices}, nil
+			return &deviceCollection{resp.GetDevices()}, nil
 		}
 
-		req := &devicepb.ListDevicesRequest{
+		req := devicepb.ListDevicesRequest_builder{
 			View: devicepb.DeviceView_DEVICE_VIEW_RESOURCE,
-		}
+		}.Build()
 		var devs []*devicepb.Device
 		for {
 			resp, err := remote.ListDevices(ctx, req)
@@ -968,23 +969,23 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 				return nil, trace.Wrap(err)
 			}
 
-			devs = append(devs, resp.Devices...)
+			devs = append(devs, resp.GetDevices()...)
 
-			if resp.NextPageToken == "" {
+			if resp.GetNextPageToken() == "" {
 				break
 			}
-			req.PageToken = resp.NextPageToken
+			req.SetPageToken(resp.GetNextPageToken())
 		}
 
 		sort.Slice(devs, func(i, j int) bool {
 			d1 := devs[i]
 			d2 := devs[j]
 
-			if d1.AssetTag == d2.AssetTag {
-				return d1.OsType < d2.OsType
+			if d1.GetAssetTag() == d2.GetAssetTag() {
+				return d1.GetOsType() < d2.GetOsType()
 			}
 
-			return d1.AssetTag < d2.AssetTag
+			return d1.GetAssetTag() < d2.GetAssetTag()
 		})
 
 		return &deviceCollection{devices: devs}, nil
@@ -1064,7 +1065,7 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		return &securityReportCollection{items: resources}, nil
 	case types.KindPlugin:
 		if rc.ref.Name != "" {
-			plugin, err := client.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{Name: rc.ref.Name})
+			plugin, err := client.PluginsClient().GetPlugin(ctx, pluginsv1.GetPluginRequest_builder{Name: rc.ref.Name}.Build())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1073,21 +1074,21 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client *authclient
 		var plugins []types.Plugin
 		startKey := ""
 		for {
-			resp, err := client.PluginsClient().ListPlugins(ctx, &pluginsv1.ListPluginsRequest{
+			resp, err := client.PluginsClient().ListPlugins(ctx, pluginsv1.ListPluginsRequest_builder{
 				PageSize:    100,
 				StartKey:    startKey,
 				WithSecrets: rc.withSecrets,
-			})
+			}.Build())
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			for _, v := range resp.Plugins {
+			for _, v := range resp.GetPlugins() {
 				plugins = append(plugins, v)
 			}
-			if resp.NextKey == "" {
+			if resp.GetNextKey() == "" {
 				break
 			}
-			startKey = resp.NextKey
+			startKey = resp.GetNextKey()
 		}
 		return &pluginCollection{plugins: plugins}, nil
 
@@ -1135,21 +1136,21 @@ func UpsertVerb(exists bool, force bool) string {
 }
 
 func findDeviceByIDOrTag(ctx context.Context, remote devicepb.DeviceTrustServiceClient, idOrTag string) ([]*devicepb.Device, error) {
-	resp, err := remote.FindDevices(ctx, &devicepb.FindDevicesRequest{
+	resp, err := remote.FindDevices(ctx, devicepb.FindDevicesRequest_builder{
 		IdOrTag: idOrTag,
-	})
+	}.Build())
 	switch {
 	case err != nil:
 		return nil, trace.Wrap(err)
-	case len(resp.Devices) == 0:
+	case len(resp.GetDevices()) == 0:
 		return nil, trace.NotFound("device %q not found", idOrTag)
-	case len(resp.Devices) == 1:
-		return resp.Devices, nil
+	case len(resp.GetDevices()) == 1:
+		return resp.GetDevices(), nil
 	}
 
 	// Do we have an ID match?
-	for _, dev := range resp.Devices {
-		if dev.Id == idOrTag {
+	for _, dev := range resp.GetDevices() {
+		if dev.GetId() == idOrTag {
 			return []*devicepb.Device{dev}, nil
 		}
 	}
@@ -1178,7 +1179,7 @@ func (rc *ResourceCommand) updatePlugin(ctx context.Context, client *authclient.
 	if err := utils.FastUnmarshal(raw.Raw, &item); err != nil {
 		return trace.Wrap(err)
 	}
-	if _, err := client.PluginsClient().UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: &item.PluginV1}); err != nil {
+	if _, err := client.PluginsClient().UpdatePlugin(ctx, pluginsv1.UpdatePluginRequest_builder{Plugin: &item.PluginV1}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	return nil
@@ -1195,7 +1196,7 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 		// Plugin needs to be installed before it can be updated.
 		return trace.BadParameter("Only plugin update operation is supported. Please use 'tctl plugins install' instead\n")
 	}
-	if _, err := client.PluginsClient().UpdatePlugin(ctx, &pluginsv1.UpdatePluginRequest{Plugin: &item.PluginV1}); err != nil {
+	if _, err := client.PluginsClient().UpdatePlugin(ctx, pluginsv1.UpdatePluginRequest_builder{Plugin: &item.PluginV1}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("plugin %q has been updated\n", item.GetName())
@@ -1204,19 +1205,58 @@ func (rc *ResourceCommand) createPlugin(ctx context.Context, client *authclient.
 
 // UpdateFields updates select resource fields: expiry and labels
 func (rc *ResourceCommand) listKinds() error {
-	// We must compute rows before, and cannot add them as we go
-	// because this breaks the "truncated columns behavior"
-	var rows [][]string
+	rows := resourceKindRows()
+
+	switch rc.format {
+	case teleport.Text:
+		return trace.Wrap(rc.writeResourceKindRowsText(rows))
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSON(rc.Stdout, rows))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAMLArray(rc.Stdout, rows))
+	default:
+		return trace.BadParameter("unsupported format %q", rc.format)
+	}
+}
+
+type resourceKindRow struct {
+	Kind              string   `json:"kind"`
+	SupportedCommands []string `json:"supported_commands"`
+	Singleton         bool     `json:"singleton"`
+	MFARequired       bool     `json:"mfa_required"`
+	Description       string   `json:"description"`
+}
+
+func resourceKindRows() []resourceKindRow {
+	rows := make([]resourceKindRow, 0, len(resources.Handlers()))
 	for kind, handler := range resources.Handlers() {
-		rows = append(rows, []string{
-			kind,
-			strings.Join(handler.SupportedCommands(), ","),
-			yesOrEmpty(handler.Singleton()),
-			yesOrEmpty(handler.MFARequired()),
-			handler.Description(),
+		rows = append(rows, resourceKindRow{
+			Kind:              kind,
+			SupportedCommands: handler.SupportedCommands(),
+			Singleton:         handler.Singleton(),
+			MFARequired:       handler.MFARequired(),
+			Description:       handler.Description(),
 		})
 	}
+	slices.SortFunc(rows, func(a, b resourceKindRow) int {
+		return strings.Compare(a.Kind, b.Kind)
+	})
+	return rows
+}
 
+func (rc *ResourceCommand) writeResourceKindRowsText(kindRows []resourceKindRow) error {
+	// We must compute rows before, and cannot add them as we go
+	// because this breaks the "truncated columns behavior"
+	rows := make([][]string, 0, len(kindRows))
+	for _, row := range kindRows {
+		rows = append(rows, []string{
+			row.Kind,
+			strings.Join(row.SupportedCommands, ","),
+			yesOrEmpty(row.Singleton),
+			yesOrEmpty(row.MFARequired),
+			row.Description,
+		})
+	}
 	var t asciitable.Table
 	headers := []string{"Kind", "Supported Commands", "Singleton", "MFA", "Description"}
 	if rc.verbose {
@@ -1224,7 +1264,6 @@ func (rc *ResourceCommand) listKinds() error {
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn(headers, rows, "Description")
 	}
-	t.SortRowsBy([]int{0}, true)
 	return trace.Wrap(t.WriteTo(rc.Stdout))
 }
 

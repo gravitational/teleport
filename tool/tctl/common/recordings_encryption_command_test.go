@@ -63,7 +63,7 @@ func TestRecordingEncryptionKeyRotation(t *testing.T) {
 	keyStates := getEncryptionKeyStates(t, clt)
 	require.Len(t, keyStates, 1)
 	initialKeyState := keyStates[0]
-	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, initialKeyState.State)
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, initialKeyState.GetState())
 
 	// start key rotation
 	_, err = runRecordingsCommand(t, clt, []string{"recordings", "encryption", "rotate"})
@@ -75,9 +75,9 @@ func TestRecordingEncryptionKeyRotation(t *testing.T) {
 	rotatedKeyState := keyStates[0]
 	newKeyState := keyStates[1]
 
-	require.Equal(t, initialKeyState.Fingerprint, rotatedKeyState.Fingerprint)
-	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, rotatedKeyState.State)
-	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, newKeyState.State)
+	require.Equal(t, initialKeyState.GetFingerprint(), rotatedKeyState.GetFingerprint())
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, rotatedKeyState.GetState())
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, newKeyState.GetState())
 
 	// confirm a second rotation fails when one is already in progress
 	_, err = runRecordingsCommand(t, clt, []string{"recordings", "encryption", "rotate"})
@@ -91,8 +91,8 @@ func TestRecordingEncryptionKeyRotation(t *testing.T) {
 	keyStates = getEncryptionKeyStates(t, clt)
 	require.Len(t, keyStates, 1)
 	newKeyState = keyStates[0]
-	require.Equal(t, initialKeyState.Fingerprint, newKeyState.Fingerprint)
-	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, newKeyState.State)
+	require.Equal(t, initialKeyState.GetFingerprint(), newKeyState.GetFingerprint())
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, newKeyState.GetState())
 
 	// start a new rotation
 	_, err = runRecordingsCommand(t, clt, []string{"recordings", "encryption", "rotate"})
@@ -103,9 +103,9 @@ func TestRecordingEncryptionKeyRotation(t *testing.T) {
 	require.Len(t, keyStates, 2)
 	rotatedKeyState = keyStates[0]
 	newKeyState = keyStates[1]
-	require.Equal(t, initialKeyState.Fingerprint, rotatedKeyState.Fingerprint)
-	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, rotatedKeyState.State)
-	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, newKeyState.State)
+	require.Equal(t, initialKeyState.GetFingerprint(), rotatedKeyState.GetFingerprint())
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ROTATING, rotatedKeyState.GetState())
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, newKeyState.GetState())
 
 	// complete rotation
 	_, err = runRecordingsCommand(t, clt, []string{"recordings", "encryption", "complete-rotation"})
@@ -115,8 +115,8 @@ func TestRecordingEncryptionKeyRotation(t *testing.T) {
 	keyStates = getEncryptionKeyStates(t, clt)
 	require.Len(t, keyStates, 1)
 	finalKeyState := keyStates[0]
-	require.Equal(t, newKeyState.Fingerprint, finalKeyState.Fingerprint)
-	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, finalKeyState.State)
+	require.Equal(t, newKeyState.GetFingerprint(), finalKeyState.GetFingerprint())
+	require.Equal(t, recordingencryptionv1.KeyPairState_KEY_PAIR_STATE_ACTIVE, finalKeyState.GetState())
 }
 
 func getEncryptionKeyStates(t *testing.T, client *authclient.Client) []*recordingencryptionv1.FingerprintWithState {

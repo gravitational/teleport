@@ -1230,10 +1230,10 @@ func TestListUsers(t *testing.T) {
 			rsp, err := clt.ListUsers(ctx, req)
 			require.NoError(t, err)
 
-			users = append(users, rsp.Users...)
+			users = append(users, rsp.GetUsers()...)
 
-			req.PageToken = rsp.NextPageToken
-			if req.PageToken == "" {
+			req.SetPageToken(rsp.GetNextPageToken())
+			if req.GetPageToken() == "" {
 				break
 			}
 		}
@@ -1252,41 +1252,41 @@ func TestListUsers(t *testing.T) {
 	users := getUsers(t, &userspb.ListUsersRequest{})
 	require.ElementsMatch(t, allUserNames, namesOf(users))
 
-	users = getUsers(t, &userspb.ListUsersRequest{
+	users = getUsers(t, userspb.ListUsersRequest_builder{
 		Filter: &types.UserFilter{
 			SearchKeywords: []string{
 				"mauka",
 				"red",
 			},
 		},
-	})
+	}.Build())
 
 	require.ElementsMatch(t, []string{
 		"alice@good.example.com",
 		"carol@evil.example.com",
 	}, namesOf(users))
 
-	users = getUsers(t, &userspb.ListUsersRequest{
+	users = getUsers(t, userspb.ListUsersRequest_builder{
 		Filter: &types.UserFilter{
 			SearchKeywords: []string{
 				"blue",
 				"good.example.com",
 			},
 		},
-	})
+	}.Build())
 
 	require.ElementsMatch(t, []string{
 		"bob@good.example.com",
 	}, namesOf(users))
 
-	users = getUsers(t, &userspb.ListUsersRequest{
+	users = getUsers(t, userspb.ListUsersRequest_builder{
 		Filter: &types.UserFilter{
 			SearchKeywords: []string{
 				"mauka",
 			},
 		},
 		PageSize: 2,
-	})
+	}.Build())
 
 	require.ElementsMatch(t, []string{
 		"alice@good.example.com",
@@ -1294,37 +1294,37 @@ func TestListUsers(t *testing.T) {
 		"carol@evil.example.com",
 	}, namesOf(users))
 
-	users = getUsers(t, &userspb.ListUsersRequest{
+	users = getUsers(t, userspb.ListUsersRequest_builder{
 		Filter: &types.UserFilter{
 			SearchKeywords: []string{
 				"good-role",
 			},
 		},
-	})
+	}.Build())
 
 	require.ElementsMatch(t, []string{
 		"alice@good.example.com",
 		"bob@good.example.com",
 	}, namesOf(users))
 
-	users = getUsers(t, &userspb.ListUsersRequest{
+	users = getUsers(t, userspb.ListUsersRequest_builder{
 		Filter: &types.UserFilter{
 			SearchKeywords: []string{
 				"good-login",
 			},
 		},
-	})
+	}.Build())
 
 	require.ElementsMatch(t, []string{
 		"alice@good.example.com",
 		"bob@good.example.com",
 	}, namesOf(users))
 
-	users = getUsers(t, &userspb.ListUsersRequest{
+	users = getUsers(t, userspb.ListUsersRequest_builder{
 		Filter: &types.UserFilter{
 			Traits: map[string][]string{"logins": {"good-login"}},
 		},
-	})
+	}.Build())
 
 	require.ElementsMatch(t, []string{
 		"alice@good.example.com",
@@ -1551,48 +1551,48 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 	defer adminClient.Close()
 
 	scopedSvc := adminClient.ScopedAccessServiceClient()
-	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "empty-role",
-			},
+			}.Build(),
 			Scope: "/test",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/test/scope"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
 	require.NoError(t, err)
 
-	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: uuid.NewString(),
-			},
+			}.Build(),
 			Scope: "/test",
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "empty-role", Scope: "/test/scope"},
+					scopedaccessv1.Assignment_builder{Role: "empty-role", Scope: "/test/scope"}.Build(),
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: createResp.GetAssignment().GetSubKind(),
-		})
+		}.Build())
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
 
@@ -1612,6 +1612,7 @@ func TestAuthPreferenceSettings_ScopedIdentity(t *testing.T) {
 func TestTunnelConnectionsCRUD(t *testing.T) {
 	t.Parallel()
 
+	ctx := t.Context()
 	testSrv := newTestTLSServer(t)
 
 	clt, err := testSrv.NewClient(authtest.TestAdmin())
@@ -1630,7 +1631,7 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	err = clt.UpsertTunnelConnection(conn)
+	err = clt.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
 	out, err = clt.GetTunnelConnections(clusterName)
@@ -1646,7 +1647,7 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	dt = dt.Add(time.Hour)
 	conn.SetLastHeartbeat(dt)
 
-	err = clt.UpsertTunnelConnection(conn)
+	err = clt.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
 	out, err = clt.GetTunnelConnections(clusterName)
@@ -1658,12 +1659,12 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	out, err = clt.GetAllTunnelConnections()
 	require.NoError(t, err)
 	for _, tc := range out {
-		err := testSrv.Auth().DeleteTunnelConnection(tc.GetClusterName(), tc.GetName())
+		err := testSrv.Auth().DeleteTunnelConnection(ctx, tc.GetClusterName(), tc.GetName())
 		require.NoError(t, err)
 	}
 
 	// test delete individual connection
-	err = clt.UpsertTunnelConnection(conn)
+	err = clt.UpsertTunnelConnection(ctx, conn)
 	require.NoError(t, err)
 
 	out, err = clt.GetTunnelConnections(clusterName)
@@ -1671,12 +1672,53 @@ func TestTunnelConnectionsCRUD(t *testing.T) {
 	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff(out[0], conn, cmpopts.IgnoreFields(types.Metadata{}, "Revision")))
 
-	err = clt.DeleteTunnelConnection(clusterName, conn.GetName())
+	err = clt.DeleteTunnelConnection(ctx, clusterName, conn.GetName())
 	require.NoError(t, err)
 
 	out, err = clt.GetTunnelConnections(clusterName)
 	require.NoError(t, err)
 	require.Empty(t, out)
+}
+
+// TestTunnelConnectionsLegacyHTTP exercises the legacy HTTP handlers for
+// tunnel connection upsert/delete directly so they stay covered during the
+// v19→v20 fallback window without re-exporting the fallback helpers.
+//
+// TODO(strideynet): DELETE IN v20.0.0
+func TestTunnelConnectionsLegacyHTTP(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	testSrv := newTestTLSServer(t)
+	clt, err := testSrv.NewClient(authtest.TestAdmin())
+	require.NoError(t, err)
+
+	const clusterName = "example.com"
+	conn, err := types.NewTunnelConnection("conn-legacy", types.TunnelConnectionSpecV2{
+		ClusterName:   clusterName,
+		ProxyName:     "p1",
+		LastHeartbeat: clockwork.NewFakeClock().Now(),
+	})
+	require.NoError(t, err)
+
+	data, err := services.MarshalTunnelConnection(conn)
+	require.NoError(t, err)
+	_, err = clt.HTTPClient.PostJSON(ctx, clt.HTTPClient.Endpoint("tunnelconnections"), &struct {
+		TunnelConnection json.RawMessage `json:"tunnel_connection"`
+	}{TunnelConnection: data})
+	require.NoError(t, err)
+
+	stored, err := clt.GetTunnelConnections(clusterName)
+	require.NoError(t, err)
+	require.Len(t, stored, 1)
+	require.Equal(t, conn.GetName(), stored[0].GetName())
+
+	_, err = clt.HTTPClient.Delete(ctx, clt.HTTPClient.Endpoint("tunnelconnections", clusterName, conn.GetName()))
+	require.NoError(t, err)
+
+	stored, err = clt.GetTunnelConnections(clusterName)
+	require.NoError(t, err)
+	require.Empty(t, stored)
 }
 
 func TestServersCRUD(t *testing.T) {
@@ -1816,9 +1858,9 @@ func TestDeleteProxy(t *testing.T) {
 		require.NoError(t, clt.UpsertProxyServerWithoutReturn(ctx, proxy))
 
 		_, err := clt.APIClient.PresenceServiceClient().DeleteProxyServer(
-			ctx, &presencev1.DeleteProxyServerRequest{
+			ctx, presencev1.DeleteProxyServerRequest_builder{
 				Name: proxy.GetName(),
-			},
+			}.Build(),
 		)
 		require.NoError(t, err)
 
@@ -1889,9 +1931,9 @@ func TestUpsertProxy(t *testing.T) {
 	t.Run("direct gRPC RPC", func(t *testing.T) {
 		proxy := newProxy("proxy-grpc").(*types.ServerV2)
 		_, err := clt.APIClient.PresenceServiceClient().UpsertProxyServer(
-			ctx, &presencev1.UpsertProxyServerRequest{
+			ctx, presencev1.UpsertProxyServerRequest_builder{
 				Server: proxy,
-			},
+			}.Build(),
 		)
 		require.NoError(t, err)
 
@@ -2788,48 +2830,48 @@ func TestGetCertAuthority_ScopedIdentity(t *testing.T) {
 	defer adminClient.Close()
 
 	scopedSvc := adminClient.ScopedAccessServiceClient()
-	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "empty-role",
-			},
+			}.Build(),
 			Scope: "/test",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/test/scope"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
 	require.NoError(t, err)
 
-	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: uuid.NewString(),
-			},
+			}.Build(),
 			Scope: "/test",
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "empty-role", Scope: "/test/scope"},
+					scopedaccessv1.Assignment_builder{Role: "empty-role", Scope: "/test/scope"}.Build(),
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: createResp.GetAssignment().GetSubKind(),
-		})
+		}.Build())
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
 
@@ -3646,7 +3688,7 @@ func TestClusterConfigContext(t *testing.T) {
 	// we are recording at the nodes not at the proxy, the proxy may
 	// need to generate host certs if a client wants to connect to an
 	// agentless node
-	_, err = proxy.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+	_, err = proxy.TrustClient().GenerateHostCert(ctx, trustpb.GenerateHostCertRequest_builder{
 		Key:         pub,
 		HostId:      "a",
 		NodeName:    "b",
@@ -3654,7 +3696,7 @@ func TestClusterConfigContext(t *testing.T) {
 		ClusterName: "localhost",
 		Role:        string(types.RoleProxy),
 		Ttl:         durationpb.New(0),
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// update cluster config to record at the proxy
@@ -3666,7 +3708,7 @@ func TestClusterConfigContext(t *testing.T) {
 	require.NoError(t, err)
 
 	// try and generate a host cert
-	_, err = proxy.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+	_, err = proxy.TrustClient().GenerateHostCert(ctx, trustpb.GenerateHostCertRequest_builder{
 		Key:         pub,
 		HostId:      "a",
 		NodeName:    "b",
@@ -3674,7 +3716,7 @@ func TestClusterConfigContext(t *testing.T) {
 		ClusterName: "localhost",
 		Role:        string(types.RoleProxy),
 		Ttl:         durationpb.New(0),
-	})
+	}.Build())
 	require.NoError(t, err)
 }
 
@@ -4989,7 +5031,7 @@ func TestEvents(t *testing.T) {
 			kind: types.WatchKind{
 				Kind: types.KindTunnelConnection,
 			},
-			crud: func(context.Context) types.Resource {
+			crud: func(ctx context.Context) types.Resource {
 				conn, err := types.NewTunnelConnection("conn1", types.TunnelConnectionSpecV2{
 					ClusterName:   "example.com",
 					ProxyName:     "p1",
@@ -4997,13 +5039,13 @@ func TestEvents(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				err = testSrv.Auth().UpsertTunnelConnection(conn)
+				err = testSrv.Auth().UpsertTunnelConnection(ctx, conn)
 				require.NoError(t, err)
 
 				out, err := testSrv.Auth().GetTunnelConnections("example.com")
 				require.NoError(t, err)
 
-				err = testSrv.Auth().DeleteTunnelConnection(conn.GetClusterName(), conn.GetName())
+				err = testSrv.Auth().DeleteTunnelConnection(ctx, conn.GetClusterName(), conn.GetName())
 				require.NoError(t, err)
 
 				return out[0]
@@ -5189,48 +5231,48 @@ func TestWatchEvents_ScopedIdentity(t *testing.T) {
 
 	// Create a scoped role with an empty allow block (no permissions).
 	scopedSvc := adminClient.ScopedAccessServiceClient()
-	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
+	_, err = scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "empty-role",
-			},
+			}.Build(),
 			Scope: "/test",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/test/scope"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	user, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-watcher")
 	require.NoError(t, err)
 
-	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+	createResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: uuid.NewString(),
-			},
+			}.Build(),
 			Scope: "/test",
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: user.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: "empty-role", Scope: "/test/scope"},
+					scopedaccessv1.Assignment_builder{Role: "empty-role", Scope: "/test/scope"}.Build(),
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
-		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		_, err := srv.AuthServer.AuthServer.ScopedAccessCache.GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    createResp.GetAssignment().GetMetadata().GetName(),
 			SubKind: createResp.GetAssignment().GetSubKind(),
-		})
+		}.Build())
 		require.NoError(t, err)
 	}, 10*time.Second, 100*time.Millisecond)
 

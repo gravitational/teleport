@@ -36,32 +36,28 @@ func TestEvaluateSSH(t *testing.T) {
 	}{
 		{
 			name: "denied",
-			response: &decisionpb.EvaluateSSHAccessResponse{
-				Decision: &decisionpb.EvaluateSSHAccessResponse_Denial{
-					Denial: &decisionpb.SSHAccessDenial{
-						Metadata: &decisionpb.DenialMetadata{
-							PdpVersion:  teleport.Version,
-							UserMessage: "denial",
-						},
-					},
-				},
-			},
+			response: decisionpb.EvaluateSSHAccessResponse_builder{
+				Denial: decisionpb.SSHAccessDenial_builder{
+					Metadata: decisionpb.DenialMetadata_builder{
+						PdpVersion:  teleport.Version,
+						UserMessage: "denial",
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name:   "permitted",
 			format: teleport.YAML,
-			response: &decisionpb.EvaluateSSHAccessResponse{
-				Decision: &decisionpb.EvaluateSSHAccessResponse_Permit{
-					Permit: &decisionpb.SSHAccessPermit{
-						Metadata: &decisionpb.PermitMetadata{
-							PdpVersion: teleport.Version,
-						},
-						ForwardAgent:    true,
-						X11Forwarding:   true,
-						PortForwardMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
-					},
-				},
-			},
+			response: decisionpb.EvaluateSSHAccessResponse_builder{
+				Permit: decisionpb.SSHAccessPermit_builder{
+					Metadata: decisionpb.PermitMetadata_builder{
+						PdpVersion: teleport.Version,
+					}.Build(),
+					ForwardAgent:    true,
+					X11Forwarding:   true,
+					PortForwardMode: decisionpb.SSHPortForwardMode_SSH_PORT_FORWARD_MODE_LOCAL,
+				}.Build(),
+			}.Build(),
 		},
 	}
 

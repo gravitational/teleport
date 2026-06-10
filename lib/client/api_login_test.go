@@ -361,13 +361,13 @@ func TestTeleportClient_Login_local(t *testing.T) {
 				require.NoError(t, err)
 
 				require.NotNil(t, sshIdent.ScopePin)
-				require.Empty(t, cmp.Diff(&scopesv1.Pin{
+				require.Empty(t, cmp.Diff(scopesv1.Pin_builder{
 					Kind:  scopesv1.PinKind_PIN_KIND_USER,
 					Scope: "/aa",
 					AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
 						"/aa": {"/aa": {"role-a"}},
 					}),
-				}, sshIdent.ScopePin, protocmp.Transform()))
+				}.Build(), sshIdent.ScopePin, protocmp.Transform()))
 				require.Empty(t, sshIdent.Roles)
 			}
 		})
@@ -432,10 +432,10 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	// In a real scenario these would be augmented certs.
 	block, _ := pem.Decode(keyRing.TLSCert)
 	require.NotNil(t, block, "Decode failed")
-	validCerts := &devicepb.UserCertificates{
+	validCerts := devicepb.UserCertificates_builder{
 		X509Der:          block.Bytes,
 		SshAuthorizedKey: keyRing.Cert,
-	}
+	}.Build()
 
 	t.Run("device login", func(t *testing.T) {
 		// We need this because the running standalone process is not Enterprise.
@@ -470,9 +470,9 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// Test! Exercise DeviceLogin.
 		got, err := teleportClient.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
 			DevicesClient: rootAuthClient.DevicesClient(),
-			Certs: &devicepb.UserCertificates{
+			Certs: devicepb.UserCertificates_builder{
 				SshAuthorizedKey: keyRing.Cert,
-			},
+			}.Build(),
 			SSHSigner: keyRing.SSHPrivateKey,
 		})
 		require.NoError(t, err, "DeviceLogin failed")
@@ -529,9 +529,9 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		teleportClient.SetDTAutoEnroll(func(_ context.Context, _ devicepb.DeviceTrustServiceClient) (*devicepb.Device, error) {
 			autoEnrollCalls++
 			enrolled = true
-			return &devicepb.Device{
+			return devicepb.Device_builder{
 				Id: "mydevice",
-			}, nil
+			}.Build(), nil
 		})
 
 		clusterClient, err := teleportClient.ConnectToCluster(ctx)
@@ -545,9 +545,9 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// Test!
 		got, err := teleportClient.DeviceLogin(ctx, &dtauthntypes.CeremonyRunParams{
 			DevicesClient: rootAuthClient.DevicesClient(),
-			Certs: &devicepb.UserCertificates{
+			Certs: devicepb.UserCertificates_builder{
 				SshAuthorizedKey: keyRing.Cert,
-			},
+			}.Build(),
 			SSHSigner: keyRing.SSHPrivateKey,
 		})
 		require.NoError(t, err, "DeviceLogin failed")
@@ -746,59 +746,59 @@ func createAndAssignScopedRoles(t *testing.T, ctx context.Context, authServer *a
 	}
 
 	scopedRoles := []*scopedaccessv1.ScopedRole{
-		{
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-a",
-			},
+			}.Build(),
 			Scope: "/aa",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/aa"},
-			},
+			}.Build(),
 			Version: types.V1,
-		},
-		{
+		}.Build(),
+		scopedaccessv1.ScopedRole_builder{
 			Kind: scopedaccess.KindScopedRole,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "role-b",
-			},
+			}.Build(),
 			Scope: "/bb",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/bb"},
-			},
+			}.Build(),
 			Version: types.V1,
-		},
+		}.Build(),
 	}
 
 	for _, role := range scopedRoles {
-		_, err = authServer.ScopedAccess().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		_, err = authServer.ScopedAccess().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 			Role: role,
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
 	// assign both roles to user
 	for _, role := range scopedRoles {
-		_, err = authServer.ScopedAccess().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-			Assignment: &scopedaccessv1.ScopedRoleAssignment{
+		_, err = authServer.ScopedAccess().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+			Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    scopedaccess.KindScopedRoleAssignment,
 				SubKind: scopedaccess.SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.NewString(),
-				},
+				}.Build(),
 				Scope: role.GetScope(),
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: username,
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  role.GetMetadata().GetName(),
 							Scope: role.GetScope(),
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
-		})
+			}.Build(),
+		}.Build())
 		require.NoError(t, err)
 	}
 

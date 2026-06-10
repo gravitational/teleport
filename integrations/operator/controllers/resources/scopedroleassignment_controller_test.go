@@ -39,15 +39,15 @@ import (
 	"github.com/gravitational/teleport/lib/scopes/access"
 )
 
-var scopedRoleAssignmentSpec = &accessv1.ScopedRoleAssignmentSpec{
+var scopedRoleAssignmentSpec = accessv1.ScopedRoleAssignmentSpec_builder{
 	User: "test-user",
 	Assignments: []*accessv1.Assignment{
-		{
+		accessv1.Assignment_builder{
 			Role:  "test-role",
 			Scope: "/staging",
-		},
+		}.Build(),
 	},
-}
+}.Build()
 
 type scopedRoleAssignmentTestingPrimitives struct {
 	setup *testSetup
@@ -63,30 +63,30 @@ func (g *scopedRoleAssignmentTestingPrimitives) SetupTeleportFixtures(ctx contex
 }
 
 func (g *scopedRoleAssignmentTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
-	assignment := &accessv1.ScopedRoleAssignment{
+	assignment := accessv1.ScopedRoleAssignment_builder{
 		Kind:    access.KindScopedRoleAssignment,
 		Version: types.V1,
 		SubKind: access.SubKindDynamic,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
 			Labels: map[string]string{
 				types.OriginLabel: types.OriginKubernetes,
 			},
-		},
+		}.Build(),
 		Scope: "/staging",
 		Spec:  scopedRoleAssignmentSpec,
-	}
-	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &accessv1.CreateScopedRoleAssignmentRequest{
+	}.Build()
+	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, accessv1.CreateScopedRoleAssignmentRequest_builder{
 		Assignment: assignment,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
 func (g *scopedRoleAssignmentTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*accessv1.ScopedRoleAssignment, error) {
-	resp, err := g.setup.TeleportClient.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &accessv1.GetScopedRoleAssignmentRequest{
+	resp, err := g.setup.TeleportClient.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, accessv1.GetScopedRoleAssignmentRequest_builder{
 		Name:    name,
 		SubKind: access.SubKindDynamic,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -94,10 +94,10 @@ func (g *scopedRoleAssignmentTestingPrimitives) GetTeleportResource(ctx context.
 }
 
 func (g *scopedRoleAssignmentTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
-	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &accessv1.DeleteScopedRoleAssignmentRequest{
+	_, err := g.setup.TeleportClient.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, accessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:    name,
 		SubKind: access.SubKindDynamic,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
@@ -139,10 +139,10 @@ func (g *scopedRoleAssignmentTestingPrimitives) ModifyKubernetesResource(ctx con
 		return trace.Wrap(err)
 	}
 	assignment.Spec.Assignments = []*accessv1.Assignment{
-		{
+		accessv1.Assignment_builder{
 			Role:  "test-role",
 			Scope: "/staging/aa",
-		},
+		}.Build(),
 	}
 	return trace.Wrap(g.setup.K8sClient.Update(ctx, assignment))
 }

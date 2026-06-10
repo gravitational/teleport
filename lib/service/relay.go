@@ -387,20 +387,20 @@ func (process *TeleportProcess) runRelayService() error {
 
 	nonce := uuid.NewString()
 	var relayServer atomic.Pointer[presencev1.RelayServer]
-	relayServer.Store(&presencev1.RelayServer{
+	relayServer.Store(presencev1.RelayServer_builder{
 		Kind:    apitypes.KindRelayServer,
 		SubKind: "",
 		Version: apitypes.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: conn.HostUUID(),
-		},
-		Spec: &presencev1.RelayServer_Spec{
+		}.Build(),
+		Spec: presencev1.RelayServer_Spec_builder{
 			Hostname:   process.Config.Hostname,
 			RelayGroup: process.Config.Relay.RelayGroup,
 			PeerAddr:   peerPublicAddr,
 			Nonce:      nonce,
-		},
-	})
+		}.Build(),
+	}.Build())
 
 	hb, err := srv.NewRelayServerHeartbeat(srv.HeartbeatV2Config[*presencev1.RelayServer]{
 		InventoryHandle: process.inventoryHandle,
@@ -433,7 +433,7 @@ func (process *TeleportProcess) runRelayService() error {
 
 	{
 		r := proto.CloneOf(relayServer.Load())
-		r.GetSpec().Terminating = true
+		r.GetSpec().SetTerminating(true)
 		relayServer.Store(r)
 	}
 

@@ -34,6 +34,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -1239,6 +1240,58 @@ func TestTCPIPForward(t *testing.T) {
 		cliUsingSessionJoin := f.newSSHClient(ctx, t, &user.User{Username: teleport.SSHSessionJoinPrincipal})
 		_, err := cliUsingSessionJoin.Listen("tcp", "127.0.0.1:0")
 		require.ErrorContains(t, err, "ssh: tcpip-forward request denied by peer")
+	})
+
+	t.Run("user cannot cancel another user's port forward", func(t *testing.T) {
+		f := newFixtureWithoutDiskBasedLogging(t)
+		setPortForwarding(t, t.Context(), f, nil, nil, nil)
+
+		aliceUp, err := newUpack(t.Context(), f.testSrv, "alice", []string{f.user}, wildcardAllow)
+		require.NoError(t, err)
+		aliceCfg := apissh.ClientConfig{
+			User: f.user,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{aliceUp.certSigner}, nil
+				},
+			},
+			HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+		}
+		aliceConn, err := apissh.Dial(t.Context(), "tcp", f.ssh.srvAddress, aliceCfg)
+		require.NoError(t, err)
+		defer aliceConn.Close()
+
+		bobUp, err := newUpack(t.Context(), f.testSrv, "bob", []string{f.user}, wildcardAllow)
+		require.NoError(t, err)
+		bobCfg := apissh.ClientConfig{
+			User: f.user,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{bobUp.certSigner}, nil
+				},
+			},
+			HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+		}
+
+		bobConn, err := apissh.Dial(t.Context(), "tcp", f.ssh.srvAddress, bobCfg)
+		require.NoError(t, err)
+		defer bobConn.Close()
+
+		listener, err := aliceConn.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { listener.Close() })
+
+		_, port, err := net.SplitHostPort(listener.Addr().String())
+		require.NoError(t, err)
+		portInt, err := strconv.Atoi(port)
+		require.NoError(t, err)
+		listenReq := ssh.Marshal(sshutils.TCPIPForwardReq{
+			Addr: "localhost",
+			Port: uint32(portInt),
+		})
+		ok, _, err := bobConn.SendRequest(t.Context(), teleport.CancelTCPIPForwardRequest, true, listenReq)
+		require.NoError(t, err)
+		require.False(t, ok, "bob should not be able to close another user's listener")
 	})
 }
 
@@ -3584,17 +3637,17 @@ func TestHostUserCreationProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = reg.WriteSudoersFile(srv.IdentityContext{
-		AccessPermit: &decisionpb.SSHAccessPermit{
+		AccessPermit: decisionpb.SSHAccessPermit_builder{
 			HostSudoers: []string{"test1", "test2", "test3"},
-		},
+		}.Build(),
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 0, sudoers.writeAttempts)
 
 	_, _, err = reg.UpsertHostUser(srv.IdentityContext{
-		AccessPermit: &decisionpb.SSHAccessPermit{
+		AccessPermit: decisionpb.SSHAccessPermit_builder{
 			HostSudoers: []string{"test1", "test2", "test3"},
-		},
+		}.Build(),
 	}, srv.ObtainFallbackUIDFunc(nil))
 	assert.NoError(t, err)
 	assert.Empty(t, usersBackend.calls, 0)
@@ -3703,7 +3756,7 @@ func (f obtainUIDForUsernameFunc) ObtainUIDForUsername(ctx context.Context, in *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &stableunixusersv1.ObtainUIDForUsernameResponse{Uid: uid}, nil
+	return stableunixusersv1.ObtainUIDForUsernameResponse_builder{Uid: uid}.Build(), nil
 }
 
 func (f obtainUIDForUsernameFunc) ListStableUNIXUsers(ctx context.Context, in *stableunixusersv1.ListStableUNIXUsersRequest, opts ...grpc.CallOption) (*stableunixusersv1.ListStableUNIXUsersResponse, error) {

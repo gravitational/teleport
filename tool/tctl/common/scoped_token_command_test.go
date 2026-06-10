@@ -97,29 +97,29 @@ func TestScopedTokens(t *testing.T) {
 	out = mustDecodeJSON[addedToken](t, buf)
 
 	// Create a GCP scoped token to verify it appears in listings.
-	_, err = clt.CreateScopedToken(t.Context(), &joiningv1.ScopedToken{
+	_, err = clt.CreateScopedToken(t.Context(), joiningv1.ScopedToken_builder{
 		Kind:    types.KindScopedToken,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "gcp-test-token",
-		},
+		}.Build(),
 		Scope: "/aa",
-		Spec: &joiningv1.ScopedTokenSpec{
+		Spec: joiningv1.ScopedTokenSpec_builder{
 			Roles:         []string{types.KindNode},
 			AssignedScope: "/aa/bb",
 			JoinMethod:    "gcp",
 			UsageMode:     "unlimited",
-			Gcp: &joiningv1.GCP{
+			Gcp: joiningv1.GCP_builder{
 				Allow: []*joiningv1.GCP_Rule{
-					{
+					joiningv1.GCP_Rule_builder{
 						ProjectIds:      []string{"example-project-123456"},
 						Locations:       []string{"us-west1"},
 						ServiceAccounts: []string{"123456789-compute@developer.gserviceaccount.com"},
-					},
+					}.Build(),
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	// Test all output formats of "tokens ls".

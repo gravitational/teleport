@@ -676,7 +676,7 @@ func runBPFTestCase(t *testing.T, srv Server, bpfSrv bpf.BPF, tt bpfTestCase, cl
 	for cmd, addrs := range commandDstAddrs {
 		for _, addr := range addrs {
 			if addr.count > 0 {
-				t.Errorf("error: network event for program %q with destination address %q was expected %d more times", cmd, addr.value, addr.count)
+				t.Errorf("error: network event for program %q with destination address %v was expected %d more times", cmd, addr.value, addr.count)
 			}
 		}
 	}
@@ -1342,11 +1342,12 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 	}
 	scx.execRequest.SetCommand(command)
 
-	channel := newMockSSHChannel()
+	clientChan, serverChan := newMockSSHChannel(t)
+	clientChan.Drain()
 
 	t.Logf("running %q", command)
 
-	err := scx.execRequest.Start(ctx, channel)
+	err := scx.execRequest.Start(ctx, serverChan)
 	require.NoError(t, err)
 
 	t.Log("reading audit session ID")
@@ -1398,7 +1399,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 
 		stdout := make([]byte, 1024)
 		for {
-			_, err := channel.Read(stdout)
+			_, err := serverChan.Read(stdout)
 			if err != nil {
 				if errors.Is(err, io.EOF) {
 					return
@@ -1410,7 +1411,7 @@ func runCommand(t *testing.T, srv Server, bpfSrv bpf.BPF, command string, expect
 		}
 	})
 	t.Cleanup(func() {
-		_ = channel.CloseWrite()
+		_ = serverChan.CloseWrite()
 		wg.Wait()
 	})
 

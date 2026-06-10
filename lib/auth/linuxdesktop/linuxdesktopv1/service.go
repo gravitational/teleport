@@ -136,7 +136,7 @@ func (s *Service) ListLinuxDesktops(ctx context.Context, req *linuxdesktopv1.Lis
 
 			return nil, false
 		}),
-		int(req.PageSize),
+		int(req.GetPageSize()),
 		func(t *linuxdesktopv1.LinuxDesktop) string {
 			return t.GetMetadata().GetName()
 		})
@@ -145,10 +145,10 @@ func (s *Service) ListLinuxDesktops(ctx context.Context, req *linuxdesktopv1.Lis
 		return nil, trace.Wrap(err)
 	}
 
-	return &linuxdesktopv1.ListLinuxDesktopsResponse{
+	return linuxdesktopv1.ListLinuxDesktopsResponse_builder{
 		LinuxDesktops: rsp,
 		NextPageToken: nextToken,
-	}, nil
+	}.Build(), nil
 }
 
 // GetLinuxDesktop returns Linux desktop resource.

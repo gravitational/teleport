@@ -61,13 +61,13 @@ func newLinuxDesktopCollection(upstream services.LinuxDesktops, w types.WatchKin
 			return out, nil
 		},
 		headerTransform: func(hdr *types.ResourceHeader) *linuxdesktopv1.LinuxDesktop {
-			return &linuxdesktopv1.LinuxDesktop{
+			return linuxdesktopv1.LinuxDesktop_builder{
 				Kind:    hdr.Kind,
 				Version: hdr.Version,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: hdr.Metadata.Name,
-				},
-			}
+				}.Build(),
+			}.Build()
 		},
 		watch: w,
 	}, nil

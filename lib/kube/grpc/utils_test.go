@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/healthcheck"
@@ -257,12 +258,12 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(client.InventoryControlStream,
 		func(ctx context.Context) (*proto.UpstreamInventoryHello, error) {
-			return &proto.UpstreamInventoryHello{
+			return proto.UpstreamInventoryHello_builder{
 				ServerID: testCtx.HostID,
 				Version:  teleport.Version,
 				Services: types.SystemRoles{types.RoleKube}.StringSlice(),
 				Hostname: "test",
-			}, nil
+			}.Build(), nil
 		})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })
@@ -400,8 +401,8 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		HealthCheckManager:   healthCheckManager,
 	})
 	require.NoError(t, err)
-	require.Equal(t, testCtx.KubeServer.Server.ReadTimeout, time.Duration(0), "kube server write timeout must be 0")
-	require.Equal(t, testCtx.KubeServer.Server.WriteTimeout, time.Duration(0), "kube server write timeout must be 0")
+	require.Equal(t, time.Duration(0), testCtx.KubeServer.Server.ReadTimeout, "kube server read timeout must be 0 to keep long-running watch streams alive")
+	require.Equal(t, defaults.HandshakeReadDeadline, testCtx.KubeServer.Server.WriteTimeout, "kube server write timeout must be HandshakeReadDeadline; it caps the TLS handshake while the outer handler resets the per-request write deadline")
 
 	testCtx.startKubeServices(t)
 	// Explicitly send a heartbeat for any configured clusters.
@@ -410,9 +411,9 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		case sender := <-inventoryHandle.Sender():
 			server, err := testCtx.KubeServer.GetServerInfo(cluster.Name)
 			require.NoError(t, err)
-			require.NoError(t, sender.Send(ctx, &proto.InventoryHeartbeat{
+			require.NoError(t, sender.Send(ctx, proto.InventoryHeartbeat_builder{
 				KubernetesServer: server,
-			}))
+			}.Build()))
 		case <-time.After(20 * time.Second):
 			t.Fatal("timed out waiting for inventory handle sender")
 		}

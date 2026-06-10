@@ -327,7 +327,8 @@ func (x *CertAuthorityOverrideStatus) SetPublicKeyHashToCrl(v map[string]*Certif
 type CertAuthorityOverrideStatus_builder struct {
 	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
 
-	// CRLs generated for each certificate override.
+	// CRLs generated for each certificate override, keyed by normalized/lowercase
+	// public_key_hash.
 	PublicKeyHashToCrl map[string]*CertificateRevocationList
 }
 

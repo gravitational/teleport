@@ -22,7 +22,7 @@ import { PasskeyIcons } from 'teleport/components/Passkeys';
 import cfg from 'teleport/config';
 
 export function PasskeyBlurb() {
-  const productName = cfg.beamsUi ? 'Beams' : 'Teleport';
+  const productName = cfg.getBeamsUi() ? 'Beams' : 'Teleport';
   return (
     <Box
       border={1}

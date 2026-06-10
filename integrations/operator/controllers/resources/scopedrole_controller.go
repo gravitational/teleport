@@ -34,23 +34,23 @@ type scopedRoleClient struct {
 }
 
 func (s *scopedRoleClient) Create(ctx context.Context, role *accessv1.ScopedRole) error {
-	_, err := s.teleportClient.ScopedAccessServiceClient().CreateScopedRole(ctx, &accessv1.CreateScopedRoleRequest{
+	_, err := s.teleportClient.ScopedAccessServiceClient().CreateScopedRole(ctx, accessv1.CreateScopedRoleRequest_builder{
 		Role: role,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
 func (s *scopedRoleClient) Delete(ctx context.Context, name string) error {
-	_, err := s.teleportClient.ScopedAccessServiceClient().DeleteScopedRole(ctx, &accessv1.DeleteScopedRoleRequest{
+	_, err := s.teleportClient.ScopedAccessServiceClient().DeleteScopedRole(ctx, accessv1.DeleteScopedRoleRequest_builder{
 		Name: name,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
 func (s *scopedRoleClient) Get(ctx context.Context, name string) (*accessv1.ScopedRole, error) {
-	resp, err := s.teleportClient.ScopedAccessServiceClient().GetScopedRole(ctx, &accessv1.GetScopedRoleRequest{
+	resp, err := s.teleportClient.ScopedAccessServiceClient().GetScopedRole(ctx, accessv1.GetScopedRoleRequest_builder{
 		Name: name,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -58,9 +58,9 @@ func (s *scopedRoleClient) Get(ctx context.Context, name string) (*accessv1.Scop
 }
 
 func (s *scopedRoleClient) Update(ctx context.Context, role *accessv1.ScopedRole) error {
-	_, err := s.teleportClient.ScopedAccessServiceClient().UpdateScopedRole(ctx, &accessv1.UpdateScopedRoleRequest{
+	_, err := s.teleportClient.ScopedAccessServiceClient().UpdateScopedRole(ctx, accessv1.UpdateScopedRoleRequest_builder{
 		Role: role,
-	})
+	}.Build())
 	return trace.Wrap(err)
 }
 
