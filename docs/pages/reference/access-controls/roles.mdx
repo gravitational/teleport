@@ -253,6 +253,7 @@ conditions:
 - `db_labels_expression`
 - `db_service_labels_expression`
 - `windows_desktop_labels_expression`
+- `linux_desktop_labels_expression`
 - `group_labels_expression`
 - `workload_identity_labels_expression`
 - `beam_labels_expression`
@@ -769,7 +770,8 @@ Labels for resources enrolled with Teleport:
 |`db_service_labels`|[Database Service](../../enroll-resources/database-access/database-access.mdx) instances|
 |`kubernetes_labels`|[Kubernetes clusters](../../enroll-resources/kubernetes-access/controls.mdx)|
 |`node_labels`|[SSH Servers](../../enroll-resources/server-access/server-access.mdx)|
-|`windows_desktop_labels`|[Windows desktops](../../enroll-resources/server-access/server-access.mdx)|
+|`windows_desktop_labels`|[Windows desktops](../../enroll-resources/desktop-access/desktop-access.mdx)|
+|`linux_desktop_labels`|[Linux desktops](../../enroll-resources/desktop-access/linux-desktop.mdx)|
 |`workload_identity_labels`|[Workload Identities](../machine-workload-identity/workload-identity/workload-identity-resource.mdx)|
 |`beam_labels`|Beams|
 
@@ -787,6 +789,7 @@ Principals a user can assume on infrastructure resources:
 - `kubernetes_users`
 - `logins`
 - `windows_desktop_logins`
+- `linux_desktop_logins`
 
 Teleport principals that a user can impersonate:
 - `impersonate.roles`
@@ -822,6 +825,7 @@ sign-on provider.
 |`{{internal.kubernetes_users}}`|List of allowed Kubernetes users for the user.|
 |`{{internal.logins}}` | Substituted with a value stored in Teleport's local user database and logins from a root cluster. <br/><br/>For local users, Teleport will substitute this with the "allowed logins" parameter used in the `tctl users add [user] <allowed logins>` command. <br/><br/>If the role is within a leaf cluster in a [trusted cluster](../../zero-trust-access/management/trustedclusters.mdx), Teleport will substitute the logins from the root cluster whether the user is a local user or from an SSO provider. <br/><br/>As an example, if the user has the `ubuntu` login in the root cluster, then `ubuntu` will be substituted in the leaf cluster with this variable. |
 |`{{internal.windows_logins}}`|List of allowed Windows logins for the user.|
+|`{{internal.linux_desktop_logins}}`|List of allowed Linux desktop logins for the user.|
 |`{{external.xyz}}` | Substituted with a value from an external [SSO provider](https://en.wikipedia.org/wiki/Single_sign-on). If using SAML, this will be expanded with "xyz" assertion value. For OIDC, the variable is expanded to the value of the "xyz" claim. See the next section for more information on referring to the `external` variable in Teleport roles. |
 
 #### Referring to internal traits in Teleport roles
