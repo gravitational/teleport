@@ -923,6 +923,13 @@ const (
 	// RemoveCertificateOverride operation.
 	CertAuthOverrideCertificatesRemoveCode = "TCO07I"
 
+	// BeamsConfigCreateCode is the Beams config create event code.
+	BeamsConfigCreateCode = "TBEAM001I"
+	// BeamsConfigUpdateCode is the Beams config update event code.
+	BeamsConfigUpdateCode = "TBEAM002I"
+	// BeamsConfigDeleteCode is the Beams config delete event code.
+	BeamsConfigDeleteCode = "TBEAM003I"
+
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode
 )

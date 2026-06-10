@@ -647,6 +647,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		CertAuthOverrideDeleteEvent:
 		e = &events.CertAuthorityOverrideEvent{}
 
+	case BeamsConfigCreateEvent:
+		e = &events.BeamsConfigCreate{}
+	case BeamsConfigUpdateEvent:
+		e = &events.BeamsConfigUpdate{}
+	case BeamsConfigDeleteEvent:
+		e = &events.BeamsConfigDelete{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}

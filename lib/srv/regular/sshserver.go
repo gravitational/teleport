@@ -276,12 +276,14 @@ type Server struct {
 
 type remoteForwardingMapKey struct {
 	user    string
+	cluster string
 	srcAddr string
 }
 
 func getRemoteForwardingMapKey(scx *srv.ServerContext) remoteForwardingMapKey {
 	return remoteForwardingMapKey{
 		user:    scx.Identity.TeleportUser,
+		cluster: scx.Identity.OriginClusterName,
 		srcAddr: scx.SrcAddr,
 	}
 }
