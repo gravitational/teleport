@@ -2,6 +2,7 @@ package ttyterminal
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"runtime/debug"
 
@@ -40,14 +41,16 @@ func StreamTTYRecording(ctx context.Context, evts <-chan apievents.AuditEvent, s
 	// present. If not, we skip the parsing and command recreation stages entirely
 	peeked, replayedTokens, err := peekTokens(gCtx, tokens, peekTokenCount)
 	if err != nil {
-		cancel()
-		g.Wait()
+		if realErr := drainPeekPipeline(cancel, g); realErr != nil {
+			return nil, trace.Wrap(realErr)
+		}
 		return nil, trace.Wrap(err)
 	}
 
 	if !detectBracketedPaste(peeked) {
-		cancel()
-		g.Wait()
+		if realErr := drainPeekPipeline(cancel, g); realErr != nil {
+			return nil, trace.Wrap(realErr)
+		}
 		return &TTYRecordingStream{}, nil
 	}
 
@@ -68,6 +71,19 @@ func StreamTTYRecording(ctx context.Context, evts <-chan apievents.AuditEvent, s
 		g:        g,
 		cancel:   cancel,
 	}, nil
+}
+
+// drainPeekPipeline tears down the pipeline and returns the worker's real error,
+// if any. Context cancellation/deadline is ignored since it's just the result of
+// our own cancel(); a real stream error lives in the errgroup, not in peekTokens.
+func drainPeekPipeline(cancel context.CancelFunc, g *errgroup.Group) error {
+	cancel()
+	if err := g.Wait(); err != nil &&
+		!errors.Is(err, context.Canceled) &&
+		!errors.Is(err, context.DeadlineExceeded) {
+		return err
+	}
+	return nil
 }
 
 // TTYRecordingStream represents a processing stream for session recording data.
@@ -211,6 +227,10 @@ func detectBracketedPaste(peeked []token) bool {
 	return false
 }
 
+// errInternalProcessing is the error [recoverAsError] returns when a pipeline worker panics. It is a
+// package-level sentinel so callers can match it with [errors.Is]; its message is shown to end users.
+var errInternalProcessing = errors.New("internal error while processing session recording")
+
 // recoverAsError wraps a pipeline worker as a last-resort safety net so any unexpected panic becomes a normal error
 // that the errgroup surfaces, rather than crashing the auth server. Panics from vt10x are normally caught per-command
 // inside [reconstructCommand] — that preserves partial summarization of the surrounding commands — so reaching this
@@ -226,7 +246,7 @@ func recoverAsError(ctx context.Context, fn func() error) func() error {
 					"panic", r,
 					"stack", string(debug.Stack()),
 				)
-				err = trace.Errorf("internal error while processing session recording")
+				err = trace.Wrap(errInternalProcessing)
 			}
 		}()
 
