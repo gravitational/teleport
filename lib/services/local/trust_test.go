@@ -645,3 +645,76 @@ func newCertAuthority(t *testing.T, caType types.CertAuthType, domain string) ty
 
 	return ca
 }
+
+// TestListTrustedClusters_SkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
+// return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
+func TestListTrustedClusters_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := NewCAService(mem)
+
+	var allExpected []types.TrustedCluster
+
+	createResource := func(name string) {
+		ca := newCertAuthority(t, types.HostCA, name)
+		tc, err := types.NewTrustedCluster(name, types.TrustedClusterSpecV2{
+			Enabled:              true,
+			Roles:                []string{"bar", "baz"},
+			Token:                "qux",
+			ProxyAddress:         "quux",
+			ReverseTunnelAddress: "quuz",
+		})
+		require.NoError(t, err)
+		_, err = service.CreateTrustedCluster(ctx, tc, []types.CertAuthority{ca})
+		require.NoError(t, err)
+		allExpected = append(allExpected, tc)
+	}
+
+	createMalformedEntry := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(trustedClustersPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedEntry(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListTrustedClusters(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListTrustedClusters(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListTrustedClusters(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	allActual := append(append(page1, page2...), page3...)
+	require.Empty(t, cmp.Diff(allExpected, allActual,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.SortSlices(func(a, b types.TrustedCluster) bool { return a.GetName() < b.GetName() }),
+	))
+}

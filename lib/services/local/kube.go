@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // KubernetesService manages kubernetes resources in the backend.
@@ -75,35 +76,40 @@ func (s *KubernetesService) ListKubernetesClusters(ctx context.Context, limit in
 	startKey := kubernetesKey.AppendKey(backend.KeyFromString(start))
 	endKey := backend.RangeEnd(kubernetesKey)
 
-	result, err := s.Backend.GetRange(ctx, startKey, endKey, limit+1)
-	if err != nil {
+	out := make([]types.KubeCluster, 0, limit)
+	var nextPage string
+
+	if err := backend.IterateRange(
+		ctx,
+		s.Backend,
+		startKey,
+		endKey,
+		limit+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				kube, err := services.UnmarshalKubeCluster(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "Failed to unmarshal kubernetes cluster",
+						"key", logutils.StringerAttr(item.Key),
+						"error", err)
+					continue
+				}
+
+				if len(out) >= limit {
+					nextPage = kube.GetName()
+					return true, nil
+				} else {
+					out = append(out, kube)
+				}
+			}
+			return false, nil
+		}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	out := make([]types.KubeCluster, 0, len(result.Items))
-
-	for _, item := range result.Items {
-		cluster, err := services.UnmarshalKubeCluster(item.Value,
-			services.WithExpires(item.Expires),
-			services.WithRevision(item.Revision))
-
-		if err != nil {
-			s.logger.WarnContext(ctx, "Failed to unmarshal kubernetes cluster",
-				"key", item.Key,
-				"error", err,
-			)
-
-			continue
-		}
-
-		if len(out) >= limit {
-			return out, cluster.GetName(), nil
-		}
-
-		out = append(out, cluster)
-	}
-
-	return out, "", nil
+	return out, nextPage, nil
 }
 
 // GetKubernetesCluster returns the specified kubernetes cluster resource.

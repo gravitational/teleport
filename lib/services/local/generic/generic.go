@@ -20,6 +20,7 @@ package generic
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -29,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // Resource represents a Teleport resource that may be generically
@@ -211,36 +213,37 @@ func (s *Service[T]) listResourcesReturnNextResourceWithKey(ctx context.Context,
 		pageSize = int(s.pageLimit)
 	}
 
-	limit := pageSize + 1
+	out := make([]T, 0, pageSize)
+	var next *T
+	var nextKey string
 
-	// no filter provided get the range directly
-	result, err := s.backend.GetRange(ctx, rangeStart, rangeEnd, limit)
-	if err != nil {
+	if err := backend.IterateRange(
+		ctx,
+		s.backend,
+		rangeStart,
+		rangeEnd,
+		pageSize+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				resource, err := s.unmarshalFunc(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+					continue
+				}
+
+				if len(out) >= pageSize {
+					next = &resource
+					nextKey = strings.TrimPrefix(item.Key.TrimPrefix(s.backendPrefix).String(), string(backend.Separator))
+					return true, nil
+				} else {
+					out = append(out, resource)
+				}
+			}
+			return false, nil
+		}); err != nil {
 		return nil, nil, "", trace.Wrap(err)
-	}
-
-	out := make([]T, 0, len(result.Items))
-	var lastKey backend.Key
-	for _, item := range result.Items {
-		resource, err := s.unmarshalFunc(item.Value,
-			services.WithRevision(item.Revision),
-			services.WithExpires(item.Expires))
-		if err != nil {
-			return nil, nil, "", trace.Wrap(err)
-		}
-		out = append(out, resource)
-		lastKey = item.Key
-	}
-
-	var (
-		next    *T
-		nextKey string
-	)
-	if len(out) > pageSize {
-		next = &out[pageSize]
-		// Truncate the last item that was used to determine next row existence.
-		out = out[:pageSize]
-		nextKey = strings.TrimPrefix(lastKey.TrimPrefix(s.backendPrefix).String(), string(backend.Separator))
 	}
 
 	return out, next, nextKey, nil
@@ -264,13 +267,14 @@ func (s *Service[T]) ListResourcesWithFilter(ctx context.Context, pageSize int, 
 		rangeStart,
 		rangeEnd,
 		pageSize+1,
-		func(items []backend.Item) (stop bool, err error) {
+		func(items []backend.Item) (bool, error) {
 			for _, item := range items {
 				resource, err := s.unmarshalFunc(item.Value,
 					services.WithRevision(item.Revision),
 					services.WithExpires(item.Expires))
 				if err != nil {
-					return false, trace.Wrap(err)
+					slog.WarnContext(ctx, "skipping resource due to unmarshal error", "error", err, "key", logutils.StringerAttr(item.Key))
+					continue
 				}
 				if matcher(resource) {
 					lastKey = item.Key

@@ -20,6 +20,7 @@ package local
 
 import (
 	"context"
+	"log/slog"
 
 	"github.com/gravitational/trace"
 
@@ -27,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
+	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
 
 // AppService manages application resources in the backend.
@@ -40,34 +42,50 @@ func NewAppService(backend backend.Backend) *AppService {
 }
 
 // ListApps returns a page of application resources.
-func (s *AppService) ListApps(ctx context.Context, limit int, startKey string) ([]types.Application, string, error) {
+func (s *AppService) ListApps(ctx context.Context, limit int, pageToken string) ([]types.Application, string, error) {
 	// Adjust page size, so it can't be too large.
 	if limit <= 0 || limit > defaults.DefaultChunkSize {
 		limit = defaults.DefaultChunkSize
 	}
 
 	appKey := backend.NewKey(appPrefix)
-	var out []types.Application
-	result, err := s.Backend.GetRange(ctx, appKey.AppendKey(backend.KeyFromString(startKey)), backend.RangeEnd(appKey), limit+1)
-	if err != nil {
+	startKey := appKey.AppendKey(backend.KeyFromString(pageToken))
+	endKey := backend.RangeEnd(appKey)
+
+	out := make([]types.Application, 0, limit)
+	var nextPage string
+
+	if err := backend.IterateRange(
+		ctx,
+		s.Backend,
+		startKey,
+		endKey,
+		limit+1,
+		func(items []backend.Item) (bool, error) {
+			for _, item := range items {
+				app, err := services.UnmarshalApp(item.Value,
+					services.WithRevision(item.Revision),
+					services.WithExpires(item.Expires))
+				if err != nil {
+					slog.WarnContext(ctx, "Failed to unmarshal app",
+						"key", logutils.StringerAttr(item.Key),
+						"error", err)
+					continue
+				}
+
+				if len(out) >= limit {
+					nextPage = app.GetName()
+					return true, nil
+				} else {
+					out = append(out, app)
+				}
+			}
+			return false, nil
+		}); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	for _, item := range result.Items {
-		app, err := services.UnmarshalApp(item.Value,
-			services.WithExpires(item.Expires), services.WithRevision(item.Revision))
-		if err != nil {
-			continue
-		}
-
-		if len(out) >= limit {
-			return out, app.GetName(), nil
-		}
-
-		out = append(out, app)
-	}
-
-	return out, "", nil
+	return out, nextPage, nil
 }
 
 // GetApps returns all application resources.

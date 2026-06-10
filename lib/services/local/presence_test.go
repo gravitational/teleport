@@ -1571,3 +1571,90 @@ func TestPresenceService_ListSemaphores(t *testing.T) {
 	})
 
 }
+
+// TestListSemaphores_SkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
+// return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
+func TestListSemaphores_SkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	const pageLimit = 64
+	const numberOfPages = 5
+
+	clock := clockwork.NewFakeClock()
+	mem, err := memory.New(memory.Config{
+		Context: t.Context(),
+		Clock:   clock,
+	})
+	require.NoError(t, err)
+
+	service := NewPresenceService(mem)
+
+	var allExpected []types.Semaphore
+
+	createResource := func(name string) {
+		request := types.AcquireSemaphoreRequest{
+			SemaphoreKind: "test",
+			SemaphoreName: name,
+			MaxLeases:     5,
+			Expires:       time.Now().Add(time.Hour),
+			Holder:        "test",
+		}
+		lease, err := service.AcquireSemaphore(ctx, request)
+		require.NoError(t, err)
+
+		sem := &types.SemaphoreV3{
+			SubKind: request.SemaphoreKind,
+			Metadata: types.Metadata{
+				Name: request.SemaphoreName,
+			},
+			Spec: types.SemaphoreSpecV3{
+				Leases: []types.SemaphoreLeaseRef{{
+					LeaseID: lease.LeaseID,
+					Expires: lease.Expires,
+					Holder:  request.Holder,
+				}},
+			}}
+		sem.CheckAndSetDefaults()
+
+		allExpected = append(allExpected, sem)
+	}
+
+	createMalformedEntry := func(name string) {
+		_, err := mem.Put(ctx, backend.Item{
+			Key:   backend.NewKey(semaphoresPrefix, name),
+			Value: []byte("not-valid-json"),
+		})
+		require.NoError(t, err)
+	}
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			createMalformedEntry(key)
+		} else {
+			createResource(key)
+		}
+	}
+
+	page1, next, err := service.ListSemaphores(ctx, pageLimit, "", nil)
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListSemaphores(ctx, pageLimit, next, nil)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListSemaphores(ctx, pageLimit, next, nil)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	allActual := append(append(page1, page2...), page3...)
+	require.Empty(t, cmp.Diff(allExpected, allActual,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+		cmpopts.IgnoreFields(types.Metadata{}, "Expires"),
+		cmpopts.SortSlices(func(a, b types.Semaphore) bool { return a.GetName() < b.GetName() }),
+	))
+}
