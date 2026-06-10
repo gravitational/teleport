@@ -122,13 +122,9 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 			})
 		}
 	}
-	id, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	_, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
 		return nil, trace.Wrap(err, "checking AWS account of local credentials for AWS KMS")
-	}
-	if aws.ToString(id.Account) != cfg.AWSAccount {
-		return nil, trace.BadParameter("configured AWS KMS account %q does not match AWS account of ambient credentials %q",
-			cfg.AWSAccount, aws.ToString(id.Account))
 	}
 
 	tags := cfg.Tags
