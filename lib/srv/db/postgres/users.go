@@ -459,7 +459,7 @@ func (e *Engine) updateAutoUsersRole(ctx context.Context, conn *pgx.Conn, db typ
 	// WITH ADMIN OPTION.
 	// See: https://www.postgresql.org/docs/16/release-16.html
 	adminUser := db.GetAdminUser().Name
-	stmt := fmt.Sprintf("grant %q to %q WITH ADMIN OPTION", teleportAutoUserRole, adminUser)
+	stmt := fmt.Sprintf("GRANT %q TO %s WITH ADMIN OPTION", teleportAutoUserRole, pgx.Identifier{adminUser}.Sanitize())
 	_, err = conn.Exec(ctx, stmt)
 	if err != nil {
 		if !strings.Contains(err.Error(), "cannot be granted back") && !strings.Contains(err.Error(), "already") {
