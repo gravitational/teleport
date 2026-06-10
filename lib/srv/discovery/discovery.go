@@ -1716,6 +1716,35 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 		return status
 	}
 
+	addFailedAzureEnrollment := func(vm *azure.VirtualMachine, issueType string) {
+		// Static matchers don't have a discovery config resource, so skip creating user tasks
+		// because validation requires a discovery config name.
+		if instances.Metadata.DiscoveryConfigName == noDiscoveryConfig {
+			return
+		}
+
+		tg := usertasks.TaskGroup{
+			Integration: instances.Metadata.Integration,
+			IssueType:   issueType,
+		}
+		vmTasks.addFailedEnrollment(
+			tg,
+			azureVMTaskKey{
+				subscriptionID: instances.Metadata.SubscriptionID,
+				resourceGroup:  instances.Metadata.ResourceGroup,
+				region:         instances.Metadata.Region,
+			},
+			usertasksv1.DiscoverAzureVMInstance_builder{
+				VmId:            vm.VMID,
+				ResourceId:      vm.ID,
+				Name:            vm.Name,
+				DiscoveryConfig: instances.Metadata.DiscoveryConfigName,
+				DiscoveryGroup:  s.DiscoveryGroup,
+				SyncTime:        timestamppb.New(s.clock.Now()),
+			}.Build(),
+		)
+	}
+
 	log.DebugContext(s.ctx, "Running Teleport installation on virtual machines", "vms", genAzureInstancesLogStr(instances.Instances))
 	failures, err := s.enrollAzureVirtualMachines(log, instances)
 	if err != nil {
@@ -1725,7 +1754,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 
 		issueType := classifyAzureVMEnrollmentError(err)
 		for _, vm := range instances.Instances {
-			s.addFailedAzureEnrollment(instances.Metadata, vmTasks, vm, issueType)
+			addFailedAzureEnrollment(vm, issueType)
 		}
 		return status
 	}
@@ -1740,7 +1769,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 	// Record failures as user tasks.
 	for _, result := range failures {
 		// TODO (Tener): check exit codes and create more detailed user tasks.
-		s.addFailedAzureEnrollment(instances.Metadata, vmTasks, result.Instance, classifyAzureInstallResultIssue(result))
+		addFailedAzureEnrollment(result.Instance, classifyAzureInstallResultIssue(result))
 	}
 
 	pendingCount := len(instances.Instances) - len(failures)
@@ -2354,33 +2383,4 @@ func (s *Server) resolveCreateErr(createErr error, discoveryOrigin string, gette
 	}
 
 	return nil
-}
-
-func (s *Server) addFailedAzureEnrollment(md server.AzureInstancesMetadata, vmTasks *azureVMTasks, vm *azure.VirtualMachine, issueType string) {
-	// Static matchers don't have a discovery config resource, so skip creating user tasks
-	// because validation requires a discovery config name.
-	if md.DiscoveryConfigName == noDiscoveryConfig {
-		return
-	}
-
-	tg := usertasks.TaskGroup{
-		Integration: md.Integration,
-		IssueType:   issueType,
-	}
-	vmTasks.addFailedEnrollment(
-		tg,
-		azureVMTaskKey{
-			subscriptionID: md.SubscriptionID,
-			resourceGroup:  md.ResourceGroup,
-			region:         md.Region,
-		},
-		usertasksv1.DiscoverAzureVMInstance_builder{
-			VmId:            vm.VMID,
-			ResourceId:      vm.ID,
-			Name:            vm.Name,
-			DiscoveryConfig: md.DiscoveryConfigName,
-			DiscoveryGroup:  s.DiscoveryGroup,
-			SyncTime:        timestamppb.New(s.clock.Now()),
-		}.Build(),
-	)
 }
