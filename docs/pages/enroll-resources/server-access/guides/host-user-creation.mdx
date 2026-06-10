@@ -497,6 +497,7 @@ contents of the `host_sudoers` file written with one entry per line, each
 prefixed with the username of the user that has logged in.
 
 The session can then proceed as usual. When the SSH session ends, the user and their home directory are kept on the machine by default. To have Teleport remove them instead as part of session-end cleanup, set `create_host_user_mode` to `insecure-drop` in the role definition.
+Note that `insecure-drop` only removes users that Teleport created; if the user already existed on the host, Teleport leaves the account and its home directory in place.
 
 However, the potential for a user ID to be reused on the system opens up a number of potential security risks, so we recommend using `keep` mode unless you have a specific need and understand
 the potential impacts.
