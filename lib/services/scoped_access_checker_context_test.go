@@ -145,21 +145,23 @@ func newAgentPinCheckerContext(t *testing.T, pin *scopesv1.Pin) *ScopedAccessChe
 	return ctx
 }
 
+// newAgentPin is a test helper that builds a [*scopesv1.Pin] for an agent.
+func newAgentPin(t *testing.T, scope string, role types.SystemRole) *scopesv1.Pin {
+	t.Helper()
+	return scopesv1.Pin_builder{
+		Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
+		Scope: scope,
+		SystemRoles: scopesv1.SystemRoles_builder{
+			Primary: role.String(),
+		}.Build(),
+	}.Build()
+}
+
 // TestScopedAccessCheckerContextAgentPin covers the agent-pin mode of ScopedAccessCheckerContext.
 func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 	t.Parallel()
 
 	const pinScope = "/test/scope"
-
-	newAgentPin := func(scope string, role types.SystemRole) *scopesv1.Pin {
-		return scopesv1.Pin_builder{
-			Kind:  scopesv1.PinKind_PIN_KIND_AGENT,
-			Scope: scope,
-			SystemRoles: scopesv1.SystemRoles_builder{
-				Primary: role.String(),
-			}.Build(),
-		}.Build()
-	}
 
 	t.Run("constructor rejects nil pin", func(t *testing.T) {
 		t.Parallel()
@@ -179,7 +181,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("constructor rejects empty checkers", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(pinScope, types.RoleNode)
+		pin := newAgentPin(t, pinScope, types.RoleNode)
 
 		_, err := NewScopedAccessCheckerContextForAgentPin(pin, nil)
 		require.Error(t, err)
@@ -188,7 +190,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("successful construction and accessors", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(pinScope, types.RoleNode)
+		pin := newAgentPin(t, pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		// ScopePin returns the pin for agent pin identities.
@@ -202,7 +204,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("Decision at pin scope allows access", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(pinScope, types.RoleNode)
+		pin := newAgentPin(t, pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		called := false
@@ -216,7 +218,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("Decision at child of pin scope allows access", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(pinScope, types.RoleNode)
+		pin := newAgentPin(t, pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		childScope := pinScope + "/child"
@@ -231,7 +233,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("Decision at root scope is denied when pin is non-root", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(pinScope, types.RoleNode)
+		pin := newAgentPin(t, pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		called := false
@@ -246,7 +248,7 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 
 	t.Run("RiskyAuthorizeUnpinnedRead bypasses pin enforcement", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(pinScope, types.RoleNode)
+		pin := newAgentPin(t, pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		err := checkerCtx.RiskyAuthorizeUnpinnedRead(t.Context(), UnpinnedReadAuthorization{
@@ -257,9 +259,18 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 		require.NoError(t, err, "RiskyAuthorizeUnpinnedRead should bypass pin enforcement and succeed")
 	})
 
+	t.Run("RiskyAuthorizeUnpinnedEmitEvent bypasses pin enforcement", func(t *testing.T) {
+		t.Parallel()
+		pin := newAgentPin(t, pinScope, types.RoleNode)
+		checkerCtx := newAgentPinCheckerContext(t, pin)
+
+		err := checkerCtx.RiskyAuthorizeUnpinnedEmitEvent(t.Context(), &Context{})
+		require.NoError(t, err, "RiskyAuthorizeUnpinnedEmitEvent should bypass pin enforcement and succeed")
+	})
+
 	t.Run("riskyEnumerateScopedCheckers panics for agent pin context", func(t *testing.T) {
 		t.Parallel()
-		pin := newAgentPin(pinScope, types.RoleNode)
+		pin := newAgentPin(t, pinScope, types.RoleNode)
 		checkerCtx := newAgentPinCheckerContext(t, pin)
 
 		require.Panics(t, func() {
@@ -268,4 +279,39 @@ func TestScopedAccessCheckerContextAgentPin(t *testing.T) {
 			}
 		}, "riskyEnumerateScopedCheckers should panic for agent pin contexts")
 	})
+}
+
+func TestScopedAccessCheckerContextRiskyAuthorizeEmitEvent(t *testing.T) {
+	ctx := t.Context()
+	userCheckerContext, err := NewScopedAccessCheckerContext(ctx, &AccessInfo{
+		Username: "alice",
+		ScopePin: scopesv1.Pin_builder{
+			Kind:  scopesv1.PinKind_PIN_KIND_USER,
+			Scope: "/test/scope",
+		}.Build(),
+	}, "test-cluster", emptyScopedRoleReader{})
+	require.NoError(t, err)
+
+	agentPin := newAgentPin(t, "/test/scope", types.RoleNode)
+	agentCheckerContext := newAgentPinCheckerContext(t, agentPin)
+
+	ruleCtx := &Context{}
+
+	// A normal decision for a root-scoped resource is denied because the identity
+	// is pinned away from root before any checker, including the default implicit
+	// role checker, is evaluated.
+	err = userCheckerContext.Decision(ctx, scopes.Root, func(checker *ScopedAccessChecker) error {
+		return checker.CheckAccessToRules(ruleCtx, types.KindEvent, types.VerbCreate)
+	})
+	require.ErrorAs(t, err, new(*trace.AccessDeniedError))
+
+	// RiskyAuthorizeUnpinnedEmitEvent bypasses pin enforcement but should explicitly fail for scoped
+	// user pins.
+	err = userCheckerContext.RiskyAuthorizeUnpinnedEmitEvent(ctx, ruleCtx)
+	require.ErrorContains(t, err, "unpinned authorization for audit event emission is only supported for agent pins")
+
+	// RiskyAuthorizeUnpinnedRead bypasses pin enforcement but still requires the
+	// underlying RBAC permission. The node system role grants create on event so this succeeds.
+	err = agentCheckerContext.RiskyAuthorizeUnpinnedRead(ctx, UnpinnedReadAuthorization{}, ruleCtx)
+	require.ErrorAs(t, err, new(*trace.BadParameterError))
 }
