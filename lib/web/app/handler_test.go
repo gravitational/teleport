@@ -263,6 +263,75 @@ func TestAuthPOST(t *testing.T) {
 	}
 }
 
+func TestSessionCacheIdleEviction(t *testing.T) {
+	// A short idle TTL that expires well before the session and cert,
+	// isolating idle eviction from session expiry.
+	const idleTTL = time.Minute
+
+	clusterName := "test-cluster"
+	publicAddr := "app.example.com"
+
+	key, cert, err := tlsca.GenerateSelfSignedCA(
+		pkix.Name{CommonName: clusterName},
+		[]string{publicAddr, apiutils.EncodeClusterName(clusterName)},
+		defaults.CATTL,
+	)
+	require.NoError(t, err)
+
+	fakeClock := clockwork.NewFakeClock()
+	authClient := &mockAuthClient{
+		clusterName: clusterName,
+		appSession:  createAppSession(t, fakeClock, key, cert, clusterName, publicAddr, "testapp"),
+		appServers: []types.AppServer{
+			createAppServer(t, publicAddr),
+			createAppServer(t, publicAddr),
+			createAppServer(t, publicAddr),
+		},
+		caKey:  key,
+		caCert: cert,
+	}
+
+	fakeCluster := startFakeAppServerOnCluster(t, clusterName, authClient, cert, key)
+	tunnel := &reversetunnelclient.FakeServer{
+		FakeClusters: []reversetunnelclient.Cluster{fakeCluster},
+	}
+
+	p := setup(t, fakeClock, authClient, tunnel)
+	p.handler.sessionCacheIdleTTL = idleTTL
+	cookies := []http.Cookie{
+		{Name: CookieName, Value: "abc"},
+		{Name: SubjectCookieName, Value: authClient.appSession.GetBearerToken()},
+	}
+	get := func() {
+		status, _ := p.makeRequest(t, "GET", "/", []byte{}, cookies)
+		require.Equal(t, http.StatusOK, status)
+	}
+
+	healthDials := int64(len(authClient.appServers))
+	// A session build does one health-check dial per app server, then one
+	// forward dial.
+	built := healthDials + 1
+
+	// First request builds the session.
+	get()
+	require.Equal(t, built, fakeCluster.DialCount())
+
+	// Access within the idle window refreshes the deadline, so the session
+	// stays cached past one TTL in aggregate and dials nothing new. This fails
+	// under a fixed, non-refreshing TTL.
+	for range 3 {
+		fakeClock.Advance(idleTTL - 10*time.Second)
+		get()
+		require.Equal(t, built, fakeCluster.DialCount())
+	}
+
+	// A full idle window with no access evicts the session; the next request
+	// rebuilds it.
+	fakeClock.Advance(idleTTL + time.Second)
+	get()
+	require.Equal(t, 2*built, fakeCluster.DialCount())
+}
+
 func TestHasName(t *testing.T) {
 	for _, test := range []struct {
 		desc        string
@@ -461,12 +530,17 @@ func TestHealthCheckAppServer(t *testing.T) {
 type testServer struct {
 	serverURL *url.URL
 
+	// handler is the app handler under test, exposed so tests can tune it.
+	handler *Handler
+
 	// serverConnContext provides ConnContext to the HTTP server if not nil.
 	serverConnContext atomic.Pointer[func(context.Context, net.Conn) context.Context]
 }
 
 func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.ClientI, clusterGetter reversetunnelclient.ClusterGetter) *testServer {
-	appHandler, err := NewHandler(context.Background(), &HandlerConfig{
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	appHandler, err := NewHandler(ctx, &HandlerConfig{
 		Clock:                 clock,
 		AuthClient:            authClient,
 		AccessPoint:           authClient,
@@ -476,7 +550,7 @@ func setup(t *testing.T, clock *clockwork.FakeClock, authClient authclient.Clien
 	})
 	require.NoError(t, err)
 
-	ts := &testServer{}
+	ts := &testServer{handler: appHandler}
 	server := httptest.NewUnstartedServer(appHandler)
 	server.Config.ConnContext = func(ctx context.Context, c net.Conn) context.Context {
 		if fn := ts.serverConnContext.Load(); fn != nil {

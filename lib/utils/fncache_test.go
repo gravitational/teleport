@@ -200,6 +200,124 @@ func TestFnCacheExpiry(t *testing.T) {
 	require.False(t, ttlGet())
 }
 
+func TestFnCacheRefreshTTLOnGet(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+
+	cache, err := NewFnCache(FnCacheConfig{
+		TTL:             10 * time.Minute,
+		Clock:           clock,
+		CleanupInterval: time.Hour,
+		RefreshTTLOnGet: true,
+	})
+	require.NoError(t, err)
+
+	get := func() (load bool) {
+		v, err := FnCacheGet(ctx, cache, "key", func(context.Context) (string, error) {
+			load = true
+			return "val", nil
+		})
+		require.NoError(t, err)
+		require.Equal(t, "val", v)
+		return
+	}
+
+	require.True(t, get())
+
+	// Access within the window keeps the entry alive indefinitely.
+	for range 5 {
+		clock.Advance(9 * time.Minute)
+		require.False(t, get())
+	}
+
+	// A full window without access expires the entry.
+	clock.Advance(11 * time.Minute)
+	require.True(t, get())
+
+	// GetIfExists is a peek: it does not refresh the deadline, the property
+	// renewSession relies on. A refreshing peek here would push the deadline
+	// out and the second peek would still find the entry.
+	clock.Advance(9 * time.Minute)
+	_, ok := cache.GetIfExists("key")
+	require.True(t, ok)
+	clock.Advance(2 * time.Minute)
+	_, ok = cache.GetIfExists("key")
+	require.False(t, ok)
+}
+
+// TestFnCacheRefreshTTLOnGetChurn proves the aggregate eviction behavior the
+// app proxy relies on under session churn. With an idle TTL, every one of many
+// distinct entries is evicted a full TTL after its last access, so retention
+// levels off. The default absolute-TTL cache instead pins every entry until
+// its lifetime elapses, growing one entry per session.
+func TestFnCacheRefreshTTLOnGetChurn(t *testing.T) {
+	t.Parallel()
+
+	const (
+		sessions        = 100
+		idleTTL         = 5 * time.Minute
+		sessionLifetime = 8 * time.Hour
+	)
+
+	ctx := t.Context()
+
+	load := func(cache *FnCache, ttl time.Duration) {
+		for i := range sessions {
+			_, err := FnCacheGetWithTTL(ctx, cache, i, ttl, func(context.Context) (int, error) {
+				return i, nil
+			})
+			require.NoError(t, err)
+		}
+	}
+
+	t.Run("idle TTL evicts churned entries", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		var evicted atomic.Int64
+		cache, err := NewFnCache(FnCacheConfig{
+			TTL:             idleTTL,
+			Clock:           clock,
+			CleanupInterval: time.Hour,
+			RefreshTTLOnGet: true,
+			OnExpiry:        func(context.Context, any, any) { evicted.Add(1) },
+		})
+		require.NoError(t, err)
+
+		// getSession caps the idle TTL at the session's remaining lifetime.
+		load(cache, min(idleTTL, sessionLifetime))
+
+		clock.Advance(idleTTL + time.Second)
+		cache.RemoveExpired()
+
+		require.Equal(t, int64(sessions), evicted.Load())
+	})
+
+	t.Run("absolute TTL pins entries until lifetime", func(t *testing.T) {
+		clock := clockwork.NewFakeClock()
+		var evicted atomic.Int64
+		cache, err := NewFnCache(FnCacheConfig{
+			TTL:             sessionLifetime,
+			Clock:           clock,
+			CleanupInterval: time.Hour,
+			OnExpiry:        func(context.Context, any, any) { evicted.Add(1) },
+		})
+		require.NoError(t, err)
+
+		load(cache, sessionLifetime)
+
+		// Past the idle TTL the entries are still pinned.
+		clock.Advance(idleTTL + time.Second)
+		cache.RemoveExpired()
+		require.Zero(t, evicted.Load())
+
+		// They drop only once the lifetime elapses.
+		clock.Advance(sessionLifetime)
+		cache.RemoveExpired()
+		require.Equal(t, int64(sessions), evicted.Load())
+	})
+}
+
 // TestFnCacheFuzzy runs basic FnCache test cases that rely on fuzzy logic and timing to detect
 // success/failure. This test isn't really suitable for running in our CI env due to its sensitivery
 // to fluxuations in perf, but is arguably a *better* test in that it more accurately simulates real
