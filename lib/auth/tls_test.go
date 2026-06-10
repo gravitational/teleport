@@ -2196,6 +2196,26 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, ns)
 
+	// Extending also works calling the gRPC RPC directly.
+	grpcResp, err := web.APIClient.ExtendWebSession(ctx, &proto.ExtendWebSessionRequest{
+		User:          user,
+		PrevSessionId: ws.GetName(),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, grpcResp.Session)
+
+	// Extending also works calling the legacy HTTP endpoint directly.
+	// TODO(strideynet): DELETE IN v20.0.0 - remove alongside the legacy HTTP
+	// endpoint.
+	out, err := web.HTTPClient.PostJSON(ctx, web.HTTPClient.Endpoint("users", user, "web", "sessions"), authclient.WebSessionReq{
+		User:          user,
+		PrevSessionID: ws.GetName(),
+	})
+	require.NoError(t, err)
+	httpSess, err := services.UnmarshalWebSession(out.Bytes())
+	require.NoError(t, err)
+	require.NotNil(t, httpSess)
+
 	// Requesting forbidden action for user fails
 	err = web.DeleteUser(ctx, user)
 	require.True(t, trace.IsAccessDenied(err))

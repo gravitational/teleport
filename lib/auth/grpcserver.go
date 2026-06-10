@@ -2035,6 +2035,34 @@ func (g *GRPCServer) GetWebSession(ctx context.Context, req *types.GetWebSession
 	}, nil
 }
 
+// ExtendWebSession creates a new web session for a user based on a valid
+// existing web session.
+func (g *GRPCServer) ExtendWebSession(ctx context.Context, req *authpb.ExtendWebSessionRequest) (*authpb.ExtendWebSessionResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := auth.ExtendWebSession(ctx, authclient.WebSessionReq{
+		User:            req.User,
+		PrevSessionID:   req.PrevSessionId,
+		AccessRequestID: req.AccessRequestId,
+		Switchback:      req.Switchback,
+		ReloadUser:      req.ReloadUser,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	sess, ok := session.(*types.WebSessionV2)
+	if !ok {
+		return nil, trace.BadParameter("unexpected session type %T", session)
+	}
+
+	return &authpb.ExtendWebSessionResponse{
+		Session: sess,
+	}, nil
+}
+
 // StreamWebSessions implements [authpb.AuthServiceServer].
 func (g *GRPCServer) StreamWebSessions(req *emptypb.Empty, srv authpb.AuthService_StreamWebSessionsServer) error {
 	ctx := srv.Context()
