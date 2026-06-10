@@ -263,11 +263,8 @@ func (h *AuthHandlers) CreateIdentityContext(sconn *ssh.ServerConn) (IdentityCon
 		return unstableAccessChecker.CheckAccessToRemoteCluster(cluster)
 	}
 
-	// originClusterName == "" is a special case for backward compatibility
-	// with older clients that do not send origin cluster name.
-	// In this case we assume the user is local.
 	clusterQualifiedUsername := unmappedIdentity.Username
-	if certAuthority.GetClusterName() == "" || certAuthority.GetClusterName() != clusterName.GetClusterName() {
+	if certAuthority.GetClusterName() != clusterName.GetClusterName() {
 		clusterQualifiedUsername = services.UsernameForRemoteCluster(unmappedIdentity.Username, certAuthority.GetClusterName())
 	}
 

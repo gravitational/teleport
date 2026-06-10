@@ -242,7 +242,7 @@ type IdentityContext struct {
 	GitForwardingPermit *GitForwardingPermit
 
 	// TeleportUser is the Teleport user associated with the connection. For remote users,
-	// this value is namespaced to the user's origin cluster via [services.UsernameForCluster],
+	// this value is namespaced to the user's origin cluster via [services.UsernameForRemoteCluster],
 	// making cross-cluster users uniquely identifiable for features like session joining.
 	// When the real Teleport username is needed, use UnmappedIdentity.Username.
 	TeleportUser string
