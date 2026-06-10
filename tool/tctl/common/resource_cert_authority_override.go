@@ -86,8 +86,8 @@ func (c *certAuthorityOverrideCollection) WriteText(w io.Writer, verbose bool) e
 func (rc *ResourceCommand) getCAOverrides(
 	ctx context.Context,
 	authClient *authclient.Client,
+	ref services.Ref,
 ) (resources.Collection, error) {
-	ref := rc.ref
 
 	// Defensive. Shouldn't happen. Only 3 forms of ref are possible:
 	//   - kind ("tctl get ca_overrides")
@@ -224,8 +224,8 @@ func (rc *ResourceCommand) updateCAOverride(
 func (rc *ResourceCommand) deleteCAOverride(
 	ctx context.Context,
 	authClient *authclient.Client,
+	ref services.Ref,
 ) error {
-	ref := rc.ref
 
 	if ref.Kind != types.KindCertAuthorityOverride ||
 		ref.SubKind != "" ||

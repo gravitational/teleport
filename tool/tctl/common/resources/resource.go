@@ -25,7 +25,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -34,11 +33,10 @@ import (
 // to the Handler format.
 func Handlers() map[string]Handler {
 	// When adding resources, please keep the map alphabetically ordered.
+	// Note: scoped_role, scoped_role_assignment, and scoped_token are registered in
+	// ScopedHandlers() rather than here because they require scope-qualified names.
 	return map[string]Handler{
-		scopedaccess.KindScopedRole:           scopedRoleHandler(),
-		scopedaccess.KindScopedRoleAssignment: scopedRoleAssignmentHandler(),
-		scopedaccess.KindScopedToken:          scopedTokenHandler(),
-		types.KindNode:                        serverHandler(),
+		types.KindNode: serverHandler(),
 	}
 }
 

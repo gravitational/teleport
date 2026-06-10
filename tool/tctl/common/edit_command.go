@@ -53,7 +53,8 @@ type EditCommand struct {
 	app     *kingpin.Application
 	cmd     *kingpin.CmdClause
 	config  *servicecfg.Config
-	ref     services.Ref
+	ref     string
+	id      string
 	confirm bool
 
 	// Editor is used by tests to inject the editing mechanism
@@ -65,7 +66,8 @@ func (e *EditCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	e.app = app
 	e.config = config
 	e.cmd = app.Command("edit", "Edit a Teleport resource.")
-	e.cmd.Arg("resource type/resource name", `Resource to update, e.g., "user/myuser"`).SetValue(&e.ref)
+	e.cmd.Arg("resource type/resource name", `Resource to update, e.g., "user/myuser"`).StringVar(&e.ref)
+	e.cmd.Arg("id", `Resource identifier: scope-qualified name (e.g. "/staging/west::myrole") or bare name for unscoped kinds`).StringVar(&e.id)
 	e.cmd.Flag("confirm", "Confirm an unsafe or temporary resource update").Hidden().BoolVar(&e.confirm)
 }
 
@@ -116,7 +118,8 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	}()
 
 	rc := &ResourceCommand{
-		refs:        services.Refs{e.ref},
+		ref:         e.ref,
+		id:          e.id,
 		format:      teleport.YAML,
 		Stdout:      f,
 		filename:    f.Name(),
@@ -134,12 +137,19 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 		return trace.Wrap(err)
 	}
 
+	// Build a user-facing resource descriptor that includes the id (SQN or bare
+	// name) when one was provided, so error messages reflect what the user typed.
+	resourceDesc := e.ref
+	if e.id != "" {
+		resourceDesc = e.ref + " " + e.id
+	}
+
 	err = rc.Get(ctx, client)
 	if closeErr := f.Close(); closeErr != nil {
 		return trace.Wrap(err)
 	}
 	if err != nil {
-		return trace.Wrap(err, "could not get resource %v", rc.ref.String())
+		return trace.Wrap(err, "could not get resource %v", resourceDesc)
 	}
 
 	originalSum, err := checksum(f.Name())
@@ -162,12 +172,13 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 	if len(originalResourcesMap) != len(originalResources) {
 		slog.DebugContext(ctx, "tctl edit clobbered resources on originalResourcesMap",
 			"ref", e.ref,
+			"id", e.id,
 			"original_resources_map_len", len(originalResourcesMap),
 			"original_resources_len", len(originalResources),
 		)
 		return trace.BadParameter(
 			"tctl edit cannot handle multiple resources of kind %q, please specify a single resource to edit",
-			e.ref.Kind,
+			e.ref,
 		)
 	}
 
@@ -217,14 +228,22 @@ func (e *EditCommand) editResource(ctx context.Context, client *authclient.Clien
 			continue
 		}
 
-		// Try looking for a resource handler first; resources that have been
-		// migrated to the [resources.Handler] format are handled here.
+		opts := resources.CreateOpts{
+			Force:   rc.force,
+			Confirm: rc.confirm,
+		}
+
+		// Try looking for a resource handler
 		if resourceHandler, found := resources.Handlers()[newResource.Kind]; found {
-			opts := resources.CreateOpts{
-				Force:   rc.force,
-				Confirm: rc.confirm,
-			}
 			if err := editUpdateWithFallback(ctx, client, resourceHandler, newResource, opts); err != nil {
+				return trace.Wrap(err)
+			}
+			continue
+		}
+
+		// Try looking for a scoped resource handler
+		if scopedHandler, found := resources.ScopedHandlers()[newResource.Kind]; found {
+			if err := editUpdateWithFallbackScoped(ctx, client, scopedHandler, newResource, opts); err != nil {
 				return trace.Wrap(err)
 			}
 			continue
@@ -274,6 +293,25 @@ func editUpdateWithFallback(
 	// TODO(tross) remove the fallback to CreateHandlers once all the resources
 	// have been updated to implement an UpdateHandler.
 	if err := resourceHandler.Create(ctx, client, resource, opts); trace.IsNotImplemented(err) {
+		return trace.BadParameter("updating resources of type %q is not supported", resource.Kind)
+	} else {
+		return trace.Wrap(err)
+	}
+}
+
+func editUpdateWithFallbackScoped(
+	ctx context.Context,
+	client *authclient.Client,
+	handler resources.ScopedHandler,
+	resource services.UnknownResource,
+	opts resources.CreateOpts,
+) error {
+	err := handler.Update(ctx, client, resource, opts)
+	if err == nil || !trace.IsNotImplemented(err) {
+		return trace.Wrap(err)
+	}
+
+	if err := handler.Create(ctx, client, resource, opts); trace.IsNotImplemented(err) {
 		return trace.BadParameter("updating resources of type %q is not supported", resource.Kind)
 	} else {
 		return trace.Wrap(err)
