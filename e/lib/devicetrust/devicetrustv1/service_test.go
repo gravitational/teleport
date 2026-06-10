@@ -254,9 +254,9 @@ func TestService_authz(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				if err := stream.Send(&devicepb.SyncInventoryRequest{
-					Payload: nil, // missing start payload
-				}); err != nil && !errors.Is(err, io.EOF) {
+
+				// Send with an empty Payload.
+				if err := stream.Send(devicepb.SyncInventoryRequest_builder{}.Build()); err != nil && !errors.Is(err, io.EOF) {
 					return err
 				}
 				// Validation errors from Send typically arrive at Recv.

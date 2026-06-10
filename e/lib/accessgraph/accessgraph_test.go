@@ -318,10 +318,8 @@ func TestConvertEvent(t *testing.T) {
 		validate   func(t *testing.T, outputEvent apievents.AuditEvent)
 	}{
 		{
-			name: "nil event",
-			inputEvent: &accessgraphv1alpha.AuditEvent{
-				Event: nil,
-			},
+			name:       "nil event",
+			inputEvent: accessgraphv1alpha.AuditEvent_builder{}.Build(),
 			validate: func(t *testing.T, outputEvent apievents.AuditEvent) {
 				require.Nil(t, outputEvent)
 			},

@@ -8,25 +8,15 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1"
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/services"
-)
-
-var (
-	ignoreUnexportedFields = []cmp.Option{
-		cmpopts.IgnoreUnexported(pb.AccessMonitoringRule{}),
-		cmpopts.IgnoreUnexported(pb.AccessMonitoringRuleSpec{}),
-		cmpopts.IgnoreUnexported(pb.Notification{}),
-		cmpopts.IgnoreUnexported(v1.Metadata{}),
-		cmpopts.IgnoreFields(v1.Metadata{}, "Revision"),
-	}
 )
 
 const validYaml = `kind: access_monitoring_rule
@@ -113,7 +103,10 @@ func TestCreateAccessMonitoringRule(t *testing.T) {
 			require.NoError(t, err)
 			var created ui.AccessMonitoringRuleWithYaml
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &created))
-			require.Empty(t, cmp.Diff(created.Object, tc.expRule, ignoreUnexportedFields...))
+			require.Empty(t, cmp.Diff(created.Object, tc.expRule,
+				protocmp.Transform(),
+				protocmp.IgnoreFields(&v1.Metadata{}, "revision"),
+			))
 			require.NotEmpty(t, created.YAML)
 		})
 	}
@@ -219,7 +212,10 @@ version: v1
 			require.NoError(t, err)
 			var updated ui.AccessMonitoringRuleWithYaml
 			require.NoError(t, json.Unmarshal(resp.Bytes(), &updated))
-			require.Empty(t, cmp.Diff(updated.Object, expectedUpdatedRule, ignoreUnexportedFields...))
+			require.Empty(t, cmp.Diff(updated.Object, expectedUpdatedRule,
+				protocmp.Transform(),
+				protocmp.IgnoreFields(&v1.Metadata{}, "revision"),
+			))
 			require.NotEmpty(t, updated.YAML)
 		})
 	}

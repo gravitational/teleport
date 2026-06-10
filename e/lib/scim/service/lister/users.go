@@ -8,6 +8,7 @@ import (
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
 	userspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/users/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/e/lib/scim/service/common"
 	scimfilter "github.com/gravitational/teleport/e/lib/scim/service/filter"
 )
@@ -77,23 +78,26 @@ func (l *UserLister) ListResources(ctx context.Context, req *scimpb.ListSCIMReso
 // forEachUser iterates through all Teleport users in a paginated manner
 // and applies the provided function `fn` to each user.
 func (l *UserLister) forEachUser(ctx context.Context, fn func(user types.User) error) error {
-	req := userspb.ListUsersRequest{
-		PageSize: 100,
-	}
-	for {
-		resp, err := l.ListUsers(ctx, &req)
+	for user, err := range clientutils.Resources(ctx, func(ctx context.Context, pageSize int, startKey string) ([]*types.UserV2, string, error) {
+		resp, err := l.ListUsers(ctx, userspb.ListUsersRequest_builder{
+			PageSize:  int32(pageSize),
+			PageToken: startKey,
+		}.Build())
+
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		return resp.GetUsers(), resp.GetNextPageToken(), nil
+	}) {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		for _, user := range resp.GetUsers() {
-			if err := fn(user); err != nil {
-				return trace.Wrap(err)
-			}
+
+		if err := fn(user); err != nil {
+			return trace.Wrap(err)
 		}
-		if resp.GetNextPageToken() == "" {
-			break
-		}
-		req.SetPageToken(resp.GetNextPageToken())
 	}
+
 	return nil
 }

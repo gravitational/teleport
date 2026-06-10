@@ -95,6 +95,18 @@ jobs:
       - name: Mark paths as safe
         run: git config --global --add safe.directory "$( realpath . )"
 
+      # Prevent any new uses of the Open API from being added until OSS is converted
+      # to exclusively use the Opaque API.
+      - name: Check for Open API usage
+        run: |
+          go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./e/...
+          if ! git -C e diff --quiet --exit-code -- '*.go'; then
+            echo "Detected Open API usage - Update code to use the Opaque API manually or run go run google.golang.org/open2opaque@v0.1.7 rewrite -levels=red ./..."
+            git -C e diff --stat -- '*.go'
+            git -C e diff -- '*.go'
+            exit 1
+          fi
+
       - uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
         with:
           # Disable verify as it downloads a json schema from an external CDN.

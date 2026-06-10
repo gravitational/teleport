@@ -3,7 +3,9 @@ package conv
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/structpb"
 
 	scimpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/scim/v1"
@@ -20,7 +22,7 @@ func TestUserConv(t *testing.T) {
 		"password":               "pa$$word", // should be omitted
 	})
 	require.NoError(t, err)
-	want := scimpb.Resource_builder{
+	input := scimpb.Resource_builder{
 		Id: "alice@example.com",
 		Meta: scimpb.Meta_builder{
 			Version:      `W/"version1"`,
@@ -29,10 +31,11 @@ func TestUserConv(t *testing.T) {
 		ExternalId: "external-id",
 		Attributes: attrs,
 	}.Build()
+
 	labels := map[string]string{
-		"external-id": want.GetExternalId(),
+		"external-id": input.GetExternalId(),
 	}
-	u, err := UserFromResource(want, WithLabels(labels))
+	u, err := UserFromResource(input, WithLabels(labels))
 	require.NoError(t, err)
 
 	require.Equal(t, "alice@example.com", u.GetName())
@@ -45,17 +48,23 @@ func TestUserConv(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got.GetMeta().GetCreated())
 	got.GetMeta().ClearCreated()
-	deleteProtoField(t, &want.Attributes, "password")
-	require.Equal(t, want, got)
-}
 
-func deleteProtoField(t *testing.T, s **structpb.Struct, field string) {
-	t.Helper()
-	m := (*s).AsMap()
-	delete(m, field)
-	var err error
-	*s, err = structpb.NewStruct(m)
+	attrsWithoutPassword, err := structpb.NewStruct(map[string]any{
+		common.UsernameAttribute: "alice@example.com",
+		"active":                 true,
+		"name":                   map[string]any{"givenName": "Alice", "familyName": "Okta"},
+	})
 	require.NoError(t, err)
+	want := scimpb.Resource_builder{
+		Id: "alice@example.com",
+		Meta: scimpb.Meta_builder{
+			Version:      `W/"version1"`,
+			ResourceType: common.ResourceTypeUser,
+		}.Build(),
+		ExternalId: "external-id",
+		Attributes: attrsWithoutPassword,
+	}.Build()
+	require.Empty(t, cmp.Diff(want, got, protocmp.Transform()))
 }
 
 func TestGroupConv(t *testing.T) {

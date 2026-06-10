@@ -575,18 +575,18 @@ func TestSkipProcessingBots(t *testing.T) {
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
 	require.NoError(t, err)
 
-	bot, err := adminClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
+	bot, err := adminClient.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
+		Bot: machineidv1pb.Bot_builder{
 			Kind:    types.KindBot,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "test",
-			},
-			Spec: &machineidv1pb.BotSpec{
+			}.Build(),
+			Spec: machineidv1pb.BotSpec_builder{
 				Roles: []string{"access"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	user, err := adminClient.GetUser(ctx, bot.GetStatus().GetUserName(), false)
@@ -602,9 +602,9 @@ func TestSkipProcessingBots(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 
 	// Deleting the bot should not trigger ULS creation (or corruption).
-	_, err = adminClient.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+	_, err = adminClient.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 		BotName: "test",
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Once reconciled, the delete should not create/change bot ULS.

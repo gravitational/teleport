@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -48,12 +48,6 @@ func newTestPack(t *testing.T) *testPack {
 		mem:   mem,
 		s:     s,
 	}
-}
-
-// cmpOpts are general cmpOpts for all comparisons.
-var cmpOpts = []cmp.Option{
-	cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	cmpopts.IgnoreUnexported(loginrulepb.LoginRule{}),
 }
 
 func TestCreateAndUpsertLoginRule(t *testing.T) {
@@ -119,7 +113,7 @@ func TestCreateAndUpsertLoginRule(t *testing.T) {
 					return
 				}
 				require.NoError(t, err, "unexpected error from CreateLoginRule")
-				require.Empty(t, cmp.Diff(tc.rule, outRule, cmpOpts...), "returned rule from CreateLoginRule does not match expected")
+				require.Empty(t, cmp.Diff(tc.rule, outRule, protocmp.Transform()), "returned rule from CreateLoginRule does not match expected")
 			})
 		}
 	})
@@ -133,7 +127,7 @@ func TestCreateAndUpsertLoginRule(t *testing.T) {
 					return
 				}
 				require.NoError(t, err, "unexpected error from UpsertLoginRule")
-				require.Empty(t, cmp.Diff(tc.rule, outRule, cmpOpts...), "returned rule from UpsertLoginRule does not match expected")
+				require.Empty(t, cmp.Diff(tc.rule, outRule, protocmp.Transform()), "returned rule from UpsertLoginRule does not match expected")
 			})
 		}
 	})
@@ -218,7 +212,7 @@ func TestGetLoginRule(t *testing.T) {
 				return
 			}
 			require.NoError(t, err, "unexpected error from GetLoginRule")
-			require.Empty(t, cmp.Diff(seededRules[tc.name], rule, cmpOpts...))
+			require.Empty(t, cmp.Diff(seededRules[tc.name], rule, protocmp.Transform()))
 		})
 	}
 }
@@ -325,7 +319,7 @@ func TestListLoginRules(t *testing.T) {
 			sort.SliceStable(seededRules, func(i, j int) bool {
 				return seededRules[i].GetMetadata().Name < seededRules[j].GetMetadata().Name
 			})
-			require.Empty(t, cmp.Diff(seededRules, allRules, cmpOpts...), "listed login rules do not match the expected")
+			require.Empty(t, cmp.Diff(seededRules, allRules, protocmp.Transform()), "listed login rules do not match the expected")
 		})
 	}
 }
@@ -377,7 +371,7 @@ func TestDeleteLoginRule(t *testing.T) {
 		}
 		require.NoError(t, err)
 
-		require.Empty(t, cmp.Diff(seededRules[ruleName], rule, cmpOpts...))
+		require.Empty(t, cmp.Diff(seededRules[ruleName], rule, protocmp.Transform()))
 	}
 }
 

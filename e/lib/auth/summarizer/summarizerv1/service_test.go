@@ -1561,9 +1561,7 @@ func TestService_TestInferenceModel(t *testing.T) {
 		{
 			name: "unsupported provider type",
 			req: summarizerv1pb.TestInferenceModelRequest_builder{
-				Model: &summarizerv1pb.InferenceModelSpec{
-					Provider: nil,
-				},
+				Model: summarizerv1pb.InferenceModelSpec_builder{}.Build(),
 			}.Build(),
 			expectSuccess:   false,
 			messageContains: "invalid model spec: missing or unsupported inference provider in spec, supported providers",

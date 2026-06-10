@@ -336,7 +336,7 @@ func Test_AuditLogExport_Search_WithResume(t *testing.T) {
 
 	configAndState := newConfigAndState()
 	searchState := &accessgraphv1.AuditLogStreamResponse_SearchResumeState{SearchResumeState: searchResumeState("X", "0")}
-	configAndState[1] = &accessgraphv1.AuditLogStreamResponse{State: searchState}
+	configAndState[1] = accessgraphv1.AuditLogStreamResponse_builder{SearchResumeState: proto.ValueOrDefault(searchState.SearchResumeState)}.Build()
 	synctest.Test(t, func(t *testing.T) { // use synctest for time.Now() fixture
 		ctx, cancel := context.WithCancel(t.Context())
 		clientStream, serverStream := newTestStreams(ctx)

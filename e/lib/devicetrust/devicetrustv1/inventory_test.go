@@ -620,7 +620,7 @@ func runSyncInventoryTests(t *testing.T, ctx context.Context, devices devicepb.D
 					continue
 				}
 				if isDeleted == nil {
-					isDeleted = &s.Deleted
+					isDeleted = proto.Bool(s.GetDeleted())
 					continue
 				}
 				if s.GetDeleted() != *isDeleted {
