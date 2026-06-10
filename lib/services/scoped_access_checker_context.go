@@ -560,12 +560,18 @@ var (
 		kind:          types.KindSessionRecordingConfig,
 		verbs:         []string{types.VerbRead},
 	}
-
 	// UnpinnedReadScopedRole is a special authorization to complete an
 	// unscoped access check to read a scoped role.
 	UnpinnedReadScopedRole = UnpinnedReadAuthorization{
 		resourceScope: scopes.Root,
 		kind:          scopedaccess.KindScopedRole,
+		verbs:         []string{types.VerbRead},
+	}
+	// UnpinnedReadUser is a special authorization to complete a unscoped access check
+	// to read a user.
+	UnpinnedReadUser = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindUser,
 		verbs:         []string{types.VerbRead},
 	}
 )

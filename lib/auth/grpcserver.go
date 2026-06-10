@@ -6059,13 +6059,14 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	)
 
 	usersService, err := usersv1.NewService(usersv1.ServiceConfig{
-		Authorizer: cfg.Authorizer,
-		Cache:      cfg.AuthServer.Cache,
-		Backend:    cfg.AuthServer.Services,
-		Emitter:    cfg.Emitter,
-		Reporter:   cfg.AuthServer.Services.UsageReporter,
-		Clock:      cfg.AuthServer.GetClock(),
-		Logger:     cfg.AuthServer.logger.With(teleport.ComponentKey, "users.service"),
+		Authorizer:       cfg.Authorizer,
+		ScopedAuthorizer: cfg.ScopedAuthorizer,
+		Cache:            cfg.AuthServer.Cache,
+		Backend:          cfg.AuthServer.Services,
+		Emitter:          cfg.Emitter,
+		Reporter:         cfg.AuthServer.Services.UsageReporter,
+		Clock:            cfg.AuthServer.GetClock(),
+		Logger:           cfg.AuthServer.logger.With(teleport.ComponentKey, "users.service"),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
