@@ -131,7 +131,7 @@ func Test_sessionHandler(t *testing.T) {
 					require.True(t, ok)
 					require.True(t, requestEvent.Success)
 					require.Equal(t, mcputils.MethodToolsCall, requestEvent.Message.Method)
-					checkParamsHaveNameField(t, requestEvent.Message.Params, allowedTool)
+					require.Equal(t, allowedTool, requestEvent.Message.ToolsCallName)
 
 					// Server receives the client's request.
 					require.Equal(t, []mcp.JSONRPCMessage{clientReq}, serverCapture.messages())
@@ -152,7 +152,7 @@ func Test_sessionHandler(t *testing.T) {
 					require.True(t, ok)
 					require.False(t, requestEvent.Success)
 					require.Equal(t, mcputils.MethodToolsCall, requestEvent.Message.Method)
-					checkParamsHaveNameField(t, requestEvent.Message.Params, deniedTool)
+					require.Equal(t, deniedTool, requestEvent.Message.ToolsCallName)
 
 					// Server does not receive the client's request. An error is
 					// sent to client.
