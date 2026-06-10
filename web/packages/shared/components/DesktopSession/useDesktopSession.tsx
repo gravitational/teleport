@@ -210,23 +210,26 @@ export default function useDesktopSession(
     }
   }, [tdpClient, addAlert]);
 
-  const removeSharedDirectory = (directoryId: number) => {
-    try {
-      tdpClient.unshareDirectory(directoryId);
-      setSharedDirectoriesState(tdpClient.listSharedDirectories());
-    } catch (e) {
-      if (isAbortError(e)) {
-        return;
+  const removeSharedDirectory = useCallback(
+    (directoryId: number) => {
+      try {
+        tdpClient.unshareDirectory(directoryId);
+        setSharedDirectoriesState(tdpClient.listSharedDirectories());
+      } catch (e) {
+        if (isAbortError(e)) {
+          return;
+        }
+        addAlert({
+          severity: 'warn',
+          content: {
+            title: 'Failed to unmount the shared directory',
+            description: e.message,
+          },
+        });
       }
-      addAlert({
-        severity: 'warn',
-        content: {
-          title: 'Failed to unmount the shared directory',
-          description: e.message,
-        },
-      });
-    }
-  };
+    },
+    [tdpClient, addAlert]
+  );
 
   return {
     directorySharingState: directorySharing,
