@@ -1120,13 +1120,13 @@ func (s *discoveryStatus) mergeIntoGlobalStatus(discoveryConfigName string, exis
 		return existingStatus
 	}
 
-	for key, group := range s.statuses {
+	for key, status := range s.statuses {
 		if key.discoveryConfigName != discoveryConfigName {
 			continue
 		}
 
 		// Update global discovered resources count.
-		existingStatus.DiscoveredResources += uint64(group.found)
+		existingStatus.DiscoveredResources += uint64(status.found)
 
 		// Initialize map if needed.
 		if existingStatus.IntegrationDiscoveredResources == nil {
@@ -1149,9 +1149,9 @@ func (s *discoveryStatus) mergeIntoGlobalStatus(discoveryConfigName string, exis
 		}
 
 		resourcesSummary := discoveryconfigv1.ResourcesDiscoveredSummary_builder{
-			Found:     uint64(group.found),
-			Enrolled:  uint64(group.enrolled),
-			Failed:    uint64(group.failed),
+			Found:     uint64(status.found),
+			Enrolled:  uint64(status.enrolled),
+			Failed:    uint64(status.failed),
 			SyncStart: syncStart,
 			SyncEnd:   syncEnd,
 		}.Build()
