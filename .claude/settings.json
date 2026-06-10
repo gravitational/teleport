@@ -1,0 +1,14 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//Users/stevenmartin/integratet/teleport/web/packages/teleport/src/Integrations/**)",
+      "Read(//Users/stevenmartin/integratet/teleport/web/packages/teleport/src/services/integrations/**)",
+      "Read(//Users/stevenmartin/integratet/teleport/web/packages/teleport/src/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/stevenmartin/integratet/teleport/web/packages/teleport/src/Integrations",
+      "/Users/stevenmartin/integratet/teleport/web/packages/teleport/src/services/integrations",
+      "/Users/stevenmartin/integratet/teleport/web/packages/teleport/src"
+    ]
+  }
+}
