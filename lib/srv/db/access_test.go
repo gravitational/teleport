@@ -90,6 +90,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/cloud"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	dbconnect "github.com/gravitational/teleport/lib/srv/db/common/connect"
+	"github.com/gravitational/teleport/lib/srv/db/bigquery"
 	"github.com/gravitational/teleport/lib/srv/db/dynamodb"
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
@@ -1523,6 +1524,8 @@ type testContext struct {
 	clickHouse map[string]testClickHouse
 	// spanner is a collection of Spanner databases the test uses.
 	spanner map[string]testSpannerDB
+	// bigquery is a collection of BigQuery databases the test uses.
+	bigquery map[string]testBigQuery
 
 	// clock to override clock in tests.
 	clock *clockwork.FakeClock
@@ -1609,6 +1612,14 @@ type testDynamoDB struct {
 	// db is the test Dynamodb database server.
 	db *dynamodb.TestServer
 	// resource is the resource representing this DynamoDB database.
+	resource types.Database
+}
+
+// testBigQuery represents a single proxied BigQuery database.
+type testBigQuery struct {
+	// db is the test BigQuery database server.
+	db *bigquery.TestServer
+	// resource is the resource representing this BigQuery database.
 	resource types.Database
 }
 
@@ -2170,6 +2181,34 @@ func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbServic
 	return db, proxy, nil
 }
 
+// bigqueryClient returns a BigQuery test client.
+func (c *testContext) bigqueryClient(ctx context.Context, teleportUser, dbService, dbUser string) (*bigquery.Client, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolBigQuery,
+		Username:    dbUser,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	clt, err := bigquery.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return clt, proxy, nil
+}
+
 func (c *testContext) spannerClient(ctx context.Context, teleportUser, dbService, dbUser, dbName string) (*spanner.SpannerTestClient, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
 		ServiceName: dbService,
@@ -2303,6 +2342,7 @@ func setupTestContext(ctx context.Context, t testing.TB, withDatabases ...withDa
 		dynamodb:      make(map[string]testDynamoDB),
 		clickHouse:    make(map[string]testClickHouse),
 		spanner:       make(map[string]testSpannerDB),
+		bigquery:      make(map[string]testBigQuery),
 		clock:         clockwork.NewFakeClockAt(time.Now()),
 	}
 	t.Cleanup(func() { testCtx.Close() })

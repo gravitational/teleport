@@ -24,6 +24,9 @@ const (
 
 	// SpannerEndpoint is the endpoint that all spanner RPCs should go to.
 	SpannerEndpoint = "spanner" + gcpEndpointSuffix + ":443"
+
+	// BigQueryEndpoint is the endpoint that all BigQuery RPCs should go to.
+	BigQueryEndpoint = "bigquery" + gcpEndpointSuffix + ":443"
 )
 
 // IsGCPEndpoint returns true if hostname is a GCP endpoint
@@ -34,4 +37,9 @@ func IsGCPEndpoint(hostname string) bool {
 // IsSpannerEndpoint returns true if the input URI is the Spanner API endpoint.
 func IsSpannerEndpoint(uri string) bool {
 	return uri == SpannerEndpoint
+}
+
+// IsBigQueryEndpoint returns true if the input URI is the BigQuery API endpoint.
+func IsBigQueryEndpoint(uri string) bool {
+	return uri == BigQueryEndpoint
 }

@@ -78,6 +78,7 @@ export { default as awssimplestorageservices3 } from './assets/awssimplestorages
 export { default as awssinglesignon } from './assets/awssinglesignon.svg?no-inline';
 export { default as awsquicksight } from './assets/awsquicksight.svg?no-inline';
 export { default as azure } from './assets/azure.svg?no-inline';
+export { default as bigquery } from './assets/bigquery.svg?no-inline';
 export { default as bill } from './assets/bill.svg?no-inline';
 export { default as boltDark } from './assets/bolt-dark.svg?no-inline';
 export { default as boltLight } from './assets/bolt-light.svg?no-inline';
