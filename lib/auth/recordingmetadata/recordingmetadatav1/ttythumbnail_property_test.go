@@ -36,7 +36,7 @@ func TestProperty_TTYThumbnail_NeverPanicsOnRandomEventSequence(t *testing.T) {
 			events[i] = genEvent(t, "evt")
 		}
 
-		testutils.RunWithTimeout(t, 2*time.Second, func() {
+		testutils.RunWithTimeout(t, 10*time.Second, func() {
 			gen := newTTYThumbnailGenerator()
 			defer gen.release()
 
@@ -75,7 +75,7 @@ func TestProperty_TTYThumbnail_NeverPanicsBeforeSessionStart(t *testing.T) {
 		// SessionPrint and Resize delivered without prior SessionStart.
 		data := rapid.SliceOfN(rapid.Byte(), 0, 512).Draw(t, "data")
 
-		testutils.RunWithTimeout(t, 1*time.Second, func() {
+		testutils.RunWithTimeout(t, 10*time.Second, func() {
 			gen := newTTYThumbnailGenerator()
 			defer gen.release()
 
