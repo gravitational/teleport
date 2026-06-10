@@ -716,7 +716,9 @@ func (sess *linuxSession) handleClientHello(m *tdpb.ClientHello) error {
 				return nil
 			case <-time.After(30 * time.Second):
 			}
-			sess.backend.SendNoOpEvent()
+			if err := sess.backend.SendNoOpEvent(); err != nil {
+				return trace.Wrap(err, "failed to send event event")
+			}
 		}
 	})
 	return nil
@@ -928,12 +930,11 @@ func (s *LinuxService) trackSession(ctx context.Context, id *tlsca.Identity, lin
 		}
 	}()
 
-	go func() {
-		<-ctx.Done()
+	context.AfterFunc(ctx, func() {
 		if err := tracker.Close(s.closeCtx); err != nil {
 			s.cfg.Logger.DebugContext(s.closeCtx, "Failed to close session tracker", "session_id", sessionID)
 		}
-	}()
+	})
 
 	return nil
 }
