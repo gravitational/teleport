@@ -3922,11 +3922,11 @@ func (g *GRPCServer) GetClusterAuditConfig(ctx context.Context, _ *emptypb.Empty
 
 // GetClusterNetworkingConfig gets cluster networking configuration.
 func (g *GRPCServer) GetClusterNetworkingConfig(ctx context.Context, _ *emptypb.Empty) (*types.ClusterNetworkingConfigV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	netConfig, err := auth.ServerWithRoles.GetClusterNetworkingConfig(ctx)
+	netConfig, err := auth.GetClusterNetworkingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
