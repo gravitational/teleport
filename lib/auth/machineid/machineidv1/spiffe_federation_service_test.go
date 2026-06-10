@@ -599,60 +599,60 @@ func TestSPIFFEFederationService_ScopedIdentity(t *testing.T) {
 	// of cluster-global SPIFFE federations are granted via the default implicit
 	// role, so no extra permissions are required.
 	scopedSvc := adminClient.ScopedAccessServiceClient()
-	scopedRole, err := scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
-		Role: &scopedaccessv1.ScopedRole{
+	scopedRole, err := scopedSvc.CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
 			Kind:    scopedaccess.KindScopedRole,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: "spiffe-federation-reader",
-			},
+			}.Build(),
 			Scope: "/scopes",
-			Spec: &scopedaccessv1.ScopedRoleSpec{
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
 				AssignableScopes: []string{"/scopes/granted"},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	scopedUser, err := authtest.CreateUser(ctx, srv.Auth(), "scoped-reader")
 	require.NoError(t, err)
 
-	sraResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+	sraResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
+		Assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: uuid.NewString(),
-			},
+			}.Build(),
 			Scope: "/scopes",
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 				User: scopedUser.GetName(),
 				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRole.Role.Metadata.Name, Scope: "/scopes/granted"},
+					scopedaccessv1.Assignment_builder{Role: scopedRole.GetRole().GetMetadata().GetName(), Scope: "/scopes/granted"}.Build(),
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 	waitForSRACache(t, srv, sraResp)
 
 	name := "example.com"
 	resource, err := srv.Auth().Services.SPIFFEFederations.CreateSPIFFEFederation(
-		ctx, &machineidv1pb.SPIFFEFederation{
+		ctx, machineidv1pb.SPIFFEFederation_builder{
 			Kind:    types.KindSPIFFEFederation,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: name,
-			},
-			Spec: &machineidv1pb.SPIFFEFederationSpec{
-				BundleSource: &machineidv1pb.SPIFFEFederationBundleSource{
-					HttpsWeb: &machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb{
+			}.Build(),
+			Spec: machineidv1pb.SPIFFEFederationSpec_builder{
+				BundleSource: machineidv1pb.SPIFFEFederationBundleSource_builder{
+					HttpsWeb: machineidv1pb.SPIFFEFederationBundleSourceHTTPSWeb_builder{
 						BundleEndpointUrl: "https://example.com/bundle.json",
-					},
-				},
-			},
-		},
+					}.Build(),
+				}.Build(),
+			}.Build(),
+		}.Build(),
 	)
 	require.NoError(t, err)
 
@@ -661,17 +661,17 @@ func TestSPIFFEFederationService_ScopedIdentity(t *testing.T) {
 	defer scopedClient.Close()
 
 	t.Run("GetSPIFFEFederation", func(t *testing.T) {
-		got, err := scopedClient.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, &machineidv1pb.GetSPIFFEFederationRequest{
+		got, err := scopedClient.SPIFFEFederationServiceClient().GetSPIFFEFederation(ctx, machineidv1pb.GetSPIFFEFederationRequest_builder{
 			Name: name,
-		})
+		}.Build())
 		require.NoError(t, err)
 		require.Empty(t, cmp.Diff(resource, got, protocmp.Transform()))
 	})
 
 	t.Run("ListSPIFFEFederations", func(t *testing.T) {
-		resp, err := scopedClient.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, &machineidv1pb.ListSPIFFEFederationsRequest{})
+		resp, err := scopedClient.SPIFFEFederationServiceClient().ListSPIFFEFederations(ctx, machineidv1pb.ListSPIFFEFederationsRequest_builder{}.Build())
 		require.NoError(t, err)
-		require.True(t, slices.ContainsFunc(resp.SpiffeFederations, func(federation *machineidv1pb.SPIFFEFederation) bool {
+		require.True(t, slices.ContainsFunc(resp.GetSpiffeFederations(), func(federation *machineidv1pb.SPIFFEFederation) bool {
 			return proto.Equal(resource, federation)
 		}))
 	})
