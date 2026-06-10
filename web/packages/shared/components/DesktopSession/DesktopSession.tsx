@@ -57,6 +57,7 @@ import { TdpError } from 'shared/libs/tdp/client';
 import { InputHandler } from './InputHandler';
 import useDesktopSession, {
   clipboardSharingMessage,
+  directorySharingMessage,
   directorySharingPossible,
   isSharingClipboard,
 } from './useDesktopSession';
@@ -109,6 +110,7 @@ export interface DesktopSessionControlsRenderProps {
   onRemoveSharedDirectory: (id: number) => void;
   canRemoveSharedDirectory: boolean;
   maxSharedDirectories: number;
+  directorySharingMessage: string;
 }
 
 export function DesktopSession({
@@ -472,6 +474,7 @@ export function DesktopSession({
     onRemoveSharedDirectory: removeSharedDirectory,
     canRemoveSharedDirectory: serverCapabilities.canRemoveSharedDirectories,
     maxSharedDirectories: MAX_SHARED_DIRECTORIES,
+    directorySharingMessage: directorySharingMessage(directorySharingState),
   };
   return (
     <Flex

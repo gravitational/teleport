@@ -36,6 +36,7 @@ interface SharedDirectoriesProps {
   canRemoveSharedDirectory: boolean;
   canShareDirectories: boolean;
   maxSharedDirectories: number;
+  directorySharingMessage: string;
 }
 
 export interface DirectoryItem {
@@ -50,11 +51,8 @@ export function SharedDirectoryList({
   canRemoveSharedDirectory,
   canShareDirectories,
   maxSharedDirectories,
+  directorySharingMessage,
 }: SharedDirectoriesProps) {
-  const label = !canShareDirectories
-    ? 'Directory sharing is not enabled for this session'
-    : 'Share local directories with the desktop';
-
   return (
     <MenuIcon
       Icon={props => <FolderPlus {...props} size="large" />}
@@ -62,7 +60,7 @@ export function SharedDirectoryList({
         disabled: !canShareDirectories,
         // square highlight instead of default circle
         css: 'border-radius: 0',
-        'aria-label': label,
+        'aria-label': directorySharingMessage,
       }}
       // Right align the menu with the icon
       menuProps={{
@@ -75,7 +73,7 @@ export function SharedDirectoryList({
           horizontal: 'right',
         },
       }}
-      tooltip={label}
+      tooltip={directorySharingMessage}
     >
       <Container data-testid="shared-directory-menu">
         <Stack gap={3} fullWidth onClick={e => e.stopPropagation()}>
