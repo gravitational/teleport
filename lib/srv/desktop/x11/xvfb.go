@@ -365,15 +365,20 @@ func NewBackend(ctx context.Context, config Config) (*Backend, error) {
 }
 
 func (x *Backend) processEvents() {
+	errorCount := 0
 	for {
 		event, err := x.conn.WaitForEvent()
 		if event == nil && err == nil {
 			return
 		}
 		if err != nil {
-			x.config.Logger.ErrorContext(x.ctx, "X11 error", "error", err.Error())
+			errorCount++
+			if errorCount < 5 {
+				x.config.Logger.ErrorContext(x.ctx, "X11 error", "error", err.Error())
+			}
 			continue
 		}
+		errorCount = 0
 		switch event := event.(type) {
 		case damage.NotifyEvent:
 		// do nothing, we handle changes through GetChanges
