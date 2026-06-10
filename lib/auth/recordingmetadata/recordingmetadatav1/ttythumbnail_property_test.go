@@ -50,8 +50,8 @@ func TestProperty_TTYThumbnail_NeverPanicsOnRandomEventSequence(t *testing.T) {
 
 var extremeResizeSizes = []string{
 	"0:0", "1:0", "0:1", "1:1", "2:2",
-	"1000:500", "2000:1000",
-	"2048:2048", "2049:2049",
+	"2048:1", "1:2048",
+	"2049:1", "1:2049",
 	"99999:99999", "9999999:9999999",
 }
 
@@ -145,7 +145,8 @@ func genTerminalSize(t *rapid.T, label string) string {
 		rapid.Just("0:0"),
 		rapid.Just("1:1"),
 		rapid.Just("80:24"),
-		rapid.Just("1000:500"),
+		rapid.Just("2048:1"),
+		rapid.Just("1:2048"),
 		rapid.Just("99999:99999"),
 		rapid.Just("not-a-size"),
 		rapid.StringN(0, 32, -1),
