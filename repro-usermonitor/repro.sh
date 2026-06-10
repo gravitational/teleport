@@ -20,6 +20,14 @@
 #   RUNNER_IDENTITY=./runner-identity/identity
 #   TBOT=./build/tbot          path to tbot binary
 #   TCTL=./build/tctl          path to tctl binary (must match deployed auth version)
+#
+# Fix-testing knobs (write bad ULS rows directly into the auth backend over
+# ssh, then exercise the bot-join path against them — useful for confirming
+# that a candidate fix tolerates pre-existing bad ULS):
+#   INJECT_BAD_ULS_SSH=user@auth-host   if set, inject a bad ULS for each bot
+#                                       BEFORE creating it. unset = no inject.
+#   INJECT_BAD_ULS_DB=/var/lib/teleport/backend/sqlite.db   path to sqlite db
+#                                                           on the remote host
 set -uo pipefail
 
 PROXY=${PROXY:?set PROXY=host:port}
@@ -37,6 +45,68 @@ if [[ ! -f "$RUNNER_IDENTITY" ]]; then
 fi
 
 tctl_cmd() { "$TCTL" --identity "$RUNNER_IDENTITY" --auth-server "$PROXY" "$@"; }
+
+# inject_bad_uls $botname — write the exact bad ULS shape we observed during
+# repro (null roles/traits, zero expiry) directly into the auth backend over
+# ssh. No-op if INJECT_BAD_ULS_SSH is unset. The ULS is named bot-$botname,
+# matching how Teleport derives the ULS name from the bot user. Written via
+# INSERT OR REPLACE so a leftover row from a previous iteration is overwritten.
+#
+# Caveat: this writes to the backend behind the auth-server's back. The auth
+# cache will see the new row when its next change-feed poll arrives, so a
+# small delay between inject and join may be needed depending on cache
+# refresh latency. Adjust DELAY_AFTER_RECREATE to tune.
+INJECT_BAD_ULS_DB=${INJECT_BAD_ULS_DB:-/var/lib/teleport/backend/sqlite.db}
+inject_bad_uls() {
+  [[ -z "${INJECT_BAD_ULS_SSH:-}" ]] && return 0
+  local botname=$1
+  local username="bot-$botname"
+  local key="/user_login_state/$username"
+  local value
+  value=$(jq -nc --arg n "$username" '{
+    kind: "user_login_state",
+    version: "v1",
+    metadata: { name: $n, expires: "0001-01-01T00:00:00Z" },
+    spec: {
+      original_roles: null,
+      original_traits: null,
+      roles: null,
+      traits: null,
+      access_list_traits: null,
+      user_type: "local"
+    }
+  }')
+  # escape single quotes for the sqlite SQL literal
+  local key_esc=${key//\'/\'\'}
+  local value_esc=${value//\'/\'\'}
+  # The sqlite backend schema (lib/backend/lite/lite.go):
+  #   kv(key TEXT PK, modified INTEGER NOT NULL, expires DATETIME, value BLOB,
+  #      revision TEXT NOT NULL DEFAULT "")
+  #   events(id PK, type INTEGER NOT NULL, created INTEGER NOT NULL,
+  #          kv_key TEXT, kv_modified INTEGER, kv_expires, kv_value, kv_revision)
+  # We have to insert into both: the cache watches `events` for changes and
+  # won't notice a kv-only insert. type=1 = OpPut. `modified` is a unix-nanos
+  # logical clock; we approximate with strftime, which is fine since the
+  # watcher only requires it to be monotonic per row.
+  if ! ssh -o BatchMode=yes "$INJECT_BAD_ULS_SSH" \
+        sudo sqlite3 "$INJECT_BAD_ULS_DB" <<EOF 2>&1
+BEGIN;
+INSERT OR REPLACE INTO kv(key, modified, expires, value, revision)
+  VALUES ('$key_esc',
+          CAST(strftime('%s','now') AS INTEGER) * 1000000000,
+          NULL,
+          '$value_esc',
+          '');
+INSERT INTO events(type, created, kv_key, kv_modified, kv_expires, kv_value, kv_revision)
+  SELECT 1, modified, key, modified, expires, value, revision
+  FROM kv WHERE key = '$key_esc';
+COMMIT;
+EOF
+  then
+    echo "[inject] failed to insert bad ULS for $username" >&2
+    return 1
+  fi
+}
 
 # Sweep any repro-victim-* bots left behind by a previous run so they don't
 # collide with this one. Failures here are non-fatal — if the list call
@@ -66,6 +136,13 @@ worker() {
   local bot addout token tmp logfile rc
   for ((i = 0; i < ITERATIONS; i++)); do
     bot="repro-victim-${id}-${i}"
+
+    # Optional: poison the backend with a bad ULS for this bot before creating
+    # it. No-op unless INJECT_BAD_ULS_SSH is set.
+    if ! inject_bad_uls "$bot"; then
+      echo "[worker $id iter $i] inject_bad_uls failed for $bot" >&2
+      return 1
+    fi
 
     # `--legacy` keeps the join method as a plain `token` (not bound-keypair)
     # so we can hand it straight to `tbot start --token=…`. `--format=json`
