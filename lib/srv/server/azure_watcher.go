@@ -137,7 +137,8 @@ func (md *AzureInstancesMetadata) MakeRunEvent(result AzureInstallResult) *apiev
 	return evt
 }
 
-// AzureInstances contains information about discovered Azure virtual machines.
+// AzureInstances contains a list of discovered Azure virtual machines and
+// metadata.
 type AzureInstances struct {
 	AzureInstancesMetadata
 
