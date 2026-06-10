@@ -54,10 +54,15 @@ const statusEmitTimeout = 10 * time.Second
 // action occurs with an access request: a new request popped up, or a
 // request is processed/updated.
 type Bot struct {
-	client      *resty.Client
-	clock       clockwork.Clock
+	// client is the bot-level Slack API client.
+	client *resty.Client
+	// appClient is the app-level Slack API client, used to connect to Slack Socket Mode for native reviews.
+	appClient   *resty.Client
 	clusterName string
 	webProxyURL *url.URL
+	// reviewConfig is the configuration for native review.
+	reviewConfig ReviewConfig
+	clock        clockwork.Clock
 }
 
 // onAfterResponseSlack resty error function for Slack
