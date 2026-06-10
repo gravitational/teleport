@@ -262,7 +262,7 @@ func (c *Client) ExtendWebSession(ctx context.Context, req WebSessionReq) (types
 		}
 		return nil, trace.Wrap(err)
 	}
-	return resp.Session, nil
+	return resp.GetSession(), nil
 }
 
 // extendWebSessionLegacy creates a new web session for a user based on a

@@ -2043,23 +2043,23 @@ func (g *GRPCServer) ExtendWebSession(ctx context.Context, req *authpb.ExtendWeb
 		return nil, trace.Wrap(err)
 	}
 
-	session, err := auth.ExtendWebSession(ctx, authclient.WebSessionReq{
-		User:            req.User,
-		PrevSessionID:   req.PrevSessionId,
-		AccessRequestID: req.AccessRequestId,
-		Switchback:      req.Switchback,
-		ReloadUser:      req.ReloadUser,
+	sess, err := auth.ExtendWebSession(ctx, authclient.WebSessionReq{
+		User:            req.GetUser(),
+		PrevSessionID:   req.GetPrevSessionId(),
+		AccessRequestID: req.GetAccessRequestId(),
+		Switchback:      req.GetSwitchback(),
+		ReloadUser:      req.GetReloadUser(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sess, ok := session.(*types.WebSessionV2)
+	sessv2, ok := sess.(*types.WebSessionV2)
 	if !ok {
-		return nil, trace.BadParameter("unexpected session type %T", session)
+		return nil, trace.BadParameter("unexpected session type %T", sess)
 	}
 
 	return &authpb.ExtendWebSessionResponse{
-		Session: sess,
+		Session: sessv2,
 	}, nil
 }
 

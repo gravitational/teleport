@@ -2202,7 +2202,7 @@ func TestWebSessionWithoutAccessRequest(t *testing.T) {
 		PrevSessionId: ws.GetName(),
 	})
 	require.NoError(t, err)
-	require.NotNil(t, grpcResp.Session)
+	require.NotNil(t, grpcResp.GetSession())
 
 	// Extending also works calling the legacy HTTP endpoint directly.
 	// TODO(strideynet): DELETE IN v20.0.0 - remove alongside the legacy HTTP
