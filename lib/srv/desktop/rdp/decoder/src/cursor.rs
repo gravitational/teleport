@@ -166,7 +166,7 @@ mod tests {
 
         let data = bitmap.data();
 
-        assert_eq!(&*data, &DEFAULT_CURSOR_RGBA[..]);
+        assert_eq!(data, &DEFAULT_CURSOR_RGBA[..]);
     }
 
     #[test]
@@ -189,7 +189,7 @@ mod tests {
         assert_eq!(hotspot_y, 2);
 
         let data = cached.data();
-        assert_eq!(&*data, &vec![0xAB; 2 * 3 * 4][..]);
+        assert_eq!(data, &vec![0xAB; 2 * 3 * 4][..]);
 
         state.set_visible(true);
         state.clear_bitmap();
