@@ -3020,14 +3020,6 @@ func (a *ServerWithRoles) ChangePassword(
 	return a.authServer.ChangePassword(ctx, req)
 }
 
-// CreateWebSession creates a new web session for the specified user
-func (a *ServerWithRoles) CreateWebSession(ctx context.Context, user string) (types.WebSession, error) {
-	if err := a.currentUserAction(user); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.CreateWebSession(ctx, user)
-}
-
 // ExtendWebSession creates a new web session for a user based on a valid previous session.
 // Additional roles are appended to initial roles if there is an approved access request.
 // The new session expiration time will not exceed the expiration time of the old session.
