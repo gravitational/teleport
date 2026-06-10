@@ -76,6 +76,9 @@ export function SharedDirectoryList({
       tooltip={directorySharingMessage}
     >
       <Container data-testid="shared-directory-menu">
+        {/* Without e.stopPropagation here, clicking anywhere within the menu
+            container closes it. This handler prevents the menu from closing
+            until the user clicks outside of the container. */}
         <Stack gap={3} fullWidth onClick={e => e.stopPropagation()}>
           {/* Header/Share Button */}
           <Flex justifyContent="space-between" alignItems="center">
