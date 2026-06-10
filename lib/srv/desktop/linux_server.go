@@ -229,12 +229,12 @@ func (s *LinuxService) startServiceHeartbeat() error {
 		PollInterval:     defaults.HeartbeatCheckPeriod,
 		OnHeartbeat:      s.cfg.Heartbeat.OnHeartbeat,
 	})
-
-	s.heartbeat = heartbeat
-
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	s.heartbeat = heartbeat
+	
 	go func() {
 		if err := heartbeat.Run(); err != nil {
 			s.cfg.Logger.ErrorContext(s.closeCtx, "service heartbeat ended", "error", err)
