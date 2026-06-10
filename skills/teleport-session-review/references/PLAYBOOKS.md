@@ -52,6 +52,19 @@ $TCTL recordings search --from=<7-days-ago> --format=json --limit=200
 Then **client-side**: keep `severity >= 2`, sort desc, show highest first. Offer
 to pivot into any session (download / `tsh play`). This is the daily SOC loop.
 
+**Keep this query-free.** Adding a positional content query (e.g.
+`"privileged commands, secrets"`) ranks results by relevance to it *and* caps at
+`--limit`, so the set skews toward whatever the query *sounds like* and its severity
+mix stops being representative (you will over-report criticals). The no-query form
+above is the unbiased population for the window; scope it with structured flags
+(`--username`, `--label`, `--kind`) freely — those filter without biasing, only a
+text query biases. (And never pass `""` for the query — it errors; see SCHEMA.md.)
+
+**High severity ≠ malice.** Severity is the summarizer's risk score; demo/lab
+clusters and legitimate security-tooling or admin work routinely score high or
+critical. Treat it as a triage signal, not a verdict — corroborate before escalating
+(the mirror of "low ≠ safe" below).
+
 ## Playbook 3 — Threat hunting for specific techniques
 
 Use a natural-language query describing the behavior. Default `--search-mode=hybrid`
@@ -86,6 +99,15 @@ recording** for anything high-stakes: `$TSH play <session-id>` or
 `$TCTL recordings download <session-id>` (the summary is a lead, the recording is
 the evidence).
 
+**Mind coverage gaps when reconstructing "what they did":**
+- `recordings search` only sees *summarized* sessions; pair it with `recordings ls`
+  (segment by `.event`) so you don't miss unsummarized, app, db, or desktop activity.
+- Segment `ls` rows by the **`interactive`** flag. **Non-interactive exec sessions
+  are often not recorded at all** (`tsh play` → "recording not found") and not
+  summarized — they appear in `ls` as evidence the action happened, but neither the
+  content nor an AI summary is retrievable. State that explicitly rather than
+  implying the session was empty or clean.
+
 ## Playbook 5 — Access-request / JIT window context
 
 "Show everything that happened under access request <id>."
@@ -98,6 +120,36 @@ Group the returned sessions by `username` + time to see the full picture of an
 elevation window. **Multi-session attacks (activity split across several JIT
 sessions) are a known blind spot** — review the whole set together rather than
 trusting per-session summaries in isolation.
+
+## Playbook 6 — Probe summary content without the prose (keyword bisection)
+
+The JSON never contains the prose summary (SCHEMA.md), so when you need to know
+*what a session was about* and can't open the web player, use `--search-mode=keyword`
+as a content probe: a session is returned **only if** the term appears in its
+summary. Scope tightly to the candidate set, then bisect with single terms.
+
+```bash
+# Each probe asks "does this term appear in this user/host/window's summaries?"
+$TCTL recordings search "exfiltration" --search-mode=keyword \
+  --username=<u> --server-hostname=<host> --from=<t0> --to=<t1> --format=json --limit=100
+```
+
+- **Confirm the probe works first:** a nonsense term (`"zxqv_nonsense"`) must return
+  `[]`. If it returns rows, keyword content-filtering isn't active and the method is
+  invalid.
+- Start broad (multi-term: `"password secret credential token"`), then bisect with
+  single terms (`exfiltration`, `shadow`, `passwd`, `deleted`) to characterize a
+  specific session — e.g. narrowing a sev-4 session to "credentials + shadow/passwd +
+  exfiltration, and *not* ransomware/persistence".
+- Cross-reference the returned `session_id`s against your `ls` / search list to
+  attribute a topic to a specific recording.
+
+> **Critical caveat — keyword probing is negation-blind.** A hit means the *term
+> appears* in the summary; it CANNOT distinguish "exfiltrated credentials" from
+> "**no** exfiltration occurred" — both match `exfiltration`. This characterizes the
+> *topics* a summary discusses, not what factually happened. Treat results as leads
+> and **confirm with the actual recording** (web player / `tsh play`) before
+> reporting a finding.
 
 ## Limitations to communicate
 
