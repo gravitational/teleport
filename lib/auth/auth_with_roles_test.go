@@ -9150,7 +9150,7 @@ func TestLocalServiceRolesHavePermissionsForUploaderService(t *testing.T) {
 					*authContext,
 				)
 
-				err := s.EmitAuditEvent(ctx, &apievents.UserLogin{
+				err := s.ScopedServerWithRoles().EmitAuditEvent(ctx, &apievents.UserLogin{
 					Metadata: apievents.Metadata{
 						Type: events.UserLoginEvent,
 						Code: events.UserLocalLoginFailureCode,
@@ -13350,4 +13350,70 @@ func TestScopedUserCertGeneration(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestScopePinnedEmitAuditEvent verifies that an agent with a scope pin is able to emit an audit event.
+func TestScopePinnedEmitAuditEvent(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	srv, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			Dir: t.TempDir(),
+			ScopesFeatures: scopes.Features{
+				Enabled:         true,
+				AgentPinEnabled: true,
+			},
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { srv.Close() })
+
+	const (
+		hostID   = "test-host"
+		username = "test-user"
+		scope    = "/test"
+	)
+	// setup auth with scope pinned host
+	scopedHostAuth := newScopePinnedTestServerForHost(t, srv.AuthServer, hostID, scope, types.RoleNode)
+
+	// create user to test scope pinned users
+	_, err = authtest.CreateUser(ctx, srv.Auth(), username)
+	require.NoError(t, err)
+	// create a scoped role assigning perms to create events
+	_, err = srv.Auth().ScopedAccess().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
+		Role: scopedaccessv1.ScopedRole_builder{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: headerv1.Metadata_builder{
+				Name: username + "-role",
+			}.Build(),
+			Scope: scope,
+			Spec: scopedaccessv1.ScopedRoleSpec_builder{
+				AssignableScopes: []string{scope},
+				Rules: []*scopedaccessv1.ScopedRule{
+					{
+						Resources: []string{types.KindEvent},
+						Verbs:     []string{types.VerbCreate},
+					},
+				},
+			}.Build(),
+		}.Build(),
+	}.Build())
+	// NOTE (etate): if scoped role validation ever permits VerbCreate on KindEvent, then this test either needs to be updated
+	// to assert that EmitAuditEvent still fails for scoped user pins, or EmitAuditEvent needs to be updated to permit
+	// identities with scoped user pins
+	require.Error(t, err)
+	require.True(t, trace.IsBadParameter(err), "expected trace.BadParameterError")
+
+	// ensure that scope pinned agents are able to emit events
+	err = scopedHostAuth.EmitAuditEvent(ctx, &apievents.SessionConnect{
+		Metadata: apievents.Metadata{
+			Type: events.SessionConnectEvent,
+			Code: events.SessionConnectCode,
+		},
+		ServerMetadata: apievents.ServerMetadata{
+			ServerID: hostID,
+		},
+	})
+	require.NoError(t, err)
 }

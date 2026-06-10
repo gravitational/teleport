@@ -285,7 +285,7 @@ func (g *GRPCServer) GetServer() (*grpc.Server, error) {
 
 // EmitAuditEvent emits audit event
 func (g *GRPCServer) EmitAuditEvent(ctx context.Context, req *apievents.OneOf) (*emptypb.Empty, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
