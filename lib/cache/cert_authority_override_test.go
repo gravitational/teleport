@@ -87,13 +87,13 @@ func TestCertAuthorityOverrides(t *testing.T) {
 }
 
 func newCertAuthorityOverride(caType types.CertAuthType, clusterName string) *subcav1.CertAuthorityOverride {
-	return &subcav1.CertAuthorityOverride{
+	return subcav1.CertAuthorityOverride_builder{
 		Kind:    types.KindCertAuthorityOverride,
 		Version: types.V1,
 		SubKind: string(caType),
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: clusterName,
-		},
+		}.Build(),
 		Spec: &subcav1.CertAuthorityOverrideSpec{},
-	}
+	}.Build()
 }

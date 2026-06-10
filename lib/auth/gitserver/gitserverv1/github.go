@@ -33,20 +33,20 @@ import (
 )
 
 func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitHubAuthRequestRequest) (*types.GithubAuthRequest, error) {
-	if in.Request == nil {
+	if !in.HasRequest() {
 		return nil, trace.BadParameter("missing github auth request")
 	}
-	if err := types.ValidateGitHubOrganizationName(in.Organization); err != nil {
+	if err := types.ValidateGitHubOrganizationName(in.GetOrganization()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if in.Request.SSOTestFlow {
+	if in.GetRequest().SSOTestFlow {
 		return nil, trace.BadParameter("sso test flow is not supported when creating GitHub auth request for authenticated user")
 	}
-	if in.Request.CreateWebSession {
+	if in.GetRequest().CreateWebSession {
 		return nil, trace.BadParameter("CreateWebSession is not supported when creating GitHub auth request for authenticated user")
 	}
 
-	authCtx, gitServer, err := s.authAndFindServerByOrg(ctx, in.Organization)
+	authCtx, gitServer, err := s.authAndFindServerByOrg(ctx, in.GetOrganization())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -64,15 +64,15 @@ func (s *Service) CreateGitHubAuthRequest(ctx context.Context, in *pb.CreateGitH
 		return nil, trace.Wrap(err)
 	}
 
-	in.Request.ConnectorID = uuid
-	in.Request.ConnectorSpec = spec
-	in.Request.AuthenticatedUser = authCtx.User.GetName()
-	in.Request.CertTTL = authCtx.Identity.GetIdentity().Expires.Sub(s.cfg.clock.Now())
-	in.Request.ClientLoginIP = authCtx.Identity.GetIdentity().LoginIP
+	in.GetRequest().ConnectorID = uuid
+	in.GetRequest().ConnectorSpec = spec
+	in.GetRequest().AuthenticatedUser = authCtx.User.GetName()
+	in.GetRequest().CertTTL = authCtx.Identity.GetIdentity().Expires.Sub(s.cfg.clock.Now())
+	in.GetRequest().ClientLoginIP = authCtx.Identity.GetIdentity().LoginIP
 
 	// More params of in.Request will get updated and checked by
 	// s.cfg.GitHubAuthRequestCreator.
-	request, err := s.cfg.GitHubAuthRequestCreator(ctx, *in.Request)
+	request, err := s.cfg.GitHubAuthRequestCreator(ctx, *in.GetRequest())
 	return request, trace.Wrap(err)
 }
 

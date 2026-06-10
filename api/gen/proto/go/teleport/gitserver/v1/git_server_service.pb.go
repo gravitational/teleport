@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/gitserver/v1/git_server_service.proto
 
+//go:build !protoopaque
+
 package gitserverv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 
 // CreateGitServerRequest is a request to create a Git server.
 type CreateGitServerRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Server is the Git server to create.
 	Server        *types.ServerV2 `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -71,11 +72,6 @@ func (x *CreateGitServerRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateGitServerRequest.ProtoReflect.Descriptor instead.
-func (*CreateGitServerRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_gitserver_v1_git_server_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateGitServerRequest) GetServer() *types.ServerV2 {
 	if x != nil {
 		return x.Server
@@ -83,9 +79,39 @@ func (x *CreateGitServerRequest) GetServer() *types.ServerV2 {
 	return nil
 }
 
+func (x *CreateGitServerRequest) SetServer(v *types.ServerV2) {
+	x.Server = v
+}
+
+func (x *CreateGitServerRequest) HasServer() bool {
+	if x == nil {
+		return false
+	}
+	return x.Server != nil
+}
+
+func (x *CreateGitServerRequest) ClearServer() {
+	x.Server = nil
+}
+
+type CreateGitServerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Server is the Git server to create.
+	Server *types.ServerV2
+}
+
+func (b0 CreateGitServerRequest_builder) Build() *CreateGitServerRequest {
+	m0 := &CreateGitServerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Server = b.Server
+	return m0
+}
+
 // GetGitServerRequest is a request to get a Git server.
 type GetGitServerRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the uuid of the server.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -117,11 +143,6 @@ func (x *GetGitServerRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetGitServerRequest.ProtoReflect.Descriptor instead.
-func (*GetGitServerRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_gitserver_v1_git_server_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetGitServerRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -129,9 +150,28 @@ func (x *GetGitServerRequest) GetName() string {
 	return ""
 }
 
+func (x *GetGitServerRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetGitServerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the uuid of the server.
+	Name string
+}
+
+func (b0 GetGitServerRequest_builder) Build() *GetGitServerRequest {
+	m0 := &GetGitServerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // ListGitServersRequest is the request to list Git servers.
 type ListGitServersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -166,11 +206,6 @@ func (x *ListGitServersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListGitServersRequest.ProtoReflect.Descriptor instead.
-func (*ListGitServersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_gitserver_v1_git_server_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListGitServersRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -185,9 +220,36 @@ func (x *ListGitServersRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListGitServersRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListGitServersRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListGitServersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The page_token is the next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListGitServersRequest_builder) Build() *ListGitServersRequest {
+	m0 := &ListGitServersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListGitServersResponse is the response to ListGitServers.
 type ListGitServersResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The page of Git servers that matched the request.
 	Servers []*types.ServerV2 `protobuf:"bytes,1,rep,name=servers,proto3" json:"servers,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -222,11 +284,6 @@ func (x *ListGitServersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListGitServersResponse.ProtoReflect.Descriptor instead.
-func (*ListGitServersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_gitserver_v1_git_server_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListGitServersResponse) GetServers() []*types.ServerV2 {
 	if x != nil {
 		return x.Servers
@@ -241,9 +298,36 @@ func (x *ListGitServersResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListGitServersResponse) SetServers(v []*types.ServerV2) {
+	x.Servers = v
+}
+
+func (x *ListGitServersResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListGitServersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The page of Git servers that matched the request.
+	Servers []*types.ServerV2
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListGitServersResponse_builder) Build() *ListGitServersResponse {
+	m0 := &ListGitServersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Servers = b.Servers
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // UpdateGitServerRequest is the request to update a Git server.
 type UpdateGitServerRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Server is the Git server to update.
 	Server        *types.ServerV2 `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -275,11 +359,6 @@ func (x *UpdateGitServerRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateGitServerRequest.ProtoReflect.Descriptor instead.
-func (*UpdateGitServerRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_gitserver_v1_git_server_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpdateGitServerRequest) GetServer() *types.ServerV2 {
 	if x != nil {
 		return x.Server
@@ -287,9 +366,39 @@ func (x *UpdateGitServerRequest) GetServer() *types.ServerV2 {
 	return nil
 }
 
+func (x *UpdateGitServerRequest) SetServer(v *types.ServerV2) {
+	x.Server = v
+}
+
+func (x *UpdateGitServerRequest) HasServer() bool {
+	if x == nil {
+		return false
+	}
+	return x.Server != nil
+}
+
+func (x *UpdateGitServerRequest) ClearServer() {
+	x.Server = nil
+}
+
+type UpdateGitServerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Server is the Git server to update.
+	Server *types.ServerV2
+}
+
+func (b0 UpdateGitServerRequest_builder) Build() *UpdateGitServerRequest {
+	m0 := &UpdateGitServerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Server = b.Server
+	return m0
+}
+
 // UpsertGitServerRequest is the request to upsert a Git server.
 type UpsertGitServerRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Server is the Git server to upsert.
 	Server        *types.ServerV2 `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -321,11 +430,6 @@ func (x *UpsertGitServerRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertGitServerRequest.ProtoReflect.Descriptor instead.
-func (*UpsertGitServerRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_gitserver_v1_git_server_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpsertGitServerRequest) GetServer() *types.ServerV2 {
 	if x != nil {
 		return x.Server
@@ -333,9 +437,39 @@ func (x *UpsertGitServerRequest) GetServer() *types.ServerV2 {
 	return nil
 }
 
+func (x *UpsertGitServerRequest) SetServer(v *types.ServerV2) {
+	x.Server = v
+}
+
+func (x *UpsertGitServerRequest) HasServer() bool {
+	if x == nil {
+		return false
+	}
+	return x.Server != nil
+}
+
+func (x *UpsertGitServerRequest) ClearServer() {
+	x.Server = nil
+}
+
+type UpsertGitServerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Server is the Git server to upsert.
+	Server *types.ServerV2
+}
+
+func (b0 UpsertGitServerRequest_builder) Build() *UpsertGitServerRequest {
+	m0 := &UpsertGitServerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Server = b.Server
+	return m0
+}
+
 // DeleteGitServerRequest is the request to delete a Git server.
 type DeleteGitServerRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the uuid of the server.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -367,11 +501,6 @@ func (x *DeleteGitServerRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteGitServerRequest.ProtoReflect.Descriptor instead.
-func (*DeleteGitServerRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_gitserver_v1_git_server_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *DeleteGitServerRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -379,9 +508,28 @@ func (x *DeleteGitServerRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteGitServerRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteGitServerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the uuid of the server.
+	Name string
+}
+
+func (b0 DeleteGitServerRequest_builder) Build() *DeleteGitServerRequest {
+	m0 := &DeleteGitServerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // CreateGitHubAuthRequestRequest is the request for CreateGitHubAuthRequest.
 type CreateGitHubAuthRequestRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Request is the basic GitHub auth request.
 	Request *types.GithubAuthRequest `protobuf:"bytes,1,opt,name=request,proto3" json:"request,omitempty"`
 	// Organization is the GitHub organization that the user is accessing.
@@ -415,11 +563,6 @@ func (x *CreateGitHubAuthRequestRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateGitHubAuthRequestRequest.ProtoReflect.Descriptor instead.
-func (*CreateGitHubAuthRequestRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_gitserver_v1_git_server_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *CreateGitHubAuthRequestRequest) GetRequest() *types.GithubAuthRequest {
 	if x != nil {
 		return x.Request
@@ -432,6 +575,43 @@ func (x *CreateGitHubAuthRequestRequest) GetOrganization() string {
 		return x.Organization
 	}
 	return ""
+}
+
+func (x *CreateGitHubAuthRequestRequest) SetRequest(v *types.GithubAuthRequest) {
+	x.Request = v
+}
+
+func (x *CreateGitHubAuthRequestRequest) SetOrganization(v string) {
+	x.Organization = v
+}
+
+func (x *CreateGitHubAuthRequestRequest) HasRequest() bool {
+	if x == nil {
+		return false
+	}
+	return x.Request != nil
+}
+
+func (x *CreateGitHubAuthRequestRequest) ClearRequest() {
+	x.Request = nil
+}
+
+type CreateGitHubAuthRequestRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Request is the basic GitHub auth request.
+	Request *types.GithubAuthRequest
+	// Organization is the GitHub organization that the user is accessing.
+	Organization string
+}
+
+func (b0 CreateGitHubAuthRequestRequest_builder) Build() *CreateGitHubAuthRequestRequest {
+	m0 := &CreateGitHubAuthRequestRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Request = b.Request
+	x.Organization = b.Organization
+	return m0
 }
 
 var File_teleport_gitserver_v1_git_server_service_proto protoreflect.FileDescriptor
@@ -467,18 +647,6 @@ const file_teleport_gitserver_v1_git_server_service_proto_rawDesc = "" +
 	"\x0fUpsertGitServer\x12-.teleport.gitserver.v1.UpsertGitServerRequest\x1a\x0f.types.ServerV2\x12X\n" +
 	"\x0fDeleteGitServer\x12-.teleport.gitserver.v1.DeleteGitServerRequest\x1a\x16.google.protobuf.Empty\x12j\n" +
 	"\x17CreateGitHubAuthRequest\x125.teleport.gitserver.v1.CreateGitHubAuthRequestRequest\x1a\x18.types.GithubAuthRequestBVZTgithub.com/gravitational/teleport/api/gen/proto/go/teleport/gitserver/v1;gitserverv1b\x06proto3"
-
-var (
-	file_teleport_gitserver_v1_git_server_service_proto_rawDescOnce sync.Once
-	file_teleport_gitserver_v1_git_server_service_proto_rawDescData []byte
-)
-
-func file_teleport_gitserver_v1_git_server_service_proto_rawDescGZIP() []byte {
-	file_teleport_gitserver_v1_git_server_service_proto_rawDescOnce.Do(func() {
-		file_teleport_gitserver_v1_git_server_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_gitserver_v1_git_server_service_proto_rawDesc), len(file_teleport_gitserver_v1_git_server_service_proto_rawDesc)))
-	})
-	return file_teleport_gitserver_v1_git_server_service_proto_rawDescData
-}
 
 var file_teleport_gitserver_v1_git_server_service_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
 var file_teleport_gitserver_v1_git_server_service_proto_goTypes = []any{

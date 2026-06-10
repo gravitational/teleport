@@ -102,12 +102,12 @@ func (handler *Handler) initialize(ctx context.Context) error {
 		string,
 		error,
 	) {
-		req := &accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest{
+		req := accessmonitoringrulesv1.ListAccessMonitoringRulesWithFilterRequest_builder{
 			PageSize:            pageSize,
 			PageToken:           pageToken,
 			Subjects:            []string{types.KindAccessRequest},
 			AutomaticReviewName: handler.HandlerName,
-		}
+		}.Build()
 		page, next, err := handler.Client.ListAccessMonitoringRulesWithFilter(ctx, req)
 		if err != nil {
 			return nil, "", trace.Wrap(err)

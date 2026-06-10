@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources/testlib"
 	"github.com/gravitational/teleport/lib/oidc/fakeissuer"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	scopedjoining "github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -207,13 +208,12 @@ func createBotUser(
 }
 
 func TestScopedBotJoinAuth(t *testing.T) {
+	t.Parallel()
+
 	// Test setup: Configure and start Teleport server
 	clusterName := "root.example.com"
 	logger := logtest.NewLogger()
 	ctx := t.Context()
-
-	// We lose test parallelism, but there's currently no other way to enable scope support.
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	teleportServer := helpers.NewInstance(t, helpers.InstanceConfig{
 		ClusterName: clusterName,
@@ -242,6 +242,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	// Test setup: starting the Teleport instance
 	rcConf := servicecfg.MakeDefaultConfig()
 	rcConf.DataDir = t.TempDir()
+	rcConf.ScopesFeatures = scopes.Features{Enabled: true}
 	rcConf.Auth.Enabled = true
 	rcConf.Proxy.Enabled = true
 	rcConf.Proxy.DisableWebInterface = true
@@ -289,70 +290,70 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	)
 
 	// Role impersonated by the bot.
-	botRole := &scopedaccessv1.ScopedRole{
+	botRole := scopedaccessv1.ScopedRole_builder{
 		Kind:    scopedaccess.KindScopedRole,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: testBotRole,
-		},
+		}.Build(),
 		Scope: testRootScope,
-		Spec: &scopedaccessv1.ScopedRoleSpec{
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{testRootScope},
 			Rules: []*scopedaccessv1.ScopedRule{
 				// The role can read scoped roles. We will use this to validate its permissions later.
-				{
+				scopedaccessv1.ScopedRule_builder{
 					Resources: []string{scopedaccess.KindScopedRole},
 					Verbs:     []string{types.VerbReadNoSecrets},
-				},
+				}.Build(),
 			},
-		},
-	}
+		}.Build(),
+	}.Build()
 	require.NoError(t, scopedaccess.StrongValidateRole(botRole), "malformed role, this is a bug in the test fixture")
-	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRole(ctx, scopedaccessv1.CreateScopedRoleRequest_builder{
 		Role: botRole,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Create the bot.
-	botResource := &machineidv1.Bot{
+	botResource := machineidv1.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: testBotName,
-		},
+		}.Build(),
 		Spec:  &machineidv1.BotSpec{},
 		Scope: testRootScope,
-	}
-	_, err = adminClient.BotServiceClient().CreateBot(ctx, &machineidv1.CreateBotRequest{
+	}.Build()
+	_, err = adminClient.BotServiceClient().CreateBot(ctx, machineidv1.CreateBotRequest_builder{
 		Bot: botResource,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Assign role to bot
-	roleAssignment := &scopedaccessv1.ScopedRoleAssignment{
+	roleAssignment := scopedaccessv1.ScopedRoleAssignment_builder{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindDynamic,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: testBotRole,
-		},
+		}.Build(),
 		Scope: testRootScope,
-		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 			Assignments: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  testBotRole,
 					Scope: testRootScope,
-				},
+				}.Build(),
 			},
 			BotName:  testBotName,
 			BotScope: testRootScope,
-		},
-	}
+		}.Build(),
+	}.Build()
 	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(
 		ctx,
-		&scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 			Assignment: roleAssignment,
-		})
+		}.Build())
 	require.NoError(t, err)
 
 	// Test setup: Wait for the role assignment to enter the auth server cache
@@ -360,14 +361,14 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	require.EventuallyWithT(t, func(t *assert.CollectT) {
 		resp, err := adminClient.ScopedAccessServiceClient().GetScopedRoleAssignment(
 			ctx,
-			&scopedaccessv1.GetScopedRoleAssignmentRequest{
+			scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 				Name:    testBotRole,
 				SubKind: scopedaccess.SubKindDynamic,
-			},
+			}.Build(),
 		)
 		require.NoError(t, err)
 		require.NotNil(t, resp)
-		require.NotNil(t, resp.Assignment)
+		require.NotNil(t, resp.GetAssignment())
 	}, 5*time.Second, 100*time.Millisecond, "expected role assignment to enter the auth cache")
 
 	// Test setup: Create a fake Kubernetes JWKS signer that will be used by the bot to join the cluster.
@@ -388,33 +389,33 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	require.NoError(t, os.WriteFile(tokenPath, []byte(jwt), 0600))
 
 	// Test setup: Create the scoped token allowing the Bot to join with a JWT emitted by the Kube signer.
-	token := &scopedjoiningv1.ScopedToken{
+	token := scopedjoiningv1.ScopedToken_builder{
 		Kind:     scopedaccess.KindScopedToken,
 		Version:  types.V1,
-		Metadata: &headerv1.Metadata{Name: testTokenName},
+		Metadata: headerv1.Metadata_builder{Name: testTokenName}.Build(),
 		Scope:    testRootScope,
-		Spec: &scopedjoiningv1.ScopedTokenSpec{
+		Spec: scopedjoiningv1.ScopedTokenSpec_builder{
 			JoinMethod: string(types.JoinMethodKubernetes),
 			UsageMode:  scopedjoining.TokenUsageModeBot,
-			Kubernetes: &scopedjoiningv1.Kubernetes{
+			Kubernetes: scopedjoiningv1.Kubernetes_builder{
 				Allow: []*scopedjoiningv1.Kubernetes_Rule{
-					{
+					scopedjoiningv1.Kubernetes_Rule_builder{
 						ServiceAccount: testNamespace + ":" + testServiceAccount,
-					},
+					}.Build(),
 				},
 				Type:       string(types.KubernetesJoinTypeStaticJWKS),
-				StaticJwks: &scopedjoiningv1.Kubernetes_StaticJWKSConfig{Jwks: jwks},
-			},
+				StaticJwks: scopedjoiningv1.Kubernetes_StaticJWKSConfig_builder{Jwks: jwks}.Build(),
+			}.Build(),
 			BotName:  testBotName,
 			BotScope: testRootScope,
 			Roles:    []string{string(types.RoleBot)},
-		},
-	}
+		}.Build(),
+	}.Build()
 	// Somehow the admin client interface doesn't expose CreateScopedToken ¯\_(ツ)_/¯
 	// We use the auth server directly to create the scoped token.
-	_, err = teleportServer.Process.GetAuthServer().CreateScopedToken(ctx, &scopedjoiningv1.CreateScopedTokenRequest{
+	_, err = teleportServer.Process.GetAuthServer().CreateScopedToken(ctx, scopedjoiningv1.CreateScopedTokenRequest_builder{
 		Token: token,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	// Test setup: Configure the bot to join the auth using the scoped join token and the JWT.
@@ -451,8 +452,8 @@ func TestScopedBotJoinAuth(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, clusterName, botPong.ClusterName)
 
-	_, err = botClient.ScopedAccessServiceClient().GetScopedRole(ctx, &scopedaccessv1.GetScopedRoleRequest{
+	_, err = botClient.ScopedAccessServiceClient().GetScopedRole(ctx, scopedaccessv1.GetScopedRoleRequest_builder{
 		Name: testBotRole,
-	})
+	}.Build())
 	require.NoError(t, err)
 }

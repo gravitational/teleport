@@ -16,7 +16,6 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import 'jest-canvas-mock';
 import TtyTerminal from './terminal';
 import Tty from './tty';
 
@@ -52,7 +51,43 @@ describe('Alt+Arrow sends escape sequences for word navigation', () => {
   });
 });
 
-function createTerminal() {
+describe('copy blocking', () => {
+  it('blocks copying when disableCopy is true', () => {
+    const { terminal, el } = createTerminal({ disableCopy: true });
+
+    expect(dispatchCopy(el).defaultPrevented).toBe(true);
+    terminal.destroy();
+  });
+
+  it('allows copying when disableCopy is not set', () => {
+    const { terminal, el } = createTerminal();
+
+    expect(dispatchCopy(el).defaultPrevented).toBe(false);
+    terminal.destroy();
+  });
+
+  it('runs before a descendant copy handler (capture phase)', () => {
+    const { terminal, el } = createTerminal({ disableCopy: true });
+
+    const descendant = document.createElement('div');
+    el.appendChild(descendant);
+    const descendantHandler = jest.fn();
+    descendant.addEventListener('copy', descendantHandler);
+
+    expect(dispatchCopy(descendant).defaultPrevented).toBe(true);
+    expect(descendantHandler).not.toHaveBeenCalled();
+    terminal.destroy();
+  });
+
+  it('stops blocking after the terminal is destroyed', () => {
+    const { terminal, el } = createTerminal({ disableCopy: true });
+    terminal.destroy();
+
+    expect(dispatchCopy(el).defaultPrevented).toBe(false);
+  });
+});
+
+function createTerminal(options: { disableCopy?: boolean } = {}) {
   const el = document.createElement('div');
   document.body.appendChild(el);
 
@@ -62,10 +97,17 @@ function createTerminal() {
   const terminal = new TtyTerminal(tty, {
     el,
     theme: {},
+    ...options,
   });
   terminal.open();
 
   return { terminal, sendFn, el };
+}
+
+function dispatchCopy(el: HTMLElement) {
+  const event = new Event('copy', { bubbles: true, cancelable: true });
+  el.dispatchEvent(event);
+  return event;
 }
 
 function dispatchKeydown(

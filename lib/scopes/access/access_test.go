@@ -45,631 +45,631 @@ func TestValidateRole(t *testing.T) {
 	}{
 		{
 			name: "basic",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "unknown sub_kind",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind:    KindScopedRole,
 				SubKind: "unknown",
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "missing name",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind:     KindScopedRole,
 				Metadata: &headerv1.Metadata{},
 				Scope:    "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "missing kind",
-			role: &scopedaccessv1.ScopedRole{
-				Metadata: &headerv1.Metadata{
+			role: scopedaccessv1.ScopedRole_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "missing scope",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				}.Build(),
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "missing version",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "malformed name",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "foo/bar",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "malformed kind",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: "role",
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "slightly malformed scope",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "foo/bar",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo/bar"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "siginifcantly malformed scope",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "foo@bar",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo/bar"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "missing assignable scopes",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope:   "/",
 				Spec:    &scopedaccessv1.ScopedRoleSpec{},
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "slightly malformed assignable scope",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"foo/bar"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "siginifcantly malformed assignable scope",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"foo@bar"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true, // invalid assignable scopes are totally ignored, even if they don't pass weak validation rules
 		},
 		{
 			name: "impermissable assignable scope",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/foo/bar",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "root assignable scope",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/"},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "invalid ssh.client_idle_timeout",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 						ClientIdleTimeout: "not-a-duration",
-					},
-				},
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "invalid defaults.client_idle_timeout",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Defaults: &scopedaccessv1.ScopedRoleDefaults{
+					Defaults: scopedaccessv1.ScopedRoleDefaults_builder{
 						ClientIdleTimeout: "not-a-duration",
-					},
-				},
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "invalid create_host_user_mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
-						HostUserCreation: &scopedaccessv1.CreateHostUser{
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						HostUserCreation: scopedaccessv1.CreateHostUser_builder{
 							Mode: "invalid-mode",
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "valid create_host_user_mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
-						HostUserCreation: &scopedaccessv1.CreateHostUser{
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						HostUserCreation: scopedaccessv1.CreateHostUser_builder{
 							Mode: "keep",
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "negative max_sessions",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 						MaxSessions: proto.Int64(-1),
-					},
-				},
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "positive max_sessions",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 						MaxSessions: proto.Int64(1),
-					},
-				},
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "invalid defaults.session_recording_mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind:     KindScopedRole,
-				Metadata: &headerv1.Metadata{Name: "test"},
+				Metadata: headerv1.Metadata_builder{Name: "test"}.Build(),
 				Scope:    "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Defaults: &scopedaccessv1.ScopedRoleDefaults{
-						SessionRecording: &scopedaccessv1.SessionRecording{
+					Defaults: scopedaccessv1.ScopedRoleDefaults_builder{
+						SessionRecording: scopedaccessv1.SessionRecording_builder{
 							Mode: "blah",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "invalid defaults.lock.mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Defaults: &scopedaccessv1.ScopedRoleDefaults{
-						Lock: &scopedaccessv1.Lock{
+					Defaults: scopedaccessv1.ScopedRoleDefaults_builder{
+						Lock: scopedaccessv1.Lock_builder{
 							Mode: "invalid",
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "valid defaults.session_recording_mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind:     KindScopedRole,
-				Metadata: &headerv1.Metadata{Name: "test"},
+				Metadata: headerv1.Metadata_builder{Name: "test"}.Build(),
 				Scope:    "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Defaults: &scopedaccessv1.ScopedRoleDefaults{
-						SessionRecording: &scopedaccessv1.SessionRecording{
+					Defaults: scopedaccessv1.ScopedRoleDefaults_builder{
+						SessionRecording: scopedaccessv1.SessionRecording_builder{
 							Mode: string(constants.SessionRecordingModeStrict),
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "invalid ssh.session_recording_mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind:     KindScopedRole,
-				Metadata: &headerv1.Metadata{Name: "test"},
+				Metadata: headerv1.Metadata_builder{Name: "test"}.Build(),
 				Scope:    "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
-						SessionRecording: &scopedaccessv1.SessionRecording{
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						SessionRecording: scopedaccessv1.SessionRecording_builder{
 							Mode: "blah",
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "invalid ssh.lock.mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
-						Lock: &scopedaccessv1.Lock{
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Lock: scopedaccessv1.Lock_builder{
 							Mode: "invalid",
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "valid ssh.session_recording_mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind:     KindScopedRole,
-				Metadata: &headerv1.Metadata{Name: "test"},
+				Metadata: headerv1.Metadata_builder{Name: "test"}.Build(),
 				Scope:    "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
-						SessionRecording: &scopedaccessv1.SessionRecording{
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						SessionRecording: scopedaccessv1.SessionRecording_builder{
 							Mode: string(constants.SessionRecordingModeStrict),
-						},
-					},
-				},
-			},
+						}.Build(),
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "valid ssh.lock.mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
-						Lock: &scopedaccessv1.Lock{
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Lock: scopedaccessv1.Lock_builder{
 							Mode: string(constants.LockingModeStrict),
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 
 		{
 			name: "empty ssh.lock.mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Ssh: &scopedaccessv1.ScopedRoleSSH{
-						Lock: &scopedaccessv1.Lock{
+					Ssh: scopedaccessv1.ScopedRoleSSH_builder{
+						Lock: scopedaccessv1.Lock_builder{
 							Mode: "",
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "invalid kube.lock.mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Kube: &scopedaccessv1.ScopedRoleKube{
-						Lock: &scopedaccessv1.Lock{
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Lock: scopedaccessv1.Lock_builder{
 							Mode: "invalid",
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "valid Kube.lock.mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Kube: &scopedaccessv1.ScopedRoleKube{
-						Lock: &scopedaccessv1.Lock{
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Lock: scopedaccessv1.Lock_builder{
 							Mode: string(constants.LockingModeStrict),
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "empty Kube.lock.mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Kube: &scopedaccessv1.ScopedRoleKube{
-						Lock: &scopedaccessv1.Lock{
+					Kube: scopedaccessv1.ScopedRoleKube_builder{
+						Lock: scopedaccessv1.Lock_builder{
 							Mode: "",
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "invalid defaults.lock.mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Defaults: &scopedaccessv1.ScopedRoleDefaults{
-						Lock: &scopedaccessv1.Lock{
+					Defaults: scopedaccessv1.ScopedRoleDefaults_builder{
+						Lock: scopedaccessv1.Lock_builder{
 							Mode: "invalid",
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "valid defaults.lock.mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Defaults: &scopedaccessv1.ScopedRoleDefaults{
-						Lock: &scopedaccessv1.Lock{
+					Defaults: scopedaccessv1.ScopedRoleDefaults_builder{
+						Lock: scopedaccessv1.Lock_builder{
 							Mode: string(constants.LockingModeStrict),
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "empty defaults.lock.mode",
-			role: &scopedaccessv1.ScopedRole{
+			role: scopedaccessv1.ScopedRole_builder{
 				Kind: KindScopedRole,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "test",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: []string{"/foo"},
-					Defaults: &scopedaccessv1.ScopedRoleDefaults{
-						Lock: &scopedaccessv1.Lock{
+					Defaults: scopedaccessv1.ScopedRoleDefaults_builder{
+						Lock: scopedaccessv1.Lock_builder{
 							Mode: "",
-						},
-					},
-				},
+						}.Build(),
+					}.Build(),
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
@@ -704,486 +704,486 @@ func TestValidateAsssignment(t *testing.T) {
 	}{
 		{
 			name: "basic",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "unknown sub_kind",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: "unknown",
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "missing name",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:     KindScopedRoleAssignment,
 				Metadata: &headerv1.Metadata{},
 				Scope:    "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "missing kind",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
-				Metadata: &headerv1.Metadata{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "missing sub_kind",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind: KindScopedRoleAssignment,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "missing scope",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				}.Build(),
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "missing version",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "malformed name - long name",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "thisiswaytoolongofanameaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "malformed kind",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind: "not_scoped_role_assignment",
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "slightly malformed scope",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "foo",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "significantly malformed scope",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "foo@bar",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   false,
 		},
 		{
 			name: "impermissable assigned scope",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/foo/bar",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "malformed assigned scope",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "root scope of effect",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind: KindScopedRoleAssignment,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "basic",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User: "alice",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "valid bot assignment",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					BotName:  "mybot",
 					BotScope: "/foo/bar",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo/bar/child",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: true,
 			weakOk:   true,
 		},
 		{
 			name: "bot_name and user both set",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User:     "alice",
 					BotName:  "mybot",
 					BotScope: "/foo/bar",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "bot_name without bot_scope",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					BotName: "mybot",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "bot_scope without bot_name",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					User:     "alice",
 					BotScope: "/foo/bar",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "invalid bot_scope",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					BotName:  "mybot",
 					BotScope: "not-a-scope",
 					Assignments: []*scopedaccessv1.Assignment{
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
 		{
 			name: "sub-assignment scope outside bot scope",
-			assignment: &scopedaccessv1.ScopedRoleAssignment{
+			assignment: scopedaccessv1.ScopedRoleAssignment_builder{
 				Kind:    KindScopedRoleAssignment,
 				SubKind: SubKindDynamic,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: uuid.New().String(),
-				},
+				}.Build(),
 				Scope: "/",
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					BotName:  "mybot",
 					BotScope: "/foo/bar",
 					Assignments: []*scopedaccessv1.Assignment{
 						// Valid
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo/bar",
-						},
+						}.Build(),
 						// Invalid
-						{
+						scopedaccessv1.Assignment_builder{
 							Role:  "test",
 							Scope: "/foo/baz",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				Version: types.V1,
-			},
+			}.Build(),
 			strongOk: false,
 			weakOk:   true,
 		},
@@ -1251,12 +1251,12 @@ func TestWeakValidatedAssignableScopes(t *testing.T) {
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			result := slices.Collect(WeakValidatedAssignableScopes(&scopedaccessv1.ScopedRole{
+			result := slices.Collect(WeakValidatedAssignableScopes(scopedaccessv1.ScopedRole_builder{
 				Scope: tt.scope,
-				Spec: &scopedaccessv1.ScopedRoleSpec{
+				Spec: scopedaccessv1.ScopedRoleSpec_builder{
 					AssignableScopes: tt.assignableScopes,
-				},
-			}))
+				}.Build(),
+			}.Build()))
 			require.Equal(t, tt.expect, result)
 		})
 	}
@@ -1275,140 +1275,140 @@ func TestWeakValidatedSubAssignments(t *testing.T) {
 			name:  "basic",
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/bar",
-				},
-				{
+				}.Build(),
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/baz",
-				},
+				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/bar",
-				},
-				{
+				}.Build(),
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/baz",
-				},
+				}.Build(),
 			},
 		},
 		{
 			name:  "mildly malformed scope",
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "foo/bar",
-				},
-				{
+				}.Build(),
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/baz",
-				},
+				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "foo/bar",
-				},
-				{
+				}.Build(),
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/baz",
-				},
+				}.Build(),
 			},
 		},
 		{
 			name:  "significantly malformed scope",
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "foo@bar",
-				},
-				{
+				}.Build(),
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/baz",
-				},
+				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/baz",
-				},
+				}.Build(),
 			},
 		},
 		{
 			name:  "impermissible scope",
 			scope: "/foo/bar",
 			assignments: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/bar",
-				},
-				{
+				}.Build(),
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/baz",
-				},
+				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/bar",
-				},
+				}.Build(),
 			},
 		},
 		{
 			name:  "missing scope",
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "",
-				},
-				{
+				}.Build(),
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/baz",
-				},
+				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/baz",
-				},
+				}.Build(),
 			},
 		},
 		{
 			name:  "missing role",
 			scope: "/foo",
 			assignments: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/bar",
-				},
-				{
+				}.Build(),
+				scopedaccessv1.Assignment_builder{
 					Role:  "",
 					Scope: "/foo/baz",
-				},
+				}.Build(),
 			},
 			expect: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "test",
 					Scope: "/foo/bar",
-				},
+				}.Build(),
 			},
 		},
 	}
 
 	for _, tt := range tts {
 		t.Run(tt.name, func(t *testing.T) {
-			result := slices.Collect(WeakValidatedSubAssignments(&scopedaccessv1.ScopedRoleAssignment{
+			result := slices.Collect(WeakValidatedSubAssignments(scopedaccessv1.ScopedRoleAssignment_builder{
 				Scope: tt.scope,
-				Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 					Assignments: tt.assignments,
-				},
-			}))
+				}.Build(),
+			}.Build()))
 			require.Equal(t, tt.expect, result)
 		})
 	}
@@ -1491,82 +1491,82 @@ func TestScopedRoleSpecTopLevelFieldsAreMessages(t *testing.T) {
 func TestStrongValidateRoleSpecAllFieldsValidated(t *testing.T) {
 	t.Parallel()
 
-	spec := &scopedaccessv1.ScopedRoleSpec{
+	spec := scopedaccessv1.ScopedRoleSpec_builder{
 		AssignableScopes: []string{"/foo"},
-		Defaults: &scopedaccessv1.ScopedRoleDefaults{
+		Defaults: scopedaccessv1.ScopedRoleDefaults_builder{
 			ClientIdleTimeout: "30m",
-			SessionRecording: &scopedaccessv1.SessionRecording{
+			SessionRecording: scopedaccessv1.SessionRecording_builder{
 				Mode: string(constants.SessionRecordingModeStrict),
-			},
-			Lock: &scopedaccessv1.Lock{
+			}.Build(),
+			Lock: scopedaccessv1.Lock_builder{
 				Mode: "strict",
-			},
+			}.Build(),
 			DisconnectExpiredCert: ptr(true),
-		},
+		}.Build(),
 		Rules: []*scopedaccessv1.ScopedRule{
-			{
+			scopedaccessv1.ScopedRule_builder{
 				Resources: []string{KindScopedRole},
 				Verbs:     []string{types.VerbReadNoSecrets},
-			},
+			}.Build(),
 		},
-		Ssh: &scopedaccessv1.ScopedRoleSSH{
+		Ssh: scopedaccessv1.ScopedRoleSSH_builder{
 			Logins: []string{"alice"},
 			Labels: []*labelv1.Label{
-				{Name: "env", Values: []string{"prod"}},
+				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
 			},
 			ClientIdleTimeout:   "1h",
 			PermitX11Forwarding: proto.Bool(true),
 			FileCopy:            proto.Bool(true),
 			ForwardAgent:        proto.Bool(true),
-			PortForwarding: &scopedaccessv1.SSHPortForwarding{
-				Local:  &scopedaccessv1.SSHLocalPortForwarding{Enabled: proto.Bool(true)},
-				Remote: &scopedaccessv1.SSHRemotePortForwarding{Enabled: proto.Bool(true)},
-			},
-			HostUserCreation: &scopedaccessv1.CreateHostUser{
+			PortForwarding: scopedaccessv1.SSHPortForwarding_builder{
+				Local:  scopedaccessv1.SSHLocalPortForwarding_builder{Enabled: proto.Bool(true)}.Build(),
+				Remote: scopedaccessv1.SSHRemotePortForwarding_builder{Enabled: proto.Bool(true)}.Build(),
+			}.Build(),
+			HostUserCreation: scopedaccessv1.CreateHostUser_builder{
 				Mode:   "keep",
 				Groups: []string{"wheel"},
 				Shell:  "/bin/bash",
-			},
+			}.Build(),
 			HostSudoers: []string{"ALL=(ALL) NOPASSWD:ALL"},
 			MaxSessions: proto.Int64(10),
-			EnhancedRecording: &scopedaccessv1.EnhancedRecording{
+			EnhancedRecording: scopedaccessv1.EnhancedRecording_builder{
 				Disk:    proto.Bool(true),
 				Network: proto.Bool(true),
 				Command: proto.Bool(true),
-			},
-			SessionRecording: &scopedaccessv1.SessionRecording{
+			}.Build(),
+			SessionRecording: scopedaccessv1.SessionRecording_builder{
 				Mode: string(constants.SessionRecordingModeStrict),
-			},
-			Lock: &scopedaccessv1.Lock{
+			}.Build(),
+			Lock: scopedaccessv1.Lock_builder{
 				Mode: string(constants.LockingModeBestEffort),
-			},
+			}.Build(),
 			DisconnectExpiredCert: proto.Bool(true),
-		},
-		Kube: &scopedaccessv1.ScopedRoleKube{
+		}.Build(),
+		Kube: scopedaccessv1.ScopedRoleKube_builder{
 			Groups: []string{"viewer"},
 			Users:  []string{"alice"},
 			Labels: []*labelv1.Label{
-				{Name: "env", Values: []string{"prod"}},
+				labelv1.Label_builder{Name: "env", Values: []string{"prod"}}.Build(),
 			},
 			ClientIdleTimeout:     "1h",
 			DisconnectExpiredCert: ptr(true),
-			Lock: &scopedaccessv1.Lock{
+			Lock: scopedaccessv1.Lock_builder{
 				Mode: "strict",
-			},
-		},
-	}
+			}.Build(),
+		}.Build(),
+	}.Build()
 
 	require.True(t, testutils.ExhaustiveNonEmpty(spec),
 		"spec is not exhaustively non-empty; if you added a new field, set it to a valid non-zero value here AND evaluate whether StrongValidateRole needs to validate it (adding test cases to TestValidateRole if so) — empty fields: %v",
 		testutils.FindAllEmpty(spec),
 	)
 
-	role := &scopedaccessv1.ScopedRole{
+	role := scopedaccessv1.ScopedRole_builder{
 		Kind:     KindScopedRole,
-		Metadata: &headerv1.Metadata{Name: "test"},
+		Metadata: headerv1.Metadata_builder{Name: "test"}.Build(),
 		Scope:    "/",
 		Spec:     spec,
 		Version:  types.V1,
-	}
+	}.Build()
 	require.NoError(t, StrongValidateRole(role))
 }

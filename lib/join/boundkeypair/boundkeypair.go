@@ -265,8 +265,8 @@ func (m *consumeRecoveryMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.RecoveryCount += 1
-	status.LastRecoveredAt = timestamppb.New(m.now)
+	status.SetRecoveryCount(status.GetRecoveryCount() + 1)
+	status.SetLastRecoveredAt(timestamppb.New(m.now))
 }
 
 // mutateStatusConsumeRecovery consumes a "hard" join on the backend, incrementing
@@ -310,7 +310,7 @@ func (m *boundPublicKeyMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.BoundPublicKey = m.newPublicKey
+	status.SetBoundPublicKey(m.newPublicKey)
 }
 
 // mutateStatusBoundPublicKey is a mutator that updates the bound public key
@@ -355,7 +355,7 @@ func (m *boundBotInstanceMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.BoundBotInstanceId = m.newBotInstance
+	status.SetBoundBotInstanceId(m.newBotInstance)
 }
 
 // mutateStatusBoundBotInstance updates the bot instance ID currently bound to
@@ -400,7 +400,7 @@ func (m *boundHostIDMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.BoundHostId = m.newHostID
+	status.SetBoundHostId(m.newHostID)
 }
 
 // mutateStatusBoundHostID updates the host ID currently bound to this token. It
@@ -458,9 +458,9 @@ func (m *lastRotatedAtMutator) mutateScopedToken(
 	status *joiningv1.BoundKeypairStatus,
 ) {
 	if m.newValue == nil {
-		status.LastRotatedAt = nil
+		status.ClearLastRotatedAt()
 	} else {
-		status.LastRotatedAt = timestamppb.New(*m.newValue)
+		status.SetLastRotatedAt(timestamppb.New(*m.newValue))
 	}
 }
 
@@ -500,7 +500,7 @@ func (m *clearRegistrationSecretMutator) mutateScopedToken(
 	spec *joiningv1.BoundKeypairSpec,
 	status *joiningv1.BoundKeypairStatus,
 ) {
-	status.RegistrationSecret = ""
+	status.SetRegistrationSecret("")
 }
 
 // mutateStatusClearRegistrationSecret clears the registration secret field to

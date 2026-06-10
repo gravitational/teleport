@@ -97,9 +97,9 @@ func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 	// created and the user is re-applying the same resource file). if there is no name, fall through
 	// to create, which will generate one server-side.
 	if opts.Force && r.GetMetadata().GetName() != "" {
-		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRoleAssignment(ctx, &scopedaccessv1.UpsertScopedRoleAssignmentRequest{
+		rsp, err := client.ScopedAccessServiceClient().UpsertScopedRoleAssignment(ctx, scopedaccessv1.UpsertScopedRoleAssignmentRequest_builder{
 			Assignment: r,
-		})
+		}.Build())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -111,9 +111,9 @@ func createScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 		return nil
 	}
 
-	rsp, err := client.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+	rsp, err := client.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, scopedaccessv1.CreateScopedRoleAssignmentRequest_builder{
 		Assignment: r,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -133,9 +133,9 @@ func updateScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 		return trace.Wrap(err)
 	}
 
-	if _, err = client.ScopedAccessServiceClient().UpdateScopedRoleAssignment(ctx, &scopedaccessv1.UpdateScopedRoleAssignmentRequest{
+	if _, err = client.ScopedAccessServiceClient().UpdateScopedRoleAssignment(ctx, scopedaccessv1.UpdateScopedRoleAssignmentRequest_builder{
 		Assignment: r,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -153,15 +153,15 @@ func getScopedRoleAssignment(ctx context.Context, client *authclient.Client, ref
 		if ref.SubKind == "" {
 			return nil, trace.BadParameter("scoped_role_assignment requires an explicit subkind when getting a single resource, try: tctl get scoped_role_assignment/dynamic/%s", ref.Name)
 		}
-		rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, &scopedaccessv1.GetScopedRoleAssignmentRequest{
+		rsp, err := client.ScopedAccessServiceClient().GetScopedRoleAssignment(ctx, scopedaccessv1.GetScopedRoleAssignmentRequest_builder{
 			Name:    ref.Name,
 			SubKind: ref.SubKind,
-		})
+		}.Build())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		return &ScopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{rsp.Assignment}}, nil
+		return &ScopedRoleAssignmentCollection{roleAssignments: []*scopedaccessv1.ScopedRoleAssignment{rsp.GetAssignment()}}, nil
 	}
 
 	items, err := stream.Collect(scopedutils.RangeScopedRoleAssignments(ctx, client.ScopedAccessServiceClient(), &scopedaccessv1.ListScopedRoleAssignmentsRequest{}))
@@ -178,10 +178,10 @@ func deleteScopedRoleAssignment(ctx context.Context, client *authclient.Client, 
 	if ref.SubKind == scopedaccess.SubKindMaterialized {
 		return trace.BadParameter("%s scoped_role_assignments are derived from access lists and cannot be deleted directly", scopedaccess.SubKindMaterialized)
 	}
-	if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, &scopedaccessv1.DeleteScopedRoleAssignmentRequest{
+	if _, err := client.ScopedAccessServiceClient().DeleteScopedRoleAssignment(ctx, scopedaccessv1.DeleteScopedRoleAssignmentRequest_builder{
 		Name:    ref.Name,
 		SubKind: ref.SubKind,
-	}); err != nil {
+	}.Build()); err != nil {
 		return trace.Wrap(err)
 	}
 	fmt.Printf(

@@ -436,23 +436,23 @@ func (s *PagerdutySuiteOSS) TestRecipientsFromAccessMonitoringRule() {
 
 	_, err := s.ClientByName(integration.RulerUserName).
 		AccessMonitoringRulesClient().
-		CreateAccessMonitoringRule(ctx, &accessmonitoringrulesv1.AccessMonitoringRule{
+		CreateAccessMonitoringRule(ctx, accessmonitoringrulesv1.AccessMonitoringRule_builder{
 			Kind:    types.KindAccessMonitoringRule,
 			Version: types.V1,
-			Metadata: &v1.Metadata{
+			Metadata: v1.Metadata_builder{
 				Name: ruleName,
-			},
-			Spec: &accessmonitoringrulesv1.AccessMonitoringRuleSpec{
+			}.Build(),
+			Spec: accessmonitoringrulesv1.AccessMonitoringRuleSpec_builder{
 				Subjects:  []string{types.KindAccessRequest},
 				Condition: "!is_empty(access_request.spec.roles)",
-				Notification: &accessmonitoringrulesv1.Notification{
+				Notification: accessmonitoringrulesv1.Notification_builder{
 					Name: "pagerduty",
 					Recipients: []string{
 						NotifyServiceName2,
 					},
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 	require.NoError(t, err)
 
 	// Incident creation may happen before plugins Access Monitoring Rule cache

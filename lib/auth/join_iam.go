@@ -100,6 +100,7 @@ func (a *Server) RegisterUsingIAMMethod(
 
 	// check that the GetCallerIdentity request is valid and matches the token
 	verifiedIdentity, err := iamjoin.CheckIAMRequest(ctx, &iamjoin.CheckIAMRequestParams{
+		Logger:                   a.logger,
 		Challenge:                challenge,
 		ProvisionToken:           provisionToken,
 		STSIdentityRequest:       req.StsIdentityRequest,
@@ -116,9 +117,9 @@ func (a *Server) RegisterUsingIAMMethod(
 	}
 
 	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
-		params := makeBotCertsParams(req.RegisterUsingTokenRequest, verifiedIdentity, &workloadidentityv1pb.JoinAttrs{
+		params := makeBotCertsParams(req.RegisterUsingTokenRequest, verifiedIdentity, workloadidentityv1pb.JoinAttrs_builder{
 			Iam: verifiedIdentity.JoinAttrs(),
-		})
+		}.Build())
 		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
 		return certs, trace.Wrap(err, "generating bot certs")
 	}

@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/header/v1/metadata.proto
 
+//go:build !protoopaque
+
 package headerv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // Metadata is resource metadata.
 type Metadata struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is an object name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// namespace is object namespace. The field should be called "namespace"
@@ -84,11 +85,6 @@ func (x *Metadata) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Metadata.ProtoReflect.Descriptor instead.
-func (*Metadata) Descriptor() ([]byte, []int) {
-	return file_teleport_header_v1_metadata_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *Metadata) GetName() string {
 	if x != nil {
 		return x.Name
@@ -131,6 +127,75 @@ func (x *Metadata) GetRevision() string {
 	return ""
 }
 
+func (x *Metadata) SetName(v string) {
+	x.Name = v
+}
+
+func (x *Metadata) SetNamespace(v string) {
+	x.Namespace = v
+}
+
+func (x *Metadata) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *Metadata) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+func (x *Metadata) SetExpires(v *timestamppb.Timestamp) {
+	x.Expires = v
+}
+
+func (x *Metadata) SetRevision(v string) {
+	x.Revision = v
+}
+
+func (x *Metadata) HasExpires() bool {
+	if x == nil {
+		return false
+	}
+	return x.Expires != nil
+}
+
+func (x *Metadata) ClearExpires() {
+	x.Expires = nil
+}
+
+type Metadata_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is an object name.
+	Name string
+	// namespace is object namespace. The field should be called "namespace"
+	// when it returns in Teleport 2.4.
+	Namespace string
+	// description is object description.
+	Description string
+	// labels is a set of labels.
+	Labels map[string]string
+	// expires is a global expiry time header can be set on any resource in the
+	// system.
+	Expires *timestamppb.Timestamp
+	// revision is an opaque identifier which tracks the versions of a resource
+	// over time. Clients should ignore and not alter its value but must return
+	// the revision in any updates of a resource.
+	Revision string
+}
+
+func (b0 Metadata_builder) Build() *Metadata {
+	m0 := &Metadata{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Namespace = b.Namespace
+	x.Description = b.Description
+	x.Labels = b.Labels
+	x.Expires = b.Expires
+	x.Revision = b.Revision
+	return m0
+}
+
 var File_teleport_header_v1_metadata_proto protoreflect.FileDescriptor
 
 const file_teleport_header_v1_metadata_proto_rawDesc = "" +
@@ -146,18 +211,6 @@ const file_teleport_header_v1_metadata_proto_rawDesc = "" +
 	"\vLabelsEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
 	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\a\x10\bR\x02idBPZNgithub.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1;headerv1b\x06proto3"
-
-var (
-	file_teleport_header_v1_metadata_proto_rawDescOnce sync.Once
-	file_teleport_header_v1_metadata_proto_rawDescData []byte
-)
-
-func file_teleport_header_v1_metadata_proto_rawDescGZIP() []byte {
-	file_teleport_header_v1_metadata_proto_rawDescOnce.Do(func() {
-		file_teleport_header_v1_metadata_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_header_v1_metadata_proto_rawDesc), len(file_teleport_header_v1_metadata_proto_rawDesc)))
-	})
-	return file_teleport_header_v1_metadata_proto_rawDescData
-}
 
 var file_teleport_header_v1_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_header_v1_metadata_proto_goTypes = []any{

@@ -61,7 +61,7 @@ type Service struct {
 // GetServiceConfig handles requests for fetching the service config configured
 // on this server.
 func (s *Service) GetServiceConfig(ctx context.Context, req *grpcv1.GetServiceConfigRequest) (*grpcv1.GetServiceConfigResponse, error) {
-	return &grpcv1.GetServiceConfigResponse{
+	return grpcv1.GetServiceConfigResponse_builder{
 		Config: s.config,
-	}, nil
+	}.Build(), nil
 }

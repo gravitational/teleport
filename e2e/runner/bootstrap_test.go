@@ -442,7 +442,7 @@ func TestWriteUserMapping(t *testing.T) {
 	path := filepath.Join(dir, "nested", "user-mapping.json")
 
 	mapping := map[string]string{
-		`{"roles":["access"]}`:           "brave-falcon",
+		`{"roles":["access"]}`:          "brave-falcon",
 		`{"roles":["access","editor"]}`: "swift-river",
 	}
 

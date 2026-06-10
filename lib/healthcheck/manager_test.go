@@ -131,7 +131,7 @@ func TestManager(t *testing.T) {
 
 	// create a health check config that only matches prod databases
 	prodHCC := healthCheckConfigFixture(t, "prod")
-	prodHCC.Spec.Match.DbLabelsExpression = `labels.env == "prod"`
+	prodHCC.GetSpec().GetMatch().SetDbLabelsExpression(`labels.env == "prod"`)
 	_, err = healthConfigSvc.CreateHealthCheckConfig(ctx, prodHCC)
 	require.NoError(t, err)
 
@@ -293,7 +293,7 @@ func TestManager(t *testing.T) {
 	// enable dev health checks for dev db and simulate an unhealthy endpoint on init
 	devDialer.deny()
 	devHCC := healthCheckConfigFixture(t, "dev")
-	devHCC.Spec.Match.DbLabelsExpression = `labels.env == "dev"`
+	devHCC.GetSpec().GetMatch().SetDbLabelsExpression(`labels.env == "dev"`)
 	devHCC, err = healthConfigSvc.CreateHealthCheckConfig(ctx, devHCC)
 	require.NoError(t, err)
 
@@ -322,7 +322,7 @@ func TestManager(t *testing.T) {
 
 	// set the unhealthy threshold high for dev, so we can simulate several
 	// failing checks after dev becomes healthy without making it become unhealthy
-	devHCC.Spec.UnhealthyThreshold = 10
+	devHCC.GetSpec().SetUnhealthyThreshold(10)
 	devHCC, err = healthConfigSvc.UpsertHealthCheckConfig(ctx, devHCC)
 	require.NoError(t, err)
 	awaitTestEvents(t, eventsCh, nil,
@@ -374,8 +374,8 @@ func TestManager(t *testing.T) {
 		denyAll(prodDB.GetName()),
 	)
 	requireTargetHealth(t, mgr, devDB, types.TargetHealthStatusHealthy, types.TargetHealthTransitionReasonThreshold)
-	devHCC.Spec.UnhealthyThreshold = 1
-	devHCC.Spec.Interval = durationpb.New(time.Second * 100)
+	devHCC.GetSpec().SetUnhealthyThreshold(1)
+	devHCC.GetSpec().SetInterval(durationpb.New(time.Second * 100))
 	_, err = healthConfigSvc.UpdateHealthCheckConfig(ctx, devHCC)
 	require.NoError(t, err)
 	awaitTestEvents(t, eventsCh, nil,
@@ -525,8 +525,8 @@ func TestManager_VirtualDefaults(t *testing.T) {
 			virtualDefault, err := healthConfigSvc.GetHealthCheckConfig(ctx, tt.virtualDefaultName)
 			require.NoError(t, err)
 			modifiedUnhealthyThreshold := uint32(3)
-			virtualDefault.Spec.UnhealthyThreshold = modifiedUnhealthyThreshold
-			virtualDefault.Spec.Match.Disabled = true
+			virtualDefault.GetSpec().SetUnhealthyThreshold(modifiedUnhealthyThreshold)
+			virtualDefault.GetSpec().GetMatch().SetDisabled(true)
 
 			// save modified virtual default to the backend
 			_, err = healthConfigSvc.CreateHealthCheckConfig(ctx, virtualDefault)
@@ -552,9 +552,9 @@ func TestManager_VirtualDefaults(t *testing.T) {
 			// expect original default values
 			afterDelete, err := healthConfigSvc.GetHealthCheckConfig(ctx, tt.virtualDefaultName)
 			require.NoError(t, err)
-			require.False(t, afterDelete.Spec.Match.Disabled,
+			require.False(t, afterDelete.GetSpec().GetMatch().GetDisabled(),
 				"expecting virtual default to revert enabled state")
-			require.NotEqual(t, modifiedUnhealthyThreshold, afterDelete.Spec.UnhealthyThreshold,
+			require.NotEqual(t, modifiedUnhealthyThreshold, afterDelete.GetSpec().GetUnhealthyThreshold(),
 				"expecting virtual default should revert to original unhealthy threshold")
 			awaitTestEvents(t, eventsCh, clock,
 				advanceCount(int(apidefaults.HealthCheckHealthyThreshold)),
@@ -567,7 +567,7 @@ func TestManager_VirtualDefaults(t *testing.T) {
 			// disable to stop checking health
 			virtualDefault, err = healthConfigSvc.GetHealthCheckConfig(ctx, tt.virtualDefaultName)
 			require.NoError(t, err)
-			virtualDefault.Spec.Match.Disabled = true
+			virtualDefault.GetSpec().GetMatch().SetDisabled(true)
 			_, err = healthConfigSvc.UpdateHealthCheckConfig(ctx, virtualDefault)
 			require.NoError(t, err)
 			awaitTestEvents(t, eventsCh, nil,
@@ -578,7 +578,7 @@ func TestManager_VirtualDefaults(t *testing.T) {
 				types.TargetHealthTransitionReasonDisabled)
 
 			// re-enabling config matcher starts health checks
-			virtualDefault.Spec.Match.Disabled = false
+			virtualDefault.GetSpec().GetMatch().SetDisabled(false)
 			_, err = healthConfigSvc.UpdateHealthCheckConfig(ctx, virtualDefault)
 			require.NoError(t, err)
 
@@ -606,18 +606,18 @@ func requireTargetHealth(t *testing.T, mgr Manager, r types.ResourceWithLabels, 
 func healthCheckConfigFixture(t *testing.T, name string) *healthcheckconfigv1.HealthCheckConfig {
 	t.Helper()
 	out, err := healthcheckconfig.NewHealthCheckConfig(name,
-		&healthcheckconfigv1.HealthCheckConfigSpec{
-			Match: &healthcheckconfigv1.Matcher{
-				DbLabels: []*labelv1.Label{{
+		healthcheckconfigv1.HealthCheckConfigSpec_builder{
+			Match: healthcheckconfigv1.Matcher_builder{
+				DbLabels: []*labelv1.Label{labelv1.Label_builder{
 					Name:   types.Wildcard,
 					Values: []string{types.Wildcard},
-				}},
-			},
+				}.Build()},
+			}.Build(),
 			Interval:           durationpb.New(apidefaults.HealthCheckInterval),
 			Timeout:            durationpb.New(apidefaults.HealthCheckTimeout),
 			HealthyThreshold:   2,
 			UnhealthyThreshold: 2,
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 	return out
@@ -826,7 +826,7 @@ func disableVirtualHealthCheckDefaults(t *testing.T, ctx context.Context, svc *l
 	for _, name := range virtualDefaults {
 		cfg, err := svc.GetHealthCheckConfig(ctx, name)
 		require.NoError(t, err)
-		cfg.Spec.Match.Disabled = true
+		cfg.GetSpec().GetMatch().SetDisabled(true)
 		_, err = svc.UpdateHealthCheckConfig(ctx, cfg)
 		require.NoError(t, err)
 	}

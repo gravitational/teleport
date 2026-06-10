@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/device_collected_data.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -41,7 +42,7 @@ const (
 // Gathered information must match, within reason, the original registration
 // data and previous instances of collected data.
 type DeviceCollectedData struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Time of data collection, set by the client.
 	// Required.
 	CollectTime *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=collect_time,json=collectTime,proto3" json:"collect_time,omitempty"`
@@ -137,11 +138,6 @@ func (x *DeviceCollectedData) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use DeviceCollectedData.ProtoReflect.Descriptor instead.
-func (*DeviceCollectedData) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_device_collected_data_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *DeviceCollectedData) GetCollectTime() *timestamppb.Timestamp {
@@ -256,6 +252,199 @@ func (x *DeviceCollectedData) GetOsId() string {
 	return ""
 }
 
+func (x *DeviceCollectedData) SetCollectTime(v *timestamppb.Timestamp) {
+	x.CollectTime = v
+}
+
+func (x *DeviceCollectedData) SetRecordTime(v *timestamppb.Timestamp) {
+	x.RecordTime = v
+}
+
+func (x *DeviceCollectedData) SetOsType(v OSType) {
+	x.OsType = v
+}
+
+func (x *DeviceCollectedData) SetSerialNumber(v string) {
+	x.SerialNumber = v
+}
+
+func (x *DeviceCollectedData) SetModelIdentifier(v string) {
+	x.ModelIdentifier = v
+}
+
+func (x *DeviceCollectedData) SetOsVersion(v string) {
+	x.OsVersion = v
+}
+
+func (x *DeviceCollectedData) SetOsBuild(v string) {
+	x.OsBuild = v
+}
+
+func (x *DeviceCollectedData) SetOsUsername(v string) {
+	x.OsUsername = v
+}
+
+func (x *DeviceCollectedData) SetOsLoginUser(v string) {
+	x.OsLoginUser = v
+}
+
+func (x *DeviceCollectedData) SetJamfBinaryVersion(v string) {
+	x.JamfBinaryVersion = v
+}
+
+func (x *DeviceCollectedData) SetMacosEnrollmentProfiles(v string) {
+	x.MacosEnrollmentProfiles = v
+}
+
+func (x *DeviceCollectedData) SetReportedAssetTag(v string) {
+	x.ReportedAssetTag = v
+}
+
+func (x *DeviceCollectedData) SetSystemSerialNumber(v string) {
+	x.SystemSerialNumber = v
+}
+
+func (x *DeviceCollectedData) SetBaseBoardSerialNumber(v string) {
+	x.BaseBoardSerialNumber = v
+}
+
+func (x *DeviceCollectedData) SetTpmPlatformAttestation(v *TPMPlatformAttestation) {
+	x.TpmPlatformAttestation = v
+}
+
+func (x *DeviceCollectedData) SetOsId(v string) {
+	x.OsId = v
+}
+
+func (x *DeviceCollectedData) HasCollectTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.CollectTime != nil
+}
+
+func (x *DeviceCollectedData) HasRecordTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.RecordTime != nil
+}
+
+func (x *DeviceCollectedData) HasTpmPlatformAttestation() bool {
+	if x == nil {
+		return false
+	}
+	return x.TpmPlatformAttestation != nil
+}
+
+func (x *DeviceCollectedData) ClearCollectTime() {
+	x.CollectTime = nil
+}
+
+func (x *DeviceCollectedData) ClearRecordTime() {
+	x.RecordTime = nil
+}
+
+func (x *DeviceCollectedData) ClearTpmPlatformAttestation() {
+	x.TpmPlatformAttestation = nil
+}
+
+type DeviceCollectedData_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Time of data collection, set by the client.
+	// Required.
+	CollectTime *timestamppb.Timestamp
+	// Time of data collection, as received by the server.
+	// System managed.
+	RecordTime *timestamppb.Timestamp
+	// Device operating system.
+	// Required.
+	OsType OSType
+	// Device serial number used to match the device with the inventory.
+	// This field is one of the three following
+	// values in this precedence:
+	// - reported_asset_tag
+	// - system_serial_number
+	// - base_board_serial_number
+	// Required.
+	SerialNumber string
+	// Non-descriptive model identifier.
+	// Example: "MacBookPro9,2".
+	ModelIdentifier string
+	// OS version number, without the leading 'v'.
+	// Example: "13.2.1".
+	OsVersion string
+	// OS build identifier. Augments the os_version.
+	// May match either the DeviceProfile os_build or os_build_supplemental.
+	// Example: "22D68" or "22F770820d".
+	OsBuild string
+	// OS username (distinct from the Teleport user).
+	// Old tsh/Linux binaries incorrectly send the display name instead of the
+	// login user.
+	// See os_login_user.
+	// TODO(codingllama): DELETE IN 20. All clients send os_login_user by then.
+	OsUsername string
+	// OS login user (distinct from the Teleport user).
+	OsLoginUser string
+	// Jamf binary version, without the leading 'v'.
+	// Example: "9.27" or "10.44.1-t1677509507".
+	JamfBinaryVersion string
+	// Unmodified output of `/usr/bin/profiles status -type enrollment`.
+	// Used to verify the presence of an enrollment profile.
+	MacosEnrollmentProfiles string
+	// The asset tag of the device as reported by the BIOS DMI Type 3. Tools
+	// used by customers to manage their fleet may set this value.
+	ReportedAssetTag string
+	// The serial number of the "system" as reported by the BIOS DMI Type 1.
+	// This field can be empty if no value has been configured.
+	SystemSerialNumber string
+	// The serial number of the "base board" as reported by BIOS DMI Type 2.
+	// This field can be empty if no value has been configured.
+	BaseBoardSerialNumber string
+	// If during the collection of this device data, the device performed a TPM
+	// platform attestation (e.g during enrollment or authentication), then this
+	// field holds the record of this attestation. This allows the state of the
+	// device to be compared to historical state, and allows for the platform
+	// attestations to be revalidated at a later date.
+	//
+	// This field is not explicitly sent up by the client, and any DCD sent by a
+	// client including this field should be rejected. The server should inject
+	// this field once verifying that the submitted platform attestation during
+	// the enrollment or authentication.
+	//
+	// System managed.
+	TpmPlatformAttestation *TPMPlatformAttestation
+	// OS identifier.
+	// Mainly used to differentiate Linux distros, as there is be no variation
+	// for systems like macOS or Windows.
+	// Example: "ubuntu", "centos", "fedora", "rhel".
+	OsId string
+}
+
+func (b0 DeviceCollectedData_builder) Build() *DeviceCollectedData {
+	m0 := &DeviceCollectedData{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.CollectTime = b.CollectTime
+	x.RecordTime = b.RecordTime
+	x.OsType = b.OsType
+	x.SerialNumber = b.SerialNumber
+	x.ModelIdentifier = b.ModelIdentifier
+	x.OsVersion = b.OsVersion
+	x.OsBuild = b.OsBuild
+	x.OsUsername = b.OsUsername
+	x.OsLoginUser = b.OsLoginUser
+	x.JamfBinaryVersion = b.JamfBinaryVersion
+	x.MacosEnrollmentProfiles = b.MacosEnrollmentProfiles
+	x.ReportedAssetTag = b.ReportedAssetTag
+	x.SystemSerialNumber = b.SystemSerialNumber
+	x.BaseBoardSerialNumber = b.BaseBoardSerialNumber
+	x.TpmPlatformAttestation = b.TpmPlatformAttestation
+	x.OsId = b.OsId
+	return m0
+}
+
 var File_teleport_devicetrust_v1_device_collected_data_proto protoreflect.FileDescriptor
 
 const file_teleport_devicetrust_v1_device_collected_data_proto_rawDesc = "" +
@@ -282,18 +471,6 @@ const file_teleport_devicetrust_v1_device_collected_data_proto_rawDesc = "" +
 	"\x18base_board_serial_number\x18\r \x01(\tR\x15baseBoardSerialNumber\x12i\n" +
 	"\x18tpm_platform_attestation\x18\x0e \x01(\v2/.teleport.devicetrust.v1.TPMPlatformAttestationR\x16tpmPlatformAttestation\x12\x13\n" +
 	"\x05os_id\x18\x0f \x01(\tR\x04osIdBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_device_collected_data_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_device_collected_data_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_device_collected_data_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_device_collected_data_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_device_collected_data_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_device_collected_data_proto_rawDesc), len(file_teleport_devicetrust_v1_device_collected_data_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_device_collected_data_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_device_collected_data_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_devicetrust_v1_device_collected_data_proto_goTypes = []any{

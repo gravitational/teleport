@@ -18,7 +18,6 @@
 
 import { within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import 'jest-canvas-mock';
 import { act, ComponentType, createRef } from 'react';
 
 import { render, screen } from 'design/utils/testing';

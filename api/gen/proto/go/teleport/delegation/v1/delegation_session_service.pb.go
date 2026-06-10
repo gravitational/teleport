@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/delegation/v1/delegation_session_service.proto
 
+//go:build !protoopaque
+
 package delegationv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // CreateDelegationSessionRequest are the parameters to CreateDelegationSession.
 type CreateDelegationSessionRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Spec of the delegation session that will be created.
 	Spec *DelegationSessionSpec `protobuf:"bytes,1,opt,name=spec,proto3" json:"spec,omitempty"`
 	// TTL determines how long the session will last.
@@ -72,11 +73,6 @@ func (x *CreateDelegationSessionRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateDelegationSessionRequest.ProtoReflect.Descriptor instead.
-func (*CreateDelegationSessionRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CreateDelegationSessionRequest) GetSpec() *DelegationSessionSpec {
 	if x != nil {
 		return x.Spec
@@ -91,9 +87,57 @@ func (x *CreateDelegationSessionRequest) GetTtl() *durationpb.Duration {
 	return nil
 }
 
+func (x *CreateDelegationSessionRequest) SetSpec(v *DelegationSessionSpec) {
+	x.Spec = v
+}
+
+func (x *CreateDelegationSessionRequest) SetTtl(v *durationpb.Duration) {
+	x.Ttl = v
+}
+
+func (x *CreateDelegationSessionRequest) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *CreateDelegationSessionRequest) HasTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ttl != nil
+}
+
+func (x *CreateDelegationSessionRequest) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *CreateDelegationSessionRequest) ClearTtl() {
+	x.Ttl = nil
+}
+
+type CreateDelegationSessionRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Spec of the delegation session that will be created.
+	Spec *DelegationSessionSpec
+	// TTL determines how long the session will last.
+	Ttl *durationpb.Duration
+}
+
+func (b0 CreateDelegationSessionRequest_builder) Build() *CreateDelegationSessionRequest {
+	m0 := &CreateDelegationSessionRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Spec = b.Spec
+	x.Ttl = b.Ttl
+	return m0
+}
+
 // GenerateCertsRequest are the parameters to GenerateCerts.
 type GenerateCertsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ID of the delegation session that certificates will be bound to.
 	DelegationSessionId string `protobuf:"bytes,1,opt,name=delegation_session_id,json=delegationSessionId,proto3" json:"delegation_session_id,omitempty"`
 	// SSH public key in the authorized keys format.
@@ -135,11 +179,6 @@ func (x *GenerateCertsRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GenerateCertsRequest.ProtoReflect.Descriptor instead.
-func (*GenerateCertsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GenerateCertsRequest) GetDelegationSessionId() string {
@@ -204,6 +243,188 @@ func (x *GenerateCertsRequest) GetRouteToApp() *RouteToApp {
 	return nil
 }
 
+func (x *GenerateCertsRequest) SetDelegationSessionId(v string) {
+	x.DelegationSessionId = v
+}
+
+func (x *GenerateCertsRequest) SetSshPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.SshPublicKey = v
+}
+
+func (x *GenerateCertsRequest) SetTlsPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.TlsPublicKey = v
+}
+
+func (x *GenerateCertsRequest) SetTtl(v *durationpb.Duration) {
+	x.Ttl = v
+}
+
+func (x *GenerateCertsRequest) SetRouteToKubernetes(v *RouteToKubernetes) {
+	if v == nil {
+		x.Routing = nil
+		return
+	}
+	x.Routing = &GenerateCertsRequest_RouteToKubernetes{v}
+}
+
+func (x *GenerateCertsRequest) SetRouteToDatabase(v *RouteToDatabase) {
+	if v == nil {
+		x.Routing = nil
+		return
+	}
+	x.Routing = &GenerateCertsRequest_RouteToDatabase{v}
+}
+
+func (x *GenerateCertsRequest) SetRouteToApp(v *RouteToApp) {
+	if v == nil {
+		x.Routing = nil
+		return
+	}
+	x.Routing = &GenerateCertsRequest_RouteToApp{v}
+}
+
+func (x *GenerateCertsRequest) HasTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ttl != nil
+}
+
+func (x *GenerateCertsRequest) HasRouting() bool {
+	if x == nil {
+		return false
+	}
+	return x.Routing != nil
+}
+
+func (x *GenerateCertsRequest) HasRouteToKubernetes() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Routing.(*GenerateCertsRequest_RouteToKubernetes)
+	return ok
+}
+
+func (x *GenerateCertsRequest) HasRouteToDatabase() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Routing.(*GenerateCertsRequest_RouteToDatabase)
+	return ok
+}
+
+func (x *GenerateCertsRequest) HasRouteToApp() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Routing.(*GenerateCertsRequest_RouteToApp)
+	return ok
+}
+
+func (x *GenerateCertsRequest) ClearTtl() {
+	x.Ttl = nil
+}
+
+func (x *GenerateCertsRequest) ClearRouting() {
+	x.Routing = nil
+}
+
+func (x *GenerateCertsRequest) ClearRouteToKubernetes() {
+	if _, ok := x.Routing.(*GenerateCertsRequest_RouteToKubernetes); ok {
+		x.Routing = nil
+	}
+}
+
+func (x *GenerateCertsRequest) ClearRouteToDatabase() {
+	if _, ok := x.Routing.(*GenerateCertsRequest_RouteToDatabase); ok {
+		x.Routing = nil
+	}
+}
+
+func (x *GenerateCertsRequest) ClearRouteToApp() {
+	if _, ok := x.Routing.(*GenerateCertsRequest_RouteToApp); ok {
+		x.Routing = nil
+	}
+}
+
+const GenerateCertsRequest_Routing_not_set_case case_GenerateCertsRequest_Routing = 0
+const GenerateCertsRequest_RouteToKubernetes_case case_GenerateCertsRequest_Routing = 5
+const GenerateCertsRequest_RouteToDatabase_case case_GenerateCertsRequest_Routing = 6
+const GenerateCertsRequest_RouteToApp_case case_GenerateCertsRequest_Routing = 7
+
+func (x *GenerateCertsRequest) WhichRouting() case_GenerateCertsRequest_Routing {
+	if x == nil {
+		return GenerateCertsRequest_Routing_not_set_case
+	}
+	switch x.Routing.(type) {
+	case *GenerateCertsRequest_RouteToKubernetes:
+		return GenerateCertsRequest_RouteToKubernetes_case
+	case *GenerateCertsRequest_RouteToDatabase:
+		return GenerateCertsRequest_RouteToDatabase_case
+	case *GenerateCertsRequest_RouteToApp:
+		return GenerateCertsRequest_RouteToApp_case
+	default:
+		return GenerateCertsRequest_Routing_not_set_case
+	}
+}
+
+type GenerateCertsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ID of the delegation session that certificates will be bound to.
+	DelegationSessionId string
+	// SSH public key in the authorized keys format.
+	SshPublicKey []byte
+	// TLS public key in PEM-encoded PKCS#1 or PKIX format.
+	TlsPublicKey []byte
+	// Desired time-to-live of certificate (may be adjusted based on session TTL, etc).
+	Ttl *durationpb.Duration
+	// Fields of oneof Routing:
+	// Route of the Kubernetes cluster the certificates will be used to access.
+	RouteToKubernetes *RouteToKubernetes
+	// Route to the database the certificates will be used to access.
+	RouteToDatabase *RouteToDatabase
+	// Route to the application the certificates will be used to access.
+	RouteToApp *RouteToApp
+	// -- end of Routing
+}
+
+func (b0 GenerateCertsRequest_builder) Build() *GenerateCertsRequest {
+	m0 := &GenerateCertsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DelegationSessionId = b.DelegationSessionId
+	x.SshPublicKey = b.SshPublicKey
+	x.TlsPublicKey = b.TlsPublicKey
+	x.Ttl = b.Ttl
+	if b.RouteToKubernetes != nil {
+		x.Routing = &GenerateCertsRequest_RouteToKubernetes{b.RouteToKubernetes}
+	}
+	if b.RouteToDatabase != nil {
+		x.Routing = &GenerateCertsRequest_RouteToDatabase{b.RouteToDatabase}
+	}
+	if b.RouteToApp != nil {
+		x.Routing = &GenerateCertsRequest_RouteToApp{b.RouteToApp}
+	}
+	return m0
+}
+
+type case_GenerateCertsRequest_Routing protoreflect.FieldNumber
+
+func (x case_GenerateCertsRequest_Routing) String() string {
+	md := file_teleport_delegation_v1_delegation_session_service_proto_msgTypes[1].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isGenerateCertsRequest_Routing interface {
 	isGenerateCertsRequest_Routing()
 }
@@ -231,7 +452,7 @@ func (*GenerateCertsRequest_RouteToApp) isGenerateCertsRequest_Routing() {}
 
 // RouteToKubernetes contains Kubernetes access routing information.
 type RouteToKubernetes struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Kubernetes cluster name.
 	ClusterName   string `protobuf:"bytes,1,opt,name=cluster_name,json=clusterName,proto3" json:"cluster_name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -263,11 +484,6 @@ func (x *RouteToKubernetes) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RouteToKubernetes.ProtoReflect.Descriptor instead.
-func (*RouteToKubernetes) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *RouteToKubernetes) GetClusterName() string {
 	if x != nil {
 		return x.ClusterName
@@ -275,9 +491,28 @@ func (x *RouteToKubernetes) GetClusterName() string {
 	return ""
 }
 
+func (x *RouteToKubernetes) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+type RouteToKubernetes_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Kubernetes cluster name.
+	ClusterName string
+}
+
+func (b0 RouteToKubernetes_builder) Build() *RouteToKubernetes {
+	m0 := &RouteToKubernetes{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClusterName = b.ClusterName
+	return m0
+}
+
 // RouteToDatabase contains database access routing information.
 type RouteToDatabase struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Database proxy service name.
 	ServiceName string `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
 	// Protocol used to communicate with the database.
@@ -317,11 +552,6 @@ func (x *RouteToDatabase) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RouteToDatabase.ProtoReflect.Descriptor instead.
-func (*RouteToDatabase) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *RouteToDatabase) GetServiceName() string {
 	if x != nil {
 		return x.ServiceName
@@ -357,9 +587,56 @@ func (x *RouteToDatabase) GetRoles() []string {
 	return nil
 }
 
+func (x *RouteToDatabase) SetServiceName(v string) {
+	x.ServiceName = v
+}
+
+func (x *RouteToDatabase) SetProtocol(v string) {
+	x.Protocol = v
+}
+
+func (x *RouteToDatabase) SetUsername(v string) {
+	x.Username = v
+}
+
+func (x *RouteToDatabase) SetDatabase(v string) {
+	x.Database = v
+}
+
+func (x *RouteToDatabase) SetRoles(v []string) {
+	x.Roles = v
+}
+
+type RouteToDatabase_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Database proxy service name.
+	ServiceName string
+	// Protocol used to communicate with the database.
+	Protocol string
+	// Optional database username.
+	Username string
+	// Optional name of the database.
+	Database string
+	// Optional list of database roles.
+	Roles []string
+}
+
+func (b0 RouteToDatabase_builder) Build() *RouteToDatabase {
+	m0 := &RouteToDatabase{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ServiceName = b.ServiceName
+	x.Protocol = b.Protocol
+	x.Username = b.Username
+	x.Database = b.Database
+	x.Roles = b.Roles
+	return m0
+}
+
 // RouteToApp contains application access routing information.
 type RouteToApp struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Application name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Public application address.
@@ -403,11 +680,6 @@ func (x *RouteToApp) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RouteToApp.ProtoReflect.Descriptor instead.
-func (*RouteToApp) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *RouteToApp) GetName() string {
@@ -466,9 +738,77 @@ func (x *RouteToApp) GetGcpServiceAccount() string {
 	return ""
 }
 
+func (x *RouteToApp) SetName(v string) {
+	x.Name = v
+}
+
+func (x *RouteToApp) SetPublicAddr(v string) {
+	x.PublicAddr = v
+}
+
+func (x *RouteToApp) SetClusterName(v string) {
+	x.ClusterName = v
+}
+
+func (x *RouteToApp) SetUri(v string) {
+	x.Uri = v
+}
+
+func (x *RouteToApp) SetTargetPort(v uint32) {
+	x.TargetPort = v
+}
+
+func (x *RouteToApp) SetAwsRoleArn(v string) {
+	x.AwsRoleArn = v
+}
+
+func (x *RouteToApp) SetAzureIdentity(v string) {
+	x.AzureIdentity = v
+}
+
+func (x *RouteToApp) SetGcpServiceAccount(v string) {
+	x.GcpServiceAccount = v
+}
+
+type RouteToApp_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Application name.
+	Name string
+	// Public application address.
+	PublicAddr string
+	// Name of the cluster where the application resides.
+	ClusterName string
+	// Internal URI of the application.
+	Uri string
+	// Locks the certificate down to a specific port.
+	TargetPort uint32
+	// AWS role to assume.
+	AwsRoleArn string
+	// Azure identity to assume.
+	AzureIdentity string
+	// GCP service account to assume.
+	GcpServiceAccount string
+}
+
+func (b0 RouteToApp_builder) Build() *RouteToApp {
+	m0 := &RouteToApp{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.PublicAddr = b.PublicAddr
+	x.ClusterName = b.ClusterName
+	x.Uri = b.Uri
+	x.TargetPort = b.TargetPort
+	x.AwsRoleArn = b.AwsRoleArn
+	x.AzureIdentity = b.AzureIdentity
+	x.GcpServiceAccount = b.GcpServiceAccount
+	return m0
+}
+
 // GenerateCertsResponse are the results of calling GenerateCerts.
 type GenerateCertsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// SSH certificated marshaled in the authorized keys format.
 	Ssh []byte `protobuf:"bytes,1,opt,name=ssh,proto3" json:"ssh,omitempty"`
 	// TLS X.509 certificate (PEM-encoded).
@@ -502,11 +842,6 @@ func (x *GenerateCertsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateCertsResponse.ProtoReflect.Descriptor instead.
-func (*GenerateCertsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *GenerateCertsResponse) GetSsh() []byte {
 	if x != nil {
 		return x.Ssh
@@ -519,6 +854,38 @@ func (x *GenerateCertsResponse) GetTls() []byte {
 		return x.Tls
 	}
 	return nil
+}
+
+func (x *GenerateCertsResponse) SetSsh(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Ssh = v
+}
+
+func (x *GenerateCertsResponse) SetTls(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Tls = v
+}
+
+type GenerateCertsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// SSH certificated marshaled in the authorized keys format.
+	Ssh []byte
+	// TLS X.509 certificate (PEM-encoded).
+	Tls []byte
+}
+
+func (b0 GenerateCertsResponse_builder) Build() *GenerateCertsResponse {
+	m0 := &GenerateCertsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Ssh = b.Ssh
+	x.Tls = b.Tls
+	return m0
 }
 
 var File_teleport_delegation_v1_delegation_session_service_proto protoreflect.FileDescriptor
@@ -566,18 +933,6 @@ const file_teleport_delegation_v1_delegation_session_service_proto_rawDesc = "" 
 	"\x18DelegationSessionService\x12|\n" +
 	"\x17CreateDelegationSession\x126.teleport.delegation.v1.CreateDelegationSessionRequest\x1a).teleport.delegation.v1.DelegationSession\x12l\n" +
 	"\rGenerateCerts\x12,.teleport.delegation.v1.GenerateCertsRequest\x1a-.teleport.delegation.v1.GenerateCertsResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/delegation/v1;delegationv1b\x06proto3"
-
-var (
-	file_teleport_delegation_v1_delegation_session_service_proto_rawDescOnce sync.Once
-	file_teleport_delegation_v1_delegation_session_service_proto_rawDescData []byte
-)
-
-func file_teleport_delegation_v1_delegation_session_service_proto_rawDescGZIP() []byte {
-	file_teleport_delegation_v1_delegation_session_service_proto_rawDescOnce.Do(func() {
-		file_teleport_delegation_v1_delegation_session_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_delegation_v1_delegation_session_service_proto_rawDesc), len(file_teleport_delegation_v1_delegation_session_service_proto_rawDesc)))
-	})
-	return file_teleport_delegation_v1_delegation_session_service_proto_rawDescData
-}
 
 var file_teleport_delegation_v1_delegation_session_service_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
 var file_teleport_delegation_v1_delegation_session_service_proto_goTypes = []any{

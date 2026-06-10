@@ -48,6 +48,7 @@ import (
 	kubetypes "k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/watch"
 	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/rest"
 	restclientwatch "k8s.io/client-go/rest/watch"
 	controllerclient "sigs.k8s.io/controller-runtime/pkg/client"
 
@@ -835,6 +836,112 @@ func TestWatcherResponseWriter(t *testing.T) {
 		})
 
 	}
+}
+
+// TestWatcherResponseWriter_BookmarkPassthrough reproduces the bug from
+// https://github.com/gravitational/teleport/issues/64188:
+// kubectl/client-go v0.35+ sends watch requests with sendInitialEvents=true and
+// expects a terminating BOOKMARK event annotated k8s.io/initial-events-end="true"
+// to mark the cache as synced. Teleport's kube agent runs every decoded event
+// (including BOOKMARK) through the resource filter; the BOOKMARK envelope is a
+// stripped Pod with empty Name and Namespace, so any restrictive name/namespace
+// rule rejects it and the bookmark is silently dropped. The client then waits
+// indefinitely for a bookmark that never arrives.
+func TestWatcherResponseWriter_BookmarkPassthrough(t *testing.T) {
+	t.Parallel()
+	const (
+		ns      = "default"
+		podName = "myPod"
+	)
+
+	// A restrictive allow rule: only "myPod" in "default". This is the shape
+	// that exposes the bug — the bookmark's empty name fails the name match.
+	allowed := []types.KubernetesResource{{
+		Kind:      "pods",
+		Namespace: ns,
+		Name:      podName,
+		Verbs:     []string{types.Wildcard},
+		APIGroup:  "",
+	}}
+
+	// The bookmark sent by kube-apiserver when sendInitialEvents=true completes:
+	// a near-empty Pod envelope with only resourceVersion + the
+	// k8s.io/initial-events-end annotation.
+	bookmarkPod := &corev1.Pod{
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "Pod",
+			APIVersion: "v1",
+		},
+		ObjectMeta: metav1.ObjectMeta{
+			ResourceVersion: "12345",
+			Annotations: map[string]string{
+				"k8s.io/initial-events-end": "true",
+			},
+		},
+	}
+
+	upstreamEvents := []*watch.Event{
+		{Type: watch.Added, Object: newFakePod(podName, ns)},
+		{Type: watch.Bookmark, Object: bookmarkPod},
+	}
+
+	userReader, userWriter := io.Pipe()
+	negotiator := newClientNegotiator(&globalKubeCodecs)
+	mr := metaResource{
+		requestedResource: apiResource{
+			resourceKind: "pods",
+			apiGroup:     "",
+			namespace:    ns,
+		},
+		resourceDefinition: &metav1.APIResource{Namespaced: true},
+		verb:               types.KubeVerbWatch,
+	}
+	filterWrapper := newResourceFilterer(
+		mr, &globalKubeCodecs,
+		newMatcher(mr, allowed, nil, logtest.NewLogger()),
+		logtest.NewLogger(),
+	)
+	watcher, err := responsewriters.NewWatcherResponseWriter(
+		newFakeResponseWriter(userWriter), negotiator, filterWrapper,
+	)
+	require.NoError(t, err)
+
+	watchEncoder, decoder := newWatchSerializers(
+		t, responsewriters.DefaultContentType, negotiator, watcher, userReader,
+	)
+	watcher.Header().Set(responsewriters.ContentTypeHeader, responsewriters.DefaultContentType)
+	watcher.WriteHeader(http.StatusOK)
+
+	var collected []*metav1.WatchEvent
+	var wg sync.WaitGroup
+	wg.Go(func() {
+		for {
+			event, err := decoder.decodeStreamingMessage()
+			if err != nil {
+				return
+			}
+			collected = append(collected, event)
+		}
+	})
+
+	for _, evt := range upstreamEvents {
+		require.NoError(t, watchEncoder.Encode(evt))
+	}
+
+	require.NoError(t, watcher.Close())
+	userReader.CloseWithError(io.EOF)
+	userWriter.CloseWithError(io.EOF)
+	wg.Wait()
+
+	gotTypes := make([]watch.EventType, 0, len(collected))
+	for _, e := range collected {
+		gotTypes = append(gotTypes, watch.EventType(e.Type))
+	}
+	require.Equal(t,
+		[]watch.EventType{watch.Added, watch.Bookmark},
+		gotTypes,
+		"BOOKMARK event was dropped by the kube agent filter — client-go WatchList informers will hang",
+	)
 }
 
 func newRawExtension(name, namespace string) runtime.RawExtension {
@@ -3879,6 +3986,134 @@ func TestSpecificCustomResourcesRBAC(t *testing.T) {
 				)
 				require.ElementsMatch(t, tt.want.listTeleportRolesResult[i], retList)
 			}
+		})
+	}
+}
+
+// TestProxySubresourceRBAC verifies that:
+// - pods/{name}/proxy/{path}
+// - services/{name}/proxy/{path}
+// - nodes/{name}/proxy/{path}
+// subresources require the KubeVerbProxy verb in kubernetes_resources.
+func TestProxySubresourceRBAC(t *testing.T) {
+	t.Parallel()
+
+	kubeMock, err := tkm.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	testCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	roleSpec := func(name string, resources []types.KubernetesResource) RoleSpec {
+		return RoleSpec{
+			Name:       name,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow, resources)
+			},
+		}
+	}
+
+	podGetUser, _ := testCtx.CreateUserAndRole(testCtx.Context, t, "pod-get",
+		roleSpec("pod-get-role", []types.KubernetesResource{{
+			Kind: "pods", Namespace: types.Wildcard, Name: types.Wildcard,
+			Verbs: []string{"get", "list"}, APIGroup: types.Wildcard,
+		}}))
+	serviceGetUser, _ := testCtx.CreateUserAndRole(testCtx.Context, t, "service-get",
+		roleSpec("service-get-role", []types.KubernetesResource{{
+			Kind: "services", Namespace: types.Wildcard, Name: types.Wildcard,
+			Verbs: []string{"get", "list"}, APIGroup: types.Wildcard,
+		}}))
+	nodeGetUser, _ := testCtx.CreateUserAndRole(testCtx.Context, t, "node-get",
+		roleSpec("node-get-role", []types.KubernetesResource{{
+			Kind: "nodes", Name: types.Wildcard,
+			Verbs: []string{"get", "list"}, APIGroup: types.Wildcard,
+		}}))
+	// Negative control: configmaps allow rule, no pods/services/nodes match.
+	noMatchUser, _ := testCtx.CreateUserAndRole(testCtx.Context, t, "no-match",
+		roleSpec("no-match-role", []types.KubernetesResource{{
+			Kind: "configmaps", Namespace: types.Wildcard, Name: types.Wildcard,
+			Verbs: []string{"get"}, APIGroup: types.Wildcard,
+		}}))
+
+	sendGet := func(t *testing.T, user types.User, urlPath string) (int, string) {
+		t.Helper()
+		_, cfg := testCtx.GenTestKubeClientTLSCert(t, user.GetName(), kubeCluster)
+		transport, err := rest.TransportFor(cfg)
+		require.NoError(t, err)
+		client := &http.Client{Transport: transport}
+		req, err := http.NewRequestWithContext(testCtx.Context, http.MethodGet, cfg.Host+urlPath, nil)
+		require.NoError(t, err)
+		resp, err := client.Do(req)
+		require.NoError(t, err)
+		t.Cleanup(func() { resp.Body.Close() })
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
+		return resp.StatusCode, string(body)
+	}
+
+	tests := []struct {
+		name         string
+		user         types.User
+		urlPath      string
+		wantCode     int
+		bodyContains string
+	}{
+		{
+			// Sanity check that portforward verb denial still works.
+			name:         "portforward_denied_baseline",
+			user:         podGetUser,
+			urlPath:      "/api/v1/namespaces/default/pods/teleport/portforward",
+			wantCode:     http.StatusForbidden,
+			bodyContains: "cannot portforward resource",
+		},
+		{
+			// podGetUser has get/list on pods but not proxy.
+			name:         "pods_proxy_denied",
+			user:         podGetUser,
+			urlPath:      "/api/v1/namespaces/default/pods/teleport/proxy/8080",
+			wantCode:     http.StatusForbidden,
+			bodyContains: "cannot proxy resource",
+		},
+		{
+			name:         "services_proxy_denied",
+			user:         serviceGetUser,
+			urlPath:      "/api/v1/namespaces/default/services/svc/proxy/path",
+			wantCode:     http.StatusForbidden,
+			bodyContains: "cannot proxy resource",
+		},
+		{
+			name:         "nodes_proxy_denied",
+			user:         nodeGetUser,
+			urlPath:      "/api/v1/nodes/node-1/proxy/pods",
+			wantCode:     http.StatusForbidden,
+			bodyContains: "cannot proxy resource",
+		},
+		{
+			// noMatchUser has no allow rule for pods at all - confirms the
+			// resource matcher is in the request path. The body includes
+			// the user name to make this distinct from the podGetUser case
+			// above.
+			name:         "negative_control_denied",
+			user:         noMatchUser,
+			urlPath:      "/api/v1/namespaces/default/pods/teleport/proxy/8080",
+			wantCode:     http.StatusForbidden,
+			bodyContains: `User \"no-match\" cannot proxy resource`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			code, body := sendGet(t, tt.user, tt.urlPath)
+			require.Equal(t, tt.wantCode, code, "body: %s", body)
+			require.Contains(t, body, tt.bodyContains)
 		})
 	}
 }

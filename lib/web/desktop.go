@@ -215,10 +215,10 @@ func (t *tdpHandshaker) forwardTDP(w io.Writer, username string, forwardKeyboard
 func (t *tdpHandshaker) forwardTDPB(w io.Writer, username string, _ bool) error {
 	// Convert to Client Hello
 	hello := &tdpb.ClientHello{
-		ScreenSpec: &tdpbv1.ClientScreenSpec{
+		ScreenSpec: tdpbv1.ClientScreenSpec_builder{
 			Height: t.screenSpec.Height,
 			Width:  t.screenSpec.Width,
-		},
+		}.Build(),
 		Username: username,
 	}
 	if t.keyboardLayout != nil {
@@ -300,8 +300,8 @@ func (t *tdpbHandshaker) forwardTDP(w io.Writer, username string, forwardKeyboar
 	messages = append(messages, legacy.ClientUsername{Username: username})
 
 	screenSpec := legacy.ClientScreenSpec{
-		Height: t.hello.ScreenSpec.Height,
-		Width:  t.hello.ScreenSpec.Width,
+		Height: t.hello.ScreenSpec.GetHeight(),
+		Width:  t.hello.ScreenSpec.GetWidth(),
 	}
 	messages = append(messages, screenSpec)
 

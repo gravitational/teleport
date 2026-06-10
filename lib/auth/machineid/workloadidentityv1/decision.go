@@ -75,14 +75,14 @@ func decide(
 		d.reason = trace.Wrap(err, "templating spec.spiffe.id")
 		return d
 	}
-	d.templatedWorkloadIdentity.Spec.Spiffe.Id = templated
+	d.templatedWorkloadIdentity.GetSpec().GetSpiffe().SetId(templated)
 
 	templated, err = expression.RenderTemplate(wi.GetSpec().GetSpiffe().GetHint(), &expression.Environment{Attrs: attrs})
 	if err != nil {
 		d.reason = trace.Wrap(err, "templating spec.spiffe.hint")
 		return d
 	}
-	d.templatedWorkloadIdentity.Spec.Spiffe.Hint = templated
+	d.templatedWorkloadIdentity.GetSpec().GetSpiffe().SetHint(templated)
 
 	for i, san := range wi.GetSpec().GetSpiffe().GetX509().GetDnsSans() {
 		templated, err = expression.RenderTemplate(san, &expression.Environment{Attrs: attrs})
@@ -98,14 +98,14 @@ func decide(
 			)
 			return d
 		}
-		d.templatedWorkloadIdentity.Spec.Spiffe.X509.DnsSans[i] = templated
+		d.templatedWorkloadIdentity.GetSpec().GetSpiffe().GetX509().GetDnsSans()[i] = templated
 	}
 
 	st := wi.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate()
 	if st != nil {
-		dst := d.templatedWorkloadIdentity.Spec.Spiffe.X509.SubjectTemplate
+		dst := d.templatedWorkloadIdentity.GetSpec().GetSpiffe().GetX509().GetSubjectTemplate()
 
-		templated, err = expression.RenderTemplate(st.CommonName, &expression.Environment{Attrs: attrs})
+		templated, err = expression.RenderTemplate(st.GetCommonName(), &expression.Environment{Attrs: attrs})
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -113,9 +113,9 @@ func decide(
 			)
 			return d
 		}
-		dst.CommonName = templated
+		dst.SetCommonName(templated)
 
-		templated, err = expression.RenderTemplate(st.Organization, &expression.Environment{Attrs: attrs})
+		templated, err = expression.RenderTemplate(st.GetOrganization(), &expression.Environment{Attrs: attrs})
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -123,9 +123,9 @@ func decide(
 			)
 			return d
 		}
-		dst.Organization = templated
+		dst.SetOrganization(templated)
 
-		templated, err = expression.RenderTemplate(st.OrganizationalUnit, &expression.Environment{Attrs: attrs})
+		templated, err = expression.RenderTemplate(st.GetOrganizationalUnit(), &expression.Environment{Attrs: attrs})
 		if err != nil {
 			d.reason = trace.Wrap(
 				err,
@@ -133,7 +133,7 @@ func decide(
 			)
 			return d
 		}
-		dst.OrganizationalUnit = templated
+		dst.SetOrganizationalUnit(templated)
 	}
 
 	if ec := wi.GetSpec().GetSpiffe().GetJwt().GetExtraClaims(); ec != nil {
@@ -145,7 +145,7 @@ func decide(
 			)
 			return d
 		}
-		d.templatedWorkloadIdentity.Spec.Spiffe.Jwt.ExtraClaims = templated
+		d.templatedWorkloadIdentity.GetSpec().GetSpiffe().GetJwt().SetExtraClaims(templated)
 	}
 
 	// Yay - made it to the end!
@@ -251,29 +251,29 @@ ruleLoop:
 		}
 
 		for _, condition := range rule.GetConditions() {
-			val, err := getFieldStringValue(attrs, condition.Attribute)
+			val, err := getFieldStringValue(attrs, condition.GetAttribute())
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			switch c := condition.Operator.(type) {
-			case *workloadidentityv1pb.WorkloadIdentityCondition_Eq:
-				if val != c.Eq.Value {
+			switch c := condition.WhichOperator(); c {
+			case workloadidentityv1pb.WorkloadIdentityCondition_Eq_case:
+				if val != condition.GetEq().GetValue() {
 					continue ruleLoop
 				}
-			case *workloadidentityv1pb.WorkloadIdentityCondition_NotEq:
-				if val == c.NotEq.Value {
+			case workloadidentityv1pb.WorkloadIdentityCondition_NotEq_case:
+				if val == condition.GetNotEq().GetValue() {
 					continue ruleLoop
 				}
-			case *workloadidentityv1pb.WorkloadIdentityCondition_In:
-				if !slices.Contains(c.In.Values, val) {
+			case workloadidentityv1pb.WorkloadIdentityCondition_In_case:
+				if !slices.Contains(condition.GetIn().GetValues(), val) {
 					continue ruleLoop
 				}
-			case *workloadidentityv1pb.WorkloadIdentityCondition_NotIn:
-				if slices.Contains(c.NotIn.Values, val) {
+			case workloadidentityv1pb.WorkloadIdentityCondition_NotIn_case:
+				if slices.Contains(condition.GetNotIn().GetValues(), val) {
 					continue ruleLoop
 				}
 			default:
-				return trace.BadParameter("unsupported operator %T", c)
+				return trace.BadParameter("unsupported operator %v", c)
 			}
 		}
 		return nil

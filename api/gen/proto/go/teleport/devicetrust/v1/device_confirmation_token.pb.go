@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/device_confirmation_token.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -42,7 +43,7 @@ const (
 // See
 // https://github.com/gravitational/teleport.e/blob/master/rfd/0009e-device-trust-web-support.md#device-confirmation-token.
 type DeviceConfirmationToken struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Opaque token identifier.
 	// System-generated.
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
@@ -79,11 +80,6 @@ func (x *DeviceConfirmationToken) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeviceConfirmationToken.ProtoReflect.Descriptor instead.
-func (*DeviceConfirmationToken) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_device_confirmation_token_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DeviceConfirmationToken) GetId() string {
 	if x != nil {
 		return x.Id
@@ -98,6 +94,35 @@ func (x *DeviceConfirmationToken) GetToken() string {
 	return ""
 }
 
+func (x *DeviceConfirmationToken) SetId(v string) {
+	x.Id = v
+}
+
+func (x *DeviceConfirmationToken) SetToken(v string) {
+	x.Token = v
+}
+
+type DeviceConfirmationToken_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Opaque token identifier.
+	// System-generated.
+	Id string
+	// Opaque device confirmation token, in plaintext, encoded in
+	// base64.RawURLEncoding (so it is inherently safe for URl use).
+	// System-generated.
+	Token string
+}
+
+func (b0 DeviceConfirmationToken_builder) Build() *DeviceConfirmationToken {
+	m0 := &DeviceConfirmationToken{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Token = b.Token
+	return m0
+}
+
 var File_teleport_devicetrust_v1_device_confirmation_token_proto protoreflect.FileDescriptor
 
 const file_teleport_devicetrust_v1_device_confirmation_token_proto_rawDesc = "" +
@@ -106,18 +131,6 @@ const file_teleport_devicetrust_v1_device_confirmation_token_proto_rawDesc = "" 
 	"\x17DeviceConfirmationToken\x12\x0e\n" +
 	"\x02id\x18\x01 \x01(\tR\x02id\x12\x14\n" +
 	"\x05token\x18\x02 \x01(\tR\x05tokenBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_device_confirmation_token_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_device_confirmation_token_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_device_confirmation_token_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_device_confirmation_token_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_device_confirmation_token_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_device_confirmation_token_proto_rawDesc), len(file_teleport_devicetrust_v1_device_confirmation_token_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_device_confirmation_token_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_device_confirmation_token_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_devicetrust_v1_device_confirmation_token_proto_goTypes = []any{

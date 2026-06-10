@@ -59,14 +59,41 @@ import (
 	"github.com/gravitational/teleport/lib/fixtures"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobject"
 	"github.com/gravitational/teleport/tool/tctl/common/databaseobjectimportrule"
 	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
+
+func TestListKindsStructuredOutput(t *testing.T) {
+	rows := resourceKindRows()
+	require.NotEmpty(t, rows)
+
+	var jsonBuf bytes.Buffer
+	rc := ResourceCommand{
+		Stdout: &jsonBuf,
+		format: "json",
+	}
+	require.NoError(t, rc.listKinds())
+	gotJSON := mustDecodeJSON[[]resourceKindRow](t, &jsonBuf)
+	require.Equal(t, rows, gotJSON)
+
+	var yamlBuf bytes.Buffer
+	rc = ResourceCommand{
+		Stdout: &yamlBuf,
+		format: "yaml",
+	}
+	require.NoError(t, rc.listKinds())
+	yamlJSON, err := utils.ToJSON(yamlBuf.Bytes())
+	require.NoError(t, err)
+	gotYAML := mustDecodeJSON[[]resourceKindRow](t, bytes.NewReader(yamlJSON))
+	require.Equal(t, rows, gotYAML)
+}
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
@@ -332,6 +359,8 @@ func TestDatabaseServiceResource(t *testing.T) {
 }
 
 func TestScopedRoleAndAssignmentResource(t *testing.T) {
+	t.Parallel()
+
 	const scopedRoleYAML = `kind: scoped_role
 metadata:
   name: some-role
@@ -350,8 +379,6 @@ spec:
       scope: /foo
 version: v1
 `
-
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
 
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 
@@ -374,7 +401,7 @@ version: v1
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
 	clt, err := testenv.NewDefaultAuthClient(auth)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = clt.Close() })
@@ -412,17 +439,17 @@ version: v1
 	require.Len(t, rs, 1)
 
 	// Compare with expected value
-	expected := &scopedaccessv1.ScopedRole{
+	expected := scopedaccessv1.ScopedRole_builder{
 		Kind: scopedaccess.KindScopedRole,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: "some-role",
-		},
+		}.Build(),
 		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleSpec{
+		Spec: scopedaccessv1.ScopedRoleSpec_builder{
 			AssignableScopes: []string{"/foo"},
-		},
+		}.Build(),
 		Version: types.V1,
-	}
+	}.Build()
 
 	require.Empty(t, cmp.Diff(expected, rs[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
@@ -489,24 +516,24 @@ version: v1
 	require.Equal(t, assignmentName, asByName[0].GetMetadata().GetName())
 
 	// Compare with expected value
-	expectedAssignment := &scopedaccessv1.ScopedRoleAssignment{
+	expectedAssignment := scopedaccessv1.ScopedRoleAssignment_builder{
 		Kind:    scopedaccess.KindScopedRoleAssignment,
 		SubKind: scopedaccess.SubKindDynamic,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: assignmentName,
-		},
+		}.Build(),
 		Scope: "/",
-		Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+		Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
 			User: "bob",
 			Assignments: []*scopedaccessv1.Assignment{
-				{
+				scopedaccessv1.Assignment_builder{
 					Role:  "some-role",
 					Scope: "/foo",
-				},
+				}.Build(),
 			},
-		},
+		}.Build(),
 		Version: types.V1,
-	}
+	}.Build()
 
 	require.Empty(t, cmp.Diff(expectedAssignment, as[0], protocmp.Transform(), protocmp.IgnoreFields(&headerv1.Metadata{}, "revision")))
 
@@ -562,6 +589,8 @@ version: v1
 }
 
 func TestScopedToken(t *testing.T) {
+	t.Parallel()
+
 	const scopedTokenYAML = `kind: scoped_token
 version: v1
 metadata:
@@ -596,8 +625,6 @@ spec:
           - 123456789-compute@developer.gserviceaccount.com
 `
 
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-
 	dynAddr := helpers.NewDynamicServiceAddr(t)
 
 	fileConfig := &config.FileConfig{
@@ -619,7 +646,7 @@ spec:
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors))
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.Descriptors), withScopesFeatures(scopes.Features{Enabled: true}))
 	clt, err := testenv.NewDefaultAuthClient(auth)
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = clt.Close() })
@@ -679,8 +706,8 @@ spec:
 	require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
 
 	// Using --force should succeed and act as an upsert
-	allTokens[0].Metadata.Labels = map[string]string{"env": "staging"}
-	allTokens[0].Spec.AssignedScope = "/bar"
+	allTokens[0].GetMetadata().SetLabels(map[string]string{"env": "staging"})
+	allTokens[0].GetSpec().SetAssignedScope("/bar")
 	updatedBytes, err := services.MarshalProtoResource(allTokens[0])
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(scopedTokenYAMLPath, updatedBytes, 0644))
@@ -2679,7 +2706,7 @@ spec:
 
 	// Explicitly change the revision and try creating the user with and without
 	// the force flag.
-	expected.GetMetadata().Revision = uuid.NewString()
+	expected.GetMetadata().SetRevision(uuid.NewString())
 	hostUserBytes, err := services.MarshalProtoResource(&expected, services.PreserveRevision())
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(userYAMLPath, hostUserBytes, 0644))

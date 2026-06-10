@@ -52,5 +52,6 @@ module.exports = {
   setupFilesAfterEnv: [
     '<rootDir>/web/packages/build/jest/setupTests.ts',
     '<rootDir>/web/packages/build/jest/customMatchers.ts',
+    '<rootDir>/web/packages/build/jest/canvasMock.ts',
   ],
 };

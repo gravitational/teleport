@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/auditlog/v1/auditlog.proto
 
+//go:build !protoopaque
+
 package auditlogv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	structpb "google.golang.org/protobuf/types/known/structpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -79,14 +80,9 @@ func (x Order) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use Order.Descriptor instead.
-func (Order) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_auditlog_v1_auditlog_proto_rawDescGZIP(), []int{0}
-}
-
 // StreamUnstructuredSessionEventsRequest is a request containing data needed to fetch a session recording.
 type StreamUnstructuredSessionEventsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// session_id is the ID for a given session in an UUIDv4 format.
 	SessionId string `protobuf:"bytes,1,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
 	// start_index is the index of the event to resume the stream after.
@@ -121,11 +117,6 @@ func (x *StreamUnstructuredSessionEventsRequest) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StreamUnstructuredSessionEventsRequest.ProtoReflect.Descriptor instead.
-func (*StreamUnstructuredSessionEventsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_auditlog_v1_auditlog_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *StreamUnstructuredSessionEventsRequest) GetSessionId() string {
 	if x != nil {
 		return x.SessionId
@@ -140,9 +131,36 @@ func (x *StreamUnstructuredSessionEventsRequest) GetStartIndex() int32 {
 	return 0
 }
 
+func (x *StreamUnstructuredSessionEventsRequest) SetSessionId(v string) {
+	x.SessionId = v
+}
+
+func (x *StreamUnstructuredSessionEventsRequest) SetStartIndex(v int32) {
+	x.StartIndex = v
+}
+
+type StreamUnstructuredSessionEventsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// session_id is the ID for a given session in an UUIDv4 format.
+	SessionId string
+	// start_index is the index of the event to resume the stream after.
+	// A start_index of 0 creates a new stream.
+	StartIndex int32
+}
+
+func (b0 StreamUnstructuredSessionEventsRequest_builder) Build() *StreamUnstructuredSessionEventsRequest {
+	m0 := &StreamUnstructuredSessionEventsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.SessionId = b.SessionId
+	x.StartIndex = b.StartIndex
+	return m0
+}
+
 // GetUnstructuredEventsRequest is a request with the needed data to fetch events.
 type GetUnstructuredEventsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// namespace, if not set, defaults to 'default'.
 	Namespace string `protobuf:"bytes,1,opt,name=namespace,proto3" json:"namespace,omitempty"`
 	// start_date is the oldest date of returned events.
@@ -187,11 +205,6 @@ func (x *GetUnstructuredEventsRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use GetUnstructuredEventsRequest.ProtoReflect.Descriptor instead.
-func (*GetUnstructuredEventsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_auditlog_v1_auditlog_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *GetUnstructuredEventsRequest) GetNamespace() string {
@@ -243,9 +256,95 @@ func (x *GetUnstructuredEventsRequest) GetOrder() Order {
 	return Order_ORDER_DESCENDING_UNSPECIFIED
 }
 
+func (x *GetUnstructuredEventsRequest) SetNamespace(v string) {
+	x.Namespace = v
+}
+
+func (x *GetUnstructuredEventsRequest) SetStartDate(v *timestamppb.Timestamp) {
+	x.StartDate = v
+}
+
+func (x *GetUnstructuredEventsRequest) SetEndDate(v *timestamppb.Timestamp) {
+	x.EndDate = v
+}
+
+func (x *GetUnstructuredEventsRequest) SetEventTypes(v []string) {
+	x.EventTypes = v
+}
+
+func (x *GetUnstructuredEventsRequest) SetLimit(v int32) {
+	x.Limit = v
+}
+
+func (x *GetUnstructuredEventsRequest) SetStartKey(v string) {
+	x.StartKey = v
+}
+
+func (x *GetUnstructuredEventsRequest) SetOrder(v Order) {
+	x.Order = v
+}
+
+func (x *GetUnstructuredEventsRequest) HasStartDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.StartDate != nil
+}
+
+func (x *GetUnstructuredEventsRequest) HasEndDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.EndDate != nil
+}
+
+func (x *GetUnstructuredEventsRequest) ClearStartDate() {
+	x.StartDate = nil
+}
+
+func (x *GetUnstructuredEventsRequest) ClearEndDate() {
+	x.EndDate = nil
+}
+
+type GetUnstructuredEventsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// namespace, if not set, defaults to 'default'.
+	Namespace string
+	// start_date is the oldest date of returned events.
+	StartDate *timestamppb.Timestamp
+	// end_date is the newest date of returned events.
+	EndDate *timestamppb.Timestamp
+	// event_types is optional, if not set, returns all events.
+	EventTypes []string
+	// limit is the maximum amount of events returned.
+	Limit int32
+	// start_key is used to resume a query in order to enable pagination.
+	// If the previous response had LastKey set then this should be
+	// set to its value. Otherwise leave empty.
+	StartKey string
+	// order specifies an ascending or descending order of events.
+	// A value of 0 means a descending order and a value of 1 means an ascending order.
+	Order Order
+}
+
+func (b0 GetUnstructuredEventsRequest_builder) Build() *GetUnstructuredEventsRequest {
+	m0 := &GetUnstructuredEventsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Namespace = b.Namespace
+	x.StartDate = b.StartDate
+	x.EndDate = b.EndDate
+	x.EventTypes = b.EventTypes
+	x.Limit = b.Limit
+	x.StartKey = b.StartKey
+	x.Order = b.Order
+	return m0
+}
+
 // EventsUnstructured represents a list of events.AuditEvent in an unstructured format.
 type EventsUnstructured struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// items is a list of unstructured formatted audit events.
 	Items []*EventUnstructured `protobuf:"bytes,1,rep,name=items,proto3" json:"items,omitempty"`
 	// last_key is the key of the last event if the returned set did not contain all events found i.e limit <
@@ -281,11 +380,6 @@ func (x *EventsUnstructured) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EventsUnstructured.ProtoReflect.Descriptor instead.
-func (*EventsUnstructured) Descriptor() ([]byte, []int) {
-	return file_teleport_auditlog_v1_auditlog_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *EventsUnstructured) GetItems() []*EventUnstructured {
 	if x != nil {
 		return x.Items
@@ -300,9 +394,37 @@ func (x *EventsUnstructured) GetLastKey() string {
 	return ""
 }
 
+func (x *EventsUnstructured) SetItems(v []*EventUnstructured) {
+	x.Items = v
+}
+
+func (x *EventsUnstructured) SetLastKey(v string) {
+	x.LastKey = v
+}
+
+type EventsUnstructured_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// items is a list of unstructured formatted audit events.
+	Items []*EventUnstructured
+	// last_key is the key of the last event if the returned set did not contain all events found i.e limit <
+	// actual amount. this is the key clients can supply in another API request to continue fetching
+	// events from the previous last position.
+	LastKey string
+}
+
+func (b0 EventsUnstructured_builder) Build() *EventsUnstructured {
+	m0 := &EventsUnstructured{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Items = b.Items
+	x.LastKey = b.LastKey
+	return m0
+}
+
 // ExportUnstructuredEventsRequest is a request with the needed data to export events.
 type ExportUnstructuredEventsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// date is the target date from which to export events. note that only the UTC date of the
 	// timestamp value is used. use of a specific local timestamp may produce confusing results.
 	Date *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`
@@ -339,11 +461,6 @@ func (x *ExportUnstructuredEventsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExportUnstructuredEventsRequest.ProtoReflect.Descriptor instead.
-func (*ExportUnstructuredEventsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_auditlog_v1_auditlog_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ExportUnstructuredEventsRequest) GetDate() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Date
@@ -365,9 +482,54 @@ func (x *ExportUnstructuredEventsRequest) GetCursor() string {
 	return ""
 }
 
+func (x *ExportUnstructuredEventsRequest) SetDate(v *timestamppb.Timestamp) {
+	x.Date = v
+}
+
+func (x *ExportUnstructuredEventsRequest) SetChunk(v string) {
+	x.Chunk = v
+}
+
+func (x *ExportUnstructuredEventsRequest) SetCursor(v string) {
+	x.Cursor = v
+}
+
+func (x *ExportUnstructuredEventsRequest) HasDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.Date != nil
+}
+
+func (x *ExportUnstructuredEventsRequest) ClearDate() {
+	x.Date = nil
+}
+
+type ExportUnstructuredEventsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// date is the target date from which to export events. note that only the UTC date of the
+	// timestamp value is used. use of a specific local timestamp may produce confusing results.
+	Date *timestamppb.Timestamp
+	// chunk is the chunk to export events from.
+	Chunk string
+	// cursor is an optional mechanism to resume interrupted streams for a given chunk.
+	Cursor string
+}
+
+func (b0 ExportUnstructuredEventsRequest_builder) Build() *ExportUnstructuredEventsRequest {
+	m0 := &ExportUnstructuredEventsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Date = b.Date
+	x.Chunk = b.Chunk
+	x.Cursor = b.Cursor
+	return m0
+}
+
 // ExportEventUnstructured is the stream item of the ExportUnstructuredEvents method.
 type ExportEventUnstructured struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// event is the unstructured representation of the event payload.
 	Event *EventUnstructured `protobuf:"bytes,1,opt,name=event,proto3" json:"event,omitempty"`
 	// cursor is the cursor to resume the stream after this point.
@@ -401,11 +563,6 @@ func (x *ExportEventUnstructured) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ExportEventUnstructured.ProtoReflect.Descriptor instead.
-func (*ExportEventUnstructured) Descriptor() ([]byte, []int) {
-	return file_teleport_auditlog_v1_auditlog_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *ExportEventUnstructured) GetEvent() *EventUnstructured {
 	if x != nil {
 		return x.Event
@@ -420,9 +577,46 @@ func (x *ExportEventUnstructured) GetCursor() string {
 	return ""
 }
 
+func (x *ExportEventUnstructured) SetEvent(v *EventUnstructured) {
+	x.Event = v
+}
+
+func (x *ExportEventUnstructured) SetCursor(v string) {
+	x.Cursor = v
+}
+
+func (x *ExportEventUnstructured) HasEvent() bool {
+	if x == nil {
+		return false
+	}
+	return x.Event != nil
+}
+
+func (x *ExportEventUnstructured) ClearEvent() {
+	x.Event = nil
+}
+
+type ExportEventUnstructured_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// event is the unstructured representation of the event payload.
+	Event *EventUnstructured
+	// cursor is the cursor to resume the stream after this point.
+	Cursor string
+}
+
+func (b0 ExportEventUnstructured_builder) Build() *ExportEventUnstructured {
+	m0 := &ExportEventUnstructured{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Event = b.Event
+	x.Cursor = b.Cursor
+	return m0
+}
+
 // EventUnstructured represents a single events.AuditEvent in an unstructured format.
 type EventUnstructured struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// type is the type of the event.
 	Type string `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
 	// id is the unique ID of the event.
@@ -464,11 +658,6 @@ func (x *EventUnstructured) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EventUnstructured.ProtoReflect.Descriptor instead.
-func (*EventUnstructured) Descriptor() ([]byte, []int) {
-	return file_teleport_auditlog_v1_auditlog_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *EventUnstructured) GetType() string {
 	if x != nil {
 		return x.Type
@@ -504,9 +693,80 @@ func (x *EventUnstructured) GetUnstructured() *structpb.Struct {
 	return nil
 }
 
+func (x *EventUnstructured) SetType(v string) {
+	x.Type = v
+}
+
+func (x *EventUnstructured) SetId(v string) {
+	x.Id = v
+}
+
+func (x *EventUnstructured) SetTime(v *timestamppb.Timestamp) {
+	x.Time = v
+}
+
+func (x *EventUnstructured) SetIndex(v int64) {
+	x.Index = v
+}
+
+func (x *EventUnstructured) SetUnstructured(v *structpb.Struct) {
+	x.Unstructured = v
+}
+
+func (x *EventUnstructured) HasTime() bool {
+	if x == nil {
+		return false
+	}
+	return x.Time != nil
+}
+
+func (x *EventUnstructured) HasUnstructured() bool {
+	if x == nil {
+		return false
+	}
+	return x.Unstructured != nil
+}
+
+func (x *EventUnstructured) ClearTime() {
+	x.Time = nil
+}
+
+func (x *EventUnstructured) ClearUnstructured() {
+	x.Unstructured = nil
+}
+
+type EventUnstructured_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// type is the type of the event.
+	Type string
+	// id is the unique ID of the event.
+	// If the underlying event defines an ID, it will be used, otherwise
+	// it is a SHA256 hash of the event payload.
+	Id string
+	// time is the time when the event was generated.
+	Time *timestamppb.Timestamp
+	// index is the index of the event.
+	Index int64
+	// unstructured is the unstructured representation of the event payload.
+	Unstructured *structpb.Struct
+}
+
+func (b0 EventUnstructured_builder) Build() *EventUnstructured {
+	m0 := &EventUnstructured{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Type = b.Type
+	x.Id = b.Id
+	x.Time = b.Time
+	x.Index = b.Index
+	x.Unstructured = b.Unstructured
+	return m0
+}
+
 // GetEventExportChunksRequest is used to request the next set of event chunks to export.
 type GetEventExportChunksRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// date is the date for which to list export shards.
 	Date          *timestamppb.Timestamp `protobuf:"bytes,1,opt,name=date,proto3" json:"date,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -538,11 +798,6 @@ func (x *GetEventExportChunksRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetEventExportChunksRequest.ProtoReflect.Descriptor instead.
-func (*GetEventExportChunksRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_auditlog_v1_auditlog_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *GetEventExportChunksRequest) GetDate() *timestamppb.Timestamp {
 	if x != nil {
 		return x.Date
@@ -550,9 +805,39 @@ func (x *GetEventExportChunksRequest) GetDate() *timestamppb.Timestamp {
 	return nil
 }
 
+func (x *GetEventExportChunksRequest) SetDate(v *timestamppb.Timestamp) {
+	x.Date = v
+}
+
+func (x *GetEventExportChunksRequest) HasDate() bool {
+	if x == nil {
+		return false
+	}
+	return x.Date != nil
+}
+
+func (x *GetEventExportChunksRequest) ClearDate() {
+	x.Date = nil
+}
+
+type GetEventExportChunksRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// date is the date for which to list export shards.
+	Date *timestamppb.Timestamp
+}
+
+func (b0 GetEventExportChunksRequest_builder) Build() *GetEventExportChunksRequest {
+	m0 := &GetEventExportChunksRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Date = b.Date
+	return m0
+}
+
 // EventExportChunk represents a chunk of events to export.
 type EventExportChunk struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// chunk is the chunk to export.
 	Chunk         string `protobuf:"bytes,1,opt,name=chunk,proto3" json:"chunk,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -584,16 +869,30 @@ func (x *EventExportChunk) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use EventExportChunk.ProtoReflect.Descriptor instead.
-func (*EventExportChunk) Descriptor() ([]byte, []int) {
-	return file_teleport_auditlog_v1_auditlog_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *EventExportChunk) GetChunk() string {
 	if x != nil {
 		return x.Chunk
 	}
 	return ""
+}
+
+func (x *EventExportChunk) SetChunk(v string) {
+	x.Chunk = v
+}
+
+type EventExportChunk_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// chunk is the chunk to export.
+	Chunk string
+}
+
+func (b0 EventExportChunk_builder) Build() *EventExportChunk {
+	m0 := &EventExportChunk{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Chunk = b.Chunk
+	return m0
 }
 
 var File_teleport_auditlog_v1_auditlog_proto protoreflect.FileDescriptor
@@ -644,18 +943,6 @@ const file_teleport_auditlog_v1_auditlog_proto_rawDesc = "" +
 	"\x15GetUnstructuredEvents\x122.teleport.auditlog.v1.GetUnstructuredEventsRequest\x1a(.teleport.auditlog.v1.EventsUnstructured\x12\x82\x01\n" +
 	"\x18ExportUnstructuredEvents\x125.teleport.auditlog.v1.ExportUnstructuredEventsRequest\x1a-.teleport.auditlog.v1.ExportEventUnstructured0\x01\x12s\n" +
 	"\x14GetEventExportChunks\x121.teleport.auditlog.v1.GetEventExportChunksRequest\x1a&.teleport.auditlog.v1.EventExportChunk0\x01BTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1;auditlogv1b\x06proto3"
-
-var (
-	file_teleport_auditlog_v1_auditlog_proto_rawDescOnce sync.Once
-	file_teleport_auditlog_v1_auditlog_proto_rawDescData []byte
-)
-
-func file_teleport_auditlog_v1_auditlog_proto_rawDescGZIP() []byte {
-	file_teleport_auditlog_v1_auditlog_proto_rawDescOnce.Do(func() {
-		file_teleport_auditlog_v1_auditlog_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_auditlog_v1_auditlog_proto_rawDesc), len(file_teleport_auditlog_v1_auditlog_proto_rawDesc)))
-	})
-	return file_teleport_auditlog_v1_auditlog_proto_rawDescData
-}
 
 var file_teleport_auditlog_v1_auditlog_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_auditlog_v1_auditlog_proto_msgTypes = make([]protoimpl.MessageInfo, 8)
