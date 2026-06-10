@@ -387,7 +387,8 @@ func CompareLinuxDesktop(a, b *linuxdesktopv1.LinuxDesktop) int {
 	if !maps.Equal(a.GetMetadata().GetLabels(), b.GetMetadata().GetLabels()) {
 		return Different
 	}
-	if a.GetMetadata().GetExpires() != b.GetMetadata().GetExpires() {
+	// OnlyTimestampsDifferent check must be after all Different checks.
+	if !a.GetMetadata().GetExpires().AsTime().Equal(b.GetMetadata().GetExpires().AsTime()) {
 		return OnlyTimestampsDifferent
 	}
 	return Equal

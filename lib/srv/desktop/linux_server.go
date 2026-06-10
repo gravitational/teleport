@@ -437,9 +437,11 @@ func (s *LinuxService) handleConnection(proxyConn *tls.Conn) {
 	errGroup.Go(sess.run)
 
 	err = errGroup.Wait()
-	sendTDPError(err.Error())
-	if !utils.IsOKNetworkError(err) && !trace.IsConnectionProblem(err) {
-		log.ErrorContext(ctx, "linux desktop session ended with error", "error", err)
+	if err != nil {
+		sendTDPError(err.Error())
+		if !utils.IsOKNetworkError(err) && !trace.IsConnectionProblem(err) {
+			log.ErrorContext(ctx, "linux desktop session ended with error", "error", err)
+		}
 	}
 	if sess.cmd != nil {
 		sess.cmd.Close()
