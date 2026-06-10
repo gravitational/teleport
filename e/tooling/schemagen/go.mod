@@ -15,4 +15,7 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/gravitational/teleport => ../../..
+replace (
+	github.com/gravitational/teleport => ../../..
+	github.com/gravitational/teleport/api => ../../../api
+)
