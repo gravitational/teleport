@@ -150,7 +150,7 @@ fn inner_encode_qoiz(
         .collect();
     if pdus.len() == 1 {
         pdus[0].1.fragmentation = Fragmentation::Single;
-    } else {
+    } else if pdus.len() > 1 {
         pdus[0].1.fragmentation = Fragmentation::First;
         pdus.last_mut().unwrap().1.fragmentation = Fragmentation::Last;
     }
