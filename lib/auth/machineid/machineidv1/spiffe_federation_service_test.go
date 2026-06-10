@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authtest"
 	libevents "github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
@@ -585,8 +586,7 @@ func TestSPIFFEFederationService_ListSPIFFEFederations(t *testing.T) {
 // by all identities (via the default implicit role), so an empty scoped role is
 // sufficient.
 func TestSPIFFEFederationService_ScopedIdentity(t *testing.T) {
-	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
-	srv, _ := newTestTLSServer(t)
+	srv, _ := newTestTLSServerWithScopesFeatures(t, scopes.Features{Enabled: true})
 	ctx := t.Context()
 
 	adminClient, err := srv.NewClient(authtest.TestAdmin())
