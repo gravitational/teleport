@@ -29,6 +29,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
@@ -48,6 +49,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	srvdesktop "github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
@@ -515,9 +517,20 @@ func (h *Handler) createDesktopConnection(
 			}
 
 		case *tdpb.Alert:
-			// WDS rejected with an active error. Fallback to legacy per-session MFA.
+			// WDS rejected with an active error. If force in-band MFA is enabled, reject the connection. Otherwise,
+			// fall back to legacy per-session MFA.
 			//
 			// TODO(cthach): DELETE IN v20.0 when the legacy per-session MFA with certificates flow is removed.
+			if os.Getenv(srvdesktop.ForceInBandMFAEnv) == "yes" {
+				return handshaker.sendError(
+					ctx,
+					log,
+					trace.AccessDenied(
+						"in-band MFA is required but the server does not support it",
+					),
+				)
+			}
+
 			if err := handshaker.sendError(
 				ctx,
 				log,

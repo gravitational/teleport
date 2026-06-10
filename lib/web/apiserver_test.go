@@ -3160,7 +3160,6 @@ func handleDesktopMFAWebauthnChallenge(t *testing.T, ws *websocket.Conn, dev *au
 func TestDesktopInBandMFA_ServerHello(t *testing.T) {
 	t.Setenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING", "true")
 
-	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
 	pack := proxy.authPack(t, "llama", nil)
@@ -3181,7 +3180,7 @@ func TestDesktopInBandMFA_ServerHello(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	err = env.server.Auth().UpsertWindowsDesktop(context.Background(), wd)
+	err = env.server.Auth().UpsertWindowsDesktop(t.Context(), wd)
 	require.NoError(t, err)
 
 	wds, err := types.NewWindowsDesktopServiceV3(
@@ -3193,7 +3192,7 @@ func TestDesktopInBandMFA_ServerHello(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = env.server.Auth().UpsertWindowsDesktopService(context.Background(), wds)
+	_, err = env.server.Auth().UpsertWindowsDesktopService(t.Context(), wds)
 	require.NoError(t, err)
 
 	// No MFA required.
@@ -3205,7 +3204,7 @@ func TestDesktopInBandMFA_ServerHello(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	_, err = env.server.Auth().UpsertAuthPreference(ctx, ap)
+	_, err = env.server.Auth().UpsertAuthPreference(t.Context(), ap)
 	require.NoError(t, err)
 
 	ws := proxy.makeDesktopSession(t, pack, true)
@@ -3255,6 +3254,101 @@ func wsTDPBNoMFA(t *testing.T, ws *websocket.Conn) {
 	}
 
 	require.IsType(t, &tdpb.ServerHello{}, msg)
+}
+
+// TestDesktopInBandMFA_ForceEnvVar verifies that when TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA=yes, the Proxy rejects the
+// connection instead of falling back to legacy per-session MFA when WDS sends an Alert.
+func TestDesktopInBandMFA_ForceEnvVar(t *testing.T) {
+	t.Setenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING", "true")
+	t.Setenv(desktop.ForceInBandMFAEnv, "yes")
+
+	env := newWebPack(t, 1)
+	proxy := env.proxies[0]
+	pack := proxy.authPack(t, "llama", nil)
+
+	wdID := uuid.New().String()
+
+	// Simulating legacy WDS without in-band MFA support.
+	wdMock := mustStartWindowsDesktopMock(t, env.server.Auth(), false)
+
+	wd, err := types.NewWindowsDesktopV3(
+		"desktop1",
+		nil,
+		types.WindowsDesktopSpecV3{
+			Addr:   wdMock.listener.Addr().String(),
+			Domain: "CORP",
+			HostID: wdID,
+		},
+	)
+	require.NoError(t, err)
+
+	err = env.server.Auth().UpsertWindowsDesktop(t.Context(), wd)
+	require.NoError(t, err)
+
+	wds, err := types.NewWindowsDesktopServiceV3(
+		types.Metadata{Name: wdID},
+		types.WindowsDesktopServiceSpecV3{
+			Addr:            wdMock.listener.Addr().String(),
+			TeleportVersion: teleport.Version,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertWindowsDesktopService(t.Context(), wds)
+	require.NoError(t, err)
+
+	// WDS mock sends Alert regardless of auth preference. Force env var blocks fallback.
+	ap, err := types.NewAuthPreference(
+		types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOff,
+		},
+	)
+	require.NoError(t, err)
+
+	_, err = env.server.Auth().UpsertAuthPreference(t.Context(), ap)
+	require.NoError(t, err)
+
+	ws := proxy.makeDesktopSession(t, pack, true)
+
+	// The Proxy sends TDPUpgrade to the TDPB client, then waits for ClientHello.
+	br := bufio.NewReader(&WebsocketIO{Conn: ws})
+
+	mt, err := br.ReadByte()
+	require.NoError(t, err)
+	require.Equal(t, byte(legacy.TypeUpgrade), mt)
+
+	// Send ClientHello to Proxy (which forwards it to WDS).
+	tdpClient := tdp.NewConn(
+		&WebsocketIO{Conn: ws},
+		tdp.DecoderAdapter(tdpb.DecodePermissive),
+		tdpb.WarningConstructor,
+	)
+
+	hello := &tdpb.ClientHello{
+		InBandMfaSupported: true,
+		ScreenSpec: &tdpbv1.ClientScreenSpec{
+			Width:  1920,
+			Height: 1080,
+		},
+	}
+
+	err = tdpClient.WriteMessage(hello)
+	require.NoError(t, err)
+
+	// With force env var set, Proxy should reject with an Alert instead of falling back.
+	msg, err := tdpClient.ReadMessage()
+	require.NoError(t, err)
+
+	// Sometimes LatencyStats will be sent before we get Alert.
+	if _, ok := msg.(legacy.LatencyStats); ok {
+		msg, err = tdpClient.ReadMessage()
+		require.NoError(t, err)
+	}
+
+	alert, ok := msg.(*tdpb.Alert)
+	require.True(t, ok, "expected Alert, got %T", msg)
+	require.Contains(t, alert.Message, "in-band MFA is required")
 }
 
 func TestWebAgentForward(t *testing.T) {
