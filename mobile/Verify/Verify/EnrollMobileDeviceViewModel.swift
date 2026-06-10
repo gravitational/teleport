@@ -14,7 +14,7 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-import Enroll
+import Core
 import Observation
 
 @Observable
@@ -45,15 +45,8 @@ class EnrollMobileDeviceViewModel {
         let pairingToken = deepURL.enrollPairingToken
 
         let outcome: Attempt = await Task.detached(priority: .userInitiated) {
-            guard let client = EnrollClient(proxyServer, insecure: false) else {
-                return .failure(EnrollViewModelError.clientCreationFailed)
-            }
             do {
-                let token = try client.createMobileEnrollToken(
-                    pairingToken,
-                    deviceData: EnrollDeviceCollectedData()
-                )
-                return .success(token: token.token)
+                return try await .success(token: EnrollClient.liveValue.enroll(proxyServer, pairingToken))
             } catch {
                 return .failure(error)
             }
