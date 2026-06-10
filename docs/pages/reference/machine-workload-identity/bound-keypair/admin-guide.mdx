@@ -367,7 +367,8 @@ but the general steps are:
    * If passing the private key via an environment variable, copy the value directly
    * If passing the private key via file, decode the base64-encoded private key first:
      ```code
-     $ tbot keypair create --proxy-server example.teleport.sh:443 --static --format json | jq -r .private_key | base64 -d
+     $ tbot keypair create --proxy-server example.teleport.sh:443 --static --format json > bound_keypair.json
+     $ cat bound_keypair.json | jq -r .private_key | base64 -d
      ```
      ...and store the result as needed.
 
