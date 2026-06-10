@@ -628,6 +628,14 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		CertAuthOverrideUpsertEvent,
 		CertAuthOverrideDeleteEvent:
 		e = &events.CertAuthorityOverrideEvent{}
+
+	case BeamsConfigCreateEvent:
+		e = &events.BeamsConfigCreate{}
+	case BeamsConfigUpdateEvent:
+		e = &events.BeamsConfigUpdate{}
+	case BeamsConfigDeleteEvent:
+		e = &events.BeamsConfigDelete{}
+
 	case ScopedTokenCreateEvent:
 		e = &events.ScopedTokenCreate{}
 	case ScopedTokenUpsertEvent:
