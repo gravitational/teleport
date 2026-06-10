@@ -7,8 +7,20 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 0C94C8CD2FA35ED900C13C9A /* libresolv.9.tbd */; };
+		CD1972B52FD9FFD600F7969D /* Core.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CD1972AD2FD9FFD600F7969D /* Core.framework */; };
+		CD1972B62FD9FFD600F7969D /* Core.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = CD1972AD2FD9FFD600F7969D /* Core.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		CD1972D32FDA0B7100F7969D /* libresolv.9.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = CD1972D22FDA0B6A00F7969D /* libresolv.9.tbd */; };
 /* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		CD1972B32FD9FFD600F7969D /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 0C94C84A2FA232E600C13C9A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = CD1972AC2FD9FFD600F7969D;
+			remoteInfo = Core;
+		};
+/* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
 		0C94C8CA2FA35ECB00C13C9A /* Embed Frameworks */ = {
@@ -17,6 +29,7 @@
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
+				CD1972B62FD9FFD600F7969D /* Core.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -26,6 +39,8 @@
 /* Begin PBXFileReference section */
 		0C94C8522FA232E600C13C9A /* Verify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Verify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		0C94C8CD2FA35ED900C13C9A /* libresolv.9.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.9.tbd; path = usr/lib/libresolv.9.tbd; sourceTree = SDKROOT; };
+		CD1972AD2FD9FFD600F7969D /* Core.framework */ = {isa = PBXFileReference; explicitFileType = wrapper.framework; includeInIndex = 0; path = Core.framework; sourceTree = BUILT_PRODUCTS_DIR; };
+		CD1972D22FDA0B6A00F7969D /* libresolv.9.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.9.tbd; path = Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.5.sdk/usr/lib/libresolv.9.tbd; sourceTree = DEVELOPER_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -47,6 +62,11 @@
 			path = Verify;
 			sourceTree = "<group>";
 		};
+		CD1972AE2FD9FFD600F7969D /* Core */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = Core;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -54,7 +74,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				0C94C8CE2FA35F3D00C13C9A /* libresolv.9.tbd in Frameworks */,
+				CD1972B52FD9FFD600F7969D /* Core.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		CD1972AA2FD9FFD600F7969D /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				CD1972D32FDA0B7100F7969D /* libresolv.9.tbd in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -65,6 +93,7 @@
 			isa = PBXGroup;
 			children = (
 				0C94C8542FA232E600C13C9A /* Verify */,
+				CD1972AE2FD9FFD600F7969D /* Core */,
 				0C94C8CC2FA35ED900C13C9A /* Frameworks */,
 				0C94C8532FA232E600C13C9A /* Products */,
 			);
@@ -74,6 +103,7 @@
 			isa = PBXGroup;
 			children = (
 				0C94C8522FA232E600C13C9A /* Verify.app */,
+				CD1972AD2FD9FFD600F7969D /* Core.framework */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -81,6 +111,7 @@
 		0C94C8CC2FA35ED900C13C9A /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				CD1972D22FDA0B6A00F7969D /* libresolv.9.tbd */,
 				0C94C8CD2FA35ED900C13C9A /* libresolv.9.tbd */,
 			);
 			name = Frameworks;
@@ -88,12 +119,21 @@
 		};
 /* End PBXGroup section */
 
+/* Begin PBXHeadersBuildPhase section */
+		CD1972A82FD9FFD600F7969D /* Headers */ = {
+			isa = PBXHeadersBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXHeadersBuildPhase section */
+
 /* Begin PBXNativeTarget section */
 		0C94C8512FA232E600C13C9A /* Verify */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0C94C85D2FA232E700C13C9A /* Build configuration list for PBXNativeTarget "Verify" */;
 			buildPhases = (
-				CD19504B2FD76D8C00BD1F82 /* ShellScript */,
 				0C94C84E2FA232E600C13C9A /* Sources */,
 				0C94C84F2FA232E600C13C9A /* Frameworks */,
 				0C94C8502FA232E600C13C9A /* Resources */,
@@ -102,6 +142,7 @@
 			buildRules = (
 			);
 			dependencies = (
+				CD1972B42FD9FFD600F7969D /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				0C94C8542FA232E600C13C9A /* Verify */,
@@ -113,6 +154,30 @@
 			productReference = 0C94C8522FA232E600C13C9A /* Verify.app */;
 			productType = "com.apple.product-type.application";
 		};
+		CD1972AC2FD9FFD600F7969D /* Core */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = CD1972B92FD9FFD600F7969D /* Build configuration list for PBXNativeTarget "Core" */;
+			buildPhases = (
+				CD1972BA2FDA001800F7969D /* ShellScript */,
+				CD1972A82FD9FFD600F7969D /* Headers */,
+				CD1972A92FD9FFD600F7969D /* Sources */,
+				CD1972AA2FD9FFD600F7969D /* Frameworks */,
+				CD1972AB2FD9FFD600F7969D /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				CD1972AE2FD9FFD600F7969D /* Core */,
+			);
+			name = Core;
+			packageProductDependencies = (
+			);
+			productName = Core;
+			productReference = CD1972AD2FD9FFD600F7969D /* Core.framework */;
+			productType = "com.apple.product-type.framework";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -120,11 +185,14 @@
 			isa = PBXProject;
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
-				LastSwiftUpdateCheck = 2640;
+				LastSwiftUpdateCheck = 2650;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
 					0C94C8512FA232E600C13C9A = {
 						CreatedOnToolsVersion = 26.4.1;
+					};
+					CD1972AC2FD9FFD600F7969D = {
+						CreatedOnToolsVersion = 26.5;
 					};
 				};
 			};
@@ -143,6 +211,7 @@
 			projectRoot = "";
 			targets = (
 				0C94C8512FA232E600C13C9A /* Verify */,
+				CD1972AC2FD9FFD600F7969D /* Core */,
 			);
 		};
 /* End PBXProject section */
@@ -155,10 +224,17 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CD1972AB2FD9FFD600F7969D /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		CD19504B2FD76D8C00BD1F82 /* ShellScript */ = {
+		CD1972BA2FDA001800F7969D /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 2147483647;
@@ -189,7 +265,22 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		CD1972A92FD9FFD600F7969D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		CD1972B42FD9FFD600F7969D /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = CD1972AC2FD9FFD600F7969D /* Core */;
+			targetProxy = CD1972B32FD9FFD600F7969D /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		0C94C85B2FA232E700C13C9A /* Debug */ = {
@@ -327,14 +418,6 @@
 				DEVELOPMENT_TEAM = K497G57PDJ;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
-					"$(inherited)",
-					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64",
-				);
-				"FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]" = (
-					"$(inherited)",
-					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64_x86_64-simulator",
-				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Verify/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Teleport Verify";
@@ -348,10 +431,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = (
-					"-framework",
-					Enroll,
-				);
+				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gravitational.Verify;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -378,14 +458,6 @@
 				DEVELOPMENT_TEAM = K497G57PDJ;
 				ENABLE_PREVIEWS = YES;
 				ENABLE_USER_SCRIPT_SANDBOXING = NO;
-				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
-					"$(inherited)",
-					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64",
-				);
-				"FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]" = (
-					"$(inherited)",
-					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64_x86_64-simulator",
-				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Verify/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Teleport Verify";
@@ -399,10 +471,7 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = (
-					"-framework",
-					Enroll,
-				);
+				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = com.gravitational.Verify;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -416,6 +485,108 @@
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		CD1972B72FD9FFD600F7969D /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K497G57PDJ;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64",
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64_x86_64-simulator",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				OTHER_LDFLAGS = (
+					"-framework",
+					Enroll,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.gravitational.Core;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_MODULE = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
+			};
+			name = Debug;
+		};
+		CD1972B82FD9FFD600F7969D /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUILD_LIBRARY_FOR_DISTRIBUTION = YES;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = K497G57PDJ;
+				DYLIB_COMPATIBILITY_VERSION = 1;
+				DYLIB_CURRENT_VERSION = 1;
+				DYLIB_INSTALL_NAME_BASE = "@rpath";
+				ENABLE_MODULE_VERIFIER = YES;
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64",
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64_x86_64-simulator",
+				);
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Frameworks";
+				IPHONEOS_DEPLOYMENT_TARGET = 26.4;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				MODULE_VERIFIER_SUPPORTED_LANGUAGES = "objective-c objective-c++";
+				MODULE_VERIFIER_SUPPORTED_LANGUAGE_STANDARDS = "gnu17 gnu++20";
+				OTHER_LDFLAGS = (
+					"-framework",
+					Enroll,
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.gravitational.Core;
+				PRODUCT_NAME = "$(TARGET_NAME:c99extidentifier)";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_APPROACHABLE_CONCURRENCY = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_INSTALL_MODULE = YES;
+				SWIFT_INSTALL_OBJC_HEADER = NO;
+				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VERSIONING_SYSTEM = "apple-generic";
+				VERSION_INFO_PREFIX = "";
 			};
 			name = Release;
 		};
@@ -436,6 +607,15 @@
 			buildConfigurations = (
 				0C94C85E2FA232E700C13C9A /* Debug */,
 				0C94C85F2FA232E700C13C9A /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		CD1972B92FD9FFD600F7969D /* Build configuration list for PBXNativeTarget "Core" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				CD1972B72FD9FFD600F7969D /* Debug */,
+				CD1972B82FD9FFD600F7969D /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

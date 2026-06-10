@@ -12,7 +12,7 @@ log_info() {
 
 log_info "Running $0"
 
-if [ -z "${TARGET_TEMP_DIR:-}" ] || [ -z "${SRCROOT:-}"]; then
+if [ -z "${TARGET_TEMP_DIR:-}" ] || [ -z "${SRCROOT:-}" ]; then
   xcode_error "Special Xcode environment variables are not set; this script must be run by Xcode."
   exit 1
 fi
