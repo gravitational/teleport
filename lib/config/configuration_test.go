@@ -4086,6 +4086,27 @@ func TestApplyKeyStoreConfig(t *testing.T) {
 			errMessage: "must set keyring in ca_key_params.gcp_kms",
 		},
 		{
+			name: "correct aws kms config with assume role",
+			auth: Auth{
+				CAKeyParams: &CAKeyParams{
+					AWSKMS: &AWSKMS{
+						Account:    "123456789012",
+						Region:     "us-west-2",
+						RoleARN:    "arn:aws:iam::123456789012:role/TeleportKMS",
+						ExternalID: "external-id",
+					},
+				},
+			},
+			want: servicecfg.KeystoreConfig{
+				AWSKMS: &servicecfg.AWSKMSConfig{
+					AWSAccount: "123456789012",
+					AWSRegion:  "us-west-2",
+					RoleARN:    "arn:aws:iam::123456789012:role/TeleportKMS",
+					ExternalID: "external-id",
+				},
+			},
+		},
+		{
 			name: "enable health checking",
 			auth: Auth{
 				CAKeyParams: &CAKeyParams{

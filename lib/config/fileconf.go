@@ -1011,6 +1011,10 @@ type AWSKMS struct {
 	Account string `yaml:"account"`
 	// Region is the AWS region to use.
 	Region string `yaml:"region"`
+	// RoleARN is an optional AWS IAM role ARN to assume before accessing KMS.
+	RoleARN string `yaml:"role_arn,omitempty"`
+	// ExternalID is an optional external ID to use when assuming RoleARN.
+	ExternalID string `yaml:"external_id,omitempty"`
 	// MultiRegion contains configuration for multi-region AWS KMS.
 	MultiRegion servicecfg.MultiRegionKeyStore `yaml:"multi_region,omitempty"`
 	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'

@@ -1166,6 +1166,8 @@ func applyAWSKMSConfig(kmsConfig *AWSKMS, cfg *servicecfg.Config) error {
 	cfg.Auth.KeyStore.AWSKMS = &servicecfg.AWSKMSConfig{
 		AWSAccount:  kmsConfig.Account,
 		AWSRegion:   kmsConfig.Region,
+		RoleARN:     kmsConfig.RoleARN,
+		ExternalID:  kmsConfig.ExternalID,
 		Tags:        kmsConfig.Tags,
 		MultiRegion: kmsConfig.MultiRegion,
 	}

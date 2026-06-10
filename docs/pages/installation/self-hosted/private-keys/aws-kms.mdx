@@ -157,6 +157,13 @@ You can attach the policy from the AWS console, or via the AWS CLI.
 $ aws iam attach-role-policy --role-name <IAM role> --policy-arn <policy ARN>
 ```
 
+If you store KMS keys in a separate AWS account from the identity used by the
+Auth Service, create this role in the AWS account where the KMS keys are stored.
+Then allow the Auth Service identity in the source account to call
+`sts:AssumeRole` on the KMS account role, and configure the role's trust policy
+to trust the source identity. The role ARN account must match the `account`
+configured in `ca_key_params.aws_kms`.
+
 (!docs/pages/includes/aws-credentials.mdx service="the Teleport Auth Service"!)
 
 <Admonition type="warning">
@@ -194,6 +201,24 @@ auth_service:
     aws_kms:
       account: "<Var name="AWS account"/>"
       region: "<Var name="AWS region"/>"
+```
+
+To manage KMS keys in a separate AWS account, set `account` to the KMS-owning
+account and configure the role that Teleport should assume before accessing
+KMS:
+
+```yaml
+# /etc/teleport.yaml
+# ...
+auth_service:
+  # ...
+  ca_key_params:
+    aws_kms:
+      account: "<Var name="KMS AWS account"/>"
+      region: "<Var name="AWS region"/>"
+      role_arn: "arn:aws:iam::<Var name="KMS AWS account"/>:role/<Var name="Teleport KMS role"/>"
+      # Include external_id only if the target role requires it.
+      external_id: "<Var name="External ID"/>"
 ```
 
 If configuring this before the first start of a new Teleport cluster, the

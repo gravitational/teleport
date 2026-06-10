@@ -35,6 +35,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
 	"github.com/aws/aws-sdk-go-v2/service/kms"
 	kmstypes "github.com/aws/aws-sdk-go-v2/service/kms/types"
 	"github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi"
@@ -97,10 +98,24 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 		if err != nil {
 			return nil, trace.Wrap(err, "loading default AWS config")
 		}
+		stsOptions := func(o *sts.Options) {
+			o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
+		}
+		if cfg.RoleARN != "" {
+			assumeRoleProvider := stscreds.NewAssumeRoleProvider(
+				stsutils.NewFromConfig(awsCfg, stsOptions),
+				cfg.RoleARN,
+				func(o *stscreds.AssumeRoleOptions) {
+					o.RoleSessionName = "teleport-aws-kms"
+					if cfg.ExternalID != "" {
+						o.ExternalID = aws.String(cfg.ExternalID)
+					}
+				},
+			)
+			awsCfg.Credentials = aws.NewCredentialsCache(assumeRoleProvider)
+		}
 		if stsClient == nil {
-			stsClient = stsutils.NewFromConfig(awsCfg, func(o *sts.Options) {
-				o.TracerProvider = smithyoteltracing.Adapt(otel.GetTracerProvider())
-			})
+			stsClient = stsutils.NewFromConfig(awsCfg, stsOptions)
 
 		}
 		if kmsClient == nil || mrkClient == nil {
@@ -122,9 +137,12 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 			})
 		}
 	}
-	_, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
+	identity, err := stsClient.GetCallerIdentity(ctx, &sts.GetCallerIdentityInput{})
 	if err != nil {
-		return nil, trace.Wrap(err, "checking AWS account of local credentials for AWS KMS")
+		return nil, trace.Wrap(err, "checking AWS account of credentials for AWS KMS")
+	}
+	if account := aws.ToString(identity.Account); account != cfg.AWSAccount {
+		return nil, trace.BadParameter("configured AWS KMS account %q does not match AWS account of credentials %q", cfg.AWSAccount, account)
 	}
 
 	tags := cfg.Tags

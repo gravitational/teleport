@@ -527,6 +527,10 @@ auth_service:
       account: "123456789012"
       # The AWS region where keys will be stored.
       region: "us-west-2"
+      # Optional AWS IAM role ARN to assume before accessing KMS.
+      role_arn: "arn:aws:iam::123456789012:role/TeleportKMS"
+      # Optional external ID to use when assuming role_arn.
+      external_id: "external-id"
     # Persist CAs to a PKCS#11 compliant HSM.
     pkcs11:
       # this is the default install location of the PKCS#11 module for the HSM.

@@ -193,7 +193,7 @@ func TestAWSKMS_WrongAccount(t *testing.T) {
 		},
 	}
 	_, err = NewManager(context.Background(), cfg, opts)
-	require.ErrorIs(t, err, trace.BadParameter(`configured AWS KMS account "111111111111" does not match AWS account of ambient credentials "222222222222"`))
+	require.ErrorIs(t, err, trace.BadParameter(`configured AWS KMS account "111111111111" does not match AWS account of credentials "222222222222"`))
 }
 
 func TestAWSKMS_RetryWhilePending(t *testing.T) {

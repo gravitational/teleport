@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // AuthConfig is a configuration of the auth server
@@ -335,6 +336,10 @@ type AWSKMSConfig struct {
 	AWSAccount string
 	// AWSRegion is the region used for KMS key operations.
 	AWSRegion string
+	// RoleARN is an optional AWS IAM role ARN to assume before accessing KMS.
+	RoleARN string
+	// ExternalID is an optional external ID to use when assuming RoleARN.
+	ExternalID string
 	// MultiRegion contains configuration for multi-region AWS KMS.
 	MultiRegion MultiRegionKeyStore
 	// Tags are key/value pairs used as AWS resource tags. The 'TeleportCluster'
@@ -352,6 +357,19 @@ func (c *AWSKMSConfig) CheckAndSetDefaults() error {
 	}
 	if c.AWSRegion == "" {
 		return trace.BadParameter("AWS region is required")
+	}
+	if c.RoleARN == "" {
+		if c.ExternalID != "" {
+			return trace.BadParameter("AWS external ID requires AWS role ARN")
+		}
+		return nil
+	}
+	roleARN, err := awsutils.ParseRoleARN(c.RoleARN)
+	if err != nil {
+		return trace.Wrap(err, "validating AWS role ARN")
+	}
+	if roleARN.AccountID != c.AWSAccount {
+		return trace.BadParameter("AWS role ARN account %q must match AWS account %q", roleARN.AccountID, c.AWSAccount)
 	}
 	return nil
 }

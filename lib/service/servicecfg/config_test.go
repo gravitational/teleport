@@ -115,6 +115,83 @@ func TestDefaultConfig(t *testing.T) {
 
 }
 
+func TestAWSKMSConfigCheckAndSetDefaults(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      AWSKMSConfig
+		errContains string
+	}{
+		{
+			name: "valid without assume role",
+			config: AWSKMSConfig{
+				AWSAccount: "123456789012",
+				AWSRegion:  "us-west-2",
+			},
+		},
+		{
+			name: "valid with assume role",
+			config: AWSKMSConfig{
+				AWSAccount: "123456789012",
+				AWSRegion:  "us-west-2",
+				RoleARN:    "arn:aws:iam::123456789012:role/TeleportKMS",
+				ExternalID: "external-id",
+			},
+		},
+		{
+			name: "missing account",
+			config: AWSKMSConfig{
+				AWSRegion: "us-west-2",
+			},
+			errContains: "AWS account is required",
+		},
+		{
+			name: "missing region",
+			config: AWSKMSConfig{
+				AWSAccount: "123456789012",
+			},
+			errContains: "AWS region is required",
+		},
+		{
+			name: "external ID without assume role",
+			config: AWSKMSConfig{
+				AWSAccount: "123456789012",
+				AWSRegion:  "us-west-2",
+				ExternalID: "external-id",
+			},
+			errContains: "AWS external ID requires AWS role ARN",
+		},
+		{
+			name: "invalid assume role ARN",
+			config: AWSKMSConfig{
+				AWSAccount: "123456789012",
+				AWSRegion:  "us-west-2",
+				RoleARN:    "not-a-role",
+			},
+			errContains: "validating AWS role ARN",
+		},
+		{
+			name: "assume role ARN account mismatch",
+			config: AWSKMSConfig{
+				AWSAccount: "123456789012",
+				AWSRegion:  "us-west-2",
+				RoleARN:    "arn:aws:iam::210987654321:role/TeleportKMS",
+			},
+			errContains: `AWS role ARN account "210987654321" must match AWS account "123456789012"`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.CheckAndSetDefaults()
+			if tt.errContains != "" {
+				require.ErrorContains(t, err, tt.errContains)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
 // TestCheckApp validates application configuration.
 func TestCheckApp(t *testing.T) {
 	type tc struct {
