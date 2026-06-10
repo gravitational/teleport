@@ -70,9 +70,8 @@ import (
 
 // LinuxService implements the Linux desktop access service.
 //
-// This service accepts mTLS connections from the proxy, establishes RDP
-// connections to Linux hosts and translates RDP into Teleport's desktop
-// protocol.
+// This service accepts mTLS connections from the proxy, starts X11 backend
+// and translates X11 protocol messages to TDPB.
 type LinuxService struct {
 	cfg        LinuxServiceConfig
 	middleware *authz.Middleware
