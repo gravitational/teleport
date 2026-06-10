@@ -1276,6 +1276,7 @@ func (a *ScopedServerWithRoles) NewStream(ctx context.Context, watch types.Watch
 	if err := a.authorizeWatchRequest(ctx, &watch); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
 	return a.authServer.NewStream(ctx, watch)
 }
 
@@ -1352,7 +1353,12 @@ func (a *ScopedServerWithRoles) authorizeWatchRequest(ctx context.Context, watch
 	if len(validKinds) == 0 {
 		return trace.BadParameter("none of the requested kinds can be watched")
 	}
+
 	watch.Kinds = validKinds
+	if a.hasBuiltinRole(types.RoleNode) {
+		watch.QueueSize = defaults.NodeQueueSize
+	}
+
 	return nil
 }
 
