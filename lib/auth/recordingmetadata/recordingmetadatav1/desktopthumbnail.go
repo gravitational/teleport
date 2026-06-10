@@ -135,6 +135,7 @@ func (d *desktopThumbnailGenerator) produceThumbnail(maxDim int) (*pb.SessionRec
 		uint16(bounds.Min.X), uint16(bounds.Min.Y),
 		uint16(cropW), uint16(cropH),
 		uint16(thumbW), uint16(thumbH),
+		true,
 	)
 	if err != nil { //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
 		return nil, trace.Wrap(err, "resizing thumbnail crop")
