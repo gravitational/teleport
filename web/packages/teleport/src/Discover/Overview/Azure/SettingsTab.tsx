@@ -207,7 +207,10 @@ export function SettingsTab({
               />
             </Card>
 
-            <DeleteIntegrationSection integrationName={integrationName} />
+            <DeleteIntegrationSection
+              integrationName={integrationName}
+              cloudName="Azure"
+            />
           </Box>
 
           <TerraformInfoGuideSidePanel
