@@ -231,13 +231,16 @@ $ kubectl -n <Var name="teleport-cluster-namespace" /> rollout status deployment
 In order to visualize the data from the Access Graph service, use the Graph Explorer in the Web UI. 
 Click **Identity Security** --> **Graph Explorer** and then select a resource to view in the Graph Explorer. 
 
-To access the interface, your user must have a role that allows `list` and `read` verbs on the `access_graph` resource, e.g.:
+To access the interface, your user must have a role that allows `list` and
+`read` verbs on the `access_graph` resource. The preset `editor` role has the
+required permissions by default. To create a role with these permissions, open a
+file called `access-graph-reader.yaml` with the following content:
 
 ```yaml
 kind: role
 version: v7
 metadata:
-  name: my-role
+  name: access-graph-reader
 spec:
   allow:
     rules:
@@ -248,8 +251,11 @@ spec:
       - read
 ```
 
-The preset `editor` role has the required permissions by default.
+Apply your changes:
 
+```code
+$ tctl create -f access-graph-reader.yaml
+```
 
 ## Next steps
 

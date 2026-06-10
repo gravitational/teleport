@@ -392,7 +392,7 @@ func TestMySQLServerVersionUpdateOnConnection(t *testing.T) {
 	// update the server version before we connect
 	hcc, err := testCtx.authServer.GetHealthCheckConfig(ctx, teleport.VirtualDefaultHealthCheckConfigDBName)
 	require.NoError(t, err)
-	hcc.Spec.Match.Disabled = true
+	hcc.GetSpec().GetMatch().SetDisabled(true)
 	_, err = testCtx.authServer.UpsertHealthCheckConfig(ctx, hcc)
 	require.NoError(t, err)
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
@@ -2593,12 +2593,12 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t testing.TB, p a
 
 	inventoryHandle, err := inventory.NewDownstreamHandle(clt.InventoryControlStream,
 		func(_ context.Context) (*proto.UpstreamInventoryHello, error) {
-			return &proto.UpstreamInventoryHello{
+			return proto.UpstreamInventoryHello_builder{
 				ServerID: p.HostID,
 				Version:  teleport.Version,
 				Services: types.SystemRoles{types.RoleDatabase}.StringSlice(),
 				Hostname: "test",
-			}, nil
+			}.Build(), nil
 		})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, inventoryHandle.Close()) })

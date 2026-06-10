@@ -925,6 +925,17 @@ message UIUsageReportingAlertCtaClickEvent {
   string utm_campaign = 3;
 }
 
+// UIInteractionEvent is emitted when a user interacts with a configurable view within a page.
+message UIInteractionEvent {
+  // path is the route template of the page viewed, e.g. "/web/summary/mau"
+  string path = 1;
+  // page_id is a stable identifier for the page that does not change when the
+  // route template changes, e.g. "observability_graph"
+  string page_id = 2;
+  // params holds arbitrary key/value config for the interaction
+  map<string, string> params = 3;
+}
+
 // ResourceCreateEvent is emitted when a resource is created.
 message ResourceCreateEvent {
   // resource_type is the type of resource ("node", "node.openssh", "db", "k8s", "app").
@@ -1164,6 +1175,7 @@ message UsageEventOneOf {
     UIAccessListCustomEvent ui_access_list_custom_event = 74;
     UIPageViewEvent ui_page_view_event = 75;
     UIUsageReportingAlertCtaClickEvent ui_usage_reporting_alert_cta_click_event = 76;
+    UIInteractionEvent ui_interaction = 77;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

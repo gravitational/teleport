@@ -26,16 +26,23 @@ This guide will help you:
 ## Step 1/4. Setting up the Application Service on the cluster for testing
 
 One of the easiest ways to get resources on the cluster for testing is to set up a Teleport Application Service
-instance with the debugging application enabled. To do this, add the following config to your `teleport.yaml`
-configuration:
+instance with the debugging application enabled. To do this:
 
-```yaml
-app_service:
-  enabled: true
-  debug_app: true
-```
+1. Add the following config to your `teleport.yaml` configuration:
 
-And restart Teleport. The "dumper" app should show up in the resource list.
+   ```yaml
+   app_service:
+     enabled: true
+     debug_app: true
+   ```
+
+1. Restart Teleport:
+
+   ```code
+   $ sudo systemctl reload teleport
+   ```
+
+The "dumper" app should show up in the resource list.
 
 ![Debug app](../../../img/access-controls/access-lists/debug-app.png)
 

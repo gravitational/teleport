@@ -40,13 +40,13 @@ func (c inferencePolicyClient) Get(
 	ctx context.Context, name string,
 ) (*summarizerv1.InferencePolicy, error) {
 	resp, err := c.teleportClient.SummarizerServiceClient().GetInferencePolicy(
-		ctx, &summarizerv1.GetInferencePolicyRequest{Name: name},
+		ctx, summarizerv1.GetInferencePolicyRequest_builder{Name: name}.Build(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return resp.Policy, nil
+	return resp.GetPolicy(), nil
 }
 
 // Create creates an inference policy in Teleport.
@@ -54,7 +54,7 @@ func (c inferencePolicyClient) Create(
 	ctx context.Context, policy *summarizerv1.InferencePolicy,
 ) error {
 	_, err := c.teleportClient.SummarizerServiceClient().CreateInferencePolicy(
-		ctx, &summarizerv1.CreateInferencePolicyRequest{Policy: policy},
+		ctx, summarizerv1.CreateInferencePolicyRequest_builder{Policy: policy}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -64,7 +64,7 @@ func (c inferencePolicyClient) Update(
 	ctx context.Context, policy *summarizerv1.InferencePolicy,
 ) error {
 	_, err := c.teleportClient.SummarizerServiceClient().UpdateInferencePolicy(
-		ctx, &summarizerv1.UpdateInferencePolicyRequest{Policy: policy},
+		ctx, summarizerv1.UpdateInferencePolicyRequest_builder{Policy: policy}.Build(),
 	)
 	return trace.Wrap(err)
 }
@@ -72,7 +72,7 @@ func (c inferencePolicyClient) Update(
 // Delete deletes an inference policy with a given name from Teleport.
 func (c inferencePolicyClient) Delete(ctx context.Context, name string) error {
 	_, err := c.teleportClient.SummarizerServiceClient().DeleteInferencePolicy(
-		ctx, &summarizerv1.DeleteInferencePolicyRequest{Name: name},
+		ctx, summarizerv1.DeleteInferencePolicyRequest_builder{Name: name}.Build(),
 	)
 	return trace.Wrap(err)
 }

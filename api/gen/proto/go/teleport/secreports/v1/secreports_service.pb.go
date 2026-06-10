@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/secreports/v1/secreports_service.proto
 
+//go:build !protoopaque
+
 package secreportsv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -89,14 +90,9 @@ func (x ReportSate_State) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ReportSate_State.Descriptor instead.
-func (ReportSate_State) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{26, 0}
-}
-
 // GetAuditQueryResultRequest is a request for GetAuditQueryResult.
 type GetAuditQueryResultRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// result_id is a unique id of the result.
 	ResultId string `protobuf:"bytes,1,opt,name=result_id,json=resultId,proto3" json:"result_id,omitempty"`
 	// next_token is a token for pagination.
@@ -132,11 +128,6 @@ func (x *GetAuditQueryResultRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAuditQueryResultRequest.ProtoReflect.Descriptor instead.
-func (*GetAuditQueryResultRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *GetAuditQueryResultRequest) GetResultId() string {
 	if x != nil {
 		return x.ResultId
@@ -158,9 +149,42 @@ func (x *GetAuditQueryResultRequest) GetMaxResults() int32 {
 	return 0
 }
 
+func (x *GetAuditQueryResultRequest) SetResultId(v string) {
+	x.ResultId = v
+}
+
+func (x *GetAuditQueryResultRequest) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+func (x *GetAuditQueryResultRequest) SetMaxResults(v int32) {
+	x.MaxResults = v
+}
+
+type GetAuditQueryResultRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// result_id is a unique id of the result.
+	ResultId string
+	// next_token is a token for pagination.
+	NextToken string
+	// max_results is a maximum number of results to return.
+	MaxResults int32
+}
+
+func (b0 GetAuditQueryResultRequest_builder) Build() *GetAuditQueryResultRequest {
+	m0 := &GetAuditQueryResultRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ResultId = b.ResultId
+	x.NextToken = b.NextToken
+	x.MaxResults = b.MaxResults
+	return m0
+}
+
 // QueryResultColumnInfo is a column info.
 type QueryResultColumnInfo struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is name of the column.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// type is type of the column.
@@ -194,11 +218,6 @@ func (x *QueryResultColumnInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use QueryResultColumnInfo.ProtoReflect.Descriptor instead.
-func (*QueryResultColumnInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *QueryResultColumnInfo) GetName() string {
 	if x != nil {
 		return x.Name
@@ -213,9 +232,35 @@ func (x *QueryResultColumnInfo) GetType() string {
 	return ""
 }
 
+func (x *QueryResultColumnInfo) SetName(v string) {
+	x.Name = v
+}
+
+func (x *QueryResultColumnInfo) SetType(v string) {
+	x.Type = v
+}
+
+type QueryResultColumnInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is name of the column.
+	Name string
+	// type is type of the column.
+	Type string
+}
+
+func (b0 QueryResultColumnInfo_builder) Build() *QueryResultColumnInfo {
+	m0 := &QueryResultColumnInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Type = b.Type
+	return m0
+}
+
 // QueryRowResult is a row result.
 type QueryRowResult struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// data is a list of values.
 	Data          []string `protobuf:"bytes,1,rep,name=data,proto3" json:"data,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -247,11 +292,6 @@ func (x *QueryRowResult) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use QueryRowResult.ProtoReflect.Descriptor instead.
-func (*QueryRowResult) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *QueryRowResult) GetData() []string {
 	if x != nil {
 		return x.Data
@@ -259,9 +299,28 @@ func (x *QueryRowResult) GetData() []string {
 	return nil
 }
 
+func (x *QueryRowResult) SetData(v []string) {
+	x.Data = v
+}
+
+type QueryRowResult_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// data is a list of values.
+	Data []string
+}
+
+func (b0 QueryRowResult_builder) Build() *QueryRowResult {
+	m0 := &QueryRowResult{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Data = b.Data
+	return m0
+}
+
 // QueryResultSet is a result set.
 type QueryResultSet struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// column_info contains information about columns.
 	ColumnInfo []*QueryResultColumnInfo `protobuf:"bytes,1,rep,name=column_info,json=columnInfo,proto3" json:"column_info,omitempty"`
 	// rows  is a list of rows containing values.
@@ -295,11 +354,6 @@ func (x *QueryResultSet) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use QueryResultSet.ProtoReflect.Descriptor instead.
-func (*QueryResultSet) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *QueryResultSet) GetColumnInfo() []*QueryResultColumnInfo {
 	if x != nil {
 		return x.ColumnInfo
@@ -314,9 +368,35 @@ func (x *QueryResultSet) GetRows() []*QueryRowResult {
 	return nil
 }
 
+func (x *QueryResultSet) SetColumnInfo(v []*QueryResultColumnInfo) {
+	x.ColumnInfo = v
+}
+
+func (x *QueryResultSet) SetRows(v []*QueryRowResult) {
+	x.Rows = v
+}
+
+type QueryResultSet_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// column_info contains information about columns.
+	ColumnInfo []*QueryResultColumnInfo
+	// rows  is a list of rows containing values.
+	Rows []*QueryRowResult
+}
+
+func (b0 QueryResultSet_builder) Build() *QueryResultSet {
+	m0 := &QueryResultSet{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ColumnInfo = b.ColumnInfo
+	x.Rows = b.Rows
+	return m0
+}
+
 // GetAuditQueryResultResponse contains an audit query result.
 type GetAuditQueryResultResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// result is a result set.
 	Result *QueryResultSet `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
 	// next_token is a token for pagination.
@@ -352,11 +432,6 @@ func (x *GetAuditQueryResultResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAuditQueryResultResponse.ProtoReflect.Descriptor instead.
-func (*GetAuditQueryResultResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *GetAuditQueryResultResponse) GetResult() *QueryResultSet {
 	if x != nil {
 		return x.Result
@@ -378,9 +453,53 @@ func (x *GetAuditQueryResultResponse) GetResultId() string {
 	return ""
 }
 
+func (x *GetAuditQueryResultResponse) SetResult(v *QueryResultSet) {
+	x.Result = v
+}
+
+func (x *GetAuditQueryResultResponse) SetNextToken(v string) {
+	x.NextToken = v
+}
+
+func (x *GetAuditQueryResultResponse) SetResultId(v string) {
+	x.ResultId = v
+}
+
+func (x *GetAuditQueryResultResponse) HasResult() bool {
+	if x == nil {
+		return false
+	}
+	return x.Result != nil
+}
+
+func (x *GetAuditQueryResultResponse) ClearResult() {
+	x.Result = nil
+}
+
+type GetAuditQueryResultResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// result is a result set.
+	Result *QueryResultSet
+	// next_token is a token for pagination.
+	NextToken string
+	// result_id is a unique id of the result.
+	ResultId string
+}
+
+func (b0 GetAuditQueryResultResponse_builder) Build() *GetAuditQueryResultResponse {
+	m0 := &GetAuditQueryResultResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Result = b.Result
+	x.NextToken = b.NextToken
+	x.ResultId = b.ResultId
+	return m0
+}
+
 // RunReportRequest is a request for RunReport.
 type RunReportRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is a name of the security report.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// days is a time range is days.
@@ -414,11 +533,6 @@ func (x *RunReportRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RunReportRequest.ProtoReflect.Descriptor instead.
-func (*RunReportRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *RunReportRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -433,9 +547,35 @@ func (x *RunReportRequest) GetDays() uint32 {
 	return 0
 }
 
+func (x *RunReportRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *RunReportRequest) SetDays(v uint32) {
+	x.Days = v
+}
+
+type RunReportRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is a name of the security report.
+	Name string
+	// days is a time range is days.
+	Days uint32
+}
+
+func (b0 RunReportRequest_builder) Build() *RunReportRequest {
+	m0 := &RunReportRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Days = b.Days
+	return m0
+}
+
 // GetReportStateRequest is a request for GetReportState.
 type GetReportStateRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is a name of the security report.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// days is a time range is days.
@@ -469,11 +609,6 @@ func (x *GetReportStateRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetReportStateRequest.ProtoReflect.Descriptor instead.
-func (*GetReportStateRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *GetReportStateRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -488,9 +623,35 @@ func (x *GetReportStateRequest) GetDays() uint32 {
 	return 0
 }
 
+func (x *GetReportStateRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GetReportStateRequest) SetDays(v uint32) {
+	x.Days = v
+}
+
+type GetReportStateRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is a name of the security report.
+	Name string
+	// days is a time range is days.
+	Days uint32
+}
+
+func (b0 GetReportStateRequest_builder) Build() *GetReportStateRequest {
+	m0 := &GetReportStateRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Days = b.Days
+	return m0
+}
+
 // DeleteAuditQueryRequest is audit query delete request.
 type DeleteAuditQueryRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the audit query to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -522,11 +683,6 @@ func (x *DeleteAuditQueryRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteAuditQueryRequest.ProtoReflect.Descriptor instead.
-func (*DeleteAuditQueryRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *DeleteAuditQueryRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -534,9 +690,28 @@ func (x *DeleteAuditQueryRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteAuditQueryRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteAuditQueryRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the audit query to delete.
+	Name string
+}
+
+func (b0 DeleteAuditQueryRequest_builder) Build() *DeleteAuditQueryRequest {
+	m0 := &DeleteAuditQueryRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // DeleteReportRequest is security report delete request.
 type DeleteReportRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the security report to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -568,11 +743,6 @@ func (x *DeleteReportRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteReportRequest.ProtoReflect.Descriptor instead.
-func (*DeleteReportRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *DeleteReportRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -580,9 +750,28 @@ func (x *DeleteReportRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteReportRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteReportRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the security report to delete.
+	Name string
+}
+
+func (b0 DeleteReportRequest_builder) Build() *DeleteReportRequest {
+	m0 := &DeleteReportRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // RunAuditQueryRequest is audit query run request.
 type RunAuditQueryRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the audit query to run.
 	Query string `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
 	// days is a time range is days.
@@ -616,11 +805,6 @@ func (x *RunAuditQueryRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RunAuditQueryRequest.ProtoReflect.Descriptor instead.
-func (*RunAuditQueryRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *RunAuditQueryRequest) GetQuery() string {
 	if x != nil {
 		return x.Query
@@ -635,9 +819,35 @@ func (x *RunAuditQueryRequest) GetDays() int32 {
 	return 0
 }
 
+func (x *RunAuditQueryRequest) SetQuery(v string) {
+	x.Query = v
+}
+
+func (x *RunAuditQueryRequest) SetDays(v int32) {
+	x.Days = v
+}
+
+type RunAuditQueryRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the audit query to run.
+	Query string
+	// days is a time range is days.
+	Days int32
+}
+
+func (b0 RunAuditQueryRequest_builder) Build() *RunAuditQueryRequest {
+	m0 := &RunAuditQueryRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Query = b.Query
+	x.Days = b.Days
+	return m0
+}
+
 // UpsertAuditQueryRequest is audit query upsert request.
 type UpsertAuditQueryRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// audit_query is the audit query to upsert.
 	AuditQuery    *AuditQuery `protobuf:"bytes,1,opt,name=audit_query,json=auditQuery,proto3" json:"audit_query,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -669,11 +879,6 @@ func (x *UpsertAuditQueryRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertAuditQueryRequest.ProtoReflect.Descriptor instead.
-func (*UpsertAuditQueryRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *UpsertAuditQueryRequest) GetAuditQuery() *AuditQuery {
 	if x != nil {
 		return x.AuditQuery
@@ -681,9 +886,39 @@ func (x *UpsertAuditQueryRequest) GetAuditQuery() *AuditQuery {
 	return nil
 }
 
+func (x *UpsertAuditQueryRequest) SetAuditQuery(v *AuditQuery) {
+	x.AuditQuery = v
+}
+
+func (x *UpsertAuditQueryRequest) HasAuditQuery() bool {
+	if x == nil {
+		return false
+	}
+	return x.AuditQuery != nil
+}
+
+func (x *UpsertAuditQueryRequest) ClearAuditQuery() {
+	x.AuditQuery = nil
+}
+
+type UpsertAuditQueryRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// audit_query is the audit query to upsert.
+	AuditQuery *AuditQuery
+}
+
+func (b0 UpsertAuditQueryRequest_builder) Build() *UpsertAuditQueryRequest {
+	m0 := &UpsertAuditQueryRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AuditQuery = b.AuditQuery
+	return m0
+}
+
 // UpsertReportRequest is security report upsert request.
 type UpsertReportRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// report is the security report to upsert.
 	Report        *Report `protobuf:"bytes,1,opt,name=report,proto3" json:"report,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -715,11 +950,6 @@ func (x *UpsertReportRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertReportRequest.ProtoReflect.Descriptor instead.
-func (*UpsertReportRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *UpsertReportRequest) GetReport() *Report {
 	if x != nil {
 		return x.Report
@@ -727,9 +957,39 @@ func (x *UpsertReportRequest) GetReport() *Report {
 	return nil
 }
 
+func (x *UpsertReportRequest) SetReport(v *Report) {
+	x.Report = v
+}
+
+func (x *UpsertReportRequest) HasReport() bool {
+	if x == nil {
+		return false
+	}
+	return x.Report != nil
+}
+
+func (x *UpsertReportRequest) ClearReport() {
+	x.Report = nil
+}
+
+type UpsertReportRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// report is the security report to upsert.
+	Report *Report
+}
+
+func (b0 UpsertReportRequest_builder) Build() *UpsertReportRequest {
+	m0 := &UpsertReportRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Report = b.Report
+	return m0
+}
+
 // GetAuditQueryRequest is audit query get request.
 type GetAuditQueryRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the audit query to get.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -761,11 +1021,6 @@ func (x *GetAuditQueryRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetAuditQueryRequest.ProtoReflect.Descriptor instead.
-func (*GetAuditQueryRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *GetAuditQueryRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -773,9 +1028,28 @@ func (x *GetAuditQueryRequest) GetName() string {
 	return ""
 }
 
+func (x *GetAuditQueryRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetAuditQueryRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the audit query to get.
+	Name string
+}
+
+func (b0 GetAuditQueryRequest_builder) Build() *GetAuditQueryRequest {
+	m0 := &GetAuditQueryRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // GetReportRequest is security report get request.
 type GetReportRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the security report to get.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -807,11 +1081,6 @@ func (x *GetReportRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetReportRequest.ProtoReflect.Descriptor instead.
-func (*GetReportRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *GetReportRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -819,9 +1088,28 @@ func (x *GetReportRequest) GetName() string {
 	return ""
 }
 
+func (x *GetReportRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetReportRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the security report to get.
+	Name string
+}
+
+func (b0 GetReportRequest_builder) Build() *GetReportRequest {
+	m0 := &GetReportRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // GetReportResultRequest is report get request.
 type GetReportResultRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the security report to get.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// days is a time range is days.
@@ -857,11 +1145,6 @@ func (x *GetReportResultRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetReportResultRequest.ProtoReflect.Descriptor instead.
-func (*GetReportResultRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{14}
-}
-
 func (x *GetReportResultRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -883,9 +1166,42 @@ func (x *GetReportResultRequest) GetExecutionId() string {
 	return ""
 }
 
+func (x *GetReportResultRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GetReportResultRequest) SetDays(v uint32) {
+	x.Days = v
+}
+
+func (x *GetReportResultRequest) SetExecutionId(v string) {
+	x.ExecutionId = v
+}
+
+type GetReportResultRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the security report to get.
+	Name string
+	// days is a time range is days.
+	Days uint32
+	// execution_id is a unique id of the execution.
+	ExecutionId string
+}
+
+func (b0 GetReportResultRequest_builder) Build() *GetReportResultRequest {
+	m0 := &GetReportResultRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Days = b.Days
+	x.ExecutionId = b.ExecutionId
+	return m0
+}
+
 // ListAuditQueriesRequest is audit query list request.
 type ListAuditQueriesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the number of results to return.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token is the next_token value returned from a previous List request if any.
@@ -919,11 +1235,6 @@ func (x *ListAuditQueriesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAuditQueriesRequest.ProtoReflect.Descriptor instead.
-func (*ListAuditQueriesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *ListAuditQueriesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -938,9 +1249,35 @@ func (x *ListAuditQueriesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListAuditQueriesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListAuditQueriesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListAuditQueriesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the number of results to return.
+	PageSize int32
+	// page_token is the next_token value returned from a previous List request if any.
+	PageToken string
+}
+
+func (b0 ListAuditQueriesRequest_builder) Build() *ListAuditQueriesRequest {
+	m0 := &ListAuditQueriesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListReportStatesRequest is a security report state list request.
 type ListReportStatesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the number of results to return.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token is the next_token value returned from a previous List request if any.
@@ -974,11 +1311,6 @@ func (x *ListReportStatesRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListReportStatesRequest.ProtoReflect.Descriptor instead.
-func (*ListReportStatesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *ListReportStatesRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -993,9 +1325,35 @@ func (x *ListReportStatesRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListReportStatesRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListReportStatesRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListReportStatesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the number of results to return.
+	PageSize int32
+	// page_token is the next_token value returned from a previous List request if any.
+	PageToken string
+}
+
+func (b0 ListReportStatesRequest_builder) Build() *ListReportStatesRequest {
+	m0 := &ListReportStatesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListReportStatesRequest is a security report state list request.
 type ListReportsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// page_size is the number of results to return.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
 	// page_token is the next_token value returned from a previous List request if any.
@@ -1029,11 +1387,6 @@ func (x *ListReportsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListReportsRequest.ProtoReflect.Descriptor instead.
-func (*ListReportsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *ListReportsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -1048,9 +1401,35 @@ func (x *ListReportsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListReportsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListReportsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListReportsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// page_size is the number of results to return.
+	PageSize int32
+	// page_token is the next_token value returned from a previous List request if any.
+	PageToken string
+}
+
+func (b0 ListReportsRequest_builder) Build() *ListReportsRequest {
+	m0 := &ListReportsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // ListAuditQueriesResponse is audit query list response.
 type ListAuditQueriesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// queries is a list of audit queries.
 	Queries []*AuditQuery `protobuf:"bytes,1,rep,name=queries,proto3" json:"queries,omitempty"`
 	// next_page_token is the next page token. If there are no more results, it will be empty.
@@ -1084,11 +1463,6 @@ func (x *ListAuditQueriesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAuditQueriesResponse.ProtoReflect.Descriptor instead.
-func (*ListAuditQueriesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *ListAuditQueriesResponse) GetQueries() []*AuditQuery {
 	if x != nil {
 		return x.Queries
@@ -1103,9 +1477,35 @@ func (x *ListAuditQueriesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListAuditQueriesResponse) SetQueries(v []*AuditQuery) {
+	x.Queries = v
+}
+
+func (x *ListAuditQueriesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListAuditQueriesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// queries is a list of audit queries.
+	Queries []*AuditQuery
+	// next_page_token is the next page token. If there are no more results, it will be empty.
+	NextPageToken string
+}
+
+func (b0 ListAuditQueriesResponse_builder) Build() *ListAuditQueriesResponse {
+	m0 := &ListAuditQueriesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Queries = b.Queries
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // GetSchemaRequest is a request for GetSchema.
 type GetSchemaRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -1135,14 +1535,21 @@ func (x *GetSchemaRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetSchemaRequest.ProtoReflect.Descriptor instead.
-func (*GetSchemaRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{19}
+type GetSchemaRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetSchemaRequest_builder) Build() *GetSchemaRequest {
+	m0 := &GetSchemaRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GetSchemaResponse is a response for GetSchema.
 type GetSchemaResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// views is the list of views.
 	Views         []*GetSchemaResponse_ViewDesc `protobuf:"bytes,1,rep,name=views,proto3" json:"views,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1174,11 +1581,6 @@ func (x *GetSchemaResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetSchemaResponse.ProtoReflect.Descriptor instead.
-func (*GetSchemaResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{20}
-}
-
 func (x *GetSchemaResponse) GetViews() []*GetSchemaResponse_ViewDesc {
 	if x != nil {
 		return x.Views
@@ -1186,9 +1588,28 @@ func (x *GetSchemaResponse) GetViews() []*GetSchemaResponse_ViewDesc {
 	return nil
 }
 
+func (x *GetSchemaResponse) SetViews(v []*GetSchemaResponse_ViewDesc) {
+	x.Views = v
+}
+
+type GetSchemaResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// views is the list of views.
+	Views []*GetSchemaResponse_ViewDesc
+}
+
+func (b0 GetSchemaResponse_builder) Build() *GetSchemaResponse {
+	m0 := &GetSchemaResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Views = b.Views
+	return m0
+}
+
 // RunAuditQueryResponse is audit query run response.
 type RunAuditQueryResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// result_id is a unique id of the result.
 	ResultId      string `protobuf:"bytes,1,opt,name=result_id,json=resultId,proto3" json:"result_id,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1220,11 +1641,6 @@ func (x *RunAuditQueryResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RunAuditQueryResponse.ProtoReflect.Descriptor instead.
-func (*RunAuditQueryResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{21}
-}
-
 func (x *RunAuditQueryResponse) GetResultId() string {
 	if x != nil {
 		return x.ResultId
@@ -1232,9 +1648,28 @@ func (x *RunAuditQueryResponse) GetResultId() string {
 	return ""
 }
 
+func (x *RunAuditQueryResponse) SetResultId(v string) {
+	x.ResultId = v
+}
+
+type RunAuditQueryResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// result_id is a unique id of the result.
+	ResultId string
+}
+
+func (b0 RunAuditQueryResponse_builder) Build() *RunAuditQueryResponse {
+	m0 := &RunAuditQueryResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ResultId = b.ResultId
+	return m0
+}
+
 // ListReportsResponse is security report list response.
 type ListReportsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// reports is a list of security reports.
 	Reports []*Report `protobuf:"bytes,1,rep,name=reports,proto3" json:"reports,omitempty"`
 	// next_page_token is the next page token. If there are no more results, it will be empty.
@@ -1268,11 +1703,6 @@ func (x *ListReportsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListReportsResponse.ProtoReflect.Descriptor instead.
-func (*ListReportsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{22}
-}
-
 func (x *ListReportsResponse) GetReports() []*Report {
 	if x != nil {
 		return x.Reports
@@ -1287,9 +1717,35 @@ func (x *ListReportsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListReportsResponse) SetReports(v []*Report) {
+	x.Reports = v
+}
+
+func (x *ListReportsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListReportsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// reports is a list of security reports.
+	Reports []*Report
+	// next_page_token is the next page token. If there are no more results, it will be empty.
+	NextPageToken string
+}
+
+func (b0 ListReportsResponse_builder) Build() *ListReportsResponse {
+	m0 := &ListReportsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Reports = b.Reports
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // ListReportStatesResponse is security report state list response.
 type ListReportStatesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// report_states is a list of security report states.
 	ReportStates []*ReportState `protobuf:"bytes,1,rep,name=report_states,json=reportStates,proto3" json:"report_states,omitempty"`
 	// next_page_token is the next page token. If there are no more results, it will be empty.
@@ -1323,11 +1779,6 @@ func (x *ListReportStatesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListReportStatesResponse.ProtoReflect.Descriptor instead.
-func (*ListReportStatesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{23}
-}
-
 func (x *ListReportStatesResponse) GetReportStates() []*ReportState {
 	if x != nil {
 		return x.ReportStates
@@ -1342,9 +1793,35 @@ func (x *ListReportStatesResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListReportStatesResponse) SetReportStates(v []*ReportState) {
+	x.ReportStates = v
+}
+
+func (x *ListReportStatesResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListReportStatesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// report_states is a list of security report states.
+	ReportStates []*ReportState
+	// next_page_token is the next page token. If there are no more results, it will be empty.
+	NextPageToken string
+}
+
+func (b0 ListReportStatesResponse_builder) Build() *ListReportStatesResponse {
+	m0 := &ListReportStatesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ReportStates = b.ReportStates
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // GetReportResultResponse is report result get response.
 type GetReportResultResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// result is a report execution result.
 	Result        *ReportResult `protobuf:"bytes,1,opt,name=result,proto3" json:"result,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -1376,11 +1853,6 @@ func (x *GetReportResultResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetReportResultResponse.ProtoReflect.Descriptor instead.
-func (*GetReportResultResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{24}
-}
-
 func (x *GetReportResultResponse) GetResult() *ReportResult {
 	if x != nil {
 		return x.Result
@@ -1388,9 +1860,39 @@ func (x *GetReportResultResponse) GetResult() *ReportResult {
 	return nil
 }
 
+func (x *GetReportResultResponse) SetResult(v *ReportResult) {
+	x.Result = v
+}
+
+func (x *GetReportResultResponse) HasResult() bool {
+	if x == nil {
+		return false
+	}
+	return x.Result != nil
+}
+
+func (x *GetReportResultResponse) ClearResult() {
+	x.Result = nil
+}
+
+type GetReportResultResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// result is a report execution result.
+	Result *ReportResult
+}
+
+func (b0 GetReportResultResponse_builder) Build() *GetReportResultResponse {
+	m0 := &GetReportResultResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Result = b.Result
+	return m0
+}
+
 // ReportResult is the result of security report.
 type ReportResult struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is a name of the security report.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// description is a description of the security report.
@@ -1430,11 +1932,6 @@ func (x *ReportResult) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ReportResult.ProtoReflect.Descriptor instead.
-func (*ReportResult) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *ReportResult) GetName() string {
@@ -1479,9 +1976,63 @@ func (x *ReportResult) GetTotalDataScannedInBytes() int64 {
 	return 0
 }
 
+func (x *ReportResult) SetName(v string) {
+	x.Name = v
+}
+
+func (x *ReportResult) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *ReportResult) SetAuditQueryResults(v []*ReportResult_AuditQueryResult) {
+	x.AuditQueryResults = v
+}
+
+func (x *ReportResult) SetUpdatedAt(v string) {
+	x.UpdatedAt = v
+}
+
+func (x *ReportResult) SetTotalExecutionTimeInMillis(v int64) {
+	x.TotalExecutionTimeInMillis = v
+}
+
+func (x *ReportResult) SetTotalDataScannedInBytes(v int64) {
+	x.TotalDataScannedInBytes = v
+}
+
+type ReportResult_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is a name of the security report.
+	Name string
+	// description is a description of the security report.
+	Description string
+	// audit_query_results is a list of audit query results.
+	AuditQueryResults []*ReportResult_AuditQueryResult
+	// updated_at is a time when the security report was updated.
+	UpdatedAt string
+	// total_execution_time_in_millis is a time in milliseconds when the security report was executed.
+	TotalExecutionTimeInMillis int64
+	// total_data_scanned_in_bytes is a number of bytes scanned.
+	TotalDataScannedInBytes int64
+}
+
+func (b0 ReportResult_builder) Build() *ReportResult {
+	m0 := &ReportResult{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Description = b.Description
+	x.AuditQueryResults = b.AuditQueryResults
+	x.UpdatedAt = b.UpdatedAt
+	x.TotalExecutionTimeInMillis = b.TotalExecutionTimeInMillis
+	x.TotalDataScannedInBytes = b.TotalDataScannedInBytes
+	return m0
+}
+
 // ReportSate is a security report state.
 type ReportSate struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// header is a resource header.
 	Header *v1.ResourceHeader `protobuf:"bytes,1,opt,name=header,proto3" json:"header,omitempty"`
 	// state is a state of the security report.
@@ -1517,11 +2068,6 @@ func (x *ReportSate) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportSate.ProtoReflect.Descriptor instead.
-func (*ReportSate) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{26}
-}
-
 func (x *ReportSate) GetHeader() *v1.ResourceHeader {
 	if x != nil {
 		return x.Header
@@ -1543,9 +2089,53 @@ func (x *ReportSate) GetUpdatedAt() string {
 	return ""
 }
 
+func (x *ReportSate) SetHeader(v *v1.ResourceHeader) {
+	x.Header = v
+}
+
+func (x *ReportSate) SetState(v ReportSate_State) {
+	x.State = v
+}
+
+func (x *ReportSate) SetUpdatedAt(v string) {
+	x.UpdatedAt = v
+}
+
+func (x *ReportSate) HasHeader() bool {
+	if x == nil {
+		return false
+	}
+	return x.Header != nil
+}
+
+func (x *ReportSate) ClearHeader() {
+	x.Header = nil
+}
+
+type ReportSate_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// header is a resource header.
+	Header *v1.ResourceHeader
+	// state is a state of the security report.
+	State ReportSate_State
+	// updated_at is a time when the security report state was updated.
+	UpdatedAt string
+}
+
+func (b0 ReportSate_builder) Build() *ReportSate {
+	m0 := &ReportSate{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Header = b.Header
+	x.State = b.State
+	x.UpdatedAt = b.UpdatedAt
+	return m0
+}
+
 // ViewDesc is a description of view.
 type GetSchemaResponse_ViewDesc struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the view.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// desc is the description of the view.
@@ -1581,11 +2171,6 @@ func (x *GetSchemaResponse_ViewDesc) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetSchemaResponse_ViewDesc.ProtoReflect.Descriptor instead.
-func (*GetSchemaResponse_ViewDesc) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{20, 0}
-}
-
 func (x *GetSchemaResponse_ViewDesc) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1607,9 +2192,42 @@ func (x *GetSchemaResponse_ViewDesc) GetColumns() []*GetSchemaResponse_ViewDesc_
 	return nil
 }
 
+func (x *GetSchemaResponse_ViewDesc) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GetSchemaResponse_ViewDesc) SetDesc(v string) {
+	x.Desc = v
+}
+
+func (x *GetSchemaResponse_ViewDesc) SetColumns(v []*GetSchemaResponse_ViewDesc_ColumnDesc) {
+	x.Columns = v
+}
+
+type GetSchemaResponse_ViewDesc_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the view.
+	Name string
+	// desc is the description of the view.
+	Desc string
+	// columns is the list of columns.
+	Columns []*GetSchemaResponse_ViewDesc_ColumnDesc
+}
+
+func (b0 GetSchemaResponse_ViewDesc_builder) Build() *GetSchemaResponse_ViewDesc {
+	m0 := &GetSchemaResponse_ViewDesc{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Desc = b.Desc
+	x.Columns = b.Columns
+	return m0
+}
+
 // ColumnDesc is a description of column.
 type GetSchemaResponse_ViewDesc_ColumnDesc struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// name is the name of the column.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// type is the type of the column.
@@ -1645,11 +2263,6 @@ func (x *GetSchemaResponse_ViewDesc_ColumnDesc) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetSchemaResponse_ViewDesc_ColumnDesc.ProtoReflect.Descriptor instead.
-func (*GetSchemaResponse_ViewDesc_ColumnDesc) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{20, 0, 0}
-}
-
 func (x *GetSchemaResponse_ViewDesc_ColumnDesc) GetName() string {
 	if x != nil {
 		return x.Name
@@ -1671,9 +2284,42 @@ func (x *GetSchemaResponse_ViewDesc_ColumnDesc) GetDesc() string {
 	return ""
 }
 
+func (x *GetSchemaResponse_ViewDesc_ColumnDesc) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GetSchemaResponse_ViewDesc_ColumnDesc) SetType(v string) {
+	x.Type = v
+}
+
+func (x *GetSchemaResponse_ViewDesc_ColumnDesc) SetDesc(v string) {
+	x.Desc = v
+}
+
+type GetSchemaResponse_ViewDesc_ColumnDesc_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// name is the name of the column.
+	Name string
+	// type is the type of the column.
+	Type string
+	// desc is the description of the column.
+	Desc string
+}
+
+func (b0 GetSchemaResponse_ViewDesc_ColumnDesc_builder) Build() *GetSchemaResponse_ViewDesc_ColumnDesc {
+	m0 := &GetSchemaResponse_ViewDesc_ColumnDesc{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Type = b.Type
+	x.Desc = b.Desc
+	return m0
+}
+
 // AuditQueryResult is a result of audit query.
 type ReportResult_AuditQueryResult struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// audit_query is the audit query spec containing information about audit query.
 	AuditQuery *AuditQuerySpec `protobuf:"bytes,1,opt,name=audit_query,json=auditQuery,proto3" json:"audit_query,omitempty"`
 	// result is the result set.
@@ -1713,11 +2359,6 @@ func (x *ReportResult_AuditQueryResult) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ReportResult_AuditQueryResult.ProtoReflect.Descriptor instead.
-func (*ReportResult_AuditQueryResult) Descriptor() ([]byte, []int) {
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP(), []int{25, 0}
-}
-
 func (x *ReportResult_AuditQueryResult) GetAuditQuery() *AuditQuerySpec {
 	if x != nil {
 		return x.AuditQuery
@@ -1751,6 +2392,75 @@ func (x *ReportResult_AuditQueryResult) GetDataScannedInBytes() int64 {
 		return x.DataScannedInBytes
 	}
 	return 0
+}
+
+func (x *ReportResult_AuditQueryResult) SetAuditQuery(v *AuditQuerySpec) {
+	x.AuditQuery = v
+}
+
+func (x *ReportResult_AuditQueryResult) SetResult(v *QueryResultSet) {
+	x.Result = v
+}
+
+func (x *ReportResult_AuditQueryResult) SetResultId(v string) {
+	x.ResultId = v
+}
+
+func (x *ReportResult_AuditQueryResult) SetExecutionTimeInMillis(v int64) {
+	x.ExecutionTimeInMillis = v
+}
+
+func (x *ReportResult_AuditQueryResult) SetDataScannedInBytes(v int64) {
+	x.DataScannedInBytes = v
+}
+
+func (x *ReportResult_AuditQueryResult) HasAuditQuery() bool {
+	if x == nil {
+		return false
+	}
+	return x.AuditQuery != nil
+}
+
+func (x *ReportResult_AuditQueryResult) HasResult() bool {
+	if x == nil {
+		return false
+	}
+	return x.Result != nil
+}
+
+func (x *ReportResult_AuditQueryResult) ClearAuditQuery() {
+	x.AuditQuery = nil
+}
+
+func (x *ReportResult_AuditQueryResult) ClearResult() {
+	x.Result = nil
+}
+
+type ReportResult_AuditQueryResult_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// audit_query is the audit query spec containing information about audit query.
+	AuditQuery *AuditQuerySpec
+	// result is the result set.
+	Result *QueryResultSet
+	// result_id is a unique id of the result.
+	ResultId string
+	// execution_time_in_millis is a time in milliseconds when the audit query was executed.
+	ExecutionTimeInMillis int64
+	// data_scanned_in_bytes is a number of bytes scanned.
+	DataScannedInBytes int64
+}
+
+func (b0 ReportResult_AuditQueryResult_builder) Build() *ReportResult_AuditQueryResult {
+	m0 := &ReportResult_AuditQueryResult{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AuditQuery = b.AuditQuery
+	x.Result = b.Result
+	x.ResultId = b.ResultId
+	x.ExecutionTimeInMillis = b.ExecutionTimeInMillis
+	x.DataScannedInBytes = b.DataScannedInBytes
+	return m0
 }
 
 var File_teleport_secreports_v1_secreports_service_proto protoreflect.FileDescriptor
@@ -1883,18 +2593,6 @@ const file_teleport_secreports_v1_secreports_service_proto_rawDesc = "" +
 	"\x0eGetReportState\x12-.teleport.secreports.v1.GetReportStateRequest\x1a#.teleport.secreports.v1.ReportState\x12u\n" +
 	"\x10ListReportStates\x12/.teleport.secreports.v1.ListReportStatesRequest\x1a0.teleport.secreports.v1.ListReportStatesResponse\x12`\n" +
 	"\tGetSchema\x12(.teleport.secreports.v1.GetSchemaRequest\x1a).teleport.secreports.v1.GetSchemaResponseBXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/secreports/v1;secreportsv1b\x06proto3"
-
-var (
-	file_teleport_secreports_v1_secreports_service_proto_rawDescOnce sync.Once
-	file_teleport_secreports_v1_secreports_service_proto_rawDescData []byte
-)
-
-func file_teleport_secreports_v1_secreports_service_proto_rawDescGZIP() []byte {
-	file_teleport_secreports_v1_secreports_service_proto_rawDescOnce.Do(func() {
-		file_teleport_secreports_v1_secreports_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_secreports_v1_secreports_service_proto_rawDesc), len(file_teleport_secreports_v1_secreports_service_proto_rawDesc)))
-	})
-	return file_teleport_secreports_v1_secreports_service_proto_rawDescData
-}
 
 var file_teleport_secreports_v1_secreports_service_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_secreports_v1_secreports_service_proto_msgTypes = make([]protoimpl.MessageInfo, 30)

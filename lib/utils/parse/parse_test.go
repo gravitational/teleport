@@ -22,9 +22,96 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
+
+func TestParseLabels(t *testing.T) {
+	// simplest case:
+	m, err := LabelSelectorSpec("key=value")
+	require.NotNil(t, m)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string]string{
+		"key": "value",
+	}))
+
+	// multiple values:
+	m, err = LabelSelectorSpec(`type="database";" role"=master,ver="mongoDB v1,2"`)
+	require.NotNil(t, m)
+	require.NoError(t, err)
+	require.Len(t, m, 3)
+	require.Equal(t, "master", m["role"])
+	require.Equal(t, "database", m["type"])
+	require.Equal(t, "mongoDB v1,2", m["ver"])
+
+	// multiple and unicode:
+	m, err = LabelSelectorSpec(`服务器环境=测试,操作系统类别=Linux,机房=华北`)
+	require.NoError(t, err)
+	require.NotNil(t, m)
+	require.Len(t, m, 3)
+	require.Equal(t, "测试", m["服务器环境"])
+	require.Equal(t, "Linux", m["操作系统类别"])
+	require.Equal(t, "华北", m["机房"])
+
+	// invalid specs
+	m, err = LabelSelectorSpec(`type="database,"role"=master,ver="mongoDB v1,2"`)
+	require.Nil(t, m)
+	require.Error(t, err)
+	m, err = LabelSelectorSpec(`type="database",role,master`)
+	require.Nil(t, m)
+	require.Error(t, err)
+}
+
+func TestMultiValueLabelSelectorSpec(t *testing.T) {
+	// empty:
+	m, err := MultiValueLabelSelectorSpec("")
+	require.NoError(t, err)
+	require.Empty(t, m)
+
+	// simplest case:
+	m, err = MultiValueLabelSelectorSpec("key=value")
+	require.NotNil(t, m)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string][]string{
+		"key": {"value"},
+	}))
+
+	// repeated keys, same values de-dupped:
+	m, err = MultiValueLabelSelectorSpec("env=staging,region=west,region=east,env=prod,fruit=apple,fruit=apple,region=east")
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string][]string{
+		"env":    {"staging", "prod"},
+		"region": {"west", "east"},
+		"fruit":  {"apple"},
+	}))
+
+	// unicode, same value unicode de-dupped:
+	m, err = MultiValueLabelSelectorSpec(`服务器环境=测试,操作系统类别=Linux,机房=华北,服务器环境=something,服务器环境=测试`)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string][]string{
+		"服务器环境":  {"测试", "something"},
+		"操作系统类别": {"Linux"},
+		"机房":     {"华北"},
+	}))
+
+	// quoting and separators inside quotes:
+	m, err = MultiValueLabelSelectorSpec(`type="database";" role"=master,ver="mongoDB v1,2", type=db2`)
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(m, map[string][]string{
+		"type": {"database", "db2"},
+		"role": {"master"},
+		"ver":  {"mongoDB v1,2"},
+	}))
+
+	// invalid specs
+	m, err = MultiValueLabelSelectorSpec(`type="database,"role"=master,ver="mongoDB v1,2"`)
+	require.Nil(t, m)
+	require.Error(t, err)
+	m, err = MultiValueLabelSelectorSpec(`type="database",role,master`)
+	require.Nil(t, m)
+	require.Error(t, err)
+}
 
 // TestVariable tests variable parsing
 func TestVariable(t *testing.T) {

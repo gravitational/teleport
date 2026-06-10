@@ -1739,7 +1739,8 @@ func (c *Cache) listResourcesFallback(ctx context.Context, req authproto.ListRes
 }
 
 func (c *Cache) listResources(ctx context.Context, req authproto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-	_, span := c.Tracer.Start(ctx, "cache/listResources")
+	//nolint:ineffassign,staticcheck // ctx is shadowed so future downstream calls inherit the span.
+	ctx, span := c.Tracer.Start(ctx, "cache/listResources")
 	defer span.End()
 
 	filter, err := services.MatchResourceFilterFromListResourceRequest(&req)

@@ -19,8 +19,7 @@ package cache
 import (
 	"context"
 	"testing"
-
-	"github.com/gravitational/trace"
+	"testing/synctest"
 
 	summarizerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -35,13 +34,11 @@ func TestInferenceModelCache(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*summarizerv1.InferenceModel]{
 		newResource: func(name string) (*summarizerv1.InferenceModel, error) {
-			return summarizer.NewInferenceModel(name, &summarizerv1.InferenceModelSpec{
-				Provider: &summarizerv1.InferenceModelSpec_Openai{
-					Openai: &summarizerv1.OpenAIProvider{
-						OpenaiModelId: "gpt-4o",
-					},
-				},
-			}), nil
+			return summarizer.NewInferenceModel(name, summarizerv1.InferenceModelSpec_builder{
+				Openai: summarizerv1.OpenAIProvider_builder{
+					OpenaiModelId: "gpt-4o",
+				}.Build(),
+			}.Build()), nil
 		},
 		create: func(ctx context.Context, item *summarizerv1.InferenceModel) error {
 			_, err := p.summarizer.CreateInferenceModel(ctx, item)
@@ -61,9 +58,9 @@ func TestInferenceSecretCache(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*summarizerv1.InferenceSecret]{
 		newResource: func(name string) (*summarizerv1.InferenceSecret, error) {
-			return summarizer.NewInferenceSecret(name, &summarizerv1.InferenceSecretSpec{
+			return summarizer.NewInferenceSecret(name, summarizerv1.InferenceSecretSpec_builder{
 				Value: "super-secret-value",
-			}), nil
+			}.Build()), nil
 		},
 		create: func(ctx context.Context, item *summarizerv1.InferenceSecret) error {
 			_, err := p.summarizer.CreateInferenceSecret(ctx, item)
@@ -83,10 +80,10 @@ func TestInferencePolicyCache(t *testing.T) {
 
 	testResources153(t, p, testFuncs[*summarizerv1.InferencePolicy]{
 		newResource: func(name string) (*summarizerv1.InferencePolicy, error) {
-			return summarizer.NewInferencePolicy(name, &summarizerv1.InferencePolicySpec{
+			return summarizer.NewInferencePolicy(name, summarizerv1.InferencePolicySpec_builder{
 				Kinds: []string{string(types.SSHSessionKind)},
 				Model: "test-model",
-			}), nil
+			}.Build()), nil
 		},
 		create: func(ctx context.Context, item *summarizerv1.InferencePolicy) error {
 			_, err := p.summarizer.CreateInferencePolicy(ctx, item)
@@ -99,33 +96,25 @@ func TestInferencePolicyCache(t *testing.T) {
 }
 
 func TestRetrievalModelCache(t *testing.T) {
-	t.Parallel()
+	synctest.Test(t, func(t *testing.T) {
+		p := newTestPack(t, ForAuth)
+		t.Cleanup(p.Close)
 
-	p := newTestPack(t, ForAuth)
-	t.Cleanup(p.Close)
-
-	testResources153(t, p, testFuncs[*summarizerv1.RetrievalModel]{
-		newResource: func(name string) (*summarizerv1.RetrievalModel, error) {
-			return summarizer.NewRetrievalModel(&summarizerv1.RetrievalModelSpec{
-				EmbeddingsProvider: &summarizerv1.RetrievalModelSpec_Openai{
-					Openai: &summarizerv1.OpenAIProvider{
+		testSingleton153(t, p, testSingletonFuncs153[*summarizerv1.RetrievalModel]{
+			newResource: func() *summarizerv1.RetrievalModel {
+				return summarizer.NewRetrievalModel(summarizerv1.RetrievalModelSpec_builder{
+					Openai: summarizerv1.OpenAIProvider_builder{
 						OpenaiModelId:   "text-embedding-3-small",
 						ApiKeySecretRef: "some",
-					},
-				},
-				InferenceModelName: "some",
-			}), nil
-		},
-		create: func(ctx context.Context, item *summarizerv1.RetrievalModel) error {
-			_, err := p.summarizer.CreateRetrievalModel(ctx, item)
-			return err
-		},
-		update: func(ctx context.Context, item *summarizerv1.RetrievalModel) error {
-			_, err := p.summarizer.UpdateRetrievalModel(ctx, item)
-			return trace.Wrap(err)
-		},
-		list:      singletonListAdapter(p.summarizer.GetRetrievalModel),
-		cacheList: singletonListAdapter(p.cache.GetRetrievalModel),
-		deleteAll: p.summarizer.DeleteRetrievalModel,
-	}, withSkipPaginationTest()) // skip pagination test because RetrievalModel is a singleton resource
+					}.Build(),
+					InferenceModelName: "some",
+				}.Build())
+			},
+			create:   p.summarizer.CreateRetrievalModel,
+			update:   p.summarizer.UpdateRetrievalModel,
+			get:      p.summarizer.GetRetrievalModel,
+			cacheGet: p.cache.GetRetrievalModel,
+			delete:   p.summarizer.DeleteRetrievalModel,
+		})
+	})
 }

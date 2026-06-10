@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 	"github.com/gravitational/teleport/tool/tctl/common/resources"
@@ -50,7 +51,7 @@ import (
 // NodeCommand implements `tctl nodes` group of commands
 type NodeCommand struct {
 	config *servicecfg.Config
-	// format is the output format, e.g. text or json
+	// format is the output format, e.g. text, json, or yaml.
 	format string
 	// list of roles for the new node to assume
 	roles string
@@ -88,12 +89,12 @@ func (c *NodeCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.nodeAdd.Flag("roles", "Comma-separated list of roles for the new node to assume [node]").Default("node").StringVar(&c.roles)
 	c.nodeAdd.Flag("ttl", "Time to live for a generated token").Default(defaults.ProvisioningTokenTTL.String()).DurationVar(&c.ttl)
 	c.nodeAdd.Flag("token", "Override the default random generated token with a specified value").StringVar(&c.token)
-	c.nodeAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&c.format)
+	c.nodeAdd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.nodeAdd.Alias(AddNodeHelp)
 
 	c.nodeList = nodes.Command("ls", "List all active SSH nodes within the cluster.")
 	c.nodeList.Flag("namespace", "Namespace of the nodes").Hidden().Default(apidefaults.Namespace).StringVar(&c.namespace)
-	c.nodeList.Flag("format", "Output format, 'text', or 'yaml'").Default(teleport.Text).StringVar(&c.lsFormat)
+	c.nodeList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.lsFormat, teleport.Text, teleport.JSON, teleport.YAML)
 	c.nodeList.Flag("verbose", "Verbose table output, shows full label output").Short('v').BoolVar(&c.verbose)
 	c.nodeList.Alias(ListNodesHelp)
 	c.nodeList.Arg("labels", labelHelp).StringVar(&c.labels)
@@ -201,7 +202,8 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 	}
 
 	// output format switch:
-	if c.format == teleport.Text {
+	switch c.format {
+	case teleport.Text:
 		if roles.Include(types.RoleTrustedCluster) {
 			fmt.Printf(trustedClusterMessage, token, int(c.ttl.Minutes()))
 		} else {
@@ -213,7 +215,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 				"auth_server": controlPlaneAddr(ctx, client, authServers[0].GetAddr()),
 			})
 		}
-	} else {
+	case teleport.JSON:
 		// Always return a list, otherwise we'll break users tooling. See #1846 for
 		// more details.
 		tokens := []string{token}
@@ -222,6 +224,14 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 			return trace.Wrap(err, "failed to marshal token")
 		}
 		fmt.Print(string(out))
+	case teleport.YAML:
+		// Always return a list, otherwise we'll break users tooling. See #1846 for
+		// more details.
+		if err := utils.WriteYAML(os.Stdout, []string{token}); err != nil {
+			return trace.Wrap(err, "failed to marshal token")
+		}
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }
@@ -229,7 +239,7 @@ func (c *NodeCommand) Invite(ctx context.Context, client *authclient.Client) err
 // ListActive retrieves the list of nodes who recently sent heartbeats to
 // to a cluster and prints it to stdout
 func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(c.labels)
+	labels, err := parse.LabelSelectorSpec(c.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -263,7 +273,7 @@ func (c *NodeCommand) ListActive(ctx context.Context, clt *authclient.Client) er
 			return trace.Wrap(err)
 		}
 	default:
-		return trace.Errorf("Invalid format %s, only text, json and yaml are supported", c.lsFormat)
+		return trace.BadParameter("unknown format %q", c.lsFormat)
 	}
 	return nil
 }

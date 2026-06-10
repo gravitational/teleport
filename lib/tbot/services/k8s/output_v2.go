@@ -70,6 +70,7 @@ func OutputV2ServiceBuilder(cfg *OutputV2Config, opts ...OutputV2Option) bot.Ser
 			clientBuilder:             deps.ClientBuilder,
 			log:                       deps.Logger,
 			statusReporter:            deps.GetStatusReporter(),
+			scoped:                    deps.Scoped,
 		}
 		for _, opt := range opts {
 			opt.applyToV2Output(svc)
@@ -105,6 +106,8 @@ type OutputV2Service struct {
 	executablePath    func() (string, error)
 	identityGenerator *identity.Generator
 	clientBuilder     *client.Builder
+
+	scoped bool
 }
 
 func (s *OutputV2Service) String() string {
@@ -115,14 +118,22 @@ func (s *OutputV2Service) String() string {
 }
 
 func (s *OutputV2Service) OneShot(ctx context.Context) error {
-	return s.generate(ctx)
+	f := s.generate
+	if s.scoped {
+		f = s.generateScoped
+	}
+	return f(ctx)
 }
 
 func (s *OutputV2Service) Run(ctx context.Context) error {
+	f := s.generate
+	if s.scoped {
+		f = s.generateScoped
+	}
 	return trace.Wrap(internal.RunOnInterval(ctx, internal.RunOnIntervalConfig{
 		Service:         s.String(),
 		Name:            "output-renewal",
-		F:               s.generate,
+		F:               f,
 		Interval:        cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime).RenewalInterval,
 		RetryLimit:      internal.RenewalRetryLimit,
 		Log:             s.log,
@@ -167,7 +178,41 @@ func (s *OutputV2Service) generate(ctx context.Context) error {
 		return trace.Wrap(err, "generating identity")
 	}
 
-	// create a client that uses the impersonated identity, so that when we
+	return s.generateForIdentity(ctx, id)
+}
+
+func (s *OutputV2Service) generateScoped(ctx context.Context) error {
+	ctx, span := tracer.Start(
+		ctx,
+		"OutputV2Service/generateScoped",
+	)
+	defer span.End()
+	s.log.InfoContext(ctx, "Generating output in scoped mode")
+
+	if err := s.cfg.Destination.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := identity.VerifyWrite(ctx, s.cfg.Destination); err != nil {
+		return trace.Wrap(err, "verifying destination")
+	}
+
+	effectiveLifetime := cmp.Or(s.cfg.CredentialLifetime, s.defaultCredentialLifetime)
+	id, err := s.identityGenerator.GenerateScopedFacade(
+		ctx, effectiveLifetime.TTL, effectiveLifetime.RenewalInterval,
+	)
+	if err != nil {
+		return trace.Wrap(err, "generating scoped identity")
+	}
+
+	return s.generateForIdentity(ctx, id)
+}
+
+// generateForIdentity is the shared post-identity logic for both the scoped
+// and unscoped generate paths: it uses the given identity to enumerate
+// kubernetes clusters matching the configured selectors and renders a
+// kubeconfig.
+func (s *OutputV2Service) generateForIdentity(ctx context.Context, id *identity.Facade) error {
+	// create a client that uses the generated identity, so that when we
 	// fetch information, we can ensure access rights are enforced.
 	impersonatedClient, err := s.clientBuilder.Build(ctx, id)
 	if err != nil {

@@ -77,9 +77,9 @@ func (h *Handler) getSessionRecordingMetadata(
 		return nil, nil
 	}
 
-	stream, err := clt.RecordingMetadataServiceClient().GetMetadata(ctx, &recordingmetadatav1.GetMetadataRequest{
+	stream, err := clt.RecordingMetadataServiceClient().GetMetadata(ctx, recordingmetadatav1.GetMetadataRequest_builder{
 		SessionId: sessionID,
-	})
+	}.Build())
 	if err != nil {
 		sendMessage(ws, recordingErrorMessageType, sessionRecordingErrorResponse{
 			Error: err.Error(),
@@ -156,9 +156,9 @@ func (h *Handler) getSessionRecordingThumbnail(
 		return nil, trace.Wrap(err)
 	}
 
-	response, err := clt.RecordingMetadataServiceClient().GetThumbnail(r.Context(), &recordingmetadatav1.GetThumbnailRequest{
+	response, err := clt.RecordingMetadataServiceClient().GetThumbnail(r.Context(), recordingmetadatav1.GetThumbnailRequest_builder{
 		SessionId: sessionId,
-	})
+	}.Build())
 	if err != nil {
 		if trace.IsNotFound(err) {
 			return nil, trace.NotFound("thumbnail not found for session %q", sessionId)
@@ -166,11 +166,11 @@ func (h *Handler) getSessionRecordingThumbnail(
 		return nil, trace.Wrap(err)
 	}
 
-	if response.Thumbnail == nil {
+	if !response.HasThumbnail() {
 		return nil, trace.NotFound("thumbnail not found for session %q", sessionId)
 	}
 
-	return encodeSessionRecordingThumbnail(response.Thumbnail), nil
+	return encodeSessionRecordingThumbnail(response.GetThumbnail()), nil
 }
 
 type baseEvent struct {
@@ -234,40 +234,40 @@ func pbTypeToString(t recordingmetadatav1.SessionRecordingType) string {
 // to use.
 func encodeSessionRecordingMetadata(metadata *recordingmetadatav1.SessionRecordingMetadata) sessionRecordingMetadata {
 	result := sessionRecordingMetadata{
-		Duration:     convertDurationToMs(metadata.Duration),
-		StartCols:    metadata.StartCols,
-		StartRows:    metadata.StartRows,
-		Events:       make([]sessionRecordingEvent, 0, len(metadata.Events)),
-		StartTime:    metadata.StartTime.AsTime().Unix(),
-		EndTime:      metadata.EndTime.AsTime().Unix(),
-		ClusterName:  metadata.ClusterName,
-		ResourceName: metadata.ResourceName,
-		User:         metadata.User,
-		Type:         pbTypeToString(metadata.Type),
+		Duration:     convertDurationToMs(metadata.GetDuration()),
+		StartCols:    metadata.GetStartCols(),
+		StartRows:    metadata.GetStartRows(),
+		Events:       make([]sessionRecordingEvent, 0, len(metadata.GetEvents())),
+		StartTime:    metadata.GetStartTime().AsTime().Unix(),
+		EndTime:      metadata.GetEndTime().AsTime().Unix(),
+		ClusterName:  metadata.GetClusterName(),
+		ResourceName: metadata.GetResourceName(),
+		User:         metadata.GetUser(),
+		Type:         pbTypeToString(metadata.GetType()),
 	}
 
-	for _, event := range metadata.Events {
+	for _, event := range metadata.GetEvents() {
 		base := baseEvent{
-			StartOffset: convertDurationToMs(event.StartOffset),
-			EndOffset:   convertDurationToMs(event.EndOffset),
+			StartOffset: convertDurationToMs(event.GetStartOffset()),
+			EndOffset:   convertDurationToMs(event.GetEndOffset()),
 		}
 
-		switch e := event.Event.(type) {
-		case *recordingmetadatav1.SessionRecordingEvent_Inactivity:
+		switch event.WhichEvent() {
+		case recordingmetadatav1.SessionRecordingEvent_Inactivity_case:
 			base.Type = "inactivity"
 			result.Events = append(result.Events, inactivityEvent{baseEvent: base})
-		case *recordingmetadatav1.SessionRecordingEvent_Join:
+		case recordingmetadatav1.SessionRecordingEvent_Join_case:
 			base.Type = "join"
 			result.Events = append(result.Events, joinEvent{
 				baseEvent: base,
-				User:      e.Join.User,
+				User:      event.GetJoin().GetUser(),
 			})
-		case *recordingmetadatav1.SessionRecordingEvent_Resize:
+		case recordingmetadatav1.SessionRecordingEvent_Resize_case:
 			base.Type = "resize"
 			result.Events = append(result.Events, resizeEvent{
 				baseEvent: base,
-				Cols:      e.Resize.Cols,
-				Rows:      e.Resize.Rows,
+				Cols:      event.GetResize().GetCols(),
+				Rows:      event.GetResize().GetRows(),
 			})
 		}
 	}
@@ -292,17 +292,17 @@ type sessionRecordingThumbnailResponse struct {
 // encodeSessionRecordingThumbnail converts the session recording thumbnail to a format more suitable for the frontend.
 func encodeSessionRecordingThumbnail(thumbnail *recordingmetadatav1.SessionRecordingThumbnail) sessionRecordingThumbnailResponse {
 	return sessionRecordingThumbnailResponse{
-		Svg:           string(thumbnail.Svg),
-		Cols:          thumbnail.Cols,
-		Rows:          thumbnail.Rows,
-		CursorX:       thumbnail.CursorX,
-		CursorY:       thumbnail.CursorY,
-		CursorVisible: thumbnail.CursorVisible,
-		StartOffset:   convertDurationToMs(thumbnail.StartOffset),
-		EndOffset:     convertDurationToMs(thumbnail.EndOffset),
-		Png:           thumbnail.Png,
-		ScreenWidth:   thumbnail.ScreenWidth,
-		ScreenHeight:  thumbnail.ScreenHeight,
+		Svg:           string(thumbnail.GetSvg()),
+		Cols:          thumbnail.GetCols(),
+		Rows:          thumbnail.GetRows(),
+		CursorX:       thumbnail.GetCursorX(),
+		CursorY:       thumbnail.GetCursorY(),
+		CursorVisible: thumbnail.GetCursorVisible(),
+		StartOffset:   convertDurationToMs(thumbnail.GetStartOffset()),
+		EndOffset:     convertDurationToMs(thumbnail.GetEndOffset()),
+		Png:           thumbnail.GetPng(),
+		ScreenWidth:   thumbnail.GetScreenWidth(),
+		ScreenHeight:  thumbnail.GetScreenHeight(),
 	}
 }
 

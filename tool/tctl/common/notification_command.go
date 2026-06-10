@@ -28,6 +28,7 @@ import (
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -40,10 +41,10 @@ import (
 	"github.com/gravitational/teleport/api/utils/clientutils"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/itertools/stream"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 	"github.com/gravitational/teleport/tool/common"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
@@ -125,7 +126,7 @@ func (n *NotificationCommand) TryRun(ctx context.Context, cmd string, clientFunc
 
 // Create creates a new notification.
 func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(n.labels)
+	labels, err := parse.LabelSelectorSpec(n.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -133,10 +134,10 @@ func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Cli
 	labels[types.NotificationTitleLabel] = n.title
 	labels[types.NotificationTextContentLabel] = n.content
 
-	meta := &headerv1.Metadata{
+	meta := headerv1.Metadata_builder{
 		Expires: timestamppb.New(time.Now().Add(n.ttl)),
 		Labels:  labels,
-	}
+	}.Build()
 
 	subKind := types.NotificationUserCreatedInformationalSubKind
 	if n.warning {
@@ -158,17 +159,17 @@ func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Cli
 			return trace.BadParameter("roles cannot be configured for a notification which targets a specific user")
 		}
 
-		created, err := nc.CreateUserNotification(ctx, &notificationspb.CreateUserNotificationRequest{
+		created, err := nc.CreateUserNotification(ctx, notificationspb.CreateUserNotificationRequest_builder{
 			Username: n.user,
-			Notification: &notificationspb.Notification{
+			Notification: notificationspb.Notification_builder{
 				Kind:     types.KindNotification,
 				SubKind:  subKind,
 				Metadata: meta,
-				Spec: &notificationspb.NotificationSpec{
+				Spec: notificationspb.NotificationSpec_builder{
 					Username: n.user,
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 
 		if err != nil {
 			return trail.FromGRPC(err)
@@ -179,25 +180,23 @@ func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Cli
 	}
 
 	if len(n.roles) != 0 {
-		created, err := nc.CreateGlobalNotification(ctx, &notificationspb.CreateGlobalNotificationRequest{
-			GlobalNotification: &notificationspb.GlobalNotification{
+		created, err := nc.CreateGlobalNotification(ctx, notificationspb.CreateGlobalNotificationRequest_builder{
+			GlobalNotification: notificationspb.GlobalNotification_builder{
 				Kind: types.KindGlobalNotification,
-				Spec: &notificationspb.GlobalNotificationSpec{
-					Matcher: &notificationspb.GlobalNotificationSpec_ByRoles{
-						ByRoles: &notificationspb.ByRoles{
-							Roles: n.roles,
-						},
-					},
+				Spec: notificationspb.GlobalNotificationSpec_builder{
+					ByRoles: notificationspb.ByRoles_builder{
+						Roles: n.roles,
+					}.Build(),
 					MatchAllConditions: n.requireAllRoles,
-					Notification: &notificationspb.Notification{
+					Notification: notificationspb.Notification_builder{
 						Kind:     types.KindNotification,
 						SubKind:  subKind,
 						Metadata: meta,
 						Spec:     &notificationspb.NotificationSpec{},
-					},
-				},
-			},
-		})
+					}.Build(),
+				}.Build(),
+			}.Build(),
+		}.Build())
 
 		if err != nil {
 			return trail.FromGRPC(err)
@@ -217,22 +216,20 @@ func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Cli
 	}
 
 	// If roles weren't provided, default to targeting all users.
-	created, err := nc.CreateGlobalNotification(ctx, &notificationspb.CreateGlobalNotificationRequest{
-		GlobalNotification: &notificationspb.GlobalNotification{
+	created, err := nc.CreateGlobalNotification(ctx, notificationspb.CreateGlobalNotificationRequest_builder{
+		GlobalNotification: notificationspb.GlobalNotification_builder{
 			Kind: types.KindGlobalNotification,
-			Spec: &notificationspb.GlobalNotificationSpec{
-				Matcher: &notificationspb.GlobalNotificationSpec_All{
-					All: true,
-				},
-				Notification: &notificationspb.Notification{
+			Spec: notificationspb.GlobalNotificationSpec_builder{
+				All: proto.Bool(true),
+				Notification: notificationspb.Notification_builder{
 					Kind:     types.KindNotification,
 					SubKind:  subKind,
 					Metadata: meta,
 					Spec:     &notificationspb.NotificationSpec{},
-				},
-			},
-		},
-	})
+				}.Build(),
+			}.Build(),
+		}.Build(),
+	}.Build())
 	if err != nil {
 		return trail.FromGRPC(err)
 	}
@@ -242,37 +239,37 @@ func (n *NotificationCommand) Create(ctx context.Context, client *authclient.Cli
 }
 
 func (n *NotificationCommand) List(ctx context.Context, client *authclient.Client) error {
-	labels, err := libclient.ParseLabelSpec(n.labels)
+	labels, err := parse.LabelSelectorSpec(n.labels)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	filters := &notificationspb.NotificationFilters{
+	filters := notificationspb.NotificationFilters_builder{
 		UserCreatedOnly: !n.allNotifications,
 		Labels:          labels,
-	}
+	}.Build()
 
 	if n.user != "" {
 		// If a user was specified, list user-specific notifications for them.
-		filters.Username = n.user
+		filters.SetUsername(n.user)
 	} else {
 		// Otherwise, list global notifications
-		filters.GlobalOnly = true
+		filters.SetGlobalOnly(true)
 	}
 
 	nc := client.NotificationServiceClient()
 	result, err := stream.Collect(clientutils.Resources(
 		ctx,
 		func(ctx context.Context, pageSize int, pageToken string) ([]*notificationspb.Notification, string, error) {
-			resp, err := nc.ListNotifications(ctx, &notificationspb.ListNotificationsRequest{
+			resp, err := nc.ListNotifications(ctx, notificationspb.ListNotificationsRequest_builder{
 				PageSize:  defaults.DefaultChunkSize,
 				PageToken: pageToken,
 				Filters:   filters,
-			})
+			}.Build())
 			if err != nil {
 				return nil, "", trace.Wrap(err)
 			}
-			return resp.Notifications, resp.GetNextPageToken(), nil
+			return resp.GetNotifications(), resp.GetNextPageToken(), nil
 		}),
 	)
 	if err != nil {
@@ -320,14 +317,14 @@ func (n *NotificationCommand) Remove(ctx context.Context, client *authclient.Cli
 
 	switch {
 	case n.user != "":
-		_, err = nc.DeleteUserNotification(ctx, &notificationspb.DeleteUserNotificationRequest{
+		_, err = nc.DeleteUserNotification(ctx, notificationspb.DeleteUserNotificationRequest_builder{
 			Username:       n.user,
 			NotificationId: n.title,
-		})
+		}.Build())
 	default:
-		_, err = nc.DeleteGlobalNotification(ctx, &notificationspb.DeleteGlobalNotificationRequest{
+		_, err = nc.DeleteGlobalNotification(ctx, notificationspb.DeleteGlobalNotificationRequest_builder{
 			NotificationId: n.title,
-		})
+		}.Build())
 	}
 
 	return trail.FromGRPC(err)

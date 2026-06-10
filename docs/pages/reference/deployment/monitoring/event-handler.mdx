@@ -103,7 +103,7 @@ The Event Handler plugin can automatically lock Teleport users after repeated
 failed authentication attempts.
 
 | CLI argument | Environment variable | Description |
-|---|---|---|---|
+|---|---|---|
 | `--lock-enabled` | `FDFWD_LOCKING_ENABLED` | Enables automatic user locking after repeated failed login attempts. |
 | `--lock-failed-attempts-count` | `FDFWD_LOCKING_FAILED_ATTEMPTS` | Number of failed authentication attempts that trigger a lock. |
 | `--lock-period` | `FDFWD_LOCKING_PERIOD` | Time window used to count failed authentication attempts. |
@@ -201,7 +201,7 @@ Alternatively, run the following command to generate all certificates to the
 `example/keys/` directory:
 
 ```code
-PASS=12345678 KEYLEN=4096 make gen-example-mtls
+$ PASS=12345678 KEYLEN=4096 make -C integrations/event-handler gen-example-mtls
 ```
 
 ## Further reading

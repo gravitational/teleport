@@ -56,7 +56,7 @@ func (c inferenceModelCollection) WriteText(w io.Writer, verbose bool) error {
 		providerModel := ""
 		if spec.GetOpenai() != nil {
 			providerName = "OpenAI"
-			providerModel = spec.GetOpenai().OpenaiModelId
+			providerModel = spec.GetOpenai().GetOpenaiModelId()
 		}
 		rows = append(rows, []string{
 			meta.GetName(),
@@ -97,14 +97,14 @@ func createInferenceModel(ctx context.Context, clt *authclient.Client, raw servi
 
 	sclt := clt.SummarizerServiceClient()
 	if opts.Force {
-		req := &summarizerv1.UpsertInferenceModelRequest{
+		req := summarizerv1.UpsertInferenceModelRequest_builder{
 			Model: model,
-		}
+		}.Build()
 		_, err = sclt.UpsertInferenceModel(ctx, req)
 	} else {
-		req := &summarizerv1.CreateInferenceModelRequest{
+		req := summarizerv1.CreateInferenceModelRequest_builder{
 			Model: model,
-		}
+		}.Build()
 		_, err = sclt.CreateInferenceModel(ctx, req)
 	}
 	if err != nil {
@@ -121,9 +121,9 @@ func updateInferenceModel(ctx context.Context, clt *authclient.Client, raw servi
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req := &summarizerv1.UpdateInferenceModelRequest{
+	req := summarizerv1.UpdateInferenceModelRequest_builder{
 		Model: model,
-	}
+	}.Build()
 	if _, err := clt.SummarizerServiceClient().UpdateInferenceModel(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}
@@ -134,14 +134,14 @@ func updateInferenceModel(ctx context.Context, clt *authclient.Client, raw servi
 func getInferenceModel(ctx context.Context, clt *authclient.Client, ref services.Ref, opts GetOpts) (Collection, error) {
 	ssclt := clt.SummarizerServiceClient()
 	if ref.Name != "" {
-		req := &summarizerv1.GetInferenceModelRequest{
+		req := summarizerv1.GetInferenceModelRequest_builder{
 			Name: ref.Name,
-		}
+		}.Build()
 		res, err := ssclt.GetInferenceModel(ctx, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		return inferenceModelCollection{res.Model}, nil
+		return inferenceModelCollection{res.GetModel()}, nil
 	}
 
 	items, err := stream.Collect(clientutils.Resources(
@@ -151,9 +151,9 @@ func getInferenceModel(ctx context.Context, clt *authclient.Client, ref services
 		) ([]*summarizerv1.InferenceModel, string, error) {
 			resp, err := ssclt.ListInferenceModels(
 				ctx,
-				&summarizerv1.ListInferenceModelsRequest{
+				summarizerv1.ListInferenceModelsRequest_builder{
 					PageToken: nextPageToken,
-				})
+				}.Build())
 			return resp.GetModels(), resp.GetNextPageToken(), trace.Wrap(err)
 		}))
 	if err != nil {
@@ -163,9 +163,9 @@ func getInferenceModel(ctx context.Context, clt *authclient.Client, ref services
 }
 
 func deleteInferenceModel(ctx context.Context, clt *authclient.Client, ref services.Ref) error {
-	req := &summarizerv1.DeleteInferenceModelRequest{
+	req := summarizerv1.DeleteInferenceModelRequest_builder{
 		Name: ref.Name,
-	}
+	}.Build()
 	if _, err := clt.SummarizerServiceClient().DeleteInferenceModel(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}

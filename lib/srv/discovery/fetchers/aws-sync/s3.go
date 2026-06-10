@@ -93,7 +93,7 @@ func (a *Fetcher) fetchS3Buckets(ctx context.Context) ([]*accessgraphv1alpha.AWS
 			var failedReqs failedRequests
 			var errs []error
 			existingBucket := sliceFilterPickFirst(existing.S3Buckets, func(b *accessgraphv1alpha.AWSS3BucketV1) bool {
-				return b.Name == aws.ToString(bucket.Name) && b.AccountId == a.AccountID
+				return b.GetName() == aws.ToString(bucket.Name) && b.GetAccountId() == a.AccountID
 			},
 			)
 			bucketRegion, err := getBucketRegion(bucket.Name)
@@ -130,25 +130,25 @@ func awsS3Bucket(name string,
 	tags *s3.GetBucketTaggingOutput,
 	accountID string,
 ) *accessgraphv1alpha.AWSS3BucketV1 {
-	s3 := &accessgraphv1alpha.AWSS3BucketV1{
+	s3 := accessgraphv1alpha.AWSS3BucketV1_builder{
 		Name:      name,
 		AccountId: accountID,
-	}
+	}.Build()
 	if policy != nil {
-		s3.PolicyDocument = []byte(aws.ToString(policy.Policy))
+		s3.SetPolicyDocument([]byte(aws.ToString(policy.Policy)))
 	}
 	if policyStatus != nil && policyStatus.PolicyStatus != nil {
-		s3.IsPublic = aws.ToBool(policyStatus.PolicyStatus.IsPublic)
+		s3.SetIsPublic(aws.ToBool(policyStatus.PolicyStatus.IsPublic))
 	}
 	if acls != nil {
-		s3.Acls = awsACLsToProtoACLs(acls.Grants)
+		s3.SetAcls(awsACLsToProtoACLs(acls.Grants))
 	}
 	if tags != nil {
 		for _, tag := range tags.TagSet {
-			s3.Tags = append(s3.Tags, &accessgraphv1alpha.AWSTag{
+			s3.SetTags(append(s3.GetTags(), accessgraphv1alpha.AWSTag_builder{
 				Key:   aws.ToString(tag.Key),
 				Value: strPtrToWrapper(tag.Value),
-			})
+			}.Build()))
 		}
 	}
 	return s3
@@ -157,16 +157,16 @@ func awsS3Bucket(name string,
 func awsACLsToProtoACLs(grants []s3types.Grant) []*accessgraphv1alpha.AWSS3BucketACL {
 	var acls []*accessgraphv1alpha.AWSS3BucketACL
 	for _, grant := range grants {
-		acls = append(acls, &accessgraphv1alpha.AWSS3BucketACL{
-			Grantee: &accessgraphv1alpha.AWSS3BucketACLGrantee{
+		acls = append(acls, accessgraphv1alpha.AWSS3BucketACL_builder{
+			Grantee: accessgraphv1alpha.AWSS3BucketACLGrantee_builder{
 				Id:           aws.ToString(grant.Grantee.ID),
 				DisplayName:  aws.ToString(grant.Grantee.DisplayName),
 				Type:         string(grant.Grantee.Type),
 				Uri:          aws.ToString(grant.Grantee.URI),
 				EmailAddress: aws.ToString(grant.Grantee.EmailAddress),
-			},
+			}.Build(),
 			Permission: string(grant.Permission),
-		})
+		}.Build())
 	}
 	return acls
 }
@@ -188,16 +188,16 @@ func mergeS3Protos(existing, new *accessgraphv1alpha.AWSS3BucketV1, failedReqs f
 	}
 	clone := proto.Clone(new).(*accessgraphv1alpha.AWSS3BucketV1)
 	if failedReqs.policyFailed {
-		clone.PolicyDocument = existing.PolicyDocument
+		clone.SetPolicyDocument(existing.GetPolicyDocument())
 	}
 	if failedReqs.failedPolicyStatus {
-		clone.IsPublic = existing.IsPublic
+		clone.SetIsPublic(existing.GetIsPublic())
 	}
 	if failedReqs.failedAcls {
-		clone.Acls = existing.Acls
+		clone.SetAcls(existing.GetAcls())
 	}
 	if failedReqs.failedTags {
-		clone.Tags = existing.Tags
+		clone.SetTags(existing.GetTags())
 	}
 
 	return clone

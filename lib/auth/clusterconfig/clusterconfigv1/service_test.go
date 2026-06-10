@@ -195,7 +195,7 @@ func TestUpdateAuthPreference(t *testing.T) {
 				test.preference(pref)
 			}
 
-			updated, err := env.UpdateAuthPreference(context.Background(), &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: pref.(*types.AuthPreferenceV2)})
+			updated, err := env.UpdateAuthPreference(context.Background(), clusterconfigpb.UpdateAuthPreferenceRequest_builder{AuthPreference: pref.(*types.AuthPreferenceV2)}.Build())
 			test.assertion(t, updated, err)
 		})
 	}
@@ -318,7 +318,7 @@ func TestUpsertAuthPreference(t *testing.T) {
 				test.preference(pref)
 			}
 
-			updated, err := env.UpsertAuthPreference(context.Background(), &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: pref.(*types.AuthPreferenceV2)})
+			updated, err := env.UpsertAuthPreference(context.Background(), clusterconfigpb.UpsertAuthPreferenceRequest_builder{AuthPreference: pref.(*types.AuthPreferenceV2)}.Build())
 			test.assertion(t, updated, err)
 		})
 	}
@@ -757,7 +757,7 @@ func TestUpdateClusterNetworkingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpdateClusterNetworkingConfig(context.Background(), &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)})
+			updated, err := env.UpdateClusterNetworkingConfig(context.Background(), clusterconfigpb.UpdateClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)}.Build())
 			test.assertion(t, updated, err)
 		})
 	}
@@ -867,7 +867,7 @@ func TestUpsertClusterNetworkingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpsertClusterNetworkingConfig(context.Background(), &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)})
+			updated, err := env.UpsertClusterNetworkingConfig(context.Background(), clusterconfigpb.UpsertClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: cfg.(*types.ClusterNetworkingConfigV2)}.Build())
 			test.assertion(t, updated, err)
 		})
 	}
@@ -1134,7 +1134,7 @@ func TestUpdateSessionRecordingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpdateSessionRecordingConfig(context.Background(), &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)})
+			updated, err := env.UpdateSessionRecordingConfig(context.Background(), clusterconfigpb.UpdateSessionRecordingConfigRequest_builder{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)}.Build())
 			test.assertion(t, updated, err)
 		})
 	}
@@ -1223,7 +1223,7 @@ func TestUpsertSessionRecordingConfig(t *testing.T) {
 				test.config(cfg)
 			}
 
-			updated, err := env.UpsertSessionRecordingConfig(context.Background(), &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)})
+			updated, err := env.UpsertSessionRecordingConfig(context.Background(), clusterconfigpb.UpsertSessionRecordingConfigRequest_builder{SessionRecordingConfig: cfg.(*types.SessionRecordingConfigV2)}.Build())
 			test.assertion(t, updated, err)
 		})
 	}
@@ -1419,13 +1419,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 
 			p.SetLockingMode(constants.LockingModeStrict)
 
-			p, err = env.UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: p})
+			p, err = env.UpdateAuthPreference(ctx, clusterconfigpb.UpdateAuthPreferenceRequest_builder{AuthPreference: p}.Build())
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(&mfaUnchangedEvent, evt))
 
-			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: p})
+			_, err = env.UpsertAuthPreference(ctx, clusterconfigpb.UpsertAuthPreferenceRequest_builder{AuthPreference: p}.Build())
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
@@ -1436,7 +1436,7 @@ func TestAuditEventsEmitted(t *testing.T) {
 				RPID: "example.com",
 			}
 
-			p, err = env.UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: p})
+			p, err = env.UpdateAuthPreference(ctx, clusterconfigpb.UpdateAuthPreferenceRequest_builder{AuthPreference: p}.Build())
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
@@ -1447,7 +1447,7 @@ func TestAuditEventsEmitted(t *testing.T) {
 			// from the previous authPref setup
 			p.Spec.AllowCLIAuthViaBrowser = nil
 
-			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: p})
+			_, err = env.UpsertAuthPreference(ctx, clusterconfigpb.UpsertAuthPreferenceRequest_builder{AuthPreference: p}.Build())
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
@@ -1477,13 +1477,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 
 			cfg.SetRoutingStrategy(types.RoutingStrategy_MOST_RECENT)
 
-			cfg, err = env.UpdateClusterNetworkingConfig(ctx, &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg})
+			cfg, err = env.UpdateClusterNetworkingConfig(ctx, clusterconfigpb.UpdateClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: cfg}.Build())
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpsertClusterNetworkingConfig(ctx, &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: cfg})
+			_, err = env.UpsertClusterNetworkingConfig(ctx, clusterconfigpb.UpsertClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: cfg}.Build())
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
@@ -1513,13 +1513,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 
 			cfg.SetMode(types.RecordAtProxy)
 
-			cfg, err = env.UpdateSessionRecordingConfig(ctx, &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: cfg})
+			cfg, err = env.UpdateSessionRecordingConfig(ctx, clusterconfigpb.UpdateSessionRecordingConfigRequest_builder{SessionRecordingConfig: cfg}.Build())
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpsertSessionRecordingConfig(ctx, &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: cfg})
+			_, err = env.UpsertSessionRecordingConfig(ctx, clusterconfigpb.UpsertSessionRecordingConfigRequest_builder{SessionRecordingConfig: cfg}.Build())
 			require.NoError(t, err)
 
 			evt = <-env.emitter.C()
@@ -1573,13 +1573,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 			evt := <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpdateAuthPreference(ctx, &clusterconfigpb.UpdateAuthPreferenceRequest{AuthPreference: types.DefaultAuthPreference().(*types.AuthPreferenceV2)})
+			_, err = env.UpdateAuthPreference(ctx, clusterconfigpb.UpdateAuthPreferenceRequest_builder{AuthPreference: types.DefaultAuthPreference().(*types.AuthPreferenceV2)}.Build())
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpsertAuthPreference(ctx, &clusterconfigpb.UpsertAuthPreferenceRequest{AuthPreference: types.DefaultAuthPreference().(*types.AuthPreferenceV2)})
+			_, err = env.UpsertAuthPreference(ctx, clusterconfigpb.UpsertAuthPreferenceRequest_builder{AuthPreference: types.DefaultAuthPreference().(*types.AuthPreferenceV2)}.Build())
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
@@ -1609,13 +1609,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 			evt := <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpdateClusterNetworkingConfig(ctx, &clusterconfigpb.UpdateClusterNetworkingConfigRequest{ClusterNetworkConfig: types.DefaultClusterNetworkingConfig().(*types.ClusterNetworkingConfigV2)})
+			_, err = env.UpdateClusterNetworkingConfig(ctx, clusterconfigpb.UpdateClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: types.DefaultClusterNetworkingConfig().(*types.ClusterNetworkingConfigV2)}.Build())
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpsertClusterNetworkingConfig(ctx, &clusterconfigpb.UpsertClusterNetworkingConfigRequest{ClusterNetworkConfig: types.DefaultClusterNetworkingConfig().(*types.ClusterNetworkingConfigV2)})
+			_, err = env.UpsertClusterNetworkingConfig(ctx, clusterconfigpb.UpsertClusterNetworkingConfigRequest_builder{ClusterNetworkConfig: types.DefaultClusterNetworkingConfig().(*types.ClusterNetworkingConfigV2)}.Build())
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
@@ -1645,13 +1645,13 @@ func TestAuditEventsEmitted(t *testing.T) {
 			evt := <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpdateSessionRecordingConfig(ctx, &clusterconfigpb.UpdateSessionRecordingConfigRequest{SessionRecordingConfig: types.DefaultSessionRecordingConfig().(*types.SessionRecordingConfigV2)})
+			_, err = env.UpdateSessionRecordingConfig(ctx, clusterconfigpb.UpdateSessionRecordingConfigRequest_builder{SessionRecordingConfig: types.DefaultSessionRecordingConfig().(*types.SessionRecordingConfigV2)}.Build())
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
 			require.Empty(t, cmp.Diff(expectedEvent, evt))
 
-			_, err = env.UpsertSessionRecordingConfig(ctx, &clusterconfigpb.UpsertSessionRecordingConfigRequest{SessionRecordingConfig: types.DefaultSessionRecordingConfig().(*types.SessionRecordingConfigV2)})
+			_, err = env.UpsertSessionRecordingConfig(ctx, clusterconfigpb.UpsertSessionRecordingConfigRequest_builder{SessionRecordingConfig: types.DefaultSessionRecordingConfig().(*types.SessionRecordingConfigV2)}.Build())
 			require.Error(t, err)
 
 			evt = <-env.emitter.C()
@@ -1870,9 +1870,9 @@ func newTestEnv(opts ...serviceOpt) (*env, error) {
 func TestGetAccessGraphConfig(t *testing.T) {
 
 	settings, err := clusterconfig.NewAccessGraphSettings(
-		&clusterconfigpb.AccessGraphSettingsSpec{
+		clusterconfigpb.AccessGraphSettingsSpec_builder{
 			SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-		},
+		}.Build(),
 	)
 	require.NoError(t, err)
 
@@ -1896,11 +1896,11 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			role:              types.RoleProxy,
 			accessGraphConfig: cfgEnabled,
 			errorAssertion:    require.NoError,
-			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
-				AccessGraph: &clusterconfigpb.AccessGraphConfig{
+			responseAssertion: clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
+				AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
 					Enabled: false,
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "authorized proxy with non empty access graph config; Policy module is enabled",
@@ -1914,15 +1914,15 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			},
 			accessGraphConfig: cfgEnabled,
 			errorAssertion:    require.NoError,
-			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
-				AccessGraph: &clusterconfigpb.AccessGraphConfig{
+			responseAssertion: clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
+				AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
 					Enabled:           true,
 					Insecure:          true,
 					Address:           "address",
 					Ca:                []byte("ca"),
 					SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "authorized discovery with non empty access graph config; Policy module is enabled",
@@ -1936,15 +1936,15 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			},
 			accessGraphConfig: cfgEnabled,
 			errorAssertion:    require.NoError,
-			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
-				AccessGraph: &clusterconfigpb.AccessGraphConfig{
+			responseAssertion: clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
+				AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
 					Enabled:           true,
 					Insecure:          true,
 					Address:           "address",
 					Ca:                []byte("ca"),
 					SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{},
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		{
 			name: "Policy module is enabled with secrets scan option",
@@ -1959,17 +1959,17 @@ func TestGetAccessGraphConfig(t *testing.T) {
 			accessGraphConfig:   cfgEnabled,
 			accessGraphSettings: settings,
 			errorAssertion:      require.NoError,
-			responseAssertion: &clusterconfigpb.GetClusterAccessGraphConfigResponse{
-				AccessGraph: &clusterconfigpb.AccessGraphConfig{
+			responseAssertion: clusterconfigpb.GetClusterAccessGraphConfigResponse_builder{
+				AccessGraph: clusterconfigpb.AccessGraphConfig_builder{
 					Enabled:  true,
 					Insecure: true,
 					Address:  "address",
 					Ca:       []byte("ca"),
-					SecretsScanConfig: &clusterconfigpb.AccessGraphSecretsScanConfiguration{
+					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfiguration_builder{
 						SshScanEnabled: true,
-					},
-				},
-			},
+					}.Build(),
+				}.Build(),
+			}.Build(),
 		},
 	}
 
@@ -2034,9 +2034,9 @@ func TestGetAccessGraphSettings(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			settings, err := clusterconfig.NewAccessGraphSettings(
-				&clusterconfigpb.AccessGraphSettingsSpec{
+				clusterconfigpb.AccessGraphSettingsSpec_builder{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-				},
+				}.Build(),
 			)
 			require.NoError(t, err)
 			env, err := newTestEnv(withAuthorizer(test.authorizer), withAccessGraphSettings(settings))
@@ -2099,7 +2099,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 				}, nil
 			}),
 			mutator: func(p *clusterconfigpb.AccessGraphSettings) {
-				p.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
+				p.GetSpec().SetSecretsScanConfig(clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED)
 			},
 			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
 				require.Error(t, err)
@@ -2127,7 +2127,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 				}, nil
 			}),
 			mutator: func(p *clusterconfigpb.AccessGraphSettings) {
-				p.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
+				p.GetSpec().SetSecretsScanConfig(clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED)
 			},
 			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
 				require.NoError(t, err)
@@ -2139,9 +2139,9 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			settings, err := clusterconfig.NewAccessGraphSettings(
-				&clusterconfigpb.AccessGraphSettingsSpec{
+				clusterconfigpb.AccessGraphSettingsSpec_builder{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED,
-				},
+				}.Build(),
 			)
 			require.NoError(t, err)
 			env, err := newTestEnv(
@@ -2157,7 +2157,7 @@ func TestUpdateAccessGraphSettings(t *testing.T) {
 				test.mutator(pref)
 			}
 
-			updated, err := env.UpdateAccessGraphSettings(context.Background(), &clusterconfigpb.UpdateAccessGraphSettingsRequest{AccessGraphSettings: pref})
+			updated, err := env.UpdateAccessGraphSettings(context.Background(), clusterconfigpb.UpdateAccessGraphSettingsRequest_builder{AccessGraphSettings: pref}.Build())
 			test.assertion(t, updated, err)
 		})
 	}
@@ -2250,11 +2250,11 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 				}, nil
 			}),
 			mutator: func(p *clusterconfigpb.AccessGraphSettings) {
-				p.Spec.SecretsScanConfig = clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED
+				p.GetSpec().SetSecretsScanConfig(clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED)
 			},
 			assertion: func(t *testing.T, updated *clusterconfigpb.AccessGraphSettings, err error) {
 				require.NoError(t, err)
-				require.Equal(t, clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED, updated.Spec.SecretsScanConfig)
+				require.Equal(t, clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_ENABLED, updated.GetSpec().GetSecretsScanConfig())
 			},
 		},
 	}
@@ -2262,9 +2262,9 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			settings, err := clusterconfig.NewAccessGraphSettings(
-				&clusterconfigpb.AccessGraphSettingsSpec{
+				clusterconfigpb.AccessGraphSettingsSpec_builder{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-				})
+				}.Build())
 
 			require.NoError(t, err)
 
@@ -2281,7 +2281,7 @@ func TestUpsertAccessGraphSettings(t *testing.T) {
 				test.mutator(pref)
 			}
 
-			updated, err := env.UpsertAccessGraphSettings(context.Background(), &clusterconfigpb.UpsertAccessGraphSettingsRequest{AccessGraphSettings: pref})
+			updated, err := env.UpsertAccessGraphSettings(context.Background(), clusterconfigpb.UpsertAccessGraphSettingsRequest_builder{AccessGraphSettings: pref}.Build())
 			test.assertion(t, updated, err)
 		})
 	}
@@ -2351,9 +2351,9 @@ func TestResetAccessGraphSettings(t *testing.T) {
 	for _, test := range cases {
 		t.Run(test.name, func(t *testing.T) {
 			settings, err := clusterconfig.NewAccessGraphSettings(
-				&clusterconfigpb.AccessGraphSettingsSpec{
+				clusterconfigpb.AccessGraphSettingsSpec_builder{
 					SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-				})
+				}.Build())
 
 			require.NoError(t, err)
 

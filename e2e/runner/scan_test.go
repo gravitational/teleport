@@ -1059,8 +1059,8 @@ func TestScanUsersDelimitersInStringLiterals(t *testing.T) {
 			wantRoles: []string{"access", "editor"},
 		},
 		{
-			name: "backtick template with delimiters does not corrupt parsing",
-			content: "test.use({\n  user: {\n    roles: ['access'],\n    traits: { logins: [`weird}{`] },\n  },\n});",
+			name:      "backtick template with delimiters does not corrupt parsing",
+			content:   "test.use({\n  user: {\n    roles: ['access'],\n    traits: { logins: [`weird}{`] },\n  },\n});",
 			wantRoles: []string{"access"},
 		},
 	}

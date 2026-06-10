@@ -86,20 +86,20 @@ func (t *ttyRecordingProcessor) handleSessionStart(evt *apievents.SessionStart) 
 	}
 
 	// store the initial terminal size, this is typically 80:24 and is resized immediately
-	t.metadata.StartCols = int32(size.W)
-	t.metadata.StartRows = int32(size.H)
+	t.metadata.SetStartCols(int32(size.W))
+	t.metadata.SetStartRows(int32(size.H))
 
-	t.metadata.ClusterName = evt.ClusterName
-	t.metadata.User = evt.User
+	t.metadata.SetClusterName(evt.ClusterName)
+	t.metadata.SetUser(evt.User)
 
 	switch evt.Protocol {
 	case events.EventProtocolSSH:
-		t.metadata.ResourceName = evt.ServerHostname
-		t.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_SSH
+		t.metadata.SetResourceName(evt.ServerHostname)
+		t.metadata.SetType(pb.SessionRecordingType_SESSION_RECORDING_TYPE_SSH)
 
 	case events.EventProtocolKube:
-		t.metadata.ResourceName = evt.KubernetesCluster
-		t.metadata.Type = pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES
+		t.metadata.SetResourceName(evt.KubernetesCluster)
+		t.metadata.SetType(pb.SessionRecordingType_SESSION_RECORDING_TYPE_KUBERNETES)
 	}
 
 	return t.thumbnailGenerator.handleEvent(evt)
@@ -115,19 +115,17 @@ func (t *ttyRecordingProcessor) handleResize(evt *apievents.Resize) error {
 	// this handles cases where the initial terminal size is not 80x24 and is resized immediately
 	// before any output is printed
 	if !t.hasSeenPrintEvent {
-		t.metadata.StartCols = int32(size.W)
-		t.metadata.StartRows = int32(size.H)
+		t.metadata.SetStartCols(int32(size.W))
+		t.metadata.SetStartRows(int32(size.H))
 	}
 
-	t.metadata.Events = append(t.metadata.Events, &pb.SessionRecordingEvent{
+	t.metadata.SetEvents(append(t.metadata.GetEvents(), pb.SessionRecordingEvent_builder{
 		StartOffset: durationpb.New(evt.Time.Sub(t.startTime)),
-		Event: &pb.SessionRecordingEvent_Resize{
-			Resize: &pb.SessionRecordingResizeEvent{
-				Cols: int32(size.W),
-				Rows: int32(size.H),
-			},
-		},
-	})
+		Resize: pb.SessionRecordingResizeEvent_builder{
+			Cols: int32(size.W),
+			Rows: int32(size.H),
+		}.Build(),
+	}.Build()))
 
 	return t.thumbnailGenerator.handleEvent(evt)
 }
@@ -161,15 +159,13 @@ func (t *ttyRecordingProcessor) handleSessionJoin(evt *apievents.SessionJoin) er
 
 func (t *ttyRecordingProcessor) handleSessionLeave(evt *apievents.SessionLeave) error {
 	if joinTime, ok := t.activeUsers[evt.User]; ok {
-		t.metadata.Events = append(t.metadata.Events, &pb.SessionRecordingEvent{
+		t.metadata.SetEvents(append(t.metadata.GetEvents(), pb.SessionRecordingEvent_builder{
 			StartOffset: durationpb.New(joinTime),
 			EndOffset:   durationpb.New(evt.Time.Sub(t.startTime)),
-			Event: &pb.SessionRecordingEvent_Join{
-				Join: &pb.SessionRecordingJoinEvent{
-					User: evt.User,
-				},
-			},
-		})
+			Join: pb.SessionRecordingJoinEvent_builder{
+				User: evt.User,
+			}.Build(),
+		}.Build()))
 
 		delete(t.activeUsers, evt.User)
 	}
@@ -191,13 +187,11 @@ func (t *ttyRecordingProcessor) addInactivityEvent(start, end time.Time) {
 	inactivityStart := durationpb.New(start.Sub(t.startTime))
 	inactivityEnd := durationpb.New(end.Sub(t.startTime))
 
-	t.metadata.Events = append(t.metadata.Events, &pb.SessionRecordingEvent{
+	t.metadata.SetEvents(append(t.metadata.GetEvents(), pb.SessionRecordingEvent_builder{
 		StartOffset: inactivityStart,
 		EndOffset:   inactivityEnd,
-		Event: &pb.SessionRecordingEvent_Inactivity{
-			Inactivity: &pb.SessionRecordingInactivityEvent{},
-		},
-	})
+		Inactivity:  &pb.SessionRecordingInactivityEvent{},
+	}.Build()))
 }
 
 func (t *ttyRecordingProcessor) collect() (*pb.SessionRecordingMetadata, *pb.SessionRecordingThumbnail) {
@@ -207,20 +201,18 @@ func (t *ttyRecordingProcessor) collect() (*pb.SessionRecordingMetadata, *pb.Ses
 
 	// Finish off any remaining activity events
 	for user, userStartOffset := range t.activeUsers {
-		t.metadata.Events = append(t.metadata.Events, &pb.SessionRecordingEvent{
+		t.metadata.SetEvents(append(t.metadata.GetEvents(), pb.SessionRecordingEvent_builder{
 			StartOffset: durationpb.New(userStartOffset),
 			EndOffset:   durationpb.New(t.lastEvent.GetTime().Sub(t.startTime)),
-			Event: &pb.SessionRecordingEvent_Join{
-				Join: &pb.SessionRecordingJoinEvent{
-					User: user,
-				},
-			},
-		})
+			Join: pb.SessionRecordingJoinEvent_builder{
+				User: user,
+			}.Build(),
+		}.Build()))
 	}
 
-	t.metadata.Duration = durationpb.New(t.lastEvent.GetTime().Sub(t.startTime))
-	t.metadata.StartTime = timestamppb.New(t.startTime)
-	t.metadata.EndTime = timestamppb.New(t.lastEvent.GetTime())
+	t.metadata.SetDuration(durationpb.New(t.lastEvent.GetTime().Sub(t.startTime)))
+	t.metadata.SetStartTime(timestamppb.New(t.startTime))
+	t.metadata.SetEndTime(timestamppb.New(t.lastEvent.GetTime()))
 
 	return t.metadata, t.thumbnail
 }

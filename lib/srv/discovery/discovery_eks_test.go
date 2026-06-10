@@ -134,20 +134,20 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				},
 			},
 			eksEnroller: &mockEKSClusterEnroller{
-				resp: &integrationpb.EnrollEKSClustersResponse{
+				resp: integrationpb.EnrollEKSClustersResponse_builder{
 					Results: []*integrationpb.EnrollEKSClusterResult{
-						{
+						integrationpb.EnrollEKSClusterResult_builder{
 							EksClusterName: "cluster01",
 							Error:          "access endpoint is not reachable",
 							IssueType:      "eks-cluster-unreachable",
-						},
-						{
+						}.Build(),
+						integrationpb.EnrollEKSClusterResult_builder{
 							EksClusterName: "cluster02",
 							Error:          "access endpoint is not reachable",
 							IssueType:      "eks-cluster-unreachable",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				err: nil,
 			},
 			emitter:                &mockEmitter{},
@@ -158,26 +158,26 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				require.NotEmpty(t, existingTasks)
 				existingTask := existingTasks[0]
 
-				require.Equal(t, "OPEN", existingTask.GetSpec().State)
-				require.Equal(t, integrationName, existingTask.GetSpec().Integration)
-				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().IssueType)
+				require.Equal(t, "OPEN", existingTask.GetSpec().GetState())
+				require.Equal(t, integrationName, existingTask.GetSpec().GetIntegration())
+				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().GetIssueType())
 				require.Equal(t, "123456789012", existingTask.GetSpec().GetDiscoverEks().GetAccountId())
 				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEks().GetRegion())
 
-				taskClusters := existingTask.GetSpec().GetDiscoverEks().Clusters
+				taskClusters := existingTask.GetSpec().GetDiscoverEks().GetClusters()
 				require.Contains(t, taskClusters, "cluster01")
 				taskCluster := taskClusters["cluster01"]
 
-				require.Equal(t, "cluster01", taskCluster.Name)
-				require.Equal(t, discoveryConfigForUserTaskEKSTest.GetName(), taskCluster.DiscoveryConfig)
-				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
+				require.Equal(t, "cluster01", taskCluster.GetName())
+				require.Equal(t, discoveryConfigForUserTaskEKSTest.GetName(), taskCluster.GetDiscoveryConfig())
+				require.Equal(t, defaultDiscoveryGroup, taskCluster.GetDiscoveryGroup())
 
 				require.Contains(t, taskClusters, "cluster02")
 				taskCluster2 := taskClusters["cluster02"]
 
-				require.Equal(t, "cluster02", taskCluster2.Name)
-				require.Equal(t, discoveryConfigForUserTaskEKSTest.GetName(), taskCluster2.DiscoveryConfig)
-				require.Equal(t, defaultDiscoveryGroup, taskCluster2.DiscoveryGroup)
+				require.Equal(t, "cluster02", taskCluster2.GetName())
+				require.Equal(t, discoveryConfigForUserTaskEKSTest.GetName(), taskCluster2.GetDiscoveryConfig())
+				require.Equal(t, defaultDiscoveryGroup, taskCluster2.GetDiscoveryGroup())
 			},
 		},
 		{
@@ -201,20 +201,20 @@ func TestDiscoveryServerEKS(t *testing.T) {
 				},
 			},
 			eksEnroller: &mockEKSClusterEnroller{
-				resp: &integrationpb.EnrollEKSClustersResponse{
+				resp: integrationpb.EnrollEKSClustersResponse_builder{
 					Results: []*integrationpb.EnrollEKSClusterResult{
-						{
+						integrationpb.EnrollEKSClusterResult_builder{
 							EksClusterName: "cluster01",
 							Error:          "access endpoint is not reachable",
 							IssueType:      "eks-cluster-unreachable",
-						},
-						{
+						}.Build(),
+						integrationpb.EnrollEKSClusterResult_builder{
 							EksClusterName: "cluster02",
 							Error:          "access endpoint is not reachable",
 							IssueType:      "eks-cluster-unreachable",
-						},
+						}.Build(),
 					},
-				},
+				}.Build(),
 				err: nil,
 			},
 			emitter:                &mockEmitter{},
@@ -224,23 +224,23 @@ func TestDiscoveryServerEKS(t *testing.T) {
 			userTasksDiscoverCheck: func(t *testing.T, existingTasks []*usertasksv1.UserTask) {
 				require.Len(t, existingTasks, 2)
 				existingTask := existingTasks[0]
-				if existingTask.Spec.DiscoverEks.AppAutoDiscover == false {
+				if existingTask.GetSpec().GetDiscoverEks().GetAppAutoDiscover() == false {
 					existingTask = existingTasks[1]
 				}
 
-				require.Equal(t, "OPEN", existingTask.GetSpec().State)
-				require.Equal(t, integrationName, existingTask.GetSpec().Integration)
-				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().IssueType)
+				require.Equal(t, "OPEN", existingTask.GetSpec().GetState())
+				require.Equal(t, integrationName, existingTask.GetSpec().GetIntegration())
+				require.Equal(t, "eks-cluster-unreachable", existingTask.GetSpec().GetIssueType())
 				require.Equal(t, "123456789012", existingTask.GetSpec().GetDiscoverEks().GetAccountId())
 				require.Equal(t, "us-west-2", existingTask.GetSpec().GetDiscoverEks().GetRegion())
 
-				taskClusters := existingTask.GetSpec().GetDiscoverEks().Clusters
+				taskClusters := existingTask.GetSpec().GetDiscoverEks().GetClusters()
 				require.Contains(t, taskClusters, "cluster01")
 				taskCluster := taskClusters["cluster01"]
 
-				require.Equal(t, "cluster01", taskCluster.Name)
-				require.Equal(t, discoveryConfigWithAndWithoutAppDiscovery.GetName(), taskCluster.DiscoveryConfig)
-				require.Equal(t, defaultDiscoveryGroup, taskCluster.DiscoveryGroup)
+				require.Equal(t, "cluster01", taskCluster.GetName())
+				require.Equal(t, discoveryConfigWithAndWithoutAppDiscovery.GetName(), taskCluster.GetDiscoveryConfig())
+				require.Equal(t, defaultDiscoveryGroup, taskCluster.GetDiscoveryGroup())
 			},
 		},
 	} {
@@ -488,14 +488,14 @@ type mockEKSClusterEnroller struct {
 }
 
 func (m *mockEKSClusterEnroller) EnrollEKSClusters(ctx context.Context, req *integrationpb.EnrollEKSClustersRequest, opt ...grpc.CallOption) (*integrationpb.EnrollEKSClustersResponse, error) {
-	ret := &integrationpb.EnrollEKSClustersResponse{
+	ret := integrationpb.EnrollEKSClustersResponse_builder{
 		Results: []*integrationpb.EnrollEKSClusterResult{},
-	}
+	}.Build()
 	// Filter out non-requested clusters.
-	for _, clusterName := range req.EksClusterNames {
-		for _, mockClusterResult := range m.resp.Results {
-			if clusterName == mockClusterResult.EksClusterName {
-				ret.Results = append(ret.Results, mockClusterResult)
+	for _, clusterName := range req.GetEksClusterNames() {
+		for _, mockClusterResult := range m.resp.GetResults() {
+			if clusterName == mockClusterResult.GetEksClusterName() {
+				ret.SetResults(append(ret.GetResults(), mockClusterResult))
 			}
 		}
 	}

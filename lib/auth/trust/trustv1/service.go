@@ -121,7 +121,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	}
 
 	checkAccess := func(ruleCtx services.RuleContext) error {
-		if req.IncludeKey {
+		if req.GetIncludeKey() {
 			return authCtx.CheckerContext.Decision(ctx, scopes.Root, func(checker *services.ScopedAccessChecker) error {
 				return checker.CheckAccessToRules(ruleCtx, types.KindCertAuthority, types.VerbRead)
 			})
@@ -138,8 +138,8 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	// leaking information about the requested CA if the call to GetCertAuthority
 	// fails.
 	contextCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-		Type:        types.CertAuthType(req.Type),
-		ClusterName: req.Domain,
+		Type:        types.CertAuthType(req.GetType()),
+		ClusterName: req.GetDomain(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -151,7 +151,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 	}
 
 	// Require admin MFA to read secrets.
-	if req.IncludeKey {
+	if req.GetIncludeKey() {
 		unscopedCtx, ok := authCtx.UnscopedContext()
 		if !ok {
 			return nil, trace.AccessDenied(
@@ -166,7 +166,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 
 	// Retrieve the requested CA and perform RBAC on it to ensure that
 	// the user has access to this particular CA.
-	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{Type: types.CertAuthType(req.Type), DomainName: req.Domain}, req.IncludeKey)
+	ca, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{Type: types.CertAuthType(req.GetType()), DomainName: req.GetDomain()}, req.GetIncludeKey())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -176,7 +176,7 @@ func (s *Service) GetCertAuthority(ctx context.Context, req *trustpb.GetCertAuth
 		return nil, trace.Wrap(err)
 	}
 
-	if err := failPreWindowsCATctlUserCAQuery(ctx, req.Type); err != nil {
+	if err := failPreWindowsCATctlUserCAQuery(ctx, req.GetType()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	authority, ok := ca.(*types.CertAuthorityV2)
@@ -248,7 +248,7 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 	// on each decision invocation.
 	ruleCtx := authCtx.RuleContext()
 
-	if req.IncludeKey {
+	if req.GetIncludeKey() {
 		// For queries that include secrets we must enforce standard scope pinning rules.
 		//
 		// NOTE: technically we have no plans to introduce scoped CA secrets. as of the time of writing,
@@ -283,12 +283,12 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 		}
 	}
 
-	cas, err := s.cache.GetCertAuthorities(ctx, types.CertAuthType(req.Type), req.IncludeKey)
+	cas, err := s.cache.GetCertAuthorities(ctx, types.CertAuthType(req.GetType()), req.GetIncludeKey())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	resp := &trustpb.GetCertAuthoritiesResponse{CertAuthoritiesV2: make([]*types.CertAuthorityV2, 0, len(cas))}
+	resp := trustpb.GetCertAuthoritiesResponse_builder{CertAuthoritiesV2: make([]*types.CertAuthorityV2, 0, len(cas))}.Build()
 
 	for _, ca := range cas {
 		cav2, ok := ca.(*types.CertAuthorityV2)
@@ -296,7 +296,7 @@ func (s *Service) GetCertAuthorities(ctx context.Context, req *trustpb.GetCertAu
 			return nil, trace.BadParameter("cert authority has invalid type %T", ca)
 		}
 
-		resp.CertAuthoritiesV2 = append(resp.CertAuthoritiesV2, cav2)
+		resp.SetCertAuthoritiesV2(append(resp.GetCertAuthoritiesV2(), cav2))
 	}
 
 	return resp, nil
@@ -317,7 +317,7 @@ func (s *Service) DeleteCertAuthority(ctx context.Context, req *trustpb.DeleteCe
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.DeleteCertAuthority(ctx, types.CertAuthID{DomainName: req.Domain, Type: types.CertAuthType(req.Type)}); err != nil {
+	if err := s.backend.DeleteCertAuthority(ctx, types.CertAuthID{DomainName: req.GetDomain(), Type: types.CertAuthType(req.GetType())}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -326,11 +326,11 @@ func (s *Service) DeleteCertAuthority(ctx context.Context, req *trustpb.DeleteCe
 
 // UpsertCertAuthority creates or updates the provided cert authority.
 func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCertAuthorityRequest) (*types.CertAuthorityV2, error) {
-	if req.CertAuthority == nil {
+	if !req.HasCertAuthority() {
 		return nil, trace.BadParameter("missing certificate authority")
 	}
 
-	if err := services.ValidateCertAuthority(req.CertAuthority); err != nil {
+	if err := services.ValidateCertAuthority(req.GetCertAuthority()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -339,7 +339,7 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authzCtx.CheckAccessToResource(req.CertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+	if err := authzCtx.CheckAccessToResource(req.GetCertAuthority(), types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -348,11 +348,11 @@ func (s *Service) UpsertCertAuthority(ctx context.Context, req *trustpb.UpsertCe
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.backend.UpsertCertAuthority(ctx, req.CertAuthority); err != nil {
+	if err := s.backend.UpsertCertAuthority(ctx, req.GetCertAuthority()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return req.CertAuthority, nil
+	return req.GetCertAuthority(), nil
 }
 
 // RotateCertAuthority rotates a cert authority.
@@ -371,21 +371,21 @@ func (s *Service) RotateCertAuthority(ctx context.Context, req *trustpb.RotateCe
 	}
 
 	rotateRequest := types.RotateRequest{
-		Type:        types.CertAuthType(req.Type),
-		TargetPhase: req.TargetPhase,
-		Mode:        req.Mode,
+		Type:        types.CertAuthType(req.GetType()),
+		TargetPhase: req.GetTargetPhase(),
+		Mode:        req.GetMode(),
 	}
 
-	if req.GracePeriod != nil {
-		duration := req.GracePeriod.AsDuration()
+	if req.HasGracePeriod() {
+		duration := req.GetGracePeriod().AsDuration()
 		rotateRequest.GracePeriod = &duration
 	}
 
-	if req.Schedule != nil {
+	if req.HasSchedule() {
 		rotateRequest.Schedule = &types.RotationSchedule{
-			UpdateClients: req.Schedule.UpdateClients.AsTime(),
-			UpdateServers: req.Schedule.UpdateServers.AsTime(),
-			Standby:       req.Schedule.Standby.AsTime(),
+			UpdateClients: req.GetSchedule().GetUpdateClients().AsTime(),
+			UpdateServers: req.GetSchedule().GetUpdateServers().AsTime(),
+			Standby:       req.GetSchedule().GetStandby().AsTime(),
 		}
 	}
 
@@ -400,11 +400,11 @@ func (s *Service) RotateCertAuthority(ctx context.Context, req *trustpb.RotateCe
 // this method is called by remote trusted cluster and is used to update
 // only public keys and certificates of the certificate authority.
 func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.RotateExternalCertAuthorityRequest) (*trustpb.RotateExternalCertAuthorityResponse, error) {
-	if req.CertAuthority == nil {
+	if !req.HasCertAuthority() {
 		return nil, trace.BadParameter("missing certificate authority")
 	}
 
-	if err := services.ValidateCertAuthority(req.CertAuthority); err != nil {
+	if err := services.ValidateCertAuthority(req.GetCertAuthority()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -413,7 +413,7 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 		return nil, trace.Wrap(err)
 	}
 
-	if err := authCtx.CheckAccessToResource(req.CertAuthority, types.VerbRotate); err != nil {
+	if err := authCtx.CheckAccessToResource(req.GetCertAuthority(), types.VerbRotate); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -422,13 +422,13 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 	}
 
 	// ensure that the caller is rotating a CA from the same cluster
-	caClusterName := req.CertAuthority.GetClusterName()
+	caClusterName := req.GetCertAuthority().GetClusterName()
 	if caClusterName != authCtx.Identity.GetIdentity().TeleportCluster {
 		return nil, trace.BadParameter("can not rotate local certificate authority")
 	}
 	// ensure the subjects and issuers of the CA certs match what the
 	// cluster name of this CA is supposed to be
-	for _, keyPair := range req.CertAuthority.GetTrustedTLSKeyPairs() {
+	for _, keyPair := range req.GetCertAuthority().GetTrustedTLSKeyPairs() {
 		cert, err := tlsca.ParseCertificatePEM(keyPair.Cert)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -449,23 +449,23 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 
 	// this is just an extra precaution against local admins,
 	// because this is additionally enforced by RBAC as well
-	if req.CertAuthority.GetClusterName() == clusterName.GetClusterName() {
+	if req.GetCertAuthority().GetClusterName() == clusterName.GetClusterName() {
 		return nil, trace.BadParameter("can not rotate local certificate authority")
 	}
 
 	existing, err := s.cache.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       req.CertAuthority.GetType(),
-		DomainName: req.CertAuthority.GetClusterName(),
+		Type:       req.GetCertAuthority().GetType(),
+		DomainName: req.GetCertAuthority().GetClusterName(),
 	}, true)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	updated := existing.Clone()
-	if err := updated.SetActiveKeys(req.CertAuthority.GetActiveKeys().Clone()); err != nil {
+	if err := updated.SetActiveKeys(req.GetCertAuthority().GetActiveKeys().Clone()); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := updated.SetAdditionalTrustedKeys(req.CertAuthority.GetAdditionalTrustedKeys().Clone()); err != nil {
+	if err := updated.SetAdditionalTrustedKeys(req.GetCertAuthority().GetAdditionalTrustedKeys().Clone()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -474,7 +474,7 @@ func (s *Service) RotateExternalCertAuthority(ctx context.Context, req *trustpb.
 	// this before checking if `updated` is the same as `existing` or the check
 	// will fail for no reason (CheckAndSetDefaults is idempotent, so it's fine
 	// to call it both here and in CompareAndSwapCertAuthority)
-	updated.SetRotation(req.CertAuthority.GetRotation())
+	updated.SetRotation(req.GetCertAuthority().GetRotation())
 	if err := services.CheckAndSetDefaults(updated); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -508,12 +508,12 @@ func (s *Service) GenerateHostCert(
 	ruleCtx := &services.Context{
 		User: authCtx.User,
 		HostCert: &services.HostCertContext{
-			HostID:      req.HostId,
-			NodeName:    req.NodeName,
-			Principals:  req.Principals,
-			ClusterName: req.ClusterName,
-			Role:        types.SystemRole(req.Role),
-			TTL:         req.Ttl.AsDuration(),
+			HostID:      req.GetHostId(),
+			NodeName:    req.GetNodeName(),
+			Principals:  req.GetPrincipals(),
+			ClusterName: req.GetClusterName(),
+			Role:        types.SystemRole(req.GetRole()),
+			TTL:         req.GetTtl().AsDuration(),
 		},
 	}
 	if err = authCtx.CheckAccessToRule(
@@ -533,19 +533,19 @@ func (s *Service) GenerateHostCert(
 	// up to here.
 	cert, err := s.authServer.GenerateHostCert(
 		ctx,
-		req.Key,
-		req.HostId,
-		req.NodeName,
-		req.Principals,
-		req.ClusterName,
-		types.SystemRole(req.Role),
-		req.Ttl.AsDuration(),
+		req.GetKey(),
+		req.GetHostId(),
+		req.GetNodeName(),
+		req.GetPrincipals(),
+		req.GetClusterName(),
+		types.SystemRole(req.GetRole()),
+		req.GetTtl().AsDuration(),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &trustpb.GenerateHostCertResponse{
+	return trustpb.GenerateHostCertResponse_builder{
 		SshCertificate: cert,
-	}, nil
+	}.Build(), nil
 }

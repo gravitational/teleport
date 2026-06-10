@@ -94,10 +94,10 @@ func (p *PluginsCommand) InstallSCIM(ctx context.Context, args pluginServices) e
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	req := &pluginspb.CreatePluginRequest{
+	req := pluginspb.CreatePluginRequest_builder{
 		Plugin:                plugin,
 		StaticCredentialsList: []*types.PluginStaticCredentialsV1{creds.PluginStaticCredentialsV1},
-	}
+	}.Build()
 	if _, err := args.plugins.CreatePlugin(ctx, req); err != nil {
 		return trace.Wrap(err)
 	}

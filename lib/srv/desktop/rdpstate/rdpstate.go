@@ -22,7 +22,6 @@ import (
 	"bytes"
 	"encoding/binary"
 	"image"
-	"image/draw"
 	"io"
 	"math"
 
@@ -58,9 +57,6 @@ const (
 // Subsequent FastPathPDU messages are fed to the decoder, which maintains the screen framebuffer and cursor state.
 type RDPState struct {
 	decoder *decoder.Decoder
-
-	mouseX, mouseY uint16
-	hasMouse       bool
 }
 
 // New creates a new RDPState.
@@ -102,46 +98,44 @@ func (s *RDPState) Image() *image.RGBA {
 	return s.decoder.Image()
 }
 
+// ResizeCrop returns the source crop region of the current screen image scaled to exactly outWidth x outHeight using
+// high-quality CatmullRom convolution. The crop must lie within the current frame bounds. When withCursor is true and
+// the decoder's tracked cursor is visible, it is composited onto the source frame before the crop, so the cursor
+// scales with the screen. Returns an error if the decoder has not been initialized or the resize fails.
+func (s *RDPState) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16, withCursor bool) (*image.RGBA, error) {
+	if s.decoder == nil {
+		return nil, trace.BadParameter("rdp state has no image")
+	}
+
+	return s.decoder.ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight, withCursor)
+}
+
+// Dimensions returns the current screen width and height in pixels. Returns (0, 0) if the decoder has not been
+// initialized.
+func (s *RDPState) Dimensions() (width, height uint16) {
+	if s.decoder == nil {
+		return 0, 0
+	}
+
+	return s.decoder.Dimensions()
+}
+
+// SampleHash returns a 64-bit FNV-1a digest of pixels sampled on a fixed grid from the current frame buffer.
+// sampleCount controls the per-axis sample density. Returns 0 if the decoder has not been initialized.
+func (s *RDPState) SampleHash(sampleCount uint16) uint64 {
+	if s.decoder == nil {
+		return 0
+	}
+
+	return s.decoder.SampleHash(sampleCount)
+}
+
 // Release frees any resources associated with the RDPState, including the decoder.
 func (s *RDPState) Release() {
 	if s.decoder != nil {
 		s.decoder.Release()
 		s.decoder = nil
 	}
-}
-
-// ImageWithCursor returns the current screen image with the cursor composited at its current position, along with the
-// cursor state.
-// When MouseMove TDPB messages have set a position, that overrides the Rust decoder's internal cursor position for compositing.
-func (s *RDPState) ImageWithCursor() (*image.RGBA, decoder.CursorState) {
-	if s.decoder == nil {
-		return nil, decoder.CursorState{}
-	}
-
-	img := s.decoder.Image()
-	cs := s.CursorState()
-	if img == nil || !cs.Visible {
-		return img, cs
-	}
-
-	bmp := s.decoder.CursorBitmap()
-	if bmp == nil {
-		return img, cs
-	}
-
-	cursorX, cursorY := cs.X, cs.Y
-	if s.hasMouse {
-		cursorX, cursorY = s.mouseX, s.mouseY
-	}
-
-	drawX := int(cursorX) - bmp.HotspotX
-	drawY := int(cursorY) - bmp.HotspotY
-	cb := bmp.Image.Bounds()
-
-	dstRect := image.Rect(drawX, drawY, drawX+cb.Dx(), drawY+cb.Dy())
-	draw.Draw(img, dstRect, bmp.Image, image.Point{}, draw.Over)
-
-	return img, cs
 }
 
 // UpdatedRegions returns the individual screen regions updated since the last call to ResetUpdatedRegions.
@@ -178,14 +172,14 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "decoding legacy ConnectionActivated")
 		}
 
-		return s.handleServerHello(&tdpbv1.ServerHello{
-			ActivationSpec: &tdpbv1.ConnectionActivated{
+		return s.handleServerHello(tdpbv1.ServerHello_builder{
+			ActivationSpec: tdpbv1.ConnectionActivated_builder{
 				IoChannelId:   uint32(ca.IOChannelID),
 				UserChannelId: uint32(ca.UserChannelID),
 				ScreenWidth:   uint32(ca.ScreenWidth),
 				ScreenHeight:  uint32(ca.ScreenHeight),
-			},
-		})
+			}.Build(),
+		}.Build())
 
 	case legacyTypeRDPFastPathPDU:
 		var dataLen uint32
@@ -202,7 +196,7 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "reading legacy RDPFastPathPDU data")
 		}
 
-		return s.handleFastPathPDU(&tdpbv1.FastPathPDU{Pdu: pdu})
+		return s.handleFastPathPDU(tdpbv1.FastPathPDU_builder{Pdu: pdu}.Build())
 
 	case legacyTypeMouseMove:
 		var mm struct{ X, Y uint32 }
@@ -210,7 +204,7 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "reading legacy MouseMove")
 		}
 
-		return s.handleMouseMove(&tdpbv1.MouseMove{X: mm.X, Y: mm.Y})
+		return s.handleMouseMove(tdpbv1.MouseMove_builder{X: mm.X, Y: mm.Y}.Build())
 	}
 
 	return nil
@@ -239,13 +233,13 @@ func (s *RDPState) processTDPBMessage(data []byte) error {
 		return trace.Wrap(err, "unmarshalling TDPB envelope")
 	}
 
-	switch m := env.Payload.(type) {
-	case *tdpbv1.Envelope_ServerHello:
-		return s.handleServerHello(m.ServerHello)
-	case *tdpbv1.Envelope_FastPathPdu:
-		return s.handleFastPathPDU(m.FastPathPdu)
-	case *tdpbv1.Envelope_MouseMove:
-		return s.handleMouseMove(m.MouseMove)
+	switch env.WhichPayload() {
+	case tdpbv1.Envelope_ServerHello_case:
+		return s.handleServerHello(env.GetServerHello())
+	case tdpbv1.Envelope_FastPathPdu_case:
+		return s.handleFastPathPDU(env.GetFastPathPdu())
+	case tdpbv1.Envelope_MouseMove_case:
+		return s.handleMouseMove(env.GetMouseMove())
 	}
 
 	return nil
@@ -312,13 +306,13 @@ func (s *RDPState) handleFastPathPDU(msg *tdpbv1.FastPathPDU) error {
 }
 
 func (s *RDPState) handleMouseMove(msg *tdpbv1.MouseMove) error {
-	if msg.X > math.MaxUint16 || msg.Y > math.MaxUint16 {
-		return trace.BadParameter("mouse coordinates out of range: (%d, %d)", msg.X, msg.Y)
+	if msg.GetX() > math.MaxUint16 || msg.GetY() > math.MaxUint16 {
+		return trace.BadParameter("mouse coordinates out of range: (%d, %d)", msg.GetX(), msg.GetY())
 	}
 
-	s.mouseX = uint16(msg.X)
-	s.mouseY = uint16(msg.Y)
-	s.hasMouse = true
+	// MouseMove may arrive before ServerHello initializes the decoder, in which case there's nowhere to record
+	// the position. SetCursorPosition is a no-op when the decoder is nil, so drop the update silently.
+	s.decoder.SetCursorPosition(uint16(msg.GetX()), uint16(msg.GetY()))
 
 	return nil
 }

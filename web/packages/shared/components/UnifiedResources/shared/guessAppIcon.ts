@@ -79,11 +79,15 @@ export function guessAppIcon(resource: UnifiedResourceApp): ResourceIconName {
     if (match('calendar', app)) return 'googlecalendar';
     if (match('cloud', app)) return 'googlecloud';
     if (match('drive', app)) return 'googledrive';
+    if (match('gemini', app)) return 'gemini';
     if (match('tag', app)) return 'googletag';
     if (match('voice', app)) return 'googlevoice';
     return 'google'; // generic
   }
   if (match('microsoft', app)) {
+    if (match('active', app)) return 'microsoftactivedirectory';
+    if (match('ad', app)) return 'microsoftactivedirectory';
+    if (match('code', app)) return 'microsoftvisualstudiocode';
     if (match('excel', app)) return 'microsoftexcel';
     if (match('drive', app)) return 'microsoftonedrive';
     if (match('note', app)) return 'microsoftonenote';

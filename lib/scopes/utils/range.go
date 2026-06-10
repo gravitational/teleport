@@ -31,8 +31,8 @@ import (
 // NOTE: this function mutates the request's PageToken field during iteration.
 func RangeScopedRoles(ctx context.Context, reader services.ScopedRoleReader, req *scopedaccessv1.ListScopedRolesRequest) stream.Stream[*scopedaccessv1.ScopedRole] {
 	return clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*scopedaccessv1.ScopedRole, string, error) {
-		req.PageSize = int32(pageSize)
-		req.PageToken = pageToken
+		req.SetPageSize(int32(pageSize))
+		req.SetPageToken(pageToken)
 		rsp, err := reader.ListScopedRoles(ctx, req)
 		if err != nil {
 			return nil, "", err
@@ -45,8 +45,8 @@ func RangeScopedRoles(ctx context.Context, reader services.ScopedRoleReader, req
 // NOTE: this function mutates the request's PageToken field during iteration.
 func RangeScopedRoleAssignments(ctx context.Context, reader services.ScopedRoleAssignmentReader, req *scopedaccessv1.ListScopedRoleAssignmentsRequest) stream.Stream[*scopedaccessv1.ScopedRoleAssignment] {
 	return clientutils.Resources(ctx, func(ctx context.Context, pageSize int, pageToken string) ([]*scopedaccessv1.ScopedRoleAssignment, string, error) {
-		req.PageSize = int32(pageSize)
-		req.PageToken = pageToken
+		req.SetPageSize(int32(pageSize))
+		req.SetPageToken(pageToken)
 		rsp, err := reader.ListScopedRoleAssignments(ctx, req)
 		if err != nil {
 			return nil, "", err

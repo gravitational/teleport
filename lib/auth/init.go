@@ -70,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -475,6 +476,9 @@ type InitConfig struct {
 	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
 	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
 	RemoteClusterRefreshBuckets int
+
+	// ScopesFeatures dictate which scoped components are enabled.
+	ScopesFeatures scopes.Features
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -574,7 +578,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if len(cfg.ApplyOnStartupResources) > 0 {
 		asrv.logger.InfoContext(ctx, "Applying resources (apply-on-startup)", "resource_count", len(cfg.ApplyOnStartupResources))
 
-		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources, cfg.Modules.Features()); err != nil {
+		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources, cfg.Modules.Features(), cfg.ScopesFeatures); err != nil {
 			return trace.Wrap(err, "applying resources failed")
 		}
 	}
@@ -659,24 +663,24 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticTokens")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetStaticTokens")
 		defer span.End()
 		asrv.logger.InfoContext(ctx, "Updating cluster configuration", "static_tokens", cfg.StaticTokens)
 		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
 	})
 
 	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
 		defer span.End()
 		if cfg.StaticScopedTokens != nil {
-			return trace.Wrap(asrv.SetStaticScopedTokens(gctx, cfg.StaticScopedTokens))
+			return trace.Wrap(asrv.SetStaticScopedTokens(ctx, cfg.StaticScopedTokens))
 		}
 		return nil
 	})
 
 	var cn types.ClusterName
 	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
 		defer span.End()
 
 		// The first Auth Server that starts gets to set the name of the cluster.
@@ -1309,9 +1313,9 @@ func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
 		return nil
 	}
 
-	stored, err = clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+	stored, err = clusterconfig.NewAccessGraphSettings(clusterconfigpb.AccessGraphSettingsSpec_builder{
 		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1813,7 +1817,7 @@ var ResourceApplyPriority = map[string]int{
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
 // This means consistency is checked. This function support applying resources
 // with dependencies (like a user referring to a role).
-func applyResources(ctx context.Context, service *Services, resources []types.Resource, features modules.Features) error {
+func applyResources(ctx context.Context, service *Services, resources []types.Resource, features modules.Features, scopesFeatures scopes.Features) error {
 	var err error
 	slices.SortFunc(resources, func(a, b types.Resource) int {
 		priorityA := ResourceApplyPriority[a.GetKind()]
@@ -1846,7 +1850,7 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.AuthPreference:
 			_, err = service.ClusterConfigurationInternal.UpsertAuthPreference(ctx, r)
 		case types.Resource153UnwrapperT[*machineidv1pb.Bot]:
-			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system")
+			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system", scopesFeatures)
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT(), features)
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:

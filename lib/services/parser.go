@@ -363,7 +363,7 @@ func (l *LogAction) Log(level, msg string, args ...any) predicate.BoolPredicate 
 		ctx := context.Background()
 		// Expicitly check whether logging is enabled for the level
 		// to avoid formatting the message if the log won't be sampled.
-		if !slog.Default().Handler().Enabled(ctx, slevel) {
+		if slog.Default().Handler().Enabled(ctx, slevel) {
 			//nolint:sloglint // msg cannot be constant
 			slog.Log(context.Background(), slevel, fmt.Sprintf(msg, args...))
 		}
