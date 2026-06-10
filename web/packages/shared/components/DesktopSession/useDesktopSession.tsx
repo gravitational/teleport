@@ -197,6 +197,8 @@ export default function useDesktopSession(
       await tdpClient.shareDirectory();
       setSharedDirectoriesState(tdpClient.listSharedDirectories());
     } catch (e) {
+      // An abort error is thrown when the user cancels
+      // the directory picker dialogue.
       if (isAbortError(e)) {
         return;
       }
@@ -216,9 +218,6 @@ export default function useDesktopSession(
         tdpClient.unshareDirectory(directoryId);
         setSharedDirectoriesState(tdpClient.listSharedDirectories());
       } catch (e) {
-        if (isAbortError(e)) {
-          return;
-        }
         addAlert({
           severity: 'warn',
           content: {
