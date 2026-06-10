@@ -2344,7 +2344,7 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 			s.UpsertSessionRecordingConfig(ctx, recConfig)
 		},
 		get: func(s *auth.ServerWithRoles) error {
-			_, err := s.GetSessionRecordingConfig(ctx)
+			_, err := s.ScopedServerWithRoles().GetSessionRecordingConfig(ctx)
 			return err
 		},
 		set: func(s *auth.ServerWithRoles) error {
@@ -4588,7 +4588,7 @@ func TestKindClusterConfig(t *testing.T) {
 		)
 		_, err1 := s.GetClusterAuditConfig(ctx)
 		_, err2 := s.ScopedServerWithRoles().GetClusterNetworkingConfig(ctx)
-		_, err3 := s.GetSessionRecordingConfig(ctx)
+		_, err3 := s.ScopedServerWithRoles().GetSessionRecordingConfig(ctx)
 		return []error{err1, err2, err3}
 	}
 

@@ -513,4 +513,11 @@ var (
 		kind:          types.KindClusterName,
 		verbs:         []string{types.VerbRead},
 	}
+	// UnpinnedReadSessionRecordingConfig is a special authorization to complete an
+	// unscoped access check to read a cluster session recording config.
+	UnpinnedReadSessionRecordingConfig = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindSessionRecordingConfig,
+		verbs:         []string{types.VerbRead},
+	}
 )

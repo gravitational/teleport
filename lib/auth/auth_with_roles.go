@@ -5867,9 +5867,14 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 }
 
 // GetSessionRecordingConfig gets session recording configuration.
-func (a *ServerWithRoles) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
-	if err := a.authorizeAction(types.KindSessionRecordingConfig, types.VerbRead); err != nil {
-		if err2 := a.authorizeAction(types.KindClusterConfig, types.VerbRead); err2 != nil {
+func (a *ScopedServerWithRoles) GetSessionRecordingConfig(ctx context.Context) (types.SessionRecordingConfig, error) {
+	ruleCtx := a.scopedContext.RuleContext()
+	if err := a.scopedContext.CheckerContext.RiskyAuthorizeUnpinnedRead(ctx, services.UnpinnedReadSessionRecordingConfig, &ruleCtx); err != nil {
+		unscopedCtx, isUnscoped := a.scopedContext.UnscopedContext()
+		if !isUnscoped {
+			return nil, trace.Wrap(err)
+		}
+		if err2 := unscopedCtx.CheckAccessToKind(types.KindClusterConfig, types.VerbRead); err2 != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

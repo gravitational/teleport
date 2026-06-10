@@ -3976,11 +3976,11 @@ func (g *GRPCServer) ResetClusterNetworkingConfig(ctx context.Context, _ *emptyp
 
 // GetSessionRecordingConfig gets session recording configuration.
 func (g *GRPCServer) GetSessionRecordingConfig(ctx context.Context, _ *emptypb.Empty) (*types.SessionRecordingConfigV2, error) {
-	auth, err := g.authenticate(ctx)
+	auth, err := g.scopedAuthenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	recConfig, err := auth.ServerWithRoles.GetSessionRecordingConfig(ctx)
+	recConfig, err := auth.GetSessionRecordingConfig(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

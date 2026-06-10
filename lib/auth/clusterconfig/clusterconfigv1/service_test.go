@@ -1062,6 +1062,18 @@ func TestGetSessionRecordingConfig(t *testing.T) {
 			assertion: func(t *testing.T, err error) {
 				require.NoError(t, err)
 			},
+		}, {
+			name: "authorized for cluster config",
+			authorizer: authz.AuthorizerFunc(func(ctx context.Context) (*authz.Context, error) {
+				return &authz.Context{
+					Checker: fakeChecker{
+						rules: map[string][]string{types.KindClusterConfig: {types.VerbRead}},
+					},
+				}, nil
+			}),
+			assertion: func(t *testing.T, err error) {
+				require.NoError(t, err)
+			},
 		},
 	}
 
