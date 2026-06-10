@@ -276,8 +276,8 @@ func TestAzureWatcher(t *testing.T) {
 						vmID := parsedResource.Name
 						vmIDs = append(vmIDs, vmID)
 					}
-					require.NotEqual(t, "*", results.ResourceGroup, "Discovered VM's ResourceGroup should never be the wildcard")
-					require.NotEqual(t, "*", results.SubscriptionID, "Discovered VM's SubscriptionID should never be the wildcard")
+					require.NotEqual(t, "*", results.Metadata.ResourceGroup, "Discovered VM's ResourceGroup should never be the wildcard")
+					require.NotEqual(t, "*", results.Metadata.SubscriptionID, "Discovered VM's SubscriptionID should never be the wildcard")
 				case <-ctx.Done():
 					require.ElementsMatch(t, tc.wantVMs, vmIDs, "timed out while waiting for expected VMs")
 				}
@@ -300,7 +300,7 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "no existing nodes",
 			instances: &AzureInstances{
-				AzureInstancesMetadata: AzureInstancesMetadata{
+				Metadata: AzureInstancesMetadata{
 					SubscriptionID: "sub-1",
 				},
 				Instances: []*azure.VirtualMachine{
@@ -320,7 +320,7 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "filter out matching node",
 			instances: &AzureInstances{
-				AzureInstancesMetadata: AzureInstancesMetadata{
+				Metadata: AzureInstancesMetadata{
 					SubscriptionID: "sub-1",
 				},
 				Instances: []*azure.VirtualMachine{
@@ -342,7 +342,7 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "filter out all matching nodes",
 			instances: &AzureInstances{
-				AzureInstancesMetadata: AzureInstancesMetadata{
+				Metadata: AzureInstancesMetadata{
 					SubscriptionID: "sub-1",
 				},
 				Instances: []*azure.VirtualMachine{
@@ -365,7 +365,7 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "different subscription is not filtered",
 			instances: &AzureInstances{
-				AzureInstancesMetadata: AzureInstancesMetadata{
+				Metadata: AzureInstancesMetadata{
 					SubscriptionID: "sub-1",
 				},
 				Instances: []*azure.VirtualMachine{
@@ -383,7 +383,7 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "node without vm id is not used for filtering",
 			instances: &AzureInstances{
-				AzureInstancesMetadata: AzureInstancesMetadata{
+				Metadata: AzureInstancesMetadata{
 					SubscriptionID: "sub-1",
 				},
 				Instances: []*azure.VirtualMachine{
@@ -401,7 +401,7 @@ func TestAzureInstances_FilterExistingNodes(t *testing.T) {
 		{
 			name: "instance without properties is not filtered",
 			instances: &AzureInstances{
-				AzureInstancesMetadata: AzureInstancesMetadata{
+				Metadata: AzureInstancesMetadata{
 					SubscriptionID: "sub-1",
 				},
 				Instances: []*azure.VirtualMachine{
@@ -624,13 +624,13 @@ func TestMakeRunEvent(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			instances := &AzureInstances{
-				AzureInstancesMetadata: AzureInstancesMetadata{
+				Metadata: AzureInstancesMetadata{
 					SubscriptionID: subscriptionID,
 					ResourceGroup:  resourceGroup,
 					Region:         region,
 				},
 			}
-			evt := instances.MakeRunEvent(tc.result)
+			evt := instances.Metadata.MakeRunEvent(tc.result)
 			require.Equal(t, tc.want, evt)
 		})
 	}
@@ -657,7 +657,7 @@ func TestMakeUsageEvent(t *testing.T) {
 		{
 			name: "node",
 			instances: &AzureInstances{
-				AzureInstancesMetadata: AzureInstancesMetadata{
+				Metadata: AzureInstancesMetadata{
 					DiscoveryConfigName: discoveryConfig,
 				},
 			},
@@ -672,7 +672,7 @@ func TestMakeUsageEvent(t *testing.T) {
 		{
 			name: "agentless node",
 			instances: &AzureInstances{
-				AzureInstancesMetadata: AzureInstancesMetadata{
+				Metadata: AzureInstancesMetadata{
 					DiscoveryConfigName: discoveryConfig,
 					InstallerParams: &types.InstallerParams{
 						ScriptName: installers.InstallerScriptNameAgentless,
@@ -691,7 +691,7 @@ func TestMakeUsageEvent(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			key, evt := tc.instances.MakeUsageEvent(vm)
+			key, evt := tc.instances.Metadata.MakeUsageEvent(vm)
 			require.Equal(t, tc.wantKey, key)
 			require.Equal(t, tc.want, evt)
 		})

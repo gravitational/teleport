@@ -1533,12 +1533,12 @@ func (e *limitedErrorReporter) summary(ctx context.Context) {
 }
 
 func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.AzureInstances) ([]server.AzureInstallResult, error) {
-	azureClients, err := s.getAzureClients(s.ctx, instances.Integration)
+	azureClients, err := s.getAzureClients(s.ctx, instances.Metadata.Integration)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	runClient, err := azureClients.GetRunCommandClient(s.ctx, instances.SubscriptionID)
+	runClient, err := azureClients.GetRunCommandClient(s.ctx, instances.Metadata.SubscriptionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1554,12 +1554,12 @@ func (s *Server) enrollAzureVirtualMachines(log *slog.Logger, instances *server.
 
 	req := server.AzureInstallRequest{
 		Instances:       instances.Instances,
-		Region:          instances.Region,
-		ResourceGroup:   instances.ResourceGroup,
-		InstallerParams: instances.InstallerParams,
+		Region:          instances.Metadata.Region,
+		ResourceGroup:   instances.Metadata.ResourceGroup,
+		InstallerParams: instances.Metadata.InstallerParams,
 		ProxyAddrGetter: s.publicProxyAddress,
 		OnRunCommandFinished: func(result server.AzureInstallResult) {
-			s.emitAzureInstallEvents(log, instances.AzureInstancesMetadata, result)
+			s.emitAzureInstallEvents(log, instances.Metadata, result)
 			if result.Failure() {
 				reporter.report(s.ctx, result)
 
@@ -1650,8 +1650,8 @@ func (s *Server) startAzureServerDiscovery() {
 		server.WithPerInstanceHookFn(func(instanceGroups []*server.AzureInstances) {
 			for _, group := range instanceGroups {
 				key := discoveryGroupStatusKey{
-					discoveryConfigName: group.DiscoveryConfigName,
-					integration:         group.Integration,
+					discoveryConfigName: group.Metadata.DiscoveryConfigName,
+					integration:         group.Metadata.Integration,
 				}
 				status := s.installAzureServers(group, vmTasks)
 				sm.add(key, status)
@@ -1725,7 +1725,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 
 		issueType := classifyAzureVMEnrollmentError(err)
 		for _, vm := range instances.Instances {
-			s.addFailedAzureEnrollment(instances.AzureInstancesMetadata, vmTasks, vm, issueType)
+			s.addFailedAzureEnrollment(instances.Metadata, vmTasks, vm, issueType)
 		}
 		return status
 	}
@@ -1740,7 +1740,7 @@ func (s *Server) installAzureServers(instances *server.AzureInstances, vmTasks *
 	// Record failures as user tasks.
 	for _, result := range failures {
 		// TODO (Tener): check exit codes and create more detailed user tasks.
-		s.addFailedAzureEnrollment(instances.AzureInstancesMetadata, vmTasks, result.Instance, classifyAzureInstallResultIssue(result))
+		s.addFailedAzureEnrollment(instances.Metadata, vmTasks, result.Instance, classifyAzureInstallResultIssue(result))
 	}
 
 	pendingCount := len(instances.Instances) - len(failures)

@@ -140,7 +140,7 @@ func (md *AzureInstancesMetadata) MakeRunEvent(result AzureInstallResult) *apiev
 // AzureInstances contains a list of discovered Azure virtual machines and
 // metadata.
 type AzureInstances struct {
-	AzureInstancesMetadata
+	Metadata AzureInstancesMetadata
 
 	// Instances is a list of discovered Azure virtual machines.
 	Instances []*azure.VirtualMachine
@@ -150,7 +150,7 @@ type AzureInstances struct {
 func (instances *AzureInstances) LogValue() slog.Value {
 	return slog.GroupValue(
 		slog.Int("count", len(instances.Instances)),
-		slog.Any("metadata", instances.AzureInstancesMetadata),
+		slog.Any("metadata", instances.Metadata),
 	)
 }
 
@@ -160,7 +160,7 @@ func (instances *AzureInstances) FilterExistingNodes(existingNodes []types.Serve
 	for _, node := range existingNodes {
 		labels := node.GetAllLabels()
 		subscriptionID := labels[types.SubscriptionIDLabelInternal]
-		if subscriptionID != instances.SubscriptionID {
+		if subscriptionID != instances.Metadata.SubscriptionID {
 			continue
 		}
 		vmID := labels[types.VMIDLabelInternal]
@@ -331,7 +331,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]*Azu
 	var instances []*AzureInstances
 	for batchGroup, vms := range instanceGroups {
 		instances = append(instances, &AzureInstances{
-			AzureInstancesMetadata: AzureInstancesMetadata{
+			Metadata: AzureInstancesMetadata{
 				SubscriptionID:      f.Subscription,
 				Region:              batchGroup.location,
 				ResourceGroup:       batchGroup.resourceGroup,
