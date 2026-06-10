@@ -34,6 +34,7 @@ import {
 import { TdpTransport } from 'shared/libs/tdp/client';
 
 import { DesktopSessionWithSharing } from './DesktopSessionWithSharing';
+import { directorySharingMessage } from './useDesktopSession';
 
 // Disable WASM in tests.
 jest.mock('shared/libs/ironrdp/pkg/ironrdp');
@@ -238,7 +239,10 @@ test('directory sharing menu', async () => {
 
   // The menu icon should also be visible
   const shareButton = await screen.findByRole('button', {
-    name: 'Share local directories with the desktop',
+    name: directorySharingMessage({
+      allowedByAcl: true,
+      browserSupported: true,
+    }),
   });
   expect(shareButton).toBeVisible();
 

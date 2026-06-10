@@ -47,6 +47,7 @@ const controls: DesktopSessionControlsRenderProps = {
   onRemoveSharedDirectory: () => {},
   canRemoveSharedDirectory: false,
   maxSharedDirectories: 10,
+  directorySharingMessage: 'Directory sharing inactive',
 };
 
 export function NoAlerts() {
