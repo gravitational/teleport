@@ -121,16 +121,16 @@ func fetchAccessChanges(
 		if resp.JSON200 == nil {
 			return nil, trace.Errorf("received nil json response from Access Graph API")
 		}
+		// Guard against a backend that returns a non-advancing cursor, which would otherwise spin forever.
+		if cursor != nil && resp.JSON200.NextCursor != nil && *resp.JSON200.NextCursor == *cursor {
+			slog.DebugContext(ctx, "Access Graph cursor did not advance; stopping pagination", "cursor", *cursor)
+			return changes, nil
+		}
 		changes = append(changes, resp.JSON200.Data...)
 		if limit > 0 && len(changes) >= limit {
 			return changes[:limit], nil
 		}
 		if resp.JSON200.NextCursor == nil {
-			return changes, nil
-		}
-		// Guard against a backend that returns a non-advancing cursor, which would otherwise spin forever.
-		if cursor != nil && *resp.JSON200.NextCursor == *cursor {
-			slog.DebugContext(ctx, "Access Graph cursor did not advance; stopping pagination", "cursor", *cursor)
 			return changes, nil
 		}
 		cursor = resp.JSON200.NextCursor
@@ -207,12 +207,17 @@ func constructAccessChangesListQuery(args accessChangesArgs) (accessgraph.ListCr
 // into one type_filter envelope, where the comma-separated pairs are AND'd.
 func parseFilterEnvelope(s string) (accessChangeTypeFilter, error) {
 	var env accessChangeTypeFilter
+	seenKeys := make(map[string]struct{})
 	for pair := range strings.SplitSeq(s, ",") {
 		key, value, ok := strings.Cut(pair, "=")
 		key, value = strings.TrimSpace(key), strings.TrimSpace(value)
 		if !ok || key == "" || value == "" {
 			return env, trace.BadParameter("invalid filter %q: want comma-separated key=value pairs", s)
 		}
+		if _, seen := seenKeys[key]; seen {
+			return env, trace.BadParameter("duplicate filter key %q in filter %q", key, s)
+		}
+		seenKeys[key] = struct{}{}
 		v := value
 		switch key {
 		case "type":

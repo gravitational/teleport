@@ -307,7 +307,7 @@ func TestFetchAccessChanges(t *testing.T) {
 		ag := newAccessGraphTestClient(t, handler)
 		got, err := fetchAccessChanges(context.Background(), ag, accessgraph.ListCrownJewelAccessPathsParams{}, 0)
 		require.NoError(t, err)
-		require.Len(t, got, 2, "should return items collected before the loop broke")
+		require.Len(t, got, 1, "should not return items collected before the loop broke")
 		require.EqualValues(t, 2, calls.Load(), "loop must stop on the first non-advancing cursor")
 	})
 }
@@ -452,6 +452,10 @@ func TestConstructAccessChangesListQuery(t *testing.T) {
 			{"invalid type value", "type=not_a_type"},
 			{"invalid kind value", "kind=bogus"},
 			{"invalid source value", "source=NotReal"},
+			{"trailing comma", "kind=resource,"},
+			{"leading comma", ",kind=resource"},
+			{"empty segment", "kind=resource,,source=AWS"},
+			{"duplicate key", "kind=resource,kind=identity"},
 		} {
 			t.Run(tc.name, func(t *testing.T) {
 				args := accessChangesArgs{}
