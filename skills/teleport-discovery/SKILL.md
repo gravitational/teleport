@@ -122,15 +122,21 @@ $TCTL discovery nodes --cloud=<CLOUD> --last=24h --format=json
 
 Show the command to the user before running it. Parse the JSON output and present it as a readable table. Never show raw JSON. Status values: `Online`, `Installed (offline)`, `Failed (<reason>)`.
 
-If no rows appear:
+If no rows appear, inform the user that no instances were seen in the last 24 hours and the Discovery Service polls every few minutes. Verify the matcher configuration (subscriptions, tags, regions) in the discovery config matches running resources.
 
-> "No instances were seen in the last 24 hours. This may mean the Discovery Service hasn't started yet, or its matcher configuration (subscription, tags, regions) doesn't match any running resources. Verify `terraform apply` completed successfully and the Discovery Service is running."
+- **Cloud**: uses the fixed `cloud-discovery-group` discovery group.
+- **Self-hosted**: `discovery_group` must match the Discovery Service configured in `teleport.yaml`; verify the service is running.
+
+If the issue persists, suggest the user can verify the expected resources were created. The integration should have subkind `azure-oidc` (Azure) or `aws-oidc` (AWS), and a corresponding discovery config should exist:
+
+    tctl get integrations --format=json
+    tctl get discovery_config --format=json
 
 **If any failures exist**, fetch the troubleshooting guide to get resolution steps:
 
 ```
 WebFetch:
-  URL: https://goteleport.com/docs/enroll-resources/auto-discovery/servers/troubleshooting/
+  URL: https://goteleport.com/docs/enroll-resources/auto-discovery/servers/troubleshooting.md
   Prompt: "Extract all troubleshooting content for <CLOUD> discovery. Include exit code meanings, status interpretations, common errors, and resolution steps."
 ```
 
