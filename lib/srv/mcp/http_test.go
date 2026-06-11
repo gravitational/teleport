@@ -19,13 +19,16 @@
 package mcp
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -36,9 +39,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/defaults"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/utils"
@@ -499,5 +504,76 @@ func Test_handleAuthErrHTTP(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, resp.Error)
 		require.Equal(t, "access denied", resp.Error.Message)
+	})
+}
+
+func Test_Server_serveHTTPCon_closes_idle_connections(t *testing.T) {
+	t.Parallel()
+
+	acceptedHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	})
+
+	t.Run("Verify ReadHeaderTimeout", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
+			clientConn, serverConn := net.Pipe()
+
+			go new(Server).serveHTTPConn(ctx, serverConn, acceptedHandler)
+
+			// Idling without sending anything.
+			readConnErrCh := make(chan error)
+			go func() {
+				_, err := clientConn.Read(make([]byte, 1))
+				readConnErrCh <- err
+			}()
+
+			time.Sleep(defaults.ReadHeadersTimeout + 1*time.Nanosecond)
+
+			// Check closed.
+			select {
+			case err := <-readConnErrCh:
+				require.ErrorIs(t, err, io.EOF)
+			default:
+				t.Error("Expected the connection to be closed by idle timeout")
+			}
+		})
+	})
+
+	t.Run("Verify IdleTimeout", func(t *testing.T) {
+		synctest.Test(t, func(t *testing.T) {
+			ctx := t.Context()
+			clientConn, serverConn := net.Pipe()
+
+			go new(Server).serveHTTPConn(ctx, serverConn, acceptedHandler)
+
+			// Establish the connection by sending a request.
+			req, err := http.NewRequest(http.MethodGet, "https://mcp.test", nil)
+			require.NoError(t, err)
+			err = req.Write(clientConn)
+			require.NoError(t, err)
+
+			resp, err := http.ReadResponse(bufio.NewReader(clientConn), req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusAccepted, resp.StatusCode)
+
+			// Idling now.
+			readConnErrCh := make(chan error)
+			go func() {
+				_, err := clientConn.Read(make([]byte, 1))
+				readConnErrCh <- err
+			}()
+
+			time.Sleep(apidefaults.DefaultIdleTimeout + 1*time.Nanosecond)
+
+			// Check closed.
+			select {
+			case err := <-readConnErrCh:
+				require.ErrorIs(t, err, io.EOF)
+			default:
+				t.Error("Expected the connection to be closed by idle timeout")
+			}
+		})
 	})
 }
