@@ -21,15 +21,19 @@ package common
 import (
 	"context"
 	"fmt"
+	"io"
+	"os"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/utils"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
 	tctlcfg "github.com/gravitational/teleport/tool/tctl/common/config"
 )
@@ -41,6 +45,10 @@ type LockCommand struct {
 	spec    types.LockSpecV2
 	expires string
 	ttl     time.Duration
+	format  string
+
+	// stdout allows to switch the standard output source. Used in tests.
+	stdout io.Writer
 }
 
 // Initialize allows LockCommand to plug itself into the CLI parser.
@@ -62,6 +70,11 @@ func (c *LockCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	c.mainCmd.Flag("server-id", "UUID of a Teleport server to disable.").StringVar(&c.spec.Target.ServerID)
 	c.mainCmd.Flag("bot-instance-id", "UUID of a bot instance to disable").StringVar(&c.spec.Target.BotInstanceID)
 	c.mainCmd.Flag("join-token", "Bot join token name to disable").StringVar(&c.spec.Target.JoinToken)
+	c.mainCmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
+
+	if c.stdout == nil {
+		c.stdout = os.Stdout
+	}
 }
 
 // TryRun attempts to run subcommands.
@@ -98,8 +111,26 @@ func (c *LockCommand) CreateLock(ctx context.Context, client *authclient.Client)
 	if err := client.UpsertLock(ctx, lock); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("Created a lock with name %q.\n", lock.GetName())
-	return nil
+
+	return trace.Wrap(writeCreatedLock(c.format, lock, c.stdout))
+}
+
+// writeCreatedLock renders a freshly created lock in the requested output
+// format. For text it preserves the existing prose; for json/yaml it
+// serializes the created lock resource. It is shared by `tctl lock` and
+// `tctl devices lock`.
+func writeCreatedLock(format string, lock types.Lock, stdout io.Writer) error {
+	switch format {
+	case teleport.Text:
+		fmt.Fprintf(stdout, "Created a lock with name %q.\n", lock.GetName())
+		return nil
+	case teleport.JSON:
+		return trace.Wrap(utils.WriteJSON(stdout, lock))
+	case teleport.YAML:
+		return trace.Wrap(utils.WriteYAML(stdout, lock))
+	default:
+		return trace.BadParameter("unsupported format %q", format)
+	}
 }
 
 func computeLockExpiry(expires string, ttl time.Duration) (*time.Time, error) {
