@@ -31,6 +31,7 @@ import (
 	scopedaccessv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1"
 	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/pinning"
 )
@@ -390,7 +391,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: bernardScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: bernardScope + "::bernard",
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "role-01",
@@ -409,7 +410,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: bernardScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: bernardScope + "::bernard",
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "role-02",
@@ -428,7 +429,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: "/",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: bernardScope + "::bernard",
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "role-03",
@@ -447,7 +448,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: "/",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: bernardScope + "::bernard",
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "role-04",
@@ -457,7 +458,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Version: types.V1,
 		}.Build(),
-		// `bot_scope` mismatches bot's actual scope - this should be ignored.
+		// Scope component of `bot` mismatches bot's actual scope - this should be ignored.
 		scopedaccessv1.ScopedRoleAssignment_builder{
 			Kind:    scopedaccess.KindScopedRoleAssignment,
 			SubKind: scopedaccess.SubKindDynamic,
@@ -466,7 +467,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: bernardScope,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: "/mismatched::bernard",
+				Bot: scopes.QualifiedName{Scope: "/mismatched", Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "bernard-invalid-01",
@@ -486,7 +487,7 @@ func TestPopulatePinnedAssignmentsForBot(t *testing.T) {
 			}.Build(),
 			Scope: "/",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: bernardScope + "::bernard",
+				Bot: scopes.QualifiedName{Scope: bernardScope, Name: "bernard"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{
 						Role:  "bernard-invalid-02",

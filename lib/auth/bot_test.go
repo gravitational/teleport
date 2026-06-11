@@ -1415,7 +1415,7 @@ func createScopedBot(t *testing.T, srv *authtest.TLSServer, adminClient *authcli
 			SubKind: scopedaccess.SubKindDynamic,
 			Scope:   "/test",
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: "/test::test-scoped",
+				Bot: scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: "scoped-example", Scope: "/test"}.Build(),
 				},
@@ -1470,7 +1470,7 @@ func TestRegisterBotWithScopedKubernetesToken(t *testing.T) {
 			JoinMethod: string(types.JoinMethodKubernetes),
 			Roles:      []string{string(types.RoleBot)},
 			UsageMode:  joining.TokenUsageModeBot,
-			Bot:        "/test::test-scoped",
+			Bot:        scopes.QualifiedName{Scope: "/test", Name: "test-scoped"}.String(),
 			Kubernetes: joiningv1.Kubernetes_builder{
 				Type: string(types.KubernetesJoinTypeStaticJWKS),
 				StaticJwks: joiningv1.Kubernetes_StaticJWKSConfig_builder{

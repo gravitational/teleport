@@ -345,7 +345,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 					Scope: testRootScope,
 				}.Build(),
 			},
-			Bot: testRootScope + "::" + testBotName,
+			Bot: scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
 		}.Build(),
 	}.Build()
 	_, err = adminClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(
@@ -405,7 +405,7 @@ func TestScopedBotJoinAuth(t *testing.T) {
 				Type:       string(types.KubernetesJoinTypeStaticJWKS),
 				StaticJwks: scopedjoiningv1.Kubernetes_StaticJWKSConfig_builder{Jwks: jwks}.Build(),
 			}.Build(),
-			Bot:   testRootScope + "::" + testBotName,
+			Bot:   scopes.QualifiedName{Scope: testRootScope, Name: testBotName}.String(),
 			Roles: []string{string(types.RoleBot)},
 		}.Build(),
 	}.Build()

@@ -1911,7 +1911,7 @@ func createScopedBot(
 				Roles:      []string{types.RoleBot.String()},
 				JoinMethod: string(types.JoinMethodBoundKeypair),
 				UsageMode:  jointoken.TokenUsageModeBot,
-				Bot:        scopeName + "::" + botName,
+				Bot:        scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				BoundKeypair: joiningv1.BoundKeypairSpec_builder{
 					Onboarding: joiningv1.BoundKeypairSpec_OnboardingSpec_builder{
 						InitialPublicKey: botPublicKey,
@@ -1939,7 +1939,7 @@ func createScopedBot(
 			Metadata: headerv1.Metadata_builder{Name: uuid.NewString()}.Build(),
 			Scope:    scopeName,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				Bot: scopeName + "::" + botName,
+				Bot: scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: scopedRoleName, Scope: scopeName}.Build(),
 				},
