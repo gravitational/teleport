@@ -28,6 +28,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	"github.com/gravitational/teleport/api/types"
@@ -171,6 +172,23 @@ func TestSessionStartEvent(t *testing.T) {
 			require.Empty(t, cmp.Diff(test.exp(), *startEvent))
 		})
 	}
+
+	t.Run("audit emits CAOverride details", func(t *testing.T) {
+		t.Parallel()
+
+		_, audit := setup(testDesktop)
+
+		const aPublicKeyHash = "6fbd7ba3f34c526f5d6d8ea2659f9fb5ca031712ee588ce35941d568742d44ed"
+		audit.caOverrideDetails = &events.CAOverrideCertificateDetails{
+			Active:        true,
+			PublicKeyHash: aPublicKeyHash,
+		}
+
+		got := audit.makeSessionStart(nil)
+		if diff := cmp.Diff(audit.caOverrideDetails, got.CAOverride, protocmp.Transform()); diff != "" {
+			t.Errorf("CAOverrideDetails mismatch (-want +got)\n%s", diff)
+		}
+	})
 }
 
 func TestSessionEndEvent(t *testing.T) {
@@ -402,17 +420,17 @@ func TestDesktopSharedDirectoryReadEvent(t *testing.T) {
 
 			if test.sendsReq {
 				// SharedDirectoryReadRequest initializes the readRequestCache.
-				audit.onSharedDirectoryReadRequest(testCompletionID, testDirectoryID, &tdpbv1.SharedDirectoryRequest_Read{
+				audit.onSharedDirectoryReadRequest(testCompletionID, testDirectoryID, tdpbv1.SharedDirectoryRequest_Read_builder{
 					Path:   testFilePath,
 					Offset: testOffset,
 					Length: testLength,
-				})
+				}.Build())
 			}
 
 			// SharedDirectoryReadResponse causes the event to be emitted.
-			readEvent := audit.makeSharedDirectoryReadResponse(testCompletionID, test.errCode, &tdpbv1.SharedDirectoryResponse_Read{
+			readEvent := audit.makeSharedDirectoryReadResponse(testCompletionID, test.errCode, tdpbv1.SharedDirectoryResponse_Read_builder{
 				Data: make([]byte, testLength), // slice contents are irrelevant in this context
-			})
+			}.Build())
 
 			baseEvent := &events.DesktopSharedDirectoryRead{
 				Metadata: events.Metadata{
@@ -547,17 +565,17 @@ func TestDesktopSharedDirectoryWriteEvent(t *testing.T) {
 
 			if test.sendsReq {
 				// SharedDirectoryWriteRequest initializes the writeRequestCache.
-				audit.onSharedDirectoryWriteRequest(testCompletionID, testDirectoryID, &tdpbv1.SharedDirectoryRequest_Write{
+				audit.onSharedDirectoryWriteRequest(testCompletionID, testDirectoryID, tdpbv1.SharedDirectoryRequest_Write_builder{
 					Path:   testFilePath,
 					Offset: testOffset,
 					Data:   make([]byte, testLength),
-				})
+				}.Build())
 			}
 
 			// SharedDirectoryWriteResponse causes the event to be emitted.
-			writeEvent := audit.makeSharedDirectoryWriteResponse(testCompletionID, test.errCode, &tdpbv1.SharedDirectoryResponse_Write{
+			writeEvent := audit.makeSharedDirectoryWriteResponse(testCompletionID, test.errCode, tdpbv1.SharedDirectoryResponse_Write_builder{
 				BytesWritten: testLength,
-			})
+			}.Build())
 
 			baseEvent := &events.DesktopSharedDirectoryWrite{
 				Metadata: events.Metadata{
@@ -668,11 +686,11 @@ func TestDesktopSharedDirectoryReadEventAuditCacheMax(t *testing.T) {
 	fillReadRequestCache(&audit.auditCache, testDirectoryID)
 
 	// SharedDirectoryReadRequest should cause a failed audit event.
-	readEvent := audit.onSharedDirectoryReadRequest(testCompletionID, testDirectoryID, &tdpbv1.SharedDirectoryRequest_Read{
+	readEvent := audit.onSharedDirectoryReadRequest(testCompletionID, testDirectoryID, tdpbv1.SharedDirectoryRequest_Read_builder{
 		Path:   testFilePath,
 		Offset: testOffset,
 		Length: testLength,
-	})
+	}.Build())
 	require.NotNil(t, readEvent)
 
 	expected := &events.DesktopSharedDirectoryRead{
@@ -722,11 +740,11 @@ func TestDesktopSharedDirectoryWriteEventAuditCacheMax(t *testing.T) {
 
 	fillReadRequestCache(&audit.auditCache, testDirectoryID)
 
-	writeEvent := audit.onSharedDirectoryWriteRequest(testCompletionID, testDirectoryID, &tdpbv1.SharedDirectoryRequest_Write{
+	writeEvent := audit.onSharedDirectoryWriteRequest(testCompletionID, testDirectoryID, tdpbv1.SharedDirectoryRequest_Write_builder{
 		Path:   testFilePath,
 		Offset: testOffset,
 		Data:   make([]byte, testLength),
-	})
+	}.Build())
 	require.NotNil(t, writeEvent, "audit event should have been generated")
 
 	expected := &events.DesktopSharedDirectoryWrite{
@@ -785,19 +803,19 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	require.False(t, ok)
 
 	// A SharedDirectoryReadRequest should add a corresponding entry in the readRequestCache.
-	audit.onSharedDirectoryReadRequest(testCompletionID, testDirectoryID, &tdpbv1.SharedDirectoryRequest_Read{
+	audit.onSharedDirectoryReadRequest(testCompletionID, testDirectoryID, tdpbv1.SharedDirectoryRequest_Read_builder{
 		Path:   testFilePath,
 		Offset: testOffset,
 		Length: testLength,
-	})
+	}.Build())
 	require.Equal(t, 2, audit.auditCache.totalItems())
 
 	// A SharedDirectoryWriteRequest should add a corresponding entry in the writeRequestCache.
-	audit.onSharedDirectoryWriteRequest(testCompletionID, testDirectoryID, &tdpbv1.SharedDirectoryRequest_Write{
+	audit.onSharedDirectoryWriteRequest(testCompletionID, testDirectoryID, tdpbv1.SharedDirectoryRequest_Write_builder{
 		Path:   testFilePath,
 		Offset: testOffset,
 		Data:   make([]byte, testLength),
-	})
+	}.Build())
 	require.Equal(t, 3, audit.auditCache.totalItems())
 
 	// Check that the readRequestCache was properly filled out.
@@ -807,15 +825,15 @@ func TestAuditCacheLifecycle(t *testing.T) {
 	require.Contains(t, audit.auditCache.writeRequestCache, testCompletionID)
 
 	// SharedDirectoryReadResponse should cause the entry in the readRequestCache to be cleaned up.
-	audit.makeSharedDirectoryReadResponse(testCompletionID, legacy.ErrCodeNil, &tdpbv1.SharedDirectoryResponse_Read{
+	audit.makeSharedDirectoryReadResponse(testCompletionID, legacy.ErrCodeNil, tdpbv1.SharedDirectoryResponse_Read_builder{
 		Data: make([]byte, testLength), // slice contents are irrelevant in this context
-	})
+	}.Build())
 	require.Equal(t, 2, audit.auditCache.totalItems())
 
 	// SharedDirectoryWriteResponse should cause the entry in the writeRequestCache to be cleaned up.
-	audit.makeSharedDirectoryWriteResponse(testCompletionID, legacy.ErrCodeNil, &tdpbv1.SharedDirectoryResponse_Write{
+	audit.makeSharedDirectoryWriteResponse(testCompletionID, legacy.ErrCodeNil, tdpbv1.SharedDirectoryResponse_Write_builder{
 		BytesWritten: testLength,
-	})
+	}.Build())
 	require.Equal(t, 1, audit.auditCache.totalItems())
 
 	// Check that the readRequestCache was properly cleaned up.

@@ -29,6 +29,8 @@ import (
 )
 
 var _ Backend = (*Wrapper)(nil)
+var _ BatchDeleter = (*Wrapper)(nil)
+var _ BatchPutter = (*Wrapper)(nil)
 
 // Wrapper wraps a Backend implementation that can fail
 // on demand.
@@ -121,6 +123,11 @@ func (s *Wrapper) PutBatch(ctx context.Context, items []Item) ([]string, error) 
 // Delete deletes item by key
 func (s *Wrapper) Delete(ctx context.Context, key Key) error {
 	return s.backend.Delete(ctx, key)
+}
+
+// DeleteBatch deletes multiple items from the backend.
+func (s *Wrapper) DeleteBatch(ctx context.Context, keys []Key) error {
+	return trace.Wrap(DeleteBatch(ctx, s.backend, keys))
 }
 
 // ConditionalDelete deletes item by key if revisions match.

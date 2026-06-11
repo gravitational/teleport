@@ -138,7 +138,7 @@ func (h *Handler) installScriptOptions(ctx context.Context) (scripts.InstallScri
 		CDNBaseURL:      cdnBaseURL,
 		ProxyAddr:       h.PublicProxyAddr(),
 		TeleportFlavor:  teleportFlavor,
-		FIPS:            modules.IsBoringBinary(),
+		FIPS:            modules.IsFIPSBuild(),
 	}, nil
 }
 

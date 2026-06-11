@@ -23,9 +23,11 @@ the agent.
 
 When a Teleport Agent joins a cluster, the Teleport Auth Service issues a
 certificate for the agent. The certificate contains the Teleport services that
-it authorizes the agent to run. To run new services on an agent, you must repeat
-the initial join procedure for those services. The agent needs to re-join the
-cluster with the new token and receive a new certificate.
+it authorizes the agent to run. To run new services on an agent, update the
+agent's join token to one that authorizes the new services, enable the new
+services in the agent's configuration file, then restart the agent. The agent
+will detect the additional services authorized by the new token and obtain a new
+certificate for them.
 
 ## Prerequisites
 
@@ -58,9 +60,10 @@ the `teleport-kube-agent` Helm chart:
 <Tabs>
 <TabItem label="tctl">
 
-Edit the `spec.roles` field in your token resource manifest. In this example, we
-are allowing this token to join the Teleport Application Service in addition to
-the Teleport Kubernetes Service:
+Edit the `spec.roles` field in your token resource manifest. In this example,
+which assumes the token manifest is at `token.yaml`, we are allowing this token
+to join the Teleport Application Service in addition to the Teleport Kubernetes
+Service:
 
 ```diff
 # ...
@@ -68,6 +71,12 @@ the Teleport Kubernetes Service:
     # use the minimal set of roles required (e.g. Node, Proxy, App, Kube, DB, WindowsDesktop)
 -   roles: [Kube]
 +   roles: [Kube,App]
+```
+
+Apply your changes:
+
+```code
+$ tctl create -f token.yaml
 ```
 
 </TabItem>
@@ -85,12 +94,19 @@ the Teleport Kubernetes Service:
 -     roles       = ["Kube"]
 +     roles       = ["Kube","App"]
 ```
+
+Reapply your changes:
+
+```code
+$ terraform apply
+```
+
 </TabItem>
 <TabItem label="Kubernetes">
 
-Edit the `spec.roles` field in your manifest. In this example, we are allowing
-this token to join the Teleport Application Service in addition to the Teleport
-Kubernetes Service:
+Edit the `spec.roles` field in your manifest, which we assume exists at
+`token.yaml`. In this example, we are allowing this token to join the Teleport
+Application Service in addition to the Teleport Kubernetes Service:
 
 ```diff
 # ...
@@ -99,6 +115,13 @@ Kubernetes Service:
 -   roles: [Kube]
 +   roles: [Kube,App]
 ```
+
+Apply your changes:
+
+```code
+$ kubectl apply -f token.yaml
+```
+
 </TabItem>
 <TabItem label="teleport-kube-agent">
 
@@ -111,13 +134,14 @@ Kubernetes Service:
 + roles: kube,app
 ```
 
+You will apply your changes when you redeploy the agent later in the guide.
+
 See the `teleport-kube-agent` [chart
 reference](../../reference/helm-reference/teleport-kube-agent.mdx#roles) for the
 roles and token types that the chart supports.
 
 </TabItem>
 </Tabs>
-
 
 ## Step 2/3. Edit your agent configuration
 
@@ -275,18 +299,49 @@ receives a certificate that authorizes the additional service you want to run.
 
 ### Linux server
 
-If your Teleport Agent runs on a Linux server:
+If your Teleport Agent runs on a Linux server, restart the agent:
 
-1. Delete the agent's state directory, which is `/var/lib/teleport` by default.
-   (Check the `teleport.data_dir` field of the Agent's configuration file.) With
-   no data directory, the agent will obtain its initial credentials from the
-   Auth Service instead of reading existing credentials.
+```code
+$ sudo systemctl restart teleport
+```
 
-1. Restart the agent:
+On the first restart with the new token, the agent will detect the additional
+authorized services and retrieve a new certificate for them.
+
+Run the following command to determine if you added the new service,
+substituting <Var name="hostname" /> with the hostname of your agent:
+
+```code
+$ tctl inventory ls --format=json | \
+  jq '.[] | select(.spec.hostname == "<Var name="hostname" />") | .spec.services'
+[
+  "Node",
+  "Db",
+  "App"
+]
+```
+
+The output should include the role of the new service.
+
+<details>
+<summary>If the new service has not started</summary>
+
+If the agent fails to acquire the new role after restarting, you can force it
+to re-join from scratch by deleting its state directory.
+
+1. Check the `teleport.data_dir` field in the agent's configuration file for the
+   location of the data directory. The default is `/var/lib/teleport`.
+
+1. Stop the agent, delete the data directory at 
+   <Var name="/var/lib/teleport" />, and start the agent again:
 
    ```code
-   $ sudo systemctl reload teleport
+   $ sudo systemctl stop teleport
+   $ sudo rm -rf <Var name="/var/lib/teleport" />
+   $ sudo systemctl start teleport
    ```
+
+</details>
 
 ### Helm chart
 

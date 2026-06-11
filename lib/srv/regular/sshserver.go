@@ -54,6 +54,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -72,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/ingress"
 	"github.com/gravitational/teleport/lib/sshagent"
 	"github.com/gravitational/teleport/lib/sshutils"
+	reexecutils "github.com/gravitational/teleport/lib/sshutils/reexec"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/session/networking"
 	"github.com/gravitational/teleport/session/networking/x11"
@@ -249,7 +251,7 @@ type Server struct {
 
 	// remoteForwardingMap holds the remote port forwarding listeners that need
 	// to be closed when forwarding finishes, keyed by listen addr.
-	remoteForwardingMap utils.SyncMap[string, io.Closer]
+	remoteForwardingMap utils.SyncMap[remoteForwardingMapKey, io.Closer]
 
 	// stableUnixUsers is used to obtain fallback UIDs for host user
 	// provisioning from the control plane.
@@ -266,6 +268,24 @@ type Server struct {
 
 	// immutableLabels are the immutable labels assigned to the server's host certificate
 	immutableLabels map[string]string
+
+	// presenceMaxDuration is the max duration that a moderated session
+	// can continue between presence verifications.
+	presenceMaxDuration time.Duration
+}
+
+type remoteForwardingMapKey struct {
+	user    string
+	cluster string
+	srcAddr string
+}
+
+func getRemoteForwardingMapKey(scx *srv.ServerContext) remoteForwardingMapKey {
+	return remoteForwardingMapKey{
+		user:    scx.Identity.TeleportUser,
+		cluster: scx.Identity.OriginClusterName,
+		srcAddr: scx.SrcAddr,
+	}
 }
 
 // EventMetadata returns metadata about the server.
@@ -377,6 +397,12 @@ func (s *Server) ChildLogConfig() srv.ChildLogConfig {
 	}
 }
 
+// GetPresenceMaxDuration returns the max duration that a moderated session
+// can continue between presence verifications.
+func (s *Server) GetPresenceMaxDuration() time.Duration {
+	return s.presenceMaxDuration
+}
+
 // ServerOption is a functional option passed to the server
 type ServerOption func(s *Server) error
 
@@ -403,7 +429,7 @@ func (s *Server) Close() error {
 	// Close the server first so we don't accept any new forwarding connections
 	// after we've closed them all.
 	errors := []error{s.srv.Close()}
-	s.remoteForwardingMap.Range(func(_ string, closer io.Closer) bool {
+	s.remoteForwardingMap.Range(func(_ remoteForwardingMapKey, closer io.Closer) bool {
 		if closer != nil {
 			if err := closer.Close(); err != nil {
 				errors = append(errors, err)
@@ -839,6 +865,15 @@ func SetChildLogConfig(cfg *servicecfg.Config) ServerOption {
 	}
 }
 
+// SetPresenceMaxDuration sets the max duration that a moderated session
+// can continue between presence verifications.
+func SetPresenceMaxDuration(maxDuration time.Duration) ServerOption {
+	return func(s *Server) error {
+		s.presenceMaxDuration = maxDuration
+		return nil
+	}
+}
+
 // New returns an unstarted server
 func New(
 	ctx context.Context,
@@ -911,6 +946,10 @@ func New(
 		s.tracerProvider = tracing.DefaultProvider()
 	}
 
+	if s.presenceMaxDuration == 0 {
+		s.presenceMaxDuration = client.DefaultPresenceMaxDuration
+	}
+
 	var component string
 	if s.proxyMode {
 		component = teleport.ComponentProxy
@@ -941,7 +980,7 @@ func New(
 		FIPS:                          s.fips,
 		Emitter:                       s.StreamEmitter,
 		Clock:                         s.clock,
-		ValidatedMFAChallengeVerifier: auth.MFAServiceClient(),
+		ValidatedMFAChallengeVerifier: auth.MFAServiceClientV2(),
 	}
 
 	s.authHandlers, err = srv.NewAuthHandlers(&authHandlerConfig)
@@ -1194,8 +1233,12 @@ func (s *Server) getBasicInfo() *types.ServerV2 {
 		// protobuf message
 		relayGroup, relayIDs = s.relayInfoGetter()
 	}
+	kind := types.KindNode
+	if s.proxyMode {
+		kind = types.KindProxy
+	}
 	srv := &types.ServerV2{
-		Kind:    types.KindNode,
+		Kind:    kind,
 		Version: types.V2,
 		Scope:   s.scope,
 		Metadata: types.Metadata{
@@ -1244,13 +1287,13 @@ func (s *Server) getServerResource() (types.Resource, error) {
 }
 
 // dialTCPIP dials the given tcpip address through the network process.
-func (s *Server) dialTCPIP(scx *srv.ServerContext, addr string) (net.Conn, error) {
-	proc, err := s.getNetworkingProcess(scx)
+func (s *Server) dialTCPIP(ctx context.Context, scx *srv.ServerContext, addr string) (net.Conn, error) {
+	proc, err := s.getNetworkingProcess(ctx, scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := proc.Dial(context.Background(), "tcp", addr)
+	conn, err := proc.Dial(ctx, "tcp", addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1259,13 +1302,13 @@ func (s *Server) dialTCPIP(scx *srv.ServerContext, addr string) (net.Conn, error
 }
 
 // listenTCPIP creates a new listener in the networking process.
-func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener, error) {
-	proc, err := s.getNetworkingProcess(scx)
+func (s *Server) listenTCPIP(ctx context.Context, scx *srv.ServerContext, addr string) (net.Listener, error) {
+	proc, err := s.getNetworkingProcess(ctx, scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	listener, err := proc.Listen(context.Background(), "tcp", addr)
+	listener, err := proc.Listen(ctx, "tcp", addr)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1276,12 +1319,12 @@ func (s *Server) listenTCPIP(scx *srv.ServerContext, addr string) (net.Listener,
 // getNetworkingProcess sets up a connection-level subprocess that handles
 // networking requests. Subsequent calls from the same connection context
 // reuse the same networking process.
-func (s *Server) getNetworkingProcess(scx *srv.ServerContext) (*networking.Process, error) {
+func (s *Server) getNetworkingProcess(ctx context.Context, scx *srv.ServerContext) (*networking.Process, error) {
 	if proc, ok := scx.Parent().GetNetworkingProcess(); ok {
 		return proc, nil
 	}
 
-	proc, err := s.startNetworkingProcess(scx)
+	proc, err := s.startNetworkingProcess(ctx, scx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1301,9 +1344,9 @@ func (s *Server) getNetworkingProcess(scx *srv.ServerContext) (*networking.Proce
 
 // startNetworkingProcess launches a new networking process. It should be closed once
 // the server connection is closed.
-func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Process, error) {
+func (s *Server) startNetworkingProcess(ctx context.Context, scx *srv.ServerContext) (*networking.Process, error) {
 	// Create context for the networking process.
-	nsctx, err := srv.NewServerContext(context.Background(), scx.ConnectionContext, s, scx.Identity, nil)
+	nsctx, err := srv.NewServerContext(ctx, scx.ConnectionContext, s, scx.Identity, nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1314,13 +1357,27 @@ func (s *Server) startNetworkingProcess(scx *srv.ServerContext) (*networking.Pro
 	// Create command to re-exec Teleport which will handle networking requests. The
 	// reason it's not done directly is because the PAM stack needs to be called
 	// from the child process.
-	cmd, err := srv.ConfigureCommand(nsctx)
+	cmd, err := nsctx.ConfigureCommand(nil)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	proc, err := networking.NewProcess(nsctx.CancelContext(), cmd)
-	return proc, trace.Wrap(err)
+	proc, childErr, err := networking.NewProcess(ctx, cmd.Cmd)
+	if err != nil {
+		if childErr == "" {
+			return nil, trace.Wrap(err)
+		}
+
+		// If the networking process failed with an error message from stderr, prefer
+		// that over the other error.
+		childErr = reexecutils.ChildErrorWithContext(childErr, &reexecutils.ErrorContext{
+			DecisionContext: scx.Identity.AccessPermit.GetDecisionContext(),
+			Login:           scx.Identity.Login,
+		})
+		return nil, errors.New(strings.TrimRight(childErr, "\n"))
+	}
+
+	return proc, nil
 }
 
 // HandleRequest processes global out-of-band requests. Global out-of-band
@@ -1444,9 +1501,9 @@ func (s *Server) obtainFallbackUID(ctx context.Context, username string) (uid in
 		return 0, false, nil
 	}
 
-	resp, err := s.stableUnixUsers.ObtainUIDForUsername(ctx, &stableunixusersv1.ObtainUIDForUsernameRequest{
+	resp, err := s.stableUnixUsers.ObtainUIDForUsername(ctx, stableunixusersv1.ObtainUIDForUsernameRequest_builder{
 		Username: username,
-	})
+	}.Build())
 	if err != nil {
 		return 0, false, trace.Wrap(err)
 	}
@@ -1514,7 +1571,7 @@ func (s *Server) HandleNewChan(ctx context.Context, ccx *sshutils.ConnectionCont
 	// commands on a server, subsystem requests, and agent forwarding.
 	case teleport.ChanSession:
 		var decr func()
-		if max := identityContext.AccessPermit.MaxSessions; max != 0 {
+		if max := identityContext.AccessPermit.GetMaxSessions(); max != 0 {
 			d, ok := ccx.IncrSessions(max)
 			if !ok {
 				// user has exceeded their max concurrent ssh sessions.
@@ -1663,7 +1720,7 @@ func (s *Server) handleDirectTCPIPRequest(ctx context.Context, ccx *sshutils.Con
 	scx.Logger.DebugContext(ctx, "Opening direct-tcpip channel", "source_addr", scx.SrcAddr, "dest_addr", scx.DstAddr)
 	defer scx.Logger.DebugContext(ctx, "Closing direct-tcpip channel", "source_addr", scx.SrcAddr, "dest_addr", scx.DstAddr)
 
-	conn, err := s.dialTCPIP(scx, scx.DstAddr)
+	conn, err := s.dialTCPIP(ctx, scx, scx.DstAddr)
 	if err != nil {
 		if errors.Is(err, trace.NotFound("%s", user.UnknownUserError(scx.Identity.Login))) || errors.Is(err, trace.BadParameter("unknown user")) {
 			// user does not exist for the provided login. Terminate the connection.
@@ -1978,12 +2035,12 @@ func (s *Server) handleAgentForwardNode(ctx context.Context, _ *ssh.Request, scx
 
 // serveAgent will build the a sock path for this user and serve an SSH agent on unix socket.
 func (s *Server) serveAgent(ctx context.Context, scx *srv.ServerContext) error {
-	proc, err := s.getNetworkingProcess(scx)
+	proc, err := s.getNetworkingProcess(ctx, scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	listener, err := proc.ListenAgent(context.Background())
+	listener, err := proc.ListenAgent(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2079,7 +2136,7 @@ func (s *Server) handleX11Forward(ctx context.Context, ch ssh.Channel, req *ssh.
 		return trace.Wrap(err)
 	}
 
-	proc, err := s.getNetworkingProcess(scx)
+	proc, err := s.getNetworkingProcess(ctx, scx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2376,7 +2433,7 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		return trace.Wrap(err)
 	}
 	defer scx.Close()
-	listener, err := s.listenTCPIP(scx, scx.SrcAddr)
+	listener, err := s.listenTCPIP(ctx, scx, scx.SrcAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2478,12 +2535,13 @@ func (s *Server) handleTCPIPForwardRequest(ctx context.Context, ccx *sshutils.Co
 		}
 	}
 
-	s.remoteForwardingMap.Store(scx.SrcAddr, listener)
+	key := getRemoteForwardingMapKey(scx)
+	s.remoteForwardingMap.Store(key, listener)
 
 	// Close the listener once the connection is closed, if it hasn't
 	// been closed already via a cancel-tcpip-forward request.
 	ccx.AddCloser(utils.CloseFunc(func() error {
-		listener, ok := s.remoteForwardingMap.LoadAndDelete(scx.SrcAddr)
+		listener, ok := s.remoteForwardingMap.LoadAndDelete(key)
 		if ok {
 			return trace.Wrap(listener.Close())
 		}
@@ -2501,7 +2559,7 @@ func (s *Server) handleCancelTCPIPForwardRequest(ctx context.Context, ccx *sshut
 		return trace.Wrap(err)
 	}
 	defer scx.Close()
-	listener, ok := s.remoteForwardingMap.LoadAndDelete(scx.SrcAddr)
+	listener, ok := s.remoteForwardingMap.LoadAndDelete(getRemoteForwardingMapKey(scx))
 	if !ok {
 		return trace.NotFound("no remote forwarding listener at %v", scx.SrcAddr)
 	}

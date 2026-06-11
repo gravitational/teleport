@@ -88,9 +88,14 @@ func WithPromptReasonAdminAction() PromptOpt {
 }
 
 // WithPromptReasonSessionMFA sets the prompt's PromptReason field to a standard session mfa message.
-func WithPromptReasonSessionMFA(serviceType, serviceName string) PromptOpt {
+// If leafClusterName is non-empty, it is included in the message to indicate that the resource
+// belongs to a leaf cluster.
+func WithPromptReasonSessionMFA(serviceType, serviceName, leafClusterName string) PromptOpt {
 	return func(cfg *PromptConfig) {
 		cfg.PromptReason = fmt.Sprintf("MFA is required to access %s %q", serviceType, serviceName)
+		if leafClusterName != "" {
+			cfg.PromptReason += fmt.Sprintf(" from leaf cluster %q", leafClusterName)
+		}
 
 		// Set the extensions to scope USER_SESSION, which we know is true, but
 		// don't override any explicitly-set extensions (as they are likely more

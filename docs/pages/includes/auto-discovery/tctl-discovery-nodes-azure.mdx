@@ -1,0 +1,47 @@
+### Inspect instance enrollment status
+
+The `tctl discovery nodes` command lists Teleport's recent attempts to enroll
+Azure VMs and reports whether each succeeded. It reads `azure.run` audit
+events emitted by the Discovery Service.
+
+```code
+$ tctl discovery nodes --cloud=azure
+$ tctl discovery nodes --cloud=azure --failures-only
+$ tctl discovery nodes --cloud=azure --last=24h
+$ tctl discovery nodes --cloud=azure --format=json
+```
+
+Sample output:
+
+{/* "insufficien" is intentionally truncated in the Details column to mirror real CLI output */}
+{/* cspell:ignore insufficien */}
+```code
+Cloud Account                              Region  Instance      Time                 Status                 Details
+----- ---------------------------------- ------- ------------- -------------------- ---------------------- ------------------------------------------------
+Azure abcdef01-2345-6789-abcd-ef01234... EastUS  example-vm-0  2026-04-29T15:25:48Z Online
+Azure abcdef01-2345-6789-abcd-ef01234... EastUS  example-vm-1  2026-04-29T15:06:08Z Failed (exit code=103) Enrollment failed. Script output: "insufficien...
+Azure abcdef01-2345-6789-abcd-ef01234... EastUS  example-vm-2  2026-04-29T15:05:56Z Failed (API error)     VM agent not available. API error: "PUT https...
+Azure abcdef01-2345-6789-abcd-ef01234... EastUS  example-vm-3  2026-04-29T15:05:54Z Failed (exit code=104) Enrollment failed. Script output: "proxy is u...
+```
+
+Each row's Status column tells you what stage the instance reached:
+
+- `Online`: the VM joined the cluster.
+- `Installed (offline)`: the install script succeeded but the agent isn't
+  currently connected. Either the agent installed but never joined the cluster
+  (bad join token, misconfiguration, or network), or it joined and later went
+  offline.
+- `Failed (exit code=N)`: the install script ran and exited non-zero. The
+  Details column shows the script output.
+- `Failed (API error)`: the install command never executed because the Azure
+  run command API rejected it, typically a missing `runCommands/write`
+  permission or a VM without the agent installed.
+
+Use `--last` to widen the audit-event lookback window past the default one
+hour (e.g. `--last=24h`) when investigating older failures or retries.
+
+Use `--format=json` for machine-readable output that includes the full script
+output, the originating user task ID, and Azure-specific instance metadata.
+
+See [`tctl discovery nodes`](../../reference/cli/tctl.mdx#tctl-discovery-nodes)
+for the full flag reference.

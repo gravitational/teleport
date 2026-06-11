@@ -109,10 +109,21 @@ func sessionServiceTestPack(t *testing.T) (*delegationv1.SessionService, *sessio
 				)
 				require.NoError(t, err)
 
+				identity := authz.LocalUser{
+					Identity: tlsca.Identity{
+						Username:            pack.user.GetName(),
+						Groups:              pack.user.GetRoles(),
+						DelegationSessionID: pack.delegationSessionID,
+						DisallowReissue:     pack.disallowReissue,
+					},
+				}
+
 				return &authz.Context{
 					User:                 pack.user,
 					AdminActionAuthState: pack.adminActionAuthState,
 					Checker:              checker,
+					Identity:             identity,
+					UnmappedIdentity:     identity,
 				}, nil
 			}
 
@@ -159,9 +170,48 @@ type sessionTestPack struct {
 	adminActionAuthState authz.AdminActionAuthState
 	botName              string
 	delegationSessionID  string
+	disallowReissue      bool
 
 	onCreateAppSession func(context.Context, sessionreq.NewAppSessionRequest) (types.WebSession, error)
 	onGenerateCert     func(context.Context, cert.Request) (*proto.Certs, error)
+}
+
+func (p *sessionTestPack) authenticateUser(
+	t *testing.T,
+	name string,
+	mfaState authz.AdminActionAuthState,
+	roleSpec types.RoleSpecV6,
+) {
+	t.Helper()
+
+	p.user = p.createUser(t, name, roleSpec)
+	p.adminActionAuthState = mfaState
+	p.delegationSessionID = ""
+}
+
+func (p *sessionTestPack) authenticateUserInDelegationSession(
+	t *testing.T,
+	name string,
+	delegationSessionID string,
+	mfaState authz.AdminActionAuthState,
+	roleSpec types.RoleSpecV6,
+) {
+	t.Helper()
+
+	p.authenticateUser(t, name, mfaState, roleSpec)
+	p.delegationSessionID = delegationSessionID
+}
+
+func (p *sessionTestPack) authenticateUserWithDisallowReissue(
+	t *testing.T,
+	name string,
+	mfaState authz.AdminActionAuthState,
+	roleSpec types.RoleSpecV6,
+) {
+	t.Helper()
+
+	p.authenticateUser(t, name, mfaState, roleSpec)
+	p.disallowReissue = true
 }
 
 func (p *sessionTestPack) createUser(
@@ -200,15 +250,15 @@ func (p *sessionTestPack) authenticateBotInDelegationSession(botName, delegation
 func (p *sessionTestPack) createSession(t *testing.T, spec *delegationv1pb.DelegationSessionSpec) *delegationv1pb.DelegationSession {
 	t.Helper()
 
-	session, err := p.sessions.CreateDelegationSession(t.Context(), &delegationv1pb.DelegationSession{
+	session, err := p.sessions.CreateDelegationSession(t.Context(), delegationv1pb.DelegationSession_builder{
 		Kind:    types.KindDelegationSession,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name:    uuid.NewString(),
 			Expires: timestamppb.New(time.Now().Add(time.Hour)),
-		},
+		}.Build(),
 		Spec: spec,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	return session

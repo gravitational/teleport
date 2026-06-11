@@ -50,7 +50,7 @@ var tmpl = template.Must(template.New("fixtures.ts").Parse(`/**
 
 import { test as base } from '@playwright/test';
 
-type Fixture =
+export type Fixture =
 {{- range .Fixtures}}
   | '{{.Name}}'
 {{- end}};

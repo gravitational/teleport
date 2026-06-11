@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/presence/v1/relay_server.proto
 
+//go:build !protoopaque
+
 package presencev1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 // A heartbeat for a relay service; this message serves as both the type used in
 // the v1 service and as the canonical v1 storage format (in protojson).
 type RelayServer struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// fixed string, "relay_server".
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// fixed string, "".
@@ -78,11 +79,6 @@ func (x *RelayServer) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RelayServer.ProtoReflect.Descriptor instead.
-func (*RelayServer) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_relay_server_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *RelayServer) GetKind() string {
@@ -127,9 +123,84 @@ func (x *RelayServer) GetScope() string {
 	return ""
 }
 
+func (x *RelayServer) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *RelayServer) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *RelayServer) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *RelayServer) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *RelayServer) SetSpec(v *RelayServer_Spec) {
+	x.Spec = v
+}
+
+func (x *RelayServer) SetScope(v string) {
+	x.Scope = v
+}
+
+func (x *RelayServer) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *RelayServer) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *RelayServer) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *RelayServer) ClearSpec() {
+	x.Spec = nil
+}
+
+type RelayServer_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// fixed string, "relay_server".
+	Kind string
+	// fixed string, "".
+	SubKind string
+	// fixed string, "v1".
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *RelayServer_Spec
+	// The advertized scope of the server. A server's scope can not change once assigned, so
+	// heartbeats must include a scope value matching the one declared in the hello message.
+	Scope string
+}
+
+func (b0 RelayServer_builder) Build() *RelayServer {
+	m0 := &RelayServer{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Scope = b.Scope
+	return m0
+}
+
 // resource spec
 type RelayServer_Spec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// host IDs of Proxy Service instances that this server is available on
 	// through a reverse tunnel
 	ProxyIds []string `protobuf:"bytes,1,rep,name=proxy_ids,json=proxyIds,proto3" json:"proxy_ids,omitempty"`
@@ -176,11 +247,6 @@ func (x *RelayServer_Spec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RelayServer_Spec.ProtoReflect.Descriptor instead.
-func (*RelayServer_Spec) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_relay_server_proto_rawDescGZIP(), []int{0, 0}
-}
-
 func (x *RelayServer_Spec) GetProxyIds() []string {
 	if x != nil {
 		return x.ProxyIds
@@ -223,6 +289,65 @@ func (x *RelayServer_Spec) GetTerminating() bool {
 	return false
 }
 
+func (x *RelayServer_Spec) SetProxyIds(v []string) {
+	x.ProxyIds = v
+}
+
+func (x *RelayServer_Spec) SetHostname(v string) {
+	x.Hostname = v
+}
+
+func (x *RelayServer_Spec) SetRelayGroup(v string) {
+	x.RelayGroup = v
+}
+
+func (x *RelayServer_Spec) SetPeerAddr(v string) {
+	x.PeerAddr = v
+}
+
+func (x *RelayServer_Spec) SetNonce(v string) {
+	x.Nonce = v
+}
+
+func (x *RelayServer_Spec) SetTerminating(v bool) {
+	x.Terminating = v
+}
+
+type RelayServer_Spec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// host IDs of Proxy Service instances that this server is available on
+	// through a reverse tunnel
+	ProxyIds []string
+	// configured hostname (or nodename) of the machine, for troubleshooting and
+	// debugging
+	Hostname string
+	// the name of the Relay group this server belongs to
+	RelayGroup string
+	// address and port that this server is reachable at by other Relay Service
+	// instance of the same group
+	PeerAddr string
+	// random string chosen for the duration of the process, for troubleshooting
+	// and debugging
+	Nonce string
+	// set after the Teleport instance has received a termination signal (but
+	// hasn't necessarily began shutting down)
+	Terminating bool
+}
+
+func (b0 RelayServer_Spec_builder) Build() *RelayServer_Spec {
+	m0 := &RelayServer_Spec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ProxyIds = b.ProxyIds
+	x.Hostname = b.Hostname
+	x.RelayGroup = b.RelayGroup
+	x.PeerAddr = b.PeerAddr
+	x.Nonce = b.Nonce
+	x.Terminating = b.Terminating
+	return m0
+}
+
 var File_teleport_presence_v1_relay_server_proto protoreflect.FileDescriptor
 
 const file_teleport_presence_v1_relay_server_proto_rawDesc = "" +
@@ -243,18 +368,6 @@ const file_teleport_presence_v1_relay_server_proto_rawDesc = "" +
 	"\tpeer_addr\x18\x04 \x01(\tR\bpeerAddr\x12\x14\n" +
 	"\x05nonce\x18\x05 \x01(\tR\x05nonce\x12 \n" +
 	"\vterminating\x18\x06 \x01(\bR\vterminatingBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
-
-var (
-	file_teleport_presence_v1_relay_server_proto_rawDescOnce sync.Once
-	file_teleport_presence_v1_relay_server_proto_rawDescData []byte
-)
-
-func file_teleport_presence_v1_relay_server_proto_rawDescGZIP() []byte {
-	file_teleport_presence_v1_relay_server_proto_rawDescOnce.Do(func() {
-		file_teleport_presence_v1_relay_server_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_presence_v1_relay_server_proto_rawDesc), len(file_teleport_presence_v1_relay_server_proto_rawDesc)))
-	})
-	return file_teleport_presence_v1_relay_server_proto_rawDescData
-}
 
 var file_teleport_presence_v1_relay_server_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
 var file_teleport_presence_v1_relay_server_proto_goTypes = []any{

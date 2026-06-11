@@ -54,10 +54,15 @@ const statusEmitTimeout = 10 * time.Second
 // action occurs with an access request: a new request popped up, or a
 // request is processed/updated.
 type Bot struct {
-	client      *resty.Client
-	clock       clockwork.Clock
+	// client is the bot-level Slack API client.
+	client *resty.Client
+	// appClient is the app-level Slack API client, used to connect to Slack Socket Mode for native reviews.
+	appClient   *resty.Client
 	clusterName string
 	webProxyURL *url.URL
+	// reviewConfig is the configuration for native review.
+	reviewConfig ReviewConfig
+	clock        clockwork.Clock
 }
 
 // onAfterResponseSlack resty error function for Slack
@@ -98,8 +103,8 @@ func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *re
 // SupportedApps are the apps supported by this bot.
 func (b Bot) SupportedApps() []common.App {
 	return []common.App{
-		accessrequest.NewApp(b),
-		appAccesslist.NewApp(b),
+		accessrequest.NewApp(),
+		appAccesslist.NewApp(),
 	}
 }
 
@@ -364,10 +369,11 @@ func (b Bot) slackAccessListBatchedReminderMsgSection(accessLists []*accesslist.
 func (b Bot) slackAccessRequestMsgSections(reqID string, reqData pd.AccessRequestData) []BlockItem {
 	fields := accessrequest.MsgFields(reqID, reqData, b.clusterName, b.webProxyURL)
 	statusText := accessrequest.MsgStatusText(reqData.ResolutionTag, reqData.ResolutionReason)
+	titleText := accessrequest.MsgTitle(reqData)
 
 	sections := []BlockItem{
 		NewBlockItem(SectionBlock{
-			Text: NewTextObjectItem(MarkdownObject{Text: "You have a new Role Request:"}),
+			Text: NewTextObjectItem(MarkdownObject{Text: titleText}),
 		}),
 		NewBlockItem(SectionBlock{
 			Text: NewTextObjectItem(MarkdownObject{

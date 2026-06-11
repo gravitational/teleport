@@ -451,6 +451,8 @@ const (
 
 	// UpgradeWindowStartUpdatedCode is the edit code of UpgradeWindowStartUpdateEvent.
 	UpgradeWindowStartUpdatedCode = "TUW01I"
+	// EnvironmentProfileUpdatedCode is the edit code of EnvironmentProfileUpdateEvent.
+	EnvironmentProfileUpdatedCode = "TEP01I"
 
 	// SSMRunSuccessCode is the discovery script success code.
 	SSMRunSuccessCode = "TDS00I"
@@ -913,6 +915,13 @@ const (
 	// CertAuthOverrideCertificatesRemoveCode is the event code for specialized
 	// RemoveCertificateOverride operation.
 	CertAuthOverrideCertificatesRemoveCode = "TCO07I"
+
+	// BeamsConfigCreateCode is the Beams config create event code.
+	BeamsConfigCreateCode = "TBEAM001I"
+	// BeamsConfigUpdateCode is the Beams config update event code.
+	BeamsConfigUpdateCode = "TBEAM002I"
+	// BeamsConfigDeleteCode is the Beams config delete event code.
+	BeamsConfigDeleteCode = "TBEAM003I"
 
 	// UnknownCode is used when an event of unknown type is encountered.
 	UnknownCode = apievents.UnknownCode

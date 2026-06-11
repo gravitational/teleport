@@ -115,11 +115,15 @@ func TestPingError(t *testing.T) {
 
 	testCases := []struct {
 		desc        string
+		statusCode  int
+		contentType string
 		writeBody   func(t *testing.T, w http.ResponseWriter)
 		errContains string
 	}{
 		{
-			desc: "unsuccessful response",
+			desc:        "unsuccessful response",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "application/json",
 			writeBody: func(t *testing.T, w http.ResponseWriter) {
 				err := json.NewEncoder(w).Encode(PingErrorResponse{Error: PingError{Message: "lorem ipsum"}})
 				require.NoError(t, err)
@@ -127,12 +131,65 @@ func TestPingError(t *testing.T) {
 			errContains: "lorem ipsum",
 		},
 		{
-			desc: "mangled response",
+			desc:        "mangled response",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "application/json",
 			writeBody: func(t *testing.T, w http.ResponseWriter) {
 				_, err := w.Write([]byte("mangled lorem ipsum"))
 				require.NoError(t, err)
 			},
-			errContains: "invalid character",
+			errContains: "/webapi/ping returned a 500 JSON response; is proxy reachable?",
+		},
+		{
+			// Something in front of the proxy responded with its own non-JSON error
+			// page.
+			desc:        "non-JSON content type",
+			statusCode:  http.StatusInternalServerError,
+			contentType: "text/html; charset=utf-8",
+			writeBody: func(t *testing.T, w http.ResponseWriter) {
+				_, err := w.Write([]byte("<html><body>error 502</body></html>"))
+				require.NoError(t, err)
+			},
+			errContains: "/webapi/ping returned a 500 response; is proxy reachable?",
+		},
+		{
+			// A 404 on /webapi/ping suggests the address isn't a Teleport server at
+			// all rather than the proxy being unreachable.
+			desc:        "non-JSON 404 response",
+			statusCode:  http.StatusNotFound,
+			contentType: "text/html; charset=utf-8",
+			writeBody: func(t *testing.T, w http.ResponseWriter) {
+				_, err := w.Write([]byte("<html><body>not found</body></html>"))
+				require.NoError(t, err)
+			},
+			errContains: `/webapi/ping returned a 404 response; is "https://`,
+		},
+		{
+			// 404 + application/json but the body isn't parseable. The help text
+			// should still reflect that the address probably isn't a Teleport server.
+			desc:        "mangled 404 response",
+			statusCode:  http.StatusNotFound,
+			contentType: "application/json",
+			writeBody: func(t *testing.T, w http.ResponseWriter) {
+				_, err := w.Write([]byte("mangled lorem ipsum"))
+				require.NoError(t, err)
+			},
+			errContains: `/webapi/ping returned a 404 JSON response; is "https://`,
+		},
+		{
+			// 200 but a body that doesn't decode into PingResponse.
+			// In theory, we could check Content-Type on success too, but what if
+			// there's a deployment behind something that mangles Content-Type?
+			// Checking Content-Type on success would introduce a regression and make
+			// it impossible for users to log in.
+			desc:        "mangled 200 response",
+			statusCode:  http.StatusOK,
+			contentType: "application/json",
+			writeBody: func(t *testing.T, w http.ResponseWriter) {
+				_, err := w.Write([]byte("mangled lorem ipsum"))
+				require.NoError(t, err)
+			},
+			errContains: `cannot parse server ping response; is "https://`,
 		},
 	}
 
@@ -144,8 +201,8 @@ func TestPingError(t *testing.T) {
 					return
 				}
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusInternalServerError)
+				w.Header().Set("Content-Type", testCase.contentType)
+				w.WriteHeader(testCase.statusCode)
 				testCase.writeBody(t, w)
 			})
 			httpSvr := httptest.NewServer(handler)

@@ -80,7 +80,12 @@ func (f *Forwarder) listResources(sess *clusterSession, w http.ResponseWriter, r
 		sess.forwarder.ServeHTTP(rw, req)
 		status = rw.Status()
 	} else {
-		allowedResources, deniedResources := sess.Checker.GetKubeResources(sess.kubeCluster)
+		checker, err := sess.authContext.getAccessChecker()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		allowedResources, deniedResources := checker.Kube().GetResources(sess.kubeCluster)
 
 		shouldBeAllowed, err := matchListRequestShouldBeAllowed(sess.metaResource, allowedResources, deniedResources)
 		if err != nil {
@@ -279,7 +284,7 @@ func (f *Forwarder) sendEphemeralContainerEvents(ctx context.Context, rw *respon
 		}
 
 		for _, wc := range wcs {
-			if _, ok := sentDebugContainers[wc.Spec.ContainerName]; ok {
+			if _, ok := sentDebugContainers[wc.GetSpec().GetContainerName()]; ok {
 				continue
 			}
 			evt, err := f.getPatchedPodEvent(ctx, sess, wc)
@@ -287,7 +292,7 @@ func (f *Forwarder) sendEphemeralContainerEvents(ctx context.Context, rw *respon
 				f.log.WarnContext(ctx, "error pushing pod event", "error", err)
 				continue
 			}
-			sentDebugContainers[wc.Spec.ContainerName] = struct{}{}
+			sentDebugContainers[wc.GetSpec().GetContainerName()] = struct{}{}
 			// push the event to the client
 			// this will lock until the event is pushed or the
 			// request context is done.

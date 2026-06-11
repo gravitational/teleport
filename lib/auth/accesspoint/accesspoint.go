@@ -119,7 +119,6 @@ type Config struct {
 	RecordingEncryption     services.RecordingEncryption
 	Plugin                  services.Plugins
 	AppAuthConfig           services.AppAuthConfigReader
-	WorkloadClusterService  services.WorkloadClusterService
 	Summarizer              services.Summarizer
 	SubCAService            services.SubCAServiceGetter
 }
@@ -212,7 +211,6 @@ func NewCache(cfg Config) (*cache.Cache, error) {
 		RecordingEncryption:     cfg.RecordingEncryption,
 		Plugin:                  cfg.Plugin,
 		AppAuthConfig:           cfg.AppAuthConfig,
-		WorkloadClusterService:  cfg.WorkloadClusterService,
 		Summarizer:              cfg.Summarizer,
 		SubCAService:            cfg.SubCAService,
 	}

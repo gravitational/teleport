@@ -28,6 +28,20 @@ import (
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 )
 
+var (
+	// ErrDeniedAccessListDeletion is returned when an Access List which also also a
+	// member of another Access List is attempted for deletion.
+	ErrDeniedAccessListDeletion = &trace.AccessDeniedError{Message: "Access List with nested Access List membership cannot be deleted"}
+	// ErrCyclicMembership is returned when a cyclic Access List membership
+	// is detected. E.g. List A is a member of List B and List B is a member
+	// of List A.
+	ErrCyclicMembership = &trace.BadParameterError{Message: "cyclic membership not allowed"}
+	// ErrMaxNestedMembershipDepth is returned when Access List membership
+	// exceeds maximum supported nested membership depth. Default max depth
+	// is defined in accesslist.MaxAllowedDepth.
+	ErrMaxNestedMembershipDepth = &trace.BadParameterError{Message: "excdeeds maximum nested Access List membership depth"}
+)
+
 // ValidateAccessListWithMembers makes sure the given AccessList and it's members is valid before
 // storing it. If the existingAccessList is non-nil it also checks if this is a valid update
 // transition. It takes into account validation of the nested access lists membership.
@@ -267,8 +281,7 @@ func validateAddition(
 		return trace.Wrap(err)
 	}
 	if reachable {
-		return trace.BadParameter(
-			"Access List '%s' can't be added as %s of '%s' because '%s' is already included as a Member or Owner in '%s'",
+		return trace.Wrap(ErrCyclicMembership, "Access List '%s' can't be added as %s of '%s' because '%s' is already included as a Member or Owner in '%s'",
 			childList.Spec.Title, kindStr, parentList.Spec.Title, parentList.Spec.Title, childList.Spec.Title)
 	}
 
@@ -278,8 +291,7 @@ func validateAddition(
 		return trace.Wrap(err)
 	}
 	if exceeds {
-		return trace.BadParameter(
-			"Access List '%s' can't be added as %s of '%s' because it would exceed the maximum nesting depth of %d",
+		return trace.Wrap(ErrMaxNestedMembershipDepth, "Access List '%s' can't be added as %s of '%s' because it would exceed the maximum nesting depth of %d",
 			childList.Spec.Title, kindStr, parentList.Spec.Title, accesslist.MaxAllowedDepth)
 	}
 

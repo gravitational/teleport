@@ -356,6 +356,14 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_WindowsDesktopSessionEnd{
 			WindowsDesktopSessionEnd: e,
 		}
+	case *LinuxDesktopSessionStart:
+		out.Event = &OneOf_LinuxDesktopSessionStart{
+			LinuxDesktopSessionStart: e,
+		}
+	case *LinuxDesktopSessionEnd:
+		out.Event = &OneOf_LinuxDesktopSessionEnd{
+			LinuxDesktopSessionEnd: e,
+		}
 	case *SessionConnect:
 		out.Event = &OneOf_SessionConnect{
 			SessionConnect: e,
@@ -467,6 +475,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *UpgradeWindowStartUpdate:
 		out.Event = &OneOf_UpgradeWindowStartUpdate{
 			UpgradeWindowStartUpdate: e,
+		}
+	case *EnvironmentProfileUpdate:
+		out.Event = &OneOf_EnvironmentProfileUpdate{
+			EnvironmentProfileUpdate: e,
 		}
 	case *SessionRecordingAccess:
 		out.Event = &OneOf_SessionRecordingAccess{
@@ -1031,6 +1043,18 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 	case *CertAuthorityOverrideEvent:
 		out.Event = &OneOf_CertAuthorityOverrideEvent{
 			CertAuthorityOverrideEvent: e,
+		}
+	case *BeamsConfigCreate:
+		out.Event = &OneOf_BeamsConfigCreate{
+			BeamsConfigCreate: e,
+		}
+	case *BeamsConfigUpdate:
+		out.Event = &OneOf_BeamsConfigUpdate{
+			BeamsConfigUpdate: e,
+		}
+	case *BeamsConfigDelete:
+		out.Event = &OneOf_BeamsConfigDelete{
+			BeamsConfigDelete: e,
 		}
 
 	default:

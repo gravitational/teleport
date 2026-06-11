@@ -230,21 +230,32 @@ const statusLabel = (status: Status, label: string) => {
   );
 };
 
-function isSummarySyncing(summary: IntegrationWithSummary): boolean {
-  const lastSync = Math.max(
-    getTimestamp(summary.awsec2?.discoverLastSync),
-    getTimestamp(summary.awsrds?.discoverLastSync),
-    getTimestamp(summary.awseks?.discoverLastSync),
-    getTimestamp(summary.rolesAnywhereProfileSync?.syncEndTime)
-  );
+export function latestSyncDate(
+  summary: IntegrationWithSummary
+): Date | undefined {
+  const lastSyncTimestamps = [
+    summary.awsec2?.discoverLastSync,
+    summary.awsrds?.discoverLastSync,
+    summary.awseks?.discoverLastSync,
+    summary.azurevm?.discoverLastSync,
+    summary.rolesAnywhereProfileSync?.syncEndTime,
+  ].map(toTimestamp);
 
+  const lastSync = Math.max(...lastSyncTimestamps);
+
+  return lastSync ? new Date(lastSync) : undefined;
+}
+
+function isSummarySyncing(summary: IntegrationWithSummary): boolean {
+  const lastScanDate = latestSyncDate(summary);
   return (
-    lastSync === 0 ||
-    Date.now() >= lastSync + INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS
+    !lastScanDate ||
+    Date.now() >=
+      lastScanDate.getTime() + INTEGRATION_DISCOVERY_SCAN_INTERVAL_MS
   );
 }
 
-function getTimestamp(value: unknown): number {
+export function toTimestamp(value: unknown): number {
   if (!value) {
     return 0;
   }

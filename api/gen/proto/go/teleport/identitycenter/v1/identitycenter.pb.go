@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/identitycenter/v1/identitycenter.proto
 
+//go:build !protoopaque
+
 package identitycenterv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -79,11 +80,6 @@ func (PrincipalType) Type() protoreflect.EnumType {
 
 func (x PrincipalType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
-}
-
-// Deprecated: Use PrincipalType.Descriptor instead.
-func (PrincipalType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{0}
 }
 
 // ProvisioningState indicates the current stage of the Account-Assignment
@@ -146,17 +142,12 @@ func (x ProvisioningState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ProvisioningState.Descriptor instead.
-func (ProvisioningState) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{1}
-}
-
 // PermissionSetInfo represents a permission set that is available on a given
 // account. This is not intended to be a complete description of a PermissionSet,
 // but just enough to identify it for cross-referencing when included in an
 // Account record.
 type PermissionSetInfo struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Arn is the unique ARN for this permission set
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// Title is the human-readable name of the permission set
@@ -196,11 +187,6 @@ func (x *PermissionSetInfo) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PermissionSetInfo.ProtoReflect.Descriptor instead.
-func (*PermissionSetInfo) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *PermissionSetInfo) GetArn() string {
 	if x != nil {
 		return x.Arn
@@ -229,10 +215,52 @@ func (x *PermissionSetInfo) GetAssignmentId() string {
 	return ""
 }
 
+func (x *PermissionSetInfo) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *PermissionSetInfo) SetName(v string) {
+	x.Name = v
+}
+
+func (x *PermissionSetInfo) SetRole(v string) {
+	x.Role = v
+}
+
+func (x *PermissionSetInfo) SetAssignmentId(v string) {
+	x.AssignmentId = v
+}
+
+type PermissionSetInfo_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Arn is the unique ARN for this permission set
+	Arn string
+	// Title is the human-readable name of the permission set
+	Name string
+	// Role is an optional ARN indicating role provisioned to this account. May be
+	// empty if the permission set is not provisioned or is not relevant in the
+	Role string
+	// AssignmentID is the name of a Teleport Account Assignment resource
+	// representing this permission set assigned to the enclosing Account.
+	AssignmentId string
+}
+
+func (b0 PermissionSetInfo_builder) Build() *PermissionSetInfo {
+	m0 := &PermissionSetInfo{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.Name = b.Name
+	x.Role = b.Role
+	x.AssignmentId = b.AssignmentId
+	return m0
+}
+
 // AccountStatus represents any commonly-changing data about an Identity
 // Center account.
 type AccountStatus struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -262,14 +290,21 @@ func (x *AccountStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccountStatus.ProtoReflect.Descriptor instead.
-func (*AccountStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{1}
+type AccountStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 AccountStatus_builder) Build() *AccountStatus {
+	m0 := &AccountStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Account is an Identity-Center-managed AWS account
 type Account struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -303,11 +338,6 @@ func (x *Account) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Account.ProtoReflect.Descriptor instead.
-func (*Account) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *Account) GetKind() string {
@@ -352,9 +382,90 @@ func (x *Account) GetStatus() *AccountStatus {
 	return nil
 }
 
+func (x *Account) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *Account) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *Account) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *Account) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *Account) SetSpec(v *AccountSpec) {
+	x.Spec = v
+}
+
+func (x *Account) SetStatus(v *AccountStatus) {
+	x.Status = v
+}
+
+func (x *Account) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *Account) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *Account) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *Account) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *Account) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *Account) ClearStatus() {
+	x.Status = nil
+}
+
+type Account_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *AccountSpec
+	Status   *AccountStatus
+}
+
+func (b0 Account_builder) Build() *Account {
+	m0 := &Account{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // AccountSpec holds non-changing data about an AWS Account
 type AccountSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Id is the AWS-assigned PermissionSet ID
 	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
 	// Arn is the unique ARN for this permission set
@@ -398,11 +509,6 @@ func (x *AccountSpec) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AccountSpec.ProtoReflect.Descriptor instead.
-func (*AccountSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *AccountSpec) GetId() string {
@@ -454,9 +560,72 @@ func (x *AccountSpec) GetIsOrganizationOwner() bool {
 	return false
 }
 
+func (x *AccountSpec) SetId(v string) {
+	x.Id = v
+}
+
+func (x *AccountSpec) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *AccountSpec) SetName(v string) {
+	x.Name = v
+}
+
+func (x *AccountSpec) SetDescription(v string) {
+	x.Description = v
+}
+
+func (x *AccountSpec) SetStartUrl(v string) {
+	x.StartUrl = v
+}
+
+func (x *AccountSpec) SetPermissionSetInfo(v []*PermissionSetInfo) {
+	x.PermissionSetInfo = v
+}
+
+func (x *AccountSpec) SetIsOrganizationOwner(v bool) {
+	x.IsOrganizationOwner = v
+}
+
+type AccountSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Id is the AWS-assigned PermissionSet ID
+	Id string
+	// Arn is the unique ARN for this permission set
+	Arn string
+	// Name is the human-readable name of the permission set
+	Name string
+	// Description is a heman-readable description of the AWS Permission Set
+	Description string
+	// StartUrl is the address of the AWS start page
+	StartUrl string
+	// PermissionSetInfo contains a list of the available Perission Sets on this
+	// account.
+	PermissionSetInfo []*PermissionSetInfo
+	// IsOrganizationOwner indicates that this account is the organisation owner,
+	// and may have restrictions about adding permission sets
+	IsOrganizationOwner bool
+}
+
+func (b0 AccountSpec_builder) Build() *AccountSpec {
+	m0 := &AccountSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Id = b.Id
+	x.Arn = b.Arn
+	x.Name = b.Name
+	x.Description = b.Description
+	x.StartUrl = b.StartUrl
+	x.PermissionSetInfo = b.PermissionSetInfo
+	x.IsOrganizationOwner = b.IsOrganizationOwner
+	return m0
+}
+
 // PermissionSet identifies a single permission set by name and ARN
 type PermissionSet struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -489,11 +658,6 @@ func (x *PermissionSet) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PermissionSet.ProtoReflect.Descriptor instead.
-func (*PermissionSet) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *PermissionSet) GetKind() string {
@@ -531,10 +695,74 @@ func (x *PermissionSet) GetSpec() *PermissionSetSpec {
 	return nil
 }
 
+func (x *PermissionSet) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *PermissionSet) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *PermissionSet) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *PermissionSet) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *PermissionSet) SetSpec(v *PermissionSetSpec) {
+	x.Spec = v
+}
+
+func (x *PermissionSet) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *PermissionSet) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *PermissionSet) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *PermissionSet) ClearSpec() {
+	x.Spec = nil
+}
+
+type PermissionSet_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *PermissionSetSpec
+}
+
+func (b0 PermissionSet_builder) Build() *PermissionSet {
+	m0 := &PermissionSet{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // PermissionSetSpec holds rarely-changing information about ans AWS pwermission
 // set
 type PermissionSetSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Arn is the unique ARN for this permission set
 	Arn string `protobuf:"bytes,1,opt,name=arn,proto3" json:"arn,omitempty"`
 	// Name is the human-readable name of the permission set
@@ -570,11 +798,6 @@ func (x *PermissionSetSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PermissionSetSpec.ProtoReflect.Descriptor instead.
-func (*PermissionSetSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *PermissionSetSpec) GetArn() string {
 	if x != nil {
 		return x.Arn
@@ -596,6 +819,39 @@ func (x *PermissionSetSpec) GetDescription() string {
 	return ""
 }
 
+func (x *PermissionSetSpec) SetArn(v string) {
+	x.Arn = v
+}
+
+func (x *PermissionSetSpec) SetName(v string) {
+	x.Name = v
+}
+
+func (x *PermissionSetSpec) SetDescription(v string) {
+	x.Description = v
+}
+
+type PermissionSetSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Arn is the unique ARN for this permission set
+	Arn string
+	// Name is the human-readable name of the permission set
+	Name string
+	// Description is a human-readable description of the AWS Permission Set
+	Description string
+}
+
+func (b0 PermissionSetSpec_builder) Build() *PermissionSetSpec {
+	m0 := &PermissionSetSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Arn = b.Arn
+	x.Name = b.Name
+	x.Description = b.Description
+	return m0
+}
+
 // AccountAssignment captures the relationship between a PermissionSet
 // and an Identity Center Account. It represents two parts of a potential 3-part
 // Identity Center Account Assignment. This is the primary requestable resource
@@ -604,7 +860,7 @@ func (x *PermissionSetSpec) GetDescription() string {
 // grants that user the Permission Set specified in that resource, on the
 // AWS Account specified in that resource.
 type AccountAssignment struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -637,11 +893,6 @@ func (x *AccountAssignment) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use AccountAssignment.ProtoReflect.Descriptor instead.
-func (*AccountAssignment) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *AccountAssignment) GetKind() string {
@@ -679,10 +930,74 @@ func (x *AccountAssignment) GetSpec() *AccountAssignmentSpec {
 	return nil
 }
 
+func (x *AccountAssignment) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *AccountAssignment) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *AccountAssignment) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *AccountAssignment) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *AccountAssignment) SetSpec(v *AccountAssignmentSpec) {
+	x.Spec = v
+}
+
+func (x *AccountAssignment) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *AccountAssignment) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *AccountAssignment) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *AccountAssignment) ClearSpec() {
+	x.Spec = nil
+}
+
+type AccountAssignment_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *AccountAssignmentSpec
+}
+
+func (b0 AccountAssignment_builder) Build() *AccountAssignment {
+	m0 := &AccountAssignment{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // AccountAssignmentSpec holds static information abount an AccountAssignment,
 // linking a Permission Set and an AWS account.
 type AccountAssignmentSpec struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Display       string                 `protobuf:"bytes,1,opt,name=display,proto3" json:"display,omitempty"`
 	PermissionSet *PermissionSetInfo     `protobuf:"bytes,2,opt,name=permission_set,json=permissionSet,proto3" json:"permission_set,omitempty"`
 	AccountName   string                 `protobuf:"bytes,3,opt,name=account_name,json=accountName,proto3" json:"account_name,omitempty"`
@@ -716,11 +1031,6 @@ func (x *AccountAssignmentSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccountAssignmentSpec.ProtoReflect.Descriptor instead.
-func (*AccountAssignmentSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *AccountAssignmentSpec) GetDisplay() string {
 	if x != nil {
 		return x.Display
@@ -749,11 +1059,58 @@ func (x *AccountAssignmentSpec) GetAccountId() string {
 	return ""
 }
 
+func (x *AccountAssignmentSpec) SetDisplay(v string) {
+	x.Display = v
+}
+
+func (x *AccountAssignmentSpec) SetPermissionSet(v *PermissionSetInfo) {
+	x.PermissionSet = v
+}
+
+func (x *AccountAssignmentSpec) SetAccountName(v string) {
+	x.AccountName = v
+}
+
+func (x *AccountAssignmentSpec) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AccountAssignmentSpec) HasPermissionSet() bool {
+	if x == nil {
+		return false
+	}
+	return x.PermissionSet != nil
+}
+
+func (x *AccountAssignmentSpec) ClearPermissionSet() {
+	x.PermissionSet = nil
+}
+
+type AccountAssignmentSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Display       string
+	PermissionSet *PermissionSetInfo
+	AccountName   string
+	AccountId     string
+}
+
+func (b0 AccountAssignmentSpec_builder) Build() *AccountAssignmentSpec {
+	m0 := &AccountAssignmentSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Display = b.Display
+	x.PermissionSet = b.PermissionSet
+	x.AccountName = b.AccountName
+	x.AccountId = b.AccountId
+	return m0
+}
+
 // PrincipalAssignment relates a collection of PermissionSets and Applications
 // to a given principal. This is the source of truth for all Account & Permission
 // Set assignments in AWS
 type PrincipalAssignment struct {
-	state         protoimpl.MessageState     `protogen:"open.v1"`
+	state         protoimpl.MessageState     `protogen:"hybrid.v1"`
 	Kind          string                     `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                     `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                     `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -787,11 +1144,6 @@ func (x *PrincipalAssignment) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PrincipalAssignment.ProtoReflect.Descriptor instead.
-func (*PrincipalAssignment) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *PrincipalAssignment) GetKind() string {
@@ -836,10 +1188,91 @@ func (x *PrincipalAssignment) GetStatus() *PrincipalAssignmentStatus {
 	return nil
 }
 
+func (x *PrincipalAssignment) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *PrincipalAssignment) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *PrincipalAssignment) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *PrincipalAssignment) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *PrincipalAssignment) SetSpec(v *PrincipalAssignmentSpec) {
+	x.Spec = v
+}
+
+func (x *PrincipalAssignment) SetStatus(v *PrincipalAssignmentStatus) {
+	x.Status = v
+}
+
+func (x *PrincipalAssignment) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *PrincipalAssignment) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *PrincipalAssignment) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *PrincipalAssignment) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *PrincipalAssignment) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *PrincipalAssignment) ClearStatus() {
+	x.Status = nil
+}
+
+type PrincipalAssignment_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *PrincipalAssignmentSpec
+	Status   *PrincipalAssignmentStatus
+}
+
+func (b0 PrincipalAssignment_builder) Build() *PrincipalAssignment {
+	m0 := &PrincipalAssignment{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // PrincipalAssignmentSpec holds information about the Account Assignments
 // assigned to the target principal.
 type PrincipalAssignmentSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// PrincipalId identifies what kind of principal this assignment applies to, either
 	// a User or a Group (i.e. AccessList)
 	PrincipalType PrincipalType `protobuf:"varint,1,opt,name=principal_type,json=principalType,proto3,enum=teleport.identitycenter.v1.PrincipalType" json:"principal_type,omitempty"`
@@ -879,11 +1312,6 @@ func (x *PrincipalAssignmentSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrincipalAssignmentSpec.ProtoReflect.Descriptor instead.
-func (*PrincipalAssignmentSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *PrincipalAssignmentSpec) GetPrincipalType() PrincipalType {
 	if x != nil {
 		return x.PrincipalType
@@ -912,11 +1340,53 @@ func (x *PrincipalAssignmentSpec) GetExternalId() string {
 	return ""
 }
 
+func (x *PrincipalAssignmentSpec) SetPrincipalType(v PrincipalType) {
+	x.PrincipalType = v
+}
+
+func (x *PrincipalAssignmentSpec) SetPrincipalId(v string) {
+	x.PrincipalId = v
+}
+
+func (x *PrincipalAssignmentSpec) SetExternalIdSource(v string) {
+	x.ExternalIdSource = v
+}
+
+func (x *PrincipalAssignmentSpec) SetExternalId(v string) {
+	x.ExternalId = v
+}
+
+type PrincipalAssignmentSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// PrincipalId identifies what kind of principal this assignment applies to, either
+	// a User or a Group (i.e. AccessList)
+	PrincipalType PrincipalType
+	// PrincipalId identifies the Teleport User or Access List that this assignment
+	// applies to
+	PrincipalId string
+	// ExternalIdSource
+	ExternalIdSource string
+	// ExternalID identifies the user or group within AWS
+	ExternalId string
+}
+
+func (b0 PrincipalAssignmentSpec_builder) Build() *PrincipalAssignmentSpec {
+	m0 := &PrincipalAssignmentSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PrincipalType = b.PrincipalType
+	x.PrincipalId = b.PrincipalId
+	x.ExternalIdSource = b.ExternalIdSource
+	x.ExternalId = b.ExternalId
+	return m0
+}
+
 // AccountAssignmentRef is a minimal link between an AWS Account and a
 // permission set. Optionally contains human-readable metadata describing the
 // target AWS Account and Permission Set.
 type AccountAssignmentRef struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// AccountId holds the AWS account ID for the target AWS account. This will
 	// always be set
 	AccountId string `protobuf:"bytes,1,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
@@ -958,11 +1428,6 @@ func (x *AccountAssignmentRef) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use AccountAssignmentRef.ProtoReflect.Descriptor instead.
-func (*AccountAssignmentRef) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *AccountAssignmentRef) GetAccountId() string {
 	if x != nil {
 		return x.AccountId
@@ -991,10 +1456,54 @@ func (x *AccountAssignmentRef) GetPermissionSetName() string {
 	return ""
 }
 
+func (x *AccountAssignmentRef) SetAccountId(v string) {
+	x.AccountId = v
+}
+
+func (x *AccountAssignmentRef) SetAccountName(v string) {
+	x.AccountName = v
+}
+
+func (x *AccountAssignmentRef) SetPermissionSetArn(v string) {
+	x.PermissionSetArn = v
+}
+
+func (x *AccountAssignmentRef) SetPermissionSetName(v string) {
+	x.PermissionSetName = v
+}
+
+type AccountAssignmentRef_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// AccountId holds the AWS account ID for the target AWS account. This will
+	// always be set
+	AccountId string
+	// AccountName optionally holds the heman-readable name of the target AwS
+	// account
+	AccountName string
+	// PermissionSetArn holds the target Permission Set ARN. This will always be
+	// set.
+	PermissionSetArn string
+	// PermissionSetName optionally holds the human-readable name of the target
+	// AWS Permission Set.
+	PermissionSetName string
+}
+
+func (b0 AccountAssignmentRef_builder) Build() *AccountAssignmentRef {
+	m0 := &AccountAssignmentRef{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.AccountId = b.AccountId
+	x.AccountName = b.AccountName
+	x.PermissionSetArn = b.PermissionSetArn
+	x.PermissionSetName = b.PermissionSetName
+	return m0
+}
+
 // PrincipalAssignmentAssignmentStatus holds frequently-changing iinformation
 // about the PrincipalAssignment
 type PrincipalAssignmentStatus struct {
-	state             protoimpl.MessageState  `protogen:"open.v1"`
+	state             protoimpl.MessageState  `protogen:"hybrid.v1"`
 	ProvisioningState ProvisioningState       `protobuf:"varint,1,opt,name=provisioning_state,json=provisioningState,proto3,enum=teleport.identitycenter.v1.ProvisioningState" json:"provisioning_state,omitempty"`
 	Assignments       []*AccountAssignmentRef `protobuf:"bytes,2,rep,name=assignments,proto3" json:"assignments,omitempty"`
 	Applications      []string                `protobuf:"bytes,3,rep,name=applications,proto3" json:"applications,omitempty"`
@@ -1028,11 +1537,6 @@ func (x *PrincipalAssignmentStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrincipalAssignmentStatus.ProtoReflect.Descriptor instead.
-func (*PrincipalAssignmentStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *PrincipalAssignmentStatus) GetProvisioningState() ProvisioningState {
 	if x != nil {
 		return x.ProvisioningState
@@ -1059,6 +1563,42 @@ func (x *PrincipalAssignmentStatus) GetError() string {
 		return x.Error
 	}
 	return ""
+}
+
+func (x *PrincipalAssignmentStatus) SetProvisioningState(v ProvisioningState) {
+	x.ProvisioningState = v
+}
+
+func (x *PrincipalAssignmentStatus) SetAssignments(v []*AccountAssignmentRef) {
+	x.Assignments = v
+}
+
+func (x *PrincipalAssignmentStatus) SetApplications(v []string) {
+	x.Applications = v
+}
+
+func (x *PrincipalAssignmentStatus) SetError(v string) {
+	x.Error = v
+}
+
+type PrincipalAssignmentStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	ProvisioningState ProvisioningState
+	Assignments       []*AccountAssignmentRef
+	Applications      []string
+	Error             string
+}
+
+func (b0 PrincipalAssignmentStatus_builder) Build() *PrincipalAssignmentStatus {
+	m0 := &PrincipalAssignmentStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ProvisioningState = b.ProvisioningState
+	x.Assignments = b.Assignments
+	x.Applications = b.Applications
+	x.Error = b.Error
+	return m0
 }
 
 var File_teleport_identitycenter_v1_identitycenter_proto protoreflect.FileDescriptor
@@ -1142,18 +1682,6 @@ const file_teleport_identitycenter_v1_identitycenter_proto_rawDesc = "" +
 	"\x18PROVISIONING_STATE_STALE\x10\x01\x12\"\n" +
 	"\x1ePROVISIONING_STATE_PROVISIONED\x10\x02\x12\x1e\n" +
 	"\x1aPROVISIONING_STATE_DELETED\x10\x03B`Z^github.com/gravitational/teleport/api/gen/proto/go/teleport/identitycenter/v1;identitycenterv1b\x06proto3"
-
-var (
-	file_teleport_identitycenter_v1_identitycenter_proto_rawDescOnce sync.Once
-	file_teleport_identitycenter_v1_identitycenter_proto_rawDescData []byte
-)
-
-func file_teleport_identitycenter_v1_identitycenter_proto_rawDescGZIP() []byte {
-	file_teleport_identitycenter_v1_identitycenter_proto_rawDescOnce.Do(func() {
-		file_teleport_identitycenter_v1_identitycenter_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_identitycenter_v1_identitycenter_proto_rawDesc), len(file_teleport_identitycenter_v1_identitycenter_proto_rawDesc)))
-	})
-	return file_teleport_identitycenter_v1_identitycenter_proto_rawDescData
-}
 
 var file_teleport_identitycenter_v1_identitycenter_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_identitycenter_v1_identitycenter_proto_msgTypes = make([]protoimpl.MessageInfo, 12)

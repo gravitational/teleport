@@ -77,7 +77,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, authClient authclient.ClientI
 		databases, err := apiclient.GetAllResources[types.DatabaseServer](ctx, authClient, &proto.ListResourcesRequest{
 			Namespace:           defaults.Namespace,
 			ResourceType:        types.KindDatabaseServer,
-			PredicateExpression: fmt.Sprintf(`name == "%s"`, dbName),
+			PredicateExpression: fmt.Sprintf(`name == %q`, dbName),
 		})
 		if err != nil {
 			return trace.Wrap(err)

@@ -23,6 +23,7 @@ import {
 } from 'teleport/services/integrations';
 
 import { SettingsTab as AwsSettingsTab } from './Aws/SettingsTab';
+import { SettingsTab as AzureSettingsTab } from './Azure/SettingsTab';
 
 export function SettingsTab({
   stats,
@@ -37,6 +38,14 @@ export function SettingsTab({
     case IntegrationKind.AwsOidc:
       return (
         <AwsSettingsTab
+          stats={stats}
+          activeInfoGuideTab={activeInfoGuideTab}
+          onInfoGuideTabChange={onInfoGuideTabChange}
+        />
+      );
+    case IntegrationKind.AzureOidc:
+      return (
+        <AzureSettingsTab
           stats={stats}
           activeInfoGuideTab={activeInfoGuideTab}
           onInfoGuideTabChange={onInfoGuideTabChange}

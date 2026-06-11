@@ -171,10 +171,10 @@ func buildAccessGraphFromTAGOrFallbackToAuth(ctx context.Context, config *servic
 		case err != nil:
 			return discovery.AccessGraphConfig{}, trace.Wrap(err)
 		default:
-			accessGraphCfg.Enabled = rsp.Enabled
-			accessGraphCfg.Addr = rsp.Address
-			accessGraphCfg.CA = rsp.Ca
-			accessGraphCfg.Insecure = rsp.Insecure
+			accessGraphCfg.Enabled = rsp.GetEnabled()
+			accessGraphCfg.Addr = rsp.GetAddress()
+			accessGraphCfg.CA = rsp.GetCa()
+			accessGraphCfg.Insecure = rsp.GetInsecure()
 		}
 	}
 	return accessGraphCfg, nil

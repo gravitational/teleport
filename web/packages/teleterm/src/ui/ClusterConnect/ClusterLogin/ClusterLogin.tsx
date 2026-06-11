@@ -85,7 +85,7 @@ export const ClusterLoginPresentation = (
             margin={0}
             width="100%"
           >
-            Unable to retrieve cluster auth preferences
+            Unable to retrieve authentication methods
           </Alerts.Danger>
           <ButtonPrimary autoFocus={true} size="large" onClick={props.init}>
             Retry

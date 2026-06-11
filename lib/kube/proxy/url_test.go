@@ -36,6 +36,46 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+// TestExtractResourceNameFromPostRequest_Replayable verifies that
+// extractResourceNameFromPostRequest sets a working [http.Request.GetBody]
+// and ContentLength so the upstream transport can retry the request after a
+// GOAWAY without hitting the unrewindable network-side body. See #65611.
+func TestExtractResourceNameFromPostRequest_Replayable(t *testing.T) {
+	bodyJSON := []byte(`{"kind":"Pod","apiVersion":"v1","metadata":{"name":"test-pod","namespace":"default"}}`)
+
+	req, err := http.NewRequest(http.MethodPost, "/api/v1/namespaces/default/pods", strings.NewReader(string(bodyJSON)))
+	require.NoError(t, err)
+	req.Header.Set("Content-Type", "application/json")
+
+	// Simulate a request received over the network: stdlib only auto-sets
+	// GetBody/ContentLength for in-process body types like *strings.Reader.
+	// Server-side requests carry an opaque io.ReadCloser with neither set.
+	req.GetBody = nil
+	req.ContentLength = 0
+
+	name, err := extractResourceNameFromPostRequest(req, &globalKubeCodecs, &schema.GroupVersionKind{Version: "v1", Kind: "Pod"})
+	require.NoError(t, err)
+	require.Equal(t, "test-pod", name)
+
+	require.Equal(t, int64(len(bodyJSON)), req.ContentLength, "ContentLength must match the buffered body")
+	require.NotNil(t, req.GetBody, "GetBody must be set so the transport can replay the request on GOAWAY")
+
+	// Drain the body to simulate the transport sending the request once.
+	drained, err := io.ReadAll(req.Body)
+	require.NoError(t, err)
+	require.Equal(t, bodyJSON, drained)
+
+	// GetBody must return a fresh reader yielding the same bytes, twice in a row.
+	for i := range 2 {
+		replay, err := req.GetBody()
+		require.NoError(t, err, "GetBody call %d", i)
+		got, err := io.ReadAll(replay)
+		require.NoError(t, err)
+		require.Equal(t, bodyJSON, got, "GetBody call %d must yield the original body", i)
+		require.NoError(t, replay.Close())
+	}
+}
+
 func TestParseResourcePath(t *testing.T) {
 	tests := []struct {
 		path string
@@ -68,6 +108,17 @@ func TestParseResourcePath(t *testing.T) {
 		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "kube-system", resourceKind: "pods/exec", resourceName: "foo"}},
 		{path: "/apis/apiregistration.k8s.io/v1/apiservices/foo/status", want: apiResource{apiGroup: "apiregistration.k8s.io", apiGroupVersion: "v1", resourceKind: "apiservices/status", resourceName: "foo"}},
 		{path: "/api/v1/nodes/foo/proxy/bar", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/bar", resourceName: "foo"}},
+		// Parser retains every trailing segment for proxy subresources.
+		{path: "/api/v1/namespaces/default/pods/foo/proxy/8080", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "pods/proxy/8080", resourceName: "foo"}},
+		{path: "/api/v1/namespaces/default/services/svc/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/nodes/node-1/proxy/pods", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/pods", resourceName: "node-1"}},
+		// Proxy subresources accept the [scheme:]name[:port] format for the name segment.
+		// We strip it down to the bare name so RBAC rules scoped to a specific name still match.
+		{path: "/api/v1/namespaces/default/services/svc:443/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/namespaces/default/services/https:svc:443/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/namespaces/default/services/https:svc:/proxy/path", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "services/proxy/path", resourceName: "svc"}},
+		{path: "/api/v1/namespaces/default/pods/https:foo:8080/proxy/healthz", want: apiResource{apiGroup: "", apiGroupVersion: "v1", namespace: "default", resourceKind: "pods/proxy/healthz", resourceName: "foo"}},
+		{path: "/api/v1/nodes/https:node-1:10250/proxy/pods", want: apiResource{apiGroup: "", apiGroupVersion: "v1", resourceKind: "nodes/proxy/pods", resourceName: "node-1"}},
 	}
 
 	for _, tt := range tests {
@@ -152,6 +203,7 @@ func Test_getResourceFromRequest(t *testing.T) {
 		{path: "/api/v1/namespaces/kube-system/pods/foo/exec", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/kube-system/pods/foo/attach", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"exec"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/kube-system/pods/foo/portforward", want: &types.KubernetesResource{Kind: "pods", Namespace: "kube-system", Name: "foo", Verbs: []string{"portforward"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/pods/foo/proxy/8080", want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo", Verbs: []string{"proxy"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/pods", body: bodyFunc("Pod", "v1"), want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/pods", body: bodyFuncWithoutGVK(), want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 
@@ -180,11 +232,17 @@ func Test_getResourceFromRequest(t *testing.T) {
 
 		// Nodes
 		{path: "/api/v1/nodes", want: &types.KubernetesResource{Kind: "nodes", Verbs: []string{"list"}, APIGroup: ""}},
-		{path: "/api/v1/nodes/foo/proxy/bar", want: &types.KubernetesResource{Kind: "nodes", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
+		{path: "/api/v1/nodes/foo/proxy/bar", want: &types.KubernetesResource{Kind: "nodes", Name: "foo", Verbs: []string{"proxy"}, APIGroup: ""}},
+		{path: "/api/v1/nodes/node-1/proxy/pods", want: &types.KubernetesResource{Kind: "nodes", Name: "node-1", Verbs: []string{"proxy"}, APIGroup: ""}},
 		// Services
 		{path: "/api/v1/services", want: &types.KubernetesResource{Kind: "services", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Verbs: []string{"list"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo", Verbs: []string{"get"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/services/svc/proxy/path", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "svc", Verbs: []string{"proxy"}, APIGroup: ""}},
+		// [scheme:]name[:port] format on proxy paths must reduce to the bare name so name-scoped RBAC rules still match.
+		{path: "/api/v1/namespaces/default/services/svc:443/proxy/path", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "svc", Verbs: []string{"proxy"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/services/https:svc:443/proxy/path", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "svc", Verbs: []string{"proxy"}, APIGroup: ""}},
+		{path: "/api/v1/namespaces/default/pods/https:foo:8080/proxy/healthz", want: &types.KubernetesResource{Kind: "pods", Namespace: "default", Name: "foo", Verbs: []string{"proxy"}, APIGroup: ""}},
 		{path: "/api/v1/watch/namespaces/default/services/foo", want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo", Verbs: []string{"watch"}, APIGroup: ""}},
 		{path: "/api/v1/namespaces/default/services", body: bodyFunc("Service", "v1"), want: &types.KubernetesResource{Kind: "services", Namespace: "default", Name: "foo-create", Verbs: []string{"create"}, APIGroup: ""}},
 

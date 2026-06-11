@@ -47,11 +47,11 @@ func (t *testResource153) GetMetadata() *headerv1.Metadata {
 
 func newTestResource153(name string) *testResource153 {
 	tr := &testResource153{
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: name,
-		},
+		}.Build(),
 	}
-	tr.Metadata.Expires = timestamppb.New(time.Now().AddDate(0, 0, 3))
+	tr.Metadata.SetExpires(timestamppb.New(time.Now().AddDate(0, 0, 3)))
 	return tr
 }
 
@@ -80,10 +80,10 @@ func unmarshalResource153(data []byte, opts ...services.MarshalOption) (*testRes
 	}
 
 	if cfg.Revision != "" {
-		r.Metadata.Revision = cfg.Revision
+		r.Metadata.SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
-		r.Metadata.Expires = timestamppb.New(cfg.Expires)
+		r.Metadata.SetExpires(timestamppb.New(cfg.Expires))
 	}
 	return &r, nil
 }
@@ -167,13 +167,13 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	}
 	require.Empty(t, cmp.Diff(paginatedOut, streamedResources, protocmp.Transform()))
 
-	// Retrieve all resources from the stream
+	// Retrieve resources within an exclusive end range from the stream.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, r1.GetMetadata().GetName(), r2.GetMetadata().GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff(paginatedOut, streamedResources, protocmp.Transform()))
+	require.Empty(t, cmp.Diff([]*testResource153{r1}, streamedResources, protocmp.Transform()))
 
 	// Retrieve a single resource from the stream
 	streamedResources = nil
@@ -183,13 +183,13 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	}
 	require.Empty(t, cmp.Diff([]*testResource153{r2}, streamedResources, protocmp.Transform()))
 
-	// Retrieve a single resource from the stream
+	// An exclusive end equal to the first resource yields nothing.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, "", r1.GetMetadata().GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff([]*testResource153{r1}, streamedResources, protocmp.Transform()))
+	require.Empty(t, streamedResources)
 
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetMetadata().GetName())
@@ -205,7 +205,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	require.True(t, trace.IsAlreadyExists(err))
 
 	// Update a resource.
-	r1.Metadata.Labels = map[string]string{"newlabel": "newvalue"}
+	r1.Metadata.SetLabels(map[string]string{"newlabel": "newvalue"})
 	r1, err = service.UnconditionalUpdateResource(ctx, r1)
 	require.NoError(t, err)
 	r, err = service.GetResource(ctx, r1.GetMetadata().GetName())
@@ -216,12 +216,12 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	))
 
 	// Conditionally updating a resource fails if revisions do not match
-	r.Metadata.Revision = "fake"
+	r.Metadata.SetRevision("fake")
 	_, err = service.ConditionalUpdateResource(ctx, r)
 	require.True(t, trace.IsCompareFailed(err))
 
 	// Conditionally updating a resource is allowed when revisions match
-	r.Metadata.Revision = r1.Metadata.Revision
+	r.Metadata.SetRevision(r1.Metadata.GetRevision())
 	r1, err = service.ConditionalUpdateResource(ctx, r1)
 	require.NoError(t, err)
 
@@ -250,7 +250,7 @@ func TestGenericWrapperCRUD(t *testing.T) {
 	))
 
 	// Upsert a resource (update).
-	r1.Metadata.Labels = map[string]string{"newerlabel": "newervalue"}
+	r1.Metadata.SetLabels(map[string]string{"newerlabel": "newervalue"})
 	r1, err = service.UpsertResource(ctx, r1)
 	require.NoError(t, err)
 	out, nextToken, err = service.ListResources(ctx, 200, "")

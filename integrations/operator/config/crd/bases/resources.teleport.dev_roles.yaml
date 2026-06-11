@@ -568,6 +568,15 @@ spec:
                           type: string
                         nullable: true
                         type: array
+                      submit_for_users:
+                        description: SubmitForUsers is used by Teleport plugins to
+                          indicate they can submit reviews on behalf of other users.
+                          Reviews submitted for a user are evaluated against that
+                          user's own RBAC permissions. Supports wildcard (*).
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       where:
                         description: Where is an optional predicate which further
                           limits which requests are reviewable.
@@ -1212,6 +1221,15 @@ spec:
                           type: string
                         nullable: true
                         type: array
+                      submit_for_users:
+                        description: SubmitForUsers is used by Teleport plugins to
+                          indicate they can submit reviews on behalf of other users.
+                          Reviews submitted for a user are evaluated against that
+                          user's own RBAC permissions. Supports wildcard (*).
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       where:
                         description: Where is an optional predicate which further
                           limits which requests are reviewable.
@@ -1524,6 +1542,11 @@ spec:
                             type: boolean
                         type: object
                     type: object
+                  web_terminal_clipboard_mode:
+                    description: WebTerminalClipboardMode determines clipboard behavior
+                      in the Web UI terminal. Valid values are "unrestricted" and
+                      "no-copy". Defaults to "unrestricted" if unspecified.
+                    x-kubernetes-int-or-string: true
                 type: object
             type: object
           status:
@@ -2153,6 +2176,15 @@ spec:
                           type: string
                         nullable: true
                         type: array
+                      submit_for_users:
+                        description: SubmitForUsers is used by Teleport plugins to
+                          indicate they can submit reviews on behalf of other users.
+                          Reviews submitted for a user are evaluated against that
+                          user's own RBAC permissions. Supports wildcard (*).
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       where:
                         description: Where is an optional predicate which further
                           limits which requests are reviewable.
@@ -2797,6 +2829,15 @@ spec:
                           type: string
                         nullable: true
                         type: array
+                      submit_for_users:
+                        description: SubmitForUsers is used by Teleport plugins to
+                          indicate they can submit reviews on behalf of other users.
+                          Reviews submitted for a user are evaluated against that
+                          user's own RBAC permissions. Supports wildcard (*).
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       where:
                         description: Where is an optional predicate which further
                           limits which requests are reviewable.
@@ -3109,6 +3150,11 @@ spec:
                             type: boolean
                         type: object
                     type: object
+                  web_terminal_clipboard_mode:
+                    description: WebTerminalClipboardMode determines clipboard behavior
+                      in the Web UI terminal. Valid values are "unrestricted" and
+                      "no-copy". Defaults to "unrestricted" if unspecified.
+                    x-kubernetes-int-or-string: true
                 type: object
             type: object
           status:

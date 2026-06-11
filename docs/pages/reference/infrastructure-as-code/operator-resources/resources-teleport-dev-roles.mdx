@@ -279,6 +279,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specallowreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
+|submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|
 |where|string|Where is an optional predicate which further limits which requests are reviewable.|
 
 ### spec.allow.review_requests.claims_to_roles items
@@ -566,6 +567,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specdenyreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
+|submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|
 |where|string|Where is an optional predicate which further limits which requests are reviewable.|
 
 ### spec.deny.review_requests.claims_to_roles items
@@ -642,6 +644,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |require_session_mfa|string or integer|RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN". Can be either the string or the integer representation of each option.|
 |ssh_file_copy|boolean|SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|
 |ssh_port_forwarding|[object](#specoptionsssh_port_forwarding)|SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.|
+|web_terminal_clipboard_mode|string or integer|WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal. Valid values are "unrestricted" and "no-copy". Defaults to "unrestricted" if unspecified. Can be either the string or the integer representation of each option.|
 
 ### spec.options.cert_extensions items
 
@@ -956,6 +959,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specallowreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
+|submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|
 |where|string|Where is an optional predicate which further limits which requests are reviewable.|
 
 ### spec.allow.review_requests.claims_to_roles items
@@ -1243,6 +1247,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |claims_to_roles|[][object](#specdenyreview_requestsclaims_to_roles-items)|ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.|
 |preview_as_roles|[]string|PreviewAsRoles is a list of extra roles which should apply to a reviewer while they are viewing a Resource Access Request for the purposes of viewing details such as the hostname and labels of requested resources.|
 |roles|[]string|Roles is the name of roles which may be reviewed.|
+|submit_for_users|[]string|SubmitForUsers is used by Teleport plugins to indicate they can submit reviews on behalf of other users. Reviews submitted for a user are evaluated against that user's own RBAC permissions. Supports wildcard (*).|
 |where|string|Where is an optional predicate which further limits which requests are reviewable.|
 
 ### spec.deny.review_requests.claims_to_roles items
@@ -1319,6 +1324,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |require_session_mfa|string or integer|RequireMFAType is the type of MFA requirement enforced for this user. 0 is "OFF", 1 is "SESSION", 2 is "SESSION_AND_HARDWARE_KEY", 3 is "HARDWARE_KEY_TOUCH", 4 is "HARDWARE_KEY_PIN", 5 is "HARDWARE_KEY_TOUCH_AND_PIN". Can be either the string or the integer representation of each option.|
 |ssh_file_copy|boolean|SSHFileCopy indicates whether remote file operations via SCP or SFTP are allowed over an SSH session. It defaults to true unless explicitly set to false.|
 |ssh_port_forwarding|[object](#specoptionsssh_port_forwarding)|SSHPortForwarding configures what types of SSH port forwarding are allowed by a role.|
+|web_terminal_clipboard_mode|string or integer|WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal. Valid values are "unrestricted" and "no-copy". Defaults to "unrestricted" if unspecified. Can be either the string or the integer representation of each option.|
 
 ### spec.options.cert_extensions items
 

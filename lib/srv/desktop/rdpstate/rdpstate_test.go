@@ -101,15 +101,69 @@ func TestFastPathPDU_EmptyPDU(t *testing.T) {
 	require.Nil(t, s.decoder)
 }
 
+func TestMouseMove_Legacy(t *testing.T) {
+	t.Parallel()
+
+	s := New()
+
+	evt, err := rdpstatetest.LegacyMouseMove(123, 456)
+	require.NoError(t, err)
+
+	// Position updates flow into the decoder via SetCursorPosition; this build uses the nop
+	// decoder so we just verify the message parses and dispatches without error. End-to-end
+	// position propagation is covered by the Rust FFI tests.
+	require.NoError(t, s.HandleMessage(evt))
+}
+
+func TestMouseMove_LegacyTruncated(t *testing.T) {
+	t.Parallel()
+
+	// Type byte (3) followed by only 4 bytes (need 8: x uint32 + y uint32).
+	require.Error(t, New().HandleMessage(rdpstatetest.LegacyEvent([]byte{3, 0, 0, 0, 1})))
+}
+
+func TestMouseMove_LegacyOutOfRange(t *testing.T) {
+	t.Parallel()
+
+	evt, err := rdpstatetest.LegacyMouseMove(1<<16, 0)
+	require.NoError(t, err)
+
+	require.Error(t, New().HandleMessage(evt))
+}
+
+func TestServerHello_ChannelIDOutOfRange(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range []struct {
+		name             string
+		ioChan, userChan uint32
+	}{
+		{"io channel too large", 1 << 16, 1003},
+		{"user channel too large", 1004, 1 << 16},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			evt, err := rdpstatetest.EncodeTDPBServerHelloWithChannels(800, 600, tt.ioChan, tt.userChan)
+			require.NoError(t, err)
+
+			s := New()
+			err = s.HandleMessage(evt)
+			require.True(t, trace.IsBadParameter(err), "expected BadParameter, got: %v", err)
+			require.Nil(t, s.decoder)
+		})
+	}
+}
+
 func TestUnknownMessage_Ignored(t *testing.T) {
 	t.Parallel()
 
 	s := New()
 
 	// Encode a SyncKeys message (not handled by RDPState) as a TDPB envelope.
-	body, err := proto.Marshal(&tdpbv1.Envelope{
-		Payload: &tdpbv1.Envelope_SyncKeys{SyncKeys: &tdpbv1.SyncKeys{}},
-	})
+	body, err := proto.Marshal(tdpbv1.Envelope_builder{
+		SyncKeys: &tdpbv1.SyncKeys{},
+	}.Build())
 	require.NoError(t, err)
 	data := make([]byte, 4+len(body))
 	binary.BigEndian.PutUint32(data[:4], uint32(len(body)))

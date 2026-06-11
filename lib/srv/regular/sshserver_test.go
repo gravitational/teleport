@@ -34,6 +34,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -49,6 +50,7 @@ import (
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -67,6 +69,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
+	"github.com/gravitational/teleport/lib/componentfeatures"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -544,7 +547,7 @@ func TestSessionAuditLog(t *testing.T) {
 	require.NoError(t, err)
 
 	x11Event := <-emitter.C()
-	require.IsType(t, &apievents.X11Forward{}, x11Event, "expected X11Forward event but got event of tgsype %T", x11Event)
+	require.IsType(t, &apievents.X11Forward{}, x11Event, "expected X11Forward event but got event of type %T", x11Event)
 
 	// LOCAL PORT FORWARDING
 	// Start up a test server that doesn't do any remote port forwarding
@@ -640,6 +643,131 @@ func TestSessionAuditLog(t *testing.T) {
 	endEvent, ok := e.(*apievents.SessionEnd)
 	require.True(t, ok, "expected SessionEnd event but got event of type %T", e)
 	require.Equal(t, sessionID, endEvent.SessionID)
+}
+
+func TestX11AuditLog(t *testing.T) {
+	if os.Getenv("TELEPORT_XAUTH_TEST") == "" {
+		t.Skip("Skipping x11 test as xauth is not enabled")
+	}
+
+	ctx := t.Context()
+	t.Parallel()
+
+	f := newCustomFixture(t, func(cfg *authtest.ServerConfig) {
+		cfg.Auth.AuditLog = events.NewDiscardAuditLog()
+	})
+
+	// use a sync recording mode because the disk-based uploader
+	// that runs in the background introduces races with test cleanup
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordAtNodeSync)
+	_, err := f.testSrv.Auth().UpsertSessionRecordingConfig(t.Context(), recConfig)
+	require.NoError(t, err)
+
+	// Set up a mock emitter so we can capture audit events.
+	emitter := eventstest.NewChannelEmitter(32)
+	f.ssh.srv.StreamEmitter = events.StreamerAndEmitter{
+		Streamer: events.NewDiscardStreamer(),
+		Emitter:  emitter,
+	}
+
+	// Enable x11 forwarding
+	f.ssh.srv.x11 = &x11.ServerConfig{
+		Enabled:       true,
+		DisplayOffset: x11.DefaultDisplayOffset,
+		MaxDisplay:    x11.DefaultMaxDisplays,
+	}
+
+	awaitX11Event := func(t *testing.T) *apievents.X11Forward {
+		t.Helper()
+
+		for event := range emitter.C() {
+			if x11Event, ok := event.(*apievents.X11Forward); ok {
+				return x11Event
+			}
+		}
+
+		t.Fatal("emitter closed before an x11 audit event was emitted")
+		return nil
+	}
+
+	testX11Audit := func(t *testing.T, clientConfig apissh.ClientConfig, assertX11Event func(t require.TestingT, e *apievents.X11Forward)) {
+		t.Helper()
+
+		if clientConfig.IsEmpty() {
+			clientConfig = f.ssh.cltConfig
+		}
+
+		// Start a new session
+		newClient, err := apissh.Dial(ctx, "tcp", f.ssh.srvAddress, clientConfig)
+		require.NoError(t, err)
+		sess, err := newClient.NewSession(ctx)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			if err := sess.Close(); !errors.Is(err, io.EOF) {
+				require.NoError(t, err)
+			}
+			if err := newClient.Close(); !errors.Is(err, io.EOF) {
+				require.NoError(t, err)
+			}
+		})
+
+		// Request x11 forwarding, event should be emitted immediately.
+		clientXAuthEntry, err := x11.NewFakeXAuthEntry(x11.Display{})
+		require.NoError(t, err)
+		_ = x11forward.RequestForwarding(ctx, sess, clientXAuthEntry)
+
+		assertX11Event(t, awaitX11Event(t))
+	}
+
+	t.Run("success", func(t *testing.T) {
+		testX11Audit(t, apissh.ClientConfig{}, func(t require.TestingT, e *apievents.X11Forward) {
+			require.Equal(t, events.X11ForwardCode, e.GetCode(), "expected X11 forward code")
+			require.True(t, e.Status.Success)
+			require.Empty(t, e.Status.Error)
+		})
+	})
+
+	t.Run("reexec failure", func(t *testing.T) {
+		missingLogin := "missing-login"
+		up, err := newUpack(t.Context(), f.testSrv, "x11-audit-missing-login", []string{missingLogin}, wildcardAllow)
+		require.NoError(t, err)
+		sshConfig := apissh.ClientConfig{
+			User: missingLogin,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{up.certSigner}, nil
+				},
+			},
+			HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+		}
+
+		expectErr := fmt.Sprintf("Failed to launch: %v.", user.UnknownUserError(missingLogin))
+		testX11Audit(t, sshConfig, func(t require.TestingT, e *apievents.X11Forward) {
+			require.Equal(t, events.X11ForwardFailureCode, e.GetCode(), "expected X11 forward failure code")
+			require.False(t, e.Status.Success)
+			require.Equal(t, expectErr, e.Status.Error)
+		})
+	})
+
+	// Deny x11 forwarding for the user.
+	roleName := services.RoleNameForUser(f.user)
+	role, err := f.testSrv.Auth().GetRole(ctx, roleName)
+	require.NoError(t, err)
+	roleOptions := role.GetOptions()
+	roleOptions.PermitX11Forwarding = types.NewBool(false)
+	role.SetOptions(roleOptions)
+	_, err = f.testSrv.Auth().UpsertRole(ctx, role)
+	require.NoError(t, err)
+
+	t.Run("not permitted", func(t *testing.T) {
+		testX11Audit(t, apissh.ClientConfig{}, func(t require.TestingT, e *apievents.X11Forward) {
+			require.Equal(t, events.X11ForwardFailureCode, e.GetCode(), "expected X11 forward failure code")
+			require.False(t, e.Status.Success)
+			require.Equal(t, "X11 forwarding not permitted", e.Status.Error)
+		})
+	})
+
 }
 
 func newProxyClient(t *testing.T, testSvr *authtest.Server) (*authclient.Client, string) {
@@ -1112,6 +1240,58 @@ func TestTCPIPForward(t *testing.T) {
 		cliUsingSessionJoin := f.newSSHClient(ctx, t, &user.User{Username: teleport.SSHSessionJoinPrincipal})
 		_, err := cliUsingSessionJoin.Listen("tcp", "127.0.0.1:0")
 		require.ErrorContains(t, err, "ssh: tcpip-forward request denied by peer")
+	})
+
+	t.Run("user cannot cancel another user's port forward", func(t *testing.T) {
+		f := newFixtureWithoutDiskBasedLogging(t)
+		setPortForwarding(t, t.Context(), f, nil, nil, nil)
+
+		aliceUp, err := newUpack(t.Context(), f.testSrv, "alice", []string{f.user}, wildcardAllow)
+		require.NoError(t, err)
+		aliceCfg := apissh.ClientConfig{
+			User: f.user,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{aliceUp.certSigner}, nil
+				},
+			},
+			HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+		}
+		aliceConn, err := apissh.Dial(t.Context(), "tcp", f.ssh.srvAddress, aliceCfg)
+		require.NoError(t, err)
+		defer aliceConn.Close()
+
+		bobUp, err := newUpack(t.Context(), f.testSrv, "bob", []string{f.user}, wildcardAllow)
+		require.NoError(t, err)
+		bobCfg := apissh.ClientConfig{
+			User: f.user,
+			PublicKeyAuth: apissh.PublicKeyAuthConfig{
+				Signers: func() ([]ssh.Signer, error) {
+					return []ssh.Signer{bobUp.certSigner}, nil
+				},
+			},
+			HostKeyCallback: ssh.FixedHostKey(f.signer.PublicKey()),
+		}
+
+		bobConn, err := apissh.Dial(t.Context(), "tcp", f.ssh.srvAddress, bobCfg)
+		require.NoError(t, err)
+		defer bobConn.Close()
+
+		listener, err := aliceConn.Listen("tcp", "localhost:0")
+		require.NoError(t, err)
+		t.Cleanup(func() { listener.Close() })
+
+		_, port, err := net.SplitHostPort(listener.Addr().String())
+		require.NoError(t, err)
+		portInt, err := strconv.Atoi(port)
+		require.NoError(t, err)
+		listenReq := ssh.Marshal(sshutils.TCPIPForwardReq{
+			Addr: "localhost",
+			Port: uint32(portInt),
+		})
+		ok, _, err := bobConn.SendRequest(t.Context(), teleport.CancelTCPIPForwardRequest, true, listenReq)
+		require.NoError(t, err)
+		require.False(t, ok, "bob should not be able to close another user's listener")
 	})
 }
 
@@ -3457,17 +3637,17 @@ func TestHostUserCreationProxy(t *testing.T) {
 	require.NoError(t, err)
 
 	_, err = reg.WriteSudoersFile(srv.IdentityContext{
-		AccessPermit: &decisionpb.SSHAccessPermit{
+		AccessPermit: decisionpb.SSHAccessPermit_builder{
 			HostSudoers: []string{"test1", "test2", "test3"},
-		},
+		}.Build(),
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, 0, sudoers.writeAttempts)
 
 	_, _, err = reg.UpsertHostUser(srv.IdentityContext{
-		AccessPermit: &decisionpb.SSHAccessPermit{
+		AccessPermit: decisionpb.SSHAccessPermit_builder{
 			HostSudoers: []string{"test1", "test2", "test3"},
-		},
+		}.Build(),
 	}, srv.ObtainFallbackUIDFunc(nil))
 	assert.NoError(t, err)
 	assert.Empty(t, usersBackend.calls, 0)
@@ -3576,7 +3756,7 @@ func (f obtainUIDForUsernameFunc) ObtainUIDForUsername(ctx context.Context, in *
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &stableunixusersv1.ObtainUIDForUsernameResponse{Uid: uid}, nil
+	return stableunixusersv1.ObtainUIDForUsernameResponse_builder{Uid: uid}.Build(), nil
 }
 
 func (f obtainUIDForUsernameFunc) ListStableUNIXUsers(ctx context.Context, in *stableunixusersv1.ListStableUNIXUsersRequest, opts ...grpc.CallOption) (*stableunixusersv1.ListStableUNIXUsersResponse, error) {
@@ -3762,4 +3942,139 @@ func TestServerInfo(t *testing.T) {
 	info, err := f.ssh.srv.getServerInfo(t.Context())
 	require.NoError(t, err)
 	require.Equal(t, scope, info.Scope)
+}
+
+func TestGetServerInfoHeartbeat(t *testing.T) {
+	t.Parallel()
+
+	ctx := t.Context()
+	clock := clockwork.NewFakeClock()
+	expiry := clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
+	sshFeatures := componentfeatures.ForSSHServer()
+
+	testServer, err := authtest.NewTestServer(authtest.ServerConfig{
+		Auth: authtest.AuthServerConfig{
+			ClusterName: "localhost",
+			Dir:         t.TempDir(),
+			Clock:       clock,
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, testServer.Close()) })
+
+	hostSigner := newSigner(t, ctx, testServer)
+	newServer := func(t *testing.T, role types.SystemRole, hostname, serverID string, extraOpts ...ServerOption) *Server {
+		t.Helper()
+		client, err := testServer.NewClient(authtest.TestIdentity{
+			I: authz.BuiltinRole{Role: role, Username: serverID},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, client.Close()) })
+
+		lockWatcher := newLockWatcher(ctx, t, client)
+		sessionController, err := srv.NewSessionController(srv.SessionControllerConfig{
+			Semaphores:   client,
+			AccessPoint:  client,
+			LockEnforcer: lockWatcher,
+			Emitter:      client,
+			Component:    teleport.ComponentNode,
+			ServerID:     serverID,
+		})
+		require.NoError(t, err)
+
+		opts := []ServerOption{
+			SetUUID(serverID),
+			SetNamespace(apidefaults.Namespace),
+			SetEmitter(client),
+			SetClock(clock),
+			SetLockWatcher(lockWatcher),
+			SetSessionController(sessionController),
+			SetConnectedProxyGetter(reversetunnel.NewConnectedProxyGetter()),
+		}
+		opts = append(opts, extraOpts...)
+
+		s, err := New(
+			ctx,
+			utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"},
+			hostname,
+			sshutils.StaticHostSigners(hostSigner),
+			client,
+			t.TempDir(),
+			"",
+			utils.NetAddr{},
+			client,
+			opts...,
+		)
+		require.NoError(t, err)
+		t.Cleanup(func() { require.NoError(t, s.Close()) })
+		return s
+	}
+
+	tests := []struct {
+		name     string
+		buildSrv func(t *testing.T) *Server
+		want     *types.ServerV2
+	}{
+		{
+			name: "node mode",
+			buildSrv: func(t *testing.T) *Server {
+				return newServer(t, types.RoleNode, "node-host", "node-uuid",
+					SetLabels(map[string]string{"static-label": "static-value"}, nil, nil),
+					SetScope("/scope"),
+				)
+			},
+			want: &types.ServerV2{
+				Kind:    types.KindNode,
+				Version: types.V2,
+				Scope:   "/scope",
+				Metadata: types.Metadata{
+					Name:      "node-uuid",
+					Namespace: apidefaults.Namespace,
+					Labels:    map[string]string{"static-label": "static-value"},
+					Expires:   &expiry,
+				},
+				Spec: types.ServerSpecV2{
+					CmdLabels:         map[string]types.CommandLabelV2{},
+					Hostname:          "node-host",
+					Version:           teleport.Version,
+					ComponentFeatures: sshFeatures,
+				},
+			},
+		},
+		{
+			name: "proxy mode",
+			buildSrv: func(t *testing.T) *Server {
+				return newServer(t, types.RoleProxy, "proxy-host", "proxy-uuid",
+					SetProxyMode("10.0.0.1:1234", nil, nil, nil),
+				)
+			},
+			want: &types.ServerV2{
+				Kind:    types.KindProxy,
+				Version: types.V2,
+				Metadata: types.Metadata{
+					Name:      "proxy-uuid",
+					Namespace: apidefaults.Namespace,
+					Expires:   &expiry,
+				},
+				Spec: types.ServerSpecV2{
+					CmdLabels:         map[string]types.CommandLabelV2{},
+					Hostname:          "proxy-host",
+					Version:           teleport.Version,
+					PeerAddr:          "10.0.0.1:1234",
+					ComponentFeatures: sshFeatures,
+				},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := tt.buildSrv(t)
+			info, err := s.getServerInfo(t.Context())
+			require.NoError(t, err)
+			// listener addr is bound dynamically on instantiation, so we fetch
+			// as we won't know ahead of time.
+			tt.want.Spec.Addr = s.AdvertiseAddr()
+			require.Empty(t, cmp.Diff(tt.want, info, protocmp.Transform()))
+		})
+	}
 }

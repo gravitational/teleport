@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/imds"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -397,6 +398,12 @@ func WithLogger(log *slog.Logger) TestServerOptFunc {
 	})
 }
 
+func WithScopesFeatures(features scopes.Features) TestServerOptFunc {
+	return WithConfig(func(cfg *servicecfg.Config) {
+		cfg.ScopesFeatures = features
+	})
+}
+
 // WithProxyKube enables the Proxy Kube listener with a random address.
 func WithProxyKube() TestServerOptFunc {
 	return func(o *TestServersOpts) error {
@@ -508,8 +515,8 @@ func (p *cliModules) Features() modules.Features {
 	}
 }
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-func (p *cliModules) IsBoringBinary() bool {
+// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+func (p *cliModules) IsFIPSBuild() bool {
 	return false
 }
 

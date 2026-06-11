@@ -122,11 +122,11 @@ func (p *vnetClientApplication) GetDialOptions(ctx context.Context, profileName 
 	if err != nil {
 		return nil, trace.Wrap(err, "loading user profile")
 	}
-	dialOpts := &vnetv1.DialOptions{
+	dialOpts := vnetv1.DialOptions_builder{
 		WebProxyAddr:            profile.WebProxyAddr,
 		AlpnConnUpgradeRequired: profile.TLSRoutingConnUpgradeRequired,
 		InsecureSkipVerify:      p.cf.InsecureSkipVerify,
-	}
+	}.Build()
 	dialOpts.RootClusterCaCertPool, err = p.getRootClusterCACertPoolPEM(ctx, profileName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -142,6 +142,63 @@ func (p *vnetClientApplication) OnNewSSHSession(ctx context.Context, profileName
 // OnNewAppConnection gets called before each VNet app connection. It's a noop as tsh doesn't need to do
 // anything extra here.
 func (p *vnetClientApplication) OnNewAppConnection(_ context.Context, _ *vnetv1.AppKey) error {
+	return nil
+}
+
+// ReissueDBCert returns a new database certificate for the given database.
+func (p *vnetClientApplication) ReissueDBCert(ctx context.Context, dbInfo *vnetv1.DatabaseInfo) (tls.Certificate, error) {
+	dbKey := dbInfo.GetDatabaseKey()
+	tc, err := p.newTeleportClient(ctx, dbKey.GetProfile(), dbKey.GetLeafCluster())
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	routeToDatabase := vnet.RouteToDatabase(dbInfo)
+
+	var cert tls.Certificate
+	err = p.retryWithRelogin(ctx, tc, func() error {
+		var err error
+		cert, err = p.reissueDBCert(ctx, tc, dbKey.GetProfile(), dbKey.GetLeafCluster(), routeToDatabase)
+		return trace.Wrap(err, "reissuing database cert")
+	})
+	return cert, trace.Wrap(err)
+}
+
+func (p *vnetClientApplication) reissueDBCert(ctx context.Context, tc *client.TeleportClient, profileName, leafClusterName string, routeToDatabase *proto.RouteToDatabase) (tls.Certificate, error) {
+	slog.InfoContext(ctx, "Reissuing cert for database.", "db_name", routeToDatabase.ServiceName, "profile", profileName, "leaf_cluster", leafClusterName)
+
+	profile, err := tc.ProfileStatus()
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "loading client profile")
+	}
+
+	dbCertParams := client.ReissueParams{
+		RouteToCluster:  leafClusterName,
+		RouteToDatabase: *routeToDatabase,
+		AccessRequests:  profile.ActiveRequests,
+		RequesterName:   proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL,
+	}
+
+	clusterClient, err := p.clientCache.Get(ctx, profileName, leafClusterName)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "getting cached cluster client")
+	}
+
+	result, err := clusterClient.IssueUserCertsWithMFA(ctx, dbCertParams)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "issuing database cert")
+	}
+
+	dbCert, err := result.KeyRing.DBTLSCert(routeToDatabase.ServiceName)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "getting TLS cert from key ring")
+	}
+
+	return dbCert, nil
+}
+
+// OnNewDBConnection gets called before each VNet database connection. It's a
+// noop as tsh doesn't need to do anything extra here.
+func (p *vnetClientApplication) OnNewDBConnection(_ context.Context, _ *vnetv1.DatabaseKey) error {
 	return nil
 }
 

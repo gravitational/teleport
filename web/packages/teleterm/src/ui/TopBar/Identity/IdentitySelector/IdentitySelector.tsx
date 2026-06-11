@@ -64,7 +64,7 @@ export const IdentitySelector = forwardRef<
         <Box>
           <UserIcon
             color={props.activeColor}
-            letter={getProfileNameLetter(props.activeCluster)}
+            letter={getProfileNameLetter(props.activeCluster.uri)}
           />
           {props.deviceTrustStatus === 'requires-enrollment' && (
             <ConnectionStatusIndicator

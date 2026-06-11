@@ -335,7 +335,7 @@ is licensed for Identity Security.
 After each recording is uploaded, Teleport Auth Service matches session metadata
 against all `inference_policy` resources. If a match is found, it will then use
 configuration from a corresponding `inference_model` resource to generate
-session recording. The inference model specifies, among other options, which
+a session summary. The inference model specifies, among other options, which
 inference provider and provider-specific model is used to generate a summary.
 
 No more than 150 concurrent summary jobs will be executed per Auth Service
@@ -351,4 +351,4 @@ viewed using the Teleport web app.
 - [SSH recording modes](../deployment/monitoring/audit.mdx)
 - [Session recording for desktops](../../enroll-resources/desktop-access/reference/sessions.mdx)
 - [Encrypted Session Recordings](../../enroll-resources/server-access/guides/encrypted-session-recordings/encrypted-session-recordings.mdx)
-- [Session recording summaries](../../identity-security/session-summaries.mdx)
+- [Session recording summaries](../../identity-security/session-summaries/session-summaries.mdx)

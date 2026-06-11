@@ -513,7 +513,7 @@ auth_service:
     # (Optional) Athena workgroup used by access monitoring queries (if not set, the default primary workgroup will be used).
     workgroup: access_monitoring_workgroup
   # Enables storing CAs in an external Hardware Security Module(HSM) or Key Management Service(KMS)
-  # Only one of the options can be enbabled at a given time.
+  # Only one of the options can be enabled at a given time.
   ca_key_params:
     # Persist CAs to Google Cloud KMS.
     gcp_kms:

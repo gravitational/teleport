@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/devicetrust/v1/user_certificates.proto
 
+//go:build !protoopaque
+
 package devicetrustv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 // device authentication.
 // See the AuthenticateDevice RPC.
 type UserCertificates struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DER-encoded X.509 user certificate.
 	X509Der []byte `protobuf:"bytes,1,opt,name=x509_der,json=x509Der,proto3" json:"x509_der,omitempty"`
 	// SSH certificate marshaled in the authorized key format.
@@ -73,11 +74,6 @@ func (x *UserCertificates) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UserCertificates.ProtoReflect.Descriptor instead.
-func (*UserCertificates) Descriptor() ([]byte, []int) {
-	return file_teleport_devicetrust_v1_user_certificates_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *UserCertificates) GetX509Der() []byte {
 	if x != nil {
 		return x.X509Der
@@ -92,6 +88,38 @@ func (x *UserCertificates) GetSshAuthorizedKey() []byte {
 	return nil
 }
 
+func (x *UserCertificates) SetX509Der(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.X509Der = v
+}
+
+func (x *UserCertificates) SetSshAuthorizedKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.SshAuthorizedKey = v
+}
+
+type UserCertificates_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DER-encoded X.509 user certificate.
+	X509Der []byte
+	// SSH certificate marshaled in the authorized key format.
+	SshAuthorizedKey []byte
+}
+
+func (b0 UserCertificates_builder) Build() *UserCertificates {
+	m0 := &UserCertificates{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.X509Der = b.X509Der
+	x.SshAuthorizedKey = b.SshAuthorizedKey
+	return m0
+}
+
 var File_teleport_devicetrust_v1_user_certificates_proto protoreflect.FileDescriptor
 
 const file_teleport_devicetrust_v1_user_certificates_proto_rawDesc = "" +
@@ -100,18 +128,6 @@ const file_teleport_devicetrust_v1_user_certificates_proto_rawDesc = "" +
 	"\x10UserCertificates\x12\x19\n" +
 	"\bx509_der\x18\x01 \x01(\fR\ax509Der\x12,\n" +
 	"\x12ssh_authorized_key\x18\x02 \x01(\fR\x10sshAuthorizedKeyBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1b\x06proto3"
-
-var (
-	file_teleport_devicetrust_v1_user_certificates_proto_rawDescOnce sync.Once
-	file_teleport_devicetrust_v1_user_certificates_proto_rawDescData []byte
-)
-
-func file_teleport_devicetrust_v1_user_certificates_proto_rawDescGZIP() []byte {
-	file_teleport_devicetrust_v1_user_certificates_proto_rawDescOnce.Do(func() {
-		file_teleport_devicetrust_v1_user_certificates_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_devicetrust_v1_user_certificates_proto_rawDesc), len(file_teleport_devicetrust_v1_user_certificates_proto_rawDesc)))
-	})
-	return file_teleport_devicetrust_v1_user_certificates_proto_rawDescData
-}
 
 var file_teleport_devicetrust_v1_user_certificates_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_devicetrust_v1_user_certificates_proto_goTypes = []any{

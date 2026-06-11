@@ -17,7 +17,10 @@
  */
 
 import { existsSync, readFileSync } from 'fs';
+import { Agent as HttpsAgent, type RequestOptions } from 'https';
+import { isIP } from 'net';
 import { resolve } from 'path';
+import type { Duplex } from 'stream';
 
 import { visualizer } from 'rollup-plugin-visualizer';
 import { defineConfig, type ProxyOptions, type UserConfig } from 'vite';
@@ -29,7 +32,7 @@ import { guardWasmPlugin } from './guard-wasm';
 import { htmlPlugin, transformPlugin } from './html';
 import { reactPlugin } from './react.mjs';
 
-const DEFAULT_PROXY_TARGET = '127.0.0.1:3080';
+const DEFAULT_PROXY_TARGET = 'localhost:3080';
 const ENTRY_FILE_NAME = 'app/app.js';
 
 export function createViteConfig(
@@ -242,15 +245,31 @@ function resolveTargetURL(url: string) {
   return parsed.host;
 }
 
+// Rewrite Host / Origin only when VITE_HOST is set and its hostname differs
+// from the proxy target. Otherwise the original headers are correct as-is.
+function shouldChangeOrigin(target: string): boolean {
+  if (!process.env.VITE_HOST) {
+    return false;
+  }
+
+  const { hostname: viteHost } = new URL(`https://${process.env.VITE_HOST}`);
+  const { hostname: targetHost } = new URL(`https://${target}`);
+
+  return viteHost !== targetHost;
+}
+
 function wsRoute(target: string, path: string): [string, ProxyOptions] {
+  const changeOrigin = shouldChangeOrigin(target);
+
   return [
     path,
     {
       target: `wss://${target}`,
       secure: false,
       ws: true,
-      changeOrigin: true,
-      rewriteWsOrigin: true,
+      changeOrigin,
+      rewriteWsOrigin: changeOrigin,
+      agent: getProxyAgent(target),
     },
   ];
 }
@@ -261,7 +280,32 @@ function httpRoute(target: string, path: string): [string, ProxyOptions] {
     {
       target: `https://${target}`,
       secure: false,
-      changeOrigin: true,
+      changeOrigin: shouldChangeOrigin(target),
+      agent: getProxyAgent(target),
     },
   ];
+}
+
+// Suppress SNI for IP-literal targets. Newer Node either warns (DEP0123) or
+// drops the IP servername outright, which can break the upstream TLS handshake.
+class NoSniAgent extends HttpsAgent {
+  createConnection(
+    options: RequestOptions,
+    callback?: (err: Error | null, stream: Duplex) => void
+  ) {
+    return super.createConnection({ ...options, servername: '' }, callback);
+  }
+}
+
+let cachedNoSniAgent: NoSniAgent | null = null;
+
+function getProxyAgent(target: string): HttpsAgent | undefined {
+  const { hostname } = new URL(`https://${target}`);
+  if (!isIP(hostname)) {
+    return undefined;
+  }
+  if (!cachedNoSniAgent) {
+    cachedNoSniAgent = new NoSniAgent({ rejectUnauthorized: false });
+  }
+  return cachedNoSniAgent;
 }

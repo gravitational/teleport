@@ -26,7 +26,7 @@ In short, private key material will never leave AWS KMS.
 
 If launching a new Teleport cluster this will all be handled during initial
 startup with no specific interventions required after configuration.
-For existing Teleport clusters that already have already generated software
+For existing Teleport clusters that already have generated software
 private keys, a CA rotation must be performed.
 Read on to [migrating an existing cluster](#migrating-an-existing-cluster) to
 learn more.
@@ -160,7 +160,7 @@ $ aws iam attach-role-policy --role-name <IAM role> --policy-arn <policy ARN>
 (!docs/pages/includes/aws-credentials.mdx service="the Teleport Auth Service"!)
 
 <Admonition type="warning">
-Be aware that anyone with access to this IAM role will be able create signatures
+Be aware that anyone with access to this IAM role will be able to create signatures
 as if they are the Teleport CA.
 It should be considered a highly privileged role and should be restricted as
 much as possible.
@@ -171,8 +171,8 @@ those credentials.
 You may wish to use the following iptables rule to restrict IMDS access to the
 root user only:
 
-```sh
-$ iptables -A OUTPUT -m owner ! --uid-owner 0 -d 169.254.169.254 -j REJECT
+```code
+$ sudo iptables -A OUTPUT -m owner ! --uid-owner 0 -d 169.254.169.254 -j REJECT
 ```
 </Admonition>
 
@@ -202,6 +202,17 @@ steps are necessary.
 If you wish to migrate an existing Teleport cluster from software keys to AWS
 KMS keys, read on to
 [migrating an existing cluster](#migrating-an-existing-cluster).
+
+If the Auth Service is already running, execute the following command on each
+Auth Service host to restart the Auth Service:
+
+```code
+$ sudo systemctl reload teleport
+```
+
+Otherwise, start Teleport on each Auth Service host:
+
+(!docs/pages/includes/start-teleport.mdx!)
 
 ## Step 3/3. Make sure everything is working
 

@@ -51,9 +51,9 @@ windows_desktop_service:
     # avoid the need to escape the backslash (\) character.
     #
     # For example, if your domain is "example.com", the NetBIOS name for it is
-    # likely "EXAMPLE". When connecting as the "svc-teleport" user, you should
-    # use the format: "EXAMPLE\svc-teleport".
-    username: "$LDAP_USERNAME"
+    # likely "EXAMPLE". When connecting as the 'svc-teleport' user, you should
+    # use the format: 'EXAMPLE\svc-teleport'.
+    username: '$LDAP_USERNAME'
     # The security identifier of the service account specified by the username
     # field above. This looks like a string starting with "S-".
     #

@@ -16,9 +16,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 import { useState } from 'react';
-import styled, { useTheme } from 'styled-components';
 
-import { Box, Flex, H2, Indicator, Subtitle2 } from 'design';
+import { Box, Flex } from 'design';
 import * as Icon from 'design/Icon';
 import { useToastNotifications } from 'shared/components/ToastNotification';
 import { Attempt } from 'shared/hooks/useAttemptNext';
@@ -37,7 +36,7 @@ import {
 } from './ManageDevices/wizards';
 import { PasswordBox } from './PasswordBox';
 import { Headings } from './SideNav';
-import { StatePill } from './StatePill';
+import { AuthMethodState, StatePill } from './StatePill';
 
 export interface SecuritySettingsProps extends AccountProps {}
 
@@ -50,13 +49,13 @@ export function securityHeadings(): Headings {
   const storeUser = useStore(ctx.storeUser);
   const isSso = storeUser.isSso();
 
-  let headings = [{ name: 'Passkey', id: 'passkey' }] as Headings;
+  let headings = [
+    { name: 'Passkeys and Multi-factor Authentication', id: 'auth-devices' },
+  ] as Headings;
 
   if (!isSso) {
     headings.push({ name: 'Password', id: 'password' });
   }
-
-  headings.push({ name: 'Multi-factor Authentication', id: 'mfa' });
 
   return headings;
 }
@@ -83,14 +82,21 @@ export function SecuritySettings({
 }: SecuritySettingsProps) {
   const toastNotification = useToastNotifications();
 
-  const passkeys = devices.filter(d => d.usage === 'passwordless');
-  const mfaDevices = devices.filter(d => d.usage === 'mfa');
+  const hasPasskeys = devices.some(d => d.usage === 'passwordless');
+  const hasMfaDevices = devices.some(d => d.usage === 'mfa');
   const disableAddPasskey = !canAddPasskeys;
   const disableAddMfa = !canAddMfa;
 
   let mfaPillState = undefined;
   if (fetchDevicesAttempt.status !== 'processing') {
-    mfaPillState = canAddMfa && mfaDevices.length > 0 ? 'active' : 'inactive';
+    mfaPillState = canAddMfa && hasMfaDevices ? 'active' : 'inactive';
+  }
+
+  let passkeysPillState: AuthMethodState | undefined = undefined;
+  if (!canAddPasskeys) {
+    passkeysPillState = 'disabled';
+  } else if (fetchDevicesAttempt.status !== 'processing') {
+    passkeysPillState = hasPasskeys ? 'active' : 'inactive';
   }
 
   const [prevFetchStatus, setPrevFetchStatus] = useState<Attempt['status']>('');
@@ -138,20 +144,51 @@ export function SecuritySettings({
   }
   return (
     <>
-      <Box data-testid="passkey-list" id="passkey">
+      <Box id="auth-devices" data-testid="device-list">
         <AuthDeviceList
           header={
-            <PasskeysHeader
-              empty={passkeys.length === 0}
-              passkeysEnabled={canAddPasskeys}
-              disableAddPasskey={disableAddPasskey}
-              fetchDevicesAttempt={fetchDevicesAttempt}
-              onAddDevice={onAddDevice}
-            />
+            <Flex flexDirection="column" gap={3}>
+              <PasskeysHeader
+                empty={!hasPasskeys}
+                state={passkeysPillState}
+                disableAddPasskey={disableAddPasskey}
+                onAddDevice={onAddDevice}
+              />
+              <Header
+                title={
+                  <Flex gap={2} alignItems="center">
+                    Multi-factor Authentication
+                    <StatePill
+                      data-testid="mfa-state-pill"
+                      state={mfaPillState}
+                    />
+                  </Flex>
+                }
+                description="Provide secondary authentication when signing in
+                      with a password. Unlike passkeys, multi-factor methods do
+                      not enable passwordless sign-in."
+                icon={<Icon.ShieldCheck />}
+                actions={
+                  <ActionButtonSecondary
+                    disabled={disableAddMfa}
+                    title={
+                      disableAddMfa
+                        ? 'Multi-factor authentication is disabled'
+                        : ''
+                    }
+                    onClick={() => onAddDevice('mfa')}
+                  >
+                    <Icon.Add size={20} />
+                    Add MFA
+                  </ActionButtonSecondary>
+                }
+              />
+            </Flex>
           }
-          deviceTypeColumnName="Passkey Type"
-          devices={passkeys}
+          devices={devices}
           onRemove={onRemoveDevice}
+          attempt={fetchDevicesAttempt}
+          passkeysEnabled={canAddPasskeys}
         />
       </Box>
       {!isSso && (
@@ -163,45 +200,6 @@ export function SecuritySettings({
           />
         </div>
       )}
-      <Box data-testid="mfa-list" id="mfa">
-        <AuthDeviceList
-          header={
-            <Header
-              title={
-                <Flex gap={2} alignItems="center">
-                  Multi-factor Authentication
-                  <StatePill
-                    data-testid="mfa-state-pill"
-                    state={mfaPillState}
-                  />
-                </Flex>
-              }
-              description="Provide secondary authentication when signing in
-                      with a password. Unlike passkeys, multi-factor methods do
-                      not enable passwordless sign-in."
-              icon={<Icon.ShieldCheck />}
-              showIndicator={fetchDevicesAttempt.status === 'processing'}
-              actions={
-                <ActionButtonSecondary
-                  disabled={disableAddMfa}
-                  title={
-                    disableAddMfa
-                      ? 'Multi-factor authentication is disabled'
-                      : ''
-                  }
-                  onClick={() => onAddDevice('mfa')}
-                >
-                  <Icon.Add size={20} />
-                  Add MFA
-                </ActionButtonSecondary>
-              }
-            />
-          }
-          deviceTypeColumnName="MFA Type"
-          devices={mfaDevices}
-          onRemove={onRemoveDevice}
-        />
-      </Box>
       {EnterpriseComponent && (
         <div id="recovery-code">
           <EnterpriseComponent addNotification={toastNotification.add} />
@@ -239,19 +237,15 @@ export function SecuritySettings({
  */
 function PasskeysHeader({
   empty,
-  fetchDevicesAttempt,
-  passkeysEnabled,
+  state,
   disableAddPasskey,
   onAddDevice,
 }: {
   empty: boolean;
-  fetchDevicesAttempt: Attempt;
-  passkeysEnabled: boolean;
+  state: AuthMethodState | undefined;
   disableAddPasskey: boolean;
   onAddDevice: (usage: DeviceUsage) => void;
 }) {
-  const theme = useTheme();
-
   const ActionButton = empty ? ActionButtonPrimary : ActionButtonSecondary;
   const button = (
     <ActionButton
@@ -264,68 +258,23 @@ function PasskeysHeader({
     </ActionButton>
   );
 
-  if (empty) {
-    return (
-      <Flex flexDirection="column" alignItems="center">
-        <Box
-          bg={theme.colors.interactive.tonal.neutral[0]}
-          lineHeight={0}
-          p={2}
-          borderRadius={3}
-          mb={3}
-        >
-          <Icon.Key />
-        </Box>
-        <H2 mb={1}>Passwordless sign-in using Passkeys</H2>
-        <Subtitle2
-          color={theme.colors.text.slightlyMuted}
-          textAlign="center"
-          mb={3}
-        >
-          Passkeys are a password replacement that validates your identity using
-          touch, facial recognition, a device password, or a PIN.
-        </Subtitle2>
-        <RelativeBox>
-          {fetchDevicesAttempt.status === 'processing' && (
-            // This trick allows us to maintain center alignment of the button
-            // and display it along with the indicator.
-            <BoxToTheRight mr={3} data-testid="indicator-wrapper">
-              <Indicator size={40} delay="none" />
-            </BoxToTheRight>
-          )}
-          {button}
-        </RelativeBox>
-      </Flex>
-    );
-  }
+  const title = empty ? 'Passwordless sign-in using Passkeys' : 'Passkeys';
+
+  const description = empty
+    ? 'Passkeys are a password replacement that validates your identity using touch, facial recognition, a device password, or a PIN.'
+    : 'Enable secure passwordless sign-in using fingerprint or facial recognition, a one-time code, or a device password.';
 
   return (
     <Header
       title={
         <Flex gap={2} alignItems="center">
-          Passkeys
-          <StatePill
-            data-testid="passwordless-state-pill"
-            state={passkeysEnabled ? 'active' : 'inactive'}
-          />
+          {title}
+          <StatePill data-testid="passwordless-state-pill" state={state} />
         </Flex>
       }
-      description="Enable secure passwordless sign-in using
-                fingerprint or facial recognition, a one-time code, or
-                a device password."
+      description={description}
       icon={<Icon.Key />}
-      showIndicator={fetchDevicesAttempt.status === 'processing'}
       actions={button}
     />
   );
 }
-
-const RelativeBox = styled(Box)`
-  position: relative;
-`;
-
-/** A box that is displayed to the right where it normally would be. */
-const BoxToTheRight = styled(Box)`
-  position: absolute;
-  right: 100%;
-`;

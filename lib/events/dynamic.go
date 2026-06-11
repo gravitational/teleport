@@ -322,6 +322,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.SFTP{}
 	case UpgradeWindowStartUpdateEvent:
 		e = &events.UpgradeWindowStartUpdate{}
+	case EnvironmentProfileUpdateEvent:
+		e = &events.EnvironmentProfileUpdate{}
 	case SessionRecordingAccessEvent:
 		e = &events.SessionRecordingAccess{}
 	case SSMRunEvent:
@@ -641,6 +643,13 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		CertAuthOverrideDeleteEvent:
 		e = &events.CertAuthorityOverrideEvent{}
 
+	case BeamsConfigCreateEvent:
+		e = &events.BeamsConfigCreate{}
+	case BeamsConfigUpdateEvent:
+		e = &events.BeamsConfigUpdate{}
+	case BeamsConfigDeleteEvent:
+		e = &events.BeamsConfigDelete{}
+
 	default:
 		slog.ErrorContext(context.Background(), "Attempted to convert dynamic event of unknown type into protobuf event.", "event_type", eventType)
 	}
@@ -737,13 +746,13 @@ func EventFieldsToUnstructured(evt EventFields) (*auditlogpb.EventUnstructured, 
 
 	id := getOrComputeEventID(evt)
 
-	return &auditlogpb.EventUnstructured{
+	return auditlogpb.EventUnstructured_builder{
 		Type:         evt.GetType(),
 		Index:        int64(evt.GetInt(EventIndex)),
 		Time:         timestamppb.New(evt.GetTime(EventTime)),
 		Id:           id,
 		Unstructured: str,
-	}, nil
+	}.Build(), nil
 }
 
 // getOrComputeEventID computes the ID of the event. If the event already has an ID, it is returned.

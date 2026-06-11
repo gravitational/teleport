@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/provisioning/v1/provisioning.proto
 
+//go:build !protoopaque
+
 package provisioningv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -96,11 +97,6 @@ func (x ProvisioningState) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use ProvisioningState.Descriptor instead.
-func (ProvisioningState) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_provisioning_v1_provisioning_proto_rawDescGZIP(), []int{0}
-}
-
 // PrincipalType indicates the type of principal represented by a PrincipalState
 type PrincipalType int32
 
@@ -151,15 +147,10 @@ func (x PrincipalType) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use PrincipalType.Descriptor instead.
-func (PrincipalType) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_provisioning_v1_provisioning_proto_rawDescGZIP(), []int{1}
-}
-
 // PrincipalState describes the provisioning state of a Teleport user in a
 // downstream system
 type PrincipalState struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Kind          string                 `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	SubKind       string                 `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
 	Version       string                 `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
@@ -193,11 +184,6 @@ func (x *PrincipalState) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use PrincipalState.ProtoReflect.Descriptor instead.
-func (*PrincipalState) Descriptor() ([]byte, []int) {
-	return file_teleport_provisioning_v1_provisioning_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *PrincipalState) GetKind() string {
@@ -242,10 +228,91 @@ func (x *PrincipalState) GetStatus() *PrincipalStateStatus {
 	return nil
 }
 
+func (x *PrincipalState) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *PrincipalState) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *PrincipalState) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *PrincipalState) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *PrincipalState) SetSpec(v *PrincipalStateSpec) {
+	x.Spec = v
+}
+
+func (x *PrincipalState) SetStatus(v *PrincipalStateStatus) {
+	x.Status = v
+}
+
+func (x *PrincipalState) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *PrincipalState) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *PrincipalState) HasStatus() bool {
+	if x == nil {
+		return false
+	}
+	return x.Status != nil
+}
+
+func (x *PrincipalState) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *PrincipalState) ClearSpec() {
+	x.Spec = nil
+}
+
+func (x *PrincipalState) ClearStatus() {
+	x.Status = nil
+}
+
+type PrincipalState_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Kind     string
+	SubKind  string
+	Version  string
+	Metadata *v1.Metadata
+	Spec     *PrincipalStateSpec
+	Status   *PrincipalStateStatus
+}
+
+func (b0 PrincipalState_builder) Build() *PrincipalState {
+	m0 := &PrincipalState{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	x.Status = b.Status
+	return m0
+}
+
 // PrincipalStateSpec describes the current state of a provisioning operation. It
 // serves as a Teleport-local record of the downstream state.
 type PrincipalStateSpec struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// DownstreamId identifies the downstream service that this state applies to.
 	DownstreamId string `protobuf:"bytes,1,opt,name=downstream_id,json=downstreamId,proto3" json:"downstream_id,omitempty"`
 	// PrincipalType identifies what kind of principal this state applies to, either
@@ -283,11 +350,6 @@ func (x *PrincipalStateSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrincipalStateSpec.ProtoReflect.Descriptor instead.
-func (*PrincipalStateSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_provisioning_v1_provisioning_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *PrincipalStateSpec) GetDownstreamId() string {
 	if x != nil {
 		return x.DownstreamId
@@ -309,10 +371,45 @@ func (x *PrincipalStateSpec) GetPrincipalId() string {
 	return ""
 }
 
+func (x *PrincipalStateSpec) SetDownstreamId(v string) {
+	x.DownstreamId = v
+}
+
+func (x *PrincipalStateSpec) SetPrincipalType(v PrincipalType) {
+	x.PrincipalType = v
+}
+
+func (x *PrincipalStateSpec) SetPrincipalId(v string) {
+	x.PrincipalId = v
+}
+
+type PrincipalStateSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// DownstreamId identifies the downstream service that this state applies to.
+	DownstreamId string
+	// PrincipalType identifies what kind of principal this state applies to, either
+	// a User or a Group (i.e. AccessList)
+	PrincipalType PrincipalType
+	// PrincipalId identifies the Teleport User or Access List that this state
+	// applies to
+	PrincipalId string
+}
+
+func (b0 PrincipalStateSpec_builder) Build() *PrincipalStateSpec {
+	m0 := &PrincipalStateSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.DownstreamId = b.DownstreamId
+	x.PrincipalType = b.PrincipalType
+	x.PrincipalId = b.PrincipalId
+	return m0
+}
+
 // PrincipalStateStatus contains the runtime-writable status block for the
 // PrincipalState resource
 type PrincipalStateStatus struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ProvisioningState indicates the resource's current state in the
 	// provisioning process state machine.
 	ProvisioningState ProvisioningState `protobuf:"varint,5,opt,name=provisioning_state,json=provisioningState,proto3,enum=teleport.provisioning.v1.ProvisioningState" json:"provisioning_state,omitempty"`
@@ -363,11 +460,6 @@ func (x *PrincipalStateStatus) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PrincipalStateStatus.ProtoReflect.Descriptor instead.
-func (*PrincipalStateStatus) Descriptor() ([]byte, []int) {
-	return file_teleport_provisioning_v1_provisioning_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *PrincipalStateStatus) GetProvisioningState() ProvisioningState {
 	if x != nil {
 		return x.ProvisioningState
@@ -410,6 +502,80 @@ func (x *PrincipalStateStatus) GetActiveLocks() []string {
 	return nil
 }
 
+func (x *PrincipalStateStatus) SetProvisioningState(v ProvisioningState) {
+	x.ProvisioningState = v
+}
+
+func (x *PrincipalStateStatus) SetExternalId(v string) {
+	x.ExternalId = v
+}
+
+func (x *PrincipalStateStatus) SetLastProvisioned(v *timestamppb.Timestamp) {
+	x.LastProvisioned = v
+}
+
+func (x *PrincipalStateStatus) SetError(v string) {
+	x.Error = v
+}
+
+func (x *PrincipalStateStatus) SetProvisionedPrincipalRevision(v string) {
+	x.ProvisionedPrincipalRevision = v
+}
+
+func (x *PrincipalStateStatus) SetActiveLocks(v []string) {
+	x.ActiveLocks = v
+}
+
+func (x *PrincipalStateStatus) HasLastProvisioned() bool {
+	if x == nil {
+		return false
+	}
+	return x.LastProvisioned != nil
+}
+
+func (x *PrincipalStateStatus) ClearLastProvisioned() {
+	x.LastProvisioned = nil
+}
+
+type PrincipalStateStatus_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ProvisioningState indicates the resource's current state in the
+	// provisioning process state machine.
+	ProvisioningState ProvisioningState
+	// ExternalID holds the ID used by the downstream system to represent this
+	// principal
+	ExternalId string
+	// LastProvisioned records the last time this record was provisioned into
+	// the downstream system.
+	LastProvisioned *timestamppb.Timestamp
+	// Error holds a description of the last provisioning error, if any.
+	Error string
+	// Revision holds the revision of the principal record provisioned into the
+	// downstream system. Used to assert that the latest revision of the principal
+	// is provisioned downstream and detect changes in the principal that require
+	// re-provisioning.
+	ProvisionedPrincipalRevision string
+	// ActiveLocks holds the list of known active locks on the principal. Used to
+	// store the lock state across restarts of Teleport in order to detect state
+	// changes that may happen while Teleport is not running (e.g. a storage
+	// backend deleting an expired lock record while Teleport is offline)
+	ActiveLocks []string
+}
+
+func (b0 PrincipalStateStatus_builder) Build() *PrincipalStateStatus {
+	m0 := &PrincipalStateStatus{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ProvisioningState = b.ProvisioningState
+	x.ExternalId = b.ExternalId
+	x.LastProvisioned = b.LastProvisioned
+	x.Error = b.Error
+	x.ProvisionedPrincipalRevision = b.ProvisionedPrincipalRevision
+	x.ActiveLocks = b.ActiveLocks
+	return m0
+}
+
 var File_teleport_provisioning_v1_provisioning_proto protoreflect.FileDescriptor
 
 const file_teleport_provisioning_v1_provisioning_proto_rawDesc = "" +
@@ -443,18 +609,6 @@ const file_teleport_provisioning_v1_provisioning_proto_rawDesc = "" +
 	"\x1aPRINCIPAL_TYPE_UNSPECIFIED\x10\x00\x12\x17\n" +
 	"\x13PRINCIPAL_TYPE_USER\x10\x01\x12\x1e\n" +
 	"\x1aPRINCIPAL_TYPE_ACCESS_LIST\x10\x02B\\ZZgithub.com/gravitational/teleport/api/gen/proto/go/teleport/provisioning/v1;provisioningv1b\x06proto3"
-
-var (
-	file_teleport_provisioning_v1_provisioning_proto_rawDescOnce sync.Once
-	file_teleport_provisioning_v1_provisioning_proto_rawDescData []byte
-)
-
-func file_teleport_provisioning_v1_provisioning_proto_rawDescGZIP() []byte {
-	file_teleport_provisioning_v1_provisioning_proto_rawDescOnce.Do(func() {
-		file_teleport_provisioning_v1_provisioning_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_provisioning_v1_provisioning_proto_rawDesc), len(file_teleport_provisioning_v1_provisioning_proto_rawDesc)))
-	})
-	return file_teleport_provisioning_v1_provisioning_proto_rawDescData
-}
 
 var file_teleport_provisioning_v1_provisioning_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
 var file_teleport_provisioning_v1_provisioning_proto_msgTypes = make([]protoimpl.MessageInfo, 3)

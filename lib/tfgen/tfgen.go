@@ -20,6 +20,7 @@ package tfgen
 
 import (
 	"fmt"
+	"hash/fnv"
 	"regexp"
 	"strings"
 	"time"
@@ -42,8 +43,23 @@ var invalidTerraformName = regexp.MustCompile(`[^a-zA-Z0-9_-]`)
 
 // SanitizeResourceName returns a copy of name safe for use as Terraform resource
 // name. Chars not matching "a-zA-Z0-9_-" are replaced with underscores.
+//
+// Note: this method does not guarantee the resulting name is unique e.g.:
+// "alice.foo" and "alice_foo" will both sanitize to "alice_foo".
+// Use UniqueSanitizedResourceName to ensure uniqueness when needed.
 func SanitizeResourceName(name string) string {
 	return invalidTerraformName.ReplaceAllString(name, "_")
+}
+
+// UniqueSanitizedResourceName returns a sanitized name with a short hash suffix.
+// This avoid duplicates when different names sanitize to the same string e.g.:
+// "alice.foo" and "alice_foo" will now sanitize to "alice_foo_<UNIQUE HASH>").
+func UniqueSanitizedResourceName(name string) string {
+	h := fnv.New32a()
+	// h.Write() will never return an error.
+	_, _ = h.Write([]byte(name))
+	hash := h.Sum32()
+	return fmt.Sprintf("%s_%x", SanitizeResourceName(name), hash)
 }
 
 // Resource for which Terraform configuration can be generated. It's a subset of

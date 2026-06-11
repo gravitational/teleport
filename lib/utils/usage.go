@@ -25,3 +25,6 @@ import (
 // UpdateAppUsageTemplate is a no-op for regular builds. See usage_docs.go for
 // doc generation.
 func UpdateAppUsageTemplate(*kingpin.Application) {}
+
+// DocsMode is false in regular builds. It is true when building with -tags docs.
+const DocsMode = false

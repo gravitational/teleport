@@ -18,8 +18,8 @@
 
 import { readFileSync } from 'fs';
 import type * as http from 'http';
-import type * as http2 from 'http2';
-import { connect } from 'http2';
+import * as https from 'https';
+import { isIP } from 'net';
 import { resolve } from 'path';
 
 import type { Plugin } from 'vite';
@@ -96,8 +96,8 @@ export function transformPlugin(): Plugin {
   };
 }
 
-// Headers that can't cross into HTTP/2. `host` is covered by `:authority` instead.
-const H2_FORBIDDEN_HEADERS = new Set([
+// Headers that shouldn't be forwarded to the upstream request.
+const FORBIDDEN_HEADERS = new Set([
   'connection',
   'proxy-connection',
   'keep-alive',
@@ -121,40 +121,30 @@ const indexHtmlPath = resolve(process.cwd(), 'index.html');
 // read it once.
 let cachedTemplate: string | null = null;
 
-// One long-lived h2 session keeps every SPA-shell request on the same TCP + TLS +
-// SETTINGS handshake. Recreated lazily on close / error / GOAWAY.
-let session: http2.ClientHttp2Session | null = null;
+// Cached HTTPS agent for connection reuse.
+let cachedAgent: https.Agent | null = null;
 
-function getSession(target: string) {
-  if (session && !session.closed && !session.destroyed) {
-    return session;
+function getAgent(target: string): https.Agent {
+  if (cachedAgent) {
+    return cachedAgent;
   }
 
-  const created = connect(`https://${target}`, {
+  const { hostname } = new URL(`https://${target}`);
+
+  cachedAgent = new https.Agent({
     rejectUnauthorized: false,
+    // SNI must not be an IP literal. Newer Node will silently drop the IP
+    // servername, which can leave the connection in a broken state; suppress
+    // it explicitly here.
+    ...(isIP(hostname) && { servername: '' }),
   });
 
-  function invalidate() {
-    if (session === created) {
-      session = null;
-    }
-  }
-
-  created.on('close', invalidate);
-  created.on('error', invalidate);
-  created.on('goaway', invalidate);
-
-  session = created;
-
-  return created;
+  return cachedAgent;
 }
 
 function fetchIndexHtml(reqHeaders: http.IncomingHttpHeaders, target: string) {
-  const h2Headers: http2.OutgoingHttpHeaders = {
-    ':method': 'GET',
-    ':path': '/web',
-    ':scheme': 'https',
-    ':authority': target,
+  const headers: http.OutgoingHttpHeaders = {
+    host: target,
   };
 
   for (const [name, value] of Object.entries(reqHeaders)) {
@@ -162,28 +152,36 @@ function fetchIndexHtml(reqHeaders: http.IncomingHttpHeaders, target: string) {
       continue;
     }
 
-    if (H2_FORBIDDEN_HEADERS.has(name.toLowerCase())) {
+    if (FORBIDDEN_HEADERS.has(name.toLowerCase())) {
       continue;
     }
 
-    h2Headers[name] = value;
+    headers[name] = value;
   }
 
-  return new Promise<{ body: string; headers: http2.IncomingHttpHeaders }>(
+  const { hostname, port } = new URL(`https://${target}`);
+
+  return new Promise<{ body: string; headers: http.IncomingHttpHeaders }>(
     (resolve, reject) => {
-      const req = getSession(target).request(h2Headers);
+      const req = https.request(
+        {
+          hostname,
+          port: port || 443,
+          path: '/web',
+          method: 'GET',
+          headers,
+          agent: getAgent(target),
+        },
+        res => {
+          let body = '';
+          res.setEncoding('utf8');
+          res.on('data', chunk => {
+            body += chunk;
+          });
+          res.on('end', () => resolve({ body, headers: res.headers }));
+        }
+      );
 
-      let body = '';
-      let headers: http2.IncomingHttpHeaders = {};
-
-      req.setEncoding('utf8');
-      req.on('response', h => {
-        headers = h;
-      });
-      req.on('data', chunk => {
-        body += chunk;
-      });
-      req.on('end', () => resolve({ body, headers }));
       req.on('error', reject);
       req.end();
     }

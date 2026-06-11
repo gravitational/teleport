@@ -28,7 +28,7 @@ type BeginBrowserMFAChallengeParams struct {
 	User                     string
 	BrowserMFATSHRedirectURL string
 	Ext                      *mfav1.ChallengeExtensions
-	SIP                      *mfav1.SessionIdentifyingPayload
+	SIP                      *mfav1.SessionIdentifyingPayload //nolint:staticcheck // TODO(danielashare): Migrate to mfav2.
 	SourceCluster            string
 	TargetCluster            string
 }

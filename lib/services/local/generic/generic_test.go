@@ -226,13 +226,13 @@ func TestGenericCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	// Retrieve all resources from the stream
+	// Retrieve resources within an exclusive end range from the stream.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, r1.GetName(), r2.GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff(paginatedOut, streamedResources,
+	require.Empty(t, cmp.Diff([]*testResource{r1}, streamedResources,
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
@@ -246,15 +246,13 @@ func TestGenericCRUD(t *testing.T) {
 		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
 	))
 
-	// Retrieve a single resource from the stream
+	// An exclusive end equal to the first resource yields nothing.
 	streamedResources = nil
 	for r, err := range service.Resources(ctx, "", r1.GetName()) {
 		require.NoError(t, err)
 		streamedResources = append(streamedResources, r)
 	}
-	require.Empty(t, cmp.Diff([]*testResource{r1}, streamedResources,
-		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
-	))
+	require.Empty(t, streamedResources)
 
 	// Fetch a specific service provider.
 	r, err := service.GetResource(ctx, r2.GetName())
@@ -371,6 +369,56 @@ func TestGenericCRUD(t *testing.T) {
 	count, err = service.CountResources(ctx)
 	require.NoError(t, err)
 	require.Equal(t, uint(0), count)
+}
+
+// TestResourcesSkipsUnmarshalErrors guards against a regression where a single
+// malformed backend item would terminate iteration over Resources rather than
+// being skipped.
+func TestResourcesSkipsUnmarshalErrors(t *testing.T) {
+	ctx := t.Context()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     200,
+		BackendPrefix: backend.NewKey("generic_prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+	})
+	require.NoError(t, err)
+
+	// Insert valid resources at "r1" and "r3".
+	r1 := newTestResource("r1")
+	_, err = service.CreateResource(ctx, r1)
+	require.NoError(t, err)
+	r3 := newTestResource("r3")
+	_, err = service.CreateResource(ctx, r3)
+	require.NoError(t, err)
+
+	// Insert a malformed item at "r2", bypassing marshal so the unmarshal
+	// path will fail when iterating.
+	_, err = memBackend.Put(ctx, backend.Item{
+		Key:   service.MakeKey(backend.NewKey("r2")),
+		Value: []byte("not-valid-json"),
+	})
+	require.NoError(t, err)
+
+	// Resources must skip the malformed item and continue past it.
+	var got []*testResource
+	for r, err := range service.Resources(ctx, "", "") {
+		require.NoError(t, err)
+		got = append(got, r)
+	}
+	require.Empty(t, cmp.Diff(
+		[]*testResource{r1, r3}, got,
+		cmpopts.IgnoreFields(types.Metadata{}, "Revision"),
+	))
 }
 
 func TestGenericListResourcesReturnNextResource(t *testing.T) {
@@ -754,4 +802,66 @@ func TestGenericKeyOverride(t *testing.T) {
 		// 2nd Delete.
 		require.ErrorAs(t, s.DeleteResource(ctx, ""), new(*trace.NotFoundError), "2nd DeleteResource error mismatch")
 	})
+}
+
+// TestResourcesSkipsUnmarshalErrorsHittingPageBoundary guards against a regression where hitting a page boundary with a malformed backend item would
+// return less items than the page limit and no next token. This would cause callers to miss resources and fail to paginate properly when malformed items are present in the backend.
+func TestResourcesSkipsUnmarshalErrorsHittingPageBoundary(t *testing.T) {
+	ctx := t.Context()
+
+	memBackend, err := memory.New(memory.Config{
+		Context: ctx,
+		Clock:   clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+
+	const pageLimit = 64
+	const numberOfPages = 5
+	service, err := NewService(&ServiceConfig[*testResource]{
+		Backend:       memBackend,
+		ResourceKind:  "generic resource",
+		PageLimit:     pageLimit,
+		BackendPrefix: backend.NewKey("generic_prefix"),
+		UnmarshalFunc: unmarshalResource,
+		MarshalFunc:   marshalResource,
+	})
+	require.NoError(t, err)
+
+	for i := range pageLimit * numberOfPages {
+		key := fmt.Sprintf("r%d", i)
+		if i%2 == 0 {
+			_, err = memBackend.Put(ctx, backend.Item{
+				Key:   service.MakeKey(backend.NewKey(key)),
+				Value: []byte("not-valid-json"),
+			})
+			require.NoError(t, err)
+		} else {
+			r := newTestResource(key)
+			_, err = service.CreateResource(ctx, r)
+			require.NoError(t, err)
+		}
+	}
+
+	page1, next, err := service.ListResources(ctx, pageLimit, "")
+	require.NoError(t, err)
+	require.Len(t, page1, pageLimit)
+	require.NotEmpty(t, next)
+
+	page2, next, err := service.ListResources(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page2, pageLimit)
+	require.NotEmpty(t, next)
+
+	page3, next, err := service.ListResources(ctx, pageLimit, next)
+	require.NoError(t, err)
+	require.Len(t, page3, pageLimit/2)
+	require.Empty(t, next)
+
+	slices := [][]*testResource{page1, page2, page3}
+	for i := range len(slices) {
+		for j := i + 1; j < len(slices); j++ {
+			assert.NotEqual(t, slices[i], slices[j], "slices %d and %d should differ", i, j)
+		}
+	}
+
 }

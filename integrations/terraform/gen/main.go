@@ -179,6 +179,11 @@ type RequestWrapper struct {
 	// RequestResourceField is the field name in request
 	// types that holds the resource object - ex) "Role" in ScopedRoles.
 	RequestResourceField string
+	// ReturnsUnwrappedResource describes whether the response needs to be unwrapped.
+	// Should be false if `GetRequest` returns a GetResponse struct.
+	// Should be true if `GetRequest` returns the resource itself.
+	ReturnsUnwrappedResource bool
+
 	// GetRequest is the type name for the Get request - ex) "GetScopedRoleRequest".
 	GetRequest string
 	// CreateRequest is the type name for the Create request - ex) "CreateScopedRoleRequest".
@@ -1157,6 +1162,35 @@ var (
 			StateTimeoutSeconds:      15 * 60,
 		},
 	}
+	databaseObjectImportRule = payload{
+		Name:                  "DatabaseObjectImportRule",
+		TypeName:              "DatabaseObjectImportRule",
+		VarName:               "importRule",
+		GetMethod:             "DatabaseObjectImportRuleClient().GetDatabaseObjectImportRule",
+		CreateMethod:          "DatabaseObjectImportRuleClient().CreateDatabaseObjectImportRule",
+		UpsertMethodArity:     2,
+		UpdateMethod:          "DatabaseObjectImportRuleClient().UpsertDatabaseObjectImportRule",
+		DeleteMethod:          "DatabaseObjectImportRuleClient().DeleteDatabaseObjectImportRule",
+		ID:                    "importRule.GetMetadata().GetName()",
+		Kind:                  "db_object_import_rule",
+		HasStaticID:           false,
+		ProtoPackage:          "dbobjectimportrulev1",
+		ProtoPackagePath:      "github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1",
+		SchemaPackage:         "schemav1",
+		SchemaPackagePath:     "github.com/gravitational/teleport/integrations/terraform/tfschema/dbobjectimportrule/v1",
+		TerraformResourceType: "teleport_db_object_import_rule",
+		IsPlainStruct:         true,
+		ExtraImports:          []string{"apitypes \"github.com/gravitational/teleport/api/types\""},
+		ForceSetKind:          "apitypes.KindDatabaseObjectImportRule",
+		RequestWrapper: &RequestWrapper{
+			RequestResourceField:     "Rule",
+			ReturnsUnwrappedResource: true,
+			GetRequest:               "GetDatabaseObjectImportRuleRequest",
+			CreateRequest:            "CreateDatabaseObjectImportRuleRequest",
+			UpdateRequest:            "UpsertDatabaseObjectImportRuleRequest",
+			DeleteRequest:            "DeleteDatabaseObjectImportRuleRequest",
+		},
+	}
 	/*
 		//
 		// Example payload, copy this and replace every "example", "v1", and "TypeA" reference with your resource.
@@ -1282,6 +1316,8 @@ func genTFSchema() {
 	generateDataSource(scopedToken, pluralDataSource)
 	generateResource(workloadCluster, pluralResource)
 	generateDataSource(workloadCluster, pluralDataSource)
+	generateResource(databaseObjectImportRule, pluralResource)
+	generateDataSource(databaseObjectImportRule, pluralDataSource)
 	// Add resources here, use the singular resource for singletons and the plural resource for regular resources.
 }
 

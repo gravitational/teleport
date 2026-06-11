@@ -25,6 +25,8 @@ import (
 )
 
 func TestRenderText(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		desc      string
 		instances []instanceInfo
@@ -51,9 +53,9 @@ func TestRenderText(t *testing.T) {
 					},
 				},
 			},
-			want: `Cloud Account       Region    Instance ID Time          Status        Details 
------ ------------- --------- ----------- ------------- ------------- ------- 
-AWS   1111111111... us-east-1 i-ssm001    2026-01-15... Failed (ex... Scri... 
+			want: `Cloud Account       Region    Instance Time          Status        Details      
+----- ------------- --------- -------- ------------- ------------- ------------ 
+AWS   1111111111... us-east-1 i-ssm001 2026-01-15... Failed (ex... Script ou... 
 `,
 		},
 		{
@@ -66,9 +68,9 @@ AWS   1111111111... us-east-1 i-ssm001    2026-01-15... Failed (ex... Scri...
 					Expiry:   time.Date(2026, 1, 15, 11, 0, 0, 0, time.UTC),
 				},
 			},
-			want: `Cloud Account       Region    Instance ID Time          Status Details 
------ ------------- --------- ----------- ------------- ------ ------- 
-AWS   2222222222... eu-west-1 i-ok001     2026-01-15... Online         
+			want: `Cloud Account       Region    Instance Time          Status Details 
+----- ------------- --------- -------- ------------- ------ ------- 
+AWS   2222222222... eu-west-1 i-ok001  2026-01-15... Online         
 `,
 		},
 		{
@@ -85,9 +87,9 @@ AWS   2222222222... eu-west-1 i-ok001     2026-01-15... Online
 					},
 				},
 			},
-			want: `Cloud Account       Region    Instance ID Time          Status Details        
------ ------------- --------- ----------- ------------- ------ -------------- 
-AWS   4444444444... us-west-2 i-ok002     2026-01-15... Online Script outp... 
+			want: `Cloud Account       Region    Instance Time          Status Details             
+----- ------------- --------- -------- ------------- ------ ------------------- 
+AWS   4444444444... us-west-2 i-ok002  2026-01-15... Online Script output: "... 
 `,
 		},
 		{
@@ -123,11 +125,11 @@ AWS   4444444444... us-west-2 i-ok002     2026-01-15... Online Script outp...
 					},
 				},
 			},
-			want: `Cloud Account       Region     Instance ID Time          Status        Details 
------ ------------- ---------- ----------- ------------- ------------- ------- 
-AWS   2222222222... eu-west-1  i-ok001     2026-01-15... Online                
-AWS   1111111111... us-east-1  i-ssm001    2026-01-15... Failed (ex... Scr...  
-AWS   3333333333... ap-south-1 i-ssm002    2026-01-15... Online, ex... Scr...  
+			want: `Cloud Account       Region     Instance Time          Status        Details     
+----- ------------- ---------- -------- ------------- ------------- ----------- 
+AWS   2222222222... eu-west-1  i-ok001  2026-01-15... Online                    
+AWS   1111111111... us-east-1  i-ssm001 2026-01-15... Failed (ex... Script o... 
+AWS   3333333333... ap-south-1 i-ssm002 2026-01-15... Online, ex... Script o... 
 `,
 		},
 	}

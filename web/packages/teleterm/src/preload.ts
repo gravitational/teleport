@@ -96,9 +96,17 @@ async function getElectronGlobals(): Promise<ElectronGlobals> {
   // All uses of tshClient must wait before updateTshdEventsServerAddress finishes to ensure that
   // the client is ready. Otherwise we run into a risk of causing panics in tshd due to a missing
   // tshd events client.
-  await tshClient.updateTshdEventsServerAddress({
-    address: tshdEventsServerAddress,
-  });
+  await tshClient.updateTshdEventsServerAddress(
+    {
+      address: tshdEventsServerAddress,
+    },
+    {
+      timeout: 15_000,
+      // On Windows, this first local gRPC call has been observed to fail fast
+      // with ETIMEDOUT even though the channel becomes ready shortly after.
+      metadataOptions: { waitForReady: true },
+    }
+  );
 
   return {
     mainProcessClient,

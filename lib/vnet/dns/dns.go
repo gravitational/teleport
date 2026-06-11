@@ -29,6 +29,8 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 	"golang.org/x/sync/errgroup"
 	"gvisor.dev/gvisor/pkg/tcpip"
+
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -73,6 +75,24 @@ type UpstreamNameserverSource interface {
 	// UpstreamNameservers should return the current set of upstream nameservers, requests that cannot be
 	// resolved will be forwarded to these addresses.
 	UpstreamNameservers(context.Context) ([]string, error)
+}
+
+type upstreamNameserverSourceFn func(context.Context) ([]string, error)
+
+func (fn upstreamNameserverSourceFn) UpstreamNameservers(ctx context.Context) ([]string, error) {
+	return fn(ctx)
+}
+
+// CachingUpstreamNameserverSource wraps an upstream nameserver source to cache
+// its results until the given TTL.
+func CachingUpstreamNameserverSource(src UpstreamNameserverSource, ttl time.Duration) (UpstreamNameserverSource, error) {
+	cache, err := utils.NewFnCache(utils.FnCacheConfig{TTL: ttl})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return upstreamNameserverSourceFn(func(ctx context.Context) ([]string, error) {
+		return utils.FnCacheGet(ctx, cache, 0, src.UpstreamNameservers)
+	}), nil
 }
 
 // Server is a DNS server.

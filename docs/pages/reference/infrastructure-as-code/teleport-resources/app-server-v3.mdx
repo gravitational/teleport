@@ -177,6 +177,7 @@ tcp_ports:
 use_any_proxy_public_addr: true
 mcp: # [...]
 inference: # [...]
+tls: # [...]
 ```
 
 |Field Name|Description|Type|
@@ -195,8 +196,35 @@ inference: # [...]
 |required_app_names|A list of app names that are required for this app to function. Any app listed here will be part of the authentication redirect flow and authenticate alongside this app.|[]string|
 |rewrite|A list of rewriting rules to apply to requests and responses.|[Rewrite](#rewrite)|
 |tcp_ports|A list of ports and port ranges that an app agent can forward connections to. Only applicable to TCP App Access. If this field is not empty, URI is expected to contain no port number and start with the tcp protocol.|[][Port Range](#port-range)|
+|tls|Contains the app TLS configuration.|[App TLS](#app-tls)|
 |uri|The web app endpoint.|string|
 |use_any_proxy_public_addr|Will rebuild this app's fqdn based on the proxy public addr that the request originated from. This should be true if your proxy has multiple proxy public addrs and you want the app to be accessible from any of them. If `public_addr` is explicitly set in the app spec, setting this value to true will overwrite that public address in the web UI.|Boolean|
+
+## App TLS
+
+Contains the app TLS configuration.
+
+
+Example:
+
+```yaml
+mode: "string"
+server_name: "string"
+server_spiffe_id: "string"
+allowed_cas: 
+  - "string"
+  - "string"
+  - "string"
+client_cert_mode: "string"
+```
+
+|Field Name|Description|Type|
+|---|---|---|
+|allowed_cas|The list of user provided CAs used for verifying upstream certificates. Accepted values are PEM-encoded CA certificates and Teleport CA aliases. Supported aliases:   "workload_identity" (workload Identity CA. Allows accepting certificates issued by `tbot`).|[]string|
+|client_cert_mode|Specifies which client certificate mode to use for the upstream connection. Supported values:   "managed" (app service will issue client certificates to use in the app upstream connection, establishing mTLS connections),   "disabled" (app upstream connection won't use client certificates).|string|
+|mode|Defines the TLS verification. Supported values:   "verify-full" (performs certificate validation, and asserts server name and SPIFFE ID),   "verify-server-name" (performs certificate validation, and asserts server name),   "verify-spiffe-id": (performs certificate validation, and asserts SPIFFE ID. Requires `server_spiffe_id` option),   "insecure": (accepts any certificate provided by app)|string|
+|server_name|Specifies a custom hostname used for TLS verification against the upstream certificate.|string|
+|server_spiffe_id|Specifies a SPIFFE ID that must be present on the server certificate.|string|
 
 ## App V3
 

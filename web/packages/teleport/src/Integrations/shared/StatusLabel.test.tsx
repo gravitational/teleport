@@ -139,6 +139,15 @@ function makeSummary(lastSyncMs: number): IntegrationWithSummary {
       ecsDatabaseServiceCount: 0,
       unresolvedUserTasks: 0,
     },
+    azurevm: {
+      rulesCount: 0,
+      resourcesFound: 0,
+      resourcesEnrollmentFailed: 0,
+      resourcesEnrollmentSuccess: 0,
+      discoverLastSync: 0,
+      ecsDatabaseServiceCount: 0,
+      unresolvedUserTasks: 0,
+    },
     rolesAnywhereProfileSync: undefined,
   };
 }

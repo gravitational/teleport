@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	autoupdate "github.com/gravitational/teleport/lib/autoupdate/agent"
+	_ "github.com/gravitational/teleport/lib/fipscheck"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/tbot"
@@ -82,7 +83,7 @@ func Run(args []string, stdout io.Writer) error {
 	configureCmd := app.Command("configure", "Creates a config file based on flags provided, and writes it to stdout or a file (-o <path>).")
 	configureCmd.Flag("output", "Path to write the generated configuration file to. If unspecified, the generated configuration is written to stdout.").Short('o').StringVar(&configureOutPath)
 
-	keypairCmd := app.Command("keypair", "Manage keypairs for bound-keypair joining")
+	keypairCmd := app.Command("keypair", "Manage keypairs for bound-keypair joining.")
 
 	// TODO: consider discarding config flag for non-legacy. These should always be self contained.
 

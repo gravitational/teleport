@@ -127,8 +127,9 @@ When running a container from one of the images listed above, treat the containe
 
 ### Configuration
 
-Teleport processes read their configuration from a YAML file. The official Docker images expect this file at `/etc/teleport/teleport.yaml`. 
-Mount the directory containing your configuration file to `/etc/teleport` inside the container, rather than mounting the file directly.
+While Teleport's default configuration path is `/etc/teleport.yaml`, the Docker
+image is configured to read from `/etc/teleport/teleport.yaml`. Mount your 
+configuration directory to `/etc/teleport` in the container so Teleport can find it.
 
 ### Data directory
 

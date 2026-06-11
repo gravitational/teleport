@@ -18,7 +18,6 @@
 
 import { Meta, StoryObj } from '@storybook/react-vite';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MemoryRouter } from 'react-router';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { TeleportProviderBasic } from 'teleport/mocks/providers';
@@ -255,15 +254,13 @@ function Wrapper(props?: { hasBotsRead?: boolean; hasBotsEdit?: boolean }) {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <MemoryRouter>
-        <TeleportProviderBasic teleportCtx={ctx}>
-          <EditDialog
-            botName="ansible-worker"
-            onCancel={() => {}}
-            onSuccess={() => {}}
-          />
-        </TeleportProviderBasic>
-      </MemoryRouter>
+      <TeleportProviderBasic teleportCtx={ctx}>
+        <EditDialog
+          botName="ansible-worker"
+          onCancel={() => {}}
+          onSuccess={() => {}}
+        />
+      </TeleportProviderBasic>
     </QueryClientProvider>
   );
 }

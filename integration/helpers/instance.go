@@ -1978,8 +1978,8 @@ func (i *TeleInstance) StopAll() error {
 }
 
 // WaitForNodeCount waits for a certain number of nodes in the provided cluster
-// to be visible to the Proxy. This should be called prior to any client dialing
-// of nodes to be sure that the node is registered and routable.
+// to be connected to the cluster. This should be called prior to any client
+// dialing of nodes to be sure that the node is registered and routable.
 func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string, count int) error {
 	const (
 		deadline     = time.Second * 30
@@ -2008,6 +2008,23 @@ func (i *TeleInstance) WaitForNodeCount(ctx context.Context, clusterName string,
 		}
 		if len(nodes) != count {
 			return trace.BadParameter("cache contained %v nodes, but wanted to find %v nodes", len(nodes), count)
+		}
+
+		// Validate that the nodes are connected to the cluster.
+		for _, n := range nodes {
+			conn, err := cluster.DialTCP(reversetunnelclient.DialParams{
+				ConnType:     types.NodeTunnel,
+				ServerID:     n.GetName() + "." + clusterName,
+				TargetServer: n,
+				To: &utils.NetAddr{
+					AddrNetwork: "tcp",
+					Addr:        n.GetAddr(),
+				},
+			})
+			if err != nil {
+				return trace.Wrap(err, "node tunnel preflight dial failed")
+			}
+			conn.Close()
 		}
 
 		// Validate that the site watcher contains the expected count.

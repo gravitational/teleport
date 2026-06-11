@@ -23,6 +23,7 @@ import (
 	"encoding/binary"
 	"image"
 	"io"
+	"math"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/proto"
@@ -37,6 +38,7 @@ const (
 	// Legacy TDP message types relevant for recording replay.
 	legacyTypeConnectionActivated = 31
 	legacyTypeRDPFastPathPDU      = 29
+	legacyTypeMouseMove           = 3
 
 	// tdpbHeaderLength is the size of the TDPB message length prefix.
 	tdpbHeaderLength = 4
@@ -96,11 +98,58 @@ func (s *RDPState) Image() *image.RGBA {
 	return s.decoder.Image()
 }
 
+// ResizeCrop returns the source crop region of the current screen image scaled to exactly outWidth x outHeight using
+// high-quality CatmullRom convolution. The crop must lie within the current frame bounds. When withCursor is true and
+// the decoder's tracked cursor is visible, it is composited onto the source frame before the crop, so the cursor
+// scales with the screen. Returns an error if the decoder has not been initialized or the resize fails.
+func (s *RDPState) ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight uint16, withCursor bool) (*image.RGBA, error) {
+	if s.decoder == nil {
+		return nil, trace.BadParameter("rdp state has no image")
+	}
+
+	return s.decoder.ResizeCrop(cropX, cropY, cropW, cropH, outWidth, outHeight, withCursor)
+}
+
+// Dimensions returns the current screen width and height in pixels. Returns (0, 0) if the decoder has not been
+// initialized.
+func (s *RDPState) Dimensions() (width, height uint16) {
+	if s.decoder == nil {
+		return 0, 0
+	}
+
+	return s.decoder.Dimensions()
+}
+
+// SampleHash returns a 64-bit FNV-1a digest of pixels sampled on a fixed grid from the current frame buffer.
+// sampleCount controls the per-axis sample density. Returns 0 if the decoder has not been initialized.
+func (s *RDPState) SampleHash(sampleCount uint16) uint64 {
+	if s.decoder == nil {
+		return 0
+	}
+
+	return s.decoder.SampleHash(sampleCount)
+}
+
 // Release frees any resources associated with the RDPState, including the decoder.
 func (s *RDPState) Release() {
 	if s.decoder != nil {
 		s.decoder.Release()
 		s.decoder = nil
+	}
+}
+
+// UpdatedRegions returns the individual screen regions updated since the last call to ResetUpdatedRegions.
+func (s *RDPState) UpdatedRegions() []image.Rectangle {
+	if s.decoder == nil {
+		return nil
+	}
+	return s.decoder.UpdatedRegions()
+}
+
+// ResetUpdatedRegions clears the accumulated update regions.
+func (s *RDPState) ResetUpdatedRegions() {
+	if s.decoder != nil {
+		s.decoder.ResetUpdatedRegions()
 	}
 }
 
@@ -123,14 +172,14 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "decoding legacy ConnectionActivated")
 		}
 
-		return s.handleServerHello(&tdpbv1.ServerHello{
-			ActivationSpec: &tdpbv1.ConnectionActivated{
+		return s.handleServerHello(tdpbv1.ServerHello_builder{
+			ActivationSpec: tdpbv1.ConnectionActivated_builder{
 				IoChannelId:   uint32(ca.IOChannelID),
 				UserChannelId: uint32(ca.UserChannelID),
 				ScreenWidth:   uint32(ca.ScreenWidth),
 				ScreenHeight:  uint32(ca.ScreenHeight),
-			},
-		})
+			}.Build(),
+		}.Build())
 
 	case legacyTypeRDPFastPathPDU:
 		var dataLen uint32
@@ -147,7 +196,15 @@ func (s *RDPState) processTDPMessage(data []byte) error {
 			return trace.Wrap(err, "reading legacy RDPFastPathPDU data")
 		}
 
-		return s.handleFastPathPDU(&tdpbv1.FastPathPDU{Pdu: pdu})
+		return s.handleFastPathPDU(tdpbv1.FastPathPDU_builder{Pdu: pdu}.Build())
+
+	case legacyTypeMouseMove:
+		var mm struct{ X, Y uint32 }
+		if err := binary.Read(r, binary.BigEndian, &mm); err != nil {
+			return trace.Wrap(err, "reading legacy MouseMove")
+		}
+
+		return s.handleMouseMove(tdpbv1.MouseMove_builder{X: mm.X, Y: mm.Y}.Build())
 	}
 
 	return nil
@@ -176,11 +233,13 @@ func (s *RDPState) processTDPBMessage(data []byte) error {
 		return trace.Wrap(err, "unmarshalling TDPB envelope")
 	}
 
-	switch m := env.Payload.(type) {
-	case *tdpbv1.Envelope_ServerHello:
-		return s.handleServerHello(m.ServerHello)
-	case *tdpbv1.Envelope_FastPathPdu:
-		return s.handleFastPathPDU(m.FastPathPdu)
+	switch env.WhichPayload() {
+	case tdpbv1.Envelope_ServerHello_case:
+		return s.handleServerHello(env.GetServerHello())
+	case tdpbv1.Envelope_FastPathPdu_case:
+		return s.handleFastPathPDU(env.GetFastPathPdu())
+	case tdpbv1.Envelope_MouseMove_case:
+		return s.handleMouseMove(env.GetMouseMove())
 	}
 
 	return nil
@@ -206,8 +265,20 @@ func (s *RDPState) handleServerHello(msg *tdpbv1.ServerHello) error {
 	}
 
 	if s.decoder == nil {
-		d, err := decoder.New(w, h) //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
-		if err != nil {             //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+		ioChan, userChan := spec.GetIoChannelId(), spec.GetUserChannelId()
+		if ioChan > math.MaxUint16 || userChan > math.MaxUint16 {
+			return trace.BadParameter("channel IDs out of range: io=%d, user=%d", ioChan, userChan)
+		}
+		ioChannelID := uint16(ioChan)
+		userChannelID := uint16(userChan)
+
+		//nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
+		d, err := decoder.New(
+			w, h,
+			decoder.WithIOChannelID(ioChannelID),
+			decoder.WithUserChannelID(userChannelID),
+		)
+		if err != nil { //nolint:staticcheck // err is always non-nil in nop build but nil in RDP build
 			return trace.Wrap(err, "creating RDP decoder")
 		}
 
@@ -230,6 +301,18 @@ func (s *RDPState) handleFastPathPDU(msg *tdpbv1.FastPathPDU) error {
 	}
 
 	s.decoder.Process(pdu)
+
+	return nil
+}
+
+func (s *RDPState) handleMouseMove(msg *tdpbv1.MouseMove) error {
+	if msg.GetX() > math.MaxUint16 || msg.GetY() > math.MaxUint16 {
+		return trace.BadParameter("mouse coordinates out of range: (%d, %d)", msg.GetX(), msg.GetY())
+	}
+
+	// MouseMove may arrive before ServerHello initializes the decoder, in which case there's nowhere to record
+	// the position. SetCursorPosition is a no-op when the decoder is nil, so drop the update silently.
+	s.decoder.SetCursorPosition(uint16(msg.GetX()), uint16(msg.GetY()))
 
 	return nil
 }

@@ -72,9 +72,7 @@ export function createFileLoggerService(
     level: 'info',
     exitOnError: false,
     format: format.combine(
-      format.timestamp({
-        format: 'DD-MM-YY HH:mm:ss',
-      }),
+      format.timestamp(),
       format.printf(({ level, message, timestamp, context }) => {
         // `message` is an array because the functions in createLoggerFromWinston
         // collect all the arguments into an array.

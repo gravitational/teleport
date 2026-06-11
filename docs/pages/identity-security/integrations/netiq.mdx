@@ -64,7 +64,7 @@ Check the [Identity Security page](../identity-security.mdx) for details on
 how to set up Access Graph.
   - The node running the Access Graph service must be reachable from the Teleport Auth Service.
 
-## Step 1/3. Create NetIQ IDM OAuth Client
+## Step 1/2. Create NetIQ IDM OAuth Client
 
 To register a new OAuth client with OSP (IDM Authorization Server), modify the OSP's
 `ism-configuration.properties` file.  
@@ -119,7 +119,7 @@ com.example.<Var name="client-id" />.clientPass = <Var name="client-secret" />
 
 Once the file is updated, restart OSP to apply the new settings.  
 
-## Step 2/3. Set up Access Graph NetIQ Sync
+## Step 2/2. Set up Access Graph NetIQ Sync
 
 To configure NetIQ Sync, run the following command:  
 
@@ -135,11 +135,12 @@ The wizard will prompt for:
 - **IDM User & Password** – A user with organization read access  
 
 After completing the setup, the wizard will create the necessary
-Teleport resources and start synchronization.  
+Teleport resources and start synchronization.
 
+## Next step: visualize NetIQ resources
 
-## Step 3/3. View NetIQ resources in Access Graph
+Once NetIQ resources are imported, you can navigate to the Access Graph page to visualize them.  
 
-Once NetIQ resources are imported, navigate to the Access Graph page to visualize them.  
+From the Teleport Web UI, visit **Identity Security** > **Graph Explorer**.
 
 The graph representation will display the relationships between users, groups, roles and resources within your organization.  

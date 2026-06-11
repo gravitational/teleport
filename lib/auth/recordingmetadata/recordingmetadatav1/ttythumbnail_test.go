@@ -35,10 +35,11 @@ func TestTtyThumbnailGenerator_HandleEvent(t *testing.T) {
 
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "100:50")))
 
-		thumb := gen.produceThumbnail()
+		thumb, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
 
-		require.Equal(t, int32(100), thumb.Cols)
-		require.Equal(t, int32(50), thumb.Rows)
+		require.Equal(t, int32(100), thumb.GetCols())
+		require.Equal(t, int32(50), thumb.GetRows())
 	})
 
 	t.Run("resize updates terminal size", func(t *testing.T) {
@@ -47,10 +48,11 @@ func TestTtyThumbnailGenerator_HandleEvent(t *testing.T) {
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
 		require.NoError(t, gen.handleEvent(resizeEvent(startTime.Add(1*time.Second), "120:40")))
 
-		thumb := gen.produceThumbnail()
+		thumb, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
 
-		require.Equal(t, int32(120), thumb.Cols)
-		require.Equal(t, int32(40), thumb.Rows)
+		require.Equal(t, int32(120), thumb.GetCols())
+		require.Equal(t, int32(40), thumb.GetRows())
 	})
 
 	t.Run("session print writes data to terminal", func(t *testing.T) {
@@ -59,11 +61,12 @@ func TestTtyThumbnailGenerator_HandleEvent(t *testing.T) {
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
 		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(1*time.Second), "Hello World\r\n")))
 
-		thumb := gen.produceThumbnail()
+		thumb, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
 
-		require.NotEmpty(t, thumb.Svg)
-		require.Contains(t, string(thumb.Svg), "Hello")
-		require.Contains(t, string(thumb.Svg), "World")
+		require.NotEmpty(t, thumb.GetSvg())
+		require.Contains(t, string(thumb.GetSvg()), "Hello")
+		require.Contains(t, string(thumb.GetSvg()), "World")
 	})
 
 	t.Run("unhandled event types are ignored", func(t *testing.T) {
@@ -103,14 +106,15 @@ func TestTtyThumbnailGenerator_ProduceThumbnail(t *testing.T) {
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
 		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(1*time.Second), "hello\r\n")))
 
-		thumb := gen.produceThumbnail()
+		thumb, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
 
 		require.NotNil(t, thumb)
-		require.Equal(t, int32(80), thumb.Cols)
-		require.Equal(t, int32(24), thumb.Rows)
-		require.NotEmpty(t, thumb.Svg)
-		require.Contains(t, string(thumb.Svg), "<svg")
-		require.Contains(t, string(thumb.Svg), "hello")
+		require.Equal(t, int32(80), thumb.GetCols())
+		require.Equal(t, int32(24), thumb.GetRows())
+		require.NotEmpty(t, thumb.GetSvg())
+		require.Contains(t, string(thumb.GetSvg()), "<svg")
+		require.Contains(t, string(thumb.GetSvg()), "hello")
 	})
 
 	t.Run("cursor tracks print output position", func(t *testing.T) {
@@ -118,15 +122,18 @@ func TestTtyThumbnailGenerator_ProduceThumbnail(t *testing.T) {
 
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
 
-		thumb0 := gen.produceThumbnail()
-		require.Equal(t, int32(0), thumb0.CursorX)
-		require.Equal(t, int32(0), thumb0.CursorY)
+		thumb0, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
+
+		require.Equal(t, int32(0), thumb0.GetCursorX())
+		require.Equal(t, int32(0), thumb0.GetCursorY())
 
 		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(1*time.Second), "line1\r\nline2\r\nline3\r\n")))
 
-		thumb := gen.produceThumbnail()
-		require.Equal(t, int32(0), thumb.CursorX, "cursor should be at start of line after \\r\\n")
-		require.Equal(t, int32(3), thumb.CursorY, "cursor should be on 4th row after 3 lines")
+		thumb, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
+		require.Equal(t, int32(0), thumb.GetCursorX(), "cursor should be at start of line after \\r\\n")
+		require.Equal(t, int32(3), thumb.GetCursorY(), "cursor should be on 4th row after 3 lines")
 	})
 
 	t.Run("reflects latest terminal size after resize", func(t *testing.T) {
@@ -136,12 +143,13 @@ func TestTtyThumbnailGenerator_ProduceThumbnail(t *testing.T) {
 		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(1*time.Second), "before resize\r\n")))
 		require.NoError(t, gen.handleEvent(resizeEvent(startTime.Add(2*time.Second), "200:50")))
 
-		thumb := gen.produceThumbnail()
+		thumb, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
 
-		require.Equal(t, int32(200), thumb.Cols)
-		require.Equal(t, int32(50), thumb.Rows)
-		require.Contains(t, string(thumb.Svg), "before")
-		require.Contains(t, string(thumb.Svg), "resize")
+		require.Equal(t, int32(200), thumb.GetCols())
+		require.Equal(t, int32(50), thumb.GetRows())
+		require.Contains(t, string(thumb.GetSvg()), "before")
+		require.Contains(t, string(thumb.GetSvg()), "resize")
 	})
 
 	t.Run("snapshots are independent after more output", func(t *testing.T) {
@@ -150,16 +158,18 @@ func TestTtyThumbnailGenerator_ProduceThumbnail(t *testing.T) {
 		require.NoError(t, gen.handleEvent(sessionStartEvent(startTime, "80:24")))
 		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(1*time.Second), "first\r\n")))
 
-		thumb1 := gen.produceThumbnail()
+		thumb1, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
 
 		require.NoError(t, gen.handleEvent(sessionPrintEvent(startTime.Add(2*time.Second), "second\r\n")))
 
-		thumb2 := gen.produceThumbnail()
+		thumb2, err := gen.produceThumbnail(thumbnailMaxDimensions)
+		require.NoError(t, err)
 
-		require.NotEqual(t, thumb1.Svg, thumb2.Svg, "thumbnails should differ after more output")
-		require.NotContains(t, string(thumb1.Svg), "second", "first snapshot should not contain later output")
-		require.Contains(t, string(thumb2.Svg), "first", "second snapshot should still contain earlier output")
-		require.Contains(t, string(thumb2.Svg), "second")
-		require.Greater(t, thumb2.CursorY, thumb1.CursorY, "cursor should have advanced")
+		require.NotEqual(t, thumb1.GetSvg(), thumb2.GetSvg(), "thumbnails should differ after more output")
+		require.NotContains(t, string(thumb1.GetSvg()), "second", "first snapshot should not contain later output")
+		require.Contains(t, string(thumb2.GetSvg()), "first", "second snapshot should still contain earlier output")
+		require.Contains(t, string(thumb2.GetSvg()), "second")
+		require.Greater(t, thumb2.GetCursorY(), thumb1.GetCursorY(), "cursor should have advanced")
 	})
 }

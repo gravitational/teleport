@@ -59,14 +59,25 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 		wantFiles  map[string]string // filepath to content
 	}{
 		{
+			name: "ok: db-client",
+			flags: []string{
+				"--type", "db-client",
+			},
+			csrPEMs: []string{dbClientCSRPEM},
+			wantReq: subcav1.CreateCSRRequest_builder{
+				CaType: string(types.DatabaseClientCA),
+			}.Build(),
+			wantStdout: dbClientCSRPEM + "\n",
+		},
+		{
 			name: "ok: db_client",
 			flags: []string{
 				"--type", string(types.DatabaseClientCA),
 			},
 			csrPEMs: []string{dbClientCSRPEM},
-			wantReq: &subcav1.CreateCSRRequest{
+			wantReq: subcav1.CreateCSRRequest_builder{
 				CaType: string(types.DatabaseClientCA),
-			},
+			}.Build(),
 			wantStdout: dbClientCSRPEM + "\n",
 		},
 		{
@@ -75,9 +86,9 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 				"--type", string(types.WindowsCA),
 			},
 			csrPEMs: []string{windowsCSRPEM},
-			wantReq: &subcav1.CreateCSRRequest{
+			wantReq: subcav1.CreateCSRRequest_builder{
 				CaType: string(types.WindowsCA),
-			},
+			}.Build(),
 			wantStdout: windowsCSRPEM + "\n",
 		},
 		{
@@ -88,18 +99,18 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 				"--subject=O=Llama,CN=Llamo",
 			},
 			csrPEMs: []string{windowsCustomCSRPEM},
-			wantReq: &subcav1.CreateCSRRequest{
+			wantReq: subcav1.CreateCSRRequest_builder{
 				CaType: string(types.WindowsCA),
-				PublicKeyHash: &subcav1.PublicKeyHash{
+				PublicKeyHash: subcav1.PublicKeyHash_builder{
 					Value: "f4522365888fdddcf3c854e79e5928447fe1a2388353efb2f0d30db8ba7c81bc",
-				},
-				CustomSubject: &subcav1.DistinguishedName{
+				}.Build(),
+				CustomSubject: subcav1.DistinguishedName_builder{
 					Names: []*subcav1.AttributeTypeAndValue{
-						{Oid: []int32{2, 5, 4, 10}, Value: &oLlama}, // O
-						{Oid: []int32{2, 5, 4, 3}, Value: &cnLlamo}, // CN
+						subcav1.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 10}, Value: &oLlama}.Build(), // O
+						subcav1.AttributeTypeAndValue_builder{Oid: []int32{2, 5, 4, 3}, Value: &cnLlamo}.Build(), // CN
 					},
-				},
-			},
+				}.Build(),
+			}.Build(),
 			wantStdout: windowsCustomCSRPEM + "\n",
 		},
 		{
@@ -111,9 +122,9 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 				windowsCSRPEM,
 				windowsCSRPEM2,
 			},
-			wantReq: &subcav1.CreateCSRRequest{
+			wantReq: subcav1.CreateCSRRequest_builder{
 				CaType: string(types.WindowsCA),
-			},
+			}.Build(),
 			wantStdout: windowsCSRPEM + "\n" + windowsCSRPEM2 + "\n",
 		},
 		{
@@ -126,9 +137,9 @@ func TestCommand_CreateOverrideCSR(t *testing.T) {
 				windowsCSRPEM,
 				windowsCSRPEM2,
 			},
-			wantReq: &subcav1.CreateCSRRequest{
+			wantReq: subcav1.CreateCSRRequest_builder{
 				CaType: string(types.WindowsCA),
-			},
+			}.Build(),
 			wantStdout: "" +
 				"Wrote " + wantWindows1File + "\n" +
 				"Wrote " + wantWindows2File + "\n",
@@ -259,6 +270,19 @@ func TestFindMinHashes(t *testing.T) {
 	}
 }
 
+func TestMakeCATypeNames(t *testing.T) {
+	got := subca.MakeCATypeNames()
+	want := []string{
+		"db-client",
+		"windows",
+	}
+	assert.Equal(t, want, got.Names, ""+
+		"CAType names mismatch. "+
+		"This is likely because a new entry was added to subca.SupportedCATypes(). "+
+		"Verify the newly added name and, if working as intended, add it to want list above.",
+	)
+}
+
 // CSR PEMs for testing.
 // The simplest way to get these is to run the "tctl auth create-override-csr"
 // command.
@@ -327,13 +351,13 @@ func (f *fakeAuthClient) CreateCSR(
 		return nil, trace.BadParameter("cannot create CSRs for CA")
 	}
 
-	resp := &subcav1.CreateCSRResponse{
+	resp := subcav1.CreateCSRResponse_builder{
 		Csrs: make([]*subcav1.CertificateSigningRequest, len(f.csrPEMs)),
-	}
+	}.Build()
 	for i, pem := range f.csrPEMs {
-		resp.Csrs[i] = &subcav1.CertificateSigningRequest{
+		resp.GetCsrs()[i] = subcav1.CertificateSigningRequest_builder{
 			Pem: pem,
-		}
+		}.Build()
 	}
 	return resp, nil
 }

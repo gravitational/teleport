@@ -199,6 +199,13 @@ endif
 		--terraform_out=config=protoc-gen-terraform-scopedroleassignment.yaml:./tfschema \
 		teleport/scopes/access/v1/assignment.proto
 
+	@protoc \
+		-I=../../api/proto \
+		-I=$(PROTOBUF_MOD_PATH) \
+		--plugin=$(PROTOC_GEN_TERRAFORM) \
+		--terraform_out=config=protoc-gen-terraform-dbobjectimportrule.yaml:./tfschema \
+		teleport/dbobjectimportrule/v1/dbobjectimportrule.proto
+
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1/loginrule_terraform.go ./tfschema/loginrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1/accesslist_terraform.go ./tfschema/accesslist/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/accessmonitoringrules/v1/access_monitoring_rules_terraform.go ./tfschema/accessmonitoringrules/v1/
@@ -214,6 +221,7 @@ endif
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadcluster/v1/workloadcluster_terraform.go ./tfschema/workloadcluster/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1/role_terraform.go ./tfschema/scopes/access/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/access/v1/assignment_terraform.go ./tfschema/scopes/access/assignment/v1/
+	mv ./tfschema/github.com/gravitational/teleport/api/gen/proto/go/teleport/dbobjectimportrule/v1/dbobjectimportrule_terraform.go ./tfschema/dbobjectimportrule/v1/
 	mv ./tfschema/github.com/gravitational/teleport/api/types/device_terraform.go ./tfschema/devicetrust/v1/
 	rm -r ./tfschema/github.com/
 	@go run ./gen/main.go
@@ -264,13 +272,11 @@ endif
 
 	gotestsum --junitfile $(TEST_LOG_DIR)/unit-tests-terraform.xml --jsonfile unit-tests-terraform.json -- ./testlib -v $(TEST_ARGS)
 
-.PHONY: test-full
-test-full: TEST_ARGS=--tags enterprisetests
-test-full: test
+testlib/plugin_ent_test.go:
+	go generate testlib/plugin_test.go
 
 .PHONY: test-ent
-test-ent: TEST_ARGS=--tags enterprisetests -run 'TestTerraformEnterprise.*'
-test-ent: test
+test-ent: testlib/plugin_ent_test.go test
 
 .PHONY: apply
 apply: install

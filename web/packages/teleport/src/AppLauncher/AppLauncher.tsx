@@ -16,7 +16,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useLocation, useParams } from 'react-router';
 
 import { Flex, Indicator } from 'design';
@@ -28,6 +28,7 @@ import { CreateAppSessionParams, UrlLauncherParams } from 'teleport/config';
 import { useMfa } from 'teleport/lib/useMfa';
 import service from 'teleport/services/apps';
 import { MfaChallengeScope } from 'teleport/services/auth/auth';
+import { storageService } from 'teleport/services/storageService';
 
 export function AppLauncher({
   windowLocation = window.location,
@@ -42,7 +43,23 @@ export function AppLauncher({
   const clusterId = pathParams.clusterId;
   const publicAddr = pathParams.publicAddr;
   const arn = pathParams.arn;
-  const { search } = useLocation();
+  const { pathname, search, hash: urlHash } = useLocation();
+
+  // If the user reached the launcher while logged out, the
+  // Authenticated wrapper redirects to /web/login and drops the
+  // hash on the way (goToLogin builds redirect_uri from
+  // pathname+search only, and the JS-driven navigation does not
+  // inherit fragments). Authenticated stashes the hash in
+  // sessionStorage before that redirect; consume it here on the
+  // post-login launcher load so the existing fragment-forwarding
+  // logic below works for the logged-out case too.
+  //
+  // useState initializer runs once on mount, so the stash is read
+  // (and cleared) exactly once per launcher render.
+  const [stashedHash] = useState(() =>
+    urlHash ? '' : storageService.consumeAppLauncherFragment(pathname)
+  );
+  const hash = urlHash || stashedHash;
 
   const mfa = useMfa({
     req: {
@@ -56,7 +73,7 @@ export function AppLauncher({
       },
     },
   });
-  const launchKey = `${fqdn}|${clusterId || ''}|${publicAddr || ''}|${arn || ''}|${search}`;
+  const launchKey = `${fqdn}|${clusterId || ''}|${publicAddr || ''}|${arn || ''}|${search}|${hash}`;
   const latestRunKeyRef = useRef<string>('');
 
   useEffect(() => {
@@ -126,6 +143,14 @@ export function AppLauncher({
             params,
             requiredApps,
           });
+          // Pass the fragment to the second leg via the URL hash
+          // so it stays client-side. Skip on a required-apps chain
+          // to avoid leaking the originally requested app's
+          // fragment to intermediate apps' origins; chain-
+          // redirected apps lose the fragment as a result.
+          if (hash && requiredApps.length <= 1) {
+            url.hash = hash;
+          }
           windowLocation.replace(url.toString());
           return;
         }
@@ -155,7 +180,18 @@ export function AppLauncher({
         if (requiredApps.length > 1) {
           url.searchParams.set('required-apps', requiredApps.join(','));
         }
-        url.hash = `#value=${session.cookieValue}`;
+
+        // Pack the session cookie and the original fragment into
+        // the URL hash for the inline JS in
+        // `lib/web/app/redirect.go` to consume. Skip `fragment` on
+        // a required-apps chain; the inline JS also drops it on
+        // the chain branch.
+        const hashParams = new URLSearchParams();
+        hashParams.set('value', session.cookieValue);
+        if (hash && requiredApps.length <= 1) {
+          hashParams.set('fragment', hash.slice(1));
+        }
+        url.hash = hashParams.toString();
 
         if (path) {
           url.searchParams.set('path', path);
@@ -193,6 +229,7 @@ export function AppLauncher({
     arn,
     clusterId,
     fqdn,
+    hash,
     launchKey,
     mfa,
     publicAddr,
@@ -280,7 +317,10 @@ function getNewAuthExchangeUrl({
   // path will only be defined, if a user hit the app endpoint
   // directly. This path is created in the server.
   // The path preserves both the path and query params of
-  // the original request.
+  // the original request. The caller is responsible for
+  // setting `url.hash` on the returned URL if a fragment
+  // must be preserved across the redirect; this function
+  // only builds the path and query parts.
   path: string;
   requiredApps: string[];
 }) {

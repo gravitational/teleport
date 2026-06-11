@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	clusterconfigpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/clusterconfig/v1"
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -45,17 +46,13 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth/mfatypes"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
+	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/readonly"
 	"github.com/gravitational/teleport/lib/tlsca"
 	logutils "github.com/gravitational/teleport/lib/utils/log"
 )
-
-// NewAdminContext returns new admin auth context
-func NewAdminContext() (*Context, error) {
-	return NewBuiltinRoleContext(types.RoleAdmin)
-}
 
 // NewBuiltinRoleContext create auth context for the provided builtin role.
 func NewBuiltinRoleContext(role types.SystemRole) (*Context, error) {
@@ -95,6 +92,8 @@ type AuthorizerOpts struct {
 	MFAAuthenticator    MFAAuthenticator
 	LockWatcher         *services.LockWatcher
 	Logger              *slog.Logger
+	// ScopesFeatures dictates which scoped authorization components are enabled.
+	ScopesFeatures scopes.Features
 
 	// DeviceAuthorization holds Device Trust authorization options.
 	//
@@ -147,6 +146,7 @@ func newAuthorizer(opts AuthorizerOpts) (*authorizer, error) {
 		mfaAuthenticator:        opts.MFAAuthenticator,
 		lockWatcher:             opts.LockWatcher,
 		logger:                  logger,
+		scopesFeatures:          opts.ScopesFeatures,
 		disableGlobalDeviceMode: opts.DeviceAuthorization.DisableGlobalMode,
 		disableRoleDeviceMode:   opts.DeviceAuthorization.DisableRoleMode,
 	}, nil
@@ -247,6 +247,8 @@ type authorizer struct {
 	mfaAuthenticator    MFAAuthenticator
 	lockWatcher         *services.LockWatcher
 	logger              *slog.Logger
+	// scopesFeatures dictates whether scoped authorization is enabled.
+	scopesFeatures scopes.Features
 
 	disableGlobalDeviceMode bool
 	disableRoleDeviceMode   bool
@@ -445,6 +447,10 @@ func (a *authorizer) Authorize(ctx context.Context) (authCtx *Context, err error
 	}
 
 	if user, ok := userI.(LocalUser); ok && user.Identity.ScopePin != nil {
+		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
+	}
+
+	if _, ok := userI.(ScopedBuiltinRole); ok {
 		return nil, trace.Errorf("cannot perform standard authz: %w", services.ErrScopedIdentity)
 	}
 
@@ -818,6 +824,7 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
 		UserType:          u.Identity.UserType,
 		OriginClusterName: u.Identity.TeleportCluster,
+		DeviceExtensions:  u.Identity.DeviceExtensions,
 	}
 	if checker.PinSourceIP() && identity.PinnedIP == "" {
 		return nil, trace.Wrap(ErrIPPinningMissing)
@@ -950,6 +957,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
 				types.NewRule(types.KindUser, services.RO()),
 				types.NewRule(types.KindRole, services.RO()),
+				types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 				types.NewRule(types.KindClusterAuthPreference, services.RO()),
 				types.NewRule(types.KindClusterName, services.RO()),
 				types.NewRule(types.KindClusterAuditConfig, services.RO()),
@@ -1097,6 +1105,11 @@ func scopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Sessi
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindHealthCheckConfig, services.RO()),
+						// TODO(fspmarshall/scopes): we eventually want to remove blanket scoped role
+						// access in favor of agents only being able to read scoped roles that may affect
+						// access decisions for the given agent specifically. this verb grant will need to
+						// be revisited as part of that work.
+						types.NewRule(scopedaccess.KindScopedRole, services.RO()),
 					},
 				},
 			},
@@ -1348,6 +1361,7 @@ func unscopedDefinitionForBuiltinRole(clusterName string, recConfig readonly.Ses
 					Rules: []types.Rule{
 						types.NewRule(types.KindEvent, services.WO()),
 						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindCertAuthorityOverride, services.RO()),
 						types.NewRule(types.KindClusterName, services.RO()),
 						types.NewRule(types.KindClusterAuditConfig, services.RO()),
 						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
@@ -1657,17 +1671,6 @@ func GetClientUserIsSSO(ctx context.Context) (bool, error) {
 	return identity.UserType == types.UserTypeSSO, nil
 }
 
-// ClientImpersonator returns the impersonator username of a remote client
-// making the call. If not present, returns an empty string
-func ClientImpersonator(ctx context.Context) string {
-	userWithIdentity, err := UserFromContext(ctx)
-	if err != nil {
-		return ""
-	}
-	identity := userWithIdentity.GetIdentity()
-	return identity.Impersonator
-}
-
 // ClientUserMetadata returns a UserMetadata suitable for events caused by a
 // remote client making a call. If ctx didn't pass through auth middleware or
 // did not come from an HTTP request, metadata for teleport.UserSystem is
@@ -1882,6 +1885,33 @@ func (r BuiltinRole) GetIdentity() tlsca.Identity {
 	return r.Identity
 }
 
+// ScopedBuiltinRole is the role of a scoped Teleport service — one whose access is constrained to a specific
+// scope via a scope pin. It is intentionally a distinct type from [BuiltinRole] so that code paths
+// handling builtin roles must explicitly opt into supporting scoped agents.
+type ScopedBuiltinRole struct {
+	// ScopePin is the agent scope pin, encoding the target scope and the agent's system roles.
+	ScopePin *scopesv1.Pin
+
+	// ServerFQDN is the host FQDN of the agent, of the form <host-uuid>.<cluster-name>.
+	ServerFQDN string
+
+	// ClusterName is the name of the local cluster.
+	ClusterName string
+
+	// Identity is source x509 used to build this role.
+	Identity tlsca.Identity
+}
+
+// GetServerID extracts the server UUID from the agent's ServerFQDN.
+func (r ScopedBuiltinRole) GetServerID() string {
+	return strings.TrimSuffix(r.ServerFQDN, "."+r.ClusterName)
+}
+
+// GetIdentity returns the client identity.
+func (r ScopedBuiltinRole) GetIdentity() tlsca.Identity {
+	return r.Identity
+}
+
 // RemoteBuiltinRole is the role of the remote (service connecting via trusted cluster link)
 // Teleport service.
 type RemoteBuiltinRole struct {
@@ -2091,6 +2121,12 @@ func IsLocalOrRemoteService(authContext Context) bool {
 // IsCurrentUser checks if the identity is a local user matching the given username
 func IsCurrentUser(authContext Context, username string) bool {
 	return IsLocalUser(authContext) && authContext.User.GetName() == username
+}
+
+// ScopedIsCurrentUser checks if the scoped identity is a local user matching the given username.
+func ScopedIsCurrentUser(scopedContext *ScopedContext, username string) bool {
+	_, isLocal := scopedContext.Identity.(LocalUser)
+	return isLocal && scopedContext.User.GetName() == username
 }
 
 // IsRemoteUser checks if the identity is a remote user.

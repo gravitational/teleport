@@ -21,32 +21,42 @@ granted to the integration.
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport (v18.3.0 or higher)" clients="\`tsh\` client"!)
+
 - Access to your Notion workspace and sufficient privileges to manage integrations.
+
 - A host to run the MCP server that is reachable by the Teleport Application Service.
+
 - A running Teleport Application Service. If you have not yet done this, follow
   the [Getting Started guide](../getting-started.mdx).
+
 - A Teleport user with sufficient permissions (e.g. role `mcp-user`) to access
   MCP servers.
 
-## Step 1/3. Create an integration in Notion
+- A Notion integration with permissions to read content. This requires manually
+  setting up the integration in the Notion Web UI.
 
-Go to https://www.notion.so/profile/integrations and create a new **internal
-integration**.
+  <details>
+  <summary>Setting up a Notion integration</summary>
 
-![Notion integration](../../../../img/mcp-access/notion-integration.png)
+  1. Go to https://www.notion.so/profile/integrations and create a new **internal
+     integration**.
+  
+     ![Notion integration](../../../../img/mcp-access/notion-integration.png)
+  
+  1. Limit the scope available to LLMs: disable all permissions except "Read
+     Content" in the "Capabilities" section.
+  
+  1. Open the "Access" tab and select the pages you want the integration to be
+     able to access.
+  
+     ![Notion access](../../../../img/mcp-access/notion-access.png)
+  
+  1. Return to the "Configuration" tab, copy the "Internal Integration Secret" for
+     use in the next step.
 
-To limit the scope available to LLMs, disable all permissions except "Read
-Content" in the "Capabilities" section.
+  </details>
 
-Next, open "Access" tab and select the pages you want the integration to be able
-to access.
-
-![Notion access](../../../../img/mcp-access/notion-access.png)
-
-Finally, return to the "Configuration" tab, copy the "Internal Integration
-Secret" for use in the next step.
-
-## Step 2/3. Run the Notion MCP server
+## Step 1/2. Run the Notion MCP server
 
 Start the Notion MCP server using your Notion integration token <Var
 name="ntn_your_internal_integration_secret" />:
@@ -63,7 +73,7 @@ The `--auth-token` value is the shared secret Teleport uses to authenticate to
 the MCP server. Since the MCP server is not publicly accessible, using a fixed
 value is acceptable.
 
-## Step 3/3. Connect via Teleport
+## Step 2/2. Connect via Teleport
 
 (!docs/pages/includes/mcp-access/integration-teleport-app.mdx service="notion" serviceName="Notion" port="8000" !)
 

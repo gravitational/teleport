@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -61,10 +62,10 @@ func TestHardwareKeyAgent_Server(t *testing.T) {
 	_, err = clt.Ping(ctx, &hardwarekeyagentv1.PingRequest{})
 	require.NoError(t, err)
 
-	// If the server stops gracefully, the directory should be cleaned up and a new server can be started.
+	// If the server stops gracefully, the socket file should be cleaned up and a new server can be started.
 	server.Stop()
 	require.Eventually(t, func() bool {
-		_, err := os.Stat(agentDir)
+		_, err := os.Stat(filepath.Join(agentDir, libhwk.SocketFileName))
 		return errors.Is(err, os.ErrNotExist)
 	}, 5*time.Second, 100*time.Millisecond)
 	server, err = libhwk.NewAgentServer(ctx, mockService, agentDir, knownKeyFn)

@@ -33,6 +33,7 @@ import {
 } from 'design/utils/testing';
 import { InfoGuidePanelProvider } from 'shared/components/SlidingSidePanel/InfoGuide';
 import 'shared/components/TextEditor/TextEditor.mock';
+
 import cfg from 'teleport/config';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { listBotInstances } from 'teleport/services/bot/bot';

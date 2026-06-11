@@ -1,4 +1,138 @@
 
+{/* Generated file. Do not edit.*/}
+{/* Generate this file by navigating to examples/chart and running  make render-chart-ref*/}
+## `postgres`
+
+`postgres` Database connection settings
+
+### `postgres.connectionString`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`postgres.connectionString` is the connection string to the PostgreSQL database.
+Use this only when not using a Kubernetes secret and not using AWS or Azure IAM authentication.
+
+### `postgres.secretName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`postgres.secretName` is the name of an existing Kubernetes secret
+containing the connection string to the PostgreSQL database.
+
+### `postgres.secretKey`
+
+| Type | Default |
+|------|---------|
+| `string` | `"uri"` |
+
+`postgres.secretKey` is the name of the secret key for the provided Kubernetes secret
+containing the connection string to the PostgreSQL database.
+
+### `postgres.aws`
+
+`postgres.aws` contains optional AWS connection settings for using AWS IAM authentication.
+This is only required if you are using an AWS RDS or Aurora PostgreSQL database with IAM authentication.
+
+#### `postgres.aws.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`postgres.aws.enabled` enables IAM authentication for the PostgreSQL database.
+
+#### `postgres.aws.region`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`postgres.aws.region` is the optional AWS region where the PostgreSQL database is located.
+If not set, the region will be inferred from the `AWS_REGION` environment variable.
+
+### `postgres.azure`
+
+| Type | Default |
+|------|---------|
+| `object` | `{"enabled":false}` |
+
+`postgres.azure` contains optional settings for using Microsoft Entra ID authentication with Azure Database for PostgreSQL.
+This is only required if you are using an Azure Database for PostgreSQL.
+
+#### `postgres.azure.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`postgres.azure.enabled` enables Microsoft Entra ID authentication for the PostgreSQL database.
+
+#### `postgres.azure.tenantId`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`postgres.azure.tenantId` is the Microsoft Entra ID tenant ID to use for authentication.
+If not set, the default tenant ID will be used.
+
+### `postgres.connection_parameters`
+
+| Type | Default |
+|------|---------|
+| `object` | `null` |
+
+`postgres.connection_parameters` contains optional connection parameters configuration values
+for connecting to the database.
+
+### `postgres.replica`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`postgres.replica` contains the database replica connection settings.
+
+#### `postgres.replica.connectionString`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`postgres.replica.connectionString` is the connection string to the PostgreSQL database.
+It should be used only if you are not using a Kubernetes secret and AWS or Azure auth is enabled.
+
+#### `postgres.replica.secretName`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`postgres.replica.secretName` is the name of an existing Kubernetes secret
+containing the connection string to the replica PostgreSQL database.
+
+#### `postgres.replica.secretKey`
+
+| Type | Default |
+|------|---------|
+| `string` | `"uri"` |
+
+`postgres.replica.secretKey` is the name of the secret key for the provided Kubernetes secret
+containing the connection string to the replica PostgreSQL database.
+
+#### `postgres.replica.connection_parameters`
+
+| Type | Default |
+|------|---------|
+| `object` | `null` |
+
+`postgres.replica.connection_parameters` contains optional connection parameters configuration values
+for connecting to the replica database.
+
 ## `tls`
 
 `tls` TLS settings for the main gRPC listener.
@@ -14,7 +148,7 @@ containing the certificate and its private key to use for the gRPC listener.
 The secret must be of type `kubernetes.io/tls`, see
 [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/secret/#tls-secrets) for more details.
 
-Setting this is required, as Access Graph always operates via TLS-protected connections.
+Setting this is required, as Teleport Access Graph always operates via TLS-protected connections.
 
 ## `clusterHostCAs`
 
@@ -22,16 +156,135 @@ Setting this is required, as Access Graph always operates via TLS-protected conn
 |------|---------|
 | `array` | `[]` |
 
-`clusterHostCAs` is a list of strings containing PEM-encoded Host CA certificates of Teleport clusters that are allowed to use this instance of Access Graph.
+`clusterHostCAs` is a list of strings containing PEM-encoded Host CA certificates of Teleport clusters that are allowed to use this instance of TAG.
 Setting this to a non-empty array is required.
+
+## `identity_activity_center`
+
+`identity_activity_center` contains options for the Identity Activity Center feature.
+This feature allows Access Graph to store security events in a central location
+and to query them using Athena, providing a way to analyze and correlate security events across
+multiple Teleport clusters.
+
+### `identity_activity_center.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`identity_activity_center.enabled` enables the Identity Activity Center feature.
+
+### `identity_activity_center.region`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identity_activity_center.region` the AWS region where the SQS queue, Athena database and S3 bucket are located.
+
+### `identity_activity_center.database`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identity_activity_center.database` the name of the Athena database to use for storing security events.
+
+### `identity_activity_center.table`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identity_activity_center.table` the name of the Athena table to use for storing security events.
+
+### `identity_activity_center.workgroup`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identity_activity_center.workgroup` the name of the Athena workgroup to use for executing queries.
+
+### `identity_activity_center.s3`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identity_activity_center.s3` the S3 bucket to use for storing security events.
+Example: s3://bucket-events/data/
+
+### `identity_activity_center.s3_results`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identity_activity_center.s3_results` the S3 bucket to use for storing results of Athena queries.
+Example: s3://bucket-events/results/
+
+### `identity_activity_center.s3_large_files`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identity_activity_center.s3_large_files` the S3 bucket to use for storing large files that cannot be stored in the Athena database.
+This is used to store large files that cannot be shared via SQS, such as large JSON files.
+Example: s3://bucket-events/s3_large_files
+
+### `identity_activity_center.sqs_queue_url`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identity_activity_center.sqs_queue_url` the URL of the SQS queue to use for processing security events.
+
+### `identity_activity_center.maxmind_geoip_city_db_path`
+
+| Type | Default |
+|------|---------|
+| `string` | `""` |
+
+`identity_activity_center.maxmind_geoip_city_db_path` the path to the MaxMind GeoIP City database file.
+This is used to enrich security events with geolocation information.
+Use this together with the volumeMounts and volumes options to mount the database file into the TAG pod.
+
+Example:
+
+```bash
+kubectl create secret generic maxmind-geoip-city-db --from-file=GeoLite2-City.mmdb
+```
+
+Then, add the following to your TAG deployment:
+
+```yaml
+volumes:
+- name: maxmind-geoip-city-db
+  secret:
+    secretName: maxmind-geoip-city-db
+    optional: false
+volumeMounts:
+- name: maxmind-geoip-city-db
+  mountPath: "/etc/maxmindGeoIP/"
+  readOnly: true
+
+identity_activity_center:
+  ... # other options
+  maxmind_geoip_city_db_path: "/etc/maxmindGeoIP/GeoLite2-City.mmdb"
+```
+
+If you do not want to use the MaxMind GeoIP City database, set this to an empty string.
 
 ## `service`
 
 | Type | Default |
 |------|---------|
-| `object` | `{"grpcPort":443,"type":"ClusterIP"}` |
+| `object` | `{"grpcPort":443,"metricsPort":3000,"type":"ClusterIP"}` |
 
-`service` contains options for the Access Graph Kubernetes service that the Chart exposes.
+`service` contains options for the TAG Kubernetes service that the Chart exposes.
 
 ### `service.type`
 
@@ -41,7 +294,7 @@ Setting this to a non-empty array is required.
 
 `service.type` the type of Kubernetes service to create.
 The `LoadBalancer` type is only supported when using a Layer 4 (TCP) or lower load balancer.
-Access Graph expects to terminate its own TLS, as it uses mTLS to authenticate its clients.
+TAG expects to terminate its own TLS, as it uses mTLS to authenticate its clients.
 
 ### `service.grpcPort`
 
@@ -50,7 +303,16 @@ Access Graph expects to terminate its own TLS, as it uses mTLS to authenticate i
 | `int` | `443` |
 
 `service.grpcPort` the port that the gRPC service is exposed on.
-This is the port that Teleport Auth Service and Proxy Service will need to connect to Access Graph on.
+This is the port that Teleport Auth Service and Proxy Service will need to connect to TAG on.
+
+### `service.metricsPort`
+
+| Type | Default |
+|------|---------|
+| `int` | `3000` |
+
+`service.metricsPort` the port that the metrics service is exposed on.
+Requires `metrics.enabled` to be `true`.
 
 ## `replicaCount`
 
@@ -58,9 +320,49 @@ This is the port that Teleport Auth Service and Proxy Service will need to conne
 |------|---------|
 | `int` | `2` |
 
-`replicaCount` the number of Access Graph pods that should be deployed.
+`replicaCount` the number of TAG pods that should be deployed.
+
+## `metrics`
+
+| Type | Default |
+|------|---------|
+| `object` | `{"enabled":false,"pprof":false}` |
+
+`metrics` contains options for the TAG metrics service.
+
+### `metrics.enabled`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`metrics.enabled` enables the metrics service.
+
+### `metrics.pprof`
+
+| Type | Default |
+|------|---------|
+| `bool` | `false` |
+
+`metrics.pprof` Enables pprof metrics endpoints
+
+## `log`
+
+`log` contains logging settings for TAG.
+
+### `log.level`
+
+| Type | Default |
+|------|---------|
+| `string` | `"INFO"` |
+
+`log.level` the minimum severity of log messages to output. Supported values are `DEBUG`, `INFO`, `WARN` and `ERROR`.
 
 ## `image`
+
+| Type | Default |
+|------|---------|
+| `object` | `{"pullPolicy":"IfNotPresent","repository":"public.ecr.aws/gravitational/access-graph","tag":""}` |
 
 ### `image.tag`
 
@@ -68,8 +370,8 @@ This is the port that Teleport Auth Service and Proxy Service will need to conne
 |------|---------|
 | `string` | `""` |
 
-`image.tag` sets the version of the Access Graph image used.
-By default, this is the same as the Helm Chart version, i.e. Access Graph will be upgraded when you upgrade the Helm chart.
+`image.tag` sets the version of the Teleport Access Graph image used.
+By default, this is the same as the Helm Chart version, i.e. TAG will be upgraded when you upgrade the Helm chart.
 
 ## `podAnnotations`
 
@@ -113,13 +415,21 @@ for more details.
 The default value supports running under the `restricted`
 [Pod Security Standard](https://kubernetes.io/docs/concepts/security/pod-security-standards/).
 
+## `extraEnv`
+
+| Type | Default |
+|------|---------|
+| `list` | `[]` |
+
+`extraEnv` allows specifying additional environment variables.
+
 ## `volumes`
 
 | Type | Default |
 |------|---------|
 | `array` | `[]` |
 
-`volumes` allows to define additional volumes on the output Deployment definition.
+`volumes` allows you to define additional volumes on the output Deployment definition.
 
 ## `nodeSelector`
 
@@ -150,3 +460,11 @@ for more details.
 `affinity` sets the affinities for any pods created by the chart.
 See [the Kubernetes documentation](https://kubernetes.io/docs/concepts/configuration/assign-pod-node/#affinity-and-anti-affinity)
 for more details.
+
+## `labels`
+
+| Type | Default |
+|------|---------|
+| `object` | `{}` |
+
+`labels` contains additional labels to add to the Pod Disruption Budget.

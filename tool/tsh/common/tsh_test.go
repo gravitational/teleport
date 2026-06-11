@@ -297,8 +297,8 @@ func (p *cliModules) Features() modules.Features {
 	}
 }
 
-// IsBoringBinary checks if the binary was compiled with BoringCrypto.
-func (p *cliModules) IsBoringBinary() bool {
+// IsFIPSBuild checks if the binary was compiled in FIPS140 mode.
+func (p *cliModules) IsFIPSBuild() bool {
 	return false
 }
 
@@ -1565,7 +1565,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Eventually(t, func() bool {
-		conns, err := rootAuth.GetAuthServer().GetTunnelConnections("leafcluster")
+		conns, err := rootAuth.GetAuthServer().GetTunnelConnections(t.Context(), "leafcluster")
 		return err == nil && len(conns) == 1
 	}, 10*time.Second, 100*time.Millisecond, "leaf cluster never heart beated")
 
@@ -5520,12 +5520,14 @@ func TestSerializeKubeClusters(t *testing.T) {
 		{
 			"kube_cluster_name": "cluster1",
 			"labels": {"cmd": "result", "foo": "bar"},
-			"selected": true
+			"selected": true,
+			"scope": ""
 		},
 		{
 			"kube_cluster_name": "cluster2",
 			"labels": null,
-			"selected": false
+			"selected": false,
+			"scope": "/test"
 		}
 	]
 	`
@@ -5550,6 +5552,7 @@ func TestSerializeKubeClusters(t *testing.T) {
 			Name: "cluster2",
 		},
 		types.KubernetesClusterSpecV3{},
+		types.KubeClusterWithScope("/test"),
 	)
 
 	require.NoError(t, err)
@@ -8657,4 +8660,87 @@ func TestReexecErrorPropagation(t *testing.T) {
 			require.Equal(t, strings.ReplaceAll(contextualReexecErrorMessage, "\r\n", "\n"), err.Error())
 		})
 	})
+}
+
+func TestSSHEnv(t *testing.T) {
+	local, err := user.Current()
+	require.NoError(t, err)
+
+	sshHostname := "test-ssh-server"
+	nodeAccess, err := types.NewRole("node-access", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:     []string{local.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"access", nodeAccess.GetName()})
+
+	connector := mockConnector(t)
+	rootServer, err := testserver.NewTeleportProcess(t.TempDir(),
+		testserver.WithBootstrap(connector, nodeAccess, alice),
+		testserver.WithHostname(sshHostname),
+		testserver.WithSSHPublicAddrs("127.0.0.1:0"),
+		testserver.WithConfig(func(cfg *servicecfg.Config) {
+			cfg.SSH.Enabled = true
+			cfg.SSH.PublicAddrs = []utils.NetAddr{cfg.SSH.Addr}
+			cfg.SSH.DisableCreateHostUser = true
+		}),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, rootServer.Close())
+		require.NoError(t, rootServer.Wait())
+	})
+
+	authServer := rootServer.GetAuthServer()
+	require.NotNil(t, authServer)
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	home := t.TempDir()
+	err = Run(t.Context(), []string{
+		"login",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+	}, setHomePath(home), setMockSSOLogin(authServer, alice, connector.GetName()))
+	require.NoError(t, err)
+
+	for _, tt := range []struct {
+		name string
+		args []string
+	}{
+		{
+			name: "interactive",
+			args: []string{"-t"},
+		},
+		{
+			name: "non-interactive",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			stdout := &output{buf: bytes.Buffer{}}
+			stderr := &output{buf: bytes.Buffer{}}
+			args := append([]string{
+				"ssh",
+				"--insecure",
+			}, tt.args...)
+			args = append(args, sshHostname, "echo $SSH_SESSION_WEBPROXY_ADDR")
+
+			err := Run(t.Context(), args,
+				setHomePath(home),
+				func(conf *CLIConf) error {
+					conf.OverrideStdout = stdout
+					conf.overrideStderr = stderr
+					return nil
+				},
+			)
+			require.NoError(t, err)
+			require.Equal(t, proxyAddr.String(), strings.TrimSpace(stdout.String()))
+			require.Empty(t, stderr.String())
+		})
+	}
 }

@@ -21,12 +21,12 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"slices"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -55,6 +55,7 @@ type discoveryClient interface {
 // runResult captures the most recent installation script result for an instance,
 // sourced from audit events (e.g. SSM run events for AWS).
 type runResult struct {
+	APIError  string    `json:"api_error"`
 	ExitCode  int64     `json:"exit_code"`
 	Output    string    `json:"output"`
 	Time      time.Time `json:"time"`
@@ -66,20 +67,21 @@ type runResult struct {
 type instanceInfo struct {
 	Region        string     `json:"region"`
 	IsOnline      bool       `json:"is_online"`
-	Expiry        time.Time  `json:"expiry,omitempty"`
+	Expiry        time.Time  `json:"expiry,omitzero"`
 	RunResult     *runResult `json:"run_result,omitempty"`
 	UserTaskID    string     `json:"user_task_id,omitempty"`
 	UserTaskIssue string     `json:"user_task_issue,omitempty"`
 
-	AWS *awsInfo `json:"aws,omitempty"`
+	AWS   *awsInfo   `json:"aws,omitempty"`
+	Azure *azureInfo `json:"azure,omitempty"`
 }
 
 // cloudInfo provides cloud-specific identifiers for an instance.
 // Used for rendering, sorting, and matching against user tasks.
 type cloudInfo interface {
 	cloudName() string
-	cloudInstanceID() string
 	cloudAccountID() string
+	instanceText() string
 }
 
 // cloud returns the cloud-specific metadata for this instance, or nil
@@ -88,7 +90,19 @@ func (inst instanceInfo) cloud() cloudInfo {
 	if inst.AWS != nil {
 		return inst.AWS
 	}
+	if inst.Azure != nil {
+		return inst.Azure
+	}
 	return nil
+}
+
+// accountID returns the cloud account ID for this instance, or "" if no
+// cloud provider info is available.
+func (inst instanceInfo) accountID() string {
+	if ci := inst.cloud(); ci != nil {
+		return ci.cloudAccountID()
+	}
+	return ""
 }
 
 // lastTimeValue returns the most recent timestamp for sorting.
@@ -110,90 +124,161 @@ func (inst instanceInfo) lastTime() string {
 	return t.Format(time.RFC3339)
 }
 
-// runOutput returns the run command stdout/stderr with newlines escaped for
-// single-line display. Output longer than runOutputMaxLen is truncated.
-func (inst instanceInfo) runOutput() string {
-	if inst.RunResult == nil {
-		return ""
-	}
-	out := strings.TrimSpace(inst.RunResult.Output)
+func trimEscape(out string) string {
+	out = strings.TrimSpace(out)
 	if out == "" {
 		return ""
 	}
 
-	// runOutputMaxLen is the maximum length of the raw output string before
+	// maxLen is the maximum length of the raw output string before
 	// quoting. Longer values are truncated with an ellipsis.
-	const runOutputMaxLen = 100
-
-	if len(out) > runOutputMaxLen {
-		out = out[:runOutputMaxLen] + "..."
+	const maxLen = 100
+	if len(out) > maxLen {
+		out = out[:maxLen] + "..."
 	}
 	return fmt.Sprintf("%q", out)
 }
 
-// details returns a column combining available information. If the user task is present, it will return the title of this task.
-// Otherwise, if non-empty script output is available, we'll return it instead.
+// details returns a column combining available information: the user task title
+// (if any), followed by the script output or API error (if any).
 // Full, non-combined details are always available in JSON output.
 func (inst instanceInfo) details() string {
-	if inst.UserTaskIssue != "" {
-		// keep title, ignore description, it is fairly long.
-		title, _ := usertasks.DescriptionForDiscoverEC2Issue(inst.UserTaskIssue)
-		if title == "" {
-			title = inst.UserTaskIssue
+	title := inst.userTaskTitle()
+	var extra string
+	if inst.RunResult != nil {
+		if out := trimEscape(inst.RunResult.Output); out != "" {
+			extra = "Script output: " + out
+		} else if apiErr := trimEscape(inst.RunResult.APIError); apiErr != "" {
+			extra = "API error: " + apiErr
 		}
+	}
+	switch {
+	case title != "" && extra != "":
+		return title + ". " + extra
+	case title != "":
 		return title
+	default:
+		return extra
 	}
-
-	if out := inst.runOutput(); out != "" {
-		return "Script output: " + out
-	}
-
-	return ""
 }
 
-// status returns a human-readable status combining online state and run result.
-func (inst instanceInfo) status() string {
-	if inst.RunResult == nil {
-		if inst.IsOnline {
-			return "Online"
-		}
+// userTaskTitle returns the human-readable title for this instance's user task
+// issue, or "" if there is no task. Falls back to the raw issue string when
+// the cloud is unknown or the issue type has no registered description.
+func (inst instanceInfo) userTaskTitle() string {
+	if inst.UserTaskIssue == "" {
 		return ""
 	}
-	if !inst.RunResult.IsFailure {
-		if inst.IsOnline {
+	var title string
+	if ci := inst.cloud(); ci != nil {
+		switch ci.cloudName() {
+		case cloudAWS:
+			title, _ = usertasks.DescriptionForDiscoverEC2Issue(inst.UserTaskIssue)
+		case cloudAzure:
+			title, _ = usertasks.DescriptionForDiscoverAzureVMIssue(inst.UserTaskIssue)
+		}
+	}
+	return cmp.Or(title, inst.UserTaskIssue)
+}
+
+// status returns a short human-readable status combining online state and run result.
+func (inst instanceInfo) status() string {
+	var runResultStatus string
+	if inst.RunResult != nil && inst.RunResult.IsFailure {
+		if inst.RunResult.APIError != "" {
+			runResultStatus = "API error" // details column will have more information.
+		} else {
+			runResultStatus = fmt.Sprintf("exit code=%d", inst.RunResult.ExitCode)
+		}
+	}
+
+	// machine is online
+	if inst.IsOnline {
+		if runResultStatus == "" {
 			return "Online"
 		}
+		// most recent installation attempt failed, yet the machine is online anyway.
+		// odd, but it can happen in some configurations.
+		return "Online, " + runResultStatus
+	}
+
+	// offline machine, no run result... why are we even here?
+	if inst.RunResult == nil {
+		return "Unknown"
+	}
+
+	// installation worked, but machine failed to join or went down for some other reason.
+	if !inst.RunResult.IsFailure {
 		return "Installed (offline)"
 	}
-	if inst.IsOnline {
-		return fmt.Sprintf("Online, exit code=%d", inst.RunResult.ExitCode)
-	}
-	return fmt.Sprintf("Failed (exit code=%d)", inst.RunResult.ExitCode)
+
+	// plain failure; include the reason.
+	return fmt.Sprintf("Failed (%s)", runResultStatus)
 }
 
-// filterFailures returns only instances that have a failed run result or a user task.
+func (inst instanceInfo) failed() bool {
+	if inst.RunResult != nil && inst.RunResult.IsFailure {
+		return true
+	}
+	if inst.UserTaskID != "" {
+		return true
+	}
+	return false
+}
+
+// filterFailures returns only instances that have failed in some way.
 func filterFailures(instances []instanceInfo) []instanceInfo {
-	result := make([]instanceInfo, 0, len(instances))
-	for _, inst := range instances {
-		if (inst.RunResult != nil && inst.RunResult.IsFailure) || inst.UserTaskID != "" {
-			result = append(result, inst)
+	return slices.DeleteFunc(slices.Clone(instances), func(inst instanceInfo) bool {
+		return !inst.failed()
+	})
+}
+
+type cloudProviderConfig struct {
+	aws, azure bool
+}
+
+func parseCloudProviders(value string) (cloudProviderConfig, error) {
+	const (
+		cloudProviderAWS   = "aws"
+		cloudProviderAzure = "azure"
+	)
+
+	if value == "" {
+		return cloudProviderConfig{
+			aws:   true,
+			azure: true,
+		}, nil
+	}
+
+	cfg := cloudProviderConfig{}
+	parts := strings.Split(value, ",")
+	for _, part := range parts {
+		switch strings.ToLower(strings.TrimSpace(part)) {
+		case cloudProviderAWS:
+			cfg.aws = true
+		case cloudProviderAzure:
+			cfg.azure = true
+		case "":
+			return cloudProviderConfig{}, trace.BadParameter("empty cloud provider in --cloud (allowed: aws, azure)")
+		default:
+			return cloudProviderConfig{}, trace.BadParameter("unknown cloud provider %q (allowed: aws, azure)", part)
 		}
 	}
-	return result
+	return cfg, nil
 }
 
-// buildNodes builds a report of discovered cloud instances by correlating three
-// data sources on the cloud instance ID (e.g. AWS EC2 instance ID):
-//  1. Installation script audit events (e.g. SSM runs) — provides run results.
-//  2. Online Teleport nodes — provides enrollment/online status.
-//  3. User tasks — provides human-readable issue descriptions.
-func buildNodes(ctx context.Context, clt discoveryClient, from, to time.Time) ([]instanceInfo, error) {
+// buildNodes combines information about cloud instances from three sources,
+// matching on cloud instance ID:
+//  1. Installation audit events.
+//  2. Online Teleport nodes.
+//  3. User tasks.
+func buildNodes(ctx context.Context, clt discoveryClient, from, to time.Time, cfg cloudProviderConfig) ([]instanceInfo, error) {
 	slog.DebugContext(ctx, "Fetching installation audit events")
-	ssmEvents, err := getRunEvents(ctx, clt, from, to)
+	ssmEvents, azureEvents, err := getRunEvents(ctx, clt, from, to, cfg)
 	if err != nil {
 		return nil, trace.Wrap(err, "fetching installation audit events")
 	}
-	slog.DebugContext(ctx, "Fetched installation audit events", "ssm_count", len(ssmEvents))
+	slog.DebugContext(ctx, "Fetched installation audit events", "ssm_count", len(ssmEvents), "azure_count", len(azureEvents))
 
 	slog.DebugContext(ctx, "Fetching online nodes")
 	nodes, err := client.GetAllResources[types.Server](ctx, clt, &proto.ListResourcesRequest{
@@ -205,8 +290,6 @@ func buildNodes(ctx context.Context, clt discoveryClient, from, to time.Time) ([
 	}
 	slog.DebugContext(ctx, "Fetched online nodes", "count", len(nodes))
 
-	instances := correlate(ssmEvents, nodes)
-
 	slog.DebugContext(ctx, "Fetching user tasks")
 	tasks, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*usertasksv1.UserTask, string, error) {
 		return clt.UserTasksClient().ListUserTasks(ctx, int64(limit), token, nil)
@@ -215,108 +298,125 @@ func buildNodes(ctx context.Context, clt discoveryClient, from, to time.Time) ([
 		return nil, trace.Wrap(err, "fetching user tasks")
 	}
 	slog.DebugContext(ctx, "Fetched user tasks", "count", len(tasks))
-	matchUserTasks(instances, tasks)
+
+	var instances []instanceInfo
+	if cfg.aws {
+		awsInstances := cloudNodes(
+			mergeInstances(correlateSSMEvents(ssmEvents), correlateAWSNodes(nodes)),
+			tasks, awsTaskInstanceKeys)
+		instances = append(instances, awsInstances...)
+	}
+	if cfg.azure {
+		azureInstances := cloudNodes(
+			mergeInstances(correlateAzureRunEvents(azureEvents), correlateAzureNodes(nodes)),
+			tasks, azureTaskInstanceKeys)
+		instances = append(instances, azureInstances...)
+	}
 
 	return instances, nil
 }
 
-// matchUserTasks populates user task fields on instances whose cloud instance
-// ID appears in a user task's instance list (e.g. DiscoverEC2.Instances map).
-func matchUserTasks(instances []instanceInfo, tasks []*usertasksv1.UserTask) {
-	// Build lookup: cloud name -> instance ID -> user task.
-	taskByInstance := map[string]map[string]*usertasksv1.UserTask{
-		cloudAWS: make(map[string]*usertasksv1.UserTask),
-	}
-
+// cloudNodes finalizes one cloud's pipeline: flatten the instance map to a
+// slice, populate user-task fields, and sort.
+func cloudNodes(
+	instances map[string]instanceInfo,
+	tasks []*usertasksv1.UserTask,
+	taskInstanceKeys func(*usertasksv1.UserTask) []string,
+) []instanceInfo {
+	taskMap := make(map[string]*usertasksv1.UserTask)
 	for _, task := range tasks {
-		spec := task.GetSpec()
-		if spec == nil {
-			continue
-		}
-		if ec2 := spec.GetDiscoverEc2(); ec2 != nil {
-			for instanceID := range ec2.GetInstances() {
-				taskByInstance[cloudAWS][instanceID] = task
-			}
+		for _, instanceKey := range taskInstanceKeys(task) {
+			taskMap[instanceKey] = task
 		}
 	}
 
-	for i := range instances {
-		ci := instances[i].cloud()
-		if ci == nil {
-			continue
+	result := make([]instanceInfo, 0, len(instances))
+	for instanceKey, info := range instances {
+		if task, match := taskMap[instanceKey]; match {
+			info.UserTaskID = task.GetMetadata().GetName()
+			info.UserTaskIssue = task.GetSpec().GetIssueType()
 		}
-		if task, ok := taskByInstance[ci.cloudName()][ci.cloudInstanceID()]; ok {
-			instances[i].UserTaskID = task.GetMetadata().GetName()
-			instances[i].UserTaskIssue = task.GetSpec().GetIssueType()
-		}
+		// collect updated copy
+		result = append(result, info)
 	}
+	slices.SortFunc(result, sortInstances)
+
+	return result
+}
+
+// sortInstances orders instances by cloud account, region, then descending time.
+func sortInstances(a, b instanceInfo) int {
+	return cmp.Or(
+		cmp.Compare(a.accountID(), b.accountID()),
+		cmp.Compare(a.Region, b.Region),
+		// Descending time: newer entries first.
+		b.lastTimeValue().Compare(a.lastTimeValue()),
+	)
 }
 
 // getRunEvents fetches installation script audit events in descending time order
-// (most recent first). Currently returns SSM run events; will include Azure/GCP
-// equivalents when available.
-func getRunEvents(ctx context.Context, clt discoveryClient, from, to time.Time) ([]*apievents.SSMRun, error) {
+// (most recent first). Returns SSM run events (AWS) and Azure run events; will
+// include GCP equivalents when available.
+func getRunEvents(ctx context.Context, clt discoveryClient, from, to time.Time, cfg cloudProviderConfig) ([]*apievents.SSMRun, []*apievents.AzureRun, error) {
+	var eventTypes []string
+	if cfg.aws {
+		eventTypes = append(eventTypes, libevents.SSMRunEvent)
+	}
+	if cfg.azure {
+		eventTypes = append(eventTypes, libevents.AzureRunEvent)
+	}
+
 	events, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]apievents.AuditEvent, string, error) {
 		return clt.SearchEvents(ctx, libevents.SearchEventsRequest{
 			From:       from,
 			To:         to,
-			EventTypes: []string{libevents.SSMRunEvent},
+			EventTypes: eventTypes,
 			Order:      types.EventOrderDescending,
 			Limit:      limit,
 			StartKey:   token,
 		})
 	}))
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
-	// Type-assert to concrete event types. Currently only SSM runs exist;
-	// Azure/GCP run command events would be extracted here as well.
+	// Type-assert to concrete event types. GCP run command events would be
+	// extracted here as well.
 	var ssmRuns []*apievents.SSMRun
+	var azureRuns []*apievents.AzureRun
 	for _, ev := range events {
 		switch run := ev.(type) {
 		case *apievents.SSMRun:
 			ssmRuns = append(ssmRuns, run)
+		case *apievents.AzureRun:
+			azureRuns = append(azureRuns, run)
 		}
 	}
-	return ssmRuns, nil
+	return ssmRuns, azureRuns, nil
 }
 
-// correlate joins installation audit events and online nodes into a unified
-// instance list, keyed by cloud instance ID. Events are processed first to
-// seed the map with run results, then nodes enrich existing entries with
-// online status or create new entries for instances with no audit events.
-// The result is sorted by account, region, then descending time.
-func correlate(ssmEvents []*apievents.SSMRun, nodes []types.Server) []instanceInfo {
-	// Key: cloud instance ID (e.g. AWS EC2 instance ID like "i-abc123").
-	instances := make(map[string]*instanceInfo)
-
-	correlateSSMEvents(instances, ssmEvents)
-	correlateNodes(instances, nodes)
-
-	// Convert map to sorted slice.
-	result := make([]instanceInfo, 0, len(instances))
-	for _, info := range instances {
-		result = append(result, *info)
+// mergeInstances merges two instanceInfo maps with bias toward fstMap.
+func mergeInstances(fstMap, sndMap map[string]instanceInfo) map[string]instanceInfo {
+	out := make(map[string]instanceInfo)
+	maps.Copy(out, fstMap)
+	for k, sndValue := range sndMap {
+		out[k] = mergeInstanceInfo(out[k], sndValue)
 	}
-	slices.SortFunc(result, func(a, b instanceInfo) int {
-		var aAccount, bAccount string
-		if ci := a.cloud(); ci != nil {
-			aAccount = ci.cloudAccountID()
-		}
-		if ci := b.cloud(); ci != nil {
-			bAccount = ci.cloudAccountID()
-		}
-		if c := cmp.Compare(aAccount, bAccount); c != 0 {
-			return c
-		}
-		if c := cmp.Compare(a.Region, b.Region); c != 0 {
-			return c
-		}
-		// Descending time: newer entries first.
-		return b.lastTimeValue().Compare(a.lastTimeValue())
-	})
-	return result
+	return out
+}
+
+// mergeInstanceInfo merges two instance info structs with bias toward fst.
+func mergeInstanceInfo(fst, snd instanceInfo) instanceInfo {
+	return instanceInfo{
+		Region:        cmp.Or(fst.Region, snd.Region),
+		IsOnline:      cmp.Or(fst.IsOnline, snd.IsOnline),
+		Expiry:        cmp.Or(fst.Expiry, snd.Expiry),
+		RunResult:     cmp.Or(fst.RunResult, snd.RunResult),
+		UserTaskID:    cmp.Or(fst.UserTaskID, snd.UserTaskID),
+		UserTaskIssue: cmp.Or(fst.UserTaskIssue, snd.UserTaskIssue),
+		AWS:           cmp.Or(fst.AWS, snd.AWS),
+		Azure:         cmp.Or(fst.Azure, snd.Azure),
+	}
 }
 
 // combineOutput joins stdout and stderr with a newline separator.
@@ -330,17 +430,4 @@ func combineOutput(stdout, stderr string) string {
 		return stdout
 	}
 	return stderr
-}
-
-// resolveTimeRange parses a --last duration string into a (from, to) pair.
-func resolveTimeRange(clock clockwork.Clock, last string) (from, to time.Time, err error) {
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
-	now := clock.Now().UTC()
-	d, err := types.ParseDuration(strings.TrimSpace(last))
-	if err != nil {
-		return time.Time{}, time.Time{}, trace.BadParameter("invalid --last value %q, expected a duration like 1h, 24h, or 30m", last)
-	}
-	return now.Add(-d.Duration()), now, nil
 }

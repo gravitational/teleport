@@ -66,7 +66,6 @@ import (
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/client"
-	kubeclient "github.com/gravitational/teleport/lib/client/kube"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	kuberelay "github.com/gravitational/teleport/lib/kube/relay"
@@ -111,7 +110,7 @@ func newKubeJoinCommand(parent *kingpin.CmdClause) *kubeJoinCommand {
 		CmdClause: parent.Command("join", "Join an active Kubernetes session."),
 	}
 
-	c.Flag("mode", "Mode of joining the session, valid modes are observer, moderator and peer.").Short('m').Default("observer").EnumVar(&c.mode, "observer", "moderator", "peer")
+	c.Flag("mode", "Mode of joining the session.").Short('m').Default("observer").EnumVar(&c.mode, "observer", "moderator", "peer")
 	c.Flag("cluster", clusterHelp).Short('c').StringVar(&c.siteName)
 	c.Arg("session", "The ID of the target session.").Required().StringVar(&c.session)
 	return c
@@ -731,7 +730,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/GetKey")
+	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/GetKey")
 	// Try loading existing keys.
 	k, err := tc.LocalAgent().GetKeyRing(c.teleportCluster, client.WithKubeCerts{})
 	span.End()
@@ -742,14 +741,14 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	// Loaded existing credentials and have a cert for this cluster? Return it
 	// right away.
 	if err == nil {
-		_, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/KubeX509Cert")
+		_, span := tc.Tracer.Start(ctx, "tsh.kubeCredentials/KubeX509Cert")
 		crt, err := k.KubeX509Cert(c.kubeCluster)
 		span.End()
 		if err != nil && !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 		if crt != nil && time.Until(crt.NotAfter) > time.Minute {
-			logger.DebugContext(cf.Context, "Re-using existing TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
+			logger.DebugContext(ctx, "Re-using existing TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
 
 			return c.writeKeyResponse(cf.Stdout(), k, c.kubeCluster)
 		}
@@ -757,7 +756,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		// a new one.
 	}
 
-	logger.DebugContext(cf.Context, "Requesting TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
+	logger.DebugContext(ctx, "Requesting TLS cert for Kubernetes cluster", "cluster", c.kubeCluster)
 	var unlockKubeCred func(bool)
 	deleteKubeCredsLock := false
 	defer func() {
@@ -766,7 +765,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		}
 	}()
 
-	ctx, span := tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
+	ctx, span = tc.Tracer.Start(cf.Context, "tsh.kubeCredentials/RetryWithRelogin")
 	err = client.RetryWithRelogin(
 		ctx,
 		tc,
@@ -804,7 +803,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 				if proxy == "" {
 					proxy = tc.WebProxyAddr
 				}
-				unlockKubeCred, err = takeKubeCredLock(cf.Context, cf.HomePath, proxy, lockTimeout)
+				unlockKubeCred, err = takeKubeCredLock(ctx, cf.HomePath, proxy, lockTimeout)
 				return trace.Wrap(err)
 			},
 		),
@@ -816,25 +815,6 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 		if isNetworkError(err) {
 			deleteKubeCredsLock = true
 		}
-		return trace.Wrap(err)
-	}
-	// Make sure the cert is allowed to access the cluster.
-	// At this point we already know that the user has access to the cluster
-	// via the RBAC rules, but we also need to make sure that the user has
-	// access to the cluster with at least one kubernetes_user or kubernetes_group
-	// defined.
-	// This is a safety check in order to print a better message to the user even
-	// before hitting Teleport Kubernetes Proxy.
-	// We only enforce this check for root clusters, since we don't have knowledge
-	// of the RBAC role mappings for remote clusters.
-	rootClusterName, err := tc.RootClusterName(cf.Context)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err := kubeclient.CheckIfCertsAreAllowedToAccessCluster(k,
-		rootClusterName,
-		c.teleportCluster,
-		c.kubeCluster); err != nil {
 		return trace.Wrap(err)
 	}
 	// Cache the new cert on disk for reuse.
@@ -1013,34 +993,34 @@ func (c *kubeLSCommand) showKubeClusters(w io.Writer, kubeClusters types.KubeClu
 	return nil
 }
 
-func getKubeClusterTextRow(kc types.KubeCluster, selectedCluster string, verbose bool) []string {
+func getKubeClusterTextRow(kc types.KubeCluster, selected, verbose bool) []string {
 	var selectedMark string
 	var row []string
-	if selectedCluster != "" && kc.GetName() == selectedCluster {
+	if selected {
 		selectedMark = "*"
 	}
 	displayName := common.FormatResourceName(kc, verbose)
 	labels := common.FormatLabels(kc.GetAllLabels(), verbose)
-	row = append(row, displayName, labels, selectedMark)
+	row = append(row, displayName, labels, kc.GetScope(), selectedMark)
 	return row
 }
 
 func formatKubeClustersAsText(kubeClusters types.KubeClusters, selectedCluster string, quiet, verbose bool) string {
 	var (
-		columns = []string{"Kube Cluster Name", "Labels", "Selected"}
+		columns = []string{"Kube Cluster Name", "Labels", "Scope", "Selected"}
 		t       asciitable.Table
 		rows    [][]string
 	)
 
 	for _, cluster := range kubeClusters {
-		r := getKubeClusterTextRow(cluster, selectedCluster, verbose)
+		r := getKubeClusterTextRow(cluster, isClusterSelected(kubeClusters, cluster, selectedCluster), verbose)
 		rows = append(rows, r)
 	}
 
 	switch {
 	case quiet:
-		// no column headers and only include the cluster name and labels.
-		t = asciitable.MakeHeadlessTable(2)
+		// no column headers and only include the cluster name, scope, and labels.
+		t = asciitable.MakeHeadlessTable(3)
 		for _, row := range rows {
 			t.AddRow(row)
 		}
@@ -1055,11 +1035,32 @@ func formatKubeClustersAsText(kubeClusters types.KubeClusters, selectedCluster s
 	return t.AsBuffer().String()
 }
 
+func isClusterSelected(kubeClusters []types.KubeCluster, cluster types.KubeCluster, selectedCluster string) bool {
+	if cluster.GetName() != selectedCluster {
+		return false
+	}
+
+	// if there are duplicate cluster names present in the list, we can't disambiguate so none of them should be
+	// selected
+	var found bool
+	for _, cl := range kubeClusters {
+		if cl.GetName() == cluster.GetName() {
+			if found {
+				return false
+			}
+			found = true
+		}
+	}
+
+	return true
+}
+
 func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, format string) (string, error) {
 	type cluster struct {
 		KubeClusterName string            `json:"kube_cluster_name"`
 		Labels          map[string]string `json:"labels"`
 		Selected        bool              `json:"selected"`
+		Scope           string            `json:"scope"`
 	}
 	clusterInfo := make([]cluster, 0, len(kubeClusters))
 	for _, cl := range kubeClusters {
@@ -1070,7 +1071,8 @@ func serializeKubeClusters(kubeClusters []types.KubeCluster, selectedCluster, fo
 		clusterInfo = append(clusterInfo, cluster{
 			KubeClusterName: cl.GetName(),
 			Labels:          labels,
-			Selected:        cl.GetName() == selectedCluster,
+			Selected:        isClusterSelected(kubeClusters, cl, selectedCluster),
+			Scope:           cl.GetScope(),
 		})
 	}
 	var out []byte
@@ -1170,7 +1172,7 @@ func (c *kubeLSCommand) runAllClusters(cf *CLIConf) error {
 
 func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string {
 	var (
-		columns = []string{"Proxy", "Cluster", "Kube Cluster Name", "Labels"}
+		columns = []string{"Proxy", "Cluster", "Kube Cluster Name", "Labels", "Scope"}
 		t       asciitable.Table
 		rows    [][]string
 	)
@@ -1178,14 +1180,14 @@ func formatKubeListingsAsText(listings kubeListings, quiet, verbose bool) string
 		r := append([]string{
 			listing.Proxy,
 			listing.Cluster,
-		}, getKubeClusterTextRow(listing.KubeCluster, "", verbose)...)
+		}, getKubeClusterTextRow(listing.KubeCluster, false, verbose)...)
 		rows = append(rows, r)
 	}
 
 	switch {
 	case quiet:
 		// quiet, so no column headers.
-		t = asciitable.MakeHeadlessTable(4)
+		t = asciitable.MakeHeadlessTable(5)
 		for _, row := range rows {
 			t.AddRow(row)
 		}
@@ -1408,15 +1410,18 @@ func matchClustersByNameOrDiscoveredName(name string, clusters types.KubeCluster
 		return clusters
 	}
 
-	// look for an exact full name match.
+	// look for exact full name matches.
+	var out types.KubeClusters
 	for _, kc := range clusters {
 		if kc.GetName() == name {
-			return types.KubeClusters{kc}
+			out = append(out, kc)
 		}
+	}
+	if len(out) > 0 {
+		return out
 	}
 
 	// or look for exact "discovered name" matches.
-	var out types.KubeClusters
 	for _, kc := range clusters {
 		discoveredName, ok := kc.GetLabel(types.DiscoveredNameLabel)
 		if ok && discoveredName == name {

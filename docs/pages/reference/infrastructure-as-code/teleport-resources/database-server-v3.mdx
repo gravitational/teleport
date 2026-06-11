@@ -11,7 +11,23 @@ sidebar_label: Database Server V3
 **Kind**: `db_server`<br/>
 **Version**: `v3`
 
-Represents a database access server.
+The `db_server` resource represents a database that has been registered
+with Teleport.
+
+The Teleport Database Service creates a `db_server` in two situations:
+
+  1. It reads information about the target database in its
+     configuration file when it first starts.
+  1. It fetches a dynamically registered `db` resource from the Teleport
+     backend that matches its dynamic resource watchers.
+
+There can be multiple instances of a `db_server` for a single database,
+each corresponding to a different Teleport Database Service instance that
+proxies the database. Read more about [High
+Availability](../../../installation/agents/high-availability.mdx) for
+the Teleport Database Service. Read the [reference guide](./database-v3.mdx) for
+the `db` resource.
+
 
 ## Top-level fields
 
@@ -293,7 +309,7 @@ oracle: # [...]
 |mongo_atlas|Contains Atlas metadata about the database.|[Mongo Atlas](#mongo-atlas)|
 |mysql|An additional section with MySQL database options.|[MySQL Options](#mysql-options)|
 |oracle|An additional Oracle configuration options.|[Oracle Options](#oracle-options)|
-|protocol|The database protocol: postgres, mysql, mongodb, etc.|string|
+|protocol|The database protocol. Valid options are: "cassandra" "clickhouse" "clickhouse-http" "cockroachdb" "dynamodb" "elasticsearch" "mongodb" "mysql" "oracle" "postgres" "redis" "snowflake" "spanner" "sqlserver"|string|
 |tls|The TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name.|[Database TLS](#database-tls)|
 |uri|The database connection endpoint.|string|
 

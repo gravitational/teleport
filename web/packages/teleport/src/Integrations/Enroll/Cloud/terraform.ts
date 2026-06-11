@@ -20,7 +20,7 @@ export interface TFObject {
   [key: string]: TFValue;
 }
 
-type TFValue = string | number | boolean | TFValue[] | TFObject | null;
+export type TFValue = string | number | boolean | TFValue[] | TFObject | null;
 
 /**
  * hcl is a tagged template function for generating Terraform HCL

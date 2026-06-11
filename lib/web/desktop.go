@@ -215,10 +215,10 @@ func (t *tdpHandshaker) forwardTDP(w io.Writer, username string, forwardKeyboard
 func (t *tdpHandshaker) forwardTDPB(w io.Writer, username string, _ bool) error {
 	// Convert to Client Hello
 	hello := &tdpb.ClientHello{
-		ScreenSpec: &tdpbv1.ClientScreenSpec{
+		ScreenSpec: tdpbv1.ClientScreenSpec_builder{
 			Height: t.screenSpec.Height,
 			Width:  t.screenSpec.Width,
-		},
+		}.Build(),
 		Username: username,
 	}
 	if t.keyboardLayout != nil {
@@ -300,8 +300,8 @@ func (t *tdpbHandshaker) forwardTDP(w io.Writer, username string, forwardKeyboar
 	messages = append(messages, legacy.ClientUsername{Username: username})
 
 	screenSpec := legacy.ClientScreenSpec{
-		Height: t.hello.ScreenSpec.Height,
-		Width:  t.hello.ScreenSpec.Width,
+		Height: t.hello.ScreenSpec.GetHeight(),
+		Width:  t.hello.ScreenSpec.GetWidth(),
 	}
 	messages = append(messages, screenSpec)
 
@@ -348,7 +348,7 @@ func newHandshaker(protocol string, ws *websocket.Conn) handshaker {
 	}
 	// Default to TDP
 	return &tdpHandshaker{
-		connection: tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode),
+		connection: tdp.NewConn(&WebsocketIO{Conn: ws}, legacy.Decode, legacy.WarningConstructor),
 	}
 }
 
@@ -756,9 +756,9 @@ func (d desktopPinger) pingTDPB(ctx context.Context) error {
 
 func newConn(rwc io.ReadWriteCloser, protocol string) *tdp.Conn {
 	if protocol == tdpb.ProtocolName {
-		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.DecodePermissive))
+		return tdp.NewConn(rwc, tdp.DecoderAdapter(tdpb.DecodePermissive), tdpb.WarningConstructor)
 	}
-	return tdp.NewConn(rwc, legacy.Decode)
+	return tdp.NewConn(rwc, legacy.Decode, legacy.WarningConstructor)
 }
 
 type desktopWebsocketProxy struct {

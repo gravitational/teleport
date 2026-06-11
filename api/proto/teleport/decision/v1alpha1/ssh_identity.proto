@@ -182,6 +182,10 @@ message SSHIdentity {
 
   // Delegation session this SSH identity is associated with.
   string delegation_session_id = 39;
+
+  // HeadlessAuthenticationID is the ID of the headless authentication
+  // resource this certificate was created for.
+  string headless_authentication_id = 40;
 }
 
 // CertExtensionMode specifies the type of extension to use in the cert. This type

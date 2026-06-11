@@ -80,7 +80,7 @@ func TestListBots(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code getting connectors")
 
 	assert.Len(t, bots.Items, created)
-	assert.Equal(t, []string{"test-role"}, bots.Items[0].Spec.Roles)
+	assert.Equal(t, []string{"test-role"}, bots.Items[0].GetSpec().GetRoles())
 }
 
 func TestListBots_UnauthenticatedError(t *testing.T) {
@@ -164,11 +164,11 @@ func TestCreateBot(t *testing.T) {
 
 	i = slices.IndexFunc(bots.Items, func(bot *machineidv1.Bot) bool {
 		// bot name is not prefixed in BotList
-		return bot.Metadata.Name == "test-bot"
+		return bot.GetMetadata().GetName() == "test-bot"
 	})
 	require.NotEqual(t, -1, i)
 	// the bot resource returned from ListBots should only contain the roles attached to the bot via the create/edit request (not created roles)
-	require.Equal(t, []string{"bot-role-0", "bot-role-1"}, bots.Items[i].Spec.GetRoles())
+	require.Equal(t, []string{"bot-role-0", "bot-role-1"}, bots.Items[i].GetSpec().GetRoles())
 
 	// Make sure an unauthenticated client can't create bots
 	publicClt := s.client(t)
@@ -319,7 +319,7 @@ func TestGetBotByName(t *testing.T) {
 	var bot machineidv1.Bot
 	require.NoError(t, json.Unmarshal(response.Bytes(), &bot), "invalid response received")
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code getting connectors")
-	assert.Equal(t, botName, bot.Metadata.Name)
+	assert.Equal(t, botName, bot.GetMetadata().GetName())
 
 	// query an unexisting bot
 	_, err = pack.clt.Get(ctx, fmt.Sprintf("%s/%s", endpoint, "invalid-bot"), nil)
@@ -356,8 +356,8 @@ func TestEditBot(t *testing.T) {
 	var bot machineidv1.Bot
 	require.NoError(t, json.Unmarshal(response.Bytes(), &bot), "invalid response received")
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code getting connectors")
-	assert.Equal(t, botName, bot.Metadata.Name)
-	assert.Equal(t, []string{"new-new-role"}, bot.Spec.Roles)
+	assert.Equal(t, botName, bot.GetMetadata().GetName())
+	assert.Equal(t, []string{"new-new-role"}, bot.GetSpec().GetRoles())
 }
 
 func TestEditBotRoles(t *testing.T) {
@@ -389,10 +389,10 @@ func TestEditBotRoles(t *testing.T) {
 		BotName: botName,
 		Roles:   []string{"test-role"},
 		Traits: []*machineidv1.Trait{
-			{
+			machineidv1.Trait_builder{
 				Name:   "test-trait-1",
 				Values: []string{"value-1"},
-			},
+			}.Build(),
 		},
 	})
 	require.NoError(t, err)
@@ -408,11 +408,11 @@ func TestEditBotRoles(t *testing.T) {
 	assert.Equal(t, botName, bot.GetMetadata().GetName())
 	assert.Equal(t, []string{"new-new-role"}, bot.GetSpec().GetRoles())
 	assert.Equal(t, []*machineidv1.Trait{
-		{
+		machineidv1.Trait_builder{
 			Name:   "test-trait-1",
 			Values: []string{"value-1"},
-		},
-	}, bot.GetSpec().Traits)
+		}.Build(),
+	}, bot.GetSpec().GetTraits())
 	assert.Equal(t, int64((12*time.Hour)/time.Second), bot.GetSpec().GetMaxSessionTtl().GetSeconds())
 }
 
@@ -445,10 +445,10 @@ func TestEditBotTraits(t *testing.T) {
 		BotName: botName,
 		Roles:   []string{"test-role"},
 		Traits: []*machineidv1.Trait{
-			{
+			machineidv1.Trait_builder{
 				Name:   "test-trait-1",
 				Values: []string{"value-1", "value-2"},
-			},
+			}.Build(),
 		},
 	})
 	require.NoError(t, err)
@@ -472,8 +472,8 @@ func TestEditBotTraits(t *testing.T) {
 	assert.Equal(t, http.StatusOK, response.Code(), "unexpected status code updating bot")
 	assert.Equal(t, botName, bot.GetMetadata().GetName())
 	assert.Equal(t, []string{"test-role"}, bot.GetSpec().GetRoles())
-	assert.Len(t, bot.GetSpec().Traits, 2)
-	for _, trait := range bot.GetSpec().Traits {
+	assert.Len(t, bot.GetSpec().GetTraits(), 2)
+	for _, trait := range bot.GetSpec().GetTraits() {
 		// Avoid ordering race - traits are stored in a map
 		switch trait.GetName() {
 		case "test-trait-1":
@@ -514,10 +514,10 @@ func TestEditBotMaxSessionTTL(t *testing.T) {
 		BotName: botName,
 		Roles:   []string{"test-role"},
 		Traits: []*machineidv1.Trait{
-			{
+			machineidv1.Trait_builder{
 				Name:   "test-trait-1",
 				Values: []string{"value-1"},
-			},
+			}.Build(),
 		},
 	})
 	require.NoError(t, err)
@@ -540,11 +540,11 @@ func TestEditBotMaxSessionTTL(t *testing.T) {
 	assert.Equal(t, botName, updatedBot.GetMetadata().GetName())
 	assert.Equal(t, []string{"test-role"}, updatedBot.GetSpec().GetRoles())
 	assert.Equal(t, []*machineidv1.Trait{
-		{
+		machineidv1.Trait_builder{
 			Name:   "test-trait-1",
 			Values: []string{"value-1"},
-		},
-	}, updatedBot.GetSpec().Traits)
+		}.Build(),
+	}, updatedBot.GetSpec().GetTraits())
 	assert.Equal(t, int64((1*time.Hour+2*time.Minute+3*time.Second)/time.Second), updatedBot.GetSpec().GetMaxSessionTtl().GetSeconds())
 }
 
@@ -577,10 +577,10 @@ func TestEditBotDescription(t *testing.T) {
 		BotName: botName,
 		Roles:   []string{"test-role"},
 		Traits: []*machineidv1.Trait{
-			{
+			machineidv1.Trait_builder{
 				Name:   "test-trait-1",
 				Values: []string{"value-1"},
-			},
+			}.Build(),
 		},
 	})
 	require.NoError(t, err)
@@ -604,11 +604,11 @@ func TestEditBotDescription(t *testing.T) {
 	assert.Equal(t, botName, updatedBot.GetMetadata().GetName())
 	assert.Equal(t, []string{"test-role"}, updatedBot.GetSpec().GetRoles())
 	assert.Equal(t, []*machineidv1.Trait{
-		{
+		machineidv1.Trait_builder{
 			Name:   "test-trait-1",
 			Values: []string{"value-1"},
-		},
-	}, updatedBot.GetSpec().Traits)
+		}.Build(),
+	}, updatedBot.GetSpec().GetTraits())
 	assert.Equal(t, int64((12*time.Hour)/time.Second), updatedBot.GetSpec().GetMaxSessionTtl().GetSeconds())
 	assert.Equal(t, description, updatedBot.GetMetadata().GetDescription())
 }
@@ -640,28 +640,28 @@ func TestListBotInstances(t *testing.T) {
 	}
 	instanceID := uuid.New().String()
 
-	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+	_, err := env.server.Auth().CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Spec: &machineidv1.BotInstanceSpec{
+		Spec: machineidv1.BotInstanceSpec_builder{
 			BotName:    "test-bot",
 			InstanceId: instanceID,
-		},
-		Status: &machineidv1.BotInstanceStatus{
+		}.Build(),
+		Status: machineidv1.BotInstanceStatus_builder{
 			LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{
-				{
+				machineidv1.BotInstanceStatusHeartbeat_builder{
 					RecordedAt: &timestamppb.Timestamp{
 						Seconds: 2,
 						Nanos:   0,
 					},
-				},
-				{
+				}.Build(),
+				machineidv1.BotInstanceStatusHeartbeat_builder{
 					RecordedAt: &timestamppb.Timestamp{
 						Seconds: 1,
 						Nanos:   0,
 					},
-				},
-				{
+				}.Build(),
+				machineidv1.BotInstanceStatusHeartbeat_builder{
 					RecordedAt: &timestamppb.Timestamp{
 						Seconds: 3,
 						Nanos:   0,
@@ -670,31 +670,31 @@ func TestListBotInstances(t *testing.T) {
 					Hostname:   "test-hostname",
 					JoinMethod: "test-join-method",
 					Os:         "linux",
-				},
+				}.Build(),
 			},
 			LatestAuthentications: []*machineidv1.BotInstanceStatusAuthentication{
-				{
+				machineidv1.BotInstanceStatusAuthentication_builder{
 					AuthenticatedAt: &timestamppb.Timestamp{
 						Seconds: 2,
 						Nanos:   0,
 					},
-				},
-				{
+				}.Build(),
+				machineidv1.BotInstanceStatusAuthentication_builder{
 					AuthenticatedAt: &timestamppb.Timestamp{
 						Seconds: 1,
 						Nanos:   0,
 					},
-				},
-				{
+				}.Build(),
+				machineidv1.BotInstanceStatusAuthentication_builder{
 					AuthenticatedAt: &timestamppb.Timestamp{
 						Seconds: 2,
 						Nanos:   0,
 					},
 					JoinMethod: "test-join-method",
-				},
+				}.Build(),
 			},
-		},
-	})
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	for _, endpoint := range endpoints {
@@ -752,15 +752,15 @@ func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
 
 	instanceID := uuid.New().String()
 
-	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+	_, err := env.server.Auth().CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Spec: &machineidv1.BotInstanceSpec{
+		Spec: machineidv1.BotInstanceSpec_builder{
 			BotName:    "test-bot",
 			InstanceId: instanceID,
-		},
-		Status: &machineidv1.BotInstanceStatus{
-			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+		}.Build(),
+		Status: machineidv1.BotInstanceStatus_builder{
+			InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 				RecordedAt: &timestamppb.Timestamp{
 					Seconds: 3,
 					Nanos:   0,
@@ -768,13 +768,13 @@ func TestListBotInstancesWithInitialHeartbeat(t *testing.T) {
 				Version:    "1.0.0",
 				Hostname:   "test-hostname",
 				JoinMethod: "test-join-method",
-			},
+			}.Build(),
 			LatestHeartbeats: []*machineidv1.BotInstanceStatusHeartbeat{},
-			InitialAuthentication: &machineidv1.BotInstanceStatusAuthentication{
+			InitialAuthentication: machineidv1.BotInstanceStatusAuthentication_builder{
 				JoinMethod: "test-join-method",
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	for _, endpoint := range endpoints {
@@ -857,15 +857,15 @@ func TestListBotInstancesPaging(t *testing.T) {
 			for _, tc := range tcs {
 				t.Run(tc.name, func(t *testing.T) {
 					for n := range tc.numInstances {
-						_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+						_, err := env.server.Auth().CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 							Kind:    types.KindBotInstance,
 							Version: types.V1,
-							Spec: &machineidv1.BotInstanceSpec{
+							Spec: machineidv1.BotInstanceSpec_builder{
 								BotName:    "bot-1",
 								InstanceId: "instance-" + strconv.Itoa(n),
-							},
+							}.Build(),
 							Status: &machineidv1.BotInstanceStatus{},
-						})
+						}.Build())
 						require.NoError(t, err)
 					}
 
@@ -910,21 +910,21 @@ func TestListBotInstancesSorting(t *testing.T) {
 
 	for i := range 10 {
 		now := time.Now()
-		_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+		_, err := env.server.Auth().CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 			Kind:    types.KindBotInstance,
 			Version: types.V1,
-			Spec: &machineidv1.BotInstanceSpec{
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "bot-1",
 				InstanceId: uuid.New().String(),
-			},
-			Status: &machineidv1.BotInstanceStatus{
-				InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			}.Build(),
+			Status: machineidv1.BotInstanceStatus_builder{
+				InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 					RecordedAt: &timestamppb.Timestamp{
 						Seconds: now.Unix() + int64(i),
 					},
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 		require.NoError(t, err, "failed to create BotInstance index:%d", i)
 	}
 
@@ -976,15 +976,15 @@ func TestListBotInstancesWithBotFilter(t *testing.T) {
 	for n < 5 {
 		n += 1
 		botName := "bot-" + strconv.Itoa(n%2)
-		_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+		_, err := env.server.Auth().CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 			Kind:    types.KindBotInstance,
 			Version: types.V1,
-			Spec: &machineidv1.BotInstanceSpec{
+			Spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    botName,
 				InstanceId: uuid.New().String(),
-			},
+			}.Build(),
 			Status: &machineidv1.BotInstanceStatus{},
-		})
+		}.Build())
 		require.NoError(t, err)
 	}
 
@@ -1039,10 +1039,10 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 		{
 			name:       "match on bot name",
 			searchTerm: "nick",
-			spec: &machineidv1.BotInstanceSpec{
+			spec: machineidv1.BotInstanceSpec_builder{
 				BotName:    "this-is-nicks-test-bot",
 				InstanceId: "00000000-0000-0000-0000-000000000000",
-			},
+			}.Build(),
 		},
 		{
 			name:       "match on instance id",
@@ -1051,30 +1051,30 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 		{
 			name:       "match on join method",
 			searchTerm: "uber",
-			heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 				JoinMethod: "kubernetes",
-			},
+			}.Build(),
 		},
 		{
 			name:       "match on version",
 			searchTerm: "1.0.0",
-			heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 				Version: "1.0.0-dev-a2g3hd",
-			},
+			}.Build(),
 		},
 		{
 			name:       "match on version (with v)",
 			searchTerm: "v1.0.0",
-			heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 				Version: "1.0.0-dev-a2g3hd",
-			},
+			}.Build(),
 		},
 		{
 			name:       "match on hostname",
 			searchTerm: "tel-123",
-			heartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+			heartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 				Hostname: "svr-eu-tel-123-a",
-			},
+			}.Build(),
 		},
 	}
 
@@ -1084,37 +1084,37 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 				t.Run(tc.name, func(t *testing.T) {
 					spec := tc.spec
 					if spec == nil {
-						spec = &machineidv1.BotInstanceSpec{
+						spec = machineidv1.BotInstanceSpec_builder{
 							BotName:    "test-bot",
 							InstanceId: "00000000-0000-0000-0000-000000000000",
-						}
+						}.Build()
 					}
 
-					_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+					_, err := env.server.Auth().CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 						Kind:    types.KindBotInstance,
 						Version: types.V1,
 						Spec:    spec,
-						Status: &machineidv1.BotInstanceStatus{
+						Status: machineidv1.BotInstanceStatus_builder{
 							InitialHeartbeat: tc.heartbeat,
-						},
-					})
+						}.Build(),
+					}.Build())
 					require.NoError(t, err)
 
-					_, err = env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+					_, err = env.server.Auth().CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 						Kind:    types.KindBotInstance,
 						Version: types.V1,
-						Spec: &machineidv1.BotInstanceSpec{
+						Spec: machineidv1.BotInstanceSpec_builder{
 							BotName:    "bot-gone",
 							InstanceId: uuid.New().String(),
-						},
-						Status: &machineidv1.BotInstanceStatus{
-							InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+						}.Build(),
+						Status: machineidv1.BotInstanceStatus_builder{
+							InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 								Version:    "1.1.1-prod",
 								Hostname:   "test-hostname",
 								JoinMethod: "test-join-method",
-							},
-						},
-					})
+							}.Build(),
+						}.Build(),
+					}.Build())
 					require.NoError(t, err)
 
 					response, err := pack.clt.Get(ctx, endpoint, url.Values{
@@ -1130,7 +1130,7 @@ func TestListBotInstancesWithSearchTermFilter(t *testing.T) {
 					assert.Equal(t, "00000000-0000-0000-0000-000000000000", instances.BotInstances[0].InstanceId)
 
 					// remove before next test
-					err = env.server.Auth().DeleteBotInstance(ctx, spec.BotName, spec.InstanceId)
+					err = env.server.Auth().DeleteBotInstance(ctx, spec.GetBotName(), spec.GetInstanceId())
 					require.NoError(t, err)
 				})
 			}
@@ -1155,34 +1155,34 @@ func TestListBotInstancesWithQueryFilter(t *testing.T) {
 		"bot-instance",
 	)
 
-	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+	_, err := env.server.Auth().CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Spec: &machineidv1.BotInstanceSpec{
+		Spec: machineidv1.BotInstanceSpec_builder{
 			BotName:    "test-bot-1",
 			InstanceId: "00000000-0000-0000-0000-000000000000",
-		},
-		Status: &machineidv1.BotInstanceStatus{
-			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+		}.Build(),
+		Status: machineidv1.BotInstanceStatus_builder{
+			InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 				Hostname: "svr-eu-tel-123-a",
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
-	_, err = env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+	_, err = env.server.Auth().CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Spec: &machineidv1.BotInstanceSpec{
+		Spec: machineidv1.BotInstanceSpec_builder{
 			BotName:    "test-bot-2",
 			InstanceId: uuid.New().String(),
-		},
-		Status: &machineidv1.BotInstanceStatus{
-			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+		}.Build(),
+		Status: machineidv1.BotInstanceStatus_builder{
+			InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 				Hostname: "test-hostname",
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	response, err := pack.clt.Get(ctx, endpoint, url.Values{
@@ -1208,22 +1208,22 @@ func TestGetBotInstance(t *testing.T) {
 	botName := "test-bot"
 	instanceID := uuid.New().String()
 
-	_, err := env.server.Auth().CreateBotInstance(ctx, &machineidv1.BotInstance{
+	_, err := env.server.Auth().CreateBotInstance(ctx, machineidv1.BotInstance_builder{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Spec: &machineidv1.BotInstanceSpec{
+		Spec: machineidv1.BotInstanceSpec_builder{
 			BotName:    botName,
 			InstanceId: instanceID,
-		},
-		Status: &machineidv1.BotInstanceStatus{
-			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+		}.Build(),
+		Status: machineidv1.BotInstanceStatus_builder{
+			InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 				RecordedAt: &timestamppb.Timestamp{
 					Seconds: 1,
 					Nanos:   0,
 				},
-			},
-		},
-	})
+			}.Build(),
+		}.Build(),
+	}.Build())
 	require.NoError(t, err)
 
 	endpoint := pack.clt.Endpoint(
@@ -1246,20 +1246,20 @@ func TestGetBotInstance(t *testing.T) {
 	require.Empty(t, cmp.Diff(resp.BotInstance, machineidv1.BotInstance{
 		Kind:    types.KindBotInstance,
 		Version: types.V1,
-		Spec: &machineidv1.BotInstanceSpec{
+		Spec: machineidv1.BotInstanceSpec_builder{
 			BotName:    botName,
 			InstanceId: instanceID,
-		},
-		Status: &machineidv1.BotInstanceStatus{
-			InitialHeartbeat: &machineidv1.BotInstanceStatusHeartbeat{
+		}.Build(),
+		Status: machineidv1.BotInstanceStatus_builder{
+			InitialHeartbeat: machineidv1.BotInstanceStatusHeartbeat_builder{
 				RecordedAt: &timestamppb.Timestamp{
 					Seconds: 1,
 					Nanos:   0,
 				},
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}, protocmp.Transform(), protocmp.IgnoreFields(&machineidv1.BotInstance{}, "metadata")))
-	assert.YAMLEq(t, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus:\n  initial_heartbeat:\n    recorded_at: \"1970-01-01T00:00:01Z\"\nversion: v1\n", instanceID, resp.BotInstance.Metadata.Revision), resp.YAML)
+	assert.YAMLEq(t, fmt.Sprintf("kind: bot_instance\nmetadata:\n  name: %[1]s\n  revision: %[2]s\nspec:\n  bot_name: test-bot\n  instance_id: %[1]s\nstatus:\n  initial_heartbeat:\n    recorded_at: \"1970-01-01T00:00:01Z\"\nversion: v1\n", instanceID, resp.BotInstance.GetMetadata().GetRevision()), resp.YAML)
 }
 
 func TestBotInstanceMetrics_NotFound(t *testing.T) {
@@ -1289,35 +1289,35 @@ func TestBotInstanceMetrics_Success(t *testing.T) {
 	const targetVersion = "19.1.1"
 
 	_, err := env.server.Auth().
-		CreateAutoUpdateVersion(ctx, &autoupdate.AutoUpdateVersion{
+		CreateAutoUpdateVersion(ctx, autoupdate.AutoUpdateVersion_builder{
 			Kind:    types.KindAutoUpdateVersion,
 			Version: types.V1,
-			Metadata: &headerv1.Metadata{
+			Metadata: headerv1.Metadata_builder{
 				Name: types.MetaNameAutoUpdateVersion,
-			},
-			Spec: &autoupdate.AutoUpdateVersionSpec{
-				Tools: &autoupdate.AutoUpdateVersionSpecTools{
+			}.Build(),
+			Spec: autoupdate.AutoUpdateVersionSpec_builder{
+				Tools: autoupdate.AutoUpdateVersionSpecTools_builder{
 					TargetVersion: targetVersion,
-				},
-			},
-		})
+				}.Build(),
+			}.Build(),
+		}.Build())
 	require.NoError(t, err)
 
-	report, err := update.NewAutoUpdateBotInstanceReport(&autoupdate.AutoUpdateBotInstanceReportSpec{
+	report, err := update.NewAutoUpdateBotInstanceReport(autoupdate.AutoUpdateBotInstanceReportSpec_builder{
 		Timestamp: timestamppb.New(env.clock.Now()),
 		Groups: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroup{
-			"prod": {
+			"prod": autoupdate.AutoUpdateBotInstanceReportSpecGroup_builder{
 				Versions: map[string]*autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion{
-					"19.1.1":     {Count: 1},      // Up to date
-					"19.2.0":     {Count: 10},     // Unsupported (too new)
-					"19.1.0":     {Count: 100},    // Patch available
-					"19.0.0-rc1": {Count: 1000},   // Patch available
-					"18.0.0":     {Count: 10000},  // Requires upgrade
-					"17.0.0":     {Count: 100000}, // Unsupported (too old)
+					"19.1.1":     autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 1}.Build(),      // Up to date
+					"19.2.0":     autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 10}.Build(),     // Unsupported (too new)
+					"19.1.0":     autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 100}.Build(),    // Patch available
+					"19.0.0-rc1": autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 1000}.Build(),   // Patch available
+					"18.0.0":     autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 10000}.Build(),  // Requires upgrade
+					"17.0.0":     autoupdate.AutoUpdateBotInstanceReportSpecGroupVersion_builder{Count: 100000}.Build(), // Unsupported (too old)
 				},
-			},
+			}.Build(),
 		},
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	_, err = env.server.Auth().UpsertAutoUpdateBotInstanceReport(ctx, report)

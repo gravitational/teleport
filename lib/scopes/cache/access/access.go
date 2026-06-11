@@ -376,11 +376,11 @@ func (c *Cache) fetchAndWatch(ctx context.Context, retry retryutils.Retry) error
 				return trace.Errorf("failed to process event: %w", err)
 			}
 		case event := <-aclWatcher.Events():
-			if err := materializer.ProcessEvent(ctx, state, event); err != nil {
+			if err := materializer.ProcessEvent(ctx, event); err != nil {
 				return trace.Errorf("materializer failed during event processing: %w", err)
 			}
 		case event := <-materializer.RepairEvents():
-			materializer.ProcessRepairEvent(ctx, state, event)
+			materializer.ProcessRepairEvent(ctx, event)
 		case <-watcher.Done():
 			if err := watcher.Error(); err != nil {
 				// watcher errors are expected if the watcher is closed before init completes.
@@ -487,7 +487,7 @@ func (c *Cache) read(ctx context.Context) (state, error) {
 }
 
 // fetch loads all currently available roles and assignments from the upstream and builds a cache state.
-func (c *Cache) fetch(ctx context.Context) (state, *materializer, error) {
+func (c *Cache) fetch(ctx context.Context) (state, *Materializer, error) {
 	roleCache := roles.NewRoleCache()
 
 	for role, err := range scopedutils.RangeScopedRoles(ctx, c.cfg.Reader, &scopedaccessv1.ListScopedRolesRequest{}) {
@@ -517,8 +517,8 @@ func (c *Cache) fetch(ctx context.Context) (state, *materializer, error) {
 		assignments: assignmentCache,
 	}
 
-	materializer := newMaterializer(c.cfg.AccessListReader, c.cfg.Tracer)
-	if err := materializer.Init(ctx, s); err != nil {
+	materializer := NewMaterializer(assignmentCache, c.cfg.AccessListReader, c.cfg.Tracer)
+	if err := materializer.Init(ctx); err != nil {
 		return s, nil, trace.Wrap(err)
 	}
 

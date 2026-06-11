@@ -1057,6 +1057,10 @@ const (
 	// SchemeLLMEndpoint is a URI scheme for LLM inference endpoints.
 	SchemeLLMEndpoint = "llm"
 
+	// SchemeTLS is a URI scheme for TCP apps that Teleport terminate TLS
+	// connections with upstream.
+	SchemeTLS = "tls"
+
 	// DiscoveredResourceNode identifies a discovered SSH node.
 	DiscoveredResourceNode = "node"
 	// DiscoveredResourceDatabase identifies a discovered database.
@@ -1351,16 +1355,23 @@ const (
 	// AppSubKindLabel is the label that has the same value of "app.sub_kind".
 	AppSubKindLabel = TeleportInternalLabelPrefix + "app-sub-kind"
 
+	// BeamsInternalLabelPrefix is the prefix used by internal beams labels.
+	BeamsInternalLabelPrefix = TeleportInternalLabelPrefix + "beams/"
+
 	// BeamIDLabel is the label used to track which Beam a resource belongs to.
-	BeamIDLabel = TeleportInternalLabelPrefix + "beams/id"
+	BeamIDLabel = BeamsInternalLabelPrefix + "id"
 
 	// BeamOwnerLabel is the label used to track which user's Beam a resource
 	// belongs to.
-	BeamOwnerLabel = TeleportInternalLabelPrefix + "beams/owner"
+	BeamOwnerLabel = BeamsInternalLabelPrefix + "owner"
 
 	// BeamAliasLabel is the label used to track the alias of the Beam a
 	// resource belongs to.
-	BeamAliasLabel = TeleportInternalLabelPrefix + "beams/alias"
+	BeamAliasLabel = BeamsInternalLabelPrefix + "alias"
+
+	// BeamAppTypeLabel is the label used to denote the type of app created for
+	// Beams. Valid values: "ingress" and "llm".
+	BeamAppTypeLabel = BeamsInternalLabelPrefix + "app-type"
 )
 
 const (
@@ -1707,6 +1718,11 @@ const (
 	KubeVerbExec = "exec"
 	// KubeVerbPortForward is the Kubernetes verb for "pod/portforward".
 	KubeVerbPortForward = "portforward"
+	// KubeVerbProxy is the Kubernetes verb for the pods/proxy,
+	// services/proxy, and nodes/proxy subresources. These endpoints
+	// reach pod ports, service endpoints, or the kubelet API over HTTP
+	// (distinct from portforward, which tunnels raw TCP).
+	KubeVerbProxy = "proxy"
 )
 
 // The list below needs to be kept in sync with `kubernetesResourceVerbOptions`
@@ -1727,6 +1743,7 @@ var KubernetesVerbs = []string{
 	KubeVerbDeleteCollection,
 	KubeVerbExec,
 	KubeVerbPortForward,
+	KubeVerbProxy,
 }
 
 // KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
@@ -1862,6 +1879,12 @@ const (
 	ApplicationProtocolHTTP = "HTTP"
 	// ApplicationProtocolTCP is the TCP apps protocol.
 	ApplicationProtocolTCP = "TCP"
+	// ApplicationProtocolMCP is the protocol for MCP (Model Context Protocol)
+	// server applications.
+	ApplicationProtocolMCP = "MCP"
+	// ApplicationProtocolLLM is the protocol for applications that expose an
+	// LLM inference endpoint.
+	ApplicationProtocolLLM = "LLM"
 )
 
 const (
@@ -1940,3 +1963,6 @@ const (
 // BuiltInAutomaticReview is used within access monitoring rules and indicates
 // that the automatic_review rule should be monitored by Teleport.
 const BuiltInAutomaticReview = "builtin"
+
+// BeamsLogin is the login that should be used when SSHing into beams.
+const BeamsLogin = "beams"

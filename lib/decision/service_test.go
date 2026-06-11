@@ -33,6 +33,7 @@ func TestLockTargetConversion(t *testing.T) {
 		Login:          "login",
 		MFADevice:      "mfadevice",
 		WindowsDesktop: "windows",
+		LinuxDesktop:   "linux",
 		AccessRequest:  "request",
 		Device:         "device",
 		ServerID:       "server",

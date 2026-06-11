@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/externalauditstorage/v1/externalauditstorage_service.proto
 
+//go:build !protoopaque
+
 package externalauditstoragev1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 // GetDraftExternalAuditStorageRequest is a request to get the draft external
 // audit storage configuration.
 type GetDraftExternalAuditStorageRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -69,15 +70,22 @@ func (x *GetDraftExternalAuditStorageRequest) ProtoReflect() protoreflect.Messag
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetDraftExternalAuditStorageRequest.ProtoReflect.Descriptor instead.
-func (*GetDraftExternalAuditStorageRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{0}
+type GetDraftExternalAuditStorageRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetDraftExternalAuditStorageRequest_builder) Build() *GetDraftExternalAuditStorageRequest {
+	m0 := &GetDraftExternalAuditStorageRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GetDraftExternalAuditStorageResponse is a response to getting the draft
 // external audit storage configuration.
 type GetDraftExternalAuditStorageResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ExternalAuditStorage is the current draft ExternalAuditStorage.
 	ExternalAuditStorage *ExternalAuditStorage `protobuf:"bytes,1,opt,name=external_audit_storage,json=externalAuditStorage,proto3" json:"external_audit_storage,omitempty"`
 	unknownFields        protoimpl.UnknownFields
@@ -109,11 +117,6 @@ func (x *GetDraftExternalAuditStorageResponse) ProtoReflect() protoreflect.Messa
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetDraftExternalAuditStorageResponse.ProtoReflect.Descriptor instead.
-func (*GetDraftExternalAuditStorageResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetDraftExternalAuditStorageResponse) GetExternalAuditStorage() *ExternalAuditStorage {
 	if x != nil {
 		return x.ExternalAuditStorage
@@ -121,10 +124,40 @@ func (x *GetDraftExternalAuditStorageResponse) GetExternalAuditStorage() *Extern
 	return nil
 }
 
+func (x *GetDraftExternalAuditStorageResponse) SetExternalAuditStorage(v *ExternalAuditStorage) {
+	x.ExternalAuditStorage = v
+}
+
+func (x *GetDraftExternalAuditStorageResponse) HasExternalAuditStorage() bool {
+	if x == nil {
+		return false
+	}
+	return x.ExternalAuditStorage != nil
+}
+
+func (x *GetDraftExternalAuditStorageResponse) ClearExternalAuditStorage() {
+	x.ExternalAuditStorage = nil
+}
+
+type GetDraftExternalAuditStorageResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ExternalAuditStorage is the current draft ExternalAuditStorage.
+	ExternalAuditStorage *ExternalAuditStorage
+}
+
+func (b0 GetDraftExternalAuditStorageResponse_builder) Build() *GetDraftExternalAuditStorageResponse {
+	m0 := &GetDraftExternalAuditStorageResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ExternalAuditStorage = b.ExternalAuditStorage
+	return m0
+}
+
 // CreateDraftExternalAuditStorageRequest is a request to create the provided
 // draft external audit storage configuration if one does not already exist.
 type CreateDraftExternalAuditStorageRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ExternalAuditStorage is the ExternalAuditStorage to be created.
 	ExternalAuditStorage *ExternalAuditStorage `protobuf:"bytes,1,opt,name=external_audit_storage,json=externalAuditStorage,proto3" json:"external_audit_storage,omitempty"`
 	unknownFields        protoimpl.UnknownFields
@@ -156,11 +189,6 @@ func (x *CreateDraftExternalAuditStorageRequest) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateDraftExternalAuditStorageRequest.ProtoReflect.Descriptor instead.
-func (*CreateDraftExternalAuditStorageRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *CreateDraftExternalAuditStorageRequest) GetExternalAuditStorage() *ExternalAuditStorage {
 	if x != nil {
 		return x.ExternalAuditStorage
@@ -168,10 +196,40 @@ func (x *CreateDraftExternalAuditStorageRequest) GetExternalAuditStorage() *Exte
 	return nil
 }
 
+func (x *CreateDraftExternalAuditStorageRequest) SetExternalAuditStorage(v *ExternalAuditStorage) {
+	x.ExternalAuditStorage = v
+}
+
+func (x *CreateDraftExternalAuditStorageRequest) HasExternalAuditStorage() bool {
+	if x == nil {
+		return false
+	}
+	return x.ExternalAuditStorage != nil
+}
+
+func (x *CreateDraftExternalAuditStorageRequest) ClearExternalAuditStorage() {
+	x.ExternalAuditStorage = nil
+}
+
+type CreateDraftExternalAuditStorageRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ExternalAuditStorage is the ExternalAuditStorage to be created.
+	ExternalAuditStorage *ExternalAuditStorage
+}
+
+func (b0 CreateDraftExternalAuditStorageRequest_builder) Build() *CreateDraftExternalAuditStorageRequest {
+	m0 := &CreateDraftExternalAuditStorageRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ExternalAuditStorage = b.ExternalAuditStorage
+	return m0
+}
+
 // CreateDraftExternalAuditStorageResponse is a response to creating the draft
 // external audit storage configuration.
 type CreateDraftExternalAuditStorageResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ExternalAuditStorage is the ExternalAuditStorage that was created.
 	ExternalAuditStorage *ExternalAuditStorage `protobuf:"bytes,1,opt,name=external_audit_storage,json=externalAuditStorage,proto3" json:"external_audit_storage,omitempty"`
 	unknownFields        protoimpl.UnknownFields
@@ -203,11 +261,6 @@ func (x *CreateDraftExternalAuditStorageResponse) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateDraftExternalAuditStorageResponse.ProtoReflect.Descriptor instead.
-func (*CreateDraftExternalAuditStorageResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *CreateDraftExternalAuditStorageResponse) GetExternalAuditStorage() *ExternalAuditStorage {
 	if x != nil {
 		return x.ExternalAuditStorage
@@ -215,10 +268,40 @@ func (x *CreateDraftExternalAuditStorageResponse) GetExternalAuditStorage() *Ext
 	return nil
 }
 
+func (x *CreateDraftExternalAuditStorageResponse) SetExternalAuditStorage(v *ExternalAuditStorage) {
+	x.ExternalAuditStorage = v
+}
+
+func (x *CreateDraftExternalAuditStorageResponse) HasExternalAuditStorage() bool {
+	if x == nil {
+		return false
+	}
+	return x.ExternalAuditStorage != nil
+}
+
+func (x *CreateDraftExternalAuditStorageResponse) ClearExternalAuditStorage() {
+	x.ExternalAuditStorage = nil
+}
+
+type CreateDraftExternalAuditStorageResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ExternalAuditStorage is the ExternalAuditStorage that was created.
+	ExternalAuditStorage *ExternalAuditStorage
+}
+
+func (b0 CreateDraftExternalAuditStorageResponse_builder) Build() *CreateDraftExternalAuditStorageResponse {
+	m0 := &CreateDraftExternalAuditStorageResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ExternalAuditStorage = b.ExternalAuditStorage
+	return m0
+}
+
 // UpsertDraftExternalAuditStorageRequest is a request to upsert the provided
 // draft external audit storage configuration.
 type UpsertDraftExternalAuditStorageRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ExternalAuditStorage is the ExternalAuditStorage to be upserted.
 	ExternalAuditStorage *ExternalAuditStorage `protobuf:"bytes,1,opt,name=external_audit_storage,json=externalAuditStorage,proto3" json:"external_audit_storage,omitempty"`
 	unknownFields        protoimpl.UnknownFields
@@ -250,11 +333,6 @@ func (x *UpsertDraftExternalAuditStorageRequest) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertDraftExternalAuditStorageRequest.ProtoReflect.Descriptor instead.
-func (*UpsertDraftExternalAuditStorageRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *UpsertDraftExternalAuditStorageRequest) GetExternalAuditStorage() *ExternalAuditStorage {
 	if x != nil {
 		return x.ExternalAuditStorage
@@ -262,10 +340,40 @@ func (x *UpsertDraftExternalAuditStorageRequest) GetExternalAuditStorage() *Exte
 	return nil
 }
 
+func (x *UpsertDraftExternalAuditStorageRequest) SetExternalAuditStorage(v *ExternalAuditStorage) {
+	x.ExternalAuditStorage = v
+}
+
+func (x *UpsertDraftExternalAuditStorageRequest) HasExternalAuditStorage() bool {
+	if x == nil {
+		return false
+	}
+	return x.ExternalAuditStorage != nil
+}
+
+func (x *UpsertDraftExternalAuditStorageRequest) ClearExternalAuditStorage() {
+	x.ExternalAuditStorage = nil
+}
+
+type UpsertDraftExternalAuditStorageRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ExternalAuditStorage is the ExternalAuditStorage to be upserted.
+	ExternalAuditStorage *ExternalAuditStorage
+}
+
+func (b0 UpsertDraftExternalAuditStorageRequest_builder) Build() *UpsertDraftExternalAuditStorageRequest {
+	m0 := &UpsertDraftExternalAuditStorageRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ExternalAuditStorage = b.ExternalAuditStorage
+	return m0
+}
+
 // UpsertDraftExternalAuditStorageResponse is a response to upserting the draft
 // external audit storage configuration.
 type UpsertDraftExternalAuditStorageResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ExternalAuditStorage is the ExternalAuditStorage that was upserted.
 	ExternalAuditStorage *ExternalAuditStorage `protobuf:"bytes,1,opt,name=external_audit_storage,json=externalAuditStorage,proto3" json:"external_audit_storage,omitempty"`
 	unknownFields        protoimpl.UnknownFields
@@ -297,11 +405,6 @@ func (x *UpsertDraftExternalAuditStorageResponse) ProtoReflect() protoreflect.Me
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertDraftExternalAuditStorageResponse.ProtoReflect.Descriptor instead.
-func (*UpsertDraftExternalAuditStorageResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *UpsertDraftExternalAuditStorageResponse) GetExternalAuditStorage() *ExternalAuditStorage {
 	if x != nil {
 		return x.ExternalAuditStorage
@@ -309,10 +412,40 @@ func (x *UpsertDraftExternalAuditStorageResponse) GetExternalAuditStorage() *Ext
 	return nil
 }
 
+func (x *UpsertDraftExternalAuditStorageResponse) SetExternalAuditStorage(v *ExternalAuditStorage) {
+	x.ExternalAuditStorage = v
+}
+
+func (x *UpsertDraftExternalAuditStorageResponse) HasExternalAuditStorage() bool {
+	if x == nil {
+		return false
+	}
+	return x.ExternalAuditStorage != nil
+}
+
+func (x *UpsertDraftExternalAuditStorageResponse) ClearExternalAuditStorage() {
+	x.ExternalAuditStorage = nil
+}
+
+type UpsertDraftExternalAuditStorageResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ExternalAuditStorage is the ExternalAuditStorage that was upserted.
+	ExternalAuditStorage *ExternalAuditStorage
+}
+
+func (b0 UpsertDraftExternalAuditStorageResponse_builder) Build() *UpsertDraftExternalAuditStorageResponse {
+	m0 := &UpsertDraftExternalAuditStorageResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ExternalAuditStorage = b.ExternalAuditStorage
+	return m0
+}
+
 // DeleteDraftExternalAuditStorageRequest is a request to delete a draft External
 // Audit Storage configuration.
 type DeleteDraftExternalAuditStorageRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -342,15 +475,22 @@ func (x *DeleteDraftExternalAuditStorageRequest) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteDraftExternalAuditStorageRequest.ProtoReflect.Descriptor instead.
-func (*DeleteDraftExternalAuditStorageRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{6}
+type DeleteDraftExternalAuditStorageRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteDraftExternalAuditStorageRequest_builder) Build() *DeleteDraftExternalAuditStorageRequest {
+	m0 := &DeleteDraftExternalAuditStorageRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // PromoteToClusterExternalAuditStorageRequest is a request to promote the current
 // draft to cluster external audit storage.
 type PromoteToClusterExternalAuditStorageRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -380,15 +520,22 @@ func (x *PromoteToClusterExternalAuditStorageRequest) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PromoteToClusterExternalAuditStorageRequest.ProtoReflect.Descriptor instead.
-func (*PromoteToClusterExternalAuditStorageRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{7}
+type PromoteToClusterExternalAuditStorageRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 PromoteToClusterExternalAuditStorageRequest_builder) Build() *PromoteToClusterExternalAuditStorageRequest {
+	m0 := &PromoteToClusterExternalAuditStorageRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // PromoteToClusterExternalAuditStorageResponse is a response of promote the
 // current draft to cluster external audit storage.
 type PromoteToClusterExternalAuditStorageResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClusterExternalAuditStorage is the ExternalAuditStorage will be used in cluster.
 	ClusterExternalAuditStorage *ExternalAuditStorage `protobuf:"bytes,1,opt,name=cluster_external_audit_storage,json=clusterExternalAuditStorage,proto3" json:"cluster_external_audit_storage,omitempty"`
 	unknownFields               protoimpl.UnknownFields
@@ -420,11 +567,6 @@ func (x *PromoteToClusterExternalAuditStorageResponse) ProtoReflect() protorefle
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use PromoteToClusterExternalAuditStorageResponse.ProtoReflect.Descriptor instead.
-func (*PromoteToClusterExternalAuditStorageResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *PromoteToClusterExternalAuditStorageResponse) GetClusterExternalAuditStorage() *ExternalAuditStorage {
 	if x != nil {
 		return x.ClusterExternalAuditStorage
@@ -432,10 +574,40 @@ func (x *PromoteToClusterExternalAuditStorageResponse) GetClusterExternalAuditSt
 	return nil
 }
 
+func (x *PromoteToClusterExternalAuditStorageResponse) SetClusterExternalAuditStorage(v *ExternalAuditStorage) {
+	x.ClusterExternalAuditStorage = v
+}
+
+func (x *PromoteToClusterExternalAuditStorageResponse) HasClusterExternalAuditStorage() bool {
+	if x == nil {
+		return false
+	}
+	return x.ClusterExternalAuditStorage != nil
+}
+
+func (x *PromoteToClusterExternalAuditStorageResponse) ClearClusterExternalAuditStorage() {
+	x.ClusterExternalAuditStorage = nil
+}
+
+type PromoteToClusterExternalAuditStorageResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClusterExternalAuditStorage is the ExternalAuditStorage will be used in cluster.
+	ClusterExternalAuditStorage *ExternalAuditStorage
+}
+
+func (b0 PromoteToClusterExternalAuditStorageResponse_builder) Build() *PromoteToClusterExternalAuditStorageResponse {
+	m0 := &PromoteToClusterExternalAuditStorageResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClusterExternalAuditStorage = b.ClusterExternalAuditStorage
+	return m0
+}
+
 // GetClusterExternalAuditStorageRequest is a request to get an cluster External
 // Audit Storage configuration.
 type GetClusterExternalAuditStorageRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -465,15 +637,22 @@ func (x *GetClusterExternalAuditStorageRequest) ProtoReflect() protoreflect.Mess
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetClusterExternalAuditStorageRequest.ProtoReflect.Descriptor instead.
-func (*GetClusterExternalAuditStorageRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{9}
+type GetClusterExternalAuditStorageRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 GetClusterExternalAuditStorageRequest_builder) Build() *GetClusterExternalAuditStorageRequest {
+	m0 := &GetClusterExternalAuditStorageRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GetClusterExternalAuditStorageResponse is a response of getting an cluster
 // external audit storage configuration.
 type GetClusterExternalAuditStorageResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ClusterExternalAuditStorage contains name of external audit storage.
 	ClusterExternalAuditStorage *ExternalAuditStorage `protobuf:"bytes,1,opt,name=cluster_external_audit_storage,json=clusterExternalAuditStorage,proto3" json:"cluster_external_audit_storage,omitempty"`
 	unknownFields               protoimpl.UnknownFields
@@ -505,11 +684,6 @@ func (x *GetClusterExternalAuditStorageResponse) ProtoReflect() protoreflect.Mes
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetClusterExternalAuditStorageResponse.ProtoReflect.Descriptor instead.
-func (*GetClusterExternalAuditStorageResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *GetClusterExternalAuditStorageResponse) GetClusterExternalAuditStorage() *ExternalAuditStorage {
 	if x != nil {
 		return x.ClusterExternalAuditStorage
@@ -517,10 +691,40 @@ func (x *GetClusterExternalAuditStorageResponse) GetClusterExternalAuditStorage(
 	return nil
 }
 
+func (x *GetClusterExternalAuditStorageResponse) SetClusterExternalAuditStorage(v *ExternalAuditStorage) {
+	x.ClusterExternalAuditStorage = v
+}
+
+func (x *GetClusterExternalAuditStorageResponse) HasClusterExternalAuditStorage() bool {
+	if x == nil {
+		return false
+	}
+	return x.ClusterExternalAuditStorage != nil
+}
+
+func (x *GetClusterExternalAuditStorageResponse) ClearClusterExternalAuditStorage() {
+	x.ClusterExternalAuditStorage = nil
+}
+
+type GetClusterExternalAuditStorageResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ClusterExternalAuditStorage contains name of external audit storage.
+	ClusterExternalAuditStorage *ExternalAuditStorage
+}
+
+func (b0 GetClusterExternalAuditStorageResponse_builder) Build() *GetClusterExternalAuditStorageResponse {
+	m0 := &GetClusterExternalAuditStorageResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ClusterExternalAuditStorage = b.ClusterExternalAuditStorage
+	return m0
+}
+
 // DisableClusterExternalAuditStorageRequest is a request for disabling cluster
 // external audit storage.
 type DisableClusterExternalAuditStorageRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -550,15 +754,22 @@ func (x *DisableClusterExternalAuditStorageRequest) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DisableClusterExternalAuditStorageRequest.ProtoReflect.Descriptor instead.
-func (*DisableClusterExternalAuditStorageRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{11}
+type DisableClusterExternalAuditStorageRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DisableClusterExternalAuditStorageRequest_builder) Build() *DisableClusterExternalAuditStorageRequest {
+	m0 := &DisableClusterExternalAuditStorageRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // GenerateDraftExternalAuditStorageRequest is a request for
 // GenerateDraftExternalAuditStorage.
 type GenerateDraftExternalAuditStorageRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// IntegrationName is name of existing AWS OIDC integration used to get AWS
 	// credentials.
 	IntegrationName string `protobuf:"bytes,1,opt,name=integration_name,json=integrationName,proto3" json:"integration_name,omitempty"`
@@ -593,11 +804,6 @@ func (x *GenerateDraftExternalAuditStorageRequest) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateDraftExternalAuditStorageRequest.ProtoReflect.Descriptor instead.
-func (*GenerateDraftExternalAuditStorageRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *GenerateDraftExternalAuditStorageRequest) GetIntegrationName() string {
 	if x != nil {
 		return x.IntegrationName
@@ -612,10 +818,37 @@ func (x *GenerateDraftExternalAuditStorageRequest) GetRegion() string {
 	return ""
 }
 
+func (x *GenerateDraftExternalAuditStorageRequest) SetIntegrationName(v string) {
+	x.IntegrationName = v
+}
+
+func (x *GenerateDraftExternalAuditStorageRequest) SetRegion(v string) {
+	x.Region = v
+}
+
+type GenerateDraftExternalAuditStorageRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// IntegrationName is name of existing AWS OIDC integration used to get AWS
+	// credentials.
+	IntegrationName string
+	// Region is the AWS region where infrastructure is hosted.
+	Region string
+}
+
+func (b0 GenerateDraftExternalAuditStorageRequest_builder) Build() *GenerateDraftExternalAuditStorageRequest {
+	m0 := &GenerateDraftExternalAuditStorageRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.IntegrationName = b.IntegrationName
+	x.Region = b.Region
+	return m0
+}
+
 // GenerateDraftExternalAuditStorageResponse is a response for
 // GenerateDraftExternalAuditStorage.
 type GenerateDraftExternalAuditStorageResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ExternalAuditStorage is the generated ExternalAuditStorage that has been set as
 	// the current draft.
 	ExternalAuditStorage *ExternalAuditStorage `protobuf:"bytes,1,opt,name=external_audit_storage,json=externalAuditStorage,proto3" json:"external_audit_storage,omitempty"`
@@ -648,11 +881,6 @@ func (x *GenerateDraftExternalAuditStorageResponse) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GenerateDraftExternalAuditStorageResponse.ProtoReflect.Descriptor instead.
-func (*GenerateDraftExternalAuditStorageResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *GenerateDraftExternalAuditStorageResponse) GetExternalAuditStorage() *ExternalAuditStorage {
 	if x != nil {
 		return x.ExternalAuditStorage
@@ -660,10 +888,41 @@ func (x *GenerateDraftExternalAuditStorageResponse) GetExternalAuditStorage() *E
 	return nil
 }
 
+func (x *GenerateDraftExternalAuditStorageResponse) SetExternalAuditStorage(v *ExternalAuditStorage) {
+	x.ExternalAuditStorage = v
+}
+
+func (x *GenerateDraftExternalAuditStorageResponse) HasExternalAuditStorage() bool {
+	if x == nil {
+		return false
+	}
+	return x.ExternalAuditStorage != nil
+}
+
+func (x *GenerateDraftExternalAuditStorageResponse) ClearExternalAuditStorage() {
+	x.ExternalAuditStorage = nil
+}
+
+type GenerateDraftExternalAuditStorageResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ExternalAuditStorage is the generated ExternalAuditStorage that has been set as
+	// the current draft.
+	ExternalAuditStorage *ExternalAuditStorage
+}
+
+func (b0 GenerateDraftExternalAuditStorageResponse_builder) Build() *GenerateDraftExternalAuditStorageResponse {
+	m0 := &GenerateDraftExternalAuditStorageResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ExternalAuditStorage = b.ExternalAuditStorage
+	return m0
+}
+
 // TestDraftExternalAuditStorageBucketsRequest is a request to test the connection of
 // the current draft external audit storage configuration buckets.
 type TestDraftExternalAuditStorageBucketsRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -693,15 +952,22 @@ func (x *TestDraftExternalAuditStorageBucketsRequest) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestDraftExternalAuditStorageBucketsRequest.ProtoReflect.Descriptor instead.
-func (*TestDraftExternalAuditStorageBucketsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{14}
+type TestDraftExternalAuditStorageBucketsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 TestDraftExternalAuditStorageBucketsRequest_builder) Build() *TestDraftExternalAuditStorageBucketsRequest {
+	m0 := &TestDraftExternalAuditStorageBucketsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // TestDraftExternalAuditStorageBucketsResponse is a response from testing the connection
 // of the current draft external audit storage configuration buckets.
 type TestDraftExternalAuditStorageBucketsResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -731,15 +997,22 @@ func (x *TestDraftExternalAuditStorageBucketsResponse) ProtoReflect() protorefle
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestDraftExternalAuditStorageBucketsResponse.ProtoReflect.Descriptor instead.
-func (*TestDraftExternalAuditStorageBucketsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{15}
+type TestDraftExternalAuditStorageBucketsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 TestDraftExternalAuditStorageBucketsResponse_builder) Build() *TestDraftExternalAuditStorageBucketsResponse {
+	m0 := &TestDraftExternalAuditStorageBucketsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // TestDraftExternalAuditStorageGlueRequest is a request to test the connection of
 // the current draft external audit storage configuration glue table.
 type TestDraftExternalAuditStorageGlueRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -769,15 +1042,22 @@ func (x *TestDraftExternalAuditStorageGlueRequest) ProtoReflect() protoreflect.M
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestDraftExternalAuditStorageGlueRequest.ProtoReflect.Descriptor instead.
-func (*TestDraftExternalAuditStorageGlueRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{16}
+type TestDraftExternalAuditStorageGlueRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 TestDraftExternalAuditStorageGlueRequest_builder) Build() *TestDraftExternalAuditStorageGlueRequest {
+	m0 := &TestDraftExternalAuditStorageGlueRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // TestDraftExternalAuditStorageGlueResponse is a response from testing the connection
 // of the current draft external audit storage configuration glue table.
 type TestDraftExternalAuditStorageGlueResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -807,15 +1087,22 @@ func (x *TestDraftExternalAuditStorageGlueResponse) ProtoReflect() protoreflect.
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestDraftExternalAuditStorageGlueResponse.ProtoReflect.Descriptor instead.
-func (*TestDraftExternalAuditStorageGlueResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{17}
+type TestDraftExternalAuditStorageGlueResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 TestDraftExternalAuditStorageGlueResponse_builder) Build() *TestDraftExternalAuditStorageGlueResponse {
+	m0 := &TestDraftExternalAuditStorageGlueResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // TestDraftExternalAuditStorageAthenaRequest is a request to test the connection of
 // the current draft external audit storage configuration athena.
 type TestDraftExternalAuditStorageAthenaRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -845,15 +1132,22 @@ func (x *TestDraftExternalAuditStorageAthenaRequest) ProtoReflect() protoreflect
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestDraftExternalAuditStorageAthenaRequest.ProtoReflect.Descriptor instead.
-func (*TestDraftExternalAuditStorageAthenaRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{18}
+type TestDraftExternalAuditStorageAthenaRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 TestDraftExternalAuditStorageAthenaRequest_builder) Build() *TestDraftExternalAuditStorageAthenaRequest {
+	m0 := &TestDraftExternalAuditStorageAthenaRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // TestDraftExternalAuditStorageAthenaResponse is a response from testing the connection
 // of the current draft external audit storage configuration athena.
 type TestDraftExternalAuditStorageAthenaResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -883,9 +1177,16 @@ func (x *TestDraftExternalAuditStorageAthenaResponse) ProtoReflect() protoreflec
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use TestDraftExternalAuditStorageAthenaResponse.ProtoReflect.Descriptor instead.
-func (*TestDraftExternalAuditStorageAthenaResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP(), []int{19}
+type TestDraftExternalAuditStorageAthenaResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 TestDraftExternalAuditStorageAthenaResponse_builder) Build() *TestDraftExternalAuditStorageAthenaResponse {
+	m0 := &TestDraftExternalAuditStorageAthenaResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_externalauditstorage_v1_externalauditstorage_service_proto protoreflect.FileDescriptor
@@ -935,18 +1236,6 @@ const file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_r
 	"$TestDraftExternalAuditStorageBuckets\x12M.teleport.externalauditstorage.v1.TestDraftExternalAuditStorageBucketsRequest\x1aN.teleport.externalauditstorage.v1.TestDraftExternalAuditStorageBucketsResponse\x12\xbc\x01\n" +
 	"!TestDraftExternalAuditStorageGlue\x12J.teleport.externalauditstorage.v1.TestDraftExternalAuditStorageGlueRequest\x1aK.teleport.externalauditstorage.v1.TestDraftExternalAuditStorageGlueResponse\x12\xc2\x01\n" +
 	"#TestDraftExternalAuditStorageAthena\x12L.teleport.externalauditstorage.v1.TestDraftExternalAuditStorageAthenaRequest\x1aM.teleport.externalauditstorage.v1.TestDraftExternalAuditStorageAthenaResponseBlZjgithub.com/gravitational/teleport/api/gen/proto/go/teleport/externalauditstorage/v1;externalauditstoragev1b\x06proto3"
-
-var (
-	file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescOnce sync.Once
-	file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescData []byte
-)
-
-func file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescGZIP() []byte {
-	file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescOnce.Do(func() {
-		file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDesc), len(file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDesc)))
-	})
-	return file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_rawDescData
-}
 
 var file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
 var file_teleport_externalauditstorage_v1_externalauditstorage_service_proto_goTypes = []any{

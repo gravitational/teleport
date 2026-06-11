@@ -176,6 +176,11 @@ type Request struct {
 	// DelegationSessionID is the ID of the Delegation Session this certificate
 	// is being generated for.
 	DelegationSessionID string
+	// HeadlessAuthenticationID is the ID of the headless authentication
+	// resource this certificate is being generated for.
+	HeadlessAuthenticationID string
+	// Login is the SSH login (OS username) the user is requesting to connect as.
+	Login string
 }
 
 // Check verifies the cert request is valid.

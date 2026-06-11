@@ -141,7 +141,7 @@ export function Account({
           </Danger>
         )}
         <Flex flexDirection="row" gap={4} maxWidth={'1440px'} margin={'0 auto'}>
-          <Flex flexDirection="column" gap={1} width="16rem">
+          <Flex flexDirection="column" gap={1} width="25rem">
             <SideNav
               recoveryEnabled={EnterpriseComponent !== undefined}
               trustedDevicesEnabled={TrustedDeviceListComponent !== undefined}

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	vnetv1 "github.com/gravitational/teleport/gen/proto/go/teleport/lib/vnet/v1"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/vnet/dns"
 )
 
 // sshProvider provides methods necessary for VNet SSH access.
@@ -152,10 +153,10 @@ func (p *sshProvider) userTLSConfig(
 	signer := &rpcSigner{
 		pub: parsedCert.PublicKey,
 		sendRequest: func(req *vnetv1.SignRequest) ([]byte, error) {
-			return p.cfg.clt.SignForUserTLS(ctx, &vnetv1.SignForUserTLSRequest{
+			return p.cfg.clt.SignForUserTLS(ctx, vnetv1.SignForUserTLSRequest_builder{
 				Profile: profile,
 				Sign:    req,
-			})
+			}.Build())
 		},
 	}
 	tlsCert := tls.Certificate{
@@ -179,10 +180,11 @@ func (p *sshProvider) sessionSSHConfig(
 	target dialTarget,
 	user string,
 	agent *sshAgent,
+	mode vnetv1.SessionSSHConfigCredentialMode,
 ) (apissh.ClientConfig, error) {
 	// TODO(nklaassen): cache session SSH configs so we don't have to regenerate
 	// every time.
-	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user)
+	resp, err := p.cfg.clt.SessionSSHConfig(ctx, target, user, mode)
 	if err != nil {
 		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
@@ -224,6 +226,8 @@ func (p *sshProvider) sessionSSHConfig(
 	if err != nil {
 		return apissh.ClientConfig{}, trace.Wrap(err)
 	}
+	// TODO(cthach): Set AuthCallback once x/crypto/ssh releases a version that
+	// resolves https://go-review.googlesource.com/c/crypto/+/717140.
 	return apissh.ClientConfig{
 		PublicKeyAuth: apissh.PublicKeyAuthConfig{
 			Signers: func() ([]ssh.Signer, error) {
@@ -267,7 +271,7 @@ func computeDialTarget(matchedCluster *vnetv1.MatchedCluster, fqdn string) dialT
 	// matchedCluster.LeafCluster will be set if the host was in a leaf
 	// cluster, else it will be unset and the target cluster is the root.
 	targetCluster := cmp.Or(matchedCluster.GetLeafCluster(), matchedCluster.GetRootCluster())
-	targetHost := strings.TrimSuffix(fqdn, "."+fullyQualify(targetCluster))
+	targetHost := strings.TrimSuffix(fqdn, "."+dns.FullyQualify(targetCluster))
 	return dialTarget{
 		fqdn:        fqdn,
 		profile:     matchedCluster.GetProfile(),

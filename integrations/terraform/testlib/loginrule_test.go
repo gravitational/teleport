@@ -21,22 +21,12 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/helper/resource"
 	"github.com/hashicorp/terraform-plugin-sdk/v2/terraform"
-	"github.com/stretchr/testify/require"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/entitlements"
-	"github.com/gravitational/teleport/lib/modules"
 )
 
 func (s *TerraformSuiteEnterprise) TestLoginRule() {
-	oidc := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.OIDC)
-	saml := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.SAML)
-	require.True(s.T(),
-		oidc.Enabled || saml.Enabled,
-		"Test requires enterprise version of teleport",
-	)
-
 	ctx, cancel := context.WithCancel(context.Background())
 	s.T().Cleanup(cancel)
 
@@ -112,13 +102,6 @@ func (s *TerraformSuiteEnterprise) TestLoginRule() {
 }
 
 func (s *TerraformSuiteEnterprise) TestImportLoginRule() {
-	oidc := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.OIDC)
-	saml := modules.GetProtoEntitlement(s.teleportFeatures, entitlements.SAML)
-	require.True(s.T(),
-		oidc.Enabled || saml.Enabled,
-		"Test requires enterprise version of teleport",
-	)
-
 	ctx := context.Background()
 
 	r := "teleport_login_rule"

@@ -21,6 +21,7 @@ package identity
 import (
 	"cmp"
 	"context"
+	"crypto"
 	"log/slog"
 	"time"
 
@@ -111,6 +112,7 @@ type generateOpts struct {
 	currentIdentity      *Identity
 	logger               *slog.Logger
 	requestModifiers     []func(*proto.UserCertsRequest)
+	privateKey           crypto.Signer
 }
 
 // GenerateOption allows you to customize aspects of the generated identity.
@@ -222,6 +224,16 @@ func WithRouteToCluster(cluster string) GenerateOption {
 	}
 }
 
+// WithPrivateKey overrides the private key that will be used.
+//
+// In most cases, you should NOT provide this option, and allow the function to
+// use a throwaway key for each identity.
+func WithPrivateKey(key crypto.Signer) GenerateOption {
+	return func(opts *generateOpts) {
+		opts.privateKey = key
+	}
+}
+
 // GenerateFacade calls Generate and wraps the resulting Identity in a Facade
 // for easy use in API clients, etc.
 func (g *Generator) GenerateFacade(ctx context.Context, opts ...GenerateOption) (*Facade, error) {
@@ -289,23 +301,32 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 		keyPurpose = cryptosuites.DatabaseClient
 	}
 
-	// Generate a fresh keypair for the impersonated identity. We don't care to
-	// reuse keys here, constantly rotate private keys to limit their effective
-	// lifetime.
-	key, err := cryptosuites.GenerateKey(ctx,
-		cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
-		keyPurpose)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if o.privateKey == nil {
+		// Generate a fresh keypair for the impersonated identity. We generally
+		// don't care to reuse keys here, and instead constantly rotate private
+		// keys to limit their effective lifetime.
+		//
+		// In the beams/vnet service, the private key remains in-memory only and
+		// the benefit of rotating it is minimal. It's also convenient to reuse
+		// the key because VNet splits client certificate issuance and signing
+		// into separate RPCs, so we'd need to store and correlate keys to their
+		// respective applications.
+		var err error
+		o.privateKey, err = cryptosuites.GenerateKey(ctx,
+			cryptosuites.GetCurrentSuiteFromAuthPreference(g.client),
+			keyPurpose)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
-	sshPub, err := ssh.NewPublicKey(key.Public())
+	sshPub, err := ssh.NewPublicKey(o.privateKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	req.SSHPublicKey = ssh.MarshalAuthorizedKey(sshPub)
 
-	req.TLSPublicKey, err = keys.MarshalPublicKey(key.Public())
+	req.TLSPublicKey, err = keys.MarshalPublicKey(o.privateKey.Public())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -353,7 +374,7 @@ func (g *Generator) Generate(ctx context.Context, opts ...GenerateOption) (*Iden
 	// Instead, copy the SSHCACerts from the primary identity.
 	certs.SSHCACerts = o.currentIdentity.SSHCACertBytes
 
-	privateKeyPEM, err := keys.MarshalPrivateKey(key)
+	privateKeyPEM, err := keys.MarshalPrivateKey(o.privateKey)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -387,47 +408,41 @@ func (g *Generator) botDefaultRoles(ctx context.Context) ([]string, error) {
 }
 
 func (g *Generator) generateDelegationCertificates(ctx context.Context, req proto.UserCertsRequest, o *generateOpts) (*proto.Certs, error) {
-	certReq := &delegationv1.GenerateCertsRequest{
+	certReq := delegationv1.GenerateCertsRequest_builder{
 		DelegationSessionId: o.delegationSessionID,
 		SshPublicKey:        req.SSHPublicKey,
 		TlsPublicKey:        req.TLSPublicKey,
 		Ttl:                 durationpb.New(o.ttl),
-	}
+	}.Build()
 	if req.GetRouteToCluster() != o.currentIdentity.ClusterName {
 		return nil, trace.BadParameter("delegation sessions cannot be used with leaf clusters")
 	}
 	switch {
 	case req.GetRouteToApp().Name != "":
 		route := req.GetRouteToApp()
-		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToApp{
-			RouteToApp: &delegationv1.RouteToApp{
-				Name:              route.GetName(),
-				PublicAddr:        route.GetPublicAddr(),
-				ClusterName:       route.GetClusterName(),
-				Uri:               route.GetURI(),
-				TargetPort:        route.GetTargetPort(),
-				AwsRoleArn:        route.GetAWSRoleARN(),
-				AzureIdentity:     route.GetAzureIdentity(),
-				GcpServiceAccount: route.GetGCPServiceAccount(),
-			},
-		}
+		certReq.SetRouteToApp(delegationv1.RouteToApp_builder{
+			Name:              route.GetName(),
+			PublicAddr:        route.GetPublicAddr(),
+			ClusterName:       route.GetClusterName(),
+			Uri:               route.GetURI(),
+			TargetPort:        route.GetTargetPort(),
+			AwsRoleArn:        route.GetAWSRoleARN(),
+			AzureIdentity:     route.GetAzureIdentity(),
+			GcpServiceAccount: route.GetGCPServiceAccount(),
+		}.Build())
 	case req.GetRouteToDatabase().ServiceName != "":
 		route := req.GetRouteToDatabase()
-		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToDatabase{
-			RouteToDatabase: &delegationv1.RouteToDatabase{
-				ServiceName: route.GetServiceName(),
-				Protocol:    route.GetProtocol(),
-				Username:    route.GetUsername(),
-				Database:    route.GetDatabase(),
-				Roles:       route.GetRoles(),
-			},
-		}
+		certReq.SetRouteToDatabase(delegationv1.RouteToDatabase_builder{
+			ServiceName: route.GetServiceName(),
+			Protocol:    route.GetProtocol(),
+			Username:    route.GetUsername(),
+			Database:    route.GetDatabase(),
+			Roles:       route.GetRoles(),
+		}.Build())
 	case req.GetKubernetesCluster() != "":
-		certReq.Routing = &delegationv1.GenerateCertsRequest_RouteToKubernetes{
-			RouteToKubernetes: &delegationv1.RouteToKubernetes{
-				ClusterName: req.GetKubernetesCluster(),
-			},
-		}
+		certReq.SetRouteToKubernetes(delegationv1.RouteToKubernetes_builder{
+			ClusterName: req.GetKubernetesCluster(),
+		}.Build())
 	}
 	certsRsp, err := g.client.DelegationSessionServiceClient().
 		GenerateCerts(ctx, certReq)
@@ -449,10 +464,10 @@ func (g *Generator) generateDelegationCertificates(ctx context.Context, req prot
 func (g *Generator) GenerateScoped(
 	ctx context.Context, ttl, renewalInterval time.Duration,
 ) (*Identity, error) {
-	req := &issuancev1pb.IssueScopedBotCertsRequest{
-		Ttl:   durationpb.New(ttl),
-		Usage: &issuancev1pb.IssueScopedBotCertsRequest_Identity{},
-	}
+	req := issuancev1pb.IssueScopedBotCertsRequest_builder{
+		Ttl:      durationpb.New(ttl),
+		Identity: &issuancev1pb.UsageIdentity{},
+	}.Build()
 
 	keyPurpose := cryptosuites.BotImpersonatedIdentity
 	key, err := cryptosuites.GenerateKey(ctx,
@@ -466,7 +481,7 @@ func (g *Generator) GenerateScoped(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	req.SshPublicKey = ssh.MarshalAuthorizedKey(sshPub)
+	req.SetSshPublicKey(ssh.MarshalAuthorizedKey(sshPub))
 
 	req.TlsPublicKey, err = keys.MarshalPublicKey(key.Public())
 	if err != nil {
@@ -504,10 +519,10 @@ func (g *Generator) GenerateScoped(
 
 	newIdentity, err := ReadIdentityFromStore(&LoadIdentityParams{
 		PrivateKeyBytes: privateKeyPEM,
-		PublicKeyBytes:  req.SshPublicKey,
+		PublicKeyBytes:  req.GetSshPublicKey(),
 	}, &proto.Certs{
-		SSH:        res.Certs.Ssh,
-		TLS:        res.Certs.Tls,
+		SSH:        res.GetCerts().GetSsh(),
+		TLS:        res.GetCerts().GetTls(),
 		TLSCACerts: tlsHostCAs,
 		SSHCACerts: g.botIdentity.Get().SSHCACertBytes,
 	})
@@ -524,6 +539,18 @@ func (g *Generator) GenerateScoped(
 	)
 
 	return newIdentity, nil
+}
+
+// GenerateScopedFacade calls GenerateScoped and wraps the resulting Identity
+// in a Facade for easy use in API clients, etc.
+func (g *Generator) GenerateScopedFacade(
+	ctx context.Context, ttl, renewalInterval time.Duration,
+) (*Facade, error) {
+	id, err := g.GenerateScoped(ctx, ttl, renewalInterval)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return NewFacade(g.fips, g.insecure, id), nil
 }
 
 // warnOnEarlyExpiration logs a warning if the given identity is likely to

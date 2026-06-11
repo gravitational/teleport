@@ -66,9 +66,11 @@ import (
 	"github.com/gravitational/teleport/lib/auth/summarizer"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/cryptosuites"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -474,6 +476,9 @@ type InitConfig struct {
 	// RemoteClusterRefreshBuckets is the maximum number of refresh cycles that should guarantee the status update
 	// of all remote clusters if their number exceeds RemoteClusterRefreshLimit × RemoteClusterRefreshBuckets.
 	RemoteClusterRefreshBuckets int
+
+	// ScopesFeatures dictate which scoped components are enabled.
+	ScopesFeatures scopes.Features
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -497,6 +502,22 @@ func Init(ctx context.Context, cfg InitConfig, opts ...ServerOption) (*Server, e
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Initialize the unified resource cache before running period checks that rely on it.
+	unifiedResourcesCache, err := services.NewUnifiedResourceCache(asrv.CloseContext(), services.UnifiedResourceCacheConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			QueueSize:    defaults.UnifiedResourcesQueueSize,
+			Component:    teleport.ComponentUnifiedResource,
+			Logger:       cfg.Logger.With(teleport.ComponentKey, teleport.ComponentUnifiedResource),
+			Client:       asrv.Cache,
+			MaxStaleness: time.Minute,
+		},
+		ResourceGetter: asrv,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	asrv.SetUnifiedResourcesCache(unifiedResourcesCache)
 
 	domainName := cfg.ClusterName.GetClusterName()
 	if err := backend.RunWhileLocked(ctx,
@@ -557,7 +578,7 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	if len(cfg.ApplyOnStartupResources) > 0 {
 		asrv.logger.InfoContext(ctx, "Applying resources (apply-on-startup)", "resource_count", len(cfg.ApplyOnStartupResources))
 
-		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources, cfg.Modules.Features()); err != nil {
+		if err := applyResources(ctx, asrv.Services, cfg.ApplyOnStartupResources, cfg.Modules.Features(), cfg.ScopesFeatures); err != nil {
 			return trace.Wrap(err, "applying resources failed")
 		}
 	}
@@ -642,24 +663,24 @@ func initCluster(ctx context.Context, cfg InitConfig, asrv *Server) error {
 	})
 
 	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticTokens")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetStaticTokens")
 		defer span.End()
 		asrv.logger.InfoContext(ctx, "Updating cluster configuration", "static_tokens", cfg.StaticTokens)
 		return trace.Wrap(asrv.SetStaticTokens(cfg.StaticTokens))
 	})
 
 	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetStaticScopedTokens")
 		defer span.End()
 		if cfg.StaticScopedTokens != nil {
-			return trace.Wrap(asrv.SetStaticScopedTokens(gctx, cfg.StaticScopedTokens))
+			return trace.Wrap(asrv.SetStaticScopedTokens(ctx, cfg.StaticScopedTokens))
 		}
 		return nil
 	})
 
 	var cn types.ClusterName
 	g.Go(func() error {
-		_, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
+		ctx, span := cfg.Tracer.Start(gctx, "auth/SetClusterName")
 		defer span.End()
 
 		// The first Auth Server that starts gets to set the name of the cluster.
@@ -1292,9 +1313,9 @@ func initializeAccessGraphSettings(ctx context.Context, asrv *Server) error {
 		return nil
 	}
 
-	stored, err = clusterconfig.NewAccessGraphSettings(&clusterconfigpb.AccessGraphSettingsSpec{
+	stored, err = clusterconfig.NewAccessGraphSettings(clusterconfigpb.AccessGraphSettingsSpec_builder{
 		SecretsScanConfig: clusterconfigpb.AccessGraphSecretsScanConfig_ACCESS_GRAPH_SECRETS_SCAN_CONFIG_DISABLED,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1413,8 +1434,12 @@ func GetPresetRoles(buildType string) []types.Role {
 		services.NewSystemIdentityCenterAccessRole(buildType),
 		services.NewPresetWildcardWorkloadIdentityIssuerRole(),
 		services.NewPresetAccessPluginRole(),
+		services.NewPresetAccessPluginWithReviewRole(),
 		services.NewPresetListAccessRequestResourcesRole(),
 		services.NewPresetMCPUserRole(),
+		services.NewSystemBeamRole(buildType),
+		services.NewPresetBeamUserRole(buildType),
+		services.NewPresetBeamAdminRole(buildType),
 	}
 
 	// Certain `New$FooRole()` functions will return a nil role if the
@@ -1594,7 +1619,8 @@ func checkResourceConsistency(ctx context.Context, mod modules.Modules, keyStore
 				types.SAMLIDPCA,
 				types.SPIFFECA,
 				types.AWSRACA,
-				types.WindowsCA:
+				types.WindowsCA,
+				types.AppClientCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
 			case types.JWTSigner,
 				types.OIDCIdPCA,
@@ -1770,8 +1796,12 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 // to avoid consistency issues. A lower priority means the resource is applied
 // before.
 var ResourceApplyPriority = map[string]int{
-	types.KindRole:                    1,
-	types.KindUser:                    2, // Users must be applied after Roles
+	types.KindRole:            1,
+	types.KindInferenceSecret: 1,
+
+	types.KindUser:           2, // Users must be applied after Roles
+	types.KindInferenceModel: 2,
+
 	types.KindToken:                   3,
 	types.KindClusterNetworkingConfig: 3,
 	types.KindClusterAuthPreference:   3,
@@ -1779,13 +1809,15 @@ var ResourceApplyPriority = map[string]int{
 	// Bots should be applied after users and roles as at the moment they are actually converted to users and roles.
 	// This will ensure that Bot Users/Roles are properly created regardless of the Teleport version from which the
 	// resources have been exported.
-	types.KindBot: 3,
+	types.KindBot:             3,
+	types.KindInferencePolicy: 3,
+	types.KindRetrievalModel:  3,
 }
 
 // Unlike when resources are loaded via --bootstrap, we're inserting elements via their service.
 // This means consistency is checked. This function support applying resources
 // with dependencies (like a user referring to a role).
-func applyResources(ctx context.Context, service *Services, resources []types.Resource, features modules.Features) error {
+func applyResources(ctx context.Context, service *Services, resources []types.Resource, features modules.Features, scopesFeatures scopes.Features) error {
 	var err error
 	slices.SortFunc(resources, func(a, b types.Resource) int {
 		priorityA := ResourceApplyPriority[a.GetKind()]
@@ -1818,13 +1850,19 @@ func applyResources(ctx context.Context, service *Services, resources []types.Re
 		case types.AuthPreference:
 			_, err = service.ClusterConfigurationInternal.UpsertAuthPreference(ctx, r)
 		case types.Resource153UnwrapperT[*machineidv1pb.Bot]:
-			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system")
+			_, err = machineidv1.UpsertBot(ctx, service, r.UnwrapT(), time.Now(), "system", scopesFeatures)
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateConfig]:
 			_, err = autoupdatev1.UpsertAutoUpdateConfig(ctx, service, r.UnwrapT(), features)
 		case types.Resource153UnwrapperT[*autoupdatev1pb.AutoUpdateVersion]:
 			_, err = autoupdatev1.UpsertAutoUpdateVersion(ctx, service, r.UnwrapT())
 		case types.Resource153UnwrapperT[*summarizerv1.InferenceModel]:
 			_, err = service.Summarizer.UpsertInferenceModel(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferencePolicy]:
+			_, err = service.Summarizer.UpsertInferencePolicy(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.InferenceSecret]:
+			_, err = service.Summarizer.UpsertInferenceSecret(ctx, r.UnwrapT())
+		case types.Resource153UnwrapperT[*summarizerv1.RetrievalModel]:
+			_, err = service.Summarizer.UpsertRetrievalModel(ctx, r.UnwrapT())
 		case types.Resource153UnwrapperT[*workloadidentityv1.WorkloadIdentity]:
 			_, err = service.WorkloadIdentities.UpsertWorkloadIdentity(ctx, r.UnwrapT())
 		default:

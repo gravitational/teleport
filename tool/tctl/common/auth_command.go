@@ -52,7 +52,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
-	libsubca "github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/winpki"
 	commonclient "github.com/gravitational/teleport/tool/tctl/common/client"
@@ -176,13 +175,11 @@ func (a *AuthCommand) Initialize(app *kingpin.Application, cliFlags *tctlcfg.Glo
 	a.authLS.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&a.format)
 
 	a.authCRL = auth.Command("crl", "Export empty certificate revocation list (CRL) for Teleport certificate authorities.")
-	a.authCRL.Flag("type", fmt.Sprintf("Certificate authority type, one of: %s", strings.Join(allowedCRLCertificateTypes, ", "))).Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
+	a.authCRL.Flag("type", "Certificate authority type.").Required().EnumVar(&a.caType, allowedCRLCertificateTypes...)
 	a.authCRL.Flag("out", "If set, writes exported revocation lists to files with the given path prefix").StringVar(&a.output)
 
-	if libsubca.Enabled() {
-		a.subCACommand = &subcacmd.Command{}
-		a.subCACommand.Initialize(auth, cliFlags, config)
-	}
+	a.subCACommand = &subcacmd.Command{}
+	a.subCACommand.Initialize(auth, cliFlags, config)
 }
 
 // TryRun takes the CLI command as an argument (like "auth gen") and executes it
@@ -241,6 +238,7 @@ var allowedCertificateTypes = []string{
 	"saml-idp",
 	"github",
 	"awsra",
+	"app-client",
 }
 
 // allowedCRLCertificateTypes list of certificate authorities types that can
@@ -429,7 +427,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 		return trace.Wrap(err)
 	}
 
-	certDER, _, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
+	genResp, err := winpki.GenerateWindowsDesktopCredentials(ctx, clusterAPI, &winpki.GenerateCredentialsRequest{
 		Username:           a.windowsUser,
 		Domain:             a.windowsDomain,
 		PKIDomain:          a.windowsPKIDomain,
@@ -444,7 +442,7 @@ func (a *AuthCommand) generateWindowsCert(ctx context.Context, clusterAPI certif
 
 	_, err = identityfile.Write(ctx, identityfile.WriteConfig{
 		OutputPath:           a.output,
-		WindowsDesktopCerts:  map[string][]byte{a.windowsUser: certDER},
+		WindowsDesktopCerts:  map[string][]byte{a.windowsUser: genResp.CertDER},
 		Format:               a.outputFormat,
 		OverwriteDestination: a.signOverwrite,
 		Writer:               a.identityWriter,
@@ -624,7 +622,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	}
 	clusterName := cn.GetClusterName()
 
-	res, err := clusterAPI.TrustClient().GenerateHostCert(ctx, &trustpb.GenerateHostCertRequest{
+	res, err := clusterAPI.TrustClient().GenerateHostCert(ctx, trustpb.GenerateHostCertRequest_builder{
 		Key:         key.MarshalSSHPublicKey(),
 		HostId:      "",
 		NodeName:    "",
@@ -632,7 +630,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 		ClusterName: clusterName,
 		Role:        string(types.RoleNode),
 		Ttl:         durationpb.New(0),
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -643,7 +641,7 @@ func (a *AuthCommand) generateHostKeys(ctx context.Context, clusterAPI certifica
 	}
 	keyRing := &client.KeyRing{
 		SSHPrivateKey: key,
-		Cert:          res.SshCertificate,
+		Cert:          res.GetSshCertificate(),
 		TrustedCerts:  authclient.AuthoritiesToTrustedCerts(hostCAs),
 	}
 

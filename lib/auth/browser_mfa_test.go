@@ -80,7 +80,7 @@ func newBrowserMFATestEnv(t *testing.T) testEnv {
 		PublicAddrs: []string{"proxy.example.com:443"},
 	})
 	require.NoError(t, err)
-	err = a.UpsertProxy(ctx, proxy)
+	_, err = a.UpsertProxyServer(ctx, proxy)
 	require.NoError(t, err)
 
 	// Enable WebAuthn support.
@@ -769,6 +769,20 @@ func TestBrowserMFAChallengeCreation(t *testing.T) {
 				sd, err := a.GetMFASessionData(ctx, chal.BrowserMFAChallenge.RequestId)
 				require.NoError(t, err)
 				assert.Equal(t, mfav1.ChallengeAllowReuse_CHALLENGE_ALLOW_REUSE_YES, sd.ChallengeExtensions.AllowReuse)
+			},
+		},
+		{
+			name: "NOK SSO redirect URL must not fall back to Browser MFA redirect URL",
+			// Use a user with webauthn to ensure Browser MFA would be triggered if
+			// SSO redirect URL was incorrectly used for the Browser MFA flow.
+			username: env.webauthnUser.GetName(),
+			challengeRequest: &proto.CreateAuthenticateChallengeRequest{
+				ChallengeExtensions:  loginExt,
+				SSOClientRedirectURL: "/web/sso_confirm?channel_id=test-channel",
+				// BrowserMFATSHRedirectURL not set.
+			},
+			assertChallenge: func(t *testing.T, chal *proto.MFAAuthenticateChallenge) {
+				assert.Nil(t, chal.BrowserMFAChallenge, "Browser MFA challenge must not be created when only SSOClientRedirectURL is set")
 			},
 		},
 	} {

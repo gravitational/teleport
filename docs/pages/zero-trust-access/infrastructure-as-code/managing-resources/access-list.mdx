@@ -322,7 +322,7 @@ the `.spec.type` field unset, or set to null or an empty string. As a
 consequence:
 
 - They require auditing. If`.spec.audit` is not specified in the Terraform
-  resource, Teleport assigns a default value. Static Access Lists must be
+  resource, Teleport assigns a default value. Default Access Lists must be
   periodically reviewed in the Web UI.
 - Their members can be only managed with the Web UI and `tctl`. The source
   of truth for these lists is Teleport so you cannot manage their members with

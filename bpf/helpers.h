@@ -1,6 +1,11 @@
 #ifndef HELPERS_H
 #define HELPERS_H
 
+#include "vmlinux.h"
+
+#define BPF_MAP_TYPE_TASK_STORAGE 29
+#define BPF_LOCAL_STORAGE_GET_F_CREATE 1
+
 #define BPF_ARRAY(name, val_type, size) \
     struct { \
         __uint(type, BPF_MAP_TYPE_ARRAY); \
@@ -8,8 +13,6 @@
         __type(key, u32); \
         __type(value, val_type); \
     } name SEC(".maps")
-
-#include "vmlinux.h"
 
 #define BPF_HASH(name, key_type, val_type, size) \
     struct { \

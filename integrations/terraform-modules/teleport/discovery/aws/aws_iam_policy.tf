@@ -16,6 +16,7 @@ locals {
 
   uses_ec2             = contains(local.aws_matcher_types, "ec2")
   uses_eks             = contains(local.aws_matcher_types, "eks")
+  uses_rds             = contains(local.aws_matcher_types, "rds")
   uses_wildcard_region = contains(local.aws_matcher_regions, "*")
 
   ec2_actions = [
@@ -38,10 +39,16 @@ locals {
     "eks:UpdateAccessEntry",
   ]
 
+  rds_actions = [
+    "rds:DescribeDBClusters",
+    "rds:DescribeDBInstances",
+  ]
+
   policy_actions = concat(
     local.uses_wildcard_region ? ["account:ListRegions"] : [],
     local.uses_ec2 ? local.ec2_actions : [],
     local.uses_eks ? local.eks_actions : [],
+    local.uses_rds ? local.rds_actions : [],
   )
 }
 

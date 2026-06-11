@@ -21,7 +21,6 @@ package common
 import (
 	"cmp"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -117,7 +116,7 @@ type BotsCommand struct {
 // `bot instances add`
 func (c *BotsCommand) initSharedBotTokenFlags(cmd *kingpin.CmdClause) {
 	cmd.Flag("token", "The token to use, if any. If unset, a new single-use token will be created.").StringVar(&c.tokenID)
-	cmd.Flag("format", "Output format, one of: text, json").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	cmd.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	// TODO(timothyb89): Remove in v20 (optional)
 	cmd.Flag("legacy", "If set, generate a legacy joining token instead of a bound keypair token. No effect if --token is set.").BoolVar(&c.legacy)
@@ -157,7 +156,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 	bots := app.Command("bots", "Manage Machine & Workload Identity bots on the cluster.").Alias("bot")
 
 	c.botsList = bots.Command("ls", "List all certificate renewal bots registered with the cluster.")
-	c.botsList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.botsList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 
 	c.botsAdd = bots.Command("add", "Add a new bot to the cluster.")
 	c.botsAdd.Arg("name", "A name to uniquely identify this bot in the cluster.").Required().StringVar(&c.botName)
@@ -190,7 +189,7 @@ func (c *BotsCommand) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIF
 
 	c.botsInstancesList = c.botsInstances.Command("list", "List bot instances.").Alias("ls")
 	c.botsInstancesList.Arg("name", "The name of the bot from which to list instances. If unset, lists instances from all bots.").StringVar(&c.botName)
-	c.botsInstancesList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.botsInstancesList.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON, teleport.YAML)
 	c.botsInstancesList.Flag("search", "Fuzzy search query used to filter bot instances").StringVar(&c.search)
 	c.botsInstancesList.Flag("query", "An expression in the Teleport predicate language used to filter bot instances").StringVar(&c.query)
 	c.botsInstancesList.Flag("sort-index", "Request sort index, 'bot_name', 'active_at_latest', 'version_latest' or 'host_name_latest'").Default("bot_name").StringVar(&c.sortIndex)
@@ -268,14 +267,15 @@ func (c *BotsCommand) ListBots(ctx context.Context, client botsCommandClient) er
 			return trace.Wrap(err)
 		}
 
-		bots = append(bots, resp.Bots...)
-		if resp.NextPageToken == "" {
+		bots = append(bots, resp.GetBots()...)
+		if resp.GetNextPageToken() == "" {
 			break
 		}
-		req.PageToken = resp.NextPageToken
+		req.SetPageToken(resp.GetNextPageToken())
 	}
 
-	if c.format == teleport.Text {
+	switch c.format {
+	case teleport.Text:
 		if len(bots) == 0 {
 			fmt.Fprintln(c.stdout, "No bots found")
 			return nil
@@ -283,18 +283,25 @@ func (c *BotsCommand) ListBots(ctx context.Context, client botsCommandClient) er
 		t := asciitable.MakeTable([]string{"Bot", "User", "Roles"})
 		for _, u := range bots {
 			t.AddRow([]string{
-				u.Metadata.Name, u.Status.UserName, strings.Join(u.Spec.GetRoles(), ","),
+				u.GetMetadata().GetName(), u.GetStatus().GetUserName(), strings.Join(u.GetSpec().GetRoles(), ","),
 			})
 		}
 		fmt.Fprintln(c.stdout, t.AsBuffer().String())
 
 		executableFileName := filepath.Base(os.Args[0])
 		fmt.Fprintf(c.stdout, "\nTo view active instances of a bot, run:\n\n> %s bots instances list [name]\n", executableFileName)
-	} else {
+	case teleport.JSON:
 		err := utils.WriteJSONArray(c.stdout, bots)
 		if err != nil {
 			return trace.Wrap(err, "failed to marshal bots")
 		}
+	case teleport.YAML:
+		err := utils.WriteYAML(c.stdout, bots)
+		if err != nil {
+			return trace.Wrap(err, "failed to marshal bots")
+		}
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 	return nil
 }
@@ -505,27 +512,27 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 		maxSessionTTL = durationpb.New(c.maxSessionTTL)
 	}
 
-	bot := &machineidv1pb.Bot{
+	bot := machineidv1pb.Bot_builder{
 		Kind:    types.KindBot,
 		Version: types.V1,
-		Metadata: &headerv1.Metadata{
+		Metadata: headerv1.Metadata_builder{
 			Name: c.botName,
-		},
-		Spec: &machineidv1pb.BotSpec{
+		}.Build(),
+		Spec: machineidv1pb.BotSpec_builder{
 			Roles: roles,
 			Traits: []*machineidv1pb.Trait{
-				{
+				machineidv1pb.Trait_builder{
 					Name:   constants.TraitLogins,
 					Values: flattenSlice(c.allowedLogins),
-				},
+				}.Build(),
 			},
 			MaxSessionTtl: maxSessionTTL,
-		},
-	}
+		}.Build(),
+	}.Build()
 
-	bot, err = client.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+	bot, err = client.BotServiceClient().CreateBot(ctx, machineidv1pb.CreateBotRequest_builder{
 		Bot: bot,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -534,9 +541,9 @@ func (c *BotsCommand) AddBot(ctx context.Context, client botsCommandClient) erro
 }
 
 func (c *BotsCommand) RemoveBot(ctx context.Context, client botsCommandClient) error {
-	_, err := client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+	_, err := client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 		BotName: c.botName,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -591,8 +598,8 @@ func (c *BotsCommand) LockBot(ctx context.Context, client botsCommandClient) err
 // updating the field mask if any updates were made.
 func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
 	traits := map[string][]string{}
-	for _, t := range bot.Spec.GetTraits() {
-		traits[t.Name] = t.Values
+	for _, t := range bot.GetSpec().GetTraits() {
+		traits[t.GetName()] = t.GetValues()
 	}
 
 	currentLogins := set.New[string]()
@@ -630,13 +637,13 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 
 	traitsArray := []*machineidv1pb.Trait{}
 	for k, v := range traits {
-		traitsArray = append(traitsArray, &machineidv1pb.Trait{
+		traitsArray = append(traitsArray, machineidv1pb.Trait_builder{
 			Name:   k,
 			Values: v,
-		})
+		}.Build())
 	}
 
-	bot.Spec.Traits = traitsArray
+	bot.GetSpec().SetTraits(traitsArray)
 
 	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.traits"))
 }
@@ -644,7 +651,7 @@ func (c *BotsCommand) updateBotLogins(ctx context.Context, bot *machineidv1pb.Bo
 // updateBotRoles applies updates from CLI arguments to a bot's roles, updating
 // the field mask as necessary if any updates were made.
 func (c *BotsCommand) updateBotRoles(ctx context.Context, client botsCommandClient, bot *machineidv1pb.Bot, mask *fieldmaskpb.FieldMask) error {
-	currentRoles := set.New[string](bot.Spec.Roles...)
+	currentRoles := set.New[string](bot.GetSpec().GetRoles()...)
 
 	var desiredRoles set.Set[string]
 	if c.botRoles != "" {
@@ -673,16 +680,16 @@ func (c *BotsCommand) updateBotRoles(ctx context.Context, client botsCommandClie
 		}
 	}
 
-	bot.Spec.Roles = desiredRolesArray
+	bot.GetSpec().SetRoles(desiredRolesArray)
 
 	return trace.Wrap(mask.Append(&machineidv1pb.Bot{}, "spec.roles"))
 }
 
 // UpdateBot performs various updates to existing bot users and roles.
 func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) error {
-	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
+	bot, err := client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
 		BotName: c.botName,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -705,7 +712,7 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) e
 	}
 
 	if c.maxSessionTTL > 0 {
-		bot.Spec.MaxSessionTtl = durationpb.New(c.maxSessionTTL)
+		bot.GetSpec().SetMaxSessionTtl(durationpb.New(c.maxSessionTTL))
 		if err := fieldMask.Append(&machineidv1pb.Bot{}, "spec.max_session_ttl"); err != nil {
 			return trace.Wrap(err)
 		}
@@ -716,10 +723,10 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) e
 		return nil
 	}
 
-	_, err = client.BotServiceClient().UpdateBot(ctx, &machineidv1pb.UpdateBotRequest{
+	_, err = client.BotServiceClient().UpdateBot(ctx, machineidv1pb.UpdateBotRequest_builder{
 		Bot:        bot,
 		UpdateMask: fieldMask,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -732,17 +739,17 @@ func (c *BotsCommand) UpdateBot(ctx context.Context, client botsCommandClient) e
 // ListBotInstances lists bot instances, possibly filtering for a specific bot
 func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandClient) error {
 	pageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
-		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, &machineidv1pb.ListBotInstancesV2Request{
+		resp, err := client.BotInstanceServiceClient().ListBotInstancesV2(ctx, machineidv1pb.ListBotInstancesV2Request_builder{
 			PageSize:  int32(pageSize),
 			PageToken: pageToken,
 			SortField: c.sortIndex,
 			SortDesc:  c.sortOrder == "descending",
-			Filter: &machineidv1pb.ListBotInstancesV2Request_Filters{
+			Filter: machineidv1pb.ListBotInstancesV2Request_Filters_builder{
 				BotName:    c.botName,
 				SearchTerm: c.search,
 				Query:      c.query,
-			},
-		})
+			}.Build(),
+		}.Build())
 		return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
 	}
 
@@ -753,7 +760,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		fallbackPageFunc := func(ctx context.Context, pageSize int, pageToken string) ([]*machineidv1pb.BotInstance, string, error) {
 			// Needed for backwards compatibility
 			//nolint:staticcheck // SA1019
-			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, &machineidv1pb.ListBotInstancesRequest{
+			resp, err := client.BotInstanceServiceClient().ListBotInstances(ctx, machineidv1pb.ListBotInstancesRequest_builder{
 				FilterBotName:    c.botName,
 				PageSize:         int32(pageSize),
 				PageToken:        pageToken,
@@ -762,7 +769,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 					Field:  c.sortIndex,
 					IsDesc: c.sortOrder == "descending",
 				},
-			})
+			}.Build())
 			return resp.GetBotInstances(), resp.GetNextPageToken(), trace.Wrap(err)
 		}
 		return stream.Collect(clientutils.Resources(ctx, fallbackPageFunc))
@@ -773,7 +780,8 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		return trace.Wrap(err)
 	}
 
-	if c.format == teleport.JSON {
+	switch c.format {
+	case teleport.JSON, teleport.YAML:
 		// Wrap resource type so the correct protojson marshaling is used for
 		// timestamp fields.
 		wrappedInstances := make([]types.Resource, 0, len(instances))
@@ -782,12 +790,22 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 				wrappedInstances, types.ProtoResource153ToLegacy(instance),
 			)
 		}
-		err := utils.WriteJSONArray(c.stdout, wrappedInstances)
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal bot instances")
+		if c.format == teleport.JSON {
+			err := utils.WriteJSONArray(c.stdout, wrappedInstances)
+			if err != nil {
+				return trace.Wrap(err, "failed to marshal bot instances")
+			}
+		} else {
+			err := utils.WriteYAML(c.stdout, wrappedInstances)
+			if err != nil {
+				return trace.Wrap(err, "failed to marshal bot instances")
+			}
 		}
 
 		return nil
+	case teleport.Text:
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 
 	if len(instances) == 0 {
@@ -808,42 +826,42 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		)
 
 		initialJoinMethod := cmp.Or(
-			i.Status.InitialAuthentication.GetJoinAttrs().GetMeta().GetJoinMethod(),
-			i.Status.InitialAuthentication.JoinMethod,
+			i.GetStatus().GetInitialAuthentication().GetJoinAttrs().GetMeta().GetJoinMethod(),
+			i.GetStatus().GetInitialAuthentication().GetJoinMethod(),
 		)
 
-		lastSeen := i.Status.InitialAuthentication.AuthenticatedAt.AsTime()
+		lastSeen := i.GetStatus().GetInitialAuthentication().GetAuthenticatedAt().AsTime()
 
-		if len(i.Status.LatestAuthentications) > 0 {
-			auth := i.Status.LatestAuthentications[len(i.Status.LatestAuthentications)-1]
+		if len(i.GetStatus().GetLatestAuthentications()) > 0 {
+			auth := i.GetStatus().GetLatestAuthentications()[len(i.GetStatus().GetLatestAuthentications())-1]
 
 			authJM := cmp.Or(
 				auth.GetJoinAttrs().GetMeta().GetJoinMethod(),
-				auth.JoinMethod,
+				auth.GetJoinMethod(),
 			)
 			if authJM == initialJoinMethod {
 				joinMethod = authJM
 			} else {
 				// If the join method changed, show the original method and latest
-				joinMethod = fmt.Sprintf("%s (%s)", auth.JoinMethod, initialJoinMethod)
+				joinMethod = fmt.Sprintf("%s (%s)", auth.GetJoinMethod(), initialJoinMethod)
 			}
 
-			if auth.AuthenticatedAt.AsTime().After(lastSeen) {
-				lastSeen = auth.AuthenticatedAt.AsTime()
+			if auth.GetAuthenticatedAt().AsTime().After(lastSeen) {
+				lastSeen = auth.GetAuthenticatedAt().AsTime()
 			}
 		}
 
-		if len(i.Status.LatestHeartbeats) == 0 {
+		if len(i.GetStatus().GetLatestHeartbeats()) == 0 {
 			hostname = "-"
 			version = "-"
 		} else {
-			hb := i.Status.LatestHeartbeats[len(i.Status.LatestHeartbeats)-1]
+			hb := i.GetStatus().GetLatestHeartbeats()[len(i.GetStatus().GetLatestHeartbeats())-1]
 
-			hostname = hb.Hostname
-			version = hb.Version
+			hostname = hb.GetHostname()
+			version = hb.GetVersion()
 
-			if hb.RecordedAt.AsTime().After(lastSeen) {
-				lastSeen = hb.RecordedAt.AsTime()
+			if hb.GetRecordedAt().AsTime().After(lastSeen) {
+				lastSeen = hb.GetRecordedAt().AsTime()
 			}
 		}
 
@@ -853,7 +871,7 @@ func (c *BotsCommand) ListBotInstances(ctx context.Context, client botsCommandCl
 		}
 
 		t.AddRow([]string{
-			fmt.Sprintf("%s/%s", i.Spec.BotName, i.Spec.InstanceId), joinMethod,
+			fmt.Sprintf("%s/%s", i.GetSpec().GetBotName(), i.GetSpec().GetInstanceId()), joinMethod,
 			version, hostname, healthStatus, lastSeen.Format(time.RFC3339),
 		})
 	}
@@ -882,9 +900,9 @@ func (c *BotsCommand) AddBotInstance(ctx context.Context, client botsCommandClie
 		return trace.Wrap(err)
 	}
 
-	bot, err := client.BotServiceClient().GetBot(ctx, &machineidv1pb.GetBotRequest{
+	bot, err := client.BotServiceClient().GetBot(ctx, machineidv1pb.GetBotRequest_builder{
 		BotName: c.botName,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -975,27 +993,27 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 		return trace.Wrap(err)
 	}
 
-	instance, err := client.BotInstanceServiceClient().GetBotInstance(ctx, &machineidv1pb.GetBotInstanceRequest{
+	instance, err := client.BotInstanceServiceClient().GetBotInstance(ctx, machineidv1pb.GetBotInstanceRequest_builder{
 		BotName:    botName,
 		InstanceId: instanceID,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	initialAuthenticationTable := formatBotInstanceAuthentication(instance.Status.InitialAuthentication)
+	initialAuthenticationTable := formatBotInstanceAuthentication(instance.GetStatus().GetInitialAuthentication())
 
 	var latestAuthenticationTable string
-	if len(instance.Status.LatestAuthentications) > 0 {
-		latest := instance.Status.LatestAuthentications[len(instance.Status.LatestAuthentications)-1]
+	if len(instance.GetStatus().GetLatestAuthentications()) > 0 {
+		latest := instance.GetStatus().GetLatestAuthentications()[len(instance.GetStatus().GetLatestAuthentications())-1]
 		latestAuthenticationTable = formatBotInstanceAuthentication(latest)
 	} else {
 		latestAuthenticationTable = "No authentication records."
 	}
 
 	var heartbeatTable string
-	if len(instance.Status.LatestHeartbeats) > 0 {
-		latest := instance.Status.LatestHeartbeats[len(instance.Status.LatestHeartbeats)-1]
+	if len(instance.GetStatus().GetLatestHeartbeats()) > 0 {
+		latest := instance.GetStatus().GetLatestHeartbeats()[len(instance.GetStatus().GetLatestHeartbeats())-1]
 		heartbeatTable = formatBotInstanceHeartbeat(latest)
 	} else {
 		heartbeatTable = "No heartbeat records."
@@ -1024,8 +1042,8 @@ func (c *BotsCommand) ShowBotInstance(ctx context.Context, client botsCommandCli
 	return trace.Wrap(showMessageTemplate.Execute(os.Stdout, templateData))
 }
 
-// botJSONResponse is a response generated by the `tctl bots add` family of
-// commands when the format is `json`
+// botJSONResponse is a structured response generated by the `tctl bots add`
+// family of commands when the format is `json` or `yaml`.
 type botJSONResponse struct {
 	UserName           string        `json:"user_name"`
 	RoleName           string        `json:"role_name"`
@@ -1061,7 +1079,8 @@ func (c *BotsCommand) outputToken(
 
 	secret, _ := uri.ToURL().User.Password()
 
-	if c.format == teleport.JSON {
+	switch c.format {
+	case teleport.JSON, teleport.YAML:
 		tokenTTL := time.Duration(0)
 		if exp := token.Expiry(); !exp.IsZero() {
 			tokenTTL = time.Until(exp)
@@ -1072,8 +1091,8 @@ func (c *BotsCommand) outputToken(
 		// when we called an older RPC. We've preserved it here to avoid
 		// breaking customer scripts.
 		response := botJSONResponse{
-			UserName: bot.Status.UserName,
-			RoleName: bot.Status.RoleName,
+			UserName: bot.GetStatus().GetUserName(),
+			RoleName: bot.GetStatus().GetRoleName(),
 			TokenID:  token.GetName(),
 			TokenTTL: tokenTTL,
 			JoinURI:  uri.String(),
@@ -1087,13 +1106,13 @@ func (c *BotsCommand) outputToken(
 			response.RegistrationSecret = secret
 		}
 
-		out, err := json.MarshalIndent(response, "", "  ")
-		if err != nil {
-			return trace.Wrap(err, "failed to marshal CreateBot response")
+		if c.format == teleport.JSON {
+			return trace.Wrap(utils.WriteJSON(c.stdout, response), "failed to marshal CreateBot response")
 		}
-
-		fmt.Fprintln(c.stdout, string(out))
-		return nil
+		return trace.Wrap(utils.WriteYAML(c.stdout, response), "failed to marshal CreateBot response")
+	case teleport.Text:
+	default:
+		return trace.BadParameter("unknown format %q", c.format)
 	}
 
 	if c.legacy {
@@ -1193,16 +1212,16 @@ func splitEntries(flag string) []string {
 // a textual representation of a bot authentication record.
 func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuthentication) string {
 	table := asciitable.MakeHeadlessTable(2)
-	table.AddRow([]string{"Authenticated At:", record.AuthenticatedAt.AsTime().Format(time.RFC3339)})
-	table.AddRow([]string{"Join Method:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinMethod(), record.JoinMethod)})
-	table.AddRow([]string{"Join Token:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinTokenName(), record.JoinToken)})
-	var meta fmt.Stringer = record.Metadata
+	table.AddRow([]string{"Authenticated At:", record.GetAuthenticatedAt().AsTime().Format(time.RFC3339)})
+	table.AddRow([]string{"Join Method:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinMethod(), record.GetJoinMethod())})
+	table.AddRow([]string{"Join Token:", cmp.Or(record.GetJoinAttrs().GetMeta().GetJoinTokenName(), record.GetJoinToken())})
+	var meta fmt.Stringer = record.GetMetadata()
 	if attrs := record.GetJoinAttrs(); attrs != nil {
 		meta = attrs
 	}
 	table.AddRow([]string{"Join Metadata:", meta.String()})
-	table.AddRow([]string{"Generation:", fmt.Sprint(record.Generation)})
-	table.AddRow([]string{"Public Key:", fmt.Sprintf("<%d bytes>", len(record.PublicKey))})
+	table.AddRow([]string{"Generation:", fmt.Sprint(record.GetGeneration())})
+	table.AddRow([]string{"Public Key:", fmt.Sprintf("<%d bytes>", len(record.GetPublicKey()))})
 
 	return "\n" + indentString(table.AsBuffer().String(), "  ")
 }
@@ -1211,15 +1230,15 @@ func formatBotInstanceAuthentication(record *machineidv1pb.BotInstanceStatusAuth
 // a textual representation of a bot heartbeat.
 func formatBotInstanceHeartbeat(record *machineidv1pb.BotInstanceStatusHeartbeat) string {
 	table := asciitable.MakeHeadlessTable(2)
-	table.AddRow([]string{"Recorded At:", record.RecordedAt.AsTime().Format(time.RFC3339)})
-	table.AddRow([]string{"Is Startup:", fmt.Sprint(record.IsStartup)})
-	table.AddRow([]string{"Version:", record.Version})
-	table.AddRow([]string{"Hostname:", record.Hostname})
-	table.AddRow([]string{"Uptime:", record.Uptime.AsDuration().String()})
-	table.AddRow([]string{"Join Method:", record.JoinMethod})
-	table.AddRow([]string{"One Shot:", fmt.Sprint(record.OneShot)})
-	table.AddRow([]string{"Architecture:", record.Architecture})
-	table.AddRow([]string{"OS:", record.Os})
+	table.AddRow([]string{"Recorded At:", record.GetRecordedAt().AsTime().Format(time.RFC3339)})
+	table.AddRow([]string{"Is Startup:", fmt.Sprint(record.GetIsStartup())})
+	table.AddRow([]string{"Version:", record.GetVersion()})
+	table.AddRow([]string{"Hostname:", record.GetHostname()})
+	table.AddRow([]string{"Uptime:", record.GetUptime().AsDuration().String()})
+	table.AddRow([]string{"Join Method:", record.GetJoinMethod()})
+	table.AddRow([]string{"One Shot:", fmt.Sprint(record.GetOneShot())})
+	table.AddRow([]string{"Architecture:", record.GetArchitecture()})
+	table.AddRow([]string{"OS:", record.GetOs()})
 
 	return "\n" + indentString(table.AsBuffer().String(), "  ")
 }

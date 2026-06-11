@@ -21,6 +21,7 @@ package kubeconfig
 import (
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
@@ -185,9 +186,9 @@ func TestLocalProxy(t *testing.T) {
 		// Check for root-cluster-kube1.
 		wantConfig.Clusters["root-cluster-kube1"] = &clientcmdapi.Cluster{
 			ProxyURL:                 "http://localhost:12345",
-			Server:                   rootKubeClusterAddr,
+			Server:                   rootKubeClusterAddr + "/v1/teleport/cm9vdC1jbHVzdGVy/a3ViZTE",
 			CertificateAuthorityData: caData,
-			TLSServerName:            "6b75626531.root-cluster",
+			TLSServerName:            rootClusterName,
 			LocationOfOrigin:         kubeconfigPath,
 			Extensions: map[string]runtime.Object{
 				extProfileName: &runtime.Unknown{
@@ -205,10 +206,9 @@ func TestLocalProxy(t *testing.T) {
 			},
 		}
 		wantConfig.Contexts["root-cluster-kube1"] = &clientcmdapi.Context{
-			Namespace:        "namespace",
-			Cluster:          "root-cluster-kube1",
-			AuthInfo:         "root-cluster-kube1",
-			LocationOfOrigin: kubeconfigPath,
+			Namespace: "namespace",
+			Cluster:   "root-cluster-kube1",
+			AuthInfo:  "root-cluster-kube1",
 			Extensions: map[string]runtime.Object{
 				extProfileName: &runtime.Unknown{
 					Raw:         []byte(`"` + proxyHost + `"`),
@@ -229,7 +229,6 @@ func TestLocalProxy(t *testing.T) {
 			ClientKeyData:         clientKeyData,
 			Impersonate:           "as",
 			ImpersonateGroups:     []string{"group1", "group2"},
-			LocationOfOrigin:      kubeconfigPath,
 			Extensions: map[string]runtime.Object{
 				extProfileName: &runtime.Unknown{
 					Raw:         []byte(`"` + proxyHost + `"`),
@@ -248,6 +247,6 @@ func TestLocalProxy(t *testing.T) {
 
 		// Current context is updated.
 		wantConfig.CurrentContext = "root-cluster-kube1"
-		require.Equal(t, wantConfig, *generatedConfig)
+		require.Empty(t, cmp.Diff(wantConfig, *generatedConfig, kubeconfigCmpOpts...))
 	})
 }
