@@ -4015,7 +4015,7 @@ func GenSchemaRoleV6(ctx context.Context) (github_com_hashicorp_terraform_plugin
 							PlanModifiers: []github_com_hashicorp_terraform_plugin_framework_tfsdk.AttributePlanModifier{github_com_hashicorp_terraform_plugin_framework_tfsdk.UseStateForUnknown()},
 						}),
 						"create_db_user_mode": {
-							Description: "CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is \"unspecified\", 1 is \"off\", 2 is \"keep\", 3 is \"best_effort_drop\".",
+							Description: "CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is \"unspecified\", 1 is \"off\", 2 is \"keep\", 3 is \"best_effort_drop\", 4 is \"best_effort_reassign_and_drop\".",
 							Optional:    true,
 							Type:        github_com_hashicorp_terraform_plugin_framework_types.Int64Type,
 						},

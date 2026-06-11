@@ -617,7 +617,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |cert_format|string|CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.|
 |client_idle_timeout|string|ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.|
 |create_db_user|boolean|CreateDatabaseUser enabled automatic database user creation.|
-|create_db_user_mode|string or integer|CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop". Can be either the string or the integer representation of each option.|
+|create_db_user_mode|string or integer|CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop", 4 is "best_effort_reassign_and_drop". Can be either the string or the integer representation of each option.|
 |create_desktop_user|boolean|CreateDesktopUser allows users to be automatically created on a Windows desktop|
 |create_host_user|boolean|Deprecated: use CreateHostUserMode instead.|
 |create_host_user_default_shell|string|CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.|
@@ -1297,7 +1297,7 @@ resource, which you can apply after installing the Teleport Kubernetes operator.
 |cert_format|string|CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.|
 |client_idle_timeout|string|ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.|
 |create_db_user|boolean|CreateDatabaseUser enabled automatic database user creation.|
-|create_db_user_mode|string or integer|CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop". Can be either the string or the integer representation of each option.|
+|create_db_user_mode|string or integer|CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop", 4 is "best_effort_reassign_and_drop". Can be either the string or the integer representation of each option.|
 |create_desktop_user|boolean|CreateDesktopUser allows users to be automatically created on a Windows desktop|
 |create_host_user|boolean|Deprecated: use CreateHostUserMode instead.|
 |create_host_user_default_shell|string|CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.|

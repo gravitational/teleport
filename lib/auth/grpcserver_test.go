@@ -6918,6 +6918,93 @@ func TestRoleVersionV8ToV7Downgrade(t *testing.T) {
 	}
 }
 
+func TestRoleVersionCreateDatabaseUserModeDowngrade(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_ALLOW_OLD_CLIENTS", "yes")
+	srv := newTestTLSServer(t)
+
+	// Use V7 roles so only the create_db_user_mode downgrade path applies;
+	// the role-version and SSH-port-forwarding paths stay no-ops.
+	newRole := func(name string, mode types.CreateDatabaseUserMode) types.Role {
+		role, err := types.NewRoleWithVersion(name, types.V7, types.RoleSpecV6{
+			Options: types.RoleOptions{CreateDatabaseUserMode: mode},
+		})
+		require.NoError(t, err)
+		return role
+	}
+	reassignRole := newRole("test_reassign", types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_REASSIGN_AND_DROP)
+	dropRole := newRole("test_drop", types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP)
+	keepRole := newRole("test_keep", types.CreateDatabaseUserMode_DB_USER_MODE_KEEP)
+
+	user, err := authtest.CreateUser(context.Background(), srv.Auth(), "user", reassignRole, dropRole, keepRole)
+	require.NoError(t, err)
+	client, err := srv.NewClient(authtest.TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	// best_effort_reassign_and_drop was introduced in v18.11; older clients
+	// get it downgraded to best_effort_drop.
+	for _, tc := range []struct {
+		desc             string
+		clientVersion    string
+		inputRole        types.Role
+		wantMode         types.CreateDatabaseUserMode
+		expectDowngraded bool
+	}{
+		{
+			desc:             "client a full major behind is downgraded",
+			clientVersion:    "17.0.0",
+			inputRole:        reassignRole,
+			wantMode:         types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+			expectDowngraded: true,
+		},
+		{
+			desc:             "client one minor behind is downgraded",
+			clientVersion:    "18.10.0",
+			inputRole:        reassignRole,
+			wantMode:         types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+			expectDowngraded: true,
+		},
+		{
+			desc:             "client at introducing version keeps reassign_and_drop",
+			clientVersion:    "18.11.0",
+			inputRole:        reassignRole,
+			wantMode:         types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_REASSIGN_AND_DROP,
+			expectDowngraded: false,
+		},
+		{
+			desc:             "newer client keeps reassign_and_drop",
+			clientVersion:    "19.0.0",
+			inputRole:        reassignRole,
+			wantMode:         types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_REASSIGN_AND_DROP,
+			expectDowngraded: false,
+		},
+		{
+			desc:             "older client leaves best_effort_drop untouched",
+			clientVersion:    "18.10.0",
+			inputRole:        dropRole,
+			wantMode:         types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP,
+			expectDowngraded: false,
+		},
+		{
+			desc:             "older client leaves keep untouched",
+			clientVersion:    "18.10.0",
+			inputRole:        keepRole,
+			wantMode:         types.CreateDatabaseUserMode_DB_USER_MODE_KEEP,
+			expectDowngraded: false,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			ctx := metadata.AddMetadataToContext(context.Background(),
+				map[string]string{metadata.VersionKey: tc.clientVersion})
+
+			got, err := client.GetRole(ctx, tc.inputRole.GetName())
+			require.NoError(t, err)
+			require.Equal(t, tc.wantMode, got.GetOptions().CreateDatabaseUserMode)
+			_, downgraded := got.GetMetadata().Labels[types.TeleportDowngradedLabel]
+			require.Equal(t, tc.expectDowngraded, downgraded)
+		})
+	}
+}
+
 func TestGRPCServingStatus(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()

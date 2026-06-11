@@ -2293,6 +2293,7 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 
 	role = maybeDowngradeRoleSSHPortForwarding(role, clientVersion)
 	role = maybeDowngradeRoleVersionToV7(role, clientVersion)
+	role = maybeDowngradeRoleCreateDatabaseUserMode(role, clientVersion)
 	return role, nil
 }
 
@@ -2497,6 +2498,41 @@ func maybeDowngradeRoleSSHPortForwarding(role *types.RoleV6, clientVersion *semv
 	reason := fmt.Sprintf(`Client version %q does not support granular SSH port forwarding. Role %q will be downgraded `+
 		`to simple port forwarding rules instead. In order to support granular SSH port forwarding, all clients must be `+
 		`updated to version %q or higher.`, clientVersion, role.GetName(), minSupportedSSHPortForwardingVersion)
+	if role.Metadata.Labels == nil {
+		role.Metadata.Labels = make(map[string]string, 1)
+	}
+	role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+	return role
+}
+
+// best_effort_reassign_and_drop was introduced in v18.11; older clients cannot
+// decode the value.
+var minSupportedCreateDatabaseUserReassignAndDropVersion = semver.Version{Major: 18, Minor: 11, Patch: 0}
+
+// maybeDowngradeRoleCreateDatabaseUserMode downgrades create_db_user_mode from
+// best_effort_reassign_and_drop to best_effort_drop when the client is too old
+// to understand the newer value. Older clients cannot decode it and would fail
+// to load the role entirely.
+func maybeDowngradeRoleCreateDatabaseUserMode(role *types.RoleV6, clientVersion *semver.Version) *types.RoleV6 {
+	if role.GetOptions().CreateDatabaseUserMode != types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_REASSIGN_AND_DROP {
+		return role
+	}
+
+	if supported, err := utils.MinVerWithoutPreRelease(
+		clientVersion.String(),
+		minSupportedCreateDatabaseUserReassignAndDropVersion.String()); supported || err != nil {
+		return role
+	}
+
+	// Shallow copy so we don't mutate the role shared with other watchers.
+	role = apiutils.CloneProtoMsg(role)
+	options := role.GetOptions()
+	options.CreateDatabaseUserMode = types.CreateDatabaseUserMode_DB_USER_MODE_BEST_EFFORT_DROP
+	role.SetOptions(options)
+
+	reason := fmt.Sprintf(`Client version %q does not support create_db_user_mode "best_effort_reassign_and_drop"; `+
+		`role %q was downgraded to "best_effort_drop". Upgrade all clients to version %q or higher to use it.`,
+		clientVersion, role.GetName(), minSupportedCreateDatabaseUserReassignAndDropVersion.String())
 	if role.Metadata.Labels == nil {
 		role.Metadata.Labels = make(map[string]string, 1)
 	}

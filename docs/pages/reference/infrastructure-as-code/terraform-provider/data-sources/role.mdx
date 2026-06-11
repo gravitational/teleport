@@ -490,7 +490,7 @@ Optional:
 - `cert_format` (String) CertificateFormat defines the format of the user certificate to allow compatibility with older versions of OpenSSH.
 - `client_idle_timeout` (String) ClientIdleTimeout sets disconnect clients on idle timeout behavior, if set to 0 means do not disconnect, otherwise is set to the idle duration.
 - `create_db_user` (Boolean) CreateDatabaseUser enabled automatic database user creation.
-- `create_db_user_mode` (Number) CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop".
+- `create_db_user_mode` (Number) CreateDatabaseUserMode allows users to be automatically created on a database when not set to off. 0 is "unspecified", 1 is "off", 2 is "keep", 3 is "best_effort_drop", 4 is "best_effort_reassign_and_drop".
 - `create_desktop_user` (Boolean) CreateDesktopUser allows users to be automatically created on a Windows desktop
 - `create_host_user` (Boolean) Deprecated: use CreateHostUserMode instead.
 - `create_host_user_default_shell` (String) CreateHostUserDefaultShell is used to configure the default shell for newly provisioned host users.

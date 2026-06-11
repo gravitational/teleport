@@ -1382,7 +1382,7 @@ spec:
                   create_db_user_mode:
                     description: CreateDatabaseUserMode allows users to be automatically
                       created on a database when not set to off. 0 is "unspecified",
-                      1 is "off", 2 is "keep", 3 is "best_effort_drop".
+                      1 is "off", 2 is "keep", 3 is "best_effort_drop", 4 is "best_effort_reassign_and_drop".
                     x-kubernetes-int-or-string: true
                   create_desktop_user:
                     description: CreateDesktopUser allows users to be automatically
