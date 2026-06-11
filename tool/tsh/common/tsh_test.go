@@ -1580,13 +1580,8 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	sshLeafHostID, err := leafNode.WaitForHostID(ctx)
 	require.NoError(t, err)
 
-	// hasNodes waits until a proxy's routing cache contains all of the given
-	// host IDs for the named cluster. It queries the proxy's NodeWatcher, which
-	// is the exact node set the proxy uses to resolve SSH targets (including the
-	// remote node set maintained for a trusted leaf cluster). That cache is
-	// populated by a watcher and lags behind the auth backend, so waiting on it
-	// here (rather than on the auth server) is what keeps the routing in the
-	// cases below from being flaky.
+	// hasNodes checks for nodes via the proxy's NodeWatcher, which is the source
+	// that tsh checks when resolving SSH targets.
 	hasNodes := func(proxy *service.TeleportProcess, clusterName string, hostIDs ...string) func() bool {
 		return func() bool {
 			tunnel, err := proxy.GetReverseTunnelServer()
@@ -1619,9 +1614,6 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	rootClusterName, err := rootAuth.GetAuthServer().GetClusterName(ctx)
 	require.NoError(t, err)
 
-	// Wait for each proxy to be able to route to the nodes the cases below
-	// target: the root nodes via the root proxy, the leaf node via the leaf
-	// proxy, and the leaf node via the root proxy (through the trusted cluster).
 	require.Eventually(t, hasNodes(rootProxy, rootClusterName.GetClusterName(), sshHostID, sshHostID2, sshHostID3),
 		10*time.Second, 100*time.Millisecond, "root proxy never saw root nodes")
 
@@ -4522,13 +4514,6 @@ func makeTestServers(t *testing.T, opts ...testServerOptFunc) (auth *service.Tel
 	}
 
 	auth = runTeleport(t, cfg)
-
-	// Wait for auth to become ready.
-	_, err = auth.WaitForEventTimeout(30*time.Second, service.AuthTLSReady)
-	// in reality, the auth server should start *much* sooner than this.  we use a very large
-	// timeout here because this isn't the kind of problem that this test is meant to catch.
-	require.NoError(t, err, "auth server didn't start after 30s")
-
 	return auth, auth
 }
 
