@@ -5,7 +5,7 @@
 <dict>
    <key>FILEHEADER</key>
    <string> Teleport
-// Copyright (C) 2026 Gravitational, Inc.
+// Copyright (C) ___YEAR___ Gravitational, Inc.
 //
 // This program is free software: you can redistribute it and/or modify
 // it under the terms of the GNU Affero General Public License as published by
