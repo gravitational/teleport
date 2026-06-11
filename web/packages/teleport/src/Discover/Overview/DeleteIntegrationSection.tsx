@@ -57,8 +57,9 @@ export function DeleteIntegrationSection({
 
         <Text mt={2} fontSize={1} color="text.slightlyMuted">
           Note: This removes the integration and dependent IAM resources but
-          does not delete your {integrationKind} resources in Teleport. To remove
-          resources from Teleport, delete them via the Teleport UI or CLI.
+          does not delete your {integrationKind} resources in Teleport. To
+          remove resources from Teleport, delete them via the Teleport UI or
+          CLI.
         </Text>
       </Flex>
     </Card>
