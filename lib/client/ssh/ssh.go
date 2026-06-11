@@ -20,6 +20,7 @@ package ssh
 
 import (
 	"context"
+	"slices"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
@@ -28,15 +29,37 @@ import (
 	sshpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/ssh/v1"
 )
 
-// MFACeremonyPerformer performs a session-bound MFA ceremony with the user and returns the solved challenge name.
-type MFACeremonyPerformer interface {
-	PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (challengeName string, err error)
+// Performer performs a session-bound MFA ceremony with the user and returns the solved challenge name.
+type Performer func(ctx context.Context, sessionID []byte) (string, error)
+
+// AuthCallback returns an ssh.ClientAuthCallback that performs in-band MFA via keyboard-interactive when the server
+// responds with partial success after publickey.
+func AuthCallback(ctx context.Context, performerFn func() (Performer, error)) ssh.ClientAuthCallback {
+	return func(authCtx *ssh.ClientAuthContext) (ssh.AuthMethod, error) {
+		// If the server responds with partial success for publickey auth method and keyboard-interactive is allowed,
+		// then the server is likely enforcing in-band MFA. In this case, return a keyboard-interactive callback that
+		// will perform the MFA ceremony when invoked as long as it hasn't already been tried.
+		if slices.Contains(authCtx.PartialSuccessMethods, "publickey") &&
+			slices.Contains(authCtx.AllowedMethods, "keyboard-interactive") &&
+			!slices.Contains(authCtx.TriedMethods, "keyboard-interactive") {
+			performer, err := performerFn()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return KeyboardInteractive(ctx, performer, authCtx.Metadata), nil
+		}
+
+		// Returning nil, nil tells the SSH client there is no additional auth method to offer for this server response
+		// and fallback to the default behavior of trying the next auth method in the list.
+		return nil, nil
+	}
 }
 
 // KeyboardInteractive returns an ssh.AuthMethod that performs any additional verification requested by the server via
 // the keyboard-interactive authentication method. This method is intended to be used with the
 // x/crypto/ssh#ClientConfig.AuthCallback field as proposed in https://github.com/golang/go/issues/76146.
-func KeyboardInteractive(ctx context.Context, p MFACeremonyPerformer, m ssh.ConnMetadata) ssh.AuthMethod {
+func KeyboardInteractive(ctx context.Context, p Performer, m ssh.ConnMetadata) ssh.AuthMethod {
 	return ssh.KeyboardInteractive(
 		func(_ string, _ string, questions []string, _ []bool) ([]string, error) {
 			answers := make([]string, 0, len(questions))
@@ -73,8 +96,8 @@ func KeyboardInteractive(ctx context.Context, p MFACeremonyPerformer, m ssh.Conn
 
 // handleMFAPrompt returns an answer to a keyboard-interactive question requiring MFA by performing a session-bound MFA
 // ceremony with the user. The answer is a JSON-marshaled sshpb.MFAPromptResponse referencing the solved challenge.
-func handleMFAPrompt(ctx context.Context, p MFACeremonyPerformer, m ssh.ConnMetadata) (string, error) {
-	name, err := p.PerformSessionMFACeremony(ctx, m.SessionID())
+func handleMFAPrompt(ctx context.Context, p Performer, m ssh.ConnMetadata) (string, error) {
+	name, err := p(ctx, m.SessionID())
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
