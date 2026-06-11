@@ -19,6 +19,7 @@ package mfa
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/base64"
 
 	"github.com/gogo/protobuf/jsonpb" //nolint:depguard // needed for backwards compatibility
@@ -32,6 +33,25 @@ import (
 
 // ResponseMetadataKey is the context metadata key for an MFA response in a gRPC request.
 const ResponseMetadataKey = "mfa_challenge_response"
+
+// ForceInBandEnv is the environment variable that forces in-band MFA for all connections.
+const ForceInBandEnv = "TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA"
+
+// TLSExportKeyingMaterialLabel is the label used for exporting keying material from a TLS connection to derive the
+// Session Identifying Payload (SIP) for in-band MFA.
+const TLSExportKeyingMaterialLabel = "EXPERIMENTAL-Teleport-MFA"
+
+// DeriveSIP derives a Session Identifying Payload from a TLS connection using RFC 5705 exportable keying material.
+func DeriveSIP(conn *tls.Conn) ([]byte, error) {
+	cs := conn.ConnectionState()
+
+	sip, err := cs.ExportKeyingMaterial(TLSExportKeyingMaterialLabel, nil, 32)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return sip, nil
+}
 
 var (
 	// ErrAdminActionMFARequired is an error indicating that an admin-level

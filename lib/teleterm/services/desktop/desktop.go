@@ -37,7 +37,6 @@ import (
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
@@ -318,7 +317,7 @@ func (s *Session) handleTDPBHandshake(
 			msg.Message,
 		)
 
-		if os.Getenv(desktop.ForceInBandMFAEnv) == "yes" {
+		if os.Getenv(mfa.ForceInBandEnv) == "yes" {
 			return nil,
 				trace.AccessDenied(
 					"in-band MFA is required but the server does not support it",
@@ -345,9 +344,7 @@ func (s *Session) performInBandMFA(
 	clusterClient *client.TeleportClient,
 	tlsConn *tls.Conn,
 ) (string, error) {
-	cs := tlsConn.ConnectionState()
-
-	sip, err := cs.ExportKeyingMaterial("EXPERIMENTAL-Teleport-MFA", nil, 32)
+	sip, err := mfa.DeriveSIP(tlsConn)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}

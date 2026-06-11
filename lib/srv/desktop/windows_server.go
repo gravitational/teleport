@@ -46,6 +46,7 @@ import (
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	subcav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/clientutils"
@@ -815,7 +816,7 @@ func (s *WindowsService) connectRDP(
 			// TODO(cthach): DELETE IN v20.0 when in-band MFA is required for all clients and backwards compatibility
 			// with legacy clients is no longer supported.
 			if !(*tdpbv1.ClientHello)(hello).GetInBandMfaSupported() {
-				if os.Getenv(ForceInBandMFAEnv) == "yes" {
+				if os.Getenv(mfa.ForceInBandEnv) == "yes" {
 					return errInBandMFARequired
 				}
 
