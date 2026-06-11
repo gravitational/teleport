@@ -21,10 +21,13 @@ package proxy
 import (
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apimachinerytypes "k8s.io/apimachinery/pkg/types"
+
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 )
 
 func Test_patchPod(t *testing.T) {
@@ -89,4 +92,89 @@ func Test_patchPod(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+// Test_patchPodWithDebugContainer checks that the patch applied to a pod adds
+// exactly one ephemeral container and that the added container is interactive
+// (TTY). A strategic merge patch can append more than one entry to
+// Spec.EphemeralContainers, so the validation must account for every container
+// the patch adds rather than only the last one in the list.
+func Test_patchPodWithDebugContainer(t *testing.T) {
+	// Decoder built the same way as production code (ephemeral_containers.go),
+	// using the package-global Kube codecs so no cluster or live API server is
+	// required.
+	codecs := globalKubeCodecs
+	_, decoder, err := newEncoderAndDecoderForContentType(
+		responsewriters.JSONContentType,
+		newClientNegotiator(&codecs),
+	)
+	require.NoError(t, err)
+
+	// Base pod with a single normal container and no ephemeral containers yet.
+	basePod := corev1.Pod{
+		TypeMeta: metav1.TypeMeta{Kind: "Pod", APIVersion: "v1"},
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "target",
+			Namespace: "default",
+		},
+		Spec: corev1.PodSpec{
+			Containers: []corev1.Container{{Name: "main", Image: "nginx"}},
+		},
+	}
+	podJSON := []byte(`{"kind":"Pod","apiVersion":"v1","metadata":{"name":"target","namespace":"default"},"spec":{"containers":[{"name":"main","image":"nginx"}]}}`)
+
+	t.Run("single interactive container is accepted", func(t *testing.T) {
+		patch := []byte(`{"spec":{"ephemeralContainers":[` +
+			`{"name":"debugger","image":"alpine","tty":true}` +
+			`]}}`)
+
+		patchedPod, ephemeralContName, err := patchPodWithDebugContainer(
+			decoder, podJSON, patch, basePod, apimachinerytypes.StrategicMergePatchType,
+		)
+		require.NoError(t, err)
+		require.Len(t, patchedPod.Spec.EphemeralContainers, 1)
+		require.Equal(t, "debugger", ephemeralContName)
+	})
+
+	t.Run("single non-interactive container is rejected", func(t *testing.T) {
+		patch := []byte(`{"spec":{"ephemeralContainers":[` +
+			`{"name":"debugger","image":"alpine","tty":false}` +
+			`]}}`)
+
+		_, _, err := patchPodWithDebugContainer(
+			decoder, podJSON, patch, basePod, apimachinerytypes.StrategicMergePatchType,
+		)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+	})
+
+	t.Run("multiple added containers are rejected even when the last is interactive", func(t *testing.T) {
+		// A single strategic merge patch adding two ephemeral containers: a
+		// non-interactive one followed by an interactive one. Validating only
+		// the last entry would accept this; the non-interactive container must
+		// cause the whole patch to be rejected.
+		patch := []byte(`{"spec":{"ephemeralContainers":[` +
+			`{"name":"extra","image":"alpine","command":["/bin/sh","-c","id"],"tty":false},` +
+			`{"name":"debugger","image":"alpine","tty":true}` +
+			`]}}`)
+
+		_, _, err := patchPodWithDebugContainer(
+			decoder, podJSON, patch, basePod, apimachinerytypes.StrategicMergePatchType,
+		)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+	})
+
+	t.Run("multiple added containers are rejected when the last is non-interactive", func(t *testing.T) {
+		patch := []byte(`{"spec":{"ephemeralContainers":[` +
+			`{"name":"debugger","image":"alpine","tty":true},` +
+			`{"name":"extra","image":"alpine","command":["/bin/sh","-c","id"],"tty":false}` +
+			`]}}`)
+
+		_, _, err := patchPodWithDebugContainer(
+			decoder, podJSON, patch, basePod, apimachinerytypes.StrategicMergePatchType,
+		)
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected AccessDenied, got %v", err)
+	})
 }
