@@ -1940,8 +1940,7 @@ func createScopedBot(
 			Metadata: headerv1.Metadata_builder{Name: uuid.NewString()}.Build(),
 			Scope:    scopeName,
 			Spec: scopedaccessv1.ScopedRoleAssignmentSpec_builder{
-				BotName:  botName,
-				BotScope: scopeName,
+				Bot: scopes.QualifiedName{Scope: scopeName, Name: botName}.String(),
 				Assignments: []*scopedaccessv1.Assignment{
 					scopedaccessv1.Assignment_builder{Role: scopedRoleName, Scope: scopeName}.Build(),
 				},
