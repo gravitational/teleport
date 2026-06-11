@@ -4137,6 +4137,7 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *authpb.GetEventsRequest
 		Limit:      int(req.Limit),
 		Order:      types.EventOrder(req.Order),
 		StartKey:   req.StartKey,
+		Search:     req.Search,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

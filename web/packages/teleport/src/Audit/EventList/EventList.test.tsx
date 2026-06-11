@@ -16,133 +16,70 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-import { screen, within } from '@testing-library/react';
+import { screen } from '@testing-library/react';
 
-import { render } from 'design/utils/testing';
+import { render, userEvent } from 'design/utils/testing';
 
-import { RawEvents } from '../../services/audit';
-import makeEvent from '../../services/audit/makeEvent';
+import { makeEvent } from 'teleport/services/audit';
+
 import EventList from './EventList';
 
 describe('EventList', () => {
-  it('should sort events with same timestamp by event index', () => {
-    const sameTimestamp = '2025-09-08T21:25:49.265Z';
-
-    const mcpSessionStart = {
-      code: 'TMCP001I',
-      event: 'mcp.session.start',
-      time: sameTimestamp,
-      uid: '5dcf76ab-3f31-40a7-8550-bb29ecea1e42',
-      user: 'admin',
-      ei: 269750, // Lower event index - should be first
-      sid: '5dcf76ab-3f31-40a7-8550-bb29ecea1e42',
-      app_name: 'teleport-mcp-demo',
-    } as RawEvents[typeof import('teleport/services/audit').eventCodes.MCP_SESSION_START];
-
-    const mcpSessionRequest = {
-      code: 'TMCP003I',
-      event: 'mcp.session.request',
-      time: sameTimestamp,
-      uid: 'int64:0',
-      user: 'admin',
-      ei: 667167, // Higher event index - should be second
-      app_name: 'teleport-mcp-demo',
-      message: {
-        id: 'init64:0',
-        jsonrpc: '2.0',
-        method: 'initialize',
-        params: {
-          capabilities: {},
-          clientInfo: {
-            name: 'claude-ai',
-            version: '0.1.0',
-          },
-          protocolVersion: '2025-06-18',
-        },
+  it('renders events using the server-side sort props', () => {
+    const event = makeEvent({
+      codeDesc: 'Local Login',
+      message: 'Local user [root] successfully logged in',
+      id: 'user.login:2021-05-25T14:37:27.848Z',
+      code: 'T1000I',
+      user: 'root',
+      time: new Date('2021-05-25T14:37:27.848Z'),
+      raw: {
+        cluster_name: 'im-a-cluster-name',
+        code: 'T1000I',
+        ei: 0,
+        event: 'user.login',
+        method: 'local',
+        success: true,
+        time: '2021-05-25T14:37:27.848Z',
+        user: 'root',
       },
-    } as RawEvents[typeof import('teleport/services/audit').eventCodes.MCP_SESSION_REQUEST];
-
-    const events = [makeEvent(mcpSessionStart), makeEvent(mcpSessionRequest)];
+    });
 
     render(
       <EventList
-        events={events}
-        fetchMore={() => null}
-        fetchStatus=""
-        pageSize={50}
+        events={[event]}
+        search=""
+        setSearch={() => null}
+        sort={{ fieldName: 'time', dir: 'DESC' }}
+        setSort={() => null}
       />
     );
 
-    const table = screen.getByRole('table');
-    const rows = within(table).getAllByRole('row');
-
-    const firstDataRow = rows[1];
-    const secondDataRow = rows[2];
+    expect(screen.getByText('Local Login')).toBeInTheDocument();
     expect(
-      within(firstDataRow).getByText(/MCP Session Started/i)
-    ).toBeInTheDocument();
-    expect(
-      within(secondDataRow).getByText(/MCP Session Request/i)
+      screen.getByText('Local user [root] successfully logged in')
     ).toBeInTheDocument();
   });
 
-  it('should handle events with different timestamps correctly', () => {
-    const olderEvent = {
-      code: 'TMCP001I',
-      event: 'mcp.session.start',
-      time: '2025-09-08T21:25:48.000Z',
-      uid: 'uid-1',
-      user: 'admin',
-      ei: 999999,
-      sid: 'sid-1',
-      app_name: 'teleport-mcp-demo',
-    } as RawEvents[typeof import('teleport/services/audit').eventCodes.MCP_SESSION_START];
-
-    const newerEvent = {
-      code: 'TMCP003I',
-      event: 'mcp.session.request',
-      time: '2025-09-08T21:25:49.000Z',
-      uid: 'uid-2',
-      user: 'admin',
-      ei: 1,
-      app_name: 'teleport-mcp-demo',
-      message: {
-        id: 'int64:0',
-        jsonrpc: '2.0',
-        method: 'initialize',
-        params: {
-          capabilities: {},
-          clientInfo: {
-            name: 'claude-ai',
-            version: '0.1.0',
-          },
-          protocolVersion: '2025-06-18',
-        },
-      },
-    } as RawEvents[typeof import('teleport/services/audit').eventCodes.MCP_SESSION_REQUEST];
-
-    const events = [makeEvent(olderEvent), makeEvent(newerEvent)];
+  it('delegates sorting to the provided server-side sort handler', async () => {
+    const user = userEvent.setup();
+    const setSort = jest.fn();
 
     render(
       <EventList
-        events={events}
-        fetchMore={() => null}
-        fetchStatus=""
-        pageSize={50}
+        events={[]}
+        search=""
+        setSearch={() => null}
+        sort={{ fieldName: 'time', dir: 'DESC' }}
+        setSort={setSort}
       />
     );
 
-    const table = screen.getByRole('table');
-    const rows = within(table).getAllByRole('row');
+    await user.click(screen.getByText(/Created \(UTC\)/i));
 
-    const firstDataRow = rows[1];
-    const secondDataRow = rows[2];
-
-    expect(
-      within(firstDataRow).getByText(/MCP Session Request/i)
-    ).toBeInTheDocument();
-    expect(
-      within(secondDataRow).getByText(/MCP Session Started/i)
-    ).toBeInTheDocument();
+    expect(setSort).toHaveBeenCalledWith({
+      fieldName: 'time',
+      dir: 'ASC',
+    });
   });
 });

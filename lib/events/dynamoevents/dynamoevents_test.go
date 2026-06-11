@@ -132,6 +132,12 @@ func TestSearchSessionEvensBySessionID(t *testing.T) {
 	tt.suite.SearchSessionEventsBySessionID(t)
 }
 
+func TestSearchEventsBySearchTerm(t *testing.T) {
+	tt := setupDynamoContext(t)
+
+	tt.suite.SearchEventsBySearchTerm(t)
+}
+
 // TestCheckpointOutsideOfWindow tests if [Log] doesn't panic
 // if checkpoint date is outside of the window [fromUTC,toUTC].
 func TestCheckpointOutsideOfWindow(t *testing.T) {
