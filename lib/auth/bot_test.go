@@ -824,7 +824,7 @@ func authClientForRegisterResult(t *testing.T, ctx context.Context, addr *utils.
 	require.NoError(t, err)
 
 	log := logtest.NewLogger()
-	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+	dialer, err := reversetunnelclient.NewAuthDialerThroughProxy(reversetunnelclient.AuthDialerThroughProxyConfig{
 		Resolver:              resolver,
 		ClientConfig:          sshConfig,
 		Log:                   log,
