@@ -28,6 +28,7 @@ import (
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -176,10 +177,14 @@ loop:
 				sshSessionEnd.InitialCommand = e.InitialCommand
 				sshSessionEnd.SessionRecording = e.SessionRecording
 				sshSessionEnd.Interactive = e.TerminalSize != ""
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.UserMetadata.User)
+				// TODO(Joerger): DELETE IN v20 - User is already cluster-qualified post v19
+				participant := services.UsernameForCluster(e.UserMetadata.User, e.UserMetadata.UserClusterName, cfg.ClusterName)
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, participant)
 
 			case *apievents.SessionJoin:
-				sshSessionEnd.Participants = append(sshSessionEnd.Participants, e.UserMetadata.User)
+				// TODO(Joerger): DELETE IN v20 - User is already cluster-qualified post v19
+				participant := services.UsernameForCluster(e.UserMetadata.User, e.UserMetadata.UserClusterName, cfg.ClusterName)
+				sshSessionEnd.Participants = append(sshSessionEnd.Participants, participant)
 
 			case *apievents.DatabaseSessionStart:
 				dbSessionEnd.Type = DatabaseSessionEndEvent

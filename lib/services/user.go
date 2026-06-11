@@ -140,6 +140,26 @@ func UsernameForRemoteCluster(username, originClusterName string) string {
 	return fmt.Sprintf("remote-%v-%v", username, originClusterName)
 }
 
+// UsernameForCluster returns a cluster qualified username for remote users in
+// the form "remote-<user>-<originClusterName>", passing through unchanged for
+// local users or remote users whose username is already qualified.
+//
+// This transformation is idempotent, meaning a username already matching
+// "remote-<user>-<originClusterName>" won't be transformed.
+//
+// TODO(Joerger): DELETE IN v20. This exists only as a read-side fallback to
+// handle data emitted by pre-v19 SSH service agents, where the SSH service wrote
+// raw (unqualified) usernames into session trackers and audit events.
+func UsernameForCluster(username, originClusterName, localClusterName string) string {
+	if originClusterName == "" || originClusterName == localClusterName {
+		return username
+	}
+	if strings.HasPrefix(username, "remote-") && strings.HasSuffix(username, "-"+originClusterName) {
+		return username
+	}
+	return UsernameForRemoteCluster(username, originClusterName)
+}
+
 // ResolveUserDisplays resolves usernames to display values keyed by username,
 // reading each unique name once through getter via types.User.GetDisplay.
 //

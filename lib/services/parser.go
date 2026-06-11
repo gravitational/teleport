@@ -572,7 +572,8 @@ func toCtxTracker(t types.SessionTracker) ctxTracker {
 		participants := s.GetParticipants()
 		names := make([]string, len(participants))
 		for i, participant := range participants {
-			names[i] = participant.User
+			// TODO(Joerger): DELETE IN v20 - username is already cluster-qualified post v19
+			names[i] = UsernameForCluster(participant.User, participant.Cluster, s.GetClusterName())
 		}
 
 		return names
