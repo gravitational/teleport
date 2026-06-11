@@ -64,6 +64,7 @@ import (
 	"github.com/gravitational/teleport/lib/healthcheck"
 	"github.com/gravitational/teleport/lib/inventory"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
+	kubewatcher "github.com/gravitational/teleport/lib/kube/proxy/watcher"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/modules/modulestest"
@@ -72,6 +73,7 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/services/readonly"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -282,6 +284,11 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		authClient = cfg.WrapAuthClient(client)
 	}
 
+	var accessPoint authclient.ClientI = client
+	if cfg.WrapAuthClient != nil {
+		accessPoint = cfg.WrapAuthClient(client)
+	}
+
 	// Create kubernetes service server.
 	testCtx.KubeServer, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
@@ -300,7 +307,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			// "node-sync" as session recording mode.
 			Emitter:           testCtx.Emitter,
 			DataDir:           t.TempDir(),
-			CachingAuthClient: client,
+			CachingAuthClient: accessPoint,
 			HostID:            testCtx.HostID,
 			Context:           testCtx.Context,
 			KubeconfigPath:    kubeConfigLocation,
@@ -316,7 +323,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 		},
 		DynamicLabels: nil,
 		TLS:           kubeServiceTLSConfig.Clone(),
-		AccessPoint:   client,
+		AccessPoint:   accessPoint,
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
 		},
@@ -335,14 +342,16 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	require.NoError(t, err)
 
 	// Create kubernetes proxy server.
-	kubeServersWatcher, err := services.NewKubeServerWatcher(
+	kubeServersWatcher, err := kubewatcher.NewProxyKubeServerWatcher(
 		testCtx.Context,
-		services.KubeServerWatcherConfig{
-			ResourceWatcherConfig: services.ResourceWatcherConfig{
-				Component: teleport.ComponentKube,
-				Client:    client,
-			},
-			KubernetesServerGetter: client,
+		kubewatcher.ProxyKubeServerWatcherConfig{
+			Logger:           logtest.NewLogger(),
+			Component:        teleport.Component(teleport.ComponentProxy, teleport.ComponentProxyKube),
+			AccessPoint:      accessPoint,
+			FallbackGetter:   authClient,
+			PrimaryTimeout:   time.Second,
+			FallbackInterval: time.Second,
+			MaxRetryPeriod:   time.Second,
 		},
 	)
 	require.NoError(t, err)
@@ -401,7 +410,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 			PROXYSigner: &multiplexer.PROXYSigner{},
 		},
 		TLS:                      proxyTLSConfig.Clone(),
-		AccessPoint:              client,
+		AccessPoint:              accessPoint,
 		KubernetesServersWatcher: kubeServersWatcher,
 		LimiterConfig: limiter.Config{
 			MaxConnections: 1000,
@@ -438,7 +447,7 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 
 	// Ensure watcher has the correct list of clusters.
 	require.Eventually(t, func() bool {
-		kubeServers, err := kubeServersWatcher.CurrentResources(ctx)
+		kubeServers, err := kubeServersWatcher.CurrentResourcesWithFilter(ctx, func(readonly.KubeServer) bool { return true })
 		return err == nil && len(kubeServers) == len(cfg.Clusters)
 	}, 3*time.Second, time.Millisecond*100)
 
