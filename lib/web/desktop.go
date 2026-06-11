@@ -49,7 +49,6 @@ import (
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/desktop"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
-	srvdesktop "github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/legacy"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
@@ -521,7 +520,7 @@ func (h *Handler) createDesktopConnection(
 			// fall back to legacy per-session MFA.
 			//
 			// TODO(cthach): DELETE IN v20.0 when the legacy per-session MFA with certificates flow is removed.
-			if os.Getenv(srvdesktop.ForceInBandMFAEnv) == "yes" {
+			if os.Getenv(mfa.ForceInBandEnv) == "yes" {
 				return handshaker.sendError(
 					ctx,
 					log,
@@ -578,9 +577,7 @@ func (h *Handler) handleInBandMFA(
 	hs handshaker,
 	clusterName string,
 ) error {
-	cs := tlsConn.ConnectionState()
-
-	sip, err := cs.ExportKeyingMaterial("EXPERIMENTAL-Teleport-MFA", nil, 32)
+	sip, err := mfa.DeriveSIP(tlsConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

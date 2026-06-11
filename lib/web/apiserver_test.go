@@ -97,6 +97,7 @@ import (
 	mfav1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
 	transportpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -3217,7 +3218,7 @@ func wsTDPBNoMFA(t *testing.T, ws *websocket.Conn) {
 // connection instead of falling back to legacy per-session MFA when WDS sends an Alert.
 func TestDesktopInBandMFA_ForceEnvVar(t *testing.T) {
 	t.Setenv("TELEPORT_DISABLE_DESKTOP_LATENCY_DETECTOR_PING", "true")
-	t.Setenv(desktop.ForceInBandMFAEnv, "yes")
+	t.Setenv(mfa.ForceInBandEnv, "yes")
 
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]

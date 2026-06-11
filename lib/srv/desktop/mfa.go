@@ -27,13 +27,11 @@ import (
 
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
 	mfav2 "github.com/gravitational/teleport/api/gen/proto/go/teleport/mfa/v2"
+	"github.com/gravitational/teleport/api/mfa"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp/protocol/tdpb"
-	"github.com/gravitational/teleport/lib/srv/mfa"
+	srvmfa "github.com/gravitational/teleport/lib/srv/mfa"
 )
-
-// ekmLabel is the label used for exporting keying material to derive the Session Identifying Payload.
-const ekmLabel = "EXPERIMENTAL-Teleport-MFA"
 
 // challengeVerifier verifies that a validated MFA challenge exists.
 type challengeVerifier interface {
@@ -46,7 +44,7 @@ type challengeVerifier interface {
 
 // MFAPromptVerifier verifies MFA prompts and responses for desktop in-band MFA.
 type MFAPromptVerifier struct {
-	mfa.Verifier
+	srvmfa.Verifier
 }
 
 // NewMFAPromptVerifier creates a new MFAPromptVerifier with the provided parameters.
@@ -56,7 +54,7 @@ func NewMFAPromptVerifier(
 	username string,
 	sessionID []byte,
 ) (*MFAPromptVerifier, error) {
-	mfaVerifier, err := mfa.NewVerifier(challengeVerifier, sourceCluster, username, sessionID)
+	mfaVerifier, err := srvmfa.NewVerifier(challengeVerifier, sourceCluster, username, sessionID)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -95,11 +93,6 @@ func (pv *MFAPromptVerifier) VerifyResponse(ctx context.Context, resp *tdpbv1.MF
 	}
 }
 
-// ForceInBandMFAEnv is the environment variable that forces in-band MFA for all desktop connections.
-//
-// TODO(cthach): Move to common MFA package.
-const ForceInBandMFAEnv = "TELEPORT_UNSTABLE_FORCE_IN_BAND_MFA"
-
 // errInBandMFARequired is returned when in-band MFA is required but the client does not support it.
 var errInBandMFARequired = trace.AccessDenied(
 	"This connection requires in-band MFA, but your desktop client does not support it. " +
@@ -116,9 +109,7 @@ func HandleInBandMFA(
 	sourceCluster string,
 	username string,
 ) error {
-	cs := tlsConn.ConnectionState()
-
-	sip, err := cs.ExportKeyingMaterial(ekmLabel, nil, 32)
+	sip, err := mfa.DeriveSIP(tlsConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
