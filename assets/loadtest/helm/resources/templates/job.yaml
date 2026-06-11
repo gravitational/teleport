@@ -3,11 +3,15 @@ kind: Job
 metadata:
   name: {{ .Release.Name }}
   namespace: {{ .Release.Namespace }}
+  annotations:
+    "helm.sh/hook": post-install,post-upgrade
+    "helm.sh/hook-delete-policy": before-hook-creation
 spec:
   completions: {{ .Values.resources.count }}
   parallelism: {{ .Values.resources.parallelism }}
   completionMode: Indexed
   backoffLimit: 2
+  ttlSecondsAfterFinished: 1800
   template:
     metadata:
       labels:
