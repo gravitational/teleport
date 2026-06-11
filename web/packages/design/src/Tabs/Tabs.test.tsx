@@ -16,9 +16,16 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+import { MemoryRouter } from 'react-router';
+
 import { render, screen, userEvent } from 'design/utils/testing';
 
-import { TabBorder, TabContainer, TabsContainer } from './Tabs';
+import {
+  TabBorder,
+  TabContainer,
+  TabContainerNavLink,
+  TabsContainer,
+} from './Tabs';
 
 test('enabled tab calls onClick when clicked', async () => {
   const user = userEvent.setup();
@@ -67,4 +74,21 @@ test('disabled tab keeps pointer events', () => {
   expect(screen.getByText('Disabled Tab')).not.toHaveStyle({
     'pointer-events': 'none',
   });
+});
+
+test('disabled TabContainerNavLink prevents default navigation', async () => {
+  const user = userEvent.setup();
+  const handleClick = jest.fn();
+  render(
+    <MemoryRouter>
+      <div onClick={handleClick}>
+        <TabContainerNavLink to="/other" disabled>
+          Disabled Link Tab
+        </TabContainerNavLink>
+      </div>
+    </MemoryRouter>
+  );
+
+  await user.click(screen.getByText('Disabled Link Tab'));
+  expect(handleClick.mock.calls[0][0].defaultPrevented).toBe(true);
 });
