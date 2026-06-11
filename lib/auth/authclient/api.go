@@ -759,6 +759,8 @@ type DatabaseAccessPoint interface {
 type ReadWindowsDesktopAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
+	// SubCAServiceGetter reads CA override resources.
+	services.SubCAServiceGetter
 
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
@@ -1198,6 +1200,9 @@ type Cache interface {
 	// GetApplicationServers returns all registered application servers.
 	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
+	// RangeApplicationServersWithName returns an iterator over application servers for a given app name.
+	RangeApplicationServersWithName(ctx context.Context, appName string) iter.Seq2[types.AppServer, error]
+
 	// GetAppSession gets an application web session.
 	GetAppSession(context.Context, types.GetAppSessionRequest) (types.WebSession, error)
 
@@ -1435,9 +1440,9 @@ type Cache interface {
 
 	// GetWorkloadIdentity gets a WorkloadIdentity by name.
 	GetWorkloadIdentity(ctx context.Context, name string) (*workloadidentityv1pb.WorkloadIdentity, error)
-	// ListWorkloadIdentities lists all SPIFFE Federations using Google style
-	// pagination.
-	ListWorkloadIdentities(ctx context.Context, pageSize int, lastToken string, options *services.ListWorkloadIdentitiesRequestOptions) ([]*workloadidentityv1pb.WorkloadIdentity, string, error)
+	// RangeWorkloadIdentities returns WorkloadIdentity resources within the
+	// range [start, end), ordered by the given sort field and direction.
+	RangeWorkloadIdentities(ctx context.Context, start, end string, sortField services.WorkloadIdentitySortField, sortDesc bool) iter.Seq2[*workloadidentityv1pb.WorkloadIdentity, error]
 
 	// ListStaticHostUsers lists static host users.
 	ListStaticHostUsers(ctx context.Context, pageSize int, startKey string) ([]*userprovisioningpb.StaticHostUser, string, error)
@@ -1493,6 +1498,9 @@ type Cache interface {
 	services.SummarizerServiceGetter
 	// BeamReader defines methods for reading beam resources.
 	services.BeamReader
+
+	// SubCAServiceGetter reads CertAuthorityOverride resources.
+	services.SubCAServiceGetter
 }
 
 type NodeWrapper struct {

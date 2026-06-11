@@ -300,7 +300,8 @@ func ValidateTokenWithJWKS(
 	}
 
 	// Ensure this is a pod-bound service account token
-	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" ||
+		claims.Kubernetes.ServiceAccount == nil || claims.Kubernetes.ServiceAccount.Name == "" {
 		return nil, trace.BadParameter("static_jwks joining requires the use of projected pod bound service account token")
 	}
 
@@ -376,7 +377,8 @@ func (v *KubernetesOIDCTokenValidator) ValidateToken(
 	}
 
 	// Ensure this is a pod-bound service account token
-	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" {
+	if claims.Kubernetes == nil || claims.Kubernetes.Pod == nil || claims.Kubernetes.Pod.Name == "" ||
+		claims.Kubernetes.ServiceAccount == nil || claims.Kubernetes.ServiceAccount.Name == "" {
 		return nil, trace.BadParameter("oidc joining requires the use of a projected pod bound service account token")
 	}
 

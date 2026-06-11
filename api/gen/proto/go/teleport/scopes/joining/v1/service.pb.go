@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/scopes/joining/v1/service.proto
 
+//go:build !protoopaque
+
 package joiningv1
 
 import (
@@ -25,7 +27,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -38,7 +39,7 @@ const (
 
 // GetScopedTokenRequest is the request to get a scoped token.
 type GetScopedTokenRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the scoped token.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// If true, include the token secret in the response.
@@ -72,11 +73,6 @@ func (x *GetScopedTokenRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetScopedTokenRequest.ProtoReflect.Descriptor instead.
-func (*GetScopedTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *GetScopedTokenRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -91,9 +87,35 @@ func (x *GetScopedTokenRequest) GetWithSecret() bool {
 	return false
 }
 
+func (x *GetScopedTokenRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *GetScopedTokenRequest) SetWithSecret(v bool) {
+	x.WithSecret = v
+}
+
+type GetScopedTokenRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the scoped token.
+	Name string
+	// If true, include the token secret in the response.
+	WithSecret bool
+}
+
+func (b0 GetScopedTokenRequest_builder) Build() *GetScopedTokenRequest {
+	m0 := &GetScopedTokenRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.WithSecret = b.WithSecret
+	return m0
+}
+
 // GetScopedTokenResponse is the response to get a scoped token.
 type GetScopedTokenResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Token is the scoped token.
 	Token         *ScopedToken `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -125,11 +147,6 @@ func (x *GetScopedTokenResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetScopedTokenResponse.ProtoReflect.Descriptor instead.
-func (*GetScopedTokenResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *GetScopedTokenResponse) GetToken() *ScopedToken {
 	if x != nil {
 		return x.Token
@@ -137,9 +154,39 @@ func (x *GetScopedTokenResponse) GetToken() *ScopedToken {
 	return nil
 }
 
+func (x *GetScopedTokenResponse) SetToken(v *ScopedToken) {
+	x.Token = v
+}
+
+func (x *GetScopedTokenResponse) HasToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.Token != nil
+}
+
+func (x *GetScopedTokenResponse) ClearToken() {
+	x.Token = nil
+}
+
+type GetScopedTokenResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Token is the scoped token.
+	Token *ScopedToken
+}
+
+func (b0 GetScopedTokenResponse_builder) Build() *GetScopedTokenResponse {
+	m0 := &GetScopedTokenResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	return m0
+}
+
 // ListScopedTokensRequest is the request to list scoped tokens.
 type ListScopedTokensRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Filter tokens by their resource scope.
 	ResourceScope *v1.Filter `protobuf:"bytes,1,opt,name=resource_scope,json=resourceScope,proto3" json:"resource_scope,omitempty"`
 	// Filter tokens by their assigned scope.
@@ -181,11 +228,6 @@ func (x *ListScopedTokensRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use ListScopedTokensRequest.ProtoReflect.Descriptor instead.
-func (*ListScopedTokensRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{2}
 }
 
 func (x *ListScopedTokensRequest) GetResourceScope() *v1.Filter {
@@ -237,9 +279,92 @@ func (x *ListScopedTokensRequest) GetWithSecrets() bool {
 	return false
 }
 
+func (x *ListScopedTokensRequest) SetResourceScope(v *v1.Filter) {
+	x.ResourceScope = v
+}
+
+func (x *ListScopedTokensRequest) SetAssignedScope(v *v1.Filter) {
+	x.AssignedScope = v
+}
+
+func (x *ListScopedTokensRequest) SetCursor(v string) {
+	x.Cursor = v
+}
+
+func (x *ListScopedTokensRequest) SetLimit(v uint32) {
+	x.Limit = v
+}
+
+func (x *ListScopedTokensRequest) SetRoles(v []string) {
+	x.Roles = v
+}
+
+func (x *ListScopedTokensRequest) SetLabels(v map[string]string) {
+	x.Labels = v
+}
+
+func (x *ListScopedTokensRequest) SetWithSecrets(v bool) {
+	x.WithSecrets = v
+}
+
+func (x *ListScopedTokensRequest) HasResourceScope() bool {
+	if x == nil {
+		return false
+	}
+	return x.ResourceScope != nil
+}
+
+func (x *ListScopedTokensRequest) HasAssignedScope() bool {
+	if x == nil {
+		return false
+	}
+	return x.AssignedScope != nil
+}
+
+func (x *ListScopedTokensRequest) ClearResourceScope() {
+	x.ResourceScope = nil
+}
+
+func (x *ListScopedTokensRequest) ClearAssignedScope() {
+	x.AssignedScope = nil
+}
+
+type ListScopedTokensRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Filter tokens by their resource scope.
+	ResourceScope *v1.Filter
+	// Filter tokens by their assigned scope.
+	AssignedScope *v1.Filter
+	// The pagination cursor.
+	Cursor string
+	// The maximum number of results to return.
+	Limit uint32
+	// Filter tokens that apply at least one of the provided roles.
+	Roles []string
+	// Filter tokens that match all provided labels.
+	Labels map[string]string
+	// If true, include the token secrets in the response.
+	WithSecrets bool
+}
+
+func (b0 ListScopedTokensRequest_builder) Build() *ListScopedTokensRequest {
+	m0 := &ListScopedTokensRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ResourceScope = b.ResourceScope
+	x.AssignedScope = b.AssignedScope
+	x.Cursor = b.Cursor
+	x.Limit = b.Limit
+	x.Roles = b.Roles
+	x.Labels = b.Labels
+	x.WithSecrets = b.WithSecrets
+	return m0
+}
+
 // ListScopedTokensResponse is the response to list scoped tokens.
 type ListScopedTokensResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Tokens is the list of scoped tokens.
 	Tokens []*ScopedToken `protobuf:"bytes,1,rep,name=tokens,proto3" json:"tokens,omitempty"`
 	// Cursor is the pagination cursor.
@@ -273,11 +398,6 @@ func (x *ListScopedTokensResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListScopedTokensResponse.ProtoReflect.Descriptor instead.
-func (*ListScopedTokensResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *ListScopedTokensResponse) GetTokens() []*ScopedToken {
 	if x != nil {
 		return x.Tokens
@@ -292,9 +412,35 @@ func (x *ListScopedTokensResponse) GetCursor() string {
 	return ""
 }
 
+func (x *ListScopedTokensResponse) SetTokens(v []*ScopedToken) {
+	x.Tokens = v
+}
+
+func (x *ListScopedTokensResponse) SetCursor(v string) {
+	x.Cursor = v
+}
+
+type ListScopedTokensResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Tokens is the list of scoped tokens.
+	Tokens []*ScopedToken
+	// Cursor is the pagination cursor.
+	Cursor string
+}
+
+func (b0 ListScopedTokensResponse_builder) Build() *ListScopedTokensResponse {
+	m0 := &ListScopedTokensResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Tokens = b.Tokens
+	x.Cursor = b.Cursor
+	return m0
+}
+
 // CreateScopedTokenRequest is the request to create a scoped token.
 type CreateScopedTokenRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Token is the scoped token to create.
 	Token         *ScopedToken `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -326,11 +472,6 @@ func (x *CreateScopedTokenRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateScopedTokenRequest.ProtoReflect.Descriptor instead.
-func (*CreateScopedTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *CreateScopedTokenRequest) GetToken() *ScopedToken {
 	if x != nil {
 		return x.Token
@@ -338,9 +479,39 @@ func (x *CreateScopedTokenRequest) GetToken() *ScopedToken {
 	return nil
 }
 
+func (x *CreateScopedTokenRequest) SetToken(v *ScopedToken) {
+	x.Token = v
+}
+
+func (x *CreateScopedTokenRequest) HasToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.Token != nil
+}
+
+func (x *CreateScopedTokenRequest) ClearToken() {
+	x.Token = nil
+}
+
+type CreateScopedTokenRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Token is the scoped token to create.
+	Token *ScopedToken
+}
+
+func (b0 CreateScopedTokenRequest_builder) Build() *CreateScopedTokenRequest {
+	m0 := &CreateScopedTokenRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	return m0
+}
+
 // CreateScopedTokenResponse is the response to create a scoped token.
 type CreateScopedTokenResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Token is the scoped token that was created.
 	Token         *ScopedToken `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -372,11 +543,6 @@ func (x *CreateScopedTokenResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CreateScopedTokenResponse.ProtoReflect.Descriptor instead.
-func (*CreateScopedTokenResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *CreateScopedTokenResponse) GetToken() *ScopedToken {
 	if x != nil {
 		return x.Token
@@ -384,9 +550,39 @@ func (x *CreateScopedTokenResponse) GetToken() *ScopedToken {
 	return nil
 }
 
+func (x *CreateScopedTokenResponse) SetToken(v *ScopedToken) {
+	x.Token = v
+}
+
+func (x *CreateScopedTokenResponse) HasToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.Token != nil
+}
+
+func (x *CreateScopedTokenResponse) ClearToken() {
+	x.Token = nil
+}
+
+type CreateScopedTokenResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Token is the scoped token that was created.
+	Token *ScopedToken
+}
+
+func (b0 CreateScopedTokenResponse_builder) Build() *CreateScopedTokenResponse {
+	m0 := &CreateScopedTokenResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	return m0
+}
+
 // UpsertScopedTokenRequest is the request to upsert a scoped token.
 type UpsertScopedTokenRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Token is the scoped token to upsert.
 	Token         *ScopedToken `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -418,11 +614,6 @@ func (x *UpsertScopedTokenRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertScopedTokenRequest.ProtoReflect.Descriptor instead.
-func (*UpsertScopedTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *UpsertScopedTokenRequest) GetToken() *ScopedToken {
 	if x != nil {
 		return x.Token
@@ -430,9 +621,39 @@ func (x *UpsertScopedTokenRequest) GetToken() *ScopedToken {
 	return nil
 }
 
+func (x *UpsertScopedTokenRequest) SetToken(v *ScopedToken) {
+	x.Token = v
+}
+
+func (x *UpsertScopedTokenRequest) HasToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.Token != nil
+}
+
+func (x *UpsertScopedTokenRequest) ClearToken() {
+	x.Token = nil
+}
+
+type UpsertScopedTokenRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Token is the scoped token to upsert.
+	Token *ScopedToken
+}
+
+func (b0 UpsertScopedTokenRequest_builder) Build() *UpsertScopedTokenRequest {
+	m0 := &UpsertScopedTokenRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	return m0
+}
+
 // UpsertScopedTokenResponse is the response to upsert a scoped token.
 type UpsertScopedTokenResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Token is the post-upsert scoped token.
 	Token         *ScopedToken `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -464,11 +685,6 @@ func (x *UpsertScopedTokenResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertScopedTokenResponse.ProtoReflect.Descriptor instead.
-func (*UpsertScopedTokenResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *UpsertScopedTokenResponse) GetToken() *ScopedToken {
 	if x != nil {
 		return x.Token
@@ -476,9 +692,39 @@ func (x *UpsertScopedTokenResponse) GetToken() *ScopedToken {
 	return nil
 }
 
+func (x *UpsertScopedTokenResponse) SetToken(v *ScopedToken) {
+	x.Token = v
+}
+
+func (x *UpsertScopedTokenResponse) HasToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.Token != nil
+}
+
+func (x *UpsertScopedTokenResponse) ClearToken() {
+	x.Token = nil
+}
+
+type UpsertScopedTokenResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Token is the post-upsert scoped token.
+	Token *ScopedToken
+}
+
+func (b0 UpsertScopedTokenResponse_builder) Build() *UpsertScopedTokenResponse {
+	m0 := &UpsertScopedTokenResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	return m0
+}
+
 // DeleteScopedTokenRequest is the request to delete a scoped token.
 type DeleteScopedTokenRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the scoped token to delete.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// Revision asserts the revision of the scoped token to delete (optional).
@@ -512,11 +758,6 @@ func (x *DeleteScopedTokenRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteScopedTokenRequest.ProtoReflect.Descriptor instead.
-func (*DeleteScopedTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *DeleteScopedTokenRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -531,9 +772,35 @@ func (x *DeleteScopedTokenRequest) GetRevision() string {
 	return ""
 }
 
+func (x *DeleteScopedTokenRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *DeleteScopedTokenRequest) SetRevision(v string) {
+	x.Revision = v
+}
+
+type DeleteScopedTokenRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the scoped token to delete.
+	Name string
+	// Revision asserts the revision of the scoped token to delete (optional).
+	Revision string
+}
+
+func (b0 DeleteScopedTokenRequest_builder) Build() *DeleteScopedTokenRequest {
+	m0 := &DeleteScopedTokenRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	x.Revision = b.Revision
+	return m0
+}
+
 // DeleteScopedTokenResponse is the response to delete a scoped token.
 type DeleteScopedTokenResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -563,14 +830,21 @@ func (x *DeleteScopedTokenResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteScopedTokenResponse.ProtoReflect.Descriptor instead.
-func (*DeleteScopedTokenResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{9}
+type DeleteScopedTokenResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteScopedTokenResponse_builder) Build() *DeleteScopedTokenResponse {
+	m0 := &DeleteScopedTokenResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // UpdateScopedTokenRequest is the request to update a scoped token.
 type UpdateScopedTokenRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Token is the scoped token to update.
 	Token         *ScopedToken `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -602,11 +876,6 @@ func (x *UpdateScopedTokenRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateScopedTokenRequest.ProtoReflect.Descriptor instead.
-func (*UpdateScopedTokenRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *UpdateScopedTokenRequest) GetToken() *ScopedToken {
 	if x != nil {
 		return x.Token
@@ -614,9 +883,39 @@ func (x *UpdateScopedTokenRequest) GetToken() *ScopedToken {
 	return nil
 }
 
+func (x *UpdateScopedTokenRequest) SetToken(v *ScopedToken) {
+	x.Token = v
+}
+
+func (x *UpdateScopedTokenRequest) HasToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.Token != nil
+}
+
+func (x *UpdateScopedTokenRequest) ClearToken() {
+	x.Token = nil
+}
+
+type UpdateScopedTokenRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Token is the scoped token to update.
+	Token *ScopedToken
+}
+
+func (b0 UpdateScopedTokenRequest_builder) Build() *UpdateScopedTokenRequest {
+	m0 := &UpdateScopedTokenRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	return m0
+}
+
 // UpdateScopedTokenResponse is the response to update a scoped token.
 type UpdateScopedTokenResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Token is the post-update scoped token.
 	Token         *ScopedToken `protobuf:"bytes,1,opt,name=token,proto3" json:"token,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -648,16 +947,41 @@ func (x *UpdateScopedTokenResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateScopedTokenResponse.ProtoReflect.Descriptor instead.
-func (*UpdateScopedTokenResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_scopes_joining_v1_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *UpdateScopedTokenResponse) GetToken() *ScopedToken {
 	if x != nil {
 		return x.Token
 	}
 	return nil
+}
+
+func (x *UpdateScopedTokenResponse) SetToken(v *ScopedToken) {
+	x.Token = v
+}
+
+func (x *UpdateScopedTokenResponse) HasToken() bool {
+	if x == nil {
+		return false
+	}
+	return x.Token != nil
+}
+
+func (x *UpdateScopedTokenResponse) ClearToken() {
+	x.Token = nil
+}
+
+type UpdateScopedTokenResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Token is the post-update scoped token.
+	Token *ScopedToken
+}
+
+func (b0 UpdateScopedTokenResponse_builder) Build() *UpdateScopedTokenResponse {
+	m0 := &UpdateScopedTokenResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Token = b.Token
+	return m0
 }
 
 var File_teleport_scopes_joining_v1_service_proto protoreflect.FileDescriptor
@@ -708,18 +1032,6 @@ const file_teleport_scopes_joining_v1_service_proto_rawDesc = "" +
 	"\x11UpsertScopedToken\x124.teleport.scopes.joining.v1.UpsertScopedTokenRequest\x1a5.teleport.scopes.joining.v1.UpsertScopedTokenResponse\x12\x80\x01\n" +
 	"\x11DeleteScopedToken\x124.teleport.scopes.joining.v1.DeleteScopedTokenRequest\x1a5.teleport.scopes.joining.v1.DeleteScopedTokenResponse\x12\x80\x01\n" +
 	"\x11UpdateScopedToken\x124.teleport.scopes.joining.v1.UpdateScopedTokenRequest\x1a5.teleport.scopes.joining.v1.UpdateScopedTokenResponseBYZWgithub.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1;joiningv1b\x06proto3"
-
-var (
-	file_teleport_scopes_joining_v1_service_proto_rawDescOnce sync.Once
-	file_teleport_scopes_joining_v1_service_proto_rawDescData []byte
-)
-
-func file_teleport_scopes_joining_v1_service_proto_rawDescGZIP() []byte {
-	file_teleport_scopes_joining_v1_service_proto_rawDescOnce.Do(func() {
-		file_teleport_scopes_joining_v1_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_scopes_joining_v1_service_proto_rawDesc), len(file_teleport_scopes_joining_v1_service_proto_rawDesc)))
-	})
-	return file_teleport_scopes_joining_v1_service_proto_rawDescData
-}
 
 var file_teleport_scopes_joining_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_scopes_joining_v1_service_proto_goTypes = []any{

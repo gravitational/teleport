@@ -40,6 +40,10 @@ const controls: DesktopSessionControlsRenderProps = {
   alerts: [],
   isConnected: false,
   latencyStats: undefined,
+  hiDpiEnabled: false,
+  onToggleHiDpi: () => {},
+  screenIsHiDpi: false,
+  hiDpiSupported: false,
 };
 
 export function NoAlerts() {

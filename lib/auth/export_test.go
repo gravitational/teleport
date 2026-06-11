@@ -216,10 +216,6 @@ func ChangeUserAuthentication(ctx context.Context, a *Server, req *proto.ChangeU
 	return a.changeUserAuthentication(ctx, req)
 }
 
-func ValidateOracleJoinToken(token types.ProvisionToken) error {
-	return validateOracleJoinToken(token)
-}
-
 func CreatePresetUsers(ctx context.Context, buildType string, um PresetUsers) error {
 	return createPresetUsers(ctx, buildType, um)
 }
@@ -272,6 +268,14 @@ func NewServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, authzC
 		authServer: srv,
 		alog:       alog,
 		context:    authzContext,
+	}
+}
+
+func NewScopedServerWithRoles(srv *Server, alog events.AuditLogSessionStreamer, scopedContext *authz.ScopedContext) *ServerWithRoles {
+	return &ServerWithRoles{
+		authServer:    srv,
+		alog:          alog,
+		scopedContext: scopedContext,
 	}
 }
 

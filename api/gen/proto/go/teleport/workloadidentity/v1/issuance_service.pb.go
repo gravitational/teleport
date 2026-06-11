@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/workloadidentity/v1/issuance_service.proto
 
+//go:build !protoopaque
+
 package workloadidentityv1
 
 import (
@@ -26,7 +28,6 @@ import (
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -39,7 +40,7 @@ const (
 
 // The parameters for issuing an X509 SVID.
 type X509SVIDParams struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The PKIX, ASN.1 DER public key to encode into the X509 SVID.
 	PublicKey []byte `protobuf:"bytes,1,opt,name=public_key,json=publicKey,proto3" json:"public_key,omitempty"`
 	// Whether or not the issuance should use a configured X509 issuer override,
@@ -75,11 +76,6 @@ func (x *X509SVIDParams) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use X509SVIDParams.ProtoReflect.Descriptor instead.
-func (*X509SVIDParams) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_issuance_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *X509SVIDParams) GetPublicKey() []byte {
 	if x != nil {
 		return x.PublicKey
@@ -94,9 +90,40 @@ func (x *X509SVIDParams) GetUseIssuerOverrides() bool {
 	return false
 }
 
+func (x *X509SVIDParams) SetPublicKey(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.PublicKey = v
+}
+
+func (x *X509SVIDParams) SetUseIssuerOverrides(v bool) {
+	x.UseIssuerOverrides = v
+}
+
+type X509SVIDParams_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The PKIX, ASN.1 DER public key to encode into the X509 SVID.
+	PublicKey []byte
+	// Whether or not the issuance should use a configured X509 issuer override,
+	// if any. When set, the returned credentials might include a certificate
+	// chain that will be required to use the returned certificate correctly.
+	UseIssuerOverrides bool
+}
+
+func (b0 X509SVIDParams_builder) Build() *X509SVIDParams {
+	m0 := &X509SVIDParams{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PublicKey = b.PublicKey
+	x.UseIssuerOverrides = b.UseIssuerOverrides
+	return m0
+}
+
 // The parameters for issuing a JWT SVID.
 type JWTSVIDParams struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The audiences to encode into the JWT SVID as the `aud` claim.
 	Audiences     []string `protobuf:"bytes,1,rep,name=audiences,proto3" json:"audiences,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -128,11 +155,6 @@ func (x *JWTSVIDParams) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JWTSVIDParams.ProtoReflect.Descriptor instead.
-func (*JWTSVIDParams) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_issuance_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *JWTSVIDParams) GetAudiences() []string {
 	if x != nil {
 		return x.Audiences
@@ -140,9 +162,28 @@ func (x *JWTSVIDParams) GetAudiences() []string {
 	return nil
 }
 
+func (x *JWTSVIDParams) SetAudiences(v []string) {
+	x.Audiences = v
+}
+
+type JWTSVIDParams_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The audiences to encode into the JWT SVID as the `aud` claim.
+	Audiences []string
+}
+
+func (b0 JWTSVIDParams_builder) Build() *JWTSVIDParams {
+	m0 := &JWTSVIDParams{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Audiences = b.Audiences
+	return m0
+}
+
 // The issued X509 SVID credential and any X509 SVID specific metadata.
 type X509SVIDCredential struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The X509 SVID that was issued.
 	// ASN.1 DER encoded X.509 certificate. No PEM.
 	Cert []byte `protobuf:"bytes,1,opt,name=cert,proto3" json:"cert,omitempty"`
@@ -181,11 +222,6 @@ func (x *X509SVIDCredential) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use X509SVIDCredential.ProtoReflect.Descriptor instead.
-func (*X509SVIDCredential) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_issuance_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *X509SVIDCredential) GetCert() []byte {
 	if x != nil {
 		return x.Cert
@@ -207,9 +243,48 @@ func (x *X509SVIDCredential) GetChain() [][]byte {
 	return nil
 }
 
+func (x *X509SVIDCredential) SetCert(v []byte) {
+	if v == nil {
+		v = []byte{}
+	}
+	x.Cert = v
+}
+
+func (x *X509SVIDCredential) SetSerialNumber(v string) {
+	x.SerialNumber = v
+}
+
+func (x *X509SVIDCredential) SetChain(v [][]byte) {
+	x.Chain = v
+}
+
+type X509SVIDCredential_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The X509 SVID that was issued.
+	// ASN.1 DER encoded X.509 certificate. No PEM.
+	Cert []byte
+	// The serial number of the X509 SVID.
+	SerialNumber string
+	// The certificate chain for the issued X509 SVID (in order from end entity
+	// certificate to root certificate, excluding both ends). ASN.1 DER encoded
+	// X.509 certificate. No PEM. Can be empty.
+	Chain [][]byte
+}
+
+func (b0 X509SVIDCredential_builder) Build() *X509SVIDCredential {
+	m0 := &X509SVIDCredential{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Cert = b.Cert
+	x.SerialNumber = b.SerialNumber
+	x.Chain = b.Chain
+	return m0
+}
+
 // The issued JWT SVID credential and any JWT SVID specific metadata.
 type JWTSVIDCredential struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The signed JWT
 	Jwt string `protobuf:"bytes,1,opt,name=jwt,proto3" json:"jwt,omitempty"`
 	// The JTI of the JWT
@@ -243,11 +318,6 @@ func (x *JWTSVIDCredential) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use JWTSVIDCredential.ProtoReflect.Descriptor instead.
-func (*JWTSVIDCredential) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_issuance_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *JWTSVIDCredential) GetJwt() string {
 	if x != nil {
 		return x.Jwt
@@ -262,10 +332,36 @@ func (x *JWTSVIDCredential) GetJti() string {
 	return ""
 }
 
+func (x *JWTSVIDCredential) SetJwt(v string) {
+	x.Jwt = v
+}
+
+func (x *JWTSVIDCredential) SetJti(v string) {
+	x.Jti = v
+}
+
+type JWTSVIDCredential_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The signed JWT
+	Jwt string
+	// The JTI of the JWT
+	Jti string
+}
+
+func (b0 JWTSVIDCredential_builder) Build() *JWTSVIDCredential {
+	m0 := &JWTSVIDCredential{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Jwt = b.Jwt
+	x.Jti = b.Jti
+	return m0
+}
+
 // A credential, and its metadata, that has been issued by Teleport Workload
 // Identity.
 type Credential struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The TTL that was chosen by the server.
 	Ttl *durationpb.Duration `protobuf:"bytes,1,opt,name=ttl,proto3" json:"ttl,omitempty"`
 	// The time that the TTL is reached for this credential.
@@ -312,11 +408,6 @@ func (x *Credential) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Credential.ProtoReflect.Descriptor instead.
-func (*Credential) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_issuance_service_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *Credential) GetTtl() *durationpb.Duration {
@@ -386,6 +477,179 @@ func (x *Credential) GetJwtSvid() *JWTSVIDCredential {
 	return nil
 }
 
+func (x *Credential) SetTtl(v *durationpb.Duration) {
+	x.Ttl = v
+}
+
+func (x *Credential) SetExpiresAt(v *timestamppb.Timestamp) {
+	x.ExpiresAt = v
+}
+
+func (x *Credential) SetHint(v string) {
+	x.Hint = v
+}
+
+func (x *Credential) SetWorkloadIdentityName(v string) {
+	x.WorkloadIdentityName = v
+}
+
+func (x *Credential) SetWorkloadIdentityRevision(v string) {
+	x.WorkloadIdentityRevision = v
+}
+
+func (x *Credential) SetSpiffeId(v string) {
+	x.SpiffeId = v
+}
+
+func (x *Credential) SetX509Svid(v *X509SVIDCredential) {
+	if v == nil {
+		x.Credential = nil
+		return
+	}
+	x.Credential = &Credential_X509Svid{v}
+}
+
+func (x *Credential) SetJwtSvid(v *JWTSVIDCredential) {
+	if v == nil {
+		x.Credential = nil
+		return
+	}
+	x.Credential = &Credential_JwtSvid{v}
+}
+
+func (x *Credential) HasTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.Ttl != nil
+}
+
+func (x *Credential) HasExpiresAt() bool {
+	if x == nil {
+		return false
+	}
+	return x.ExpiresAt != nil
+}
+
+func (x *Credential) HasCredential() bool {
+	if x == nil {
+		return false
+	}
+	return x.Credential != nil
+}
+
+func (x *Credential) HasX509Svid() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Credential.(*Credential_X509Svid)
+	return ok
+}
+
+func (x *Credential) HasJwtSvid() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Credential.(*Credential_JwtSvid)
+	return ok
+}
+
+func (x *Credential) ClearTtl() {
+	x.Ttl = nil
+}
+
+func (x *Credential) ClearExpiresAt() {
+	x.ExpiresAt = nil
+}
+
+func (x *Credential) ClearCredential() {
+	x.Credential = nil
+}
+
+func (x *Credential) ClearX509Svid() {
+	if _, ok := x.Credential.(*Credential_X509Svid); ok {
+		x.Credential = nil
+	}
+}
+
+func (x *Credential) ClearJwtSvid() {
+	if _, ok := x.Credential.(*Credential_JwtSvid); ok {
+		x.Credential = nil
+	}
+}
+
+const Credential_Credential_not_set_case case_Credential_Credential = 0
+const Credential_X509Svid_case case_Credential_Credential = 7
+const Credential_JwtSvid_case case_Credential_Credential = 8
+
+func (x *Credential) WhichCredential() case_Credential_Credential {
+	if x == nil {
+		return Credential_Credential_not_set_case
+	}
+	switch x.Credential.(type) {
+	case *Credential_X509Svid:
+		return Credential_X509Svid_case
+	case *Credential_JwtSvid:
+		return Credential_JwtSvid_case
+	default:
+		return Credential_Credential_not_set_case
+	}
+}
+
+type Credential_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The TTL that was chosen by the server.
+	Ttl *durationpb.Duration
+	// The time that the TTL is reached for this credential.
+	ExpiresAt *timestamppb.Timestamp
+	// The hint configured for this Workload Identity - if any. This is provided
+	// to workloads using the SPIFFE Workload API to fetch credentials.
+	Hint string
+	// The name of the Workload Identity resource used to issue this credential.
+	WorkloadIdentityName string
+	// The revision of the Workload Identity resource used to issue this
+	// credential.
+	WorkloadIdentityRevision string
+	// The fully qualified SPIFFE ID that was encoded into the SVID.
+	SpiffeId string
+	// Fields of oneof Credential:
+	// The X509 SVID that was issued.
+	X509Svid *X509SVIDCredential
+	// The JWT SVID that was issued.
+	JwtSvid *JWTSVIDCredential
+	// -- end of Credential
+}
+
+func (b0 Credential_builder) Build() *Credential {
+	m0 := &Credential{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Ttl = b.Ttl
+	x.ExpiresAt = b.ExpiresAt
+	x.Hint = b.Hint
+	x.WorkloadIdentityName = b.WorkloadIdentityName
+	x.WorkloadIdentityRevision = b.WorkloadIdentityRevision
+	x.SpiffeId = b.SpiffeId
+	if b.X509Svid != nil {
+		x.Credential = &Credential_X509Svid{b.X509Svid}
+	}
+	if b.JwtSvid != nil {
+		x.Credential = &Credential_JwtSvid{b.JwtSvid}
+	}
+	return m0
+}
+
+type case_Credential_Credential protoreflect.FieldNumber
+
+func (x case_Credential_Credential) String() string {
+	md := file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[4].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isCredential_Credential interface {
 	isCredential_Credential()
 }
@@ -406,7 +670,7 @@ func (*Credential_JwtSvid) isCredential_Credential() {}
 
 // The request for the IssueWorkloadIdentity RPC.
 type IssueWorkloadIdentityRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The name of the WorkloadIdentity resource to use for issuing the credential.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// The parameters for issuing the credential, varying by credential type.
@@ -449,11 +713,6 @@ func (x *IssueWorkloadIdentityRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use IssueWorkloadIdentityRequest.ProtoReflect.Descriptor instead.
-func (*IssueWorkloadIdentityRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_issuance_service_proto_rawDescGZIP(), []int{5}
 }
 
 func (x *IssueWorkloadIdentityRequest) GetName() string {
@@ -502,6 +761,160 @@ func (x *IssueWorkloadIdentityRequest) GetRequestedTtl() *durationpb.Duration {
 	return nil
 }
 
+func (x *IssueWorkloadIdentityRequest) SetName(v string) {
+	x.Name = v
+}
+
+func (x *IssueWorkloadIdentityRequest) SetX509SvidParams(v *X509SVIDParams) {
+	if v == nil {
+		x.Credential = nil
+		return
+	}
+	x.Credential = &IssueWorkloadIdentityRequest_X509SvidParams{v}
+}
+
+func (x *IssueWorkloadIdentityRequest) SetJwtSvidParams(v *JWTSVIDParams) {
+	if v == nil {
+		x.Credential = nil
+		return
+	}
+	x.Credential = &IssueWorkloadIdentityRequest_JwtSvidParams{v}
+}
+
+func (x *IssueWorkloadIdentityRequest) SetWorkloadAttrs(v *WorkloadAttrs) {
+	x.WorkloadAttrs = v
+}
+
+func (x *IssueWorkloadIdentityRequest) SetRequestedTtl(v *durationpb.Duration) {
+	x.RequestedTtl = v
+}
+
+func (x *IssueWorkloadIdentityRequest) HasCredential() bool {
+	if x == nil {
+		return false
+	}
+	return x.Credential != nil
+}
+
+func (x *IssueWorkloadIdentityRequest) HasX509SvidParams() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Credential.(*IssueWorkloadIdentityRequest_X509SvidParams)
+	return ok
+}
+
+func (x *IssueWorkloadIdentityRequest) HasJwtSvidParams() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Credential.(*IssueWorkloadIdentityRequest_JwtSvidParams)
+	return ok
+}
+
+func (x *IssueWorkloadIdentityRequest) HasWorkloadAttrs() bool {
+	if x == nil {
+		return false
+	}
+	return x.WorkloadAttrs != nil
+}
+
+func (x *IssueWorkloadIdentityRequest) HasRequestedTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.RequestedTtl != nil
+}
+
+func (x *IssueWorkloadIdentityRequest) ClearCredential() {
+	x.Credential = nil
+}
+
+func (x *IssueWorkloadIdentityRequest) ClearX509SvidParams() {
+	if _, ok := x.Credential.(*IssueWorkloadIdentityRequest_X509SvidParams); ok {
+		x.Credential = nil
+	}
+}
+
+func (x *IssueWorkloadIdentityRequest) ClearJwtSvidParams() {
+	if _, ok := x.Credential.(*IssueWorkloadIdentityRequest_JwtSvidParams); ok {
+		x.Credential = nil
+	}
+}
+
+func (x *IssueWorkloadIdentityRequest) ClearWorkloadAttrs() {
+	x.WorkloadAttrs = nil
+}
+
+func (x *IssueWorkloadIdentityRequest) ClearRequestedTtl() {
+	x.RequestedTtl = nil
+}
+
+const IssueWorkloadIdentityRequest_Credential_not_set_case case_IssueWorkloadIdentityRequest_Credential = 0
+const IssueWorkloadIdentityRequest_X509SvidParams_case case_IssueWorkloadIdentityRequest_Credential = 2
+const IssueWorkloadIdentityRequest_JwtSvidParams_case case_IssueWorkloadIdentityRequest_Credential = 3
+
+func (x *IssueWorkloadIdentityRequest) WhichCredential() case_IssueWorkloadIdentityRequest_Credential {
+	if x == nil {
+		return IssueWorkloadIdentityRequest_Credential_not_set_case
+	}
+	switch x.Credential.(type) {
+	case *IssueWorkloadIdentityRequest_X509SvidParams:
+		return IssueWorkloadIdentityRequest_X509SvidParams_case
+	case *IssueWorkloadIdentityRequest_JwtSvidParams:
+		return IssueWorkloadIdentityRequest_JwtSvidParams_case
+	default:
+		return IssueWorkloadIdentityRequest_Credential_not_set_case
+	}
+}
+
+type IssueWorkloadIdentityRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The name of the WorkloadIdentity resource to use for issuing the credential.
+	Name string
+	// The parameters for issuing the credential, varying by credential type.
+
+	// Fields of oneof Credential:
+	// The parameters for issuing an X509 SVID.
+	X509SvidParams *X509SVIDParams
+	// The parameters for issuing a JWT SVID.
+	JwtSvidParams *JWTSVIDParams
+	// -- end of Credential
+	// The workload attributes to encode into the credential.
+	WorkloadAttrs *WorkloadAttrs
+	// The TTL that the client is requesting for the resulting credentials.
+	// This may be adjusted by the server and therefore the client MUST check the
+	// returned TTL rather than assuming that the requested TTL was granted.
+	RequestedTtl *durationpb.Duration
+}
+
+func (b0 IssueWorkloadIdentityRequest_builder) Build() *IssueWorkloadIdentityRequest {
+	m0 := &IssueWorkloadIdentityRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	if b.X509SvidParams != nil {
+		x.Credential = &IssueWorkloadIdentityRequest_X509SvidParams{b.X509SvidParams}
+	}
+	if b.JwtSvidParams != nil {
+		x.Credential = &IssueWorkloadIdentityRequest_JwtSvidParams{b.JwtSvidParams}
+	}
+	x.WorkloadAttrs = b.WorkloadAttrs
+	x.RequestedTtl = b.RequestedTtl
+	return m0
+}
+
+type case_IssueWorkloadIdentityRequest_Credential protoreflect.FieldNumber
+
+func (x case_IssueWorkloadIdentityRequest_Credential) String() string {
+	md := file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[5].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isIssueWorkloadIdentityRequest_Credential interface {
 	isIssueWorkloadIdentityRequest_Credential()
 }
@@ -522,7 +935,7 @@ func (*IssueWorkloadIdentityRequest_JwtSvidParams) isIssueWorkloadIdentityReques
 
 // The response for the IssueWorkloadIdentity RPC.
 type IssueWorkloadIdentityResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The issued credential.
 	Credential    *Credential `protobuf:"bytes,1,opt,name=credential,proto3" json:"credential,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -554,11 +967,6 @@ func (x *IssueWorkloadIdentityResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IssueWorkloadIdentityResponse.ProtoReflect.Descriptor instead.
-func (*IssueWorkloadIdentityResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_issuance_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *IssueWorkloadIdentityResponse) GetCredential() *Credential {
 	if x != nil {
 		return x.Credential
@@ -566,10 +974,40 @@ func (x *IssueWorkloadIdentityResponse) GetCredential() *Credential {
 	return nil
 }
 
+func (x *IssueWorkloadIdentityResponse) SetCredential(v *Credential) {
+	x.Credential = v
+}
+
+func (x *IssueWorkloadIdentityResponse) HasCredential() bool {
+	if x == nil {
+		return false
+	}
+	return x.Credential != nil
+}
+
+func (x *IssueWorkloadIdentityResponse) ClearCredential() {
+	x.Credential = nil
+}
+
+type IssueWorkloadIdentityResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The issued credential.
+	Credential *Credential
+}
+
+func (b0 IssueWorkloadIdentityResponse_builder) Build() *IssueWorkloadIdentityResponse {
+	m0 := &IssueWorkloadIdentityResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Credential = b.Credential
+	return m0
+}
+
 // A key-values pair for selecting WorkloadIdentity resources based on their
 // labels.
 type LabelSelector struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The key to match.
 	// If this is wildcard, then a single value of wildcard must also be provided.
 	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
@@ -604,11 +1042,6 @@ func (x *LabelSelector) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use LabelSelector.ProtoReflect.Descriptor instead.
-func (*LabelSelector) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_issuance_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *LabelSelector) GetKey() string {
 	if x != nil {
 		return x.Key
@@ -623,9 +1056,36 @@ func (x *LabelSelector) GetValues() []string {
 	return nil
 }
 
+func (x *LabelSelector) SetKey(v string) {
+	x.Key = v
+}
+
+func (x *LabelSelector) SetValues(v []string) {
+	x.Values = v
+}
+
+type LabelSelector_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The key to match.
+	// If this is wildcard, then a single value of wildcard must also be provided.
+	Key string
+	// Any of the acceptable matching values.
+	Values []string
+}
+
+func (b0 LabelSelector_builder) Build() *LabelSelector {
+	m0 := &LabelSelector{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Key = b.Key
+	x.Values = b.Values
+	return m0
+}
+
 // The request for the IssueWorkloadIdentities RPC.
 type IssueWorkloadIdentitiesRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The label selectors to use for selecting WorkloadIdentity resources.
 	// At least one selector must be provided.
 	LabelSelectors []*LabelSelector `protobuf:"bytes,1,rep,name=label_selectors,json=labelSelectors,proto3" json:"label_selectors,omitempty"`
@@ -669,11 +1129,6 @@ func (x *IssueWorkloadIdentitiesRequest) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use IssueWorkloadIdentitiesRequest.ProtoReflect.Descriptor instead.
-func (*IssueWorkloadIdentitiesRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_issuance_service_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *IssueWorkloadIdentitiesRequest) GetLabelSelectors() []*LabelSelector {
@@ -722,6 +1177,161 @@ func (x *IssueWorkloadIdentitiesRequest) GetRequestedTtl() *durationpb.Duration 
 	return nil
 }
 
+func (x *IssueWorkloadIdentitiesRequest) SetLabelSelectors(v []*LabelSelector) {
+	x.LabelSelectors = v
+}
+
+func (x *IssueWorkloadIdentitiesRequest) SetX509SvidParams(v *X509SVIDParams) {
+	if v == nil {
+		x.Credential = nil
+		return
+	}
+	x.Credential = &IssueWorkloadIdentitiesRequest_X509SvidParams{v}
+}
+
+func (x *IssueWorkloadIdentitiesRequest) SetJwtSvidParams(v *JWTSVIDParams) {
+	if v == nil {
+		x.Credential = nil
+		return
+	}
+	x.Credential = &IssueWorkloadIdentitiesRequest_JwtSvidParams{v}
+}
+
+func (x *IssueWorkloadIdentitiesRequest) SetWorkloadAttrs(v *WorkloadAttrs) {
+	x.WorkloadAttrs = v
+}
+
+func (x *IssueWorkloadIdentitiesRequest) SetRequestedTtl(v *durationpb.Duration) {
+	x.RequestedTtl = v
+}
+
+func (x *IssueWorkloadIdentitiesRequest) HasCredential() bool {
+	if x == nil {
+		return false
+	}
+	return x.Credential != nil
+}
+
+func (x *IssueWorkloadIdentitiesRequest) HasX509SvidParams() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Credential.(*IssueWorkloadIdentitiesRequest_X509SvidParams)
+	return ok
+}
+
+func (x *IssueWorkloadIdentitiesRequest) HasJwtSvidParams() bool {
+	if x == nil {
+		return false
+	}
+	_, ok := x.Credential.(*IssueWorkloadIdentitiesRequest_JwtSvidParams)
+	return ok
+}
+
+func (x *IssueWorkloadIdentitiesRequest) HasWorkloadAttrs() bool {
+	if x == nil {
+		return false
+	}
+	return x.WorkloadAttrs != nil
+}
+
+func (x *IssueWorkloadIdentitiesRequest) HasRequestedTtl() bool {
+	if x == nil {
+		return false
+	}
+	return x.RequestedTtl != nil
+}
+
+func (x *IssueWorkloadIdentitiesRequest) ClearCredential() {
+	x.Credential = nil
+}
+
+func (x *IssueWorkloadIdentitiesRequest) ClearX509SvidParams() {
+	if _, ok := x.Credential.(*IssueWorkloadIdentitiesRequest_X509SvidParams); ok {
+		x.Credential = nil
+	}
+}
+
+func (x *IssueWorkloadIdentitiesRequest) ClearJwtSvidParams() {
+	if _, ok := x.Credential.(*IssueWorkloadIdentitiesRequest_JwtSvidParams); ok {
+		x.Credential = nil
+	}
+}
+
+func (x *IssueWorkloadIdentitiesRequest) ClearWorkloadAttrs() {
+	x.WorkloadAttrs = nil
+}
+
+func (x *IssueWorkloadIdentitiesRequest) ClearRequestedTtl() {
+	x.RequestedTtl = nil
+}
+
+const IssueWorkloadIdentitiesRequest_Credential_not_set_case case_IssueWorkloadIdentitiesRequest_Credential = 0
+const IssueWorkloadIdentitiesRequest_X509SvidParams_case case_IssueWorkloadIdentitiesRequest_Credential = 2
+const IssueWorkloadIdentitiesRequest_JwtSvidParams_case case_IssueWorkloadIdentitiesRequest_Credential = 3
+
+func (x *IssueWorkloadIdentitiesRequest) WhichCredential() case_IssueWorkloadIdentitiesRequest_Credential {
+	if x == nil {
+		return IssueWorkloadIdentitiesRequest_Credential_not_set_case
+	}
+	switch x.Credential.(type) {
+	case *IssueWorkloadIdentitiesRequest_X509SvidParams:
+		return IssueWorkloadIdentitiesRequest_X509SvidParams_case
+	case *IssueWorkloadIdentitiesRequest_JwtSvidParams:
+		return IssueWorkloadIdentitiesRequest_JwtSvidParams_case
+	default:
+		return IssueWorkloadIdentitiesRequest_Credential_not_set_case
+	}
+}
+
+type IssueWorkloadIdentitiesRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The label selectors to use for selecting WorkloadIdentity resources.
+	// At least one selector must be provided.
+	LabelSelectors []*LabelSelector
+	// The parameters for issuing the credentials, varying by credential type.
+
+	// Fields of oneof Credential:
+	// The parameters for issuing an X509 SVID.
+	X509SvidParams *X509SVIDParams
+	// The parameters for issuing a JWT SVID.
+	JwtSvidParams *JWTSVIDParams
+	// -- end of Credential
+	// The workload attributes to encode into the credentials.
+	WorkloadAttrs *WorkloadAttrs
+	// The TTL that the client is requesting for the resulting credentials.
+	// This may be adjusted by the server and therefore the client MUST check the
+	// returned TTL rather than assuming that the requested TTL was granted.
+	RequestedTtl *durationpb.Duration
+}
+
+func (b0 IssueWorkloadIdentitiesRequest_builder) Build() *IssueWorkloadIdentitiesRequest {
+	m0 := &IssueWorkloadIdentitiesRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.LabelSelectors = b.LabelSelectors
+	if b.X509SvidParams != nil {
+		x.Credential = &IssueWorkloadIdentitiesRequest_X509SvidParams{b.X509SvidParams}
+	}
+	if b.JwtSvidParams != nil {
+		x.Credential = &IssueWorkloadIdentitiesRequest_JwtSvidParams{b.JwtSvidParams}
+	}
+	x.WorkloadAttrs = b.WorkloadAttrs
+	x.RequestedTtl = b.RequestedTtl
+	return m0
+}
+
+type case_IssueWorkloadIdentitiesRequest_Credential protoreflect.FieldNumber
+
+func (x case_IssueWorkloadIdentitiesRequest_Credential) String() string {
+	md := file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes[8].Descriptor()
+	if x == 0 {
+		return "not set"
+	}
+	return protoimpl.X.MessageFieldStringOf(md, protoreflect.FieldNumber(x))
+}
+
 type isIssueWorkloadIdentitiesRequest_Credential interface {
 	isIssueWorkloadIdentitiesRequest_Credential()
 }
@@ -742,7 +1352,7 @@ func (*IssueWorkloadIdentitiesRequest_JwtSvidParams) isIssueWorkloadIdentitiesRe
 
 // The response for the IssueWorkloadIdentities RPC.
 type IssueWorkloadIdentitiesResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The issued credentials.
 	Credentials   []*Credential `protobuf:"bytes,1,rep,name=credentials,proto3" json:"credentials,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -774,16 +1384,30 @@ func (x *IssueWorkloadIdentitiesResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use IssueWorkloadIdentitiesResponse.ProtoReflect.Descriptor instead.
-func (*IssueWorkloadIdentitiesResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_workloadidentity_v1_issuance_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *IssueWorkloadIdentitiesResponse) GetCredentials() []*Credential {
 	if x != nil {
 		return x.Credentials
 	}
 	return nil
+}
+
+func (x *IssueWorkloadIdentitiesResponse) SetCredentials(v []*Credential) {
+	x.Credentials = v
+}
+
+type IssueWorkloadIdentitiesResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The issued credentials.
+	Credentials []*Credential
+}
+
+func (b0 IssueWorkloadIdentitiesResponse_builder) Build() *IssueWorkloadIdentitiesResponse {
+	m0 := &IssueWorkloadIdentitiesResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Credentials = b.Credentials
+	return m0
 }
 
 var File_teleport_workloadidentity_v1_issuance_service_proto protoreflect.FileDescriptor
@@ -845,18 +1469,6 @@ const file_teleport_workloadidentity_v1_issuance_service_proto_rawDesc = "" +
 	"\x1fWorkloadIdentityIssuanceService\x12\x90\x01\n" +
 	"\x15IssueWorkloadIdentity\x12:.teleport.workloadidentity.v1.IssueWorkloadIdentityRequest\x1a;.teleport.workloadidentity.v1.IssueWorkloadIdentityResponse\x12\x96\x01\n" +
 	"\x17IssueWorkloadIdentities\x12<.teleport.workloadidentity.v1.IssueWorkloadIdentitiesRequest\x1a=.teleport.workloadidentity.v1.IssueWorkloadIdentitiesResponseBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1;workloadidentityv1b\x06proto3"
-
-var (
-	file_teleport_workloadidentity_v1_issuance_service_proto_rawDescOnce sync.Once
-	file_teleport_workloadidentity_v1_issuance_service_proto_rawDescData []byte
-)
-
-func file_teleport_workloadidentity_v1_issuance_service_proto_rawDescGZIP() []byte {
-	file_teleport_workloadidentity_v1_issuance_service_proto_rawDescOnce.Do(func() {
-		file_teleport_workloadidentity_v1_issuance_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_workloadidentity_v1_issuance_service_proto_rawDesc), len(file_teleport_workloadidentity_v1_issuance_service_proto_rawDesc)))
-	})
-	return file_teleport_workloadidentity_v1_issuance_service_proto_rawDescData
-}
 
 var file_teleport_workloadidentity_v1_issuance_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_teleport_workloadidentity_v1_issuance_service_proto_goTypes = []any{

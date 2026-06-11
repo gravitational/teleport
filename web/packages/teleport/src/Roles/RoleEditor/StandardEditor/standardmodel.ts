@@ -172,9 +172,9 @@ export type ResourceAccessKind =
  */
 type KubernetesAccessFields = {
   labels: UILabel[];
-  groups: readonly Option[];
+  groups: Option[];
   resources: KubernetesResourceModel[];
-  users: readonly Option[];
+  users: Option[];
 };
 
 type KubernetesRoleVersion = {
@@ -200,7 +200,7 @@ export type KubernetesResourceModel = {
   kind: KubernetesResourceKindOption;
   name: string;
   namespace: string;
-  verbs: readonly KubernetesVerbOption[];
+  verbs: KubernetesVerbOption[];
   apiGroup?: string;
   /**
    * Version of the role that owns this section. Required in order to support
@@ -368,6 +368,7 @@ export const kubernetesVerbOptions: KubernetesVerbOption[] = [
       // in our config. We may want to explain them in the UI somehow.
       'exec',
       'portforward',
+      'proxy',
     ] as const
   )
     .toSorted((a, b) => a.localeCompare(b))
@@ -410,7 +411,7 @@ export const verbOptionsMap = optionsToMap(verbOptions);
  */
 type ServerAccessFields = {
   labels: UILabel[];
-  logins: readonly Option[];
+  logins: Option[];
 };
 
 export type ServerAccessInputFields = FieldTypesToBoolean<ServerAccessFields>;
@@ -437,9 +438,9 @@ export type AppAccess = ResourceAccessBase<'app'> & AppAccessFields;
  */
 type DatabaseAccessFields = {
   labels: UILabel[];
-  names: readonly Option[];
-  users: readonly Option[];
-  roles: readonly Option[];
+  names: Option[];
+  users: Option[];
+  roles: Option[];
   dbServiceLabels: UILabel[];
 };
 
@@ -453,7 +454,7 @@ export type DatabaseAccess = ResourceAccessBase<'db'> & DatabaseAccessFields;
  */
 type WindowsDesktopAccessFields = {
   labels: UILabel[];
-  logins: readonly Option[];
+  logins: Option[];
 };
 
 export type WindowsDesktopAccessInputFields =
@@ -466,7 +467,7 @@ export type WindowsDesktopAccess = ResourceAccessBase<'windows_desktop'> &
  * Models for the git server resource access section.
  */
 type GitHubOrganizationAccessFields = {
-  organizations: readonly Option[];
+  organizations: Option[];
 };
 
 export type GitHubOrganizationAccessInputFields =
@@ -484,7 +485,7 @@ export type RuleModel = {
    * kinds to appear here, since we want to support legacy configurations.
    * (Also: keeping track of supported resource types is hard.)
    */
-  resources: readonly ResourceKindOption[];
+  resources: ResourceKindOption[];
 
   /**
    * Indicates whether a wildcard verb is in the list of rule's {@link
@@ -1276,7 +1277,7 @@ function ruleToModel(
 }
 
 export function newVerbsModel(
-  resKindOptions: readonly ResourceKindOption[]
+  resKindOptions: ResourceKindOption[]
 ): VerbModel[] {
   const kinds = resKindOptions.map(rko => rko.value);
   return allowedVerbsForResourceKinds(kinds).map(verb => ({
@@ -1290,9 +1291,7 @@ export function newVerbsModel(
  * resources. This list excludes the wildcard (*) verb, which gets a special
  * treatment in our model.
  */
-export function allowedVerbsForResourceKinds(
-  resourceKinds: readonly string[]
-): Verb[] {
+export function allowedVerbsForResourceKinds(resourceKinds: string[]): Verb[] {
   const verbs: Verb[] = ['read', 'list', 'create', 'update', 'delete'];
   for (const kind of resourceKinds) {
     if (additionalVerbs.has(kind)) {
@@ -1747,7 +1746,7 @@ function optionsModelToRoleOptions(
   return options;
 }
 
-function optionsToStrings<T = string>(opts: readonly Option<T>[]): T[] {
+function optionsToStrings<T = string>(opts: Option<T>[]): T[] {
   return opts.map(opt => opt.value);
 }
 

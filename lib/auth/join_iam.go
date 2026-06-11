@@ -100,6 +100,7 @@ func (a *Server) RegisterUsingIAMMethod(
 
 	// check that the GetCallerIdentity request is valid and matches the token
 	verifiedIdentity, err := iamjoin.CheckIAMRequest(ctx, &iamjoin.CheckIAMRequestParams{
+		Logger:                   a.logger,
 		Challenge:                challenge,
 		ProvisionToken:           provisionToken,
 		STSIdentityRequest:       req.StsIdentityRequest,

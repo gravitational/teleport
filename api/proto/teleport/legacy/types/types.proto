@@ -1541,6 +1541,10 @@ message TokenRule {
   // AWSOrganizationID is used for the IAM join method, the AWS identity of joining nodes
   // must belong to this organization.
   string AWSOrganizationID = 5 [(gogoproto.jsontag) = "aws_organization_id,omitempty"];
+  // AWSOrganizationalUnits contains rules for matching AWS accounts based on their Organizational Units.
+  // Requires AWS Organization ID to be specified.
+  // The account's root ID is considered an Organizational Unit when validating the rule.
+  AWSOrganizationUnitsMatcher AWSOrganizationalUnits = 6 [(gogoproto.jsontag) = "aws_organizational_units,omitempty"];
 }
 
 // ProvisionTokenSpecV2 is a specification for V2 token
@@ -3701,6 +3705,15 @@ enum CreateDatabaseUserMode {
   DB_USER_MODE_BEST_EFFORT_DROP = 3;
 }
 
+// WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
+enum WebTerminalClipboardMode {
+  WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED = 0;
+  // WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED enables copying from the Web UI terminal.
+  WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED = 1;
+  // WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY prevents copying from the Web UI terminal.
+  WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY = 2;
+}
+
 // SSHLocalPortForwarding configures access controls for local SSH port forwarding.
 message SSHLocalPortForwarding {
   BoolValue Enabled = 1 [
@@ -3922,6 +3935,11 @@ message RoleOptions {
     (gogoproto.nullable) = true,
     (gogoproto.jsontag) = "ssh_port_forwarding,omitempty"
   ];
+
+  // WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
+  // Valid values are "unrestricted" and "no-copy".
+  // Defaults to "unrestricted" if unspecified.
+  WebTerminalClipboardMode WebTerminalClipboardMode = 33 [(gogoproto.jsontag) = "web_terminal_clipboard_mode,omitempty"];
 }
 
 message RecordSession {
@@ -5012,6 +5030,10 @@ message WebSessionSpecV2 {
   // TLSPriv is the TLS private key for the user, in PEM-encoded PKCS#1 or PKCS#8
   // format. If unset, then Priv is used as both the SSH and TLS private key.
   bytes TLSPriv = 15 [(gogoproto.jsontag) = "tls_priv,omitempty"];
+  // DBSCPublicKey is the device-bound public key (JWK format) for Device Bound
+  // Session Credentials. When set, session refresh requires proof of possession
+  // of the corresponding private key. See https://www.w3.org/TR/dbsc/
+  bytes DBSCPublicKey = 16 [(gogoproto.jsontag) = "dbsc_public_key,omitempty"];
 }
 
 // Web-focused view of teleport.devicetrust.v1.DeviceWebToken.

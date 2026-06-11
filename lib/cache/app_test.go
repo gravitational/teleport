@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // TestApps tests that CRUD operations on application resources are
@@ -140,4 +141,40 @@ func TestApplicationServers(t *testing.T) {
 		})
 	})
 
+}
+
+func mustCreateAppServer(t testing.TB, hostID, appName string) types.AppServer {
+	t.Helper()
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name: appName,
+	}, types.AppSpecV3{
+		URI: "localhost",
+	})
+	require.NoError(t, err)
+
+	appServer, err := types.NewAppServerV3FromApp(app, "localhost", hostID)
+	require.NoError(t, err)
+	return appServer
+}
+
+var appServerRangeFuncs = rangeServersWithTargetNameFuncs[types.AppServer]{
+	newResource: mustCreateAppServer,
+	create: func(ctx context.Context, presence services.Presence, s types.AppServer) error {
+		_, err := presence.UpsertApplicationServer(ctx, s)
+		return err
+	},
+	delete: func(ctx context.Context, presence services.Presence, s types.AppServer) error {
+		return presence.DeleteApplicationServer(ctx, s.GetNamespace(), s.GetHostID(), s.GetName())
+	},
+	rangeByName: (*Cache).RangeApplicationServersWithName,
+}
+
+func TestRangeApplicationServersWithName(t *testing.T) {
+	t.Parallel()
+	testRangeServersWithTargetName(t, appServerRangeFuncs)
+}
+
+func BenchmarkRangeApplicationServersWithName(b *testing.B) {
+	benchmarkRangeServersWithTargetName(b, appServerRangeFuncs)
 }

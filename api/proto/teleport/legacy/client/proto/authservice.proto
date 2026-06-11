@@ -1007,6 +1007,29 @@ message DeleteUserAppSessionsRequest {
   string Username = 1 [(gogoproto.jsontag) = "username"];
 }
 
+// SetAppSessionDBSCPublicKeyRequest contains the parameters to set the DBSC public key
+// on an application web session.
+message SetAppSessionDBSCPublicKeyRequest {
+  // The ID of the application session to update.
+  string session_id = 1;
+  // The device-bound public key (JWK format) for Device Bound
+  // Session Credentials. See https://www.w3.org/TR/dbsc/
+  bytes public_key = 2;
+}
+
+// SetAppSessionDBSCPublicKeyResponse is the response for SetAppSessionDBSCPublicKey.
+message SetAppSessionDBSCPublicKeyResponse {}
+
+// SignDBSCChallengeRequest contains the parameters to sign a DBSC challenge.
+message SignDBSCChallengeRequest {
+  string session_id = 1;
+}
+
+// SignDBSCChallengeResponse contains the signed DBSC challenge.
+message SignDBSCChallengeResponse {
+  string challenge = 1;
+}
+
 // DeleteUserAppSessionsRequest contains the parameters used to remove the
 // user's SAML IdP sessions.
 message DeleteUserSAMLIdPSessionsRequest {
@@ -1183,7 +1206,22 @@ message DatabaseCertResponse {
   // Cert is the signed certificate.
   bytes Cert = 1 [(gogoproto.jsontag) = "cert"];
   // CACerts is a list of certificate authorities.
+  //
+  // CACerts are the root CAs that the client itself should trust
+  // (tls.Config.RootCAs).
   repeated bytes CACerts = 2 [(gogoproto.jsontag) = "ca_certs"];
+  // Certificate trust chain, in PEM form. Sorted from leaf to root.
+  //
+  // Cert and TrustChain are the certificates the client should present
+  // (tls.Config.Certificates). Pseudocode:
+  //
+  // 	tlsConfig.Certificates = []tls.Certificate{{
+  // 		Certificate: append([][]byte{resp.Cert}, resp.TrustChain...),
+  // 	}}
+  repeated bytes TrustChain = 3 [(gogoproto.jsontag) = "trust_chain"];
+  // CA override details. Optional.
+  // If present then a CA override was active during certificate issuance.
+  CAOverrideCertificateDetails CAOverride = 4 [(gogoproto.jsontag) = "ca_override"];
 }
 
 // SnowflakeJWTRequest contains data required to generate Snowflake JWT used for authorization.
@@ -1849,6 +1887,15 @@ message WindowsDesktopCertRequest {
 message WindowsDesktopCertResponse {
   // Cert is the signed certificate in PEM format.
   bytes Cert = 1;
+  // CA override details. Optional.
+  // If present then a CA override was active during certificate issuance.
+  CAOverrideCertificateDetails ca_override = 2;
+}
+
+// CAOverrideCertificateDetails holds information about an active
+// CertAuthorityOverride that took effect during certificate issuance.
+message CAOverrideCertificateDetails {
+  string public_key_hash = 1;
 }
 
 // Response message for GetDesktopBootstrapScript.
@@ -3212,6 +3259,10 @@ service AuthService {
   rpc DeleteAllAppSessions(google.protobuf.Empty) returns (google.protobuf.Empty);
   // DeleteUserAppSessions deletes all user’s application sessions.
   rpc DeleteUserAppSessions(DeleteUserAppSessionsRequest) returns (google.protobuf.Empty);
+  // SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+  rpc SetAppSessionDBSCPublicKey(SetAppSessionDBSCPublicKeyRequest) returns (SetAppSessionDBSCPublicKeyResponse);
+  // SignDBSCChallenge signs a DBSC challenge for an application web session.
+  rpc SignDBSCChallenge(SignDBSCChallengeRequest) returns (SignDBSCChallengeResponse);
 
   // CreateSnowflakeSession creates web session with sub kind Snowflake used by Database access
   // Snowflake integration.

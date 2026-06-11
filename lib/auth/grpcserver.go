@@ -557,12 +557,13 @@ func (g *GRPCServer) WatchEvents(watch *authpb.Watch, stream authpb.AuthService_
 				stream,
 				scopedAuth.scopedContext.User.GetName(),
 				scopedAuth,
+				modules.GetModules(),
 			))
 		}
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth))
+	return trace.Wrap(WatchEvents(watch, stream, auth.User.GetName(), auth, modules.GetModules()))
 }
 
 // WatchEvent is a stream interface for sending events.
@@ -575,14 +576,18 @@ type Watcher interface {
 	NewStream(ctx context.Context, watch types.Watch) (stream.Stream[types.Event], error)
 }
 
-// WatchEvents watches for events and streams them to the provided stream.
-func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, auth Watcher) error {
-	servicesWatch := types.Watch{
-		Name:                componentName,
-		Kinds:               watch.Kinds,
-		AllowPartialSuccess: watch.AllowPartialSuccess,
-	}
+var enterpriseOnlyWatchKinds = []string{
+	types.KindCertAuthorityOverride,
+}
 
+// WatchEvents watches for events and streams them to the provided stream.
+func WatchEvents(
+	watch *authpb.Watch,
+	stream WatchEvent,
+	componentName string,
+	auth Watcher,
+	mods modules.Modules,
+) error {
 	// KindNamespace is being removed but v17 agents will still try to include
 	// it in their cache and they will occasionally do a GetNamespace, so we
 	// pretend to support it as a resource kind here; it's sound to do so
@@ -597,9 +602,27 @@ func WatchEvents(watch *authpb.Watch, stream WatchEvent, componentName string, a
 			removedNamespaceWatch = true
 			continue
 		}
+
+		// Deny watchers for Enteprise-only Kinds if we are running OSS.
+		// This simplifies remote event streams that would otherwise try to hit
+		// unimplemented endpoints (Enterprise-only services tend to only bind in
+		// Enterprise builds).
+		if mods.IsOSSBuild() && goslices.Contains(enterpriseOnlyWatchKinds, k.Kind) {
+			if watch.AllowPartialSuccess {
+				continue
+			}
+			return trace.BadParameter("watch for kind %s only available in Teleport Enterprise", k.Kind)
+		}
+
 		filteredKinds = append(filteredKinds, k)
 	}
 	watch.Kinds = filteredKinds
+
+	servicesWatch := types.Watch{
+		Name:                componentName,
+		Kinds:               watch.Kinds,
+		AllowPartialSuccess: watch.AllowPartialSuccess,
+	}
 
 	events, err := auth.NewStream(stream.Context(), servicesWatch)
 	if err != nil {
@@ -1884,6 +1907,47 @@ func (g *GRPCServer) DeleteUserAppSessions(ctx context.Context, req *authpb.Dele
 	}
 
 	return &emptypb.Empty{}, nil
+}
+
+// SetAppSessionDBSCPublicKey sets the DBSC public key on an application web session.
+func (g *GRPCServer) SetAppSessionDBSCPublicKey(ctx context.Context, req *authpb.SetAppSessionDBSCPublicKeyRequest) (*authpb.SetAppSessionDBSCPublicKeyResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.SessionId == "" {
+		return nil, trace.BadParameter("missing session ID")
+	}
+
+	if len(req.PublicKey) == 0 {
+		return nil, trace.BadParameter("DBSC response must not be empty")
+	}
+
+	if err := auth.SetAppSessionDBSCPublicKey(ctx, req.SessionId, req.PublicKey); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.SetAppSessionDBSCPublicKeyResponse{}, nil
+}
+
+// SignDBSCChallenge signs a DBSC challenge for an application web session.
+func (g *GRPCServer) SignDBSCChallenge(ctx context.Context, req *authpb.SignDBSCChallengeRequest) (*authpb.SignDBSCChallengeResponse, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.SessionId == "" {
+		return nil, trace.BadParameter("missing session ID")
+	}
+
+	challenge, err := auth.SignDBSCChallenge(ctx, req.SessionId)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &authpb.SignDBSCChallengeResponse{Challenge: challenge}, nil
 }
 
 // GenerateAppToken creates a JWT token with application access.
@@ -4992,12 +5056,23 @@ func (g *GRPCServer) scopedListUnifiedResources(ctx context.Context, req *authpb
 
 // ListResources retrieves a paginated list of resources.
 func (g *GRPCServer) ListResources(ctx context.Context, req *authpb.ListResourcesRequest) (*authpb.ListResourcesResponse, error) {
+
+	var swr *ServerWithRoles
 	auth, err := g.authenticate(ctx)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		if !errors.Is(err, services.ErrScopedIdentity) {
+			return nil, trace.Wrap(err)
+		}
+		scopedAuth, err := g.scopedAuthenticate(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		swr = scopedAuth.ServerWithRoles
+	} else {
+		swr = auth.ServerWithRoles
 	}
 
-	resp, err := auth.ListResources(ctx, *req)
+	resp, err := swr.ListResources(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

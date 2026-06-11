@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/denial_metadata.proto
 
+//go:build !protoopaque
+
 package decisionpb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // Metadata for access denials.
 type DenialMetadata struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// FeatureAssertions is a list of EnforcementFeature that the PEP (Policy
 	// Enforcement Point) *must* implement in order to correctly enforce the
 	// decision. Note that denials rarely need feature assertions since they
@@ -78,11 +79,6 @@ func (x *DenialMetadata) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DenialMetadata.ProtoReflect.Descriptor instead.
-func (*DenialMetadata) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_denial_metadata_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *DenialMetadata) GetFeatureAssertions() []EnforcementFeature {
 	if x != nil {
 		return x.FeatureAssertions
@@ -104,6 +100,44 @@ func (x *DenialMetadata) GetUserMessage() string {
 	return ""
 }
 
+func (x *DenialMetadata) SetFeatureAssertions(v []EnforcementFeature) {
+	x.FeatureAssertions = v
+}
+
+func (x *DenialMetadata) SetPdpVersion(v string) {
+	x.PdpVersion = v
+}
+
+func (x *DenialMetadata) SetUserMessage(v string) {
+	x.UserMessage = v
+}
+
+type DenialMetadata_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// FeatureAssertions is a list of EnforcementFeature that the PEP (Policy
+	// Enforcement Point) *must* implement in order to correctly enforce the
+	// decision. Note that denials rarely need feature assertions since they
+	// typically "fail safe" anyway.
+	FeatureAssertions []EnforcementFeature
+	// PdpVersion is the version of the PDP (Policy Decision Point) that evaluated
+	// the decision request.
+	PdpVersion string
+	// UserMessage is a sanitized message safe for return to the subject identity
+	// of the decision request.
+	UserMessage string
+}
+
+func (b0 DenialMetadata_builder) Build() *DenialMetadata {
+	m0 := &DenialMetadata{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.FeatureAssertions = b.FeatureAssertions
+	x.PdpVersion = b.PdpVersion
+	x.UserMessage = b.UserMessage
+	return m0
+}
+
 var File_teleport_decision_v1alpha1_denial_metadata_proto protoreflect.FileDescriptor
 
 const file_teleport_decision_v1alpha1_denial_metadata_proto_rawDesc = "" +
@@ -114,18 +148,6 @@ const file_teleport_decision_v1alpha1_denial_metadata_proto_rawDesc = "" +
 	"\vpdp_version\x18\x02 \x01(\tR\n" +
 	"pdpVersion\x12!\n" +
 	"\fuser_message\x18\x03 \x01(\tR\vuserMessageBZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
-
-var (
-	file_teleport_decision_v1alpha1_denial_metadata_proto_rawDescOnce sync.Once
-	file_teleport_decision_v1alpha1_denial_metadata_proto_rawDescData []byte
-)
-
-func file_teleport_decision_v1alpha1_denial_metadata_proto_rawDescGZIP() []byte {
-	file_teleport_decision_v1alpha1_denial_metadata_proto_rawDescOnce.Do(func() {
-		file_teleport_decision_v1alpha1_denial_metadata_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_denial_metadata_proto_rawDesc), len(file_teleport_decision_v1alpha1_denial_metadata_proto_rawDesc)))
-	})
-	return file_teleport_decision_v1alpha1_denial_metadata_proto_rawDescData
-}
 
 var file_teleport_decision_v1alpha1_denial_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_decision_v1alpha1_denial_metadata_proto_goTypes = []any{

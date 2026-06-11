@@ -141,8 +141,10 @@ func TestJoinIAM(t *testing.T) {
 
 	allowedOrgIDUsingAmbientCredentials := "o-allowedorg"
 	allowedOrgIDUsingIntegrationCredentials := "o-allowedorg-integration"
+	allowedOU := "ou-1234"
 
 	exampleIntegrationName := "my-integration"
+	integrationNameWithoutAccess := "integration-without-access"
 	organizationsClientGetter := &mockAWSOrganizationsClientGetter{
 		ambientCredentialsOrgsAPI: &mockAWSOrganizationsClient{
 			getAccountOutput: &organizations.DescribeAccountOutput{
@@ -155,9 +157,13 @@ func TestJoinIAM(t *testing.T) {
 			exampleIntegrationName: &mockAWSOrganizationsClient{
 				getAccountOutput: &organizations.DescribeAccountOutput{
 					Account: &organizationstypes.Account{
-						Arn: aws.String("arn:aws:organizations::123456789012:account/" + allowedOrgIDUsingIntegrationCredentials + "/1234"),
+						Arn:   aws.String("arn:aws:organizations::123456789012:account/" + allowedOrgIDUsingIntegrationCredentials + "/1234"),
+						Paths: []string{allowedOrgIDUsingIntegrationCredentials + "/rootid/" + allowedOU + "/ou-1234-123/1234"},
 					},
 				},
+			},
+			integrationNameWithoutAccess: &mockAWSOrganizationsClient{
+				getAccountError: trace.NotFound("AccountNotFoundException"),
 			},
 		},
 	}
@@ -246,6 +252,60 @@ func TestJoinIAM(t *testing.T) {
 				Allow: []*types.TokenRule{
 					{
 						AWSOrganizationID: allowedOrgIDUsingIntegrationCredentials,
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1234",
+				}),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "with integration and rule with organization, but access is granted with explicit account id",
+			authServer:       regularServer,
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Integration: integrationNameWithoutAccess,
+				Roles:       []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: allowedOrgIDUsingIntegrationCredentials,
+					},
+					{
+						AWSAccount: "1234",
+					},
+				},
+				JoinMethod: types.JoinMethodIAM,
+			},
+			stsClient: &mockClient{
+				respStatusCode: http.StatusOK,
+				respBody: responseFromAWSIdentity(iamjoin.AWSIdentity{
+					Account: "1234",
+					Arn:     "arn:aws::1234",
+				}),
+			},
+			assertError: require.NoError,
+		},
+		{
+			desc:             "using organizations and organizational units matcherwith integration credentials",
+			authServer:       regularServer,
+			tokenName:        "test-token",
+			requestTokenName: "test-token",
+			tokenSpec: types.ProvisionTokenSpecV2{
+				Integration: exampleIntegrationName,
+				Roles:       []types.SystemRole{types.RoleNode},
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: allowedOrgIDUsingIntegrationCredentials,
+						AWSOrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+							Include: []string{allowedOU},
+						},
 					},
 				},
 				JoinMethod: types.JoinMethodIAM,

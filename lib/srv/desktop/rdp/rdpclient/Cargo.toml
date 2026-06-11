@@ -51,3 +51,6 @@ tempfile = "3.19.1"
 
 [features]
 fips = ["tokio-boring/fips", "boring/fips"]
+
+[dev-dependencies]
+base64 = "0.22.1"

@@ -1,0 +1,10 @@
+name: key-agent
+credential_ttl: 1m0s
+renewal_interval: 30s
+roles:
+  - access
+cluster: leaf.example.com
+allow_reissue: true
+destination:
+  type: directory
+  path: /opt/machine-id

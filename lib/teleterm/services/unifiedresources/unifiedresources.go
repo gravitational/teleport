@@ -28,8 +28,16 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	libclient "github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 )
+
+// AuthClient combines the interfaces needed by [List] to fetch unified
+// resources and to build an access checker for login filtering.
+type AuthClient interface {
+	services.CurrentUserRoleGetter
+	apiclient.ListUnifiedResourcesClient
+}
 
 // TODO(gabrielcorado): add support to LLM.
 var supportedResourceKinds = []string{
@@ -42,7 +50,7 @@ var supportedResourceKinds = []string{
 	types.KindMCP,
 }
 
-func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListUnifiedResourcesClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
+func List(ctx context.Context, cluster *clusters.Cluster, authClient AuthClient, req *proto.ListUnifiedResourcesRequest) (*ListResponse, error) {
 	kinds := req.GetKinds()
 	if len(kinds) == 0 {
 		kinds = supportedResourceKinds
@@ -56,7 +64,12 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 
 	req.Kinds = kinds
 	req.IncludeLogins = true
-	enrichedResources, nextKey, err := apiclient.GetUnifiedResourcePage(ctx, client, req)
+	enrichedResources, nextKey, err := apiclient.GetUnifiedResourcePage(ctx, authClient, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	accessChecker, err := cluster.NewAccessChecker(ctx, authClient)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -135,11 +148,19 @@ func List(ctx context.Context, cluster *clusters.Cluster, client apiclient.ListU
 			}
 			response.Resources = append(response.Resources, ur)
 		case types.WindowsDesktop:
+			logins := enrichedResource.Logins
+			if req.IncludeRequestable || req.UseSearchAsRoles {
+				var err error
+				logins, err = accessChecker.GetAllowedLoginsForResource(r)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
 			response.Resources = append(response.Resources, UnifiedResource{
 				WindowsDesktop: &clusters.WindowsDesktop{
 					URI:            cluster.URI.AppendWindowsDesktop(r.GetName()),
 					WindowsDesktop: r,
-					Logins:         enrichedResource.Logins,
+					Logins:         logins,
 				},
 				RequiresRequest: requiresRequest,
 			})

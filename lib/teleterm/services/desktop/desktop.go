@@ -390,6 +390,12 @@ func (d *fsRequestHandler) handleSharedDirectoryListRequest(completionID uint32,
 }
 
 func (d *fsRequestHandler) handleSharedDirectoryReadRequest(completionID uint32, r *tdpbv1.SharedDirectoryRequest_Read, sendToServer func(message tdp.Message) error) error {
+	// Defense in depth: the protocol decoder already caps Length, but re-check here so
+	// the make([]byte, r.Length) below can't be driven into an unbounded allocation by a future caller.
+	if r.Length > tdp.MaxFileReadWriteLength {
+		return tdp.FileReadWriteMaxLenErr
+	}
+
 	dirAccess, err := d.directoryAccessProvider.GetDirectoryAccess()
 	if err != nil {
 		return trace.Wrap(err)

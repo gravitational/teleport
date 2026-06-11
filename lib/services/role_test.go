@@ -4187,6 +4187,58 @@ func TestCanCopyFiles(t *testing.T) {
 	}
 }
 
+// TestGetWebTerminalClipboardMode verifies that the RoleSet.GetWebTerminalClipboardMode method calculates the correct clipboard mode from a set of roles.
+func TestGetWebTerminalClipboardMode(t *testing.T) {
+	tests := []struct {
+		name   string
+		values []types.WebTerminalClipboardMode
+		expect types.WebTerminalClipboardMode
+	}{
+		{
+			name:   "unspecified",
+			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED},
+			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED,
+		},
+		{
+			name:   "unrestricted",
+			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED},
+			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED,
+		},
+		{
+			name:   "no-copy",
+			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY,
+		},
+		{
+			name:   "roles have both unrestricted and no-copy, no-copy takes precedence",
+			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNRESTRICTED, types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY,
+		},
+		{
+			name:   "roles have both unspecified and no-copy, no-copy takes precedence",
+			values: []types.WebTerminalClipboardMode{types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_UNSPECIFIED, types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY},
+			expect: types.WebTerminalClipboardMode_WEB_TERMINAL_CLIPBOARD_MODE_NO_COPY,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var roles RoleSet
+			for _, v := range tt.values {
+				roles = append(roles, &types.RoleV6{
+					Spec: types.RoleSpecV6{
+						Options: types.RoleOptions{
+							WebTerminalClipboardMode: v,
+						},
+					},
+				})
+			}
+
+			require.Equal(t, tt.expect, roles.GetWebTerminalClipboardMode())
+		})
+	}
+}
+
 // TestBoolOptions makes sure that bool options (like agent forwarding and
 // port forwarding) can be disabled in a role.
 func TestBoolOptions(t *testing.T) {
@@ -11219,5 +11271,113 @@ func newDatabaseSessionEndEvent() *apievents.DatabaseSessionEnd {
 		},
 		StartTime: startTime,
 		EndTime:   endTime,
+	}
+}
+
+func TestCheckImpersonateRoles(t *testing.T) {
+	t.Parallel()
+	u, err := types.NewUser("myuser")
+	require.NoError(t, err)
+
+	newRole := func(t *testing.T, name string, allow, deny *types.ImpersonateConditions) types.Role {
+		role, err := types.NewRole(name, types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Impersonate: allow,
+			},
+			Deny: types.RoleConditions{
+				Impersonate: deny,
+			},
+		})
+		require.NoError(t, err)
+		return role
+	}
+
+	acceptTests := []struct {
+		name             string
+		roleSet          RoleSet
+		impersonateRoles []types.Role
+	}{
+		{
+			name: "allow rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "matching where clause",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+				Where: `equals(impersonate_role.metadata.name, "foo")`,
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+	}
+	for _, tc := range acceptTests {
+		t.Run("accept "+tc.name, func(t *testing.T) {
+			require.NoError(t, tc.roleSet.CheckImpersonateRoles(u, tc.impersonateRoles))
+		})
+	}
+	rejectTests := []struct {
+		name             string
+		roleSet          RoleSet
+		impersonateRoles []types.Role
+	}{
+		{
+			name:             "no allow rules",
+			roleSet:          []types.Role{newRole(t, "foo", nil, nil)},
+			impersonateRoles: []types.Role{newRole(t, "bar", nil, nil)},
+		},
+		{
+			name: "deny rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "users in allow rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Users: []string{"*"},
+				Roles: []string{"foo"},
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "users bypassing role check",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"foo"},
+				Users: []string{"*"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "users in deny rule",
+			roleSet: []types.Role{newRole(t, "myrole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+			}, &types.ImpersonateConditions{
+				Roles: []string{"bar"},
+				Users: []string{"*"},
+			})},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+		{
+			name: "no matching where clause",
+			roleSet: []types.Role{newRole(t, "myRole", &types.ImpersonateConditions{
+				Roles: []string{"*"},
+				Where: `equals(impersonate_role.metadata.name, "wrongname")`,
+			}, nil)},
+			impersonateRoles: []types.Role{newRole(t, "foo", nil, nil)},
+		},
+	}
+	for _, tc := range rejectTests {
+		t.Run("reject "+tc.name, func(t *testing.T) {
+			err := tc.roleSet.CheckImpersonateRoles(u, tc.impersonateRoles)
+			require.True(t, trace.IsAccessDenied(err), "unexpected error: %v", err)
+		})
 	}
 }

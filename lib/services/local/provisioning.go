@@ -21,11 +21,13 @@ package local
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth/join/oracle"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
@@ -43,6 +45,10 @@ func NewProvisioningService(backend backend.Backend) *ProvisioningService {
 
 // UpsertToken adds provisioning tokens for the auth server
 func (s *ProvisioningService) UpsertToken(ctx context.Context, p types.ProvisionToken) error {
+	if err := validateProvisionToken(p); err != nil {
+		return trace.Wrap(err)
+	}
+
 	actions, err := s.AppendPutProvisionTokenActions(nil, p, backend.Whatever())
 	if err != nil {
 		return err
@@ -158,6 +164,10 @@ func (s *ProvisioningService) PatchToken(
 
 // CreateToken creates a new token for the auth server
 func (s *ProvisioningService) CreateToken(ctx context.Context, p types.ProvisionToken) error {
+	if err := validateProvisionToken(p); err != nil {
+		return trace.Wrap(err)
+	}
+
 	actions, err := s.AppendPutProvisionTokenActions(nil, p, backend.NotExists())
 	if err != nil {
 		return trace.Wrap(err)
@@ -292,3 +302,103 @@ func MatchToken(t types.ProvisionToken, anyRoles types.SystemRoles, botName stri
 }
 
 const tokensPrefix = "tokens"
+
+func validateProvisionToken(token types.ProvisionToken) error {
+	switch token.GetJoinMethod() {
+	case types.JoinMethodOracle:
+		return validateOracleJoinToken(token)
+
+	case types.JoinMethodEC2:
+		return validateEC2Token(token)
+
+	case types.JoinMethodIAM:
+		return validateIAMToken(token)
+	}
+
+	return nil
+}
+
+func validateEC2Token(token types.ProvisionToken) error {
+	for _, allowRule := range token.GetAllowRules() {
+		// EC2 join method does not support AWS Organizational Unit matchers, so we return an
+		// error if any of the token rules contain them.
+		if tokenRuleHasAWSOrganizationalUnitMatchers(allowRule) {
+			return trace.BadParameter(`the %q join method does not support the "aws_organizational_units" parameter`, types.JoinMethodEC2)
+		}
+	}
+	return nil
+}
+
+func tokenRuleHasAWSOrganizationalUnitMatchers(tokenRule *types.TokenRule) bool {
+	return tokenRule.AWSOrganizationalUnits != nil &&
+		(len(tokenRule.AWSOrganizationalUnits.Include) > 0 || len(tokenRule.AWSOrganizationalUnits.Exclude) > 0)
+}
+
+func validateIAMToken(token types.ProvisionToken) error {
+	for _, allowRule := range token.GetAllowRules() {
+		if err := validateIAMOrganizationRule(allowRule); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+	return nil
+}
+
+func validateIAMOrganizationRule(tokenRule *types.TokenRule) error {
+	// In order to use Organizational Unit matchers, the token must specify the AWS Organization ID.
+	if tokenRule.AWSOrganizationID == "" && tokenRuleHasAWSOrganizationalUnitMatchers(tokenRule) {
+		return trace.BadParameter(`allow rule with "aws_organizational_units" matchers must also specify "aws_organization_id" when using the %q join method`, types.JoinMethodIAM)
+	}
+
+	// Return early if no OU matchers are specified.
+	if !tokenRuleHasAWSOrganizationalUnitMatchers(tokenRule) {
+		return nil
+	}
+
+	if len(tokenRule.AWSOrganizationalUnits.Include) == 0 {
+		return trace.BadParameter(`at least one entry in "aws_organizational_units.include" must be specified`)
+	}
+
+	if slices.Contains(tokenRule.AWSOrganizationalUnits.Include, types.Wildcard) && len(tokenRule.AWSOrganizationalUnits.Include) > 1 {
+		return trace.BadParameter(`when using wildcard for "aws_organizational_units.include", no other values are allowed`)
+	}
+	if slices.Contains(tokenRule.AWSOrganizationalUnits.Exclude, types.Wildcard) {
+		return trace.BadParameter(`using wildcard in "aws_organizational_units.exclude" is not allowed`)
+	}
+
+	return nil
+}
+
+// validateOracleJoinToken validates the fields in a token using the Oracle
+// join method. It's done here instead of in the client so the client doesn't
+// have to import the Oracle SDK.
+func validateOracleJoinToken(token types.ProvisionToken) error {
+	tokenV2, ok := token.(*types.ProvisionTokenV2)
+	if !ok {
+		return trace.BadParameter("%v join method requires ProvisionTokenV2", types.JoinMethodOracle)
+	}
+	oracleSpec := tokenV2.Spec.Oracle
+	if oracleSpec == nil {
+		return trace.BadParameter("missing spec")
+	}
+	for _, allow := range oracleSpec.Allow {
+		if _, err := oracle.ParseRegionFromOCID(allow.Tenancy); err != nil {
+			return trace.BadParameter("invalid tenant: %v", allow.Tenancy)
+		}
+		for _, compartment := range allow.ParentCompartments {
+			if _, err := oracle.ParseRegionFromOCID(compartment); err != nil {
+				return trace.BadParameter("invalid compartment: %v", compartment)
+			}
+		}
+		for _, region := range allow.Regions {
+			if canonicalRegion, _ := oracle.ParseRegion(region); canonicalRegion == "" {
+				return trace.BadParameter("invalid region: %v", region)
+			}
+		}
+		for _, instanceID := range allow.Instances {
+			if _, err := oracle.ParseRegionFromOCID(instanceID); err != nil {
+				return trace.BadParameter("invalid instance OCID: %s", instanceID)
+			}
+		}
+	}
+	return nil
+}

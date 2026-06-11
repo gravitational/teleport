@@ -138,6 +138,7 @@ func ForAuth(cfg Config) Config {
 	cfg.EnableRelativeExpiry = true
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: true},
+		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -425,6 +426,7 @@ func ForWindowsDesktop(cfg Config) Config {
 	cfg.target = "windows_desktop"
 	cfg.Watches = []types.WatchKind{
 		{Kind: types.KindCertAuthority, LoadSecrets: false, Filter: makeAllKnownCAsFilter().IntoMap()},
+		{Kind: types.KindCertAuthorityOverride},
 		{Kind: types.KindClusterName},
 		{Kind: types.KindClusterAuditConfig},
 		{Kind: types.KindClusterNetworkingConfig},
@@ -692,7 +694,7 @@ type Config struct {
 	// SnowflakeSession holds Snowflake sessions.
 	SnowflakeSession services.SnowflakeSession
 	// AppSession holds application sessions.
-	AppSession services.AppSession
+	AppSession services.AppSessionReader
 	// WebSession holds regular web sessions.
 	WebSession types.WebSessionInterface
 	// WebToken holds web tokens.
@@ -797,6 +799,8 @@ type Config struct {
 	RecordingEncryption services.RecordingEncryption
 	// Summarizer is a summarizer service.
 	Summarizer services.Summarizer
+	// SubCAService reads CertAuthorityOverride resources.
+	SubCAService services.SubCAServiceGetter
 }
 
 // CheckAndSetDefaults checks parameters and sets default values

@@ -18,8 +18,10 @@ package local_test
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"testing"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -378,4 +380,274 @@ func newProvisioningService(t *testing.T, clock clockwork.Clock) *local.Provisio
 	require.NoError(t, err)
 	service := local.NewProvisioningService(backend)
 	return service
+}
+
+func TestValidateProvisionToken(t *testing.T) {
+	t.Parallel()
+
+	makeToken := func(t *testing.T, spec types.ProvisionTokenSpecV2) types.ProvisionToken {
+		t.Helper()
+
+		if len(spec.Roles) == 0 {
+			spec.Roles = []types.SystemRole{types.RoleNode}
+		}
+
+		token, err := types.NewProvisionTokenFromSpec("test", time.Now().Add(time.Hour), spec)
+		require.NoError(t, err)
+		return token
+	}
+
+	tests := []struct {
+		name        string
+		spec        types.ProvisionTokenSpecV2
+		wantErr     bool
+		errContains string
+	}{
+		{
+			name: "ec2 rejects organizational unit include matchers",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodEC2,
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "123456789012",
+						AWSOrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+							Include: []string{"ou-1234"},
+						},
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: `the "ec2" join method does not support the "aws_organizational_units" parameter`,
+		},
+		{
+			name: "ec2 rejects organizational unit exclude matchers",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodEC2,
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "123456789012",
+						AWSOrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+							Exclude: []string{"ou-1234"},
+						},
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: `the "ec2" join method does not support the "aws_organizational_units" parameter`,
+		},
+		{
+			name: "iam rejects organizational unit matchers without organization id",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodIAM,
+				Allow: []*types.TokenRule{
+					{
+						AWSAccount: "123456789012",
+						AWSOrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+							Include: []string{"ou-1234"},
+						},
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: `allow rule with "aws_organizational_units" matchers must also specify "aws_organization_id" when using the "iam" join method`,
+		},
+		{
+			name: "iam rejects exclude-only organizational unit matchers",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodIAM,
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: "o-123abcd",
+						AWSOrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+							Exclude: []string{"ou-1234"},
+						},
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: `at least one entry in "aws_organizational_units.include" must be specified`,
+		},
+		{
+			name: "iam rejects wildcard mixed with explicit include matchers",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodIAM,
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: "o-123abcd",
+						AWSOrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+							Include: []string{types.Wildcard, "ou-1234"},
+						},
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: `when using wildcard for "aws_organizational_units.include", no other values are allowed`,
+		},
+		{
+			name: "iam rejects wildcard exclude matchers",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodIAM,
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: "o-123abcd",
+						AWSOrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+							Include: []string{"ou-1234"},
+							Exclude: []string{types.Wildcard},
+						},
+					},
+				},
+			},
+			wantErr:     true,
+			errContains: `using wildcard in "aws_organizational_units.exclude" is not allowed`,
+		},
+		{
+			name: "iam accepts organization id without organizational unit matchers",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodIAM,
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: "o-123abcd",
+					},
+				},
+			},
+		},
+		{
+			name: "iam accepts wildcard include matcher",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodIAM,
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: "o-123abcd",
+						AWSOrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+							Include: []string{types.Wildcard},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "iam accepts explicit include and exclude matchers",
+			spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodIAM,
+				Allow: []*types.TokenRule{
+					{
+						AWSOrganizationID: "o-123abcd",
+						AWSOrganizationalUnits: &types.AWSOrganizationUnitsMatcher{
+							Include: []string{"ou-1234"},
+							Exclude: []string{"ou-5678"},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := local.ValidateProvisionToken(makeToken(t, tt.spec))
+			if tt.wantErr {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.errContains)
+				return
+			}
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateOracleJoinToken(t *testing.T) {
+	t.Parallel()
+	makeToken := func(spec types.ProvisionTokenSpecV2) types.ProvisionToken {
+		spec.JoinMethod = types.JoinMethodOracle
+		spec.Roles = []types.SystemRole{types.RoleNode}
+		token, err := types.NewProvisionTokenFromSpec("foo", time.Now().Add(time.Hour), spec)
+		require.NoError(t, err)
+		return token
+	}
+
+	t.Run("oracle", func(t *testing.T) {
+		tests := []struct {
+			name   string
+			token  types.ProvisionToken
+			assert require.ErrorAssertionFunc
+		}{
+			{
+				name: "ok",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.NoError,
+			},
+			{
+				name: "invalid tenant",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            "foo",
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+			{
+				name: "invalid compartment",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{"foo", makeCompartmentID("bar")},
+								Regions:            []string{"us-phoenix-1", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+			{
+				name: "invalid region",
+				token: makeToken(types.ProvisionTokenSpecV2{
+					Oracle: &types.ProvisionTokenSpecV2Oracle{
+						Allow: []*types.ProvisionTokenSpecV2Oracle_Rule{
+							{
+								Tenancy:            makeTenancyID("foo"),
+								ParentCompartments: []string{makeCompartmentID("foo"), makeCompartmentID("bar")},
+								Regions:            []string{"invalid", "iad"},
+							},
+						},
+					},
+				}),
+				assert: require.Error,
+			},
+		}
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				tc.assert(t, local.ValidateOracleJoinToken(tc.token))
+			})
+		}
+	})
+}
+
+func makeOCID(resourceType, region, id string) string {
+	return fmt.Sprintf("ocid1.%s.oc1.%s.%s", resourceType, region, id)
+}
+
+func makeTenancyID(id string) string {
+	return makeOCID("tenancy", "", id)
+}
+
+func makeCompartmentID(id string) string {
+	return makeOCID("compartment", "", id)
 }

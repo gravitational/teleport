@@ -594,7 +594,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 			return organizations.NewFromConfig(c)
 		}
 
-		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetter(closeCtx, cfg.Clock, organizationsClientFromSDK)
+		cfg.AWSOrganizationsClientGetter, err = awsOrganizationsClientGetterWithCache(closeCtx, cfg.Clock, organizationsClientFromSDK)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -641,6 +641,16 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		cfg.Beams, err = local.NewBeamService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating BeamsService")
+		}
+	}
+
+	if cfg.SubCAService == nil {
+		var err error
+		cfg.SubCAService, err = local.NewSubCAService(local.SubCAServiceParams{
+			Backend: cfg.Backend,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err, "creating SubCAService")
 		}
 	}
 
@@ -706,6 +716,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (as *Server, err error) {
 		ScopedTokenService:              cfg.ScopedTokenService,
 		WorkloadClusterService:          cfg.WorkloadClusterService,
 		Beams:                           cfg.Beams,
+		SubCAService:                    cfg.SubCAService,
 	}
 
 	if cfg.FakePasswordHash == nil {
@@ -1008,10 +1019,11 @@ type Services struct {
 	services.ScopedTokenService
 	services.WorkloadClusterService
 	services.Beams
+	services.SubCAService
 }
 
-// awsOrganizationsClientGetter returns an AWS Organizations client getter.
-func awsOrganizationsClientGetter(ctx context.Context, clock clockwork.Clock, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
+// awsOrganizationsClientGetterWithCache returns an AWS Organizations client getter with caching.
+func awsOrganizationsClientGetterWithCache(ctx context.Context, clock clockwork.Clock, organizationsClientFromConfig func(aws.Config) iamjoin.OrganizationsAPI) (*organizationsClientGetter, error) {
 	awsConfigProvider, err := awsconfig.NewCache()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1073,18 +1085,28 @@ func (o *organizationsClientGetter) Get(ctx context.Context, integration string,
 	}
 
 	return &organizationsClient{
+		integration:             integration,
 		describeAccountAPICache: o.describeAccountAPICache,
 		remoteAPI:               o.organizationsClientFromConfig(awsConfig),
 	}, nil
 }
 
 type organizationsClient struct {
+	integration             string
 	describeAccountAPICache *utils.FnCache
 	remoteAPI               iamjoin.OrganizationsAPI
 }
 
 func (o *organizationsClient) DescribeAccount(ctx context.Context, params *organizations.DescribeAccountInput, optFns ...func(*organizations.Options)) (*organizations.DescribeAccountOutput, error) {
-	describeAccountOutput, err := utils.FnCacheGet(ctx, o.describeAccountAPICache, aws.ToString(params.AccountId), func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
+	cacheKey := struct {
+		AccountID   string
+		Integration string
+	}{
+		AccountID:   aws.ToString(params.AccountId),
+		Integration: o.integration,
+	}
+
+	describeAccountOutput, err := utils.FnCacheGet(ctx, o.describeAccountAPICache, cacheKey, func(ctx context.Context) (*organizations.DescribeAccountOutput, error) {
 		remoteDescribeAccountOutput, err := o.remoteAPI.DescribeAccount(ctx, params, optFns...)
 		return remoteDescribeAccountOutput, trace.Wrap(err)
 	})
@@ -8023,15 +8045,18 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		noMFAAccessErr = checker.CheckAccess(db, services.AccessState{})
 
 	case *proto.IsMFARequiredRequest_WindowsDesktop:
-		desktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()})
+		resp, err := a.ListWindowsDesktops(ctx, types.ListWindowsDesktopsRequest{
+			WindowsDesktopFilter: types.WindowsDesktopFilter{Name: t.WindowsDesktop.GetWindowsDesktop()},
+			Limit:                1,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		if len(desktops) == 0 {
+		if len(resp.Desktops) == 0 {
 			return nil, trace.NotFound("windows desktop %q not found", t.WindowsDesktop.GetWindowsDesktop())
 		}
 
-		noMFAAccessErr = checker.CheckAccess(desktops[0],
+		noMFAAccessErr = checker.CheckAccess(resp.Desktops[0],
 			services.AccessState{},
 			services.NewWindowsLoginMatcher(t.WindowsDesktop.GetLogin()))
 
@@ -8040,19 +8065,18 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 			return nil, trace.BadParameter("missing Name field in an app-only UserCertsRequest")
 		}
 
-		servers, err := a.GetApplicationServers(ctx, apidefaults.Namespace)
-		if err != nil {
-			return nil, trace.Wrap(err)
+		var app types.Application
+		for server, err := range a.RangeApplicationServersWithName(ctx, t.App.Name) {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			app = server.GetApp()
+			break
 		}
-
-		i := slices.IndexFunc(servers, func(server types.AppServer) bool {
-			return server.GetApp().GetName() == t.App.Name
-		})
-		if i == -1 {
+		if app == nil {
 			return nil, trace.NotFound("application service %q not found", t.App.Name)
 		}
 
-		app := servers[i].GetApp()
 		noMFAAccessErr = checker.CheckAccess(app, services.AccessState{})
 
 	default:

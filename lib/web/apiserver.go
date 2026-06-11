@@ -179,6 +179,9 @@ type Handler struct {
 	// the proxy's cache and get nodes in real time.
 	nodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// appServerWatcher ia a app server watcher to speed up app look up.
+	appServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// tracer is used to create spans.
 	tracer oteltrace.Tracer
 
@@ -310,6 +313,9 @@ type Config struct {
 	// the proxy's cache and get nodes in real time.
 	NodeWatcher *services.GenericWatcher[types.Server, readonly.Server]
 
+	// AppServerWatcher ia a app server watcher to speed up app look up.
+	AppServerWatcher *services.GenericWatcher[types.AppServer, readonly.AppServer]
+
 	// PresenceChecker periodically runs the mfa ceremony for moderated
 	// sessions.
 	PresenceChecker PresenceChecker
@@ -372,7 +378,7 @@ func (h *APIHandler) handlePreflight(w http.ResponseWriter, r *http.Request) {
 	}
 	publicAddr := raddr.Host()
 
-	servers, err := app.MatchUnshuffled(r.Context(), h.handler.cfg.AccessPoint, app.MatchPublicAddr(publicAddr))
+	servers, err := h.handler.appServerWatcher.CurrentResourcesWithFilter(r.Context(), app.MatchPublicAddr(publicAddr))
 	if err != nil {
 		h.handler.logger.InfoContext(r.Context(), "failed to match application with public addr", "public_addr", publicAddr)
 		return
@@ -647,6 +653,10 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 	if cfg.NodeWatcher != nil {
 		h.nodeWatcher = cfg.NodeWatcher
+	}
+
+	if cfg.AppServerWatcher != nil {
+		h.appServerWatcher = cfg.AppServerWatcher
 	}
 
 	const v1Prefix = "/v1"
@@ -3525,7 +3535,15 @@ func (h *Handler) clusterUnifiedResourcesGet(w http.ResponseWriter, request *htt
 			})
 			unifiedResources = append(unifiedResources, app)
 		case types.WindowsDesktop:
-			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, enriched.Logins, enriched.RequiresRequest))
+			logins := enriched.Logins
+			if req.IncludeRequestable || req.UseSearchAsRoles {
+				var err error
+				logins, err = accessChecker.GetAllowedLoginsForResource(r)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			}
+			unifiedResources = append(unifiedResources, ui.MakeDesktop(r, logins, enriched.RequiresRequest))
 		case types.KubeCluster:
 			kube := ui.MakeKubeCluster(r, accessChecker, enriched.RequiresRequest)
 			unifiedResources = append(unifiedResources, kube)

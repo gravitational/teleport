@@ -26,8 +26,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/automaticupgrades/version"
 )
 
@@ -38,35 +36,19 @@ func TestGetAgentVersion(t *testing.T) {
 
 	testCases := []struct {
 		desc            string
-		ping            func(ctx context.Context) (proto.PingResponse, error)
-		clusterFeatures proto.Features
-		channelVersion  string
+		getter          version.Getter
 		expectedVersion *semver.Version
 		errorAssert     require.ErrorAssertionFunc
 	}{
 		{
-			desc: "ping error",
-			ping: func(ctx context.Context) (proto.PingResponse, error) {
-				return proto.PingResponse{}, trace.BadParameter("ping error")
-			},
+			desc:            "version getter error",
+			getter:          mustStaticGetter(t, "", trace.BadParameter("getter error")),
 			expectedVersion: nil,
 			errorAssert:     require.Error,
 		},
 		{
-			desc: "no automatic upgrades",
-			ping: func(ctx context.Context) (proto.PingResponse, error) {
-				return proto.PingResponse{ServerVersion: "1.2.3"}, nil
-			},
-			expectedVersion: semver.Must(version.EnsureSemver("1.2.3")),
-			errorAssert:     require.NoError,
-		},
-		{
-			desc: "automatic upgrades",
-			ping: func(ctx context.Context) (proto.PingResponse, error) {
-				return proto.PingResponse{ServerVersion: "10"}, nil
-			},
-			clusterFeatures: proto.Features{AutomaticUpgrades: true, Cloud: true},
-			channelVersion:  "v1.2.3",
+			desc:            "version from getter",
+			getter:          mustStaticGetter(t, "1.2.3", nil),
 			expectedVersion: semver.Must(version.EnsureSemver("1.2.3")),
 			errorAssert:     require.NoError,
 		},
@@ -74,26 +56,16 @@ func TestGetAgentVersion(t *testing.T) {
 
 	for _, tt := range testCases {
 		t.Run(tt.desc, func(t *testing.T) {
-			p := &pinger{pingFn: tt.ping}
-			var channel *automaticupgrades.Channel
-			if tt.channelVersion != "" {
-				channel = &automaticupgrades.Channel{StaticVersion: tt.channelVersion}
-				err := channel.CheckAndSetDefaults()
-				require.NoError(t, err)
-			}
-
-			result, err := GetKubeAgentVersion(ctx, p, tt.clusterFeatures, channel)
-
+			result, err := GetKubeAgentVersion(ctx, tt.getter)
 			tt.errorAssert(t, err)
 			require.Equal(t, tt.expectedVersion, result)
 		})
 	}
 }
 
-type pinger struct {
-	pingFn func(ctx context.Context) (proto.PingResponse, error)
-}
-
-func (p *pinger) Ping(ctx context.Context) (proto.PingResponse, error) {
-	return p.pingFn(ctx)
+func mustStaticGetter(t *testing.T, v string, err error) version.Getter {
+	t.Helper()
+	g, gerr := version.NewStaticGetter(v, err)
+	require.NoError(t, gerr)
+	return g
 }
