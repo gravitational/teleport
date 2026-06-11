@@ -127,6 +127,7 @@ func NewAPIServer(config *APIConfig) (http.Handler, error) {
 	srv.Router.UseRawPath = true
 
 	// Passwords and sessions
+	// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 	srv.POST("/:version/users/:user/web/sessions", srv.WithAuth(srv.extendWebSession))
 	srv.POST("/:version/users/:user/web/authenticate", srv.WithAuth(srv.authenticateWebUser))
 	srv.POST("/:version/users/:user/ssh/authenticate", srv.WithAuth(srv.authenticateSSHUser))
@@ -394,6 +395,7 @@ func (s *APIServer) validateTrustedCluster(auth *ServerWithRoles, w http.Respons
 	return validateResponseRaw, nil
 }
 
+// TODO(strideynet): move to httpMigratedHandler in v20.0.0
 func (s *APIServer) extendWebSession(auth *ServerWithRoles, w http.ResponseWriter, r *http.Request, p httprouter.Params, version string) (any, error) {
 	// nb(strideynet): Historically this handler/endpoint provided both
 	// Create and Extend WebSession functionality, and was known as

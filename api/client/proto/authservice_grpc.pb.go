@@ -121,6 +121,7 @@ const (
 	AuthService_DeleteAllSAMLIdPSessions_FullMethodName            = "/proto.AuthService/DeleteAllSAMLIdPSessions"
 	AuthService_DeleteUserSAMLIdPSessions_FullMethodName           = "/proto.AuthService/DeleteUserSAMLIdPSessions"
 	AuthService_GetWebSession_FullMethodName                       = "/proto.AuthService/GetWebSession"
+	AuthService_ExtendWebSession_FullMethodName                    = "/proto.AuthService/ExtendWebSession"
 	AuthService_StreamWebSessions_FullMethodName                   = "/proto.AuthService/StreamWebSessions"
 	AuthService_DeleteWebSession_FullMethodName                    = "/proto.AuthService/DeleteWebSession"
 	AuthService_DeleteAllWebSessions_FullMethodName                = "/proto.AuthService/DeleteAllWebSessions"
@@ -531,6 +532,10 @@ type AuthServiceClient interface {
 	DeleteUserSAMLIdPSessions(ctx context.Context, in *DeleteUserSAMLIdPSessionsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(ctx context.Context, in *types.GetWebSessionRequest, opts ...grpc.CallOption) (*GetWebSessionResponse, error)
+	// ExtendWebSession creates a new web session for a user based on a valid
+	// existing web session, e.g. to apply an approved access request, switch
+	// back to default roles, or pick up recent user changes.
+	ExtendWebSession(ctx context.Context, in *ExtendWebSessionRequest, opts ...grpc.CallOption) (*ExtendWebSessionResponse, error)
 	// StreamWebSessions gets all web sessions in a stream.
 	StreamWebSessions(ctx context.Context, in *emptypb.Empty, opts ...grpc.CallOption) (grpc.ServerStreamingClient[types.WebSessionV2], error)
 	// DeleteWebSession deletes a web session.
@@ -2011,6 +2016,16 @@ func (c *authServiceClient) GetWebSession(ctx context.Context, in *types.GetWebS
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(GetWebSessionResponse)
 	err := c.cc.Invoke(ctx, AuthService_GetWebSession_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *authServiceClient) ExtendWebSession(ctx context.Context, in *ExtendWebSessionRequest, opts ...grpc.CallOption) (*ExtendWebSessionResponse, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(ExtendWebSessionResponse)
+	err := c.cc.Invoke(ctx, AuthService_ExtendWebSession_FullMethodName, in, out, cOpts...)
 	if err != nil {
 		return nil, err
 	}
@@ -4192,6 +4207,10 @@ type AuthServiceServer interface {
 	DeleteUserSAMLIdPSessions(context.Context, *DeleteUserSAMLIdPSessionsRequest) (*emptypb.Empty, error)
 	// GetWebSession gets a web session.
 	GetWebSession(context.Context, *types.GetWebSessionRequest) (*GetWebSessionResponse, error)
+	// ExtendWebSession creates a new web session for a user based on a valid
+	// existing web session, e.g. to apply an approved access request, switch
+	// back to default roles, or pick up recent user changes.
+	ExtendWebSession(context.Context, *ExtendWebSessionRequest) (*ExtendWebSessionResponse, error)
 	// StreamWebSessions gets all web sessions in a stream.
 	StreamWebSessions(*emptypb.Empty, grpc.ServerStreamingServer[types.WebSessionV2]) error
 	// DeleteWebSession deletes a web session.
@@ -4988,6 +5007,9 @@ func (UnimplementedAuthServiceServer) DeleteUserSAMLIdPSessions(context.Context,
 }
 func (UnimplementedAuthServiceServer) GetWebSession(context.Context, *types.GetWebSessionRequest) (*GetWebSessionResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetWebSession not implemented")
+}
+func (UnimplementedAuthServiceServer) ExtendWebSession(context.Context, *ExtendWebSessionRequest) (*ExtendWebSessionResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method ExtendWebSession not implemented")
 }
 func (UnimplementedAuthServiceServer) StreamWebSessions(*emptypb.Empty, grpc.ServerStreamingServer[types.WebSessionV2]) error {
 	return status.Errorf(codes.Unimplemented, "method StreamWebSessions not implemented")
@@ -6998,6 +7020,24 @@ func _AuthService_GetWebSession_Handler(srv interface{}, ctx context.Context, de
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
 		return srv.(AuthServiceServer).GetWebSession(ctx, req.(*types.GetWebSessionRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _AuthService_ExtendWebSession_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ExtendWebSessionRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AuthServiceServer).ExtendWebSession(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AuthService_ExtendWebSession_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AuthServiceServer).ExtendWebSession(ctx, req.(*ExtendWebSessionRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -10652,6 +10692,10 @@ var AuthService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "GetWebSession",
 			Handler:    _AuthService_GetWebSession_Handler,
+		},
+		{
+			MethodName: "ExtendWebSession",
+			Handler:    _AuthService_ExtendWebSession_Handler,
 		},
 		{
 			MethodName: "DeleteWebSession",
