@@ -304,7 +304,7 @@ func (r *Reconciler) Reconcile(ctx context.Context, syncMode mdmsync.SyncMode) (
 	)
 
 	start = r.clock.Now()
-	usersByEntraID, err := r.reconcileUsers(ctx, entraUsersResp.users, teleportState.usersMap)
+	usersByEntraID, err := r.reconcileUsers(ctx, entraUsersResp.users, teleportState.usersMap, syncMode)
 	if err != nil {
 		return result, trace.Wrap(err)
 	}
@@ -449,6 +449,7 @@ func (r *Reconciler) getEntraUsers(
 
 func (r *Reconciler) reconcileUsers(ctx context.Context,
 	entraUsers, teleportUsers map[string]types.User,
+	syncMode mdmsync.SyncMode,
 ) (map[entraUniqueID]types.User, error) {
 
 	usersByEntraID := map[entraUniqueID]types.User{}
@@ -459,6 +460,12 @@ func (r *Reconciler) reconcileUsers(ctx context.Context,
 		}
 		usersByEntraID[entraUniqueID(id)] = u
 	}
+
+	if syncMode == mdmsync.SyncModePartial {
+		// Prune users from Teleport map if they are connector created and not discovered in this sync.
+		pruneUntrackedTeleportSSOUsers(entraUsers, teleportUsers)
+	}
+
 	var conflictingUsers []string
 	backend, err := services.NewReconciler(services.ReconcilerConfig[types.User]{
 		Matcher:             matchByLabel[types.User],
@@ -792,4 +799,25 @@ func (r *Reconciler) syncErrors() error {
 type teleportEntraDirectoryState struct {
 	accessListsMap map[string]*accessListWithMembers
 	usersMap       map[string]types.User
+}
+
+// pruneUntrackedTeleportSSOUsers mutates teleportUsers by removing users that
+// are not matched with the origin label and are also not found in the Graph API.
+// This can happen if the user is an SSO user created by the referenced SAML connector,
+// but the user account was not discovered in the Graph API (likely due to Graph specific API delay).
+func pruneUntrackedTeleportSSOUsers(entraUsers, teleportUsers map[string]types.User) {
+	for name, u := range teleportUsers {
+		// matchByLabel matches user origin label to be Entra ID.
+		if matchByLabel(u) {
+			continue
+		}
+		// Keep if it is incoming from the Graph API.
+		if _, ok := entraUsers[name]; ok {
+			continue
+		}
+
+		// Remove the user from Teleport map here to avoid preemptive deletion and
+		// instead let the user be deleted eventually by the ephemeral user lifecycle.
+		delete(teleportUsers, name)
+	}
 }

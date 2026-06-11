@@ -878,6 +878,173 @@ func TestUserSync(t *testing.T) {
 		requireMemberExists(t, env.aclSvc, al1, "bob@example.com")
 		requireMemberExists(t, env.aclSvc, al2, "alice@example.com")
 		requireMemberExists(t, env.aclSvc, al2, "bob@example.com")
+
+		// Mimic user deletion.
+		graphClient.users = []*models.User{
+			entraUser(t, "u1", "alice@example.com"),
+		}
+
+		result, err = r.Reconcile(ctx, mdmsync.SyncModeFull)
+		require.NoError(t, err)
+		require.Equal(t, 1, result.ImportedUsers)
+		users, err = listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
+		require.NoError(t, err)
+
+		require.Len(t, users, 1)
+		require.Nil(t, users["bob@example.com"])
+		al1 = requireAccessListForEntraGroupExists(t, env.aclSvc, g1)
+		_, err = env.aclSvc.GetAccessListMember(t.Context(), al1.GetName(), "bob@example.com")
+		require.True(t, trace.IsNotFound(err))
+	})
+}
+
+func TestDeltaUserSyncConvertsSSOUser(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	// Bob is SSO user created by the connector referenced by the plugin.
+	createBobSSOUser := func(t *testing.T, ssoConnectorID string) types.User {
+		t.Helper()
+
+		// Bob is SSO user created by the connector referenced by the plugin.
+		bobTeleport, err := types.NewUser("bob@example.com")
+		require.NoError(t, err)
+		bobTeleport.SetCreatedBy(types.CreatedBy{
+			Connector: &types.ConnectorRef{
+				Type: constants.SAML,
+				ID:   ssoConnectorID,
+			},
+		})
+		return bobTeleport
+	}
+
+	// Simulate that the SSO user was immediately discovered in the delta
+	// sync and was properly converted as Entra ID user.
+	t.Run("immediate Graph user discovery", func(t *testing.T) {
+		graphStorage := msgraphtest.NewStorage()
+		defaultStorage := msgraphtest.NewDefaultStorage()
+		graphStorage.Applications = defaultStorage.Applications
+		// Start with zero users.
+		graphStorage.Users = make(map[string]*models.User)
+
+		env := newFakeEnv(t, graphStorage)
+		env.cfg.DeltaSyncEnabled = true
+
+		r, err := New(env.cfg)
+		require.NoError(t, err)
+
+		// First full sync.
+		result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ImportedUsers)
+
+		bobTeleport := createBobSSOUser(t, env.cfg.SSOConnectorID)
+		_, err = env.cfg.AccessPoint.CreateUser(ctx, bobTeleport)
+		require.NoError(t, err)
+
+		// Create a delta diff for Alice and Bob user.
+		// In this case, Alice should be created in Teleport, Bob's SSO user account
+		// should be promoted as the Entra ID user.
+		env.fakeGraphServer.SetUsers([]*models.User{defaultStorage.Users[msgraphtest.AliceID]})
+		env.fakeGraphServer.SetUsers([]*models.User{defaultStorage.Users[msgraphtest.BobID]})
+
+		result, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
+		require.NoError(t, err)
+		// Both Alice and Bob imported.
+		require.Equal(t, 2, result.ImportedUsers)
+
+		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
+		require.NoError(t, err)
+
+		require.Len(t, users, 2)
+		require.NotNil(t, users["alice@example.com"])
+		require.NotNil(t, users["bob@example.com"])
+
+		users, err = listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
+		require.NoError(t, err)
+
+		// Counts for Alice and Bob.
+		require.Len(t, users, 2)
+		require.Equal(t, types.OriginEntraID, users["alice@example.com"].Origin(), "Alice expected to have Entra ID origin")
+		require.Equal(t, types.OriginEntraID, users["bob@example.com"].Origin(), "Bob expected to be overwritten")
+
+		env.fakeGraphServer.DeleteUsers([]string{msgraphtest.BobID})
+		result, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
+		require.NoError(t, err)
+
+		// Only Alice remains and Bob was deleted.
+		require.Equal(t, 1, result.ImportedUsers)
+		users, err = listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
+		require.NoError(t, err)
+		require.Len(t, users, 1)
+	})
+
+	// Simulate that there was a delay when SSO user was discovered from the
+	// Graph API and in the meantime, the SSO user account must be preserved.
+	t.Run("delayed Graph user discovery", func(t *testing.T) {
+		graphStorage := msgraphtest.NewStorage()
+		defaultStorage := msgraphtest.NewDefaultStorage()
+		graphStorage.Applications = defaultStorage.Applications
+		// Start with zero users.
+		graphStorage.Users = make(map[string]*models.User)
+
+		env := newFakeEnv(t, graphStorage)
+		env.cfg.DeltaSyncEnabled = true
+
+		r, err := New(env.cfg)
+		require.NoError(t, err)
+
+		// First full sync.
+		result, err := r.Reconcile(ctx, mdmsync.SyncModeFull)
+		require.NoError(t, err)
+		require.Equal(t, 0, result.ImportedUsers)
+
+		bobTeleport := createBobSSOUser(t, env.cfg.SSOConnectorID)
+		_, err = env.cfg.AccessPoint.CreateUser(ctx, bobTeleport)
+		require.NoError(t, err)
+
+		// Create a delta diff for Alice user.
+		// In this case, Alice should be created in Teleport, Bob's account in Teleport
+		// should be preserved.
+		env.fakeGraphServer.SetUsers([]*models.User{defaultStorage.Users[msgraphtest.AliceID]})
+
+		result, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
+		require.NoError(t, err)
+		// Only Alice is imported.
+		require.Equal(t, 1, result.ImportedUsers)
+
+		users, err := listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
+		require.NoError(t, err)
+
+		require.Len(t, users, 2)
+		require.NotNil(t, users["alice@example.com"]) // new user account.
+		require.NotNil(t, users["bob@example.com"])   // existing SSO user account.
+
+		// Create a delta diff now to simulate that when the users are discovered
+		// from the delta API, they should not properly handled and overwritten.
+		env.fakeGraphServer.SetUsers([]*models.User{defaultStorage.Users[msgraphtest.BobID]})
+
+		result, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
+		require.NoError(t, err)
+		// Alice and converted Bob user equals to 2 imported users.
+		require.Equal(t, 2, result.ImportedUsers)
+
+		users, err = listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
+		require.NoError(t, err)
+
+		// Counts for Alice and Bob.
+		require.Len(t, users, 2)
+		require.Equal(t, types.OriginEntraID, users["bob@example.com"].Origin(), "Bob expected to be overwritten")
+
+		env.fakeGraphServer.DeleteUsers([]string{msgraphtest.BobID})
+		result, err = r.Reconcile(ctx, mdmsync.SyncModePartial)
+		require.NoError(t, err)
+
+		// Only Alice remains and Bob was deleted.
+		require.Equal(t, 1, result.ImportedUsers)
+		users, err = listTeleportUsers(ctx, env.cfg.AccessPoint, env.cfg.SSOConnectorID)
+		require.NoError(t, err)
+		require.Len(t, users, 1)
 	})
 }
 
