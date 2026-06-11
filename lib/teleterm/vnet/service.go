@@ -415,19 +415,19 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 	appURI := clusterURI.AppendApp(appKey.GetName())
 
 	routeToApp := vnet.RouteToApp(appInfo, targetPort)
-	apiteletermRouteToApp := apiteleterm.RouteToApp{
+	apiteletermRouteToApp := apiteleterm.RouteToApp_builder{
 		Name:        routeToApp.Name,
 		PublicAddr:  routeToApp.PublicAddr,
 		ClusterName: routeToApp.ClusterName,
 		Uri:         routeToApp.URI,
 		TargetPort:  routeToApp.TargetPort,
-	}
+	}.Build()
 
 	reloginReq := apiteleterm.ReloginRequest_builder{
 		RootClusterUri: clusterURI.GetRootClusterURI().String(),
 		VnetCertExpired: apiteleterm.VnetCertExpired_builder{
 			TargetUri:  appURI.String(),
-			RouteToApp: &apiteletermRouteToApp,
+			RouteToApp: apiteletermRouteToApp,
 		}.Build(),
 	}.Build()
 
@@ -452,7 +452,7 @@ func (p *clientApplication) ReissueAppCert(ctx context.Context, appInfo *vnetv1.
 		notifyErr := p.daemonService.NotifyApp(ctx, apiteleterm.SendNotificationRequest_builder{
 			CannotProxyVnetConnection: apiteleterm.CannotProxyVnetConnection_builder{
 				TargetUri:  appURI.String(),
-				RouteToApp: &apiteletermRouteToApp,
+				RouteToApp: apiteletermRouteToApp,
 				CertReissueError: apiteleterm.CertReissueError_builder{
 					Error: err.Error(),
 				}.Build(),
@@ -584,13 +584,13 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 		AppendLeafCluster(appKey.GetLeafCluster()).
 		AppendApp(appKey.GetName())
 	routeToApp := vnet.RouteToApp(appInfo, targetPort)
-	apiteletermRouteToApp := apiteleterm.RouteToApp{
+	apiteletermRouteToApp := apiteleterm.RouteToApp_builder{
 		Name:        routeToApp.Name,
 		PublicAddr:  routeToApp.PublicAddr,
 		ClusterName: routeToApp.ClusterName,
 		Uri:         routeToApp.URI,
 		TargetPort:  routeToApp.TargetPort,
-	}
+	}.Build()
 
 	invalidLocalPort := &apiteleterm.InvalidLocalPort{}
 	// Send ports only if there's less than 10 ranges. A bigger number would be difficult to show in
@@ -607,7 +607,7 @@ func (p *clientApplication) OnInvalidLocalPort(ctx context.Context, appInfo *vne
 	err := p.daemonService.NotifyApp(ctx, apiteleterm.SendNotificationRequest_builder{
 		CannotProxyVnetConnection: apiteleterm.CannotProxyVnetConnection_builder{
 			TargetUri:        appURI.String(),
-			RouteToApp:       &apiteletermRouteToApp,
+			RouteToApp:       apiteletermRouteToApp,
 			InvalidLocalPort: proto.ValueOrDefault(invalidLocalPort),
 		}.Build(),
 	}.Build())

@@ -540,7 +540,7 @@ func searchRequestableResources(cf *CLIConf) error {
 		if cf.kubeAPIGroup != "" {
 			resourceType = resourceType + "." + cf.kubeAPIGroup
 		}
-		req := kubeproto.ListKubernetesResourcesRequest{
+		req := kubeproto.ListKubernetesResourcesRequest_builder{
 			ResourceType:        resourceType,
 			Labels:              tc.Labels,
 			PredicateExpression: cf.PredicateExpression,
@@ -549,9 +549,9 @@ func searchRequestableResources(cf *CLIConf) error {
 			KubernetesCluster:   cf.KubernetesCluster,
 			KubernetesNamespace: cf.kubeNamespace,
 			TeleportCluster:     tc.SiteName,
-		}
+		}.Build()
 
-		resources, err := client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, &req)
+		resources, err := client.GetKubernetesResourcesWithFilters(cf.Context, proxyGRPCClient, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}

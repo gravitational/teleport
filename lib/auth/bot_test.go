@@ -1258,9 +1258,9 @@ func TestRegisterBotWithInvalidUserLoginState(t *testing.T) {
 	require.ElementsMatch(t, []string{"bot-" + botName}, ident.Groups)
 
 	// Delete the bot; it should delete the invalid ULS.
-	_, err = client.BotServiceClient().DeleteBot(ctx, &machineidv1pb.DeleteBotRequest{
+	_, err = client.BotServiceClient().DeleteBot(ctx, machineidv1pb.DeleteBotRequest_builder{
 		BotName: botName,
-	})
+	}.Build())
 	require.NoError(t, err)
 
 	_, err = client.UserLoginStateClient().GetUserLoginState(ctx, "bot-"+botName)

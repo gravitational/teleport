@@ -461,20 +461,18 @@ func (p *PluginsCommand) RotateAWSICCreds(ctx context.Context, args pluginServic
 		return trace.BadParameter("plugin has no credentials reference")
 	}
 
-	req := pluginspb.UpdatePluginStaticCredentialsRequest{
-		Target: &pluginspb.UpdatePluginStaticCredentialsRequest_Query{
-			Query: pluginspb.CredentialQuery_builder{
-				Labels: staticCredsRef.Labels,
-			}.Build(),
-		},
+	req := pluginspb.UpdatePluginStaticCredentialsRequest_builder{
+		Query: pluginspb.CredentialQuery_builder{
+			Labels: staticCredsRef.Labels,
+		}.Build(),
 		Credential: &types.PluginStaticCredentialsSpecV1{
 			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
 				APIToken: p.rotateCreds.awsic.payload,
 			},
 		},
-	}
+	}.Build()
 
-	_, err = args.plugins.UpdatePluginStaticCredentials(ctx, &req)
+	_, err = args.plugins.UpdatePluginStaticCredentials(ctx, req)
 	if err != nil {
 		return trace.Wrap(err, "updating credentials")
 	}
