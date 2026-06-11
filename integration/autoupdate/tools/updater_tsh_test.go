@@ -264,6 +264,47 @@ func TestLoginWithDisabledUpdateForcedByEnv(t *testing.T) {
 	matchVersion(t, string(out), testVersions[0])
 }
 
+// TestLoginWithExpiredProfileUpdates verifies that login performs a managed update
+// when the current profile exists but its credentials are no longer usable.
+func TestLoginWithExpiredProfileUpdates(t *testing.T) {
+	ctx := context.Background()
+
+	rootServer, homeDir := bootstrapTestServer(t)
+	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeDisabled, testVersions[1])
+
+	proxyAddr, err := rootServer.ProxyWebAddr()
+	require.NoError(t, err)
+
+	cmd := exec.CommandContext(ctx, tshPath,
+		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
+	cmd.Env = os.Environ()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	require.NoError(t, cmd.Run())
+
+	// Remove the stored key material while leaving the profile in place so the
+	// next login sees an existing-but-expired profile.
+	require.NoError(t, client.NewFSKeyStore(homeDir).DeleteKeyRing(client.KeyRingIndex{
+		ProxyHost:   proxyAddr.Host(),
+		Username:    "alice",
+		ClusterName: "root",
+	}))
+
+	setupManagedUpdates(t, rootServer.GetAuthServer(), autoupdate.ToolsUpdateModeEnabled, testVersions[1])
+
+	cmd = exec.CommandContext(ctx, tshPath,
+		"login", "--proxy", proxyAddr.String(), "--insecure", "--user", "alice", "--auth", constants.LocalConnector)
+	cmd.Env = os.Environ()
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	require.NoError(t, cmd.Run())
+
+	cmd = exec.CommandContext(ctx, tshPath, "version")
+	out, err := cmd.Output()
+	require.NoError(t, err)
+	matchVersion(t, string(out), testVersions[1])
+}
+
 // TestMigratedUpdateNotReExec verifies that the version is migrated without errors,
 // and that the previous version of the updated tools is ignored.
 func TestMigratedUpdateNotReExec(t *testing.T) {
