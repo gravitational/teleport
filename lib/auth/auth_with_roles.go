@@ -751,7 +751,7 @@ func (a *ScopedServerWithRoles) GenerateHostCerts(ctx context.Context, req *prot
 
 	// serverFQDN is hostID + cluster name, so make sure server requests new keys for itself
 	if serverFQDN != utils.HostFQDN(req.HostID, clusterName) {
-		return nil, trace.AccessDenied("username mismatch %q and %q", serverFQDN, utils.HostFQDN(req.HostID, clusterName))
+		return nil, trace.AccessDenied("server FQDN mismatch %q and %q", serverFQDN, utils.HostFQDN(req.HostID, clusterName))
 	}
 
 	if req.Role == types.RoleInstance {
@@ -789,15 +789,15 @@ func (a *ScopedServerWithRoles) GenerateHostCerts(ctx context.Context, req *prot
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
 func (a *ScopedServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
 	// ensure requesting cert's primary role is a server role.
+	var isServer bool
 	switch role := a.scopedContext.Identity.(type) {
 	case authz.BuiltinRole:
-		if !role.IsServer() {
-			return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
-		}
+		isServer = role.IsServer()
 	case authz.ScopedBuiltinRole:
-		if !role.IsServer() {
-			return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
-		}
+		isServer = role.IsServer()
+	}
+	if !isServer {
+		return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
 	}
 
 	// check that additional system roles are theoretically valid (distinct from permissibility, which
