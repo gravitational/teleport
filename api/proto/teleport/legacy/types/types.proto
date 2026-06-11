@@ -3887,6 +3887,11 @@ enum CreateDatabaseUserMode {
   // DB_USER_MODE_BEST_EFFORT_DROP allows user creation and tries to drop user
   // at session end. If the drop fails, fallback to disabling them.
   DB_USER_MODE_BEST_EFFORT_DROP = 3;
+  // DB_USER_MODE_BEST_EFFORT_REASSIGN_AND_DROP allows user creation. Upon session
+  // end, it first attempts to reassign ownership resources owned by that user, and
+  // then attempts to drop the user. If reassignment or dropping the user fails,
+  // falls back to disabling the user.
+  DB_USER_MODE_BEST_EFFORT_REASSIGN_AND_DROP = 4;
 }
 
 // WebTerminalClipboardMode determines clipboard behavior in the Web UI terminal.
