@@ -379,6 +379,10 @@ const (
 	// NeedsReviewReasonAccessRequestResourceMismatch indicates that the session's access requests do not reference the
 	// resource being connected to.
 	NeedsReviewReason_NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH NeedsReviewReason = 4
+	// NeedsReviewReasonOutputNotFullyCaptured indicates that one or more commands' reconstructed output was incomplete -
+	// it scrolled off the screen faster than it could be captured or was truncated to bound size - and so was only
+	// partially analyzed.
+	NeedsReviewReason_NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED NeedsReviewReason = 5
 )
 
 // Enum value maps for NeedsReviewReason.
@@ -389,6 +393,7 @@ var (
 		2: "NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED",
 		3: "NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST",
 		4: "NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH",
+		5: "NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED",
 	}
 	NeedsReviewReason_value = map[string]int32{
 		"NEEDS_REVIEW_REASON_UNSPECIFIED":                      0,
@@ -396,6 +401,7 @@ var (
 		"NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED":          2,
 		"NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST":   3,
 		"NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH": 4,
+		"NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED":        5,
 	}
 )
 
@@ -1779,6 +1785,10 @@ type SessionEvent struct {
 	EndOffset *durationpb.Duration `protobuf:"bytes,19,opt,name=end_offset,json=endOffset,proto3" json:"end_offset,omitempty"`
 	// InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
 	InferenceErrorMessage string `protobuf:"bytes,20,opt,name=inference_error_message,json=inferenceErrorMessage,proto3" json:"inference_error_message,omitempty"`
+	// OutputIncompleteReason explains why this command's reconstructed output was incomplete - for example, output
+	// scrolled off the screen faster than it could be captured or was truncated to bound size - and so the command
+	// was only partially analyzed. Empty when the output was fully captured.
+	OutputIncompleteReason string `protobuf:"bytes,23,opt,name=output_incomplete_reason,json=outputIncompleteReason,proto3" json:"output_incomplete_reason,omitempty"`
 	// Details is the type-specific details of the event.
 	//
 	// Types that are valid to be assigned to Details:
@@ -1955,6 +1965,13 @@ func (x *SessionEvent) GetInferenceErrorMessage() string {
 	return ""
 }
 
+func (x *SessionEvent) GetOutputIncompleteReason() string {
+	if x != nil {
+		return x.OutputIncompleteReason
+	}
+	return ""
+}
+
 func (x *SessionEvent) GetDetails() isSessionEvent_Details {
 	if x != nil {
 		return x.Details
@@ -2058,6 +2075,10 @@ func (x *SessionEvent) SetEndOffset(v *durationpb.Duration) {
 
 func (x *SessionEvent) SetInferenceErrorMessage(v string) {
 	x.InferenceErrorMessage = v
+}
+
+func (x *SessionEvent) SetOutputIncompleteReason(v string) {
+	x.OutputIncompleteReason = v
 }
 
 func (x *SessionEvent) SetCommandEventDetails(v *CommandEventDetails) {
@@ -2199,6 +2220,10 @@ type SessionEvent_builder struct {
 	EndOffset *durationpb.Duration
 	// InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
 	InferenceErrorMessage string
+	// OutputIncompleteReason explains why this command's reconstructed output was incomplete - for example, output
+	// scrolled off the screen faster than it could be captured or was truncated to bound size - and so the command
+	// was only partially analyzed. Empty when the output was fully captured.
+	OutputIncompleteReason string
 	// Details is the type-specific details of the event.
 
 	// Fields of oneof Details:
@@ -2233,6 +2258,7 @@ func (b0 SessionEvent_builder) Build() *SessionEvent {
 	x.StartOffset = b.StartOffset
 	x.EndOffset = b.EndOffset
 	x.InferenceErrorMessage = b.InferenceErrorMessage
+	x.OutputIncompleteReason = b.OutputIncompleteReason
 	if b.CommandEventDetails != nil {
 		x.Details = &SessionEvent_CommandEventDetails{b.CommandEventDetails}
 	}
@@ -3837,7 +3863,7 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"model_name\x18\x06 \x01(\tR\tmodelName\x12C\n" +
 	"\x11session_end_event\x18\a \x01(\v2\x17.google.protobuf.StructR\x0fsessionEndEvent\x12#\n" +
 	"\rerror_message\x18\b \x01(\tR\ferrorMessage\x12R\n" +
-	"\x10enhanced_summary\x18\t \x01(\v2'.teleport.summarizer.v1.EnhancedSummaryR\x0fenhancedSummary\"\xad\t\n" +
+	"\x10enhanced_summary\x18\t \x01(\v2'.teleport.summarizer.v1.EnhancedSummaryR\x0fenhancedSummary\"\xe7\t\n" +
 	"\fSessionEvent\x12C\n" +
 	"\bcategory\x18\x01 \x01(\x0e2'.teleport.summarizer.v1.CommandCategoryR\bcategory\x12@\n" +
 	"\n" +
@@ -3862,7 +3888,8 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\fstart_offset\x18\x12 \x01(\v2\x19.google.protobuf.DurationR\vstartOffset\x128\n" +
 	"\n" +
 	"end_offset\x18\x13 \x01(\v2\x19.google.protobuf.DurationR\tendOffset\x126\n" +
-	"\x17inference_error_message\x18\x14 \x01(\tR\x15inferenceErrorMessage\x12a\n" +
+	"\x17inference_error_message\x18\x14 \x01(\tR\x15inferenceErrorMessage\x128\n" +
+	"\x18output_incomplete_reason\x18\x17 \x01(\tR\x16outputIncompleteReason\x12a\n" +
 	"\x15command_event_details\x18\x15 \x01(\v2+.teleport.summarizer.v1.CommandEventDetailsH\x00R\x13commandEventDetails\x12a\n" +
 	"\x15desktop_event_details\x18\x16 \x01(\v2+.teleport.summarizer.v1.DesktopEventDetailsH\x00R\x13desktopEventDetailsB\t\n" +
 	"\adetails\"p\n" +
@@ -3986,13 +4013,14 @@ const file_teleport_summarizer_v1_summarizer_proto_rawDesc = "" +
 	"\x1cTHREAT_CATEGORY_EXFILTRATION\x10\n" +
 	"\x12\x1a\n" +
 	"\x16THREAT_CATEGORY_IMPACT\x10\v\x12\x18\n" +
-	"\x14THREAT_CATEGORY_NONE\x10\f*\xfe\x01\n" +
+	"\x14THREAT_CATEGORY_NONE\x10\f*\xb1\x02\n" +
 	"\x11NeedsReviewReason\x12#\n" +
 	"\x1fNEEDS_REVIEW_REASON_UNSPECIFIED\x10\x00\x12!\n" +
 	"\x1dNEEDS_REVIEW_REASON_TOO_LARGE\x10\x01\x12/\n" +
 	"+NEEDS_REVIEW_REASON_COMMAND_ANALYSIS_FAILED\x10\x02\x126\n" +
 	"2NEEDS_REVIEW_REASON_FAILED_TO_FETCH_ACCESS_REQUEST\x10\x03\x128\n" +
-	"4NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH\x10\x04BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
+	"4NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH\x10\x04\x121\n" +
+	"-NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED\x10\x05BXZVgithub.com/gravitational/teleport/api/gen/proto/go/teleport/summarizer/v1;summarizerv1b\x06proto3"
 
 var file_teleport_summarizer_v1_summarizer_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
 var file_teleport_summarizer_v1_summarizer_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
