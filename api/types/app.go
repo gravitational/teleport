@@ -623,7 +623,7 @@ func (a *AppV3) checkMCPStdio() error {
 // format.
 var supportedFormatInferenceProviders = map[LLMFormat][]LLMProvider{
 	LLMFormatAnthropic: {LLMProviderAnthropic, LLMProviderAWSBedrock},
-	LLMFormatOpenAI:    {LLMProviderOpenAI},
+	LLMFormatOpenAI:    {LLMProviderOpenAI, LLMProviderAWSBedrock},
 }
 
 func (a *AppV3) checkLLM() error {
