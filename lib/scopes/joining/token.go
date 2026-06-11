@@ -621,9 +621,10 @@ func (t *Token) GetBot() (scopes.QualifiedName, error) {
 // GetBotName returns the name component of the token's scope-qualified bot
 // reference. It is empty for non-bot tokens.
 //
-// This exists for compatibility with unscoped provision token v2s. We should
-// The bare name does not uniquely identify a bot across scopes; use
-// [Token.GetBot] when comparing bot identities.
+// This exists for compatibility with unscoped provision token v2s. You should
+// avoid using this method and prefer [Token.GetBot] since this keeps the
+// Scope/Name pair combined. If you must use this method, ensure that it is
+// only used for display purposes (i.e audit/logs).
 func (t *Token) GetBotName() string {
 	bot, err := t.GetBot()
 	if err != nil {
