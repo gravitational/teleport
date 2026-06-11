@@ -44,10 +44,10 @@ var auditFallbackQueuedEvents = prometheus.NewCounter(
 
 type forwardedEmitKey struct{}
 
-// WithForwardedEmit marks ctx as carrying an audit event forwarded from a
-// remote instance. A FallbackEmitter does not queue such events when delivery
-// fails. The originating instance owns their durability and will retry from its
-// own queue, so the delivery error is returned to it instead.
+// WithForwardedEmit marks ctx as carrying an audit event forwarded from an
+// agent. A FallbackEmitter does not queue such events when delivery fails. The
+// originating instance owns their durability and will retry from its own queue,
+// so the delivery error is returned to it instead.
 func WithForwardedEmit(ctx context.Context) context.Context {
 	return context.WithValue(ctx, forwardedEmitKey{}, struct{}{})
 }
