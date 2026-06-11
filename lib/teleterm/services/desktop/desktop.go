@@ -363,7 +363,6 @@ func (s *Session) performInBandMFA(
 
 	mfaClient := rootClient.MFAServiceClientV2()
 	if mfaClient == nil {
-		_ = rootClient.Close()
 		return "", trace.BadParameter("MFA service client is not initialized")
 	}
 
