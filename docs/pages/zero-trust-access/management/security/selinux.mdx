@@ -19,14 +19,15 @@ The Teleport SSH Service SELinux module allows SELinux to confine the Teleport S
 
 ## Prerequisites
 
+Before installing the SELinux module, ensure the following requirements are met:
+
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- A Linux host running Red Hat Enterprise Linux (RHEL) 8 or 9. The Teleport SSH
   Service SELinux module is officially supported on these platforms only.
 - Root or `sudo` access on the host. The `install-selinux.sh` script must be run
   as `root`.
-- SELinux enabled on the host in permissive or enforcing mode (not disabled). See
-  [SELinux modes](#selinux-modes) for the difference between the two.
+- SELinux enabled on the host (either permissive or enforcing mode). The module can be installed in either mode, 
+  but enforcing mode is recommended for production use. See [SELinux modes] (#selinux-modes) for the difference between the two.
 - The `selinux-policy-devel` package installed on the host, which provides the
   toolchain used to compile the module. The [Installation](#installation) section
   covers this.
@@ -43,9 +44,9 @@ The Teleport SSH Service SELinux module allows SELinux to confine the Teleport S
   - **SSH Service only.** The agent must run only the SSH Service. Teleport exits
     with an error if `--enable-selinux` is set while other services are enabled or
     the SSH Service is disabled.
-  - **Runs as a systemd service.** Teleport only runs under the correct
-    `teleport_ssh_t` SELinux domain — and is therefore only enforced — when started
-    by systemd, not when launched manually.
+  - **Runs as a systemd service. Teleport is expected to run as a systemd service. 
+    SELinux enforcement relies on Teleport running under the `teleport_ssh_t` domain, 
+    which typically only occurs when Teleport is started by systemd.
 
 (!docs/pages/includes/tctl.mdx!)
 
