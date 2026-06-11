@@ -68,11 +68,22 @@ test('lists, creates, views, and deletes a connector', async ({ page }) => {
   }
 });
 
-test('if the default connector was deleted, the fallback works and prompts for mfa', async ({
-  page,
-}) => {
+test.describe('default connector fallback', () => {
   const name = `testconnector-${randomUUID()}`;
-  try {
+
+  test.afterEach(async ({ page }) => {
+    deleteResourceIfExists(`github/${name}`);
+    await expect(async () => {
+      await page.goto('/web/sso');
+      await expect(
+        page.getByRole('heading', { name: 'Your Connectors' })
+      ).toBeVisible();
+    }).toPass();
+  });
+
+  test('if the default connector was deleted, the fallback works and prompts for mfa', async ({
+    page,
+  }) => {
     await createConnector(page, name);
     await setAsDefault(page, name);
 
@@ -81,15 +92,12 @@ test('if the default connector was deleted, the fallback works and prompts for m
 
     // Loading the connectors page should prompt for MFA, since in the background the default connector is being
     // set to a fallback connector, which is an admin action.
-    await expectMfaChallenge(page, async () => {
+    await expect(async () => {
+      const challenge = page.waitForRequest(isMfaChallenge, { timeout: 3000 });
       await page.goto('/web/sso');
-      await expect(
-        page.getByRole('heading', { name: 'Your Connectors' })
-      ).toBeVisible();
-    });
-  } finally {
-    deleteResourceIfExists(`github/${name}`);
-  }
+      await challenge;
+    }).toPass();
+  });
 });
 
 // createConnector creates an auth connector
