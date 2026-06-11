@@ -384,7 +384,7 @@ function SessionSummaryContent({
               style={{ overflowY: 'auto' }}
             >
               <SessionRecordingTimeline
-                commands={data.enhancedSummary.commands}
+                events={data.enhancedSummary.sessionEvents}
                 onPlay={null}
                 sessionDuration={durationMs}
                 inferenceDuration={duration}

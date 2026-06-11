@@ -4,8 +4,8 @@ import type { ComponentProps } from 'react';
 import { render as testingRender, userEvent } from 'design/utils/testing';
 
 import {
-  MOCK_COMMANDS,
-  MOCK_FAILED_COMMAND,
+  MOCK_EVENTS,
+  MOCK_FAILED_EVENT,
 } from 'e-teleport/SessionRecordings/summary/mock';
 import { TimelineItem } from 'e-teleport/SessionRecordings/summary/TimelineItem';
 
@@ -23,7 +23,7 @@ describe('TimelineItem', () => {
   });
 
   it('formats offset with hours when applicable', () => {
-    render({ command: MOCK_COMMANDS[1] });
+    render({ event: MOCK_EVENTS[1] });
 
     expect(screen.getByText('0:02')).toBeInTheDocument();
   });
@@ -49,13 +49,13 @@ describe('TimelineItem', () => {
   });
 
   it('renders raw command with warning icon when analysis failed', () => {
-    render({ command: MOCK_FAILED_COMMAND });
+    render({ event: MOCK_FAILED_EVENT });
 
     expect(screen.getByText('whoami && id')).toBeInTheDocument();
   });
 
   it('shows error alert in popover for failed command', () => {
-    render({ command: MOCK_FAILED_COMMAND, selected: true });
+    render({ event: MOCK_FAILED_EVENT, selected: true });
 
     expect(
       screen.getByText('There was an error analyzing this command:')
@@ -66,18 +66,26 @@ describe('TimelineItem', () => {
   });
 
   it('hides detailed description when command has errors', () => {
-    render({ command: MOCK_FAILED_COMMAND, selected: true });
+    render({ event: MOCK_FAILED_EVENT, selected: true });
 
     expect(
-      screen.queryByText(MOCK_FAILED_COMMAND.detailedDescription)
+      screen.queryByText(MOCK_FAILED_EVENT.detailedDescription)
     ).not.toBeInTheDocument();
+  });
+
+  it('shows the command text inside the popover', () => {
+    render({ selected: true });
+
+    expect(
+      screen.getByText(MOCK_EVENTS[0].commandEventDetails!.command)
+    ).toBeInTheDocument();
   });
 });
 
 function render(props?: Partial<ComponentProps<typeof TimelineItem>>) {
   return testingRender(
     <TimelineItem
-      command={MOCK_COMMANDS[0]}
+      event={MOCK_EVENTS[0]}
       selected={false}
       onOpenChange={() => {}}
       onPlay={() => {}}

@@ -120,7 +120,7 @@ export function SessionSummary({
           </Box>
 
           <SessionRecordingTimeline
-            commands={data.enhancedSummary.commands}
+            events={data.enhancedSummary.sessionEvents}
             onPlay={onPlay}
             sessionDuration={metadata?.duration}
             inferenceDuration={duration}

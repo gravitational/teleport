@@ -1,5 +1,9 @@
 import cfg from 'e-teleport/config';
-import { type SessionRecordingSummary } from 'e-teleport/services/recordings/types';
+import { normalizeSessionRecordingSummary } from 'e-teleport/services/recordings/normalize';
+import {
+  type SessionRecordingSummary,
+  type SessionRecordingSummaryResponse,
+} from 'e-teleport/services/recordings/types';
 import api from 'teleport/services/api';
 import type { RecordingType } from 'teleport/services/recordings';
 
@@ -19,7 +23,9 @@ export async function fetchRecordingSummary(
     throw new Error('Failed to fetch recording summary');
   }
 
-  return response as SessionRecordingSummary;
+  return normalizeSessionRecordingSummary(
+    response as SessionRecordingSummaryResponse
+  );
 }
 
 export const RECORDING_TYPES_WITH_SUMMARIES: RecordingType[] = [

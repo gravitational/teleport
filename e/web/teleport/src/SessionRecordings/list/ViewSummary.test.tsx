@@ -15,7 +15,7 @@ import {
 import cfg from 'e-teleport/config';
 import {
   RecordingSummaryState,
-  type SessionRecordingSummary,
+  type SessionRecordingSummaryResponse,
 } from 'e-teleport/services/recordings/types';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -51,7 +51,7 @@ const getSummaryUrl = generatePath(cfg.api.sessionRecordingSummary, {
   sessionId: mockSessionId,
 });
 
-function withRecordingSummary(summary: SessionRecordingSummary) {
+function withRecordingSummary(summary: SessionRecordingSummaryResponse) {
   server.use(
     http.get(getSummaryUrl, () => {
       return HttpResponse.json(summary);

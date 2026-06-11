@@ -1,7 +1,7 @@
 import type { StoryObj } from '@storybook/react-vite';
 import { intervalToDuration } from 'date-fns';
 
-import { MOCK_COMMANDS } from 'e-teleport/SessionRecordings/summary/mock';
+import { MOCK_EVENTS } from 'e-teleport/SessionRecordings/summary/mock';
 import { SessionRecordingTimeline } from 'e-teleport/SessionRecordings/summary/SessionRecordingTimeline';
 
 export default {
@@ -12,7 +12,7 @@ export const Timeline: StoryObj = {
   name: 'Session Recording Timeline',
   render: () => (
     <SessionRecordingTimeline
-      commands={MOCK_COMMANDS}
+      events={MOCK_EVENTS}
       onPlay={() => null}
       inferenceDuration={intervalToDuration({
         start: new Date(),

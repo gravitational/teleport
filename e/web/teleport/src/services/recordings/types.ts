@@ -67,20 +67,62 @@ export type SessionRecordingSummary =
   | RecordingSummarySuccess
   | RecordingSummaryError;
 
+interface RecordingSummarySuccessResponse extends Omit<
+  RecordingSummarySuccess,
+  'enhancedSummary'
+> {
+  enhancedSummary?: EnhancedSummaryResponse;
+}
+
+export type SessionRecordingSummaryResponse =
+  | RecordingSummaryPending
+  | RecordingSummarySuccessResponse
+  | RecordingSummaryError;
+
 export enum NeedsFurtherReview {
   TooLarge = 'too_large',
   CommandAnalysisFailed = 'command_analysis_failed',
+  FailedToFetchAccessRequest = 'failed_to_fetch_access_request',
+  AccessRequestResourceMismatch = 'access_request_resource_mismatch',
 }
 
-export interface EnhancedSummary {
+export interface RiskScoreReason {
+  reason: string;
+  scoreImpact: number;
+}
+
+// EnhancedSummaryResponse mirrors the wire shape served by the proxy.
+// Both the new session_events / needs_further_review_reasons fields and the deprecated
+// commands / needs_further_review fields may be present (a newer proxy populates both for
+// cross-version compat; an older proxy populates only the deprecated fields).
+export interface EnhancedSummaryResponse {
   shortDescription: string;
   detailedDescription: string;
   riskLevel: RiskLevel;
-  needsFurtherReview?: NeedsFurtherReview;
   suspiciousActivities: string[];
   compromiseIndicators: boolean;
   notableCommandIndexes: number[];
-  commands: CommandAnalysis[];
+  sessionEvents?: SessionEvent[];
+  needsFurtherReviewReasons?: NeedsFurtherReview[];
+  riskScoreReasons?: RiskScoreReason[];
+  /** @deprecated kept for older proxies; prefer sessionEvents after normalization. */
+  commands?: CommandAnalysis[];
+  /** @deprecated kept for older proxies; prefer needsFurtherReviewReasons after normalization. */
+  needsFurtherReview?: NeedsFurtherReview;
+}
+
+// EnhancedSummary is the canonical, version-independent shape that UI components consume.
+// The deprecated `commands` / `needsFurtherReview` fields from the wire shape are folded
+// into `sessionEvents` / `needsFurtherReviewReasons` during normalization.
+export interface EnhancedSummary extends Omit<
+  EnhancedSummaryResponse,
+  | 'commands'
+  | 'needsFurtherReview'
+  | 'sessionEvents'
+  | 'needsFurtherReviewReasons'
+> {
+  sessionEvents: SessionEvent[];
+  needsFurtherReviewReasons: NeedsFurtherReview[];
 }
 
 export enum CommandCategory {
@@ -211,6 +253,9 @@ export function getThreatCategoryIcon(
   return threatCategoryIcons[category] ?? Question;
 }
 
+// CommandAnalysis is the deprecated event shape served by pre-v19 proxies.
+// New code should consume SessionEvent instead; this type is preserved so the
+// normalizer can translate legacy responses without losing data.
 export interface CommandAnalysis {
   command: string;
   category: CommandCategory;
@@ -235,4 +280,52 @@ export interface CommandAnalysis {
   endOffset: number;
   mitreAttackIds?: string[];
   inferenceErrorMessage?: string;
+}
+
+export interface CommandEventDetails {
+  command: string;
+  success: boolean;
+  errorMessages?: string[];
+}
+
+export interface DesktopEventDetails {
+  applications?: string[];
+  visibleUrls?: string[];
+  visibleFilePaths?: string[];
+  activeWindowTitle?: string;
+}
+
+// CommandSessionEvent is a SessionEvent narrowed to one that carries command
+// details. Components that only render command-kind events should accept this
+// type so callers cannot pass a desktop-only event by mistake.
+export type CommandSessionEvent = SessionEvent & {
+  commandEventDetails: CommandEventDetails;
+};
+
+// SessionEvent is the per-event shape served by v19+ proxies. Either
+// commandEventDetails or desktopEventDetails will be populated depending on
+// the session kind.
+export interface SessionEvent {
+  category: CommandCategory;
+  riskLevel: RiskLevel;
+  riskScore: number;
+  threatCategory: ThreatCategory;
+  timelineTitle: string;
+  timelineSubtitle?: string;
+  shortDescription: string;
+  detailedDescription: string;
+  suspiciousFlags?: string[];
+  sensitiveItems?: string[];
+  suspiciousPatterns?: string[];
+  iocs?: string[];
+  mitreAttackIds?: string[];
+  hasSensitiveData: boolean;
+  privilegeEscalation: boolean;
+  dataExfiltration: boolean;
+  persistence: boolean;
+  startOffset: number;
+  endOffset: number;
+  inferenceErrorMessage?: string;
+  commandEventDetails?: CommandEventDetails;
+  desktopEventDetails?: DesktopEventDetails;
 }

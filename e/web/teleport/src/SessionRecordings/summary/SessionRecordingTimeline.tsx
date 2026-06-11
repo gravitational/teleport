@@ -5,7 +5,8 @@ import { useTheme } from 'styled-components';
 import Box from 'design/Box';
 import Flex from 'design/Flex';
 
-import { type CommandAnalysis } from 'e-teleport/services/recordings/types';
+import { isCommandSessionEvent } from 'e-teleport/services/recordings/normalize';
+import { type SessionEvent } from 'e-teleport/services/recordings/types';
 import { getRiskColor } from 'e-teleport/SessionRecordings/summary/RiskLevel';
 import {
   formatOffset,
@@ -14,41 +15,48 @@ import {
 import { RiskLevel } from 'teleport/services/recordings/types';
 
 interface SessionRecordingTimelineProps {
-  commands: CommandAnalysis[];
+  events: SessionEvent[];
   onPlay?: (timestamp: number) => void;
   inferenceDuration: Duration | null;
   sessionDuration: number | null;
 }
 
 export function SessionRecordingTimeline({
-  commands,
+  events,
   onPlay,
   inferenceDuration,
   sessionDuration,
 }: SessionRecordingTimelineProps) {
-  const [selectedCommandIndex, setSelectedCommandIndex] = useState(-1);
+  const [selectedEventIndex, setSelectedEventIndex] = useState(-1);
+
+  // Only command events are rendered today; desktop events flow through the
+  // wire but aren't displayed yet.
+  const commandEvents = useMemo(
+    () => events.filter(isCommandSessionEvent),
+    [events]
+  );
 
   const items = useMemo(
     () =>
-      commands.map((command, index) => (
+      commandEvents.map((event, index) => (
         <TimelineItem
           key={index}
-          command={command}
-          selected={selectedCommandIndex === index}
+          event={event}
+          selected={selectedEventIndex === index}
           onOpenChange={(open: boolean) =>
-            setSelectedCommandIndex(open ? index : -1)
+            setSelectedEventIndex(open ? index : -1)
           }
-          onPlay={onPlay ? () => onPlay(command.startOffset ?? 0) : undefined}
-          nextRiskLevel={commands[index + 1]?.riskLevel}
+          onPlay={onPlay ? () => onPlay(event.startOffset ?? 0) : undefined}
+          nextRiskLevel={commandEvents[index + 1]?.riskLevel}
         />
       )),
-    [commands, onPlay, selectedCommandIndex]
+    [commandEvents, onPlay, selectedEventIndex]
   );
 
   const lastTimestamp = sessionDuration
     ? sessionDuration
-    : commands.length > 0
-      ? commands[commands.length - 1].endOffset
+    : commandEvents.length > 0
+      ? commandEvents[commandEvents.length - 1].endOffset
       : 0;
 
   return (
@@ -72,7 +80,7 @@ export function SessionRecordingTimeline({
           />
         </Box>
 
-        <StartMarker firstRiskLevel={commands[0]?.riskLevel}>
+        <StartMarker firstRiskLevel={commandEvents[0]?.riskLevel}>
           Session started
         </StartMarker>
 

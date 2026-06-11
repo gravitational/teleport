@@ -3,12 +3,12 @@ import { http, HttpResponse } from 'msw';
 import cfg from 'e-teleport/config';
 import {
   RecordingSummaryState,
-  type SessionRecordingSummary,
+  type SessionRecordingSummaryResponse,
 } from 'e-teleport/services/recordings/types';
 
 export function withMockSummary(
   sessionId: string,
-  summary: SessionRecordingSummary
+  summary: SessionRecordingSummaryResponse
 ) {
   return http.get(
     cfg.getSessionRecordingSummaryUrl(':clusterId', sessionId),

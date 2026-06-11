@@ -39,7 +39,7 @@ import {
   getCommandCategoryIcon,
   getThreatCategoryIcon,
   ThreatCategory,
-  type CommandAnalysis,
+  type CommandSessionEvent,
 } from 'e-teleport/services/recordings/types';
 import {
   getRiskColor,
@@ -52,7 +52,7 @@ import { MitreAttackLogo } from './MitreAttackLogo';
 import { RiskScore } from './RiskScore';
 
 interface TimelineItemProps {
-  command: CommandAnalysis;
+  event: CommandSessionEvent;
   selected: boolean;
   onOpenChange: (open: boolean) => void;
   onPlay?: () => void;
@@ -60,12 +60,13 @@ interface TimelineItemProps {
 }
 
 export function TimelineItem({
-  command,
+  event,
   selected,
   onOpenChange,
   onPlay,
   nextRiskLevel,
 }: TimelineItemProps) {
+  const command = event.commandEventDetails;
   const [arrowEl, setArrowEl] = useState<HTMLDivElement>(null);
 
   const { context, floatingStyles, middlewareData, refs } = useFloating({
@@ -106,12 +107,12 @@ export function TimelineItem({
 
   const theme = useTheme();
 
-  const riskLevelColor = getRiskColor(theme, command.riskLevel);
+  const riskLevelColor = getRiskColor(theme, event.riskLevel);
   const nextColor = getRiskColor(theme, nextRiskLevel);
 
-  const hasError = !!command.inferenceErrorMessage;
+  const hasError = !!event.inferenceErrorMessage;
 
-  const CommandCategoryIcon = getCommandCategoryIcon(command.category);
+  const CommandCategoryIcon = getCommandCategoryIcon(event.category);
 
   return (
     <>
@@ -126,7 +127,7 @@ export function TimelineItem({
           ml={3}
           pt="6px"
         >
-          {formatOffset(command.startOffset ?? 0)}
+          {formatOffset(event.startOffset ?? 0)}
         </Flex>
 
         <Box
@@ -190,8 +191,8 @@ export function TimelineItem({
           overflow="hidden"
           {...getReferenceProps()}
         >
-          {command.timelineTitle ? (
-            <Markdown text={command.timelineTitle} />
+          {event.timelineTitle ? (
+            <Markdown text={event.timelineTitle} />
           ) : (
             <RawCommand>{command.command}</RawCommand>
           )}
@@ -237,14 +238,14 @@ export function TimelineItem({
                   <>
                     <StyledBadge
                       Icon={CommandCategoryIcon}
-                      label={formatCommandCategory(command.category)}
+                      label={formatCommandCategory(event.category)}
                     />
-                    {command.threatCategory !== ThreatCategory.None && (
+                    {event.threatCategory !== ThreatCategory.None && (
                       <StyledBadge
-                        Icon={getThreatCategoryIcon(command.threatCategory)}
+                        Icon={getThreatCategoryIcon(event.threatCategory)}
                         label={
                           'Threat: ' +
-                          formatThreatCategory(command.threatCategory)
+                          formatThreatCategory(event.threatCategory)
                         }
                         bordered
                       />
@@ -277,10 +278,10 @@ export function TimelineItem({
                   justifyContent="space-between"
                   flexWrap="wrap"
                 >
-                  <RiskLevel riskLevel={command.riskLevel} inPopover={true} />
+                  <RiskLevel riskLevel={event.riskLevel} inPopover={true} />
                   <RiskScore
-                    score={command.riskScore ?? 0}
-                    riskLevel={command.riskLevel}
+                    score={event.riskScore ?? 0}
+                    riskLevel={event.riskLevel}
                   />
                 </Flex>
               )}
@@ -302,7 +303,7 @@ export function TimelineItem({
               {hasError && (
                 <Alert kind="danger" mx={3} mt={3}>
                   <Box>There was an error analyzing this command:</Box>
-                  {command.inferenceErrorMessage}
+                  {event.inferenceErrorMessage}
                 </Alert>
               )}
 
@@ -310,25 +311,24 @@ export function TimelineItem({
                 <>
                   <Divider my={3} />
                   <MarkdownContainer px={3}>
-                    <Markdown text={command.detailedDescription} />
+                    <Markdown text={event.detailedDescription} />
                   </MarkdownContainer>
                 </>
               )}
 
-              {command.suspiciousFlags &&
-                command.suspiciousFlags.length > 0 && (
-                  <>
-                    <Divider my={3} />
-
-                    <SuspiciousFlagsList flags={command.suspiciousFlags} />
-                  </>
-                )}
-
-              {command.mitreAttackIds && (
+              {event.suspiciousFlags && event.suspiciousFlags.length > 0 && (
                 <>
                   <Divider my={3} />
 
-                  <MitreAttackList mitreAttackIds={command.mitreAttackIds} />
+                  <SuspiciousFlagsList flags={event.suspiciousFlags} />
+                </>
+              )}
+
+              {event.mitreAttackIds && (
+                <>
+                  <Divider my={3} />
+
+                  <MitreAttackList mitreAttackIds={event.mitreAttackIds} />
                 </>
               )}
 

@@ -122,7 +122,7 @@ function RecordingWithMetadataE({
   sessionId,
   onRefetchSummary,
   refetchingSummary,
-  summary,
+  summary: rawSummary,
 }: RecordingWithMetadataEProps) {
   const { data } = useSuspenseGetRecordingMetadata({
     clusterId,
@@ -145,40 +145,44 @@ function RecordingWithMetadataE({
     handleToggleFullscreen,
   } = useRecording();
 
+  const summary =
+    rawSummary?.state === RecordingSummaryState.Success
+      ? (rawSummary.enhancedSummary ?? null)
+      : null;
+
   const events = useMemo(() => {
-    if (
-      summary?.state !== RecordingSummaryState.Success ||
-      !summary.enhancedSummary
-    ) {
+    if (!summary) {
       return data.metadata.events;
     }
 
-    const riskyCommandEvents = summary.enhancedSummary.commands
-      .filter(cmd =>
-        [
-          RiskLevelValue.Medium,
-          RiskLevelValue.High,
-          RiskLevelValue.Critical,
-        ].includes(cmd.riskLevel)
+    const riskyCommandEvents = summary.sessionEvents
+      .filter(
+        e =>
+          !!e.commandEventDetails &&
+          [
+            RiskLevelValue.Medium,
+            RiskLevelValue.High,
+            RiskLevelValue.Critical,
+          ].includes(e.riskLevel)
       )
-      .map(cmd => {
-        if (cmd.inferenceErrorMessage) {
+      .map(e => {
+        if (e.inferenceErrorMessage) {
           return {
             type: SessionRecordingEventType.Risk,
             description: 'Error analyzing command, review it further',
-            riskLevel: cmd.riskLevel,
-            startTime: cmd.startOffset,
-            endTime: cmd.endOffset,
+            riskLevel: e.riskLevel,
+            startTime: e.startOffset,
+            endTime: e.endOffset,
             isError: true,
           } as SessionRecordingRiskEvent;
         }
 
         return {
           type: SessionRecordingEventType.Risk,
-          description: cmd.timelineTitle,
-          riskLevel: cmd.riskLevel,
-          startTime: cmd.startOffset,
-          endTime: cmd.endOffset,
+          description: e.timelineTitle,
+          riskLevel: e.riskLevel,
+          startTime: e.startOffset,
+          endTime: e.endOffset,
         } as SessionRecordingRiskEvent;
       });
 
@@ -187,7 +191,7 @@ function RecordingWithMetadataE({
 
   return (
     <SessionRecordingGrid
-      hasSummary={!!summary}
+      hasSummary={!!rawSummary}
       sidebarHidden={sidebarHidden}
       sidebarWidth={sidebarWidth}
       ref={containerRef}
@@ -217,37 +221,36 @@ function RecordingWithMetadataE({
             recordingType={data.metadata.type}
             metadata={data.metadata}
           >
-            {summary?.state === RecordingSummaryState.Success &&
-              summary.enhancedSummary && (
-                <>
-                  <InfoGridLabel>Risk Score</InfoGridLabel>
+            {summary && (
+              <>
+                <InfoGridLabel>Risk Score</InfoGridLabel>
 
-                  <Flex alignItems="center" flexWrap="wrap" gap={2}>
-                    <RiskLevel riskLevel={summary.enhancedSummary.riskLevel} />
+                <Flex alignItems="center" flexWrap="wrap" gap={2}>
+                  <RiskLevel riskLevel={summary.riskLevel} />
 
-                    {summary.enhancedSummary.needsFurtherReview && (
-                      <HoverTooltip
-                        tipContent={getNeedsFurtherReviewTooltipContent(
-                          summary.enhancedSummary.needsFurtherReview
-                        )}
-                      >
-                        <StyledBadge
-                          Icon={Warning}
-                          label="Needs further review"
-                          bordered
-                        />
-                      </HoverTooltip>
-                    )}
-                  </Flex>
-                </>
-              )}
+                  {summary.needsFurtherReviewReasons.length > 0 && (
+                    <HoverTooltip
+                      tipContent={getNeedsFurtherReviewTooltipContent(
+                        summary.needsFurtherReviewReasons
+                      )}
+                    >
+                      <StyledBadge
+                        Icon={Warning}
+                        label="Needs further review"
+                        bordered
+                      />
+                    </HoverTooltip>
+                  )}
+                </Flex>
+              </>
+            )}
           </SessionRecordingDetails>
 
-          {summary && (
+          {rawSummary && (
             <SessionSummary
               onPlay={handleTimelineTimeChange}
               metadata={data.metadata}
-              data={summary}
+              data={rawSummary}
               onRefetch={onRefetchSummary}
               refetching={refetchingSummary}
             />
@@ -257,7 +260,7 @@ function RecordingWithMetadataE({
             width={sidebarWidth}
             onChange={setSidebarWidth}
             defaultWidth={
-              summary
+              rawSummary
                 ? DEFAULT_SIDEBAR_WIDTH_WITH_SUMMARY
                 : DEFAULT_SIDEBAR_WIDTH
             }
@@ -282,17 +285,34 @@ function RecordingWithMetadataE({
   );
 }
 
-function getNeedsFurtherReviewTooltipContent(
-  needsFurtherReview: NeedsFurtherReview
-) {
-  switch (needsFurtherReview) {
+function getNeedsFurtherReviewReasonText(reason: NeedsFurtherReview): string {
+  switch (reason) {
     case NeedsFurtherReview.TooLarge:
-      return 'The recording was only partially analyzed due to its large size and needs further review.';
+      return 'The recording was only partially analyzed due to its large size.';
     case NeedsFurtherReview.CommandAnalysisFailed:
-      return 'One or more commands in this recording could not be analyzed and the recording needs further review.';
+      return 'One or more commands in this recording could not be analyzed.';
+    case NeedsFurtherReview.FailedToFetchAccessRequest:
+      return 'The access request associated with this session could not be fetched.';
+    case NeedsFurtherReview.AccessRequestResourceMismatch:
+      return 'The access request for this session does not reference the resource being connected to.';
     default:
       return 'This recording needs further review.';
   }
+}
+
+function getNeedsFurtherReviewTooltipContent(
+  reasons: NeedsFurtherReview[]
+): string {
+  if (reasons.length === 0) {
+    return 'This recording needs further review.';
+  }
+  if (reasons.length === 1) {
+    return `${getNeedsFurtherReviewReasonText(reasons[0])} The recording needs further review.`;
+  }
+  return (
+    'This recording needs further review for the following reasons: ' +
+    reasons.map(getNeedsFurtherReviewReasonText).join(' ')
+  );
 }
 
 function RecordingWithSummaryE({

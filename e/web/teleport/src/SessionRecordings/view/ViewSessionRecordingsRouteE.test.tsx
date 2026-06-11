@@ -12,7 +12,7 @@ import {
 import cfg from 'e-teleport/config';
 import {
   RecordingSummaryState,
-  type SessionRecordingSummary,
+  type SessionRecordingSummaryResponse,
 } from 'e-teleport/services/recordings/types';
 import { ContextProvider } from 'teleport';
 import { MockAuthenticatedWebSocket } from 'teleport/lib/AuthenticatedWebSocket.mock';
@@ -253,7 +253,7 @@ test('falls back to showing no summary if fetching the summary fails', async () 
   ).not.toBeInTheDocument();
 });
 
-function withSummary(summary: SessionRecordingSummary) {
+function withSummary(summary: SessionRecordingSummaryResponse) {
   return http.get(cfg.api.sessionRecordingSummary, () =>
     HttpResponse.json(summary)
   );
