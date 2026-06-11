@@ -200,9 +200,8 @@ func (s *Server) reconcileAccessGraph(
 
 // getAllAWSSyncFetchers returns all AWS sync fetchers.
 func (s *Server) getAllAWSSyncFetchers() []*aws_sync.Fetcher {
-	allFetchers := make([]*aws_sync.Fetcher, 0, len(s.dynamicTAGAWSFetchers))
-
 	s.muDynamicTAGAWSFetchers.RLock()
+	allFetchers := make([]*aws_sync.Fetcher, 0, len(s.dynamicTAGAWSFetchers))
 	for _, fetcherSet := range s.dynamicTAGAWSFetchers {
 		allFetchers = append(allFetchers, fetcherSet...)
 	}

@@ -29,10 +29,12 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -68,7 +70,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/runtime"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -106,6 +108,8 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers"
+	awssync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/aws-sync"
+	azuresync "github.com/gravitational/teleport/lib/srv/discovery/fetchers/azuresync"
 	"github.com/gravitational/teleport/lib/srv/discovery/fetchers/db"
 	"github.com/gravitational/teleport/lib/srv/server"
 	"github.com/gravitational/teleport/lib/srv/server/installstatus"
@@ -1115,6 +1119,7 @@ func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
 			},
 		)
 		require.NoError(t, err)
+
 		go mockAccessPoint.createDiscoveryConfig(discoveryConfigA)
 
 		// Wait until the event is processed.
@@ -1149,6 +1154,78 @@ func TestDiscoveryServer_dynamicMatcherRestart(t *testing.T) {
 		require.Len(t, server.dynamicDiscoveryConfig, 2)
 		server.dynamicDiscoveryConfigMu.RUnlock()
 	})
+}
+
+// TestDiscoveryServer_getAllTAGFetchersConcurrentAccess verifies that TAG
+// fetcher getters can read dynamic fetcher maps while DiscoveryConfig updates
+// mutate them under the corresponding locks. Run with -race to detect unsafe
+// concurrent access.
+func TestDiscoveryServer_getAllTAGFetchersConcurrentAccess(t *testing.T) {
+	const (
+		readerCount = 4
+		writeCount  = 1_000
+	)
+	// Only initialize fields used by the TAG fetcher getters.
+	server := &Server{
+		dynamicTAGAWSFetchers:   make(map[string][]*awssync.Fetcher),
+		dynamicTAGAzureFetchers: make(map[string][]*azuresync.Fetcher),
+	}
+	wantAWSFetcher := &awssync.Fetcher{}
+	wantAzureFetcher := &azuresync.Fetcher{}
+
+	readersReady := make(chan bool, readerCount)
+	startReaders := make(chan struct{})
+	writerDone := make(chan struct{})
+	var observedExpected atomic.Int32
+	var wg sync.WaitGroup
+	for range readerCount {
+		wg.Go(func() {
+			readersReady <- len(server.getAllAWSSyncFetchers()) == 0 && len(server.getAllTAGSyncAzureFetchers()) == 0
+			<-startReaders
+
+			observed := false
+			for {
+				if slices.Contains(server.getAllAWSSyncFetchers(), wantAWSFetcher) &&
+					slices.Contains(server.getAllTAGSyncAzureFetchers(), wantAzureFetcher) {
+					observed = true
+				}
+				select {
+				case <-writerDone:
+					if observed {
+						observedExpected.Add(1)
+					}
+					return
+				default:
+				}
+				runtime.Gosched()
+			}
+		})
+	}
+
+	for range readerCount {
+		require.True(t, <-readersReady, "reader did not observe empty dynamic TAG fetchers before writes")
+	}
+	close(startReaders)
+
+	// Keep the maps small while repeatedly changing their length to exercise both
+	// TAG fetcher getters against concurrent writes.
+	keys := [2]string{"a", "b"}
+	for i := range writeCount {
+		server.muDynamicTAGAWSFetchers.Lock()
+		delete(server.dynamicTAGAWSFetchers, keys[(i+1)%len(keys)])
+		server.dynamicTAGAWSFetchers[keys[i%len(keys)]] = []*awssync.Fetcher{wantAWSFetcher}
+		server.muDynamicTAGAWSFetchers.Unlock()
+
+		server.muDynamicTAGAzureFetchers.Lock()
+		delete(server.dynamicTAGAzureFetchers, keys[(i+1)%len(keys)])
+		server.dynamicTAGAzureFetchers[keys[i%len(keys)]] = []*azuresync.Fetcher{wantAzureFetcher}
+		server.muDynamicTAGAzureFetchers.Unlock()
+
+		runtime.Gosched()
+	}
+	close(writerDone)
+	wg.Wait()
+	require.Equal(t, int32(readerCount), observedExpected.Load())
 }
 
 // TestDiscoveryServer_dynamicMatcherGroupReassign covers the OpPut branch
@@ -1480,7 +1557,7 @@ func TestDiscoveryKubeServices(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			var objects []runtime.Object
+			var objects []k8sruntime.Object
 			for _, s := range mockKubeServices {
 				objects = append(objects, s)
 			}
