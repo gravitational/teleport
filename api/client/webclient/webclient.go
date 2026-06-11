@@ -229,13 +229,13 @@ func errorFromUnsuccessfulResponse(ctx context.Context, endpoint, proxyAddr stri
 
 	if contentType, _, err := mime.ParseMediaType(resp.Header.Get("Content-Type")); contentType != "application/json" {
 		slog.DebugContext(ctx, "Response is not JSON", "url", reqURL, "content_type", contentType, "body", string(bodyBytes), "error", err)
-		return trace.Errorf("%s returned HTTP %d%s; %s", reqURL, resp.StatusCode, snippetSuffix(bodyBytes), helpMessage)
+		return trace.Errorf("%s returned HTTP %d; %s", reqURL, resp.StatusCode, helpMessage)
 	}
 
 	errResp := &PingErrorResponse{}
 	if err := json.Unmarshal(bodyBytes, errResp); err != nil {
 		slog.DebugContext(ctx, "Could not parse response body", "url", reqURL, "body", string(bodyBytes), "error", err)
-		return trace.Errorf("%s returned an unparseable HTTP %d JSON response%s; %s", reqURL, resp.StatusCode, snippetSuffix(bodyBytes), helpMessage)
+		return trace.Errorf("%s returned an unparseable HTTP %d JSON response; %s%s", reqURL, resp.StatusCode, helpMessage, snippetSuffix(bodyBytes))
 	}
 
 	if errResp.Error.Message == "" {
