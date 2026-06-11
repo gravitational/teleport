@@ -25,7 +25,13 @@ const (
 
 // StreamTTYRecording processes a stream of the events from a session recording through a three-stage pipeline:
 // tokenizer -> parser -> recreator. It returns stream of recreated commands.
-func StreamTTYRecording(ctx context.Context, evts <-chan apievents.AuditEvent, streamErrs <-chan error) (*TTYRecordingStream, error) {
+// The counter is used to count LLM tokens when chunking reconstructed command
+// output; production callers pass tokenizer.Counter.
+func StreamTTYRecording(ctx context.Context, evts <-chan apievents.AuditEvent, streamErrs <-chan error, counter tokenCounter) (*TTYRecordingStream, error) {
+	if counter == nil {
+		return nil, trace.BadParameter("counter is required")
+	}
+
 	ctx, cancel := context.WithCancel(ctx)
 
 	tokenizer := newTokenizer()
@@ -63,7 +69,7 @@ func StreamTTYRecording(ctx context.Context, evts <-chan apievents.AuditEvent, s
 
 	g.Go(recoverAsError(gCtx, func() error {
 		defer close(recreatedChan)
-		return processCommands(gCtx, parser.commands(), recreatedChan)
+		return processCommands(gCtx, parser.commands(), recreatedChan, counter)
 	}))
 
 	return &TTYRecordingStream{
@@ -120,7 +126,7 @@ func (s *TTYRecordingStream) Wait() error {
 	return s.g.Wait()
 }
 
-func processCommands(ctx context.Context, commandChan <-chan *command, recreatedChan chan<- Command) error {
+func processCommands(ctx context.Context, commandChan <-chan *command, recreatedChan chan<- Command, counter tokenCounter) error {
 	for {
 		select {
 		case cmd, ok := <-commandChan:
@@ -129,7 +135,7 @@ func processCommands(ctx context.Context, commandChan <-chan *command, recreated
 			}
 
 			select {
-			case recreatedChan <- processCommand(cmd):
+			case recreatedChan <- processCommand(cmd, counter):
 			case <-ctx.Done():
 				return ctx.Err()
 			}
@@ -140,9 +146,9 @@ func processCommands(ctx context.Context, commandChan <-chan *command, recreated
 	}
 }
 
-func processCommand(cmd *command) *ReconstructedCommand {
-	inputData := reconstructCommand(cmd.input, inputMaxTokensPerChunk, inputChunkLimit)
-	outputData := reconstructCommand(cmd.output, outputMaxTokensPerChunk, outputChunkLimit)
+func processCommand(cmd *command, counter tokenCounter) *ReconstructedCommand {
+	inputData := reconstructCommand(cmd.input, inputMaxTokensPerChunk, inputChunkLimit, counter)
+	outputData := reconstructCommand(cmd.output, outputMaxTokensPerChunk, outputChunkLimit, counter)
 
 	return &ReconstructedCommand{
 		input:  inputData,

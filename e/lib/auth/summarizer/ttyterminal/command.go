@@ -16,7 +16,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/hinshun/vt10x"
 
-	tokenizerpkg "github.com/gravitational/teleport/e/lib/auth/summarizer/tokenizer"
 	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils/set"
 )
@@ -35,6 +34,11 @@ type Command interface {
 	EndOffset() time.Duration
 	// RawInput returns the raw input text of the command.
 	RawInput() string
+}
+
+type tokenCounter interface {
+	// CountTokens returns the number of tokens in text.
+	CountTokens(text string) int
 }
 
 // ReconstructedCommand represents the reconstructed terminal input and output
@@ -183,9 +187,9 @@ type line struct {
 // ensuring that the chunks fit within the constraints of the language model.
 // The initial state of the terminal at the start of each chunk (except the first)
 // does not count against the token limit, ensuring context is preserved.
-func reconstructCommand(command commandData, maxTokensPerChunk, chunkLimit int) *reconstructedCommandData {
+func reconstructCommand(command commandData, maxTokensPerChunk, chunkLimit int, counter tokenCounter) *reconstructedCommandData {
 	return recoverCommand(command, func() *reconstructedCommandData {
-		return reconstructCommandInner(command, maxTokensPerChunk, chunkLimit)
+		return reconstructCommandInner(command, maxTokensPerChunk, chunkLimit, counter)
 	})
 }
 
@@ -215,7 +219,7 @@ func recoverCommand(command commandData, fn func() *reconstructedCommandData) (r
 	return fn()
 }
 
-func reconstructCommandInner(command commandData, maxTokensPerChunk, chunkLimit int) *reconstructedCommandData {
+func reconstructCommandInner(command commandData, maxTokensPerChunk, chunkLimit int, counter tokenCounter) *reconstructedCommandData {
 	duration := command.endTime - command.startTime
 
 	c := &commandRecreator{
@@ -227,6 +231,7 @@ func reconstructCommandInner(command commandData, maxTokensPerChunk, chunkLimit 
 		snapshotInterval: calculateSnapshotInterval(duration),
 		tokenLimit:       maxTokensPerChunk,
 		chunkLimit:       chunkLimit,
+		counter:          counter,
 	}
 
 	lines, err := c.reconstructTerminalOutput()
@@ -263,6 +268,7 @@ type commandRecreator struct {
 	snapshotInterval time.Duration
 	tokenLimit       int
 	chunkLimit       int
+	counter          tokenCounter
 }
 
 type command struct {
@@ -424,7 +430,7 @@ func (c *commandRecreator) generateTerminalSnapshot(timestamp time.Duration) lin
 		lineNumber: -1,
 		content:    content,
 		timestamp:  timestamp,
-		tokenCount: tokenizerpkg.CountTokens(content),
+		tokenCount: c.counter.CountTokens(content),
 	}
 }
 
@@ -512,7 +518,7 @@ func (c *commandRecreator) trackLineChanges(changedLines []int, previousActiveCo
 					lineNumber: lineNum,
 					content:    content,
 					timestamp:  timestamp,
-					tokenCount: tokenizerpkg.CountTokens(content),
+					tokenCount: c.counter.CountTokens(content),
 				})
 
 				c.completedLines[lineNum] = previousContent
@@ -537,7 +543,7 @@ func (c *commandRecreator) trackLineChanges(changedLines []int, previousActiveCo
 				lineNumber: lineNum,
 				content:    content,
 				timestamp:  timestamp,
-				tokenCount: tokenizerpkg.CountTokens(content),
+				tokenCount: c.counter.CountTokens(content),
 			})
 
 			c.completedLines[lineNum] = currentContent

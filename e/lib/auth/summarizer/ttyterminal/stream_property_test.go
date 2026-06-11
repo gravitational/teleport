@@ -27,7 +27,7 @@ func TestProperty_StreamTTYRecording_NeverPanicsOnRandomEvents(t *testing.T) {
 			ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
 			defer cancel()
 
-			stream, err := StreamTTYRecording(ctx, evtChan, errChan)
+			stream, err := StreamTTYRecording(ctx, evtChan, errChan, fakeTokenCounter{})
 			if err != nil {
 				return
 			}
@@ -60,7 +60,7 @@ func TestProperty_StreamTTYRecording_CancelMidStreamShutsDown(t *testing.T) {
 			evtChan, errChan := makeEventChan(events...)
 			ctx, cancel := context.WithCancel(t.Context())
 
-			stream, err := StreamTTYRecording(ctx, evtChan, errChan)
+			stream, err := StreamTTYRecording(ctx, evtChan, errChan, fakeTokenCounter{})
 			require.NoError(t, err)
 
 			cancel()
@@ -91,7 +91,7 @@ func TestStreamTTYRecording_PropagatesStreamError(t *testing.T) {
 
 	var waitErr error
 	testutils.RunWithTimeout(t, 3*time.Second, func() {
-		stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+		stream, err := StreamTTYRecording(t.Context(), evtChan, errChan, fakeTokenCounter{})
 		require.NoError(t, err)
 		require.True(t, stream.HasCommands())
 
@@ -115,7 +115,7 @@ func TestStreamTTYRecording_PeekPhaseSurfacesRealError(t *testing.T) {
 
 	var got error
 	testutils.RunWithTimeout(t, 3*time.Second, func() {
-		_, got = StreamTTYRecording(t.Context(), evtChan, errChan)
+		_, got = StreamTTYRecording(t.Context(), evtChan, errChan, fakeTokenCounter{})
 	})
 
 	require.ErrorIs(t, got, sentinel)

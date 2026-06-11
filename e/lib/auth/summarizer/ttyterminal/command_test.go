@@ -37,7 +37,7 @@ func TestCommandWrite(t *testing.T) {
 				{data: []byte("Line 2"), timestamp: 2 * time.Second},
 			},
 			expectedLines: []line{
-				{lineNumber: 0, content: "Line 1", timestamp: 2 * time.Second, tokenCount: 3},
+				{lineNumber: 0, content: "Line 1", timestamp: 2 * time.Second, tokenCount: 2},
 			},
 			expectedActive:   set.New(1),
 			expectedComplete: map[int][]rune{0: []rune("Line 1")},
@@ -51,7 +51,7 @@ func TestCommandWrite(t *testing.T) {
 				{data: []byte("Done"), timestamp: 4 * time.Second},
 			},
 			expectedLines: []line{
-				{lineNumber: 0, content: "Progress: 30%", timestamp: 4 * time.Second, tokenCount: 5},
+				{lineNumber: 0, content: "Progress: 30%", timestamp: 4 * time.Second, tokenCount: 4},
 			},
 			expectedActive:   set.New(1),
 			expectedComplete: map[int][]rune{0: []rune("Progress: 30%")},
@@ -64,7 +64,7 @@ func TestCommandWrite(t *testing.T) {
 				{data: []byte("New text"), timestamp: 3 * time.Second},
 			},
 			expectedLines: []line{
-				{lineNumber: 0, content: "Text to clear", timestamp: 2 * time.Second, tokenCount: 3},
+				{lineNumber: 0, content: "Text to clear", timestamp: 2 * time.Second, tokenCount: 4},
 			},
 			expectedActive: set.New(0),
 			expectedComplete: map[int][]rune{
@@ -87,6 +87,7 @@ func TestCommandWrite(t *testing.T) {
 				activeLines:    set.New[int](),
 				completedLines: make(map[int][]rune),
 				vt:             vt10x.New(vt10x.WithSize(80, 24)),
+				counter:        fakeTokenCounter{},
 			}
 
 			for _, w := range tt.writes {
@@ -140,6 +141,7 @@ func TestCommandFlushActiveLines(t *testing.T) {
 				activeLines:    set.New[int](),
 				completedLines: make(map[int][]rune),
 				vt:             vt10x.New(vt10x.WithSize(80, 24)),
+				counter:        fakeTokenCounter{},
 			}
 
 			for _, w := range tt.writes {
@@ -172,6 +174,7 @@ func TestCommandTruncatedChunks(t *testing.T) {
 		vt:             vt10x.New(vt10x.WithSize(80, 24)),
 		tokenLimit:     50,
 		chunkLimit:     3,
+		counter:        fakeTokenCounter{},
 	}
 
 	for i := 0; i < 10; i++ {
@@ -240,6 +243,7 @@ func TestCommandChunkLines(t *testing.T) {
 				alternateScreen: tt.alternateScreen,
 				tokenLimit:      10000,
 				chunkLimit:      10,
+				counter:         fakeTokenCounter{},
 			}
 
 			chunks, _ := c.chunkLines(tt.lines)
@@ -376,7 +380,7 @@ func TestCommandReconstructCommand(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reconstructed := reconstructCommand(tt.command, 10000, 10)
+			reconstructed := reconstructCommand(tt.command, 10000, 10, fakeTokenCounter{})
 
 			require.NoError(t, reconstructed.error)
 
@@ -448,7 +452,8 @@ func TestCommandGenerateTerminalSnapshot(t *testing.T) {
 	t.Parallel()
 
 	c := &commandRecreator{
-		vt: vt10x.New(vt10x.WithSize(80, 24)),
+		vt:      vt10x.New(vt10x.WithSize(80, 24)),
+		counter: fakeTokenCounter{},
 	}
 
 	_, err := c.vt.Write([]byte("Line 1\r\nLine 2\r\nLine 3"))
@@ -514,7 +519,7 @@ func FuzzReconstructCommand(f *testing.F) {
 			},
 		}
 
-		result := reconstructCommand(command, tokenLimit, chunkLimit)
+		result := reconstructCommand(command, tokenLimit, chunkLimit, fakeTokenCounter{})
 
 		require.NotNil(t, result)
 		require.NoError(t, result.error)
@@ -577,7 +582,7 @@ func FuzzReconstructCommandMultipleTokens(f *testing.F) {
 			},
 		}
 
-		result := reconstructCommand(command, 10000, 10)
+		result := reconstructCommand(command, 10000, 10, fakeTokenCounter{})
 
 		require.NotNil(t, result)
 		require.NoError(t, result.error)
@@ -593,4 +598,10 @@ func FuzzReconstructCommandMultipleTokens(f *testing.F) {
 type writeOp struct {
 	data      []byte
 	timestamp time.Duration
+}
+
+type fakeTokenCounter struct{}
+
+func (fakeTokenCounter) CountTokens(text string) int {
+	return (len(text) + 3) / 4
 }

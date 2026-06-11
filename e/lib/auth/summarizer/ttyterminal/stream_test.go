@@ -53,7 +53,7 @@ func TestStreamTtyRecording_BracketedPasteMode(t *testing.T) {
 		&apievents.SessionEnd{},
 	)
 
-	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan, fakeTokenCounter{})
 	require.NoError(t, err)
 	require.True(t, stream.HasCommands())
 	require.Len(t, collectCommandFromStream(stream), 1)
@@ -68,7 +68,7 @@ func TestStreamTtyRecording_TokenStreamMode(t *testing.T) {
 		&apievents.SessionEnd{},
 	)
 
-	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan, fakeTokenCounter{})
 	require.NoError(t, err)
 	require.False(t, stream.HasCommands())
 }
@@ -76,7 +76,7 @@ func TestStreamTtyRecording_TokenStreamMode(t *testing.T) {
 func TestStreamTtyRecording_EmptyStream(t *testing.T) {
 	evtChan, errChan := makeEventChan(sessionStart(), &apievents.SessionEnd{})
 
-	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan, fakeTokenCounter{})
 	require.NoError(t, err)
 	require.False(t, stream.HasCommands())
 }
@@ -87,7 +87,7 @@ func TestStreamTtyRecording_ContextCancellation(t *testing.T) {
 	evtChan <- sessionStart()
 	cancel()
 
-	_, err := StreamTTYRecording(ctx, evtChan, make(chan error, 1))
+	_, err := StreamTTYRecording(ctx, evtChan, make(chan error, 1), fakeTokenCounter{})
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -105,7 +105,7 @@ func TestStreamTtyRecording_MultipleCommands(t *testing.T) {
 		&apievents.SessionEnd{},
 	)
 
-	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan, fakeTokenCounter{})
 	require.NoError(t, err)
 	require.True(t, stream.HasCommands())
 	require.Len(t, collectCommandFromStream(stream), 2)
@@ -126,7 +126,7 @@ func TestStreamTtyRecording_WithResize(t *testing.T) {
 		&apievents.SessionEnd{},
 	)
 
-	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan, fakeTokenCounter{})
 	require.NoError(t, err)
 	require.True(t, stream.HasCommands())
 	require.Len(t, collectCommandFromStream(stream), 1)
@@ -147,7 +147,7 @@ func TestStreamTtyRecording_OSCShellIntegrationPrefix(t *testing.T) {
 		&apievents.SessionEnd{},
 	)
 
-	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan, fakeTokenCounter{})
 	require.NoError(t, err)
 	require.True(t, stream.HasCommands())
 	require.Len(t, collectCommandFromStream(stream), 1)
@@ -163,7 +163,7 @@ func TestStreamTtyRecording_TUIBeforeBracketedPaste(t *testing.T) {
 		&apievents.SessionEnd{},
 	)
 
-	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan, fakeTokenCounter{})
 	require.NoError(t, err)
 	require.False(t, stream.HasCommands())
 	require.NoError(t, stream.Wait())
@@ -182,7 +182,7 @@ func TestStreamTtyRecording_BracketedPasteThenTUI(t *testing.T) {
 		&apievents.SessionEnd{},
 	)
 
-	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan)
+	stream, err := StreamTTYRecording(t.Context(), evtChan, errChan, fakeTokenCounter{})
 	require.NoError(t, err)
 	require.True(t, stream.HasCommands())
 	require.NoError(t, stream.Wait())

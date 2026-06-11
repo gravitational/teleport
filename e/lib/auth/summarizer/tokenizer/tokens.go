@@ -55,6 +55,14 @@ func newBPELoader() *bpeLoader {
 	}
 }
 
+// Counter is a simple wrapper around the token counting functionality.
+type Counter struct{}
+
+// CountTokens counts the number of tokens in text.
+func (Counter) CountTokens(text string) int {
+	return CountTokens(text)
+}
+
 // CountTokens counts the number of tokens in a string using the o200k_base encoding.
 // If the tokenizer fails to initialize, it returns 0.
 func CountTokens(text string) int {

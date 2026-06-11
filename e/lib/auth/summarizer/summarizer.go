@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/openai"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/prompts"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/schema"
+	"github.com/gravitational/teleport/e/lib/auth/summarizer/tokenizer"
 	"github.com/gravitational/teleport/e/lib/auth/summarizer/ttyterminal"
 	accessgraphv1 "github.com/gravitational/teleport/gen/proto/go/accessgraph/v1"
 	"github.com/gravitational/teleport/lib/auth/recordingencryption"
@@ -548,7 +549,7 @@ func (s *SessionSummarizer) summarizeSession(
 	details *sessionDetails,
 ) error {
 	eventsCh, errCh := s.streamer.StreamSessionEvents(ctx, details.sessionID, 0)
-	stream, err := ttyterminal.StreamTTYRecording(ctx, eventsCh, errCh)
+	stream, err := ttyterminal.StreamTTYRecording(ctx, eventsCh, errCh, tokenizer.Counter{})
 	if err != nil {
 		return handleError(ctx, log, result, err, "Failed to create session recording stream")
 	}
