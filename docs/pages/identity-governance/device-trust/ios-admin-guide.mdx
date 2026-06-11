@@ -1,0 +1,257 @@
+---
+title: Set Up Device Trust for iOS and iPadOS
+sidebar_label: iOS & iPadOS Setup (Admin)
+description: Set up Device Trust for iOS and iPadOS devices
+tags:
+ - how-to
+ - identity-governance
+ - resiliency
+enterprise: Identity Governance
+---
+
+{/* TODO: Replace (=teleport.major_version=) placeholder once version is known. */}
+
+<Admonition type="note">
+Device Trust for iOS requires Teleport v(=teleport.major_version=) or later.
+</Admonition>
+
+This guide explains how to configure Device Trust for iOS and iPadOS devices.
+After completing this guide, users on managed iPhones and iPads will be able to
+enroll their devices and access resources protected by Device Trust through the
+Web UI.
+
+Device Trust for iOS and iPadOS works through a mobile app (**TODO: app name**) that
+performs enrollment and device authentication on behalf of the Web UI. The app
+communicates with Teleport directly and requires a Managed App Configuration
+from your MDM to identify the device.
+
+## How it works
+
+The mobile app uses the device's Secure Enclave to generate and store a private key,
+and it reads the device serial number from a configuration pushed by your MDM.
+
+The overall flow has two parts:
+
+1. **Enrollment** - A one-time process where the user enrolls their mobile
+   device as a trusted device.
+2. **Device authentication** - On each Web UI login from the mobile device, the
+   user is prompted to open the app, which performs a device authentication
+   ceremony. Upon success, the web session is upgraded with Device Trust
+   extensions.
+
+Both parts require the device to be managed by an MDM and to have received a
+Managed App Configuration containing the device serial number.
+
+## Prerequisites
+
+(!docs/pages/includes/edition-prereqs-tabs.mdx edition="Teleport Enterprise"!)
+
+- An MDM solution that supports [Managed App
+  Configuration](https://developer.apple.com/library/archive/samplecode/sc2279/Introduction/Intro.html)
+  (for example, Jamf Pro or Microsoft Intune).
+- iOS or iPadOS devices enrolled in the MDM. The MDM must be used to push the
+  Teleport mobile app (**TODO: app name**) to these devices.
+- Devices registered in Teleport's inventory. If you use Jamf Pro or Intune,
+  see the [Jamf Pro Integration](./jamf-integration.mdx) or [Microsoft Intune
+  Integration](./intune-integration.mdx) guides to set up automatic inventory
+  sync. If you use a different MDM, you will need to sync the inventory
+  yourself, for example by using `tctl devices add`.
+
+<Admonition type="tip">
+Any MDM that supports Managed App Configuration can be used to push the serial
+number to the mobile app. However, you also need to sync devices into
+Teleport's inventory. If your MDM does not have a built-in Teleport integration,
+you will need to implement the inventory sync yourself.
+</Admonition>
+
+## Step 1/3. Configure the MDM
+
+You must use your MDM to push the Teleport mobile app to managed devices and
+create a Managed App Configuration that provides the device serial number to the
+app.
+
+<Tabs>
+<TabItem label="Jamf Pro">
+
+#### Push the app to devices
+
+1. In Jamf Pro, go to **Devices** > **Mobile Device Apps**.
+2. Add the Teleport mobile app (**TODO: app name**) from the App Store if it is
+   not already listed.
+3. Under **Scope**, assign the app to the devices that should use Device Trust.
+4. Save and distribute the app.
+
+#### Configure the app with the device serial number
+
+1. In Jamf Pro, go to **Devices** > **Mobile Device Apps** and select the
+   Teleport mobile app.
+2. Go to **App Configuration**.
+3. Under **Preferences**, add the following configuration:
+
+```xml
+<dict>
+  <key>serialNumber</key>
+  <string>$SERIALNUMBER</string>
+</dict>
+```
+
+Jamf Pro replaces `$SERIALNUMBER` with the actual serial number of each device
+at the time of deployment.
+
+4. Save the configuration.
+
+</TabItem>
+<TabItem label="Microsoft Intune">
+
+#### Push the app to devices
+
+1. In the [Microsoft Intune admin center](https://intune.microsoft.com), go to
+   **Apps** > **All apps** and select **Create**.
+2. Select **iOS store app** as the app type and search for the Teleport mobile
+   app (**TODO: app name**).
+3. Under **Assignments**, assign the app as **Required** for the device groups
+   that should use Device Trust.
+4. Select **Create** to save.
+
+#### Configure the app with the device serial number
+
+1. Go to **Apps** > **Manage apps** > **Configuration** and select **Create** >
+   **Managed devices**.
+2. Enter a name for the policy (for example, "Teleport Device Trust").
+3. Select **iOS/iPadOS** as the platform.
+4. Select the Teleport mobile app (**TODO: app name**) as the targeted app.
+5. Under **Configuration settings format**, select **Use configuration designer** and
+   add:
+
+   | Configuration key | Value type | Configuration value |
+   |---|---|---|
+   | `serialNumber` | `String` | `{{serialnumber}}` |
+
+   Intune replaces `{{serialnumber}}` with the actual serial number of each
+   device.
+
+6. Under **Assignments**, assign the policy to the same device groups as above.
+7. Select **Create** to save the policy.
+
+</TabItem>
+<TabItem label="Other MDMs">
+
+#### Push the app to devices
+
+Use your MDM to distribute the Teleport mobile app (**TODO: app name**) to the
+devices that should use Device Trust. Consult your MDM's documentation for
+instructions on distributing iOS apps.
+
+#### Configure the app with the device serial number
+
+Create a Managed App Configuration policy targeting the Teleport mobile app
+with the following payload:
+
+```xml
+<dict>
+  <key>serialNumber</key>
+  <string>DEVICE_SERIAL_NUMBER</string>
+</dict>
+```
+
+Replace `DEVICE_SERIAL_NUMBER` with your MDM's template variable for the
+device serial number. Consult your MDM's documentation for the correct variable
+syntax.
+
+</TabItem>
+</Tabs>
+
+## Step 2/3. Configure user permissions
+
+Users who enroll mobile devices need the `mobile_device.create_enroll_token`
+permission. This permission allows the enrollment flow to issue a token that
+authorizes the mobile app to complete enrollment on behalf of the user.
+
+Create a role that grants this permission. Save the following as
+`mobile-device-enrollment.yaml`:
+
+```yaml
+kind: role
+version: v7
+metadata:
+  name: mobile-device-enrollment
+spec:
+  allow:
+    rules:
+    - resources: ['mobile_device']
+      verbs: ['create_enroll_token']
+```
+
+Create the role and assign it to users who should be able to enroll mobile
+devices:
+
+```code
+$ tctl create -f mobile-device-enrollment.yaml
+$ tctl edit users/alice
+```
+
+```diff
+kind: user
+metadata:
+  name: alice
+  # (...)
+spec:
+  roles:
+  - access
+  - editor
++ - mobile-device-enrollment
+  # (...)
+version: v2
+```
+
+(!docs/pages/includes/create-role-using-web.mdx!)
+
+## Step 3/3. Verify the setup
+
+To verify that the setup is complete:
+
+1. Confirm that the MDM configuration policy is deployed to at least one test
+   device.
+2. Confirm that the device is registered in Teleport's inventory:
+   ```code
+   $ tctl devices ls
+   Asset Tag    OS    Source Enroll Status Owner Device ID
+   ------------ ----- ------ ------------- ----- ------------------------------------
+   DNQMV0X1Q2   iOS          not enrolled        3f8a2b1c-9d4e-5f6a-7b8c-9d0e1f2a3b4c
+   ```
+3. Confirm that the user has the `mobile-device-enrollment` role (or another
+   role with the `mobile_device.create_enroll_token` permission).
+4. Ask the user to follow the [Enroll a Mobile Device](./ios-user-guide.mdx)
+   guide.
+
+## Troubleshooting
+
+### The mobile app says the MDM configuration was not received
+
+The device has not received the Managed App Configuration from the MDM. Check
+the following:
+
+- The configuration policy targets the correct app and the correct device group.
+- The device has synced with the MDM recently. Some MDMs let the user manually
+  trigger a sync (for example, Intune), while others require waiting for the
+  next scheduled sync.
+
+### The mobile app says the serial number is missing
+
+The device received a Managed App Configuration, but the `serialNumber` key
+is missing or empty. Check that the configuration payload includes the
+`serialNumber` key with the correct MDM template variable.
+
+### Enrollment fails with a permission error
+
+The user does not have the `mobile_device.create_enroll_token` permission.
+Assign a role with this permission to the user, as described in [Step
+2/3](#step-23-configure-user-permissions).
+
+## Next steps
+
+- [Enroll a Mobile Device (User Guide)](./ios-user-guide.mdx)
+- [Enforce Device Trust](./enforcing-device-trust.mdx)
+- [Device Management](./device-management.mdx)
+- [Jamf Pro Integration](./jamf-integration.mdx)
+- [Microsoft Intune Integration](./intune-integration.mdx)
