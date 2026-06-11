@@ -21,6 +21,8 @@ import (
 
 	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 func newMember(listName, name, kind string) (*accesslist.AccessListMember, error) {
@@ -50,4 +52,54 @@ func getReviewDayOfMonth(day int) (accesslist.ReviewDayOfMonth, error) {
 		return d, nil
 	}
 	return 0, trace.BadParameter("--audit-day must be one of 1, 15, 31 (got %d)", day)
+}
+
+// applyGrantsAndRequires applies the owner/member grant and requirement flags to
+// the access list spec.
+func (c *Command) applyGrantsAndRequires(al *accesslist.AccessList) error {
+	// Owner grants and requirements
+	if c.ownerGrantRolesSet {
+		al.Spec.OwnerGrants.Roles = utils.SplitIdentifiers(c.ownerGrantRoles)
+	}
+	if c.ownerGrantTraitsSet {
+		traits, err := parse.MultiValueLabelSelectorSpec(c.ownerGrantTraits)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		al.Spec.OwnerGrants.Traits = traits
+	}
+	if c.ownerRequiredRolesSet {
+		al.Spec.OwnershipRequires.Roles = utils.SplitIdentifiers(c.ownerRequiredRoles)
+	}
+	if c.ownerRequiredTraitsSet {
+		traits, err := parse.MultiValueLabelSelectorSpec(c.ownerRequiredTraits)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		al.Spec.OwnershipRequires.Traits = traits
+	}
+
+	// Member grants and requirements
+	if c.memberGrantRolesSet {
+		al.Spec.Grants.Roles = utils.SplitIdentifiers(c.memberGrantRoles)
+	}
+	if c.memberGrantTraitsSet {
+		traits, err := parse.MultiValueLabelSelectorSpec(c.memberGrantTraits)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		al.Spec.Grants.Traits = traits
+	}
+	if c.memberRequiredRolesSet {
+		al.Spec.MembershipRequires.Roles = utils.SplitIdentifiers(c.memberRequiredRoles)
+	}
+	if c.memberRequiredTraitsSet {
+		traits, err := parse.MultiValueLabelSelectorSpec(c.memberRequiredTraits)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		al.Spec.MembershipRequires.Traits = traits
+	}
+
+	return nil
 }
