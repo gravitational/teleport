@@ -5,6 +5,9 @@
 locals {
   azure_role_assignment_scopes = coalescelist(
     var.azure_role_assignment_scopes,
+    var.azure_management_group_id != null
+    ? ["/providers/Microsoft.Management/managementGroups/${var.azure_management_group_id}"]
+    : [],
     [for sub in local.azure_matcher_subscriptions : "/subscriptions/${sub}"],
   )
 

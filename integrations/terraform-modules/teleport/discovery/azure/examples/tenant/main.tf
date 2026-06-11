@@ -23,16 +23,22 @@ module "azure_discovery" {
   # Region where Azure managed identity will be created (eastus)
   azure_managed_identity_location = azurerm_resource_group.example.location
 
-  # Discover Azure VMs across all resource groups in the current subscription
-  # and matching the specified tags.
+  # Management group ID or tenant ID. Using a Tenant ID will use the Root
+  # management group scope for the managed identity's role.
+  # 
+  # Operations on the root scope will require elevated access.
+  # See https://learn.microsoft.com/en-us/azure/role-based-access-control/elevate-access-global-admin
+  azure_management_group_id = data.azurerm_client_config.current.tenant_id
+
+  # Discover Azure VMs across all subscriptions matching the specified tags.
   azure_matchers = [
     {
-      types           = ["vm"]
-      subscriptions   = [data.azurerm_client_config.current.subscription_id]
-      resource_groups = ["*"]
-      regions         = ["westus", "eastus"]
+      types = ["vm"]
+
+      subscriptions = ["*"]
+
       tags = {
-        env = ["example"]
+        TeleportEnroll = ["true"]
       }
     }
   ]
