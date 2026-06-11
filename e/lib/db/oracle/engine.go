@@ -79,6 +79,15 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		return trace.Wrap(err)
 	}
 
+	// Acquire the tlsConfig early, right after access checks.
+	// This ensures that the session start event holds CA override metadata (added
+	// automatically to the sessionCtx by GetTLSConfig).
+	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
+	if err != nil {
+		e.Audit.OnSessionStart(e.Context, sessionCtx, err)
+		return trace.Wrap(err)
+	}
+
 	e.Audit.OnSessionStart(e.Context, sessionCtx, nil)
 	defer e.Audit.OnSessionEnd(e.Context, sessionCtx)
 
@@ -108,7 +117,7 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 		}
 	}
 
-	err = e.dialServerAndForward(ctx, sessionCtx)
+	err = e.dialServerAndForward(ctx, sessionCtx, tlsConfig)
 	return trace.Wrap(err)
 }
 

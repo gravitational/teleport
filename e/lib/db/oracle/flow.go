@@ -61,7 +61,7 @@ func (e *Engine) readConnect(clientConn *connection.OracleConn) (*protocol.Conne
 	return connect, nil
 }
 
-func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Session) error {
+func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Session, tlsConfig *tls.Config) error {
 	packetLogger, err := logging.NewPacketLogger(ctx, sessionCtx, e.Log)
 	if err != nil {
 		return trace.Wrap(err)
@@ -86,7 +86,7 @@ func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Se
 		return trace.Wrap(err)
 	}
 
-	serverConn, databaseURI, err := e.dialServer(ctx, sessionCtx, packetLogger, connectPacket, clientConn)
+	serverConn, databaseURI, err := e.dialServer(ctx, sessionCtx, tlsConfig, packetLogger, connectPacket, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -123,7 +123,14 @@ func (e *Engine) dialServerAndForward(ctx context.Context, sessionCtx *common.Se
 	return nil
 }
 
-func (e *Engine) dialServer(ctx context.Context, sessionCtx *common.Session, packetLogger logging.PacketLogger, connectPacket *protocol.ConnectPacket, clientConn *connection.OracleConn) (*connection.OracleConn, string, error) {
+func (e *Engine) dialServer(
+	ctx context.Context,
+	sessionCtx *common.Session,
+	tlsConfig *tls.Config,
+	packetLogger logging.PacketLogger,
+	connectPacket *protocol.ConnectPacket,
+	clientConn *connection.OracleConn,
+) (*connection.OracleConn, string, error) {
 	opts := sessionCtx.Database.GetOracle()
 	uris := getURIs(sessionCtx.Database)
 	if len(uris) == 0 {
@@ -137,11 +144,6 @@ func (e *Engine) dialServer(ctx context.Context, sessionCtx *common.Session, pac
 		if len(uris) > 1 {
 			e.Log.DebugContext(e.Context, "Shuffled hostnames", "hostnames", uris)
 		}
-	}
-
-	tlsConfig, err := e.Auth.GetTLSConfig(ctx, sessionCtx.GetExpiry(), sessionCtx.Database, sessionCtx.DatabaseUser)
-	if err != nil {
-		return nil, "", trace.Wrap(err)
 	}
 
 	var errs []error

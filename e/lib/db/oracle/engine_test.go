@@ -10,6 +10,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -87,17 +88,22 @@ func TestOracleEngine(t *testing.T) {
 		return server, session
 	}
 
-	mkEngine := func(t *testing.T, ctx context.Context) *Engine {
+	mkEngine := func(t *testing.T, ctx context.Context) (*Engine, *auditMock) {
+		authM := &authMock{}
+		auditM := &auditMock{
+			getTLSConfigCalls: &authM.getTLSConfigCalls,
+		}
+
 		return &Engine{
 			EngineConfig: common.EngineConfig{
 				Context: ctx,
 				Log: slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{
 					Level: slog.LevelDebug,
 				})).With("test", t.Name()),
-				Auth:  &authMock{},
-				Audit: &auditMock{},
+				Auth:  authM,
+				Audit: auditM,
 			},
-		}
+		}, auditM
 	}
 
 	t.Run("connection connect package (multihost)", func(t *testing.T) {
@@ -111,7 +117,7 @@ func TestOracleEngine(t *testing.T) {
 		defer engineConn.Close()
 
 		var connectPacket *protocol.ConnectPacket
-		engine := mkEngine(t, ctx)
+		engine, auditM := mkEngine(t, ctx)
 		engine.onConnectPacketRead = func(p *protocol.ConnectPacket) {
 			connectPacket = p
 		}
@@ -196,6 +202,11 @@ func TestOracleEngine(t *testing.T) {
 		case <-ctx.Done():
 			t.Fatal("context timed out")
 		}
+
+		// Verify that OnSessionStart is called after GetTLSConfig.
+		// This is necessary for audit events to hold CA override metadata.
+		assert.Equal(t, int32(1), auditM.onSessionStartCalls.Load(), "OnSessionStart() calls mismatch")
+		assert.False(t, auditM.onSessionStartCalledBeforeGetTLSConfig.Load(), "OnSessionStart() called before GetTLSConfig()")
 	})
 
 	t.Run("access denied database username", func(t *testing.T) {
@@ -212,7 +223,7 @@ func TestOracleEngine(t *testing.T) {
 		session.DatabaseName = "oracle"
 		session.DatabaseUser = "bob"
 
-		engine := mkEngine(t, ctx)
+		engine, _ := mkEngine(t, ctx)
 		err := engine.InitializeConnection(engineConn, session)
 		require.NoError(t, err)
 
@@ -224,6 +235,7 @@ func TestOracleEngine(t *testing.T) {
 
 type authMock struct {
 	common.Auth
+	getTLSConfigCalls atomic.Int32
 }
 
 func (a *authMock) GetAuthPreference(ctx context.Context) (types.AuthPreference, error) {
@@ -231,14 +243,23 @@ func (a *authMock) GetAuthPreference(ctx context.Context) (types.AuthPreference,
 }
 
 func (a *authMock) GetTLSConfig(ctx context.Context, certExpiry time.Time, database types.Database, databaseUser string) (*tls.Config, error) {
+	a.getTLSConfigCalls.Add(1)
 	return &tls.Config{InsecureSkipVerify: true}, nil
 }
 
 type auditMock struct {
 	common.Audit
+
+	getTLSConfigCalls                      *atomic.Int32
+	onSessionStartCalls                    atomic.Int32
+	onSessionStartCalledBeforeGetTLSConfig atomic.Bool
 }
 
 func (a *auditMock) OnSessionStart(ctx context.Context, session *common.Session, sessionErr error) {
+	if a.getTLSConfigCalls.Load() <= a.onSessionStartCalls.Load() {
+		a.onSessionStartCalledBeforeGetTLSConfig.Store(true)
+	}
+	a.onSessionStartCalls.Add(1)
 }
 
 func (a *auditMock) OnSessionEnd(ctx context.Context, session *common.Session) {
