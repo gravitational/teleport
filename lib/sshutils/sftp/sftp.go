@@ -279,7 +279,7 @@ func transfer(ctx context.Context, req *FileTransferRequest) error {
 		// clean match paths to ensure they are separated by backslashes, as
 		// SFTP requires that
 		for i := range matches {
-			matches[i] = path.Clean(matches[i])
+			matches[i] = sftputils.CleanPath(matches[i])
 		}
 		matchedPaths = append(matchedPaths, matches...)
 
@@ -299,7 +299,7 @@ func transfer(ctx context.Context, req *FileTransferRequest) error {
 
 	// validate destination path and create it if necessary
 	var dstIsDir bool
-	req.Destination.Path = path.Clean(req.Destination.Path)
+	req.Destination.Path = sftputils.CleanPath(req.Destination.Path)
 	dstInfo, err := req.dstFS.Stat(req.Destination.Path)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
