@@ -34,6 +34,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 const queueDir = "test-queue"
@@ -415,7 +416,7 @@ func TestEnqueue_FullReturnsErrQueueFull(t *testing.T) {
 
 	q, err := newSQLiteQueue(Config{
 		Path:     filepath.Join(t.TempDir(), "queue"),
-		MaxBytes: 8 * sqlitePageSize,
+		MaxBytes: 50 * sqlitePageSize,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = q.Close() })
@@ -436,7 +437,7 @@ func TestEnqueue_FileSizeStaysWithinMaxBytes(t *testing.T) {
 	t.Parallel()
 	ctx := t.Context()
 
-	const maxBytes = 8 * sqlitePageSize
+	const maxBytes = 50 * sqlitePageSize
 	path := filepath.Join(t.TempDir(), "queue")
 	q, err := newSQLiteQueue(Config{
 		Path:     path,
@@ -681,7 +682,7 @@ func TestIsSQLiteFullError(t *testing.T) {
 	t.Parallel()
 
 	dbPath := filepath.Join(t.TempDir(), "test.db")
-	db, err := sql.Open("sqlite", getDSN(dbPath, 10*sqlitePageSize, SynchronousNormal))
+	db, err := sql.Open("sqlite", getDSN(dbPath, 50*sqlitePageSize, SynchronousNormal))
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = db.Close() })
 
@@ -894,6 +895,285 @@ func TestDeadLetterTTL_ExpiresOldRows(t *testing.T) {
 	dlItems, err = q.fetchDeadLetter(10)
 	require.NoError(t, err)
 	require.Empty(t, dlItems, "row should have been deleted by expireDeadLetter")
+}
+
+var corruptPayload = []byte{0xff, 0xff, 0xff}
+
+func countRows(t *testing.T, q *sqliteQueue, table string) int {
+	t.Helper()
+	var n int
+	require.NoError(t, q.db.QueryRow("SELECT COUNT(*) FROM "+table).Scan(&n))
+	return n
+}
+
+func TestFetch_QuarantinesCorruptEvent(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	q := newSqliteTestQueue(t)
+
+	_, err := q.db.Exec("INSERT INTO audit_queue (payload) VALUES (?)", corruptPayload)
+	require.NoError(t, err)
+	for i := int64(0); i < 3; i++ {
+		require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+	}
+
+	require.Equal(t, 1, countRows(t, q, "audit_queue WHERE payload = x'ffffff'"),
+		"corrupt row should be removed from audit_queue")
+
+	items, err := q.fetch(10)
+	require.NoError(t, err)
+	require.Len(t, items, 3, "the three good events should still be returned")
+	for i, item := range items {
+		require.Equal(t, int64(i), item.Event.GetIndex())
+	}
+
+	require.Zero(t, countRows(t, q, "audit_queue WHERE payload = x'ffffff'"),
+		"corrupt row should be removed from audit_queue")
+
+	var (
+		payload []byte
+		errMsg  string
+		source  string
+	)
+	require.NoError(t, q.db.QueryRow(
+		"SELECT payload, error, source FROM corrupt_events").Scan(&payload, &errMsg, &source))
+	require.Equal(t, corruptPayload, payload)
+	require.NotEmpty(t, errMsg, "the deserialization error should be recorded")
+	require.Equal(t, auditQueueTable, source)
+}
+
+func TestFetch_CorruptDoesNotBlockQueue(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+	q := newSqliteTestQueue(t)
+
+	_, err := q.db.Exec("INSERT INTO audit_queue (payload) VALUES (?)", corruptPayload)
+	require.NoError(t, err)
+	for i := range int64(3) {
+		require.NoError(t, q.Enqueue(ctx, newTestEvent(i)))
+	}
+
+	var delivered []int64
+	for {
+		items, err := q.fetch(10)
+		require.NoError(t, err)
+		if len(items) == 0 {
+			break
+		}
+		for _, item := range items {
+			delivered = append(delivered, item.Event.GetIndex())
+		}
+		require.NoError(t, q.ack(items))
+	}
+
+	require.Equal(t, []int64{0, 1, 2}, delivered, "all good events should drain")
+	require.Zero(t, countRows(t, q, auditQueueTable), "queue should be fully drained")
+	require.Equal(t, 1, countRows(t, q, "corrupt_events"))
+}
+
+func TestFetchDeadLetter_QuarantinesCorrupt(t *testing.T) {
+	t.Parallel()
+	q := newSqliteTestQueue(t)
+
+	_, err := q.db.Exec(
+		"INSERT INTO audit_dead_letter (payload, failed_at) VALUES (?, ?)",
+		corruptPayload, time.Now().Unix())
+	require.NoError(t, err)
+
+	items, err := q.fetchDeadLetter(10)
+	require.NoError(t, err)
+	require.Empty(t, items)
+
+	require.Zero(t, countRows(t, q, auditDeadLetterTable),
+		"corrupt row should be removed from audit_dead_letter")
+
+	var source string
+	require.NoError(t, q.db.QueryRow("SELECT source FROM corrupt_events").Scan(&source))
+	require.Equal(t, auditDeadLetterTable, source)
+}
+
+func TestExpireCorruptEvents(t *testing.T) {
+	t.Parallel()
+
+	q, err := newSQLiteQueue(Config{
+		Path:          filepath.Join(t.TempDir(), queueDir),
+		DeadLetterTTL: time.Hour,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = q.Close() })
+
+	old := time.Now().Add(-2 * time.Hour).Unix()
+	recent := time.Now().Unix()
+	_, err = q.db.Exec(
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'boom', 'audit_queue', ?), (?, 'boom', 'audit_queue', ?)",
+		corruptPayload, old, corruptPayload, recent)
+	require.NoError(t, err)
+
+	q.expireCorruptEvents()
+
+	require.Equal(t, 1, countRows(t, q, "corrupt_events"), "only the recent corrupt row should remain")
+}
+
+func TestRecoverCorruptEvents(t *testing.T) {
+	t.Parallel()
+	q := newSqliteTestQueue(t)
+
+	// A genuinely corrupt payload that will never deserialize.
+	_, err := q.db.Exec(
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'boom', 'audit_queue', ?)",
+		corruptPayload, time.Now().Unix())
+	require.NoError(t, err)
+
+	// A valid payload that now deserializes, as if written by a newer binary
+	// and quarantined before an upgrade made it readable.
+	oneOf, err := apievents.ToOneOf(newTestEvent(7))
+	require.NoError(t, err)
+	validPayload, err := oneOf.Marshal()
+	require.NoError(t, err)
+	_, err = q.db.Exec(
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'was unknown event type', 'audit_queue', ?)",
+		validPayload, time.Now().Unix())
+	require.NoError(t, err)
+
+	q.recoverCorruptEvents()
+
+	// The recoverable event is back in audit_queue and deliverable.
+	items, err := q.fetch(10)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, int64(7), items[0].Event.GetIndex())
+
+	// The genuinely corrupt row is retained for a future attempt.
+	require.Equal(t, 1, countRows(t, q, "corrupt_events"))
+}
+
+func TestRecoverCorruptEvents_PagesLargeBacklog(t *testing.T) {
+	t.Parallel()
+	q := newSqliteTestQueue(t)
+
+	const validCount = dequeueBatchSize*2 + 10 // spans multiple recovery pages
+	const corruptCount = 5
+
+	insert := func(payload []byte) {
+		_, err := q.db.Exec(
+			"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'x', 'audit_queue', 0)",
+			payload)
+		require.NoError(t, err)
+	}
+
+	for i := 0; i < validCount; i++ {
+		oneOf, err := apievents.ToOneOf(newTestEvent(int64(i)))
+		require.NoError(t, err)
+		payload, err := oneOf.Marshal()
+		require.NoError(t, err)
+		insert(payload)
+		// Interleave corrupt rows so the cursor must page past them.
+		if i < corruptCount {
+			insert(corruptPayload)
+		}
+	}
+
+	q.recoverCorruptEvents()
+
+	require.Equal(t, validCount, countRows(t, q, "audit_queue"),
+		"all recoverable events should be re-queued across pages")
+	require.Equal(t, corruptCount, countRows(t, q, "corrupt_events"),
+		"only the genuinely corrupt rows should remain")
+}
+
+func TestRecoverCorruptEvents_WatermarkAdvances(t *testing.T) {
+	t.Parallel()
+	q := newSqliteTestQueue(t)
+
+	// An un-recoverable row examined by the first pass.
+	_, err := q.db.Exec(
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'boom', 'audit_queue', 0)",
+		corruptPayload)
+	require.NoError(t, err)
+
+	q.recoverCorruptEvents()
+	require.Positive(t, q.recoveryWatermark, "watermark should advance past the examined row")
+	require.Zero(t, countRows(t, q, "audit_queue"))
+	require.Equal(t, 1, countRows(t, q, "corrupt_events"))
+
+	// A recoverable row inserted after the first pass gets a higher id, so it
+	// lands above the watermark and is picked up on the next pass.
+	oneOf, err := apievents.ToOneOf(newTestEvent(7))
+	require.NoError(t, err)
+	validPayload, err := oneOf.Marshal()
+	require.NoError(t, err)
+	_, err = q.db.Exec(
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'was unknown', 'audit_queue', 0)",
+		validPayload)
+	require.NoError(t, err)
+
+	q.recoverCorruptEvents()
+
+	items, err := q.fetch(10)
+	require.NoError(t, err)
+	require.Len(t, items, 1)
+	require.Equal(t, int64(7), items[0].Event.GetIndex())
+	require.Equal(t, 1, countRows(t, q, "corrupt_events"),
+		"the un-recoverable row should remain, skipped by the watermark")
+}
+
+func TestOrphanAdoption_MigratesCorruptEvents(t *testing.T) {
+	t.Parallel()
+	parent := t.TempDir()
+	ctx := t.Context()
+
+	aPath := filepath.Join(parent, "a")
+	a, err := newSQLiteQueue(Config{Path: aPath})
+	require.NoError(t, err)
+
+	failedAt := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC).Unix()
+	_, err = a.db.Exec(
+		"INSERT INTO corrupt_events (payload, error, source, failed_at) VALUES (?, 'boom', 'audit_queue', ?)",
+		corruptPayload, failedAt)
+	require.NoError(t, err)
+	require.NoError(t, a.Close())
+
+	_, err = os.Stat(aPath)
+	require.NoError(t, err, "expected A's directory to remain after Close due to non-empty corrupt_events")
+
+	b, err := newSQLiteQueue(Config{
+		Path:               filepath.Join(parent, "b"),
+		OrphanScanInterval: 50 * time.Millisecond,
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = b.Close() })
+
+	bRunCtx, cancelB := context.WithCancel(ctx)
+	t.Cleanup(cancelB)
+	bRunErr := make(chan error, 1)
+	go func() {
+		bRunErr <- b.Run(bRunCtx, func(_ context.Context, items []Item) []Item { return items })
+	}()
+
+	require.Eventually(t, func() bool {
+		return countRows(t, b, "corrupt_events") == 1
+	}, 5*time.Second, 50*time.Millisecond, "expected B to migrate A's corrupt row")
+
+	var (
+		payload    []byte
+		errMsg     string
+		source     string
+		gotFaildAt int64
+	)
+	require.NoError(t, b.db.QueryRow(
+		"SELECT payload, error, source, failed_at FROM corrupt_events").Scan(&payload, &errMsg, &source, &gotFaildAt))
+	require.Equal(t, corruptPayload, payload)
+	require.Equal(t, "boom", errMsg)
+	require.Equal(t, "audit_queue", source)
+	require.Equal(t, failedAt, gotFaildAt, "failed_at should be preserved across migration")
+
+	require.Eventually(t, func() bool {
+		_, err := os.Stat(aPath)
+		return os.IsNotExist(err)
+	}, 5*time.Second, 50*time.Millisecond, "expected A's directory to be removed after migration")
+
+	cancelB()
+	require.NoError(t, <-bRunErr)
 }
 
 func TestItemsNotIn(t *testing.T) {
