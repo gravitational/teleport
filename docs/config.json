@@ -1032,7 +1032,7 @@
     },
     {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
-      "destination": "/configuration/managing-resources/agentless-ssh-servers/",
+      "destination": "/configuration/resource-guides/agentless-ssh-servers/",
       "permanent": true
     },
     {
@@ -1042,27 +1042,27 @@
     },
     {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-operator/",
-      "destination": "/configuration/managing-resources/login-rules-operator/",
+      "destination": "/configuration/resource-guides/login-rules-operator/",
       "permanent": true
     },
     {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/login-rules-terraform/",
-      "destination": "/configuration/managing-resources/login-rules-terraform/",
+      "destination": "/configuration/resource-guides/login-rules-terraform/",
       "permanent": true
     },
     {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/",
-      "destination": "/configuration/managing-resources/",
+      "destination": "/configuration/resource-guides/",
       "permanent": true
     },
     {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/trusted-cluster/",
-      "destination": "/configuration/managing-resources/trusted-cluster/",
+      "destination": "/configuration/resource-guides/trusted-cluster/",
       "permanent": true
     },
     {
       "source": "/admin-guides/infrastructure-as-code/managing-resources/user-and-role/",
-      "destination": "/configuration/managing-resources/user-and-role/",
+      "destination": "/configuration/resource-guides/user-and-role/",
       "permanent": true
     },
     {
@@ -3532,7 +3532,7 @@
     },
     {
       "source": "/identity-governance/access-lists/terraform/",
-      "destination": "/configuration/managing-resources/access-list/",
+      "destination": "/configuration/resource-guides/access-list/",
       "permanent": true
     },
     {
@@ -3827,42 +3827,42 @@
     },
     {
       "source": "/zero-trust-access/infrastructure-as-code/managing-resources/access-list/",
-      "destination": "/configuration/managing-resources/access-list/",
+      "destination": "/configuration/resource-guides/access-list/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/infrastructure-as-code/managing-resources/agentless-ssh-servers/",
-      "destination": "/configuration/managing-resources/agentless-ssh-servers/",
+      "destination": "/configuration/resource-guides/agentless-ssh-servers/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/infrastructure-as-code/managing-resources/kubernetes-oidc-join-token/",
-      "destination": "/configuration/managing-resources/kubernetes-oidc-join-token/",
+      "destination": "/configuration/resource-guides/kubernetes-oidc-join-token/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/infrastructure-as-code/managing-resources/login-rules-operator/",
-      "destination": "/configuration/managing-resources/login-rules-operator/",
+      "destination": "/configuration/resource-guides/login-rules-operator/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/infrastructure-as-code/managing-resources/login-rules-terraform/",
-      "destination": "/configuration/managing-resources/login-rules-terraform/",
+      "destination": "/configuration/resource-guides/login-rules-terraform/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/infrastructure-as-code/managing-resources/",
-      "destination": "/configuration/managing-resources/",
+      "destination": "/configuration/resource-guides/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/infrastructure-as-code/managing-resources/trusted-cluster/",
-      "destination": "/configuration/managing-resources/trusted-cluster/",
+      "destination": "/configuration/resource-guides/trusted-cluster/",
       "permanent": true
     },
     {
       "source": "/zero-trust-access/infrastructure-as-code/managing-resources/user-and-role/",
-      "destination": "/configuration/managing-resources/user-and-role/",
+      "destination": "/configuration/resource-guides/user-and-role/",
       "permanent": true
     },
     {
@@ -3943,6 +3943,46 @@
     {
       "source": "/zero-trust-access/infrastructure-as-code/using-tctl/",
       "destination": "/configuration/using-tctl/",
+      "permanent": true
+    },
+    {
+      "source": "/configuration/managing-resources/access-list/",
+      "destination": "/configuration/resource-guides/access-list/",
+      "permanent": true
+    },
+    {
+      "source": "/configuration/managing-resources/agentless-ssh-servers/",
+      "destination": "/configuration/resource-guides/agentless-ssh-servers/",
+      "permanent": true
+    },
+    {
+      "source": "/configuration/managing-resources/kubernetes-oidc-join-token/",
+      "destination": "/configuration/resource-guides/kubernetes-oidc-join-token/",
+      "permanent": true
+    },
+    {
+      "source": "/configuration/managing-resources/login-rules-operator/",
+      "destination": "/configuration/resource-guides/login-rules-operator/",
+      "permanent": true
+    },
+    {
+      "source": "/configuration/managing-resources/login-rules-terraform/",
+      "destination": "/configuration/resource-guides/login-rules-terraform/",
+      "permanent": true
+    },
+    {
+      "source": "/configuration/managing-resources/",
+      "destination": "/configuration/resource-guides/",
+      "permanent": true
+    },
+    {
+      "source": "/configuration/managing-resources/trusted-cluster/",
+      "destination": "/configuration/resource-guides/trusted-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/configuration/managing-resources/user-and-role/",
+      "destination": "/configuration/resource-guides/user-and-role/",
       "permanent": true
     }
   ]
