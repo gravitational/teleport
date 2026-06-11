@@ -148,6 +148,8 @@ export type RdpConnectionActivated = {
   userChannelId: number;
   screenWidth: number;
   screenHeight: number;
+  // TDPB exclusive field
+  shareId: number;
 };
 
 export enum Severity {
@@ -1822,7 +1824,14 @@ export class TdpCodec implements Codec {
     const screenHeight = dv.getUint16(offset);
     offset += UINT_16_LEN;
 
-    return { ioChannelId, userChannelId, screenWidth, screenHeight };
+    // shareId is not supported by legacy TDP. Hardcode to zero.
+    return {
+      ioChannelId,
+      userChannelId,
+      screenWidth,
+      screenHeight,
+      shareId: 0,
+    };
   }
 
   // | message type (12) | err_code error | directory_id uint32 |
