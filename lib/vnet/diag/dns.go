@@ -197,7 +197,7 @@ func (d *DNSDiag) queryServer(ctx context.Context, network string, server netip.
 		if attempt > 0 {
 			select {
 			case <-ctx.Done():
-				return recordResult{err: trace.Wrap(ctx.Err(), "querying VNet DNS server at %s for %s", server, network)}
+				return recordResult{err: trace.Wrap(ctx.Err(), "querying VNet DNS server at %s for %s record", server, networkToRecordType(network))}
 			case <-time.After(d.cfg.ReachabilityRetryDelay):
 			}
 		}
@@ -208,6 +208,17 @@ func (d *DNSDiag) queryServer(ctx context.Context, network string, server netip.
 		lastErr = err
 	}
 	return recordResult{err: lastErr}
+}
+
+func networkToRecordType(network string) string {
+	switch network {
+	case "ip4":
+		return "A"
+	case "ip6":
+		return "AAAA"
+	default:
+		return "unknown"
+	}
 }
 
 // queryServerOnce fires a single direct DNS query for one record type.
@@ -221,7 +232,7 @@ func (d *DNSDiag) queryServerOnce(ctx context.Context, network string, server ne
 		if errors.As(err, &dnsErr) && dnsErr.IsNotFound {
 			return netip.Addr{}, nil
 		}
-		return netip.Addr{}, trace.Wrap(err, "querying VNet DNS server at %s for %s", server, network)
+		return netip.Addr{}, trace.Wrap(err, "querying VNet DNS server at %s for %s record", server, networkToRecordType(network))
 	}
 	if len(addrs) == 0 {
 		return netip.Addr{}, nil
@@ -244,12 +255,12 @@ func toReachabilityProto(o reachabilityCheckResult) *diagv1.VNetDNSReachability 
 	if !m.Reachable {
 		var errs []string
 		if o.a.err != nil {
-			errs = append(errs, fmt.Sprintf("A: %s", o.a.err))
+			errs = append(errs, o.a.err.Error())
 		}
 		if o.aaaa.err != nil {
-			errs = append(errs, fmt.Sprintf("AAAA: %s", o.aaaa.err))
+			errs = append(errs, o.aaaa.err.Error())
 		}
-		m.Error = strings.Join(errs, "; ")
+		m.Error = strings.Join(errs, "\n")
 		if m.Error == "" {
 			m.Error = "server returned no records"
 		}

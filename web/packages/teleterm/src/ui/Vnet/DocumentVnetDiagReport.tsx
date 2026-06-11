@@ -576,10 +576,13 @@ function ReachabilityRow({
   }
   if (!reach.reachable) {
     return (
-      <P1 m={0}>
-        <Warning /> VNet {family} DNS unreachable on{' '}
-        <code>{reach.address}</code>: {reach.error}
-      </P1>
+      <Stack gap={1}>
+        <P1 m={0}>
+          <Warning /> VNet {family} DNS unreachable on{' '}
+          <code>{reach.address}</code>. The error:
+        </P1>
+        <ErrorPre>{reach.error}</ErrorPre>
+      </Stack>
     );
   }
   const responded =
@@ -634,6 +637,17 @@ const Summary = styled.summary`
 
 const Pre = styled.pre`
   white-space: pre-wrap;
+`;
+
+const ErrorPre = styled(Pre)`
+  margin: 0;
+  align-self: stretch;
+  line-height: 1.6;
+  tab-size: 4;
+  padding: ${props => props.theme.space[2]}px;
+  background-color: ${props => props.theme.colors.levels.sunken};
+  border-radius: ${props => props.theme.radii[2]}px;
+  font-size: ${props => props.theme.fontSizes[1]}px;
 `;
 
 const Warning = styled(WarningIcon).attrs({

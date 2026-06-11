@@ -307,14 +307,22 @@ export function DocumentVnetDiagReport(props: StoryProps) {
         reachable: false,
         respondedA: false,
         respondedAaaa: false,
-        error: 'dial udp 100.64.0.2:53: connect: connection refused',
+        error:
+          'querying VNet DNS server at 100.64.0.2:53 for A record\n' +
+          '\tlookup vnet-diag-f4b49a465de45626.test: connect: connection refused\n' +
+          'querying VNet DNS server at 100.64.0.2:53 for AAAA record\n' +
+          '\tlookup vnet-diag-aa7634492d2eeb20.test: connect: connection refused',
       });
       dnsReport.ipv6Reachability = makeVNetDNSReachability({
         address: '[fdff:fd74:46c0::2]:53',
         reachable: false,
         respondedA: false,
         respondedAaaa: false,
-        error: 'dial udp [fdff:fd74:46c0::2]:53: connect: connection refused',
+        error:
+          'querying VNet DNS server at [fdff:fd74:46c0::2]:53 for A record\n' +
+          '\tlookup vnet-diag-f4b49a465de45626.test: connect: connection refused\n' +
+          'querying VNet DNS server at [fdff:fd74:46c0::2]:53 for AAAA record\n' +
+          '\tlookup vnet-diag-aa7634492d2eeb20.test: connect: connection refused',
       });
       dnsCheckAttempt.checkReport.status = CheckReportStatus.ISSUES_FOUND;
       break;
@@ -325,7 +333,11 @@ export function DocumentVnetDiagReport(props: StoryProps) {
         reachable: false,
         respondedA: false,
         respondedAaaa: false,
-        error: 'dial udp [fdff:fd74:46c0::2]:53: connect: network unreachable',
+        error:
+          'querying VNet DNS server at [fdff:fd74:46c0::2]:53 for A record\n' +
+          '\tlookup vnet-diag-e08c7ee8b534d6db.test: connect: network unreachable\n' +
+          'querying VNet DNS server at [fdff:fd74:46c0::2]:53 for AAAA record\n' +
+          '\tlookup vnet-diag-907e5ae789aea710.test: connect: network unreachable',
       });
       dnsReport.zoneResults = [
         ...props.dnsZones.map(zone => makeDNSZoneResult({ zone })),
