@@ -700,6 +700,7 @@ func WithSkipClone() EqualAccessListsOption {
 //   - Metadata.Revision: Managed by the backend
 //   - Status: Contains dynamically calculated fields (member counts, assignments, etc.)
 //   - Owner.IneligibleStatus: Managed by the IneligibleStatusReconciler
+//   - Owner.Display: Read-time display values derived from the user resource
 //
 // Note: This option causes the input access lists to be cloned (unless WithSkipClone
 // is also used) to avoid modifying the originals.
@@ -781,5 +782,6 @@ func resetEphemeralFieldsAccessList(a *AccessList) {
 	a.Status = Status{}
 	for i := range a.Spec.Owners {
 		a.Spec.Owners[i].IneligibleStatus = ""
+		a.Spec.Owners[i].Display = types.UserDisplay{}
 	}
 }

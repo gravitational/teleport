@@ -26,6 +26,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/utils/testutils/structfill"
 )
@@ -539,6 +540,16 @@ func TestEqualIgnoreEphemeralFields(t *testing.T) {
 		require.True(t, result)
 	})
 
+	t.Run("different owner display is ignored", func(t *testing.T) {
+		al1 := createAccessList("test1")
+		al2 := createAccessList("test1")
+		al2.Spec.Owners[0].Display = types.UserDisplay{Primary: "Alice Anderson", Secondary: "alice@example.com"}
+		al2.Spec.Owners[1].Display = types.UserDisplay{Primary: "Bob Brown"}
+
+		result := EqualAccessLists(al1, al2, WithIgnoreEphemeralFields())
+		require.True(t, result)
+	})
+
 	t.Run("all ignored fields different at once", func(t *testing.T) {
 		al1 := createAccessList("test1")
 		al2 := createAccessList("test1")
@@ -548,6 +559,8 @@ func TestEqualIgnoreEphemeralFields(t *testing.T) {
 		al2.Status.OwnerOf = []string{"completely", "different", "lists"}
 		al2.Spec.Owners[0].IneligibleStatus = "new-reason-1"
 		al2.Spec.Owners[1].IneligibleStatus = "new-reason-2"
+		al2.Spec.Owners[0].Display = types.UserDisplay{Primary: "Alice Anderson"}
+		al2.Spec.Owners[1].Display = types.UserDisplay{Secondary: "bob@example.com"}
 
 		result := EqualAccessLists(al1, al2, WithIgnoreEphemeralFields())
 		require.True(t, result)
