@@ -1504,6 +1504,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	const password = "supersecretpassword"
 
 	rootAuth, rootProxy := makeTestServers(t,
+		withClusterName(t, "localhost"),
 		withBootstrap(connector, noAccessRole, sshLoginRole, perSessionMFARole),
 		withConfig(func(cfg *servicecfg.Config) {
 			cfg.InsecureMode = true
@@ -1611,17 +1612,12 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 		}
 	}
 
-	rootClusterName, err := rootAuth.GetAuthServer().GetClusterName(ctx)
-	require.NoError(t, err)
-
-	require.Eventually(t, hasNodes(rootProxy, rootClusterName.GetClusterName(), sshHostID, sshHostID2, sshHostID3),
-		10*time.Second, 100*time.Millisecond, "root proxy never saw root nodes")
+	// wait for auth to see nodes
+	require.Eventually(t, hasNodes(rootProxy, "localhost", sshHostID, sshHostID2, sshHostID3),
+		5*time.Second, 100*time.Millisecond, "nodes never joined root cluster")
 
 	require.Eventually(t, hasNodes(leafProxy, "leafcluster", sshLeafHostID),
-		10*time.Second, 100*time.Millisecond, "leaf proxy never saw leaf node")
-
-	require.Eventually(t, hasNodes(rootProxy, "leafcluster", sshLeafHostID),
-		10*time.Second, 100*time.Millisecond, "root proxy never saw leaf node via trusted cluster")
+		5*time.Second, 100*time.Millisecond, "nodes never joined leaf cluster")
 
 	defaultPreference, err := rootAuth.GetAuthServer().GetAuthPreference(ctx)
 	require.NoError(t, err)
@@ -1640,7 +1636,7 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	}
 
 	// Enable WebAuthn on both clusters so that per-session MFA can be
-	// exercised for the parallel tests. Sequential tests for set their own auth
+	// exercised for the parallel tests. Sequential tests set their own auth
 	// preferences.
 	rootAuthServer := rootAuth.GetAuthServer()
 	leafAuthServer := leafAuth.GetAuthServer()
