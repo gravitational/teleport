@@ -67,7 +67,24 @@ describe('DelegationAuthorize', () => {
   test('renders at the delegation authorization route for authenticated users', async () => {
     renderDelegationAuthorizeRoute();
 
-    expect(await screen.findByText('Hello World')).toBeInTheDocument();
+    expect(await screen.findByText('Delegate access')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'An application is requesting access to the following resources on your behalf:'
+      )
+    ).toBeInTheDocument();
+    expect(screen.getByText('users')).toBeInTheDocument();
+    expect(screen.getByText('MySQL database')).toBeInTheDocument();
+    expect(screen.queryByText('Self-hosted MySQL')).not.toBeInTheDocument();
+    expect(screen.queryByText('Access as')).not.toBeInTheDocument();
+    expect(screen.queryByText('read-only')).not.toBeInTheDocument();
+    expect(
+      screen.getByLabelText(
+        'Allow the application to request additional access on your behalf'
+      )
+    ).toBeChecked();
+    expect(screen.getByRole('button', { name: 'Reject' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Allow' })).toBeInTheDocument();
     expect(session.validateCookieAndSession).toHaveBeenCalledTimes(1);
   });
 
@@ -80,6 +97,6 @@ describe('DelegationAuthorize', () => {
       expect(session.clearBrowserSession).toHaveBeenCalledWith(true)
     );
 
-    expect(screen.queryByText('Hello World')).not.toBeInTheDocument();
+    expect(screen.queryByText('Delegate access')).not.toBeInTheDocument();
   });
 });
