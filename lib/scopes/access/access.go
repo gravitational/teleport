@@ -487,12 +487,12 @@ func StrongValidateAssignment(assignment *scopedaccessv1.ScopedRoleAssignment) e
 		if assignment.GetSpec().GetUser() != "" {
 			return trace.BadParameter("scoped role assignment %q cannot have both spec.bot and spec.user set", assignment.GetMetadata().GetName())
 		}
-		if err := scopes.StrongValidateQualifiedName(assignment.GetSpec().GetBot()); err != nil {
-			return trace.BadParameter("scoped role assignment %q has invalid spec.bot: %v", assignment.GetMetadata().GetName(), err)
-		}
 		bot, err := scopes.ParseQualifiedName(assignment.GetSpec().GetBot())
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.BadParameter("scoped role assignment %q has invalid spec.bot: %v", assignment.GetMetadata().GetName(), err)
+		}
+		if err := bot.StrongValidate(); err != nil {
+			return trace.BadParameter("scoped role assignment %q has invalid spec.bot: %v", assignment.GetMetadata().GetName(), err)
 		}
 		botScope = bot.Scope
 	}

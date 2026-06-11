@@ -303,13 +303,13 @@ func validateBotToken(token *joiningv1.ScopedToken, roles types.SystemRoles) err
 		return trace.BadParameter("expected non-empty bot for a scoped bot token")
 	}
 
-	if err := scopes.StrongValidateQualifiedName(spec.GetBot()); err != nil {
+	bot, err := scopes.ParseQualifiedName(spec.GetBot())
+	if err != nil {
 		return trace.Wrap(err, "validating scoped token bot")
 	}
 
-	bot, err := scopes.ParseQualifiedName(spec.GetBot())
-	if err != nil {
-		return trace.Wrap(err)
+	if err := bot.StrongValidate(); err != nil {
+		return trace.Wrap(err, "validating scoped token bot")
 	}
 
 	if spec.GetUsageMode() != TokenUsageModeBot {
@@ -607,25 +607,29 @@ func (t *Token) Expiry() time.Time {
 	return expiry.AsTime()
 }
 
+// GetBot returns the token's scope-qualified bot reference, parsed from the
+// spec.bot field. It returns an error for non-bot tokens (where spec.bot is
+// empty) and for malformed values.
+func (t *Token) GetBot() (scopes.QualifiedName, error) {
+	bot, err := scopes.ParseQualifiedName(t.scoped.GetSpec().GetBot())
+	if err != nil {
+		return scopes.QualifiedName{}, trace.Wrap(err)
+	}
+	return bot, nil
+}
+
 // GetBotName returns the name component of the token's scope-qualified bot
 // reference. It is empty for non-bot tokens.
+//
+// This exists for compatibility with unscoped provision token v2s. We should
+// The bare name does not uniquely identify a bot across scopes; use
+// [Token.GetBot] when comparing bot identities.
 func (t *Token) GetBotName() string {
-	bot, err := scopes.ParseQualifiedName(t.scoped.GetSpec().GetBot())
+	bot, err := t.GetBot()
 	if err != nil {
 		return ""
 	}
 	return bot.Name
-}
-
-// GetBotScope returns the scope component of the token's scope-qualified bot
-// reference, which must be set for bots joining with a scoped token. It is
-// empty for non-bot tokens.
-func (t *Token) GetBotScope() string {
-	bot, err := scopes.ParseQualifiedName(t.scoped.GetSpec().GetBot())
-	if err != nil {
-		return ""
-	}
-	return bot.Scope
 }
 
 // GetAssignedScope returns the scope that will be assigned to resources

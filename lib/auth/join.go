@@ -136,11 +136,6 @@ func (a *Server) handleJoinFailure(
 			botJoinEvent.Method = string(pt.GetJoinMethod())
 			botJoinEvent.TokenName = pt.GetSafeName()
 			botJoinEvent.BotName = pt.GetBotName()
-
-			// We don't want to perform a backend fetch here, so we'll use the
-			// bot scope indicated in the token rather than the one embedded in
-			// the user.
-			botJoinEvent.Scope = pt.GetBotScope()
 		}
 		evt = botJoinEvent
 	} else {
@@ -467,7 +462,7 @@ func (a *Server) GenerateBotCertsForJoin(
 			return nil, "", trace.AccessDenied("scoped token usage mode must be 'bot' for bot joining")
 		}
 
-		tokenBot, err := scopes.ParseQualifiedName(scoped.GetScoped().GetSpec().GetBot())
+		tokenBot, err := scoped.GetBot()
 		if err != nil {
 			return nil, "", trace.Wrap(err, "parsing scoped token bot")
 		}

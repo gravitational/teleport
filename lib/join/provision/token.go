@@ -44,10 +44,11 @@ type Token interface {
 	// Expiry returns the token's expiration time.
 	Expiry() time.Time
 	// GetBotName returns the BotName field which must be set for joining bots.
+	// The bare name does not uniquely identify a bot across scopes, so it is
+	// suitable for display and resource lookups only; identity comparisons
+	// involving scoped bots must use the scope-qualified bot reference from
+	// the underlying scoped token instead.
 	GetBotName() string
-	// GetBotScope returns the BotScope field which must be set for bots joining
-	// with a scoped token. It is empty for unscoped bots.
-	GetBotScope() string
 	// GetAssignedScope returns the scope that will be assigned to provisioned resources
 	// provisioned using the wrapped [joiningv1.ScopedToken].
 	GetAssignedScope() string

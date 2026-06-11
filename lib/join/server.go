@@ -282,7 +282,11 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 
 		// It's not worth fetching the true bot scope here (via bot user label)
 		// so we'll just include the one embedded in the token.
-		i.BotScope = token.GetBotScope()
+		if scoped, ok := token.(*joining.Token); ok {
+			if bot, err := scoped.GetBot(); err == nil {
+				i.BotScope = bot.Scope
+			}
+		}
 	})
 
 	// Validate that the requested join method matches the join method
