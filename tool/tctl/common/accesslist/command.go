@@ -58,6 +58,7 @@ type Command struct {
 	reviewsCreate *kingpin.CmdClause
 	reviewsList   *kingpin.CmdClause
 	remove        *kingpin.CmdClause
+	create        *kingpin.CmdClause
 	update        *kingpin.CmdClause
 
 	// Used for managing a particular access list.
@@ -76,6 +77,11 @@ type Command struct {
 
 	// Some extra options that control output.
 	reviewOnly bool // lists only access lists due for review
+
+	// Defines the access type with `acl create`.
+	// This is called "preset" but user facing docs
+	// don't use that term.
+	accessType string
 
 	// Used to hold access list metadata.
 	title                string
@@ -166,11 +172,33 @@ const (
 	memberKindList = "list"
 )
 
+const auditFrequencyText = "Audit recurrence in months (1, 3, 6, or 12)."
+const auditDayText = "Day of month for audit (1, 15, or 31)."
+
 const updateHelpText = "Update an existing access list. Each flag you pass replaces that field (no\n" +
 	"merge or append), so list-valued flags like --members or --logins overwrite\n" +
 	"the whole list; anything you omit is left unchanged.\n\n" +
 	"For an access list created with an access type, resource flags (--node-labels, etc.) edit the\n" +
 	"supporting roles."
+
+const createHelpText = "Create an access list.\n" +
+	"\n" +
+	"Use --access-type if you want Teleport to create the supporting roles for you.\n" +
+	"It sets how members are granted access:\n" +
+	"  standing       members get ongoing access to the resources set below.\n" +
+	"  request-based  members must request that access; owners approve.\n" +
+	"These roles are built from the resource flags you set. Without --access-type,\n" +
+	"a plain access list is created with no roles, and you set its grants yourself.\n" +
+	"\n" +
+	"Resource access (requires --access-type), grouped by target:\n" +
+	"  SSH servers          --node-labels, --logins\n" +
+	"  Databases            --db-labels, --db-users, --db-names\n" +
+	"  Kubernetes           --kubernetes-labels, --kubernetes-users, --kubernetes-groups\n" +
+	"  Windows desktops     --windows-labels, --windows-logins\n" +
+	"  Git servers          --github-orgs\n" +
+	"  AWS Identity Center  --aws-ic-assignments\n" +
+	"  Web applications     --app-labels, --aws-role-arns, --azure-identities,\n" +
+	"                       --gcp-service-accounts, --mcp-tools"
 
 // Initialize allows Command to plug itself into the CLI parser
 func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
@@ -226,58 +254,76 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.update = acl.Command("update", updateHelpText)
 	c.update.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
 	c.update.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
-	// Access list metadata:
 	c.update.Flag("title", "New display name for the access list.").IsSetByUser(&c.titleSet).StringVar(&c.title)
 	c.update.Flag("description", "New description.").IsSetByUser(&c.descriptionSet).StringVar(&c.description)
-	c.update.Flag("audit-frequency", "Audit recurrence in months (1, 3, 6, or 12). Changing this resets the next audit date to now + frequency.").PlaceHolder("6").IsSetByUser(&c.auditFrequencySet).IntVar(&c.auditFrequency)
-	c.update.Flag("audit-day", "Day of month for audit (1, 15, or 31). Changing this resets the next audit date to now + frequency.").PlaceHolder("1").IsSetByUser(&c.auditDaySet).IntVar(&c.auditDay)
-	// Access list owners:
+	c.update.Flag("audit-frequency", auditFrequencyText).PlaceHolder("6").IsSetByUser(&c.auditFrequencySet).IntVar(&c.auditFrequency)
+	c.update.Flag("audit-day", auditDayText).PlaceHolder("1").IsSetByUser(&c.auditDaySet).IntVar(&c.auditDay)
 	c.update.Flag("owners", "Replace the user owners with this list of usernames or emails.").PlaceHolder("user1,user2,...").IsSetByUser(&c.ownersSet).StringVar(&c.owners)
 	c.update.Flag("owner-access-lists", "Replace the access-list owners with this list of access list names.").PlaceHolder("name1,name2,...").IsSetByUser(&c.ownerAccessListsSet).StringVar(&c.ownerAccessLists)
-	c.update.Flag("owner-grant-roles", "Roles granted to owners of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.ownerGrantRolesSet).StringVar(&c.ownerGrantRoles)
-	c.update.Flag("owner-grant-traits", "Traits granted to owners of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.ownerGrantTraitsSet).StringVar(&c.ownerGrantTraits)
-	c.update.Flag("owner-required-roles", "Roles a user must already have to be an owner of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.ownerRequiredRolesSet).StringVar(&c.ownerRequiredRoles)
-	c.update.Flag("owner-required-traits", "Traits a user must already have to be an owner of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.ownerRequiredTraitsSet).StringVar(&c.ownerRequiredTraits)
-	// Access list members:
-	c.update.Flag("members", "Replace the user members with this list of usernames or emails. Not combinable with non-member update flags.").PlaceHolder("user1,user2,...").IsSetByUser(&c.membersSet).StringVar(&c.members)
-	c.update.Flag("member-access-lists", "Replace the nested access-list members with this list of access list names. Not combinable with non-member update flags.").PlaceHolder("name1,name2,...").IsSetByUser(&c.memberAccessListsSet).StringVar(&c.memberAccessLists)
-	c.update.Flag("member-grant-roles", "Roles granted to members of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.memberGrantRolesSet).StringVar(&c.memberGrantRoles)
-	c.update.Flag("member-grant-traits", "Traits granted to members of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.memberGrantTraitsSet).StringVar(&c.memberGrantTraits)
-	c.update.Flag("member-required-roles", "Roles a user must already have to be a member of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.memberRequiredRolesSet).StringVar(&c.memberRequiredRoles)
-	c.update.Flag("member-required-traits", "Traits a user must already have to be a member of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.memberRequiredTraitsSet).StringVar(&c.memberRequiredTraits)
-
-	// Resource access flags (only valid for access lists created with an access type):
-	// Nodes
-	c.update.Flag("node-labels", "Selects SSH servers members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.nodeLabelsSet).StringVar(&c.nodeLabels)
-	c.update.Flag("logins", "OS logins members may use to connect to matched SSH servers.").PlaceHolder("login1,login2,...").IsSetByUser(&c.loginsSet).StringVar(&c.logins)
-	// Dbs
-	c.update.Flag("db-labels", "Selects databases members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.dbLabelsSet).StringVar(&c.dbLabels)
-	c.update.Flag("db-users", "Database users members may connect as on matched databases.").PlaceHolder("user1,user2,...").IsSetByUser(&c.dbUsersSet).StringVar(&c.dbUsers)
-	c.update.Flag("db-names", "Database names members may connect to on matched databases.").PlaceHolder("name1,name2,...").IsSetByUser(&c.dbNamesSet).StringVar(&c.dbNames)
-	// Kubes
-	c.update.Flag("kubernetes-labels", "Selects Kubernetes clusters members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.kubeLabelsSet).StringVar(&c.kubeLabels)
-	c.update.Flag("kubernetes-users", "Kubernetes users members may impersonate on matched clusters.").PlaceHolder("user1,user2,...").IsSetByUser(&c.kubeUsersSet).StringVar(&c.kubeUsers)
-	c.update.Flag("kubernetes-groups", "Kubernetes groups members may impersonate on matched clusters.").PlaceHolder("group1,group2,...").IsSetByUser(&c.kubeGroupsSet).StringVar(&c.kubeGroups)
-	// Apps
-	c.update.Flag("app-labels", "Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.").PlaceHolder("key=value,...").IsSetByUser(&c.appLabelsSet).StringVar(&c.appLabels)
-	c.update.Flag("aws-role-arns", "AWS role ARNs members may assume via matched apps.").PlaceHolder("arn1,arn2,...").IsSetByUser(&c.awsRoleARNsSet).StringVar(&c.awsRoleARNs)
-	c.update.Flag("azure-identities", "Azure managed identities members may assume via matched apps.").PlaceHolder("id1,id2,...").IsSetByUser(&c.azureIdentitiesSet).StringVar(&c.azureIdentities)
-	c.update.Flag("gcp-service-accounts", "GCP service accounts members may assume via matched apps.").PlaceHolder("account1,account2,...").IsSetByUser(&c.gcpServiceAccountsSet).StringVar(&c.gcpServiceAccounts)
-	c.update.Flag("mcp-tools", "MCP tools members may call on matched MCP apps.").PlaceHolder("tool1,tool2,...").IsSetByUser(&c.mcpToolsSet).StringVar(&c.mcpTools)
-	// Windows
-	c.update.Flag("windows-labels", "Selects Windows desktops members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.windowsLabelsSet).StringVar(&c.windowsLabels)
-	c.update.Flag("windows-logins", "Logins members may use to connect to matched Windows desktops.").PlaceHolder("login1,login2,...").IsSetByUser(&c.windowsLoginsSet).StringVar(&c.windowsLogins)
-	// GitHub
-	c.update.Flag("github-orgs", "Selects git servers members may access by GitHub organization name.").PlaceHolder("org1,org2,...").IsSetByUser(&c.gitHubOrgsSet).StringVar(&c.gitHubOrgs)
-
-	// AWS IC
-	c.update.Flag("aws-ic-assignments", "Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID:permissionSetARN' pairs).").PlaceHolder("accountID:permSetARN,...").IsSetByUser(&c.awsicAssignmentsSet).StringVar(&c.awsicAssignments)
+	c.update.Flag("members", "Replace the user members with this list of usernames or emails.").PlaceHolder("user1,user2,...").IsSetByUser(&c.membersSet).StringVar(&c.members)
+	c.update.Flag("member-access-lists", "Replace the nested access-list members with this list of access list names.").PlaceHolder("name1,name2,...").IsSetByUser(&c.memberAccessListsSet).StringVar(&c.memberAccessLists)
+	c.initSharedOwnerMemberFlags(c.update)
+	c.initSharedResourceAccessFlags(c.update)
 
 	c.update.Flag("remove-access", "Remove resource access from an access-typed list. Detaches the resource-access roles from the list's grants and from the supporting reviewer/requester roles.").BoolVar(&c.removeAccess)
+
+	c.create = acl.Command("create", createHelpText)
+	c.create.Flag("access-type", "How members are granted access: 'standing' (members get ongoing access to the resources described by the resource flags) or 'request-based' (members must request access; owners review). When omitted, a plain access list is created with no auto-generated roles.").EnumVar(&c.accessType, accessTypeLongTerm, accessTypeShortTerm)
+	c.create.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
+	c.create.Flag("title", "Display name for the access list.").IsSetByUser(&c.titleSet).StringVar(&c.title)
+	c.create.Flag("audit-frequency", auditFrequencyText).Default("6").PlaceHolder("6").IntVar(&c.auditFrequency)
+	c.create.Flag("audit-day", auditDayText).Default("1").PlaceHolder("1").IntVar(&c.auditDay)
+	c.create.Flag("description", "Optional description.").StringVar(&c.description)
+	c.create.Flag("owners", "Usernames or emails who own this access list and review membership.").PlaceHolder("user1,user2,...").IsSetByUser(&c.ownersSet).StringVar(&c.owners)
+	c.create.Flag("owner-access-lists", "Access list names to add as owners; their members inherit owner permissions on this access list (nested access lists).").PlaceHolder("name1,name2,...").IsSetByUser(&c.ownerAccessListsSet).StringVar(&c.ownerAccessLists)
+	c.create.Flag("members", "Usernames or emails to add as members of the new access list. Members can also be added later with `tctl acl users add`.").PlaceHolder("user1,user2,...").IsSetByUser(&c.membersSet).StringVar(&c.members)
+	c.create.Flag("member-access-lists", "Access list names to add as members; their members inherit this list's member grants (nested access lists).").PlaceHolder("name1,name2,...").IsSetByUser(&c.memberAccessListsSet).StringVar(&c.memberAccessLists)
+	c.initSharedOwnerMemberFlags(c.create)
+	c.initSharedResourceAccessFlags(c.create)
 
 	if c.Stdout == nil {
 		c.Stdout = os.Stdout
 	}
+}
+
+func (c *Command) initSharedResourceAccessFlags(cmd *kingpin.CmdClause) {
+	// Nodes
+	cmd.Flag("node-labels", "Selects SSH servers members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.nodeLabelsSet).StringVar(&c.nodeLabels)
+	cmd.Flag("logins", "OS logins members may use to connect to matched SSH servers.").PlaceHolder("login1,login2,...").IsSetByUser(&c.loginsSet).StringVar(&c.logins)
+	// Dbs
+	cmd.Flag("db-labels", "Selects databases members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.dbLabelsSet).StringVar(&c.dbLabels)
+	cmd.Flag("db-users", "Database users members may connect as on matched databases.").PlaceHolder("user1,user2,...").IsSetByUser(&c.dbUsersSet).StringVar(&c.dbUsers)
+	cmd.Flag("db-names", "Database names members may connect to on matched databases.").PlaceHolder("name1,name2,...").IsSetByUser(&c.dbNamesSet).StringVar(&c.dbNames)
+	// Kubes
+	cmd.Flag("kubernetes-labels", "Selects Kubernetes clusters members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.kubeLabelsSet).StringVar(&c.kubeLabels)
+	cmd.Flag("kubernetes-users", "Kubernetes users members may impersonate on matched clusters.").PlaceHolder("user1,user2,...").IsSetByUser(&c.kubeUsersSet).StringVar(&c.kubeUsers)
+	cmd.Flag("kubernetes-groups", "Kubernetes groups members may impersonate on matched clusters.").PlaceHolder("group1,group2,...").IsSetByUser(&c.kubeGroupsSet).StringVar(&c.kubeGroups)
+	// Apps
+	cmd.Flag("app-labels", "Selects web apps members may access by label match. For AWS Identity Center apps, use --aws-ic-assignments instead.").PlaceHolder("key=value,...").IsSetByUser(&c.appLabelsSet).StringVar(&c.appLabels)
+	cmd.Flag("aws-role-arns", "AWS role ARNs members may assume via matched apps.").PlaceHolder("arn1,arn2,...").IsSetByUser(&c.awsRoleARNsSet).StringVar(&c.awsRoleARNs)
+	cmd.Flag("azure-identities", "Azure managed identities members may assume via matched apps.").PlaceHolder("id1,id2,...").IsSetByUser(&c.azureIdentitiesSet).StringVar(&c.azureIdentities)
+	cmd.Flag("gcp-service-accounts", "GCP service accounts members may assume via matched apps.").PlaceHolder("account1,account2,...").IsSetByUser(&c.gcpServiceAccountsSet).StringVar(&c.gcpServiceAccounts)
+	cmd.Flag("mcp-tools", "MCP tools members may call on matched MCP apps.").PlaceHolder("tool1,tool2,...").IsSetByUser(&c.mcpToolsSet).StringVar(&c.mcpTools)
+	// Windows
+	cmd.Flag("windows-labels", "Selects Windows desktops members may access by label match.").PlaceHolder("key=value,...").IsSetByUser(&c.windowsLabelsSet).StringVar(&c.windowsLabels)
+	cmd.Flag("windows-logins", "Logins members may use to connect to matched Windows desktops.").PlaceHolder("login1,login2,...").IsSetByUser(&c.windowsLoginsSet).StringVar(&c.windowsLogins)
+	// GitHub
+	cmd.Flag("github-orgs", "Selects git servers members may access by GitHub organization name.").PlaceHolder("org1,org2,...").IsSetByUser(&c.gitHubOrgsSet).StringVar(&c.gitHubOrgs)
+	// AWS IC
+	cmd.Flag("aws-ic-assignments", "Selects AWS Identity Center apps members may access by AWS account ID + permission set ARN ('accountID:permissionSetARN' pairs).").PlaceHolder("accountID:permSetARN,...").IsSetByUser(&c.awsicAssignmentsSet).StringVar(&c.awsicAssignments)
+}
+
+func (c *Command) initSharedOwnerMemberFlags(cmd *kingpin.CmdClause) {
+	// Owners
+	cmd.Flag("owner-grant-roles", "Roles granted to owners of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.ownerGrantRolesSet).StringVar(&c.ownerGrantRoles)
+	cmd.Flag("owner-grant-traits", "Traits granted to owners of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.ownerGrantTraitsSet).StringVar(&c.ownerGrantTraits)
+	cmd.Flag("owner-required-roles", "Roles a user must already have to be an owner of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.ownerRequiredRolesSet).StringVar(&c.ownerRequiredRoles)
+	cmd.Flag("owner-required-traits", "Traits a user must already have to be an owner of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.ownerRequiredTraitsSet).StringVar(&c.ownerRequiredTraits)
+	// Members
+	cmd.Flag("member-grant-roles", "Roles granted to members of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.memberGrantRolesSet).StringVar(&c.memberGrantRoles)
+	cmd.Flag("member-grant-traits", "Traits granted to members of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.memberGrantTraitsSet).StringVar(&c.memberGrantTraits)
+	cmd.Flag("member-required-roles", "Roles a user must already have to be a member of this access list.").PlaceHolder("role1,role2,...").IsSetByUser(&c.memberRequiredRolesSet).StringVar(&c.memberRequiredRoles)
+	cmd.Flag("member-required-traits", "Traits a user must already have to be a member of this access list.").PlaceHolder("key=value,...").IsSetByUser(&c.memberRequiredTraitsSet).StringVar(&c.memberRequiredTraits)
 }
 
 // TryRun takes the CLI command as an argument (like "acl ls") and executes it.
@@ -304,6 +350,8 @@ func (c *Command) TryRun(ctx context.Context, cmd string, clientFunc commonclien
 		commandFunc = c.Remove
 	case c.update.FullCommand():
 		commandFunc = c.Update
+	case c.create.FullCommand():
+		commandFunc = c.Create
 	default:
 		return false, nil
 	}
