@@ -673,6 +673,7 @@ func connectToWDS(
 	if err != nil {
 		return hs.sendError(ctx, log, err)
 	}
+	defer serviceConn.Close()
 
 	serviceConnTLS := tls.Client(serviceConn, tlsConfig)
 	if err := serviceConnTLS.HandshakeContext(ctx); err != nil {

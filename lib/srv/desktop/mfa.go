@@ -21,6 +21,7 @@ package desktop
 import (
 	"context"
 	"crypto/tls"
+	"time"
 
 	"github.com/gravitational/trace"
 	"google.golang.org/grpc"
@@ -122,6 +123,13 @@ func HandleInBandMFA(
 	if err := conn.WriteMessage((*tdpb.AuthPrompt)(NewAuthPrompt())); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// Enforce the 3-minute MFA timeout. The underlying tls.Conn is shared with the tdp.Conn, so the deadline applies to
+	// the ReadMessage call below.
+	if err := tlsConn.SetReadDeadline(time.Now().Add(3 * time.Minute)); err != nil {
+		return trace.Wrap(err)
+	}
+	defer tlsConn.SetReadDeadline(time.Time{})
 
 	msg, err := conn.ReadMessage()
 	if err != nil {

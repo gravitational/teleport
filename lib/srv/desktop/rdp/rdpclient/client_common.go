@@ -48,9 +48,6 @@ type Config struct {
 	LicenseStore LicenseStore
 	HostID       string
 
-	// AuthorizeFn is called to authorize a user connecting to a Windows desktop.
-	AuthorizeFn func(login string) error
-
 	// Encoder is an optional override for PNG encoding.
 	Encoder *png.Encoder
 
@@ -95,9 +92,6 @@ type Config struct {
 func (c *Config) checkAndSetDefaults() error {
 	if c.Addr == "" {
 		return trace.BadParameter("missing Addr in rdpclient.Config")
-	}
-	if c.AuthorizeFn == nil {
-		return trace.BadParameter("missing AuthorizeFn in rdpclient.Config")
 	}
 	if c.Logger == nil {
 		return trace.BadParameter("missing Logger in rdpclient.Config")
