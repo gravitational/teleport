@@ -1619,6 +1619,9 @@ func TestSSHOnMultipleNodes(t *testing.T) {
 	require.Eventually(t, hasNodes(leafProxy, "leafcluster", sshLeafHostID),
 		5*time.Second, 100*time.Millisecond, "nodes never joined leaf cluster")
 
+	require.Eventually(t, hasNodes(rootProxy, "leafcluster", sshLeafHostID),
+		5*time.Second, 100*time.Millisecond, "root proxy never saw leaf node via trusted cluster")
+
 	defaultPreference, err := rootAuth.GetAuthServer().GetAuthPreference(ctx)
 	require.NoError(t, err)
 
