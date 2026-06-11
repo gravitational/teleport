@@ -32,7 +32,6 @@ import (
 	conv "github.com/gravitational/teleport/api/types/accesslist/convert/v1"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
 )
 
 // Update handles `tctl acl update`.
@@ -164,164 +163,10 @@ func (c *Command) applySpecFlags(al *accesslist.AccessList) error {
 		al.Spec.Audit.NextAuditDate = time.Time{}
 	}
 
-	// Owner grants and requirements
-	if c.ownerGrantRolesSet {
-		al.Spec.OwnerGrants.Roles = utils.SplitIdentifiers(c.ownerGrantRoles)
-	}
-	if c.ownerGrantTraitsSet {
-		traits, err := parse.MultiValueLabelSelectorSpec(c.ownerGrantTraits)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		al.Spec.OwnerGrants.Traits = traits
-	}
-	if c.ownerRequiredRolesSet {
-		al.Spec.OwnershipRequires.Roles = utils.SplitIdentifiers(c.ownerRequiredRoles)
-	}
-	if c.ownerRequiredTraitsSet {
-		traits, err := parse.MultiValueLabelSelectorSpec(c.ownerRequiredTraits)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		al.Spec.OwnershipRequires.Traits = traits
+	if err := c.applyGrantsAndRequires(al); err != nil {
+		return trace.Wrap(err)
 	}
 
-	// Member grants and requirements
-	if c.memberGrantRolesSet {
-		al.Spec.Grants.Roles = utils.SplitIdentifiers(c.memberGrantRoles)
-	}
-	if c.memberGrantTraitsSet {
-		traits, err := parse.MultiValueLabelSelectorSpec(c.memberGrantTraits)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		al.Spec.Grants.Traits = traits
-	}
-	if c.memberRequiredRolesSet {
-		al.Spec.MembershipRequires.Roles = utils.SplitIdentifiers(c.memberRequiredRoles)
-	}
-	if c.memberRequiredTraitsSet {
-		traits, err := parse.MultiValueLabelSelectorSpec(c.memberRequiredTraits)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		al.Spec.MembershipRequires.Traits = traits
-	}
-
-	return nil
-}
-
-type applyAccessFlagsToRole func(allow *types.RoleConditions) error
-
-// applyAWSICFlagsToRole modifies the AWS IC role's allow block.
-// Empty values clear the whole allow spec since this role is specific to awsic,
-// unset flags leave fields alone.
-func (c *Command) applyAWSICFlagsToRole(allow *types.RoleConditions) error {
-	if c.awsicAssignments == "" {
-		*allow = types.RoleConditions{}
-	} else {
-		allow.AppLabels = awsIcAppLabel
-		aa, err := buildAWSICAccountAssignments(c.awsicAssignments)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		allow.AccountAssignments = aa
-	}
-	return nil
-}
-
-// applyStandardAccessFlagsToRole modifies the standard role's allow block.
-// Empty values clear the field, unset flags leave field alone.
-func (c *Command) applyStandardAccessFlagsToRole(allow *types.RoleConditions) error {
-	// Nodes
-	if c.nodeLabelsSet {
-		labels, err := parse.MultiValueLabelSelectorSpec(c.nodeLabels)
-		if err != nil {
-			return trace.Wrap(err, "--node-labels")
-		}
-		allow.NodeLabels = types.ToLabels(labels)
-	}
-	if c.loginsSet {
-		allow.Logins = utils.SplitIdentifiers(c.logins)
-	}
-
-	// Dbs
-	if c.dbLabelsSet {
-		labels, err := parse.MultiValueLabelSelectorSpec(c.dbLabels)
-		if err != nil {
-			return trace.Wrap(err, "--db-labels")
-		}
-		allow.DatabaseLabels = types.ToLabels(labels)
-	}
-	if c.dbUsersSet {
-		allow.DatabaseUsers = utils.SplitIdentifiers(c.dbUsers)
-	}
-	if c.dbNamesSet {
-		allow.DatabaseNames = utils.SplitIdentifiers(c.dbNames)
-	}
-
-	// Kubes
-	if c.kubeLabelsSet {
-		labels, err := parse.MultiValueLabelSelectorSpec(c.kubeLabels)
-		if err != nil {
-			return trace.Wrap(err, "--kubernetes-labels")
-		}
-		allow.KubernetesLabels = types.ToLabels(labels)
-	}
-	if c.kubeUsersSet {
-		allow.KubeUsers = utils.SplitIdentifiers(c.kubeUsers)
-	}
-	if c.kubeGroupsSet {
-		allow.KubeGroups = utils.SplitIdentifiers(c.kubeGroups)
-	}
-
-	// Apps
-	if c.appLabelsSet {
-		labels, err := parse.MultiValueLabelSelectorSpec(c.appLabels)
-		if err != nil {
-			return trace.Wrap(err, "--app-labels")
-		}
-		allow.AppLabels = types.ToLabels(labels)
-	}
-	if c.awsRoleARNsSet {
-		allow.AWSRoleARNs = utils.SplitIdentifiers(c.awsRoleARNs)
-	}
-	if c.azureIdentitiesSet {
-		allow.AzureIdentities = utils.SplitIdentifiers(c.azureIdentities)
-	}
-	if c.gcpServiceAccountsSet {
-		allow.GCPServiceAccounts = utils.SplitIdentifiers(c.gcpServiceAccounts)
-	}
-	if c.mcpToolsSet {
-		tools := utils.SplitIdentifiers(c.mcpTools)
-		if len(tools) == 0 {
-			allow.MCP = nil
-		} else {
-			allow.MCP = &types.MCPPermissions{Tools: tools}
-		}
-	}
-
-	// Windows
-	if c.windowsLabelsSet {
-		labels, err := parse.MultiValueLabelSelectorSpec(c.windowsLabels)
-		if err != nil {
-			return trace.Wrap(err, "--windows-labels")
-		}
-		allow.WindowsDesktopLabels = types.ToLabels(labels)
-	}
-	if c.windowsLoginsSet {
-		allow.WindowsDesktopLogins = utils.SplitIdentifiers(c.windowsLogins)
-	}
-
-	// GitHub
-	if c.gitHubOrgsSet {
-		orgs := utils.SplitIdentifiers(c.gitHubOrgs)
-		if len(orgs) == 0 {
-			allow.GitHubPermissions = nil
-		} else {
-			allow.GitHubPermissions = []types.GitHubPermission{{Organizations: orgs}}
-		}
-	}
 	return nil
 }
 
@@ -492,11 +337,7 @@ func (c *Command) printUpdateText(r UpdateJSONResponse) {
 	}
 
 	if len(r.UpdatedOrCreatedRoles) > 0 {
-		names := make([]string, 0, len(r.UpdatedOrCreatedRoles))
-		for _, role := range r.UpdatedOrCreatedRoles {
-			names = append(names, role.GetMetadata().Name)
-		}
-		fmt.Fprintf(c.Stdout, "Roles updated or created: %s\n", strings.Join(names, ", "))
+		fmt.Fprintf(c.Stdout, "Roles updated or created: %s\n", strings.Join(r.UpdatedOrCreatedRoles, ", "))
 	}
 
 	c.printRolesToBeDeleted(r.RolesToDelete)
@@ -558,7 +399,7 @@ func getAccessRoleByName(ctx context.Context, client *authclient.Client, roleNam
 type UpdateJSONResponse struct {
 	AccessList            *accesslist.AccessList `json:"access_list"`
 	AccessType            string                 `json:"access_type,omitempty"`
-	UpdatedOrCreatedRoles []*types.RoleV6        `json:"updated_or_created_roles,omitempty"`
+	UpdatedOrCreatedRoles []string               `json:"updated_or_created_roles,omitempty"`
 	RolesToDelete         []string               `json:"roles_to_delete,omitempty"`
 	OwnersRemoved         []string               `json:"owners_removed,omitempty"`
 	MembersRemoved        []string               `json:"members_removed,omitempty"`
