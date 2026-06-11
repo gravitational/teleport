@@ -768,7 +768,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			fs = makeCacheHandler(fs, etag)
 
 			http.StripPrefix("/web", fs).ServeHTTP(w, r)
-		} else if strings.HasPrefix(r.URL.Path, "/web/") || r.URL.Path == "/web" {
+		} else if isWebUIRoute(r.URL.Path) {
 			csrfToken, err := csrf.AddCSRFProtection(w, r)
 			if err != nil {
 				h.logger.WarnContext(r.Context(), "Failed to generate CSRF token", "error", err)
@@ -828,6 +828,12 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		handler:    h,
 		appHandler: appHandler,
 	}, nil
+}
+
+func isWebUIRoute(path string) bool {
+	return path == "/web" ||
+		strings.HasPrefix(path, "/web/") ||
+		path == "/delegation/authorize"
 }
 
 type webSession struct {

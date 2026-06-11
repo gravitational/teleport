@@ -125,6 +125,7 @@ export const ossRoutes = {
   joinTokens: '/web/tokens',
   deviceTrust: `/web/devices`,
   deviceTrustAuthorize: '/web/device/authorize/:id?/:token?',
+  delegationAuthorize: '/delegation/authorize',
   sso: '/web/sso',
   cluster: '/web/cluster/:clusterId/',
   clusters: '/web/clusters',

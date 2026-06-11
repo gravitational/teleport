@@ -35,6 +35,7 @@ import { AppLauncher } from './AppLauncher';
 import { BrowserMfa } from './BrowserMFA/BrowserMFA';
 import cfg from './config';
 import { ConsoleWithContext as Console } from './Console';
+import { DelegationAuthorize } from './DelegationAuthorize';
 import { DesktopSessionContainer as DesktopSession } from './DesktopSession';
 import { HeadlessRequest } from './HeadlessRequest';
 import { Login } from './Login';
@@ -101,6 +102,7 @@ const Teleport: React.FC<Props> = props => {
               <Suspense fallback={null}>
                 <Switch>
                   {createPublicRoutes()}
+                  {getDelegationAuthorizeRoute()}
                   <Route path={cfg.routes.root}>
                     <Authenticated>
                       <UserContextProvider>
@@ -192,6 +194,22 @@ export function getSharedPublicRoutes() {
       element={<SingleLogoutFailed />}
     />,
   ];
+}
+
+export function getDelegationAuthorizeRoute() {
+  return (
+    <Route
+      exact
+      key="delegation-authorize"
+      title="Delegation Authorization"
+      path={cfg.routes.delegationAuthorize}
+      element={
+        <Authenticated>
+          <DelegationAuthorize />
+        </Authenticated>
+      }
+    />
+  );
 }
 
 function privateOSSRoutes() {
