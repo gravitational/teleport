@@ -196,7 +196,7 @@ the PR you opened.
 You should see a Terraform plan that includes the user and role you defined
 earlier:
 
-![Terraform plan](../../../../img/management/spacelift/pr-run.png)
+![Terraform plan](../../../img/management/spacelift/pr-run.png)
 
 When running `terraform plan`, the Teleport Terraform Provider uses Machine &
 Workload Identity to generate the short-lived credentials necessary to
@@ -208,7 +208,7 @@ the run. Click **Confirm** to begin applying your Terraform plan.
 
 You should see output indicating success:
 
-![Successful apply](../../../../img/management/spacelift/apply-success.png)
+![Successful apply](../../../img/management/spacelift/apply-success.png)
 
 Verify that Spacelift has created the new user and role by running the following
 commands, which should return YAML data for each resource:
@@ -222,7 +222,7 @@ $ tctl get users/terraform-test
 
 - Now that you know how to manage Teleport configuration resources with
   Terraform and Spacelift, read the [Terraform resource
-  reference](../../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx) so
+  reference](../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx) so
   you can flesh out your configuration.
 - To find out more about Spacelift's OIDC implementation, which Machine &
   Workload Identity uses to authenticate to your Teleport cluster, read
