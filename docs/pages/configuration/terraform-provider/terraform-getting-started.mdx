@@ -24,9 +24,9 @@ for infrastructure resources.
 
 An Agent is a Teleport instance configured to run one or more Teleport services
 in order to proxy infrastructure resources (see [Introduction to Teleport
-Agents](../../../installation/agents/agents.mdx)). There are several methods
+Agents](../../installation/agents/agents.mdx)). There are several methods
 you can use to join a Teleport Agent to your cluster, which we discuss in the
-[Joining Services to your Cluster](../../../installation/agents/agents.mdx)
+[Joining Services to your Cluster](../../installation/agents/agents.mdx)
 guide. In this guide, we will use the **join token** method, where the operator
 stores a secure token on the Auth Service, and an Agent presents the token in
 order to join a cluster.
@@ -48,14 +48,14 @@ Sign-On provider.
 ## Prerequisites
 
 - A running Teleport (v16.2.0 or higher) cluster. If you do not have one, read
-  [Getting Started](../../../get-started/get-started.mdx).
+  [Getting Started](../../get-started/get-started.mdx).
 
 <Admonition type="tip">
 
 We recommend following this guide on a fresh Teleport demo cluster. After you
 are familiar with the setup, apply the lessons from this guide to protect your
 infrastructure. You can get started with a demo cluster using:
-- A demo deployment on a [Linux server](../../../get-started/deploy-community.mdx)
+- A demo deployment on a [Linux server](../../get-started/deploy-community.mdx)
 - A [Teleport Enterprise (Cloud) trial](https://goteleport.com/signup)
 
 </Admonition>
@@ -84,13 +84,13 @@ infrastructure. You can get started with a demo cluster using:
   you how to set up your IdP to support the SAML or OIDC authentication
   connector. **Read only the linked section**, since these guides assume you are
   using `tctl` instead of Terraform to manage authentication connectors:
-  - [AD FS](../../sso/integrate-idp/adfs.mdx#step-13-configure-adfs)
-  - [GitLab](../../sso/integrate-idp/gitlab.mdx#step-13-configure-gitlab)
+  - [AD FS](../../zero-trust-access/sso/integrate-idp/adfs.mdx#step-13-configure-adfs)
+  - [GitLab](../../zero-trust-access/sso/integrate-idp/gitlab.mdx#step-13-configure-gitlab)
   - [Google
-    Workspace](../../sso/integrate-idp/google-workspace.mdx#step-13-configure-google-workspace)
-  - [OneLogin](../../sso/integrate-idp/one-login.mdx#step-13-create-teleport-application-in-onelogin)
-  - [Entra ID](../../sso/integrate-idp/entra-id.mdx#step-13-configure-microsoft-entra-id)
-  - [Okta](../../sso/integrate-idp/okta.mdx#step-13-configure-okta)
+    Workspace](../../zero-trust-access/sso/integrate-idp/google-workspace.mdx#step-13-configure-google-workspace)
+  - [OneLogin](../../zero-trust-access/sso/integrate-idp/one-login.mdx#step-13-create-teleport-application-in-onelogin)
+  - [Entra ID](../../zero-trust-access/sso/integrate-idp/entra-id.mdx#step-13-configure-microsoft-entra-id)
+  - [Okta](../../zero-trust-access/sso/integrate-idp/okta.mdx#step-13-configure-okta)
 
 - To help with troubleshooting, we recommend completing the setup steps in this
   guide with a local user that has the preset `editor` and `auditor` roles. In
@@ -673,7 +673,7 @@ do so, you can:
   `dev_access` and `prod_access` roles (see the
   [documentation](import-existing-resources.mdx)).
 - Create a new `teleport_user` resource that includes the roles
-  ([documentation](../managing-resources/user-and-role.mdx).
+  ([documentation](../resource-guides/user-and-role.mdx).
 
 If you plan to skip this step, make sure to remove the `module "saml"` or
 `module "oidc"` block from your Terraform configuration.
@@ -1065,7 +1065,7 @@ To configure the Teleport Discovery Service:
 
 1. Edit the userdata script run by the Agent instances managed in the Terraform
    starter module. Follow the [Auto-Discovery
-   guides](../../../enroll-resources/auto-discovery/auto-discovery.mdx) guides
+   guides](../../enroll-resources/auto-discovery/auto-discovery.mdx) guides
    to configure the Discovery Service and enable your Agents to proxy the
    resources that the service enrolls.
 1. Add the `Discovery` role to the join token resource you created earlier. In
@@ -1073,7 +1073,7 @@ To configure the Teleport Discovery Service:
 1. Add roles to the join token resource that corresponds to the Agent services
    you want to proxy discovered resources. The roles to add depend on the
    resources you want to automatically enroll based on the [Auto-Discovery
-   guides](../../../enroll-resources/auto-discovery/auto-discovery.mdx) guides.
+   guides](../../enroll-resources/auto-discovery/auto-discovery.mdx) guides.
 
 ### Enroll resources manually
 
@@ -1081,14 +1081,14 @@ You can also enroll resources manually, instructing Agents to proxy specific
 endpoints in your infrastructure. For information about manual enrollment, read
 the documentation section for each kind of resource you would like to enroll:
   
-- [Databases](../../../enroll-resources/database-access/database-access.mdx)
+- [Databases](../../enroll-resources/database-access/database-access.mdx)
 - [Windows
-  desktops](../../../enroll-resources/desktop-access/desktop-access.mdx)
+  desktops](../../enroll-resources/desktop-access/desktop-access.mdx)
 - [Kubernetes
-  clusters](../../../enroll-resources/kubernetes-access/kubernetes-access.mdx)
-- [Linux servers](../../../enroll-resources/server-access/server-access.mdx)
+  clusters](../../enroll-resources/kubernetes-access/kubernetes-access.mdx)
+- [Linux servers](../../enroll-resources/server-access/server-access.mdx)
 - [Web applications and cloud provider
-  APIs](../../../enroll-resources/application-access/application-access.mdx)
+  APIs](../../enroll-resources/application-access/application-access.mdx)
 
 Once you are familiar with the process of enrolling a resource manually, you can
 edit your Terraform module to:
@@ -1100,7 +1100,7 @@ edit your Terraform module to:
 1. **Change the userdata script** to enable additional Agent services additional
    infrastructure resources for your Agents to proxy.
 1. **Deploy dynamic resources:** Consult the [Terraform provider
-   reference](../../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx) for
+   reference](../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx) for
    Terraform resources that you can apply in order to enroll dynamic resources
    in your infrastructure.
 
@@ -1108,4 +1108,4 @@ edit your Terraform module to:
 
 Now that you have configured RBAC in your Terraform demo cluster, fine-tune your
 setup by reading the comprehensive [Terraform provider
-reference](../../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx).
+reference](../../reference/infrastructure-as-code/terraform-provider/terraform-provider.mdx).
