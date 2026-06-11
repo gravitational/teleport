@@ -81,6 +81,7 @@ import (
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/authz"
 	libmfa "github.com/gravitational/teleport/lib/client/mfa"
+	clientssh "github.com/gravitational/teleport/lib/client/ssh"
 	"github.com/gravitational/teleport/lib/client/sso"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/cryptosuites"
@@ -1763,6 +1764,18 @@ func (tc *TeleportClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	return result.KeyRing, nil
 }
 
+// PerformSessionMFACeremony performs a session-bound MFA ceremony for an SSH session
+// and returns the challenge name.
+func (tc *TeleportClient) PerformSessionMFACeremony(ctx context.Context, sessionID []byte) (string, error) {
+	clusterClient, err := tc.ConnectToCluster(ctx)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	defer clusterClient.Close()
+
+	return clusterClient.PerformSessionMFACeremony(ctx, sessionID)
+}
+
 // CreateAccessRequestV2 registers a new access request with the auth server.
 func (tc *TeleportClient) CreateAccessRequestV2(ctx context.Context, req types.AccessRequest) (types.AccessRequest, error) {
 	ctx, span := tc.Tracer.Start(
@@ -2082,9 +2095,17 @@ func (tc *TeleportClient) connectToNode(ctx context.Context, clt *ClusterClient,
 		return nil, trace.Wrap(err)
 	}
 
+	sshConfig := clt.ProxyClient.SSHConfig(user)
+	sshConfig.AuthCallback = clientssh.AuthCallback(
+		connectCtx,
+		func() (clientssh.Performer, error) {
+			return tc.PerformSessionMFACeremony, nil
+		},
+	)
+
 	nodeClient, err := NewNodeClient(
 		connectCtx,
-		clt.ProxyClient.SSHConfig(user),
+		sshConfig,
 		conn,
 		nodeDetails.ProxyFormat(),
 		nodeDetails.Addr,
