@@ -74,6 +74,8 @@ func (c *AccessGraphCommand) TryRun(ctx context.Context, cmd string, clientFunc 
 		commandFunc = c.DetectionsGet
 	case c.accessChanges.ls.cmd.FullCommand():
 		commandFunc = c.AccessChangesList
+	case c.accessChanges.get.cmd.FullCommand():
+		commandFunc = c.AccessChangesGet
 	default:
 		return false, nil
 	}
