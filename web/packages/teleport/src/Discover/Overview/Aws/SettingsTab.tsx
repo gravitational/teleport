@@ -175,7 +175,7 @@ export function SettingsTab({
 
             <DeleteIntegrationSection
               integrationName={integrationName}
-              cloudName="AWS"
+              integrationKind="AWS"
             />
           </Box>
 

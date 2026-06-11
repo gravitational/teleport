@@ -21,12 +21,12 @@ import { TextSelectCopyMulti } from 'shared/components/TextSelectCopy';
 
 type DeleteIntegrationSectionProps = {
   integrationName: string;
-  cloudName?: string;
+  integrationKind?: string;
 };
 
 export function DeleteIntegrationSection({
   integrationName,
-  cloudName = 'cloud',
+  integrationKind = 'cloud',
 }: DeleteIntegrationSectionProps) {
   return (
     <Card>
@@ -43,7 +43,7 @@ export function DeleteIntegrationSection({
                 {integrationName}
               </Text>{' '}
               module from your Terraform configuration will remove Teleport and{' '}
-              {cloudName} resources used for auto-discovery.
+              {integrationKind} resources used for auto-discovery.
             </Text>
           </Flex>
         </Alert>
@@ -57,7 +57,7 @@ export function DeleteIntegrationSection({
 
         <Text mt={2} fontSize={1} color="text.slightlyMuted">
           Note: This removes the integration and dependent IAM resources but
-          does not delete your {cloudName} resources in Teleport. To remove
+          does not delete your {integrationKind} resources in Teleport. To remove
           resources from Teleport, delete them via the Teleport UI or CLI.
         </Text>
       </Flex>

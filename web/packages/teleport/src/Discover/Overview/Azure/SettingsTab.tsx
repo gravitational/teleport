@@ -209,7 +209,7 @@ export function SettingsTab({
 
             <DeleteIntegrationSection
               integrationName={integrationName}
-              cloudName="Azure"
+              integrationKind="Azure"
             />
           </Box>
 
