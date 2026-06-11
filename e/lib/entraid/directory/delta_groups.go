@@ -46,9 +46,10 @@ func newGroupsDeltaProcessor(
 	// is taken as the base resource collection to which the delta changes
 	// are applied.
 	baseBuilder := &groupBaseBuilder{
-		accessLists: cfg.accessListsMap,
-		users:       maps.Clone(cfg.teleportUsersMap),
-		log:         cfg.log,
+		accessLists:         cfg.accessListsMap,
+		users:               maps.Clone(cfg.teleportUsersMap),
+		setEntraGroupOwners: cfg.setEntraGroupOwners,
+		log:                 cfg.log,
 	}
 	groupBase := baseBuilder.build(ctx)
 
@@ -338,8 +339,9 @@ type groupBaseBuilder struct {
 	// Teleport Access List with member map.
 	accessLists map[string]*accessListWithMembers
 	// Teleport users map.
-	users map[string]types.User
-	log   *slog.Logger
+	users               map[string]types.User
+	setEntraGroupOwners bool
+	log                 *slog.Logger
 }
 
 // build builds a baseline Entra ID group, group member
@@ -371,7 +373,9 @@ func (b *groupBaseBuilder) build(ctx context.Context) groupBase {
 			membersMap[memberID] = member
 		}
 		out.groupsMap[groupID] = newGroupFromAccessList(id, al.AccessList)
-		out.groupOwnersMap[groupID] = groupOwnersFromAccessList(ctx, al.AccessList, b.users, b.log)
+		if b.setEntraGroupOwners {
+			out.groupOwnersMap[groupID] = groupOwnersFromAccessList(al.AccessList, b.users)
+		}
 		out.groupMembersMap[groupID] = membersMap
 	}
 
@@ -461,7 +465,7 @@ func newGroupFromAccessList(id string, accessList *accesslist.AccessList) *model
 // out in the documentation or investigate a way to identify owners used as a
 // fallback vs. actual owners that can be removed when a new owner is available
 // for a group.
-func groupOwnersFromAccessList(ctx context.Context, accessList *accesslist.AccessList, teleportUsersMap map[string]types.User, logger *slog.Logger) ownersByID {
+func groupOwnersFromAccessList(accessList *accesslist.AccessList, teleportUsersMap map[string]types.User) ownersByID {
 	ownerMap := make(ownersByID)
 	for _, o := range accessList.Spec.Owners {
 		if !o.IsMembershipKindUser() {
@@ -469,20 +473,17 @@ func groupOwnersFromAccessList(ctx context.Context, accessList *accesslist.Acces
 		}
 		// Only user as acl owner is supported for entra integration.
 
+		// If a user account is not found or is missing EntraUniqueIDLabel, it
+		// could be a default owner having Teleport local user account
+		// or an SSO user from a different IdP. It's ok to skip such owners
+		// here as they will be re-added as owner in the later stage based
+		// on the Access List owners source config.
 		user, ok := teleportUsersMap[o.Name]
 		if !ok {
-			logger.DebugContext(ctx,
-				"Teleport user account not found for Entra ID Access List owner",
-				"access_list_owner", o.Name,
-			)
 			continue
 		}
 		id, ok := user.GetLabel(types.EntraUniqueIDLabel)
 		if !ok || id == "" {
-			// This could be a default owner having Teleport local user account
-			// or an SSO user from a different IdP. It's ok to skip such owner
-			// here as they will be re-added as owners in the later stage based
-			// on the Access List owners source config.
 			continue
 		}
 		ownerMap[entraUniqueID(id)] = entraOwnerFromTeleportUser(user, id)

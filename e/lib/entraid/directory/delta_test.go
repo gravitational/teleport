@@ -1,6 +1,7 @@
 package directory
 
 import (
+	"fmt"
 	"strconv"
 	"testing"
 
@@ -9,6 +10,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/accesslist"
+	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/lib/msgraph/models"
 	"github.com/gravitational/teleport/lib/plugins/filter"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
@@ -410,6 +412,62 @@ func TestProcessGroupDelta(t *testing.T) {
 			}
 			require.Len(t, out.groupsMap[entraUniqueID(*tc.groupDelta.ID)].Owners, tc.expectedGroupOwnersCount, "expected groups owners map length to match")
 			require.Equal(t, tc.expectedDisplay, *out.groupsMap[entraUniqueID(*tc.groupDelta.ID)].DisplayName, "expected group display name to match")
+		})
+	}
+}
+
+func TestGroupOwnerBuilder(t *testing.T) {
+	t.Parallel()
+	ctx := t.Context()
+
+	teleportUsers := map[string]types.User{
+		"alice": mustTeleportUser("alice", alice),
+		"bob":   mustTeleportUser("bob", bob),
+	}
+
+	acl, err := accesslist.NewAccessList(
+		header.Metadata{
+			Name: group1,
+			Labels: map[string]string{
+				types.EntraUniqueIDLabel: group1,
+			},
+		},
+		accesslist.Spec{
+			Title: group1,
+			Owners: []accesslist.Owner{
+				{
+					Name: "alice",
+				},
+				{
+					Name: "bob",
+				},
+			},
+		},
+	)
+	require.NoError(t, err)
+
+	for _, expectOwners := range []bool{true, false} {
+		t.Run(fmt.Sprintf("expectOwners=%s", strconv.FormatBool(expectOwners)), func(t *testing.T) {
+			builder := groupBaseBuilder{
+				accessLists: map[string]*accessListWithMembers{
+					group1: &accessListWithMembers{
+						AccessList: acl,
+						Members:    make([]*accesslist.AccessListMember, 0),
+					},
+				},
+				users:               teleportUsers,
+				setEntraGroupOwners: expectOwners,
+				log:                 logtest.NewLogger(),
+			}
+			base := builder.build(ctx)
+
+			if expectOwners {
+				require.Len(t, base.groupOwnersMap[group1], 2, "expected groupOwnersMap count mismatch")
+				require.Contains(t, base.groupOwnersMap[group1], entraUniqueID(alice))
+				require.Contains(t, base.groupOwnersMap[group1], entraUniqueID(bob))
+			} else {
+				require.Empty(t, base.groupOwnersMap[group1], "groupOwnersMap not empty when owners source is plugin")
+			}
 		})
 	}
 }
