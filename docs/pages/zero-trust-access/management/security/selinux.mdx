@@ -44,7 +44,7 @@ Before installing the SELinux module, ensure the following requirements are met:
   - **SSH Service only.** The agent must run only the SSH Service. Teleport exits
     with an error if `--enable-selinux` is set while other services are enabled or
     the SSH Service is disabled.
-  - **Runs as a systemd service. Teleport is expected to run as a systemd service. 
+  - **Runs as a systemd service.** Teleport is expected to run as a systemd service. 
     SELinux enforcement relies on Teleport running under the `teleport_ssh_t` domain, 
     which typically only occurs when Teleport is started by systemd.
 
