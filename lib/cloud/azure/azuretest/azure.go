@@ -37,6 +37,7 @@ type Clients struct {
 	AzureAKSClient          azure.AKSClient
 	AzureVirtualMachines    azure.VirtualMachinesClient
 	AzureSQLServer          azure.SQLServerClient
+	AzureResourceGraph      azure.ResourceGraphClient
 	AzureManagedSQLServer   azure.ManagedSQLServerClient
 	AzureMySQLFlex          azure.MySQLFlexServersClient
 	AzurePostgresFlex       azure.PostgresFlexServersClient
@@ -93,6 +94,11 @@ func (c *Clients) GetRedisEnterpriseClient(ctx context.Context, subscription str
 // the given subscription.
 func (c *Clients) GetVirtualMachinesClient(ctx context.Context, subscription string) (azure.VirtualMachinesClient, error) {
 	return c.AzureVirtualMachines, nil
+}
+
+// GetResourceGraphClient returns the configured Resource Graph client.
+func (c *Clients) GetResourceGraphClient(ctx context.Context) (azure.ResourceGraphClient, error) {
+	return c.AzureResourceGraph, nil
 }
 
 // GetSQLServerClient returns an Azure client for listing SQL servers.
