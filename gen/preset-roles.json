@@ -1272,6 +1272,18 @@
               "update",
               "delete"
             ]
+          },
+          {
+            "resources": [
+              "beams_config"
+            ],
+            "verbs": [
+              "list",
+              "create",
+              "read",
+              "update",
+              "delete"
+            ]
           }
         ]
       },

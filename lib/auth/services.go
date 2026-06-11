@@ -100,6 +100,7 @@ type Services struct {
 	MFAService
 	services.WorkloadClusterService
 	services.Beams
+	services.BeamsConfigService
 	services.SubCAService
 }
 

@@ -162,6 +162,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindAppServer},
 		{Kind: types.KindApp},
 		{Kind: types.KindBeam},
+		{Kind: types.KindBeamsConfig},
 		{Kind: types.KindWebSession, SubKind: types.KindSnowflakeSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindAppSession, LoadSecrets: true},
 		{Kind: types.KindWebSession, SubKind: types.KindWebSession, LoadSecrets: true},
@@ -715,6 +716,8 @@ type Config struct {
 	Apps services.Applications
 	// Beams is a beam reader service.
 	Beams services.BeamReader
+	// BeamsConfig is a beams config getter service.
+	BeamsConfig services.BeamsConfigGetter
 	// Kubernetes is an kubernetes service.
 	Kubernetes services.Kubernetes
 	// CrownJewels is a CrownJewels service.
