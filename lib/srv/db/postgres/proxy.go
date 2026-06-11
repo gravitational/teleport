@@ -53,8 +53,26 @@ type Proxy struct {
 	IngressReporter *ingress.Reporter
 }
 
+func (p *Proxy) HandleConnectionWithLimiting(ctx context.Context, clientConn net.Conn) error {
+	// Apply connection and rate limiting.
+	clientIP, err := utils.ClientIPFromConn(clientConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	releaseConn, err := p.Limiter.RegisterRequestAndConnection(clientIP)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer releaseConn()
+
+	return trace.Wrap(p.HandleConnection(ctx, clientConn))
+}
+
 // HandleConnection accepts connection from a Postgres client, authenticates
 // it and proxies it to an appropriate database service.
+//
+// Does not apply connection or rate limiting. Use HandleConnectionWithLimiting
+// when accepting untrusted connections directly.
 func (p *Proxy) HandleConnection(ctx context.Context, clientConn net.Conn) (err error) {
 	if p.IngressReporter != nil {
 		p.IngressReporter.ConnectionAccepted(ingress.Postgres, clientConn)
@@ -82,13 +100,6 @@ func (p *Proxy) handleConnection(ctx context.Context, clientConn utils.TLSConn, 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Apply connection and rate limiting.
-	releaseConn, err := p.Limiter.RegisterRequestAndConnection(clientIP)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer releaseConn()
 
 	proxyCtx, err := p.Service.Authorize(ctx, clientConn, common.ConnectParams{
 		ClientIP: clientIP,
