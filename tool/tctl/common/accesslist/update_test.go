@@ -44,7 +44,7 @@ func TestApplySpecFlags(t *testing.T) {
 			name: "description",
 			cmd:  Command{descriptionSet: true, description: "New Desc"},
 			assert: func(t *testing.T, al *accesslist.AccessList) {
-				require.Equal(t, "New Desc", al.Metadata.Description)
+				require.Equal(t, "New Desc", al.Spec.Description)
 			},
 		},
 		{

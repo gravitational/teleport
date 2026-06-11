@@ -138,7 +138,7 @@ func (c *Command) applySpecFlags(al *accesslist.AccessList) error {
 		al.Spec.Title = c.title
 	}
 	if c.descriptionSet {
-		al.Metadata.Description = c.description
+		al.Spec.Description = c.description
 	}
 	if c.auditFrequencySet {
 		freq, err := getReviewFrequency(c.auditFrequency)
@@ -508,17 +508,18 @@ func (c *Command) printUpdateText(r UpdateJSONResponse) {
 func resolveAccessRole(ctx context.Context, client *authclient.Client, al *accesslist.AccessList, prefix string, applyUpdates applyAccessFlagsToRole) (*types.RoleV6, error) {
 	roleName := accesslist.RoleName(prefix, al.GetName())
 	role, err := getAccessRoleByName(ctx, client, roleName)
-	if err != nil {
+	if err != nil && !trace.IsNotFound(err) {
 		return nil, trace.Wrap(err)
 	}
+	roleExists := err == nil
 
 	// Role doesn't exist, and no role building is required.
-	if role == nil && applyUpdates == nil {
+	if !roleExists && applyUpdates == nil {
 		return nil, nil
 	}
 
 	// Role doesn't exist, but role building is required.
-	if role == nil {
+	if !roleExists {
 		role, err = buildRole(prefix, types.RoleConditions{})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -534,13 +535,9 @@ func resolveAccessRole(ctx context.Context, client *authclient.Client, al *acces
 	return role, nil
 }
 
-// getAccessRoleByName fetches a role, returning nil if the role doesn't exist.
+// getAccessRoleByName fetches a role by given name.
 func getAccessRoleByName(ctx context.Context, client *authclient.Client, roleName string) (*types.RoleV6, error) {
 	role, err := client.GetRole(ctx, roleName)
-	// If a role didn't exist yet, it meant no access was defined.
-	if trace.IsNotFound(err) {
-		return nil, nil
-	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

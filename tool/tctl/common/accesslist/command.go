@@ -165,6 +165,12 @@ const (
 	memberKindList = "list"
 )
 
+const updateHelpText = "Update an existing access list. Each flag you pass replaces that field (no\n" +
+	"merge or append), so list-valued flags like --members or --logins overwrite\n" +
+	"the whole list; anything you omit is left unchanged.\n\n" +
+	"For an access list created with an access type, resource flags (--node-labels, etc.) edit the\n" +
+	"supporting roles."
+
 // Initialize allows Command to plug itself into the CLI parser
 func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags, _ *servicecfg.Config) {
 	acl := app.Command("acl", "Manage Access Lists.").Alias("access-lists")
@@ -216,7 +222,7 @@ func (c *Command) Initialize(app *kingpin.Application, _ *tctlcfg.GlobalCLIFlags
 	c.remove.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
 	c.remove.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 
-	c.update = acl.Command("update", "Update an existing access list. Only flags you pass are changed; everything else is left as-is. For an access list created with an access type, resource flags edit the supporting roles.")
+	c.update = acl.Command("update", updateHelpText)
 	c.update.Arg("access-list-name", "The Access List name.").Required().StringVar(&c.accessListName)
 	c.update.Flag("format", "Output format.").Default(teleport.Text).EnumVar(&c.format, teleport.Text, teleport.JSON)
 	// Access list metadata:
