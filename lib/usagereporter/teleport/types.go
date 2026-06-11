@@ -2343,3 +2343,47 @@ func (e *IdentitySecurityAuditLogsIngestedEvent) Anonymize(a utils.Anonymizer) *
 		},
 	}
 }
+
+// BeamsCreatedEvent is emitted when a beam VM is created and becomes ready.
+type BeamsCreatedEvent prehogv1a.BeamsCreatedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsCreatedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsCreated{
+			BeamsCreated: &prehogv1a.BeamsCreatedEvent{
+				BeamId:            a.AnonymizeString(e.BeamId),
+				Region:            e.Region,
+				StartupDurationMs: e.StartupDurationMs,
+			},
+		},
+	}
+}
+
+// BeamDestroyReason is the reason a beam was destroyed.
+type BeamDestroyReason = prehogv1a.BeamDestroyReason
+
+const (
+	// BeamDestroyReasonUnspecified is the default unspecified reason.
+	BeamDestroyReasonUnspecified = prehogv1a.BeamDestroyReason_BEAM_DESTROY_REASON_UNSPECIFIED
+	// BeamDestroyReasonUserDeleted indicates the user explicitly deleted the beam.
+	BeamDestroyReasonUserDeleted = prehogv1a.BeamDestroyReason_BEAM_DESTROY_REASON_USER_DELETED
+	// BeamDestroyReasonGCExpired indicates the beam was deleted by the garbage collector after expiry.
+	BeamDestroyReasonGCExpired = prehogv1a.BeamDestroyReason_BEAM_DESTROY_REASON_GC_EXPIRED
+)
+
+// BeamsDestroyedEvent is emitted when a beam VM is destroyed.
+type BeamsDestroyedEvent prehogv1a.BeamsDestroyedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsDestroyedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsDestroyed{
+			BeamsDestroyed: &prehogv1a.BeamsDestroyedEvent{
+				BeamId: a.AnonymizeString(e.BeamId),
+				Reason: e.Reason,
+				Region: e.Region,
+			},
+		},
+	}
+}
