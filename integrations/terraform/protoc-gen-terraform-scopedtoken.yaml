@@ -30,14 +30,13 @@ injected_fields:
 exclude_fields:
   # Metadata (we id resources by name on our side)
   - "ScopedToken.metadata.id"
+  - "ScopedToken.metadata.revision"
   # Usage tracking is server-side only
   - "ScopedToken.status"
 
 # These fields will be marked as Computed: true
 computed_fields:
-  - "ScopedToken.metadata.expires"
   - "ScopedToken.metadata.namespace"
-  - "ScopedToken.metadata.revision"
   - "ScopedToken.kind"
 
 # These fields will be marked as Required: true

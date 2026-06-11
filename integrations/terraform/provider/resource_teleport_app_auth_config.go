@@ -273,6 +273,8 @@ func (r resourceTeleportAppAuthConfig) Update(ctx context.Context, req tfsdk.Upd
 
 	appauthconfigResource = appauthconfigI
 	
+	appauthconfig = appauthconfigResource
+
 	diags = schemav1.CopyAppAuthConfigToTerraform(ctx, appauthconfig, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

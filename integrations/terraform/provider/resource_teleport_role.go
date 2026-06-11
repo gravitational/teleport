@@ -289,6 +289,8 @@ func (r resourceTeleportRole) Update(ctx context.Context, req tfsdk.UpdateResour
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Role", trace.Errorf("Can not convert %T to RoleV6", roleI), "role"))
 		return
 	}
+	role = roleResource
+
 	diags = tfschema.CopyRoleV6ToTerraform(ctx, role, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {

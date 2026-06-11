@@ -289,6 +289,8 @@ func (r resourceTeleportIntegration) Update(ctx context.Context, req tfsdk.Updat
 		resp.Diagnostics.Append(diagFromWrappedErr("Error reading Integration", trace.Errorf("Can not convert %T to IntegrationV1", integrationI), "integration"))
 		return
 	}
+	integration = integrationResource
+
 	diags = tfschema.CopyIntegrationV1ToTerraform(ctx, integration, &plan)
 	resp.Diagnostics.Append(diags...)
 	if resp.Diagnostics.HasError() {
