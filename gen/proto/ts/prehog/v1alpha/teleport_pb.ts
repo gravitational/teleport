@@ -547,6 +547,48 @@ export interface BeamsDestroyedEvent {
     region: string;
 }
 /**
+ * BeamsPublishedEvent is emitted when a beam app is published.
+ *
+ * PostHog event: tp.beams.published
+ *
+ * @generated from protobuf message prehog.v1alpha.BeamsPublishedEvent
+ */
+export interface BeamsPublishedEvent {
+    /**
+     * anonymized beam ID
+     *
+     * PostHog property: tp.beam.beam_id
+     *
+     * @generated from protobuf field: string beam_id = 1;
+     */
+    beamId: string;
+    /**
+     * the protocol of the published app (http or tcp)
+     *
+     * PostHog property: tp.beam.protocol
+     *
+     * @generated from protobuf field: string protocol = 2;
+     */
+    protocol: string;
+}
+/**
+ * BeamsUnpublishedEvent is emitted when a beam app is unpublished.
+ *
+ * PostHog event: tp.beams.unpublished
+ *
+ * @generated from protobuf message prehog.v1alpha.BeamsUnpublishedEvent
+ */
+export interface BeamsUnpublishedEvent {
+    /**
+     * anonymized beam ID
+     *
+     * PostHog property: tp.beam.beam_id
+     *
+     * @generated from protobuf field: string beam_id = 1;
+     */
+    beamId: string;
+}
+/**
  * the issuance of a user certificate from the user CA
  *
  * PostHog event: tp.certificate.issued
@@ -4444,6 +4486,18 @@ export interface SubmitEventRequest {
          */
         beamsDestroyed: BeamsDestroyedEvent;
     } | {
+        oneofKind: "beamsPublished";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.BeamsPublishedEvent beams_published = 125;
+         */
+        beamsPublished: BeamsPublishedEvent;
+    } | {
+        oneofKind: "beamsUnpublished";
+        /**
+         * @generated from protobuf field: prehog.v1alpha.BeamsUnpublishedEvent beams_unpublished = 126;
+         */
+        beamsUnpublished: BeamsUnpublishedEvent;
+    } | {
         oneofKind: undefined;
     };
 }
@@ -6506,6 +6560,108 @@ class BeamsDestroyedEvent$Type extends MessageType<BeamsDestroyedEvent> {
  * @generated MessageType for protobuf message prehog.v1alpha.BeamsDestroyedEvent
  */
 export const BeamsDestroyedEvent = new BeamsDestroyedEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class BeamsPublishedEvent$Type extends MessageType<BeamsPublishedEvent> {
+    constructor() {
+        super("prehog.v1alpha.BeamsPublishedEvent", [
+            { no: 1, name: "beam_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ },
+            { no: 2, name: "protocol", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<BeamsPublishedEvent>): BeamsPublishedEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.beamId = "";
+        message.protocol = "";
+        if (value !== undefined)
+            reflectionMergePartial<BeamsPublishedEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: BeamsPublishedEvent): BeamsPublishedEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string beam_id */ 1:
+                    message.beamId = reader.string();
+                    break;
+                case /* string protocol */ 2:
+                    message.protocol = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: BeamsPublishedEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string beam_id = 1; */
+        if (message.beamId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.beamId);
+        /* string protocol = 2; */
+        if (message.protocol !== "")
+            writer.tag(2, WireType.LengthDelimited).string(message.protocol);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.BeamsPublishedEvent
+ */
+export const BeamsPublishedEvent = new BeamsPublishedEvent$Type();
+// @generated message type with reflection information, may provide speed optimized methods
+class BeamsUnpublishedEvent$Type extends MessageType<BeamsUnpublishedEvent> {
+    constructor() {
+        super("prehog.v1alpha.BeamsUnpublishedEvent", [
+            { no: 1, name: "beam_id", kind: "scalar", T: 9 /*ScalarType.STRING*/ }
+        ]);
+    }
+    create(value?: PartialMessage<BeamsUnpublishedEvent>): BeamsUnpublishedEvent {
+        const message = globalThis.Object.create((this.messagePrototype!));
+        message.beamId = "";
+        if (value !== undefined)
+            reflectionMergePartial<BeamsUnpublishedEvent>(this, message, value);
+        return message;
+    }
+    internalBinaryRead(reader: IBinaryReader, length: number, options: BinaryReadOptions, target?: BeamsUnpublishedEvent): BeamsUnpublishedEvent {
+        let message = target ?? this.create(), end = reader.pos + length;
+        while (reader.pos < end) {
+            let [fieldNo, wireType] = reader.tag();
+            switch (fieldNo) {
+                case /* string beam_id */ 1:
+                    message.beamId = reader.string();
+                    break;
+                default:
+                    let u = options.readUnknownField;
+                    if (u === "throw")
+                        throw new globalThis.Error(`Unknown field ${fieldNo} (wire type ${wireType}) for ${this.typeName}`);
+                    let d = reader.skip(wireType);
+                    if (u !== false)
+                        (u === true ? UnknownFieldHandler.onRead : u)(this.typeName, message, fieldNo, wireType, d);
+            }
+        }
+        return message;
+    }
+    internalBinaryWrite(message: BeamsUnpublishedEvent, writer: IBinaryWriter, options: BinaryWriteOptions): IBinaryWriter {
+        /* string beam_id = 1; */
+        if (message.beamId !== "")
+            writer.tag(1, WireType.LengthDelimited).string(message.beamId);
+        let u = options.writeUnknownFields;
+        if (u !== false)
+            (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
+        return writer;
+    }
+}
+/**
+ * @generated MessageType for protobuf message prehog.v1alpha.BeamsUnpublishedEvent
+ */
+export const BeamsUnpublishedEvent = new BeamsUnpublishedEvent$Type();
 // @generated message type with reflection information, may provide speed optimized methods
 class UserCertificateIssuedEvent$Type extends MessageType<UserCertificateIssuedEvent> {
     constructor() {
@@ -13919,7 +14075,9 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
             { no: 121, name: "session_summary_search_event", kind: "message", oneof: "event", T: () => SessionSummarySearchEvent },
             { no: 122, name: "ui_interaction", kind: "message", oneof: "event", T: () => UIInteractionEvent },
             { no: 123, name: "beams_created", kind: "message", oneof: "event", T: () => BeamsCreatedEvent },
-            { no: 124, name: "beams_destroyed", kind: "message", oneof: "event", T: () => BeamsDestroyedEvent }
+            { no: 124, name: "beams_destroyed", kind: "message", oneof: "event", T: () => BeamsDestroyedEvent },
+            { no: 125, name: "beams_published", kind: "message", oneof: "event", T: () => BeamsPublishedEvent },
+            { no: 126, name: "beams_unpublished", kind: "message", oneof: "event", T: () => BeamsUnpublishedEvent }
         ]);
     }
     create(value?: PartialMessage<SubmitEventRequest>): SubmitEventRequest {
@@ -14653,6 +14811,18 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
                         beamsDestroyed: BeamsDestroyedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).beamsDestroyed)
                     };
                     break;
+                case /* prehog.v1alpha.BeamsPublishedEvent beams_published */ 125:
+                    message.event = {
+                        oneofKind: "beamsPublished",
+                        beamsPublished: BeamsPublishedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).beamsPublished)
+                    };
+                    break;
+                case /* prehog.v1alpha.BeamsUnpublishedEvent beams_unpublished */ 126:
+                    message.event = {
+                        oneofKind: "beamsUnpublished",
+                        beamsUnpublished: BeamsUnpublishedEvent.internalBinaryRead(reader, reader.uint32(), options, (message.event as any).beamsUnpublished)
+                    };
+                    break;
                 default:
                     let u = options.readUnknownField;
                     if (u === "throw")
@@ -15028,6 +15198,12 @@ class SubmitEventRequest$Type extends MessageType<SubmitEventRequest> {
         /* prehog.v1alpha.BeamsDestroyedEvent beams_destroyed = 124; */
         if (message.event.oneofKind === "beamsDestroyed")
             BeamsDestroyedEvent.internalBinaryWrite(message.event.beamsDestroyed, writer.tag(124, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.BeamsPublishedEvent beams_published = 125; */
+        if (message.event.oneofKind === "beamsPublished")
+            BeamsPublishedEvent.internalBinaryWrite(message.event.beamsPublished, writer.tag(125, WireType.LengthDelimited).fork(), options).join();
+        /* prehog.v1alpha.BeamsUnpublishedEvent beams_unpublished = 126; */
+        if (message.event.oneofKind === "beamsUnpublished")
+            BeamsUnpublishedEvent.internalBinaryWrite(message.event.beamsUnpublished, writer.tag(126, WireType.LengthDelimited).fork(), options).join();
         let u = options.writeUnknownFields;
         if (u !== false)
             (u == true ? UnknownFieldHandler.onWrite : u)(this.typeName, message, writer);
