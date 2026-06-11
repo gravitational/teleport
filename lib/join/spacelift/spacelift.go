@@ -120,7 +120,7 @@ func CheckIDToken(
 		return nil, trace.Wrap(err)
 	}
 
-	token, ok := params.ProvisionToken.(*types.ProvisionTokenV2)
+	token, ok := provision.AsProvisionTokenV2(params.ProvisionToken)
 	if !ok {
 		return nil, trace.BadParameter("spacelift join method only supports ProvisionTokenV2, '%T' was provided", params.ProvisionToken)
 	}

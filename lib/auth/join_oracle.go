@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // RegisterUsingOracleMethod registers the caller using the legacy Oracle join
@@ -95,11 +96,11 @@ func (a *Server) registerUsingOracleMethod(
 		params := makeBotCertsParams(tokenReq, claims, workloadidentityv1pb.JoinAttrs_builder{
 			Oracle: claims.JoinAttrs(),
 		}.Build())
-		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
+		certs, _, err := a.GenerateBotCertsForJoin(ctx, provision.UnscopedToken{ProvisionToken: provisionToken}, params)
 		return certs, trace.Wrap(err, "generating bot certs")
 	}
 	params := makeHostCertsParams(tokenReq, claims)
-	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
+	certs, err = a.GenerateHostCertsForJoin(ctx, provision.UnscopedToken{ProvisionToken: provisionToken}, params)
 	return certs, trace.Wrap(err, "generating certs")
 }
 
@@ -207,7 +208,7 @@ func (a *Server) checkOracleRequest(
 	}
 
 	// Check allow rules.
-	if err := oraclejoin.CheckOracleAllowRules(&claims, provisionToken); err != nil {
+	if err := oraclejoin.CheckOracleAllowRules(&claims, provision.UnscopedToken{ProvisionToken: provisionToken}); err != nil {
 		return claims, trace.Wrap(err)
 	}
 

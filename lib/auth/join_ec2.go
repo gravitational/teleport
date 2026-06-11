@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/ec2join"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // SetEC2ClientForEC2JoinMethod sets an AWS EC2 client that will be used to
@@ -68,7 +69,7 @@ func (a *Server) checkEC2JoinRequest(ctx context.Context, req *types.RegisterUsi
 	}
 
 	_, err = ec2join.CheckEC2Request(ctx, &ec2join.CheckEC2RequestParams{
-		ProvisionToken:  provisionToken,
+		ProvisionToken:  provision.UnscopedToken{ProvisionToken: provisionToken},
 		Role:            req.Role,
 		Document:        req.EC2IdentityDocument,
 		RequestedHostID: &req.HostID,

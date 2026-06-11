@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/azurejoin"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // RegisterUsingAzureMethod registers the caller using the Azure join method
@@ -85,7 +86,7 @@ func (a *Server) RegisterUsingAzureMethod(
 
 	joinAttrs, err := azurejoin.CheckAzureRequest(ctx, azurejoin.CheckAzureRequestParams{
 		AzureJoinConfig: a.GetAzureJoinConfig(),
-		Token:           ptv2,
+		Token:           provision.UnscopedToken{ProvisionToken: ptv2},
 		Challenge:       challenge,
 		AttestedData:    req.AttestedData,
 		AccessToken:     req.AccessToken,
@@ -100,11 +101,11 @@ func (a *Server) RegisterUsingAzureMethod(
 		params := makeBotCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/, workloadidentityv1pb.JoinAttrs_builder{
 			Azure: joinAttrs,
 		}.Build())
-		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
+		certs, _, err := a.GenerateBotCertsForJoin(ctx, provision.UnscopedToken{ProvisionToken: provisionToken}, params)
 		return certs, trace.Wrap(err)
 	}
 	params := makeHostCertsParams(req.RegisterUsingTokenRequest, nil /*rawClaims*/)
-	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
+	certs, err = a.GenerateHostCertsForJoin(ctx, provision.UnscopedToken{ProvisionToken: provisionToken}, params)
 	return certs, trace.Wrap(err)
 }
 

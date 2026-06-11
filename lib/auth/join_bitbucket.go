@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/bitbucket"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // GetBitbucketIDTokenValidator returns the currently configured token validator
@@ -45,7 +46,7 @@ func (a *Server) checkBitbucketJoinRequest(
 	pt types.ProvisionToken,
 ) (*bitbucket.IDTokenClaims, error) {
 	claims, err := bitbucket.CheckIDToken(ctx, &bitbucket.CheckIDTokenParams{
-		ProvisionToken: pt,
+		ProvisionToken: provision.UnscopedToken{ProvisionToken: pt},
 		IDToken:        []byte(req.IDToken),
 		Clock:          a.GetClock(),
 		Validator:      a.bitbucketIDTokenValidator,

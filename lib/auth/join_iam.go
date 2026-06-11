@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/iamjoin"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -102,7 +103,7 @@ func (a *Server) RegisterUsingIAMMethod(
 	verifiedIdentity, err := iamjoin.CheckIAMRequest(ctx, &iamjoin.CheckIAMRequestParams{
 		Logger:                   a.logger,
 		Challenge:                challenge,
-		ProvisionToken:           provisionToken,
+		ProvisionToken:           provision.UnscopedToken{ProvisionToken: provisionToken},
 		STSIdentityRequest:       req.StsIdentityRequest,
 		HTTPClient:               a.GetHTTPClientForAWSSTS(),
 		FIPS:                     a.fips,
@@ -120,10 +121,10 @@ func (a *Server) RegisterUsingIAMMethod(
 		params := makeBotCertsParams(req.RegisterUsingTokenRequest, verifiedIdentity, workloadidentityv1pb.JoinAttrs_builder{
 			Iam: verifiedIdentity.JoinAttrs(),
 		}.Build())
-		certs, _, err := a.GenerateBotCertsForJoin(ctx, provisionToken, params)
+		certs, _, err := a.GenerateBotCertsForJoin(ctx, provision.UnscopedToken{ProvisionToken: provisionToken}, params)
 		return certs, trace.Wrap(err, "generating bot certs")
 	}
 	params := makeHostCertsParams(req.RegisterUsingTokenRequest, verifiedIdentity)
-	certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, params)
+	certs, err = a.GenerateHostCertsForJoin(ctx, provision.UnscopedToken{ProvisionToken: provisionToken}, params)
 	return certs, trace.Wrap(err, "generating certs")
 }

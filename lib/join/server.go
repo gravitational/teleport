@@ -188,7 +188,12 @@ func (s *Server) getProvisionToken(ctx context.Context, name string) (provision.
 	})
 	wg.Go(func() {
 		// Fetch the provision token and validate that it is not expired.
-		classic, classicErr = s.cfg.AuthService.ValidateToken(ctx, name)
+		tok, err := s.cfg.AuthService.ValidateToken(ctx, name)
+		if err != nil {
+			classicErr = err
+			return
+		}
+		classic = provision.UnscopedToken{ProvisionToken: tok}
 	})
 	wg.Wait()
 
@@ -278,11 +283,12 @@ func (s *Server) Join(stream messages.ServerStream) (err error) {
 		i.SafeTokenName = token.GetSafeName()
 		i.TokenJoinMethod = string(configuredJoinMethod(token))
 		i.TokenExpires = token.Expiry()
-		i.BotName = token.GetBotName()
+		bot := token.GetBot()
+		i.BotName = bot.Name
 
 		// It's not worth fetching the true bot scope here (via bot user label)
 		// so we'll just include the one embedded in the token.
-		i.BotScope = token.GetBotScope()
+		i.BotScope = bot.Scope
 	})
 
 	// Validate that the requested join method matches the join method

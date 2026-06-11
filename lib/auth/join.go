@@ -69,7 +69,7 @@ func (a *Server) checkTokenJoinRequestCommon(ctx context.Context, req *types.Reg
 		return nil, trace.AccessDenied("%q can not join the cluster with role %q, %s", req.NodeName, req.Role, msg)
 	}
 
-	if err := join.TokenAllowsRole(provisionToken, req.Role); err != nil {
+	if err := join.TokenAllowsRole(provision.UnscopedToken{ProvisionToken: provisionToken}, req.Role); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return provisionToken, nil
@@ -136,11 +136,6 @@ func (a *Server) handleJoinFailure(
 			botJoinEvent.Method = string(pt.GetJoinMethod())
 			botJoinEvent.TokenName = pt.GetSafeName()
 			botJoinEvent.BotName = pt.GetBotName()
-
-			// We don't want to perform a backend fetch here, so we'll use the
-			// bot scope indicated in the token rather than the one embedded in
-			// the user.
-			botJoinEvent.Scope = pt.GetBotScope()
 		}
 		evt = botJoinEvent
 	} else {
@@ -318,9 +313,9 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 	// With all elements of the token validated, we can now generate & return
 	// certificates.
 	if req.Role == types.RoleBot {
-		certs, _, err = a.GenerateBotCertsForJoin(ctx, provisionToken, makeBotCertsParams(req, rawClaims, attrs))
+		certs, _, err = a.GenerateBotCertsForJoin(ctx, provision.UnscopedToken{ProvisionToken: provisionToken}, makeBotCertsParams(req, rawClaims, attrs))
 	} else {
-		certs, err = a.GenerateHostCertsForJoin(ctx, provisionToken, makeHostCertsParams(req, rawClaims))
+		certs, err = a.GenerateHostCertsForJoin(ctx, provision.UnscopedToken{ProvisionToken: provisionToken}, makeHostCertsParams(req, rawClaims))
 	}
 	return certs, trace.Wrap(err)
 }
@@ -361,7 +356,7 @@ func (a *Server) GenerateBotCertsForJoin(
 ) (*proto.Certs, string, error) {
 	// bots use this endpoint but get a user cert
 	// botResourceName must be set, enforced in CheckAndSetDefaults
-	botName := token.GetBotName()
+	botName := token.GetBot().Name
 	joinMethod := token.GetJoinMethod()
 
 	// Check this is a join method for bots we support.
@@ -463,7 +458,7 @@ func (a *Server) GenerateBotCertsForJoin(
 			return nil, "", trace.AccessDenied("scoped token usage mode must be 'bot' for bot joining")
 		}
 
-		tokenBotScope := scoped.GetScoped().GetSpec().GetBotScope()
+		tokenBotScope := scoped.GetBot().Scope
 		if botScope != tokenBotScope {
 			a.logger.WarnContext(ctx, "bot scope must match token scope",
 				"token_scope", tokenBotScope,

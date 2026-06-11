@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/join/terraformcloud"
 )
 
@@ -50,7 +51,7 @@ func (a *Server) checkTerraformCloudJoinRequest(
 	}
 
 	claims, err := terraformcloud.CheckIDToken(ctx, a.modules, &terraformcloud.CheckIDTokenParams{
-		ProvisionToken: pt,
+		ProvisionToken: provision.UnscopedToken{ProvisionToken: pt},
 		IDToken:        []byte(req.IDToken),
 		Validator:      a.terraformIDTokenValidator,
 		ClusterName:    clusterName.GetClusterName(),

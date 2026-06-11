@@ -51,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/boundkeypair"
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/join/joinclient"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/scopes"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	"github.com/gravitational/teleport/lib/scopes/joining"
@@ -403,7 +404,7 @@ func TestJoinBoundKeypair(t *testing.T) {
 	withToken := func(mutators ...func(v2 *types.ProvisionTokenV2)) func(*boundkeypair.JoinStateParams) {
 		return func(jsp *boundkeypair.JoinStateParams) {
 			token := makeToken(mutators...)
-			jsp.Token = &token
+			jsp.Token = provision.UnscopedToken{ProvisionToken: &token}
 		}
 	}
 

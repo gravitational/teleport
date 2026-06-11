@@ -515,7 +515,7 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 	token := params.ProvisionToken
 
 	switch token.(type) {
-	case *types.ProvisionTokenV2:
+	case provision.UnscopedToken:
 		patched, err := params.AuthService.PatchToken(ctx, token.GetName(), func(pt types.ProvisionToken) (types.ProvisionToken, error) {
 			if pt.GetBoundKeypairStatus() == nil {
 				return nil, trace.BadParameter("bound keypair tokens must have non-nil status.bound_keypair")
@@ -537,7 +537,7 @@ func patchToken(ctx context.Context, params *JoinParams, mutators ...boundKeypai
 			return nil, trace.Wrap(err, "committing updated token state, please try again")
 		}
 
-		return patched, nil
+		return provision.UnscopedToken{ProvisionToken: patched}, nil
 	case *joining.Token:
 		patched, err := params.ScopedTokenService.PatchScopedToken(ctx, token.GetName(), func(st *joiningv1.ScopedToken) (*joiningv1.ScopedToken, error) {
 			if st.GetStatus().GetUsage().GetBoundKeypair() == nil {
@@ -620,7 +620,7 @@ func emitBoundKeypairRecoveryEvent(
 			RemoteAddr: params.Diag.Get().RemoteAddr,
 		},
 		TokenName:     token.GetName(),
-		BotName:       token.GetBotName(),
+		BotName:       token.GetBot().Name,
 		PublicKey:     boundPublicKey,
 		RecoveryCount: recoveryCount,
 		RecoveryMode:  token.GetBoundKeypair().Recovery.Mode,
@@ -660,7 +660,7 @@ func emitBoundKeypairRotationEvent(
 			RemoteAddr: params.Diag.Get().RemoteAddr,
 		},
 		TokenName:         token.GetName(),
-		BotName:           token.GetBotName(),
+		BotName:           token.GetBot().Name,
 		PreviousPublicKey: prevPublicKey,
 		NewPublicKey:      newPublicKey,
 	}); err != nil {
@@ -689,7 +689,7 @@ func tryLockTokenInvalidJoinState(
 			RemoteAddr: params.Diag.Get().RemoteAddr,
 		},
 		TokenName: token.GetName(),
-		BotName:   token.GetBotName(),
+		BotName:   token.GetBot().Name,
 	}); auditErr != nil {
 		log.WarnContext(ctx, "Failed to emit failed join state verification event", "error", auditErr)
 	}
@@ -700,7 +700,7 @@ func tryLockTokenInvalidJoinState(
 			"The join token %q has been locked by bot %q after a client "+
 				"failed to verify its join state, possibly indicating a "+
 				"stolen keypair.",
-			token.GetName(), token.GetBotName(),
+			token.GetName(), token.GetBot().Name,
 		)
 	} else {
 		message = fmt.Sprintf(

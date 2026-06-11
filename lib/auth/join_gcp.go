@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/gcp"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // GetGCPIDTokenValidator returns the server's configured GCP ID token
@@ -44,7 +45,7 @@ func (a *Server) checkGCPJoinRequest(
 	pt types.ProvisionToken,
 ) (*gcp.IDTokenClaims, error) {
 	claims, err := gcp.CheckIDToken(ctx, &gcp.CheckIDTokenParams{
-		ProvisionToken: pt,
+		ProvisionToken: provision.UnscopedToken{ProvisionToken: pt},
 		IDToken:        []byte(req.IDToken),
 		Validator:      a.gcpIDTokenValidator,
 	})

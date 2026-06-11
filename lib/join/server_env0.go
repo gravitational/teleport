@@ -46,7 +46,7 @@ func (s *Server) validateEnv0Token(
 		return nil, nil, trace.Wrap(err, "validating Env0 OIDC token")
 	}
 
-	ptv2, ok := provisionToken.(*types.ProvisionTokenV2)
+	ptv2, ok := provision.AsProvisionTokenV2(provisionToken)
 	if !ok {
 		return nil, nil, trace.BadParameter("expected *types.ProvisionTokenV2, got %T", provisionToken)
 	}

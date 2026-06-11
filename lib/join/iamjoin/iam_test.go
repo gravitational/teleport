@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/utils/log/logtest"
 )
 
@@ -207,9 +208,9 @@ func TestAccountOUIsAllowed(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			params := &CheckIAMRequestParams{
 				Logger: logtest.NewLogger(),
-				ProvisionToken: &types.ProvisionTokenV2{
+				ProvisionToken: provision.UnscopedToken{ProvisionToken: &types.ProvisionTokenV2{
 					Metadata: types.Metadata{Name: "test-token"},
-				},
+				}},
 			}
 			identity := &AWSIdentity{Account: accountID}
 			account := &accountDetails{

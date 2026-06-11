@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/circleci"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // GetCircleCITokenValidate returns the currently configured CircleCI OIDC token
@@ -45,7 +46,7 @@ func (a *Server) checkCircleCIJoinRequest(
 	pt types.ProvisionToken,
 ) (*circleci.IDTokenClaims, error) {
 	claims, err := circleci.CheckIDToken(ctx, &circleci.CheckIDTokenParams{
-		ProvisionToken: pt,
+		ProvisionToken: provision.UnscopedToken{ProvisionToken: pt},
 		IDToken:        []byte(req.IDToken),
 		Validator:      a.circleCITokenValidate,
 	})

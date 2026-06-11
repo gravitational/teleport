@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/azuredevops"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 func (a *Server) checkAzureDevopsJoinRequest(
@@ -41,7 +42,7 @@ func (a *Server) checkAzureDevopsJoinRequest(
 	}
 
 	claims, err := azuredevops.CheckIDToken(ctx, &azuredevops.CheckIDTokenParams{
-		ProvisionToken: token,
+		ProvisionToken: provision.UnscopedToken{ProvisionToken: token},
 		IDToken:        req.IDToken,
 		Validator:      a.azureDevopsIDTokenValidator,
 	})

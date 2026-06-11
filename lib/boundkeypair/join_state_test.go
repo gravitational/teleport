@@ -28,6 +28,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 type mockCA struct {
@@ -94,7 +95,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 		params := &JoinStateParams{
 			Clock:       clock,
 			ClusterName: "example.com",
-			Token:       token,
+			Token:       provision.UnscopedToken{ProvisionToken: token},
 		}
 
 		for _, mutator := range mutators {
@@ -209,7 +210,7 @@ func TestIssueAndVerifyJoinState(t *testing.T) {
 		{
 			name: "subject must match",
 			issue: makeIssuer(activeSigner, makeParams(withRecovery(0, 1), func(jsp *JoinStateParams) {
-				ptv2, ok := jsp.Token.(*types.ProvisionTokenV2)
+				ptv2, ok := provision.AsProvisionTokenV2(jsp.Token)
 				require.True(t, ok)
 
 				ptv2.Spec.BotName = "invalid"

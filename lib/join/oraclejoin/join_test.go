@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/join/jointest"
 	"github.com/gravitational/teleport/lib/join/joinutils"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/scopes/joining"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -566,7 +567,7 @@ func TestInstanceKeyAlgorithms(t *testing.T) {
 			params := &oraclejoin.CheckChallengeSolutionParams{
 				Challenge:      challenge,
 				Solution:       solution,
-				ProvisionToken: token,
+				ProvisionToken: provision.UnscopedToken{ProvisionToken: token},
 				HTTPClient:     fakeOracleAPIClient,
 				RootCACache:    rootCACache,
 			}

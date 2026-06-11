@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/join/spacelift"
 )
 
@@ -45,7 +46,7 @@ func (a *Server) checkSpaceliftJoinRequest(
 	pt types.ProvisionToken,
 ) (*spacelift.IDTokenClaims, error) {
 	claims, err := spacelift.CheckIDToken(ctx, a.modules, &spacelift.CheckIDTokenParams{
-		ProvisionToken: pt,
+		ProvisionToken: provision.UnscopedToken{ProvisionToken: pt},
 		IDToken:        []byte(req.IDToken),
 		Validator:      a.spaceliftIDTokenValidator,
 	})

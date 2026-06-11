@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/githubactions"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // GetGHAIDTokenValidator returns the validator implementation for GitHub
@@ -61,7 +62,7 @@ func (a *Server) checkGitHubJoinRequest(
 	pt types.ProvisionToken,
 ) (*githubactions.IDTokenClaims, error) {
 	claims, err := githubactions.CheckGithubIDToken(ctx, a.modules, &githubactions.CheckGithubIDTokenParams{
-		ProvisionToken: pt,
+		ProvisionToken: provision.UnscopedToken{ProvisionToken: pt},
 		IDToken:        []byte(req.IDToken),
 		Clock:          a.GetClock(),
 		Validator:      a.ghaIDTokenValidator,

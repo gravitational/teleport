@@ -29,6 +29,7 @@ import (
 	workloadidentityv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/workloadidentity/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/legacyjoin"
+	"github.com/gravitational/teleport/lib/join/provision"
 	"github.com/gravitational/teleport/lib/join/tpmjoin"
 	"github.com/gravitational/teleport/lib/tpm"
 )
@@ -96,11 +97,11 @@ func (a *Server) RegisterUsingTPMMethod(
 		params := makeBotCertsParams(initReq.JoinRequest, validatedEK, workloadidentityv1pb.JoinAttrs_builder{
 			Tpm: validatedEK.JoinAttrs(),
 		}.Build())
-		certs, _, err := a.GenerateBotCertsForJoin(ctx, ptv2, params)
+		certs, _, err := a.GenerateBotCertsForJoin(ctx, provision.UnscopedToken{ProvisionToken: ptv2}, params)
 		return certs, trace.Wrap(err, "generating certs for bot")
 	}
 	params := makeHostCertsParams(initReq.JoinRequest, validatedEK)
-	certs, err := a.GenerateHostCertsForJoin(ctx, ptv2, params)
+	certs, err := a.GenerateHostCertsForJoin(ctx, provision.UnscopedToken{ProvisionToken: ptv2}, params)
 	return certs, trace.Wrap(err, "generating certs for host")
 }
 

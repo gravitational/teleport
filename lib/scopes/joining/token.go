@@ -548,13 +548,16 @@ type Token struct {
 	scoped     *joiningv1.ScopedToken
 	joinMethod types.JoinMethod
 	roles      types.SystemRoles
+	bot        scopes.QualifiedName
 }
 
 // NewToken returns the wrapped version of the given [joiningv1.ScopedToken].
 // It will return an error if the configured join method is not a valid
-// [types.JoinMethod] or if any of the configured roles are not a valid
-// [types.SystemRole]. The validated join method and roles are cached on the
-// [Scoped] wrapper itself so they can be read without repeating validation.
+// [types.JoinMethod], if any of the configured roles are not a valid
+// [types.SystemRole], or if the bot_name/bot_scope fields are inconsistent
+// with the configured roles. The validated join method, roles, and bot
+// reference are cached on the [Token] wrapper itself so they can be read
+// without repeating validation.
 func NewToken(token *joiningv1.ScopedToken) (*Token, error) {
 	joinMethod := types.JoinMethod(token.GetSpec().GetJoinMethod())
 	if err := types.ValidateJoinMethod(joinMethod); err != nil {
@@ -566,7 +569,43 @@ func NewToken(token *joiningv1.ScopedToken) (*Token, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	return &Token{scoped: token, joinMethod: joinMethod, roles: roles}, nil
+	bot, err := botRefFromSpec(token.GetSpec(), roles)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &Token{scoped: token, joinMethod: joinMethod, roles: roles, bot: bot}, nil
+}
+
+// botRefFromSpec derives a scoped token's bot reference from the split
+// bot_name/bot_scope spec fields. Bot tokens must carry both components;
+// non-bot tokens must carry neither.
+func botRefFromSpec(spec *joiningv1.ScopedTokenSpec, roles types.SystemRoles) (scopes.QualifiedName, error) {
+	if !roles.Include(types.RoleBot) {
+		if spec.GetBotName() != "" {
+			return scopes.QualifiedName{}, trace.BadParameter("bot_name cannot be set for a non-bot token")
+		}
+		if spec.GetBotScope() != "" {
+			return scopes.QualifiedName{}, trace.BadParameter("bot_scope cannot be set for a non-bot token")
+		}
+		return scopes.QualifiedName{}, nil
+	}
+
+	bot := scopes.QualifiedName{
+		Scope: spec.GetBotScope(),
+		Name:  spec.GetBotName(),
+	}
+	if bot.Name == "" {
+		return scopes.QualifiedName{}, trace.BadParameter("expected non-empty bot_name for a scoped bot token")
+	}
+	if bot.Scope == "" {
+		return scopes.QualifiedName{}, trace.BadParameter("expected non-empty bot_scope for a scoped bot token")
+	}
+	if err := scopes.WeakValidate(bot.Scope); err != nil {
+		return scopes.QualifiedName{}, trace.Wrap(err, "validating scoped token bot_scope")
+	}
+
+	return bot, nil
 }
 
 // GetName returns the name of a [joiningv1.ScopedToken].
@@ -614,16 +653,16 @@ func (t *Token) Expiry() time.Time {
 	return expiry.AsTime()
 }
 
-// GetBotName returns an empty string because scoped tokens do not currently
-// support configuring a bot name.
-func (t *Token) GetBotName() string {
-	return t.scoped.GetSpec().GetBotName()
-}
+// GetBot returns the cached reference to the bot that this token can join,
+// derived from the bot_name/bot_scope spec fields when the
+// [joiningv1.ScopedToken] was wrapped. The zero value indicates that this is
+// not a bot token; otherwise both components are non-empty.
+func (t *Token) GetBot() scopes.QualifiedName {
+	if t == nil {
+		return scopes.QualifiedName{}
+	}
 
-// GetBotScope returns the BotScope field which must be set for bots joining
-// with a scoped token. It is empty for unscoped bots.
-func (t *Token) GetBotScope() string {
-	return t.scoped.GetSpec().GetBotScope()
+	return t.bot
 }
 
 // GetAssignedScope returns the scope that will be assigned to resources

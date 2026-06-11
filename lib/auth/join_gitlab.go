@@ -25,6 +25,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/gitlab"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 // GetGitlabIDTokenValidator returns the currently configured gitlab OIDC token
@@ -45,7 +46,7 @@ func (a *Server) checkGitLabJoinRequest(
 	pt types.ProvisionToken,
 ) (*gitlab.IDTokenClaims, error) {
 	claims, err := gitlab.CheckIDToken(ctx, &gitlab.CheckIDTokenParams{
-		ProvisionToken: pt,
+		ProvisionToken: provision.UnscopedToken{ProvisionToken: pt},
 		IDToken:        []byte(req.IDToken),
 		Validator:      a.gitlabIDTokenValidator,
 	})

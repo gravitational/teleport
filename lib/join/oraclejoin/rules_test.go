@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/join/oraclejoin"
+	"github.com/gravitational/teleport/lib/join/provision"
 )
 
 func makeOCID(resourceType, region, id string) string {
@@ -246,7 +247,7 @@ func TestCheckOracleAllowRules(t *testing.T) {
 				},
 			})
 			require.NoError(t, err)
-			tc.assert(t, oraclejoin.CheckOracleAllowRules(&tc.claims, token))
+			tc.assert(t, oraclejoin.CheckOracleAllowRules(&tc.claims, provision.UnscopedToken{ProvisionToken: token}))
 		})
 	}
 }

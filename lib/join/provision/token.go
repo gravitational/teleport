@@ -21,6 +21,7 @@ import (
 
 	joiningv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/joining/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/scopes"
 )
 
 // A Token is used in the join service to facilitate provisioning.
@@ -43,11 +44,12 @@ type Token interface {
 	GetRoles() types.SystemRoles
 	// Expiry returns the token's expiration time.
 	Expiry() time.Time
-	// GetBotName returns the BotName field which must be set for joining bots.
-	GetBotName() string
-	// GetBotScope returns the BotScope field which must be set for bots joining
-	// with a scoped token. It is empty for unscoped bots.
-	GetBotScope() string
+	// GetBot returns a reference to the bot that this token can join. The zero
+	// value indicates that this is not a bot token. A value with an empty Scope
+	// refers to an unscoped bot; such a value is not a valid scope-qualified
+	// name, so it must not be rendered with [scopes.QualifiedName.String] or
+	// re-validated — read the Name and Scope fields individually instead.
+	GetBot() scopes.QualifiedName
 	// GetAssignedScope returns the scope that will be assigned to provisioned resources
 	// provisioned using the wrapped [joiningv1.ScopedToken].
 	GetAssignedScope() string

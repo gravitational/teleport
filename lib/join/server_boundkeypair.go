@@ -198,16 +198,17 @@ func AdaptRegisterUsingBoundKeypairMethod(
 		authCtx.HostID = ""
 	}
 
-	provisionToken, err := a.ValidateToken(ctx, req.JoinRequest.Token)
+	unscopedToken, err := a.ValidateToken(ctx, req.JoinRequest.Token)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	provisionToken := provision.UnscopedToken{ProvisionToken: unscopedToken}
 	// Set any diagnostic info we can get from the token.
 	diag.Set(func(i *diagnostic.Info) {
 		i.SafeTokenName = provisionToken.GetSafeName()
 		i.TokenJoinMethod = string(provisionToken.GetJoinMethod())
 		i.TokenExpires = provisionToken.Expiry()
-		i.BotName = provisionToken.GetBotName()
+		i.BotName = provisionToken.GetBot().Name
 	})
 	if provisionToken.GetJoinMethod() != types.JoinMethodBoundKeypair {
 		return nil, trace.BadParameter("specified join token is not for `%s` method", types.JoinMethodBoundKeypair)

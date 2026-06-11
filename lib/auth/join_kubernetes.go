@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/join/provision"
 	kubetoken "github.com/gravitational/teleport/lib/kube/token"
 )
 
@@ -68,7 +69,7 @@ func (a *Server) checkKubernetesJoinRequest(
 	}
 
 	result, err := kubetoken.CheckIDToken(ctx, &kubetoken.CheckIDTokenParams{
-		ProvisionToken:     unversionedToken,
+		ProvisionToken:     provision.UnscopedToken{ProvisionToken: unversionedToken},
 		Clock:              a.GetClock(),
 		ClusterName:        clusterName,
 		IDToken:            []byte(req.IDToken),
