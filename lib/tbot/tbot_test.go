@@ -29,11 +29,13 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"maps"
 	"net"
 	"net/http"
 	"os"
 	"os/user"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -50,6 +52,10 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 	"golang.org/x/crypto/ssh/knownhosts"
 	"google.golang.org/protobuf/testing/protocmp"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/tools/clientcmd"
+	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/constants"
@@ -70,6 +76,8 @@ import (
 	"github.com/gravitational/teleport/lib/cryptosuites"
 	"github.com/gravitational/teleport/lib/cryptosuites/cryptosuitestest"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	testingkubemock "github.com/gravitational/teleport/lib/kube/proxy/testing/kube_server"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
 	jointoken "github.com/gravitational/teleport/lib/scopes/joining"
@@ -1453,104 +1461,8 @@ func TestScopedBotSSH(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Create scoped bot (no roles, only scope).
-	_, err = rootClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
-		Bot: &machineidv1pb.Bot{
-			Metadata: &headerv1.Metadata{
-				Name: botName,
-			},
-			Scope: scopeName,
-			Spec:  &machineidv1pb.BotSpec{},
-		},
-	})
-	require.NoError(t, err)
-
-	// Generate a keypair for the bot's bound keypair join.
-	botKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
-	require.NoError(t, err)
-	botPublicKey := strings.TrimSpace(string(botKey.MarshalSSHPublicKey()))
-
-	// Write the private key to a temp file for tbot's static key config.
-	botKeyPath := filepath.Join(t.TempDir(), "bot_key.pem")
-	require.NoError(t, os.WriteFile(botKeyPath, botKey.PrivateKeyPEM(), 0600))
-
-	// Create a scoped token with bound keypair join method for the bot.
-	botTokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
-		Token: &joiningv1.ScopedToken{
-			Kind:    types.KindScopedToken,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "bot-token",
-			},
-			Scope: scopeName,
-			Spec: &joiningv1.ScopedTokenSpec{
-				Roles:      []string{types.RoleBot.String()},
-				JoinMethod: string(types.JoinMethodBoundKeypair),
-				UsageMode:  jointoken.TokenUsageModeBot,
-				BotName:    botName,
-				BotScope:   scopeName,
-				BoundKeypair: &joiningv1.BoundKeypairSpec{
-					Onboarding: &joiningv1.BoundKeypairSpec_OnboardingSpec{
-						InitialPublicKey: botPublicKey,
-					},
-					Recovery: &joiningv1.BoundKeypairSpec_RecoverySpec{
-						Limit: 10,
-						Mode:  "insecure",
-					},
-				},
-			},
-			Status: &joiningv1.ScopedTokenStatus{
-				Usage: &joiningv1.UsageStatus{
-					Status: &joiningv1.UsageStatus_BoundKeypair{
-						BoundKeypair: &joiningv1.BoundKeypairStatus{},
-					},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-
-	// Create scoped role assignment linking the bot to the scoped role.
-	sraResp, err := scopedSvc.CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
-		Assignment: &scopedaccessv1.ScopedRoleAssignment{
-			Kind:    scopedaccess.KindScopedRoleAssignment,
-			Version: types.V1,
-			SubKind: scopedaccess.SubKindDynamic,
-			Metadata: &headerv1.Metadata{
-				Name: uuid.NewString(),
-			},
-			Scope: scopeName,
-			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
-				BotName:  botName,
-				BotScope: scopeName,
-				Assignments: []*scopedaccessv1.Assignment{
-					{Role: scopedRoleName, Scope: scopeName},
-				},
-			},
-		},
-	})
-	require.NoError(t, err)
-	waitForSRACache(t, process.GetAuthServer(), sraResp)
-
-	// Create a scoped join token for the SSH node so it registers with the
-	// correct scope.
-	nodeTokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
-		Token: &joiningv1.ScopedToken{
-			Kind:    types.KindScopedToken,
-			Version: types.V1,
-			Metadata: &headerv1.Metadata{
-				Name: "node-token",
-			},
-			Scope: scopeName,
-			Spec: &joiningv1.ScopedTokenSpec{
-				AssignedScope: scopeName,
-				Roles:         []string{types.RoleNode.String()},
-				JoinMethod:    string(types.JoinMethodToken),
-				UsageMode:     string(jointoken.TokenUsageModeUnlimited),
-			},
-		},
-	})
-	require.NoError(t, err)
+	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
+	nodeTokenResp := createScopedJoinToken(t, process, "node-token", scopeName, types.RoleNode)
 
 	// Start a second Teleport process as an SSH-only node, joining with the
 	// scoped token so the node gets scope "/test-scope".
@@ -1602,13 +1514,8 @@ func TestScopedBotSSH(t *testing.T) {
 		Destination: &destination.Memory{},
 	}
 	botConfig := defaultBotConfig(
-		t, process, &onboarding.Config{
-			TokenValue: botTokenResp.Token.Metadata.Name,
-			JoinMethod: types.JoinMethodBoundKeypair,
-			BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
-				StaticPrivateKeyPath: botKeyPath,
-			},
-		}, config.ServiceConfigs{
+		t, process, botOnboarding,
+		config.ServiceConfigs{
 			identityOutput,
 		},
 		defaultBotConfigOpts{
@@ -1715,6 +1622,209 @@ func TestScopedBotSSH(t *testing.T) {
 	})
 }
 
+// TestScopedBotKubernetes tests that a scoped bot can produce a kubernetes/v2
+// output: that the scoped credentials carry scope pins, that the bot can
+// discover a scoped Kubernetes cluster via selectors, and that a valid
+// kubeconfig is rendered.
+func TestScopedBotKubernetes(t *testing.T) {
+	t.Setenv("TELEPORT_UNSTABLE_SCOPES", "yes")
+
+	ctx := t.Context()
+	log := logtest.NewLogger()
+
+	const (
+		scopeName       = "/test-scope"
+		scopedRoleName  = "scoped-kube-access"
+		botName         = "scoped-kube-bot"
+		kubeClusterName = "scoped-kube-cluster"
+	)
+
+	// Start the main Teleport process (auth + proxy, no kube).
+	process, err := testenv.NewTeleportProcess(
+		t.TempDir(),
+		defaultTestServerOpts(log),
+		testenv.WithProxyKube(),
+	)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		require.NoError(t, process.Close())
+		require.NoError(t, process.Wait())
+	})
+
+	rootClient, err := testenv.NewDefaultAuthClient(process)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = rootClient.Close() })
+
+	// Create a scoped role that grants kube access (all clusters, system:masters).
+	scopedSvc := rootClient.ScopedAccessServiceClient()
+	_, err = scopedSvc.CreateScopedRole(ctx, &scopedaccessv1.CreateScopedRoleRequest{
+		Role: &scopedaccessv1.ScopedRole{
+			Kind:    scopedaccess.KindScopedRole,
+			Version: types.V1,
+			Metadata: &headerv1.Metadata{
+				Name: scopedRoleName,
+			},
+			Scope: scopeName,
+			Spec: &scopedaccessv1.ScopedRoleSpec{
+				AssignableScopes: []string{scopeName},
+				Kube: &scopedaccessv1.ScopedRoleKube{
+					Labels: []*labelv1.Label{
+						{Name: "*", Values: []string{"*"}},
+					},
+					Groups: []string{"system:masters"},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	botOnboarding := createScopedBot(t, process, rootClient, botName, scopeName, scopedRoleName)
+	kubeTokenResp := createScopedJoinToken(t, process, "kube-token", scopeName, types.RoleKube)
+
+	// Stand up a fake Kubernetes API server. The kube_service agent will
+	// forward to this when proxying Kubernetes requests.
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = kubeMock.Close() })
+
+	// Write a kubeconfig for the kube_service that references the mock.
+	kubeConfigPath := filepath.Join(t.TempDir(), "kube_config")
+	require.NoError(t, kubeconfig.Save(kubeConfigPath, clientcmdapi.Config{
+		Clusters: map[string]*clientcmdapi.Cluster{
+			kubeClusterName: {
+				Server:                kubeMock.URL,
+				InsecureSkipTLSVerify: true,
+			},
+		},
+		AuthInfos: map[string]*clientcmdapi.AuthInfo{
+			kubeClusterName: {},
+		},
+		Contexts: map[string]*clientcmdapi.Context{
+			kubeClusterName: {
+				Cluster:  kubeClusterName,
+				AuthInfo: kubeClusterName,
+			},
+		},
+	}))
+
+	// Start a second Teleport process as a kube_service-only agent, joining
+	// with the scoped kube token.
+	kubeNodeCfg := servicecfg.MakeDefaultConfig()
+	kubeNodeCfg.DataDir = t.TempDir()
+	kubeNodeCfg.SetToken(kubeTokenResp.Token.Metadata.Name)
+	kubeNodeCfg.SetTokenSecret(kubeTokenResp.Token.Status.Secret)
+	kubeNodeCfg.SetAuthServerAddress(process.Config.Auth.ListenAddr)
+	kubeNodeCfg.Auth.Enabled = false
+	kubeNodeCfg.Proxy.Enabled = false
+	kubeNodeCfg.SSH.Enabled = false
+	kubeNodeCfg.Kube.Enabled = true
+	kubeNodeCfg.Kube.KubeconfigPath = kubeConfigPath
+	kubeNodeCfg.Kube.ListenAddr = &utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	kubeNodeCfg.CachePolicy.Enabled = false
+	kubeNodeCfg.InstanceMetadataClient = nil
+	kubeNodeCfg.DebugService.Enabled = false
+	kubeNodeCfg.Logger = log
+
+	kubeNodeProcess, err := service.NewTeleport(kubeNodeCfg)
+	require.NoError(t, err)
+	require.NoError(t, kubeNodeProcess.Start())
+	t.Cleanup(func() {
+		require.NoError(t, kubeNodeProcess.Close())
+		require.NoError(t, kubeNodeProcess.Wait())
+	})
+	_, err = kubeNodeProcess.WaitForEvent(ctx, service.KubernetesReady)
+	require.NoError(t, err)
+
+	// Wait for the kube cluster to be visible through the auth server.
+	require.EventuallyWithT(t, func(t *assert.CollectT) {
+		servers, err := rootClient.GetKubernetesServers(ctx)
+		require.NoError(t, err)
+		found := false
+		for _, srv := range servers {
+			if srv.GetCluster().GetName() == kubeClusterName {
+				found = true
+				break
+			}
+		}
+		require.True(t, found, "kube cluster %q not yet visible", kubeClusterName)
+	}, 10*time.Second, 100*time.Millisecond)
+
+	// Configure and run tbot with a kubernetes/v2 output in scoped mode.
+	kubeOutput := &k8s.OutputV2Config{
+		Destination:       &destination.Memory{},
+		DisableExecPlugin: true,
+		Selectors: []*k8s.KubernetesSelector{
+			{Name: kubeClusterName},
+		},
+	}
+	botConfig := defaultBotConfig(
+		t, process, botOnboarding,
+		config.ServiceConfigs{
+			kubeOutput,
+		},
+		defaultBotConfigOpts{
+			useAuthServer: true,
+			insecure:      true,
+		},
+	)
+	botConfig.Scoped = true
+	b := New(botConfig, log)
+	require.NoError(t, b.Run(ctx))
+
+	t.Run("identity certificate has scope pins", func(t *testing.T) {
+		expectedPin := &scopesv1.Pin{
+			Scope: scopeName,
+			AssignmentTree: pinning.AssignmentTreeFromMap(map[string]map[string][]string{
+				scopeName: {scopeName: {scopedRoleName}},
+			}),
+		}
+
+		tlsIdent := tlsIdentFromDest(ctx, t, kubeOutput.GetDestination())
+		require.NotNil(t, tlsIdent.ScopePin, "TLS identity should have a scope pin")
+		require.Empty(t, cmp.Diff(expectedPin, tlsIdent.ScopePin, protocmp.Transform()))
+		require.Empty(t, tlsIdent.Groups, "scoped identity should not have groups/roles")
+	})
+
+	t.Run("kubeconfig and call", func(t *testing.T) {
+		dest := kubeOutput.GetDestination()
+		raw, err := dest.Read(ctx, "kubeconfig.yaml")
+		require.NoError(t, err)
+
+		cfg, err := clientcmd.Load(raw)
+		require.NoError(t, err)
+		require.NotEmpty(t, cfg.Contexts, "kubeconfig should contain at least one context")
+
+		// Check our cluster is included.
+		// Kubernetes cluster name is prefixed by Teleport cluster name.
+		wantName := "root-" + kubeClusterName
+		clusters := slices.Collect(maps.Keys(cfg.Clusters))
+		gotCluster := slices.Contains(clusters, wantName)
+		require.True(
+			t,
+			gotCluster,
+			"kubeconfig clusters should reference %q",
+			wantName,
+		)
+
+		// Use the rendered kubeconfig to drive a real kube client through
+		// the Teleport proxy and into the mock kube API server.
+		restCfg, err := clientcmd.NewDefaultClientConfig(*cfg, nil).ClientConfig()
+		require.NoError(t, err)
+
+		clientset, err := kubernetes.NewForConfig(restCfg)
+		require.NoError(t, err)
+
+		nsList, err := clientset.CoreV1().Namespaces().List(ctx, metav1.ListOptions{})
+		require.NoError(t, err)
+
+		gotNamespaces := make([]string, 0, len(nsList.Items))
+		for _, ns := range nsList.Items {
+			gotNamespaces = append(gotNamespaces, ns.Name)
+		}
+		require.ElementsMatch(t, []string{"default", "test", "dev", "prod"}, gotNamespaces)
+	})
+}
+
 func waitForSRACache(t *testing.T, authServer *auth.Server, resps ...*scopedaccessv1.CreateScopedRoleAssignmentResponse) {
 	t.Helper()
 	ctx := t.Context()
@@ -1727,4 +1837,122 @@ func waitForSRACache(t *testing.T, authServer *auth.Server, resps ...*scopedacce
 			require.NoError(t, err)
 		}
 	}, 10*time.Second, 100*time.Millisecond)
+}
+
+// createScopedBot creates a scoped bot, its bound-keypair join token, and a
+// scoped role assignment linking it to scopedRoleName. It waits for the SRA
+// cache to catch up before returning. The returned onboarding.Config is
+// suitable to plug into defaultBotConfig for a bot that runs with
+// botConfig.Scoped = true.
+func createScopedBot(
+	t *testing.T,
+	process *service.TeleportProcess,
+	rootClient *authclient.Client,
+	botName, scopeName, scopedRoleName string,
+) *onboarding.Config {
+	t.Helper()
+	ctx := t.Context()
+
+	_, err := rootClient.BotServiceClient().CreateBot(ctx, &machineidv1pb.CreateBotRequest{
+		Bot: &machineidv1pb.Bot{
+			Metadata: &headerv1.Metadata{Name: botName},
+			Scope:    scopeName,
+			Spec:     &machineidv1pb.BotSpec{},
+		},
+	})
+	require.NoError(t, err)
+
+	botKey, err := cryptosuites.GeneratePrivateKeyWithAlgorithm(cryptosuites.ECDSAP256)
+	require.NoError(t, err)
+	botPublicKey := strings.TrimSpace(string(botKey.MarshalSSHPublicKey()))
+	botKeyPath := filepath.Join(t.TempDir(), "bot_key.pem")
+	require.NoError(t, os.WriteFile(botKeyPath, botKey.PrivateKeyPEM(), 0600))
+
+	botTokenResp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(ctx, &joiningv1.CreateScopedTokenRequest{
+		Token: &joiningv1.ScopedToken{
+			Kind:     types.KindScopedToken,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{Name: botName + "-token"},
+			Scope:    scopeName,
+			Spec: &joiningv1.ScopedTokenSpec{
+				Roles:      []string{types.RoleBot.String()},
+				JoinMethod: string(types.JoinMethodBoundKeypair),
+				UsageMode:  jointoken.TokenUsageModeBot,
+				BotName:    botName,
+				BotScope:   scopeName,
+				BoundKeypair: &joiningv1.BoundKeypairSpec{
+					Onboarding: &joiningv1.BoundKeypairSpec_OnboardingSpec{
+						InitialPublicKey: botPublicKey,
+					},
+					Recovery: &joiningv1.BoundKeypairSpec_RecoverySpec{
+						Limit: 10,
+						Mode:  "insecure",
+					},
+				},
+			},
+			Status: &joiningv1.ScopedTokenStatus{
+				Usage: &joiningv1.UsageStatus{
+					Status: &joiningv1.UsageStatus_BoundKeypair{
+						BoundKeypair: &joiningv1.BoundKeypairStatus{},
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	sraResp, err := rootClient.ScopedAccessServiceClient().CreateScopedRoleAssignment(ctx, &scopedaccessv1.CreateScopedRoleAssignmentRequest{
+		Assignment: &scopedaccessv1.ScopedRoleAssignment{
+			Kind:     scopedaccess.KindScopedRoleAssignment,
+			Version:  types.V1,
+			SubKind:  scopedaccess.SubKindDynamic,
+			Metadata: &headerv1.Metadata{Name: uuid.NewString()},
+			Scope:    scopeName,
+			Spec: &scopedaccessv1.ScopedRoleAssignmentSpec{
+				BotName:  botName,
+				BotScope: scopeName,
+				Assignments: []*scopedaccessv1.Assignment{
+					{Role: scopedRoleName, Scope: scopeName},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	waitForSRACache(t, process.GetAuthServer(), sraResp)
+
+	return &onboarding.Config{
+		TokenValue: botTokenResp.Token.Metadata.Name,
+		JoinMethod: types.JoinMethodBoundKeypair,
+		BoundKeypair: onboarding.BoundKeypairOnboardingConfig{
+			StaticPrivateKeyPath: botKeyPath,
+		},
+	}
+}
+
+// createScopedJoinToken creates a scoped join token for a service-side process
+// (e.g. an SSH node or kube_service) joining within scopeName as the given
+// system role.
+func createScopedJoinToken(
+	t *testing.T,
+	process *service.TeleportProcess,
+	name, scopeName string,
+	role types.SystemRole,
+) *joiningv1.CreateScopedTokenResponse {
+	t.Helper()
+	resp, err := process.GetAuthServer().ScopedTokenService.CreateScopedToken(t.Context(), &joiningv1.CreateScopedTokenRequest{
+		Token: &joiningv1.ScopedToken{
+			Kind:     types.KindScopedToken,
+			Version:  types.V1,
+			Metadata: &headerv1.Metadata{Name: name},
+			Scope:    scopeName,
+			Spec: &joiningv1.ScopedTokenSpec{
+				AssignedScope: scopeName,
+				Roles:         []string{role.String()},
+				JoinMethod:    string(types.JoinMethodToken),
+				UsageMode:     string(jointoken.TokenUsageModeUnlimited),
+			},
+		},
+	})
+	require.NoError(t, err)
+	return resp
 }
