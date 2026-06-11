@@ -90,12 +90,12 @@ class ResourceService {
     defaultConnector: DefaultAuthConnector;
     connectors: Resource<K>[];
   }> {
-    return api.get(url, signal).then(res => ({
+    return api.get(url, signal, undefined, { allowReuse: true }).then(res => ({
       defaultConnector: {
         name: res.defaultConnectorName,
         type: res.defaultConnectorType,
       },
-      connectors: makeResourceList<K>(res.connectors),
+      connectors: makeResourceList(res.connectors),
     }));
   }
 

@@ -23,10 +23,11 @@ import { expect, test } from '@gravitational/e2e/helpers/test';
 import type { Page, Request } from '@playwright/test';
 
 const MFA_CHALLENGE_PATH = '/v1/webapi/mfa/authenticatechallenge';
+const SET_DEFAULT_PATH = '/v1/webapi/authconnector/default';
 
 const isMfaChallenge = (req: Request) => req.url().includes(MFA_CHALLENGE_PATH);
 
-test('list, create, view, and delete an auth connector', async ({ page }) => {
+test('lists, creates, views, and deletes a connector', async ({ page }) => {
   const name = `testconnector-${randomUUID()}`;
   const tile = page.getByTestId(`${name}-tile`);
 
@@ -40,16 +41,7 @@ test('list, create, view, and delete an auth connector', async ({ page }) => {
       });
     });
 
-    await test.step('creating requires MFA', async () => {
-      await page.getByRole('button', { name: 'New GitHub Connector' }).click();
-      await page.waitForSelector('.ace_editor', { state: 'visible' });
-      await setConnectorName(page, name);
-
-      await expectMfaChallenge(page, () =>
-        page.getByRole('button', { name: 'Save Changes' }).click()
-      );
-      await expect(tile).toBeVisible();
-    });
+    await test.step('creating requires MFA', () => createConnector(page, name));
 
     await test.step('viewing renders secrets', async () => {
       await tile.getByRole('button').click();
@@ -75,6 +67,52 @@ test('list, create, view, and delete an auth connector', async ({ page }) => {
     deleteResourceIfExists(`github/${name}`);
   }
 });
+
+test('if the default connector was deleted, the fallback works and prompts for mfa', async ({
+  page,
+}) => {
+  const name = `testconnector-${randomUUID()}`;
+  try {
+    await createConnector(page, name);
+    await setAsDefault(page, name);
+
+    // Delete the connector via tctl
+    deleteResourceIfExists(`github/${name}`);
+
+    // Loading the connectors page should prompt for MFA, since in the background the default connector is being
+    // set to a fallback connector, which is an admin action.
+    await expectMfaChallenge(page, async () => {
+      await page.goto('/web/sso');
+      await expect(
+        page.getByRole('heading', { name: 'Your Connectors' })
+      ).toBeVisible();
+    });
+  } finally {
+    deleteResourceIfExists(`github/${name}`);
+  }
+});
+
+// createConnector creates an auth connector
+async function createConnector(page: Page, name: string) {
+  await page.goto('/web/sso');
+  await page.getByRole('button', { name: 'New GitHub Connector' }).click();
+  await page.waitForSelector('.ace_editor', { state: 'visible' });
+  await setConnectorName(page, name);
+
+  await expectMfaChallenge(page, () =>
+    page.getByRole('button', { name: 'Save Changes' }).click()
+  );
+  await expect(page.getByTestId(`${name}-tile`)).toBeVisible();
+}
+
+// setAsDefault sets a connector as default
+async function setAsDefault(page: Page, name: string) {
+  await page.getByTestId(`${name}-tile`).getByRole('button').click();
+  await Promise.all([
+    page.waitForResponse(r => r.url().includes(SET_DEFAULT_PATH) && r.ok()),
+    page.getByRole('menuitem', { name: 'Set as default' }).click(),
+  ]);
+}
 
 // expectMfaChallenge verifies that `action` prompts for MFA.
 async function expectMfaChallenge(page: Page, action: () => Promise<void>) {
