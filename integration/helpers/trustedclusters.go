@@ -40,7 +40,7 @@ func WaitForTunnelConnections(t *testing.T, authServer *auth.Server, clusterName
 	var conns []types.TunnelConnection
 	for range 30 {
 		// to speed things up a bit, bypass the auth cache
-		conns, err := authServer.Services.GetTunnelConnections(clusterName)
+		conns, err := authServer.Services.GetTunnelConnections(t.Context(), clusterName)
 		require.NoError(t, err)
 		if len(conns) == expectedCount {
 			return

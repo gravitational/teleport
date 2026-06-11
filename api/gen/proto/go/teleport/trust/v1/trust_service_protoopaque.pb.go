@@ -1641,6 +1641,244 @@ func (b0 DeleteTunnelConnectionRequest_builder) Build() *DeleteTunnelConnectionR
 	return m0
 }
 
+// ListTunnelConnectionsRequest is the request for ListTunnelConnections.
+type ListTunnelConnectionsRequest struct {
+	state                protoimpl.MessageState       `protogen:"opaque.v1"`
+	xxx_hidden_PageSize  int32                        `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3"`
+	xxx_hidden_PageToken string                       `protobuf:"bytes,2,opt,name=page_token,json=pageToken,proto3"`
+	xxx_hidden_Filter    *ListTunnelConnectionsFilter `protobuf:"bytes,3,opt,name=filter,proto3"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
+}
+
+func (x *ListTunnelConnectionsRequest) Reset() {
+	*x = ListTunnelConnectionsRequest{}
+	mi := &file_teleport_trust_v1_trust_service_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTunnelConnectionsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTunnelConnectionsRequest) ProtoMessage() {}
+
+func (x *ListTunnelConnectionsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_trust_v1_trust_service_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ListTunnelConnectionsRequest) GetPageSize() int32 {
+	if x != nil {
+		return x.xxx_hidden_PageSize
+	}
+	return 0
+}
+
+func (x *ListTunnelConnectionsRequest) GetPageToken() string {
+	if x != nil {
+		return x.xxx_hidden_PageToken
+	}
+	return ""
+}
+
+func (x *ListTunnelConnectionsRequest) GetFilter() *ListTunnelConnectionsFilter {
+	if x != nil {
+		return x.xxx_hidden_Filter
+	}
+	return nil
+}
+
+func (x *ListTunnelConnectionsRequest) SetPageSize(v int32) {
+	x.xxx_hidden_PageSize = v
+}
+
+func (x *ListTunnelConnectionsRequest) SetPageToken(v string) {
+	x.xxx_hidden_PageToken = v
+}
+
+func (x *ListTunnelConnectionsRequest) SetFilter(v *ListTunnelConnectionsFilter) {
+	x.xxx_hidden_Filter = v
+}
+
+func (x *ListTunnelConnectionsRequest) HasFilter() bool {
+	if x == nil {
+		return false
+	}
+	return x.xxx_hidden_Filter != nil
+}
+
+func (x *ListTunnelConnectionsRequest) ClearFilter() {
+	x.xxx_hidden_Filter = nil
+}
+
+type ListTunnelConnectionsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+	// Filter optionally narrows the returned tunnel connections.
+	Filter *ListTunnelConnectionsFilter
+}
+
+func (b0 ListTunnelConnectionsRequest_builder) Build() *ListTunnelConnectionsRequest {
+	m0 := &ListTunnelConnectionsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_PageSize = b.PageSize
+	x.xxx_hidden_PageToken = b.PageToken
+	x.xxx_hidden_Filter = b.Filter
+	return m0
+}
+
+// ListTunnelConnectionsFilter narrows the results of ListTunnelConnections.
+type ListTunnelConnectionsFilter struct {
+	state                  protoimpl.MessageState `protogen:"opaque.v1"`
+	xxx_hidden_ClusterName string                 `protobuf:"bytes,1,opt,name=cluster_name,json=clusterName,proto3"`
+	unknownFields          protoimpl.UnknownFields
+	sizeCache              protoimpl.SizeCache
+}
+
+func (x *ListTunnelConnectionsFilter) Reset() {
+	*x = ListTunnelConnectionsFilter{}
+	mi := &file_teleport_trust_v1_trust_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTunnelConnectionsFilter) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTunnelConnectionsFilter) ProtoMessage() {}
+
+func (x *ListTunnelConnectionsFilter) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_trust_v1_trust_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ListTunnelConnectionsFilter) GetClusterName() string {
+	if x != nil {
+		return x.xxx_hidden_ClusterName
+	}
+	return ""
+}
+
+func (x *ListTunnelConnectionsFilter) SetClusterName(v string) {
+	x.xxx_hidden_ClusterName = v
+}
+
+type ListTunnelConnectionsFilter_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// cluster_name, when set, limits results to tunnel connections for that
+	// cluster.
+	ClusterName string
+}
+
+func (b0 ListTunnelConnectionsFilter_builder) Build() *ListTunnelConnectionsFilter {
+	m0 := &ListTunnelConnectionsFilter{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_ClusterName = b.ClusterName
+	return m0
+}
+
+// ListTunnelConnectionsResponse is the response for ListTunnelConnections.
+type ListTunnelConnectionsResponse struct {
+	state                        protoimpl.MessageState       `protogen:"opaque.v1"`
+	xxx_hidden_TunnelConnections *[]*types.TunnelConnectionV2 `protobuf:"bytes,1,rep,name=tunnel_connections,json=tunnelConnections,proto3"`
+	xxx_hidden_NextPageToken     string                       `protobuf:"bytes,2,opt,name=next_page_token,json=nextPageToken,proto3"`
+	unknownFields                protoimpl.UnknownFields
+	sizeCache                    protoimpl.SizeCache
+}
+
+func (x *ListTunnelConnectionsResponse) Reset() {
+	*x = ListTunnelConnectionsResponse{}
+	mi := &file_teleport_trust_v1_trust_service_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *ListTunnelConnectionsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*ListTunnelConnectionsResponse) ProtoMessage() {}
+
+func (x *ListTunnelConnectionsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_trust_v1_trust_service_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *ListTunnelConnectionsResponse) GetTunnelConnections() []*types.TunnelConnectionV2 {
+	if x != nil {
+		if x.xxx_hidden_TunnelConnections != nil {
+			return *x.xxx_hidden_TunnelConnections
+		}
+	}
+	return nil
+}
+
+func (x *ListTunnelConnectionsResponse) GetNextPageToken() string {
+	if x != nil {
+		return x.xxx_hidden_NextPageToken
+	}
+	return ""
+}
+
+func (x *ListTunnelConnectionsResponse) SetTunnelConnections(v []*types.TunnelConnectionV2) {
+	x.xxx_hidden_TunnelConnections = &v
+}
+
+func (x *ListTunnelConnectionsResponse) SetNextPageToken(v string) {
+	x.xxx_hidden_NextPageToken = v
+}
+
+type ListTunnelConnectionsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// TunnelConnections is a page of tunnel connection resources.
+	TunnelConnections []*types.TunnelConnectionV2
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListTunnelConnectionsResponse_builder) Build() *ListTunnelConnectionsResponse {
+	m0 := &ListTunnelConnectionsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.xxx_hidden_TunnelConnections = &b.TunnelConnections
+	x.xxx_hidden_NextPageToken = b.NextPageToken
+	return m0
+}
+
 var File_teleport_trust_v1_trust_service_proto protoreflect.FileDescriptor
 
 const file_teleport_trust_v1_trust_service_proto_rawDesc = "" +
@@ -1707,7 +1945,17 @@ const file_teleport_trust_v1_trust_service_proto_rawDesc = "" +
 	"\x11tunnel_connection\x18\x01 \x01(\v2\x19.types.TunnelConnectionV2R\x10tunnelConnection\"k\n" +
 	"\x1dDeleteTunnelConnectionRequest\x12!\n" +
 	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\x12'\n" +
-	"\x0fconnection_name\x18\x02 \x01(\tR\x0econnectionName2\x83\v\n" +
+	"\x0fconnection_name\x18\x02 \x01(\tR\x0econnectionName\"\xa2\x01\n" +
+	"\x1cListTunnelConnectionsRequest\x12\x1b\n" +
+	"\tpage_size\x18\x01 \x01(\x05R\bpageSize\x12\x1d\n" +
+	"\n" +
+	"page_token\x18\x02 \x01(\tR\tpageToken\x12F\n" +
+	"\x06filter\x18\x03 \x01(\v2..teleport.trust.v1.ListTunnelConnectionsFilterR\x06filter\"@\n" +
+	"\x1bListTunnelConnectionsFilter\x12!\n" +
+	"\fcluster_name\x18\x01 \x01(\tR\vclusterName\"\x91\x01\n" +
+	"\x1dListTunnelConnectionsResponse\x12H\n" +
+	"\x12tunnel_connections\x18\x01 \x03(\v2\x19.types.TunnelConnectionV2R\x11tunnelConnections\x12&\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\xff\v\n" +
 	"\fTrustService\x12V\n" +
 	"\x10GetCertAuthority\x12*.teleport.trust.v1.GetCertAuthorityRequest\x1a\x16.types.CertAuthorityV2\x12q\n" +
 	"\x12GetCertAuthorities\x12,.teleport.trust.v1.GetCertAuthoritiesRequest\x1a-.teleport.trust.v1.GetCertAuthoritiesResponse\x12\\\n" +
@@ -1721,9 +1969,10 @@ const file_teleport_trust_v1_trust_service_proto_rawDesc = "" +
 	"\x14UpdateTrustedCluster\x12..teleport.trust.v1.UpdateTrustedClusterRequest\x1a\x17.types.TrustedClusterV2\x12t\n" +
 	"\x13ListTrustedClusters\x12-.teleport.trust.v1.ListTrustedClustersRequest\x1a..teleport.trust.v1.ListTrustedClustersResponse\x12}\n" +
 	"\x16UpsertTunnelConnection\x120.teleport.trust.v1.UpsertTunnelConnectionRequest\x1a1.teleport.trust.v1.UpsertTunnelConnectionResponse\x12b\n" +
-	"\x16DeleteTunnelConnection\x120.teleport.trust.v1.DeleteTunnelConnectionRequest\x1a\x16.google.protobuf.EmptyBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1;trustv1b\x06proto3"
+	"\x16DeleteTunnelConnection\x120.teleport.trust.v1.DeleteTunnelConnectionRequest\x1a\x16.google.protobuf.Empty\x12z\n" +
+	"\x15ListTunnelConnections\x12/.teleport.trust.v1.ListTunnelConnectionsRequest\x1a0.teleport.trust.v1.ListTunnelConnectionsResponseBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1;trustv1b\x06proto3"
 
-var file_teleport_trust_v1_trust_service_proto_msgTypes = make([]protoimpl.MessageInfo, 20)
+var file_teleport_trust_v1_trust_service_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_teleport_trust_v1_trust_service_proto_goTypes = []any{
 	(*UpsertTrustedClusterRequest)(nil),         // 0: teleport.trust.v1.UpsertTrustedClusterRequest
 	(*CreateTrustedClusterRequest)(nil),         // 1: teleport.trust.v1.CreateTrustedClusterRequest
@@ -1745,60 +1994,67 @@ var file_teleport_trust_v1_trust_service_proto_goTypes = []any{
 	(*UpsertTunnelConnectionRequest)(nil),       // 17: teleport.trust.v1.UpsertTunnelConnectionRequest
 	(*UpsertTunnelConnectionResponse)(nil),      // 18: teleport.trust.v1.UpsertTunnelConnectionResponse
 	(*DeleteTunnelConnectionRequest)(nil),       // 19: teleport.trust.v1.DeleteTunnelConnectionRequest
-	(*types.TrustedClusterV2)(nil),              // 20: types.TrustedClusterV2
-	(*types.CertAuthorityV2)(nil),               // 21: types.CertAuthorityV2
-	(*durationpb.Duration)(nil),                 // 22: google.protobuf.Duration
-	(*timestamppb.Timestamp)(nil),               // 23: google.protobuf.Timestamp
-	(*types.TunnelConnectionV2)(nil),            // 24: types.TunnelConnectionV2
-	(*emptypb.Empty)(nil),                       // 25: google.protobuf.Empty
+	(*ListTunnelConnectionsRequest)(nil),        // 20: teleport.trust.v1.ListTunnelConnectionsRequest
+	(*ListTunnelConnectionsFilter)(nil),         // 21: teleport.trust.v1.ListTunnelConnectionsFilter
+	(*ListTunnelConnectionsResponse)(nil),       // 22: teleport.trust.v1.ListTunnelConnectionsResponse
+	(*types.TrustedClusterV2)(nil),              // 23: types.TrustedClusterV2
+	(*types.CertAuthorityV2)(nil),               // 24: types.CertAuthorityV2
+	(*durationpb.Duration)(nil),                 // 25: google.protobuf.Duration
+	(*timestamppb.Timestamp)(nil),               // 26: google.protobuf.Timestamp
+	(*types.TunnelConnectionV2)(nil),            // 27: types.TunnelConnectionV2
+	(*emptypb.Empty)(nil),                       // 28: google.protobuf.Empty
 }
 var file_teleport_trust_v1_trust_service_proto_depIdxs = []int32{
-	20, // 0: teleport.trust.v1.UpsertTrustedClusterRequest.trusted_cluster:type_name -> types.TrustedClusterV2
-	20, // 1: teleport.trust.v1.CreateTrustedClusterRequest.trusted_cluster:type_name -> types.TrustedClusterV2
-	20, // 2: teleport.trust.v1.UpdateTrustedClusterRequest.trusted_cluster:type_name -> types.TrustedClusterV2
-	21, // 3: teleport.trust.v1.GetCertAuthoritiesResponse.cert_authorities_v2:type_name -> types.CertAuthorityV2
-	21, // 4: teleport.trust.v1.UpsertCertAuthorityRequest.cert_authority:type_name -> types.CertAuthorityV2
-	22, // 5: teleport.trust.v1.RotateCertAuthorityRequest.grace_period:type_name -> google.protobuf.Duration
+	23, // 0: teleport.trust.v1.UpsertTrustedClusterRequest.trusted_cluster:type_name -> types.TrustedClusterV2
+	23, // 1: teleport.trust.v1.CreateTrustedClusterRequest.trusted_cluster:type_name -> types.TrustedClusterV2
+	23, // 2: teleport.trust.v1.UpdateTrustedClusterRequest.trusted_cluster:type_name -> types.TrustedClusterV2
+	24, // 3: teleport.trust.v1.GetCertAuthoritiesResponse.cert_authorities_v2:type_name -> types.CertAuthorityV2
+	24, // 4: teleport.trust.v1.UpsertCertAuthorityRequest.cert_authority:type_name -> types.CertAuthorityV2
+	25, // 5: teleport.trust.v1.RotateCertAuthorityRequest.grace_period:type_name -> google.protobuf.Duration
 	9,  // 6: teleport.trust.v1.RotateCertAuthorityRequest.schedule:type_name -> teleport.trust.v1.RotationSchedule
-	23, // 7: teleport.trust.v1.RotationSchedule.update_clients:type_name -> google.protobuf.Timestamp
-	23, // 8: teleport.trust.v1.RotationSchedule.update_servers:type_name -> google.protobuf.Timestamp
-	23, // 9: teleport.trust.v1.RotationSchedule.standby:type_name -> google.protobuf.Timestamp
-	21, // 10: teleport.trust.v1.RotateExternalCertAuthorityRequest.cert_authority:type_name -> types.CertAuthorityV2
-	22, // 11: teleport.trust.v1.GenerateHostCertRequest.ttl:type_name -> google.protobuf.Duration
-	20, // 12: teleport.trust.v1.ListTrustedClustersResponse.trusted_clusters:type_name -> types.TrustedClusterV2
-	24, // 13: teleport.trust.v1.UpsertTunnelConnectionRequest.tunnel_connection:type_name -> types.TunnelConnectionV2
-	24, // 14: teleport.trust.v1.UpsertTunnelConnectionResponse.tunnel_connection:type_name -> types.TunnelConnectionV2
-	3,  // 15: teleport.trust.v1.TrustService.GetCertAuthority:input_type -> teleport.trust.v1.GetCertAuthorityRequest
-	4,  // 16: teleport.trust.v1.TrustService.GetCertAuthorities:input_type -> teleport.trust.v1.GetCertAuthoritiesRequest
-	6,  // 17: teleport.trust.v1.TrustService.DeleteCertAuthority:input_type -> teleport.trust.v1.DeleteCertAuthorityRequest
-	7,  // 18: teleport.trust.v1.TrustService.UpsertCertAuthority:input_type -> teleport.trust.v1.UpsertCertAuthorityRequest
-	8,  // 19: teleport.trust.v1.TrustService.RotateCertAuthority:input_type -> teleport.trust.v1.RotateCertAuthorityRequest
-	11, // 20: teleport.trust.v1.TrustService.RotateExternalCertAuthority:input_type -> teleport.trust.v1.RotateExternalCertAuthorityRequest
-	13, // 21: teleport.trust.v1.TrustService.GenerateHostCert:input_type -> teleport.trust.v1.GenerateHostCertRequest
-	0,  // 22: teleport.trust.v1.TrustService.UpsertTrustedCluster:input_type -> teleport.trust.v1.UpsertTrustedClusterRequest
-	1,  // 23: teleport.trust.v1.TrustService.CreateTrustedCluster:input_type -> teleport.trust.v1.CreateTrustedClusterRequest
-	2,  // 24: teleport.trust.v1.TrustService.UpdateTrustedCluster:input_type -> teleport.trust.v1.UpdateTrustedClusterRequest
-	15, // 25: teleport.trust.v1.TrustService.ListTrustedClusters:input_type -> teleport.trust.v1.ListTrustedClustersRequest
-	17, // 26: teleport.trust.v1.TrustService.UpsertTunnelConnection:input_type -> teleport.trust.v1.UpsertTunnelConnectionRequest
-	19, // 27: teleport.trust.v1.TrustService.DeleteTunnelConnection:input_type -> teleport.trust.v1.DeleteTunnelConnectionRequest
-	21, // 28: teleport.trust.v1.TrustService.GetCertAuthority:output_type -> types.CertAuthorityV2
-	5,  // 29: teleport.trust.v1.TrustService.GetCertAuthorities:output_type -> teleport.trust.v1.GetCertAuthoritiesResponse
-	25, // 30: teleport.trust.v1.TrustService.DeleteCertAuthority:output_type -> google.protobuf.Empty
-	21, // 31: teleport.trust.v1.TrustService.UpsertCertAuthority:output_type -> types.CertAuthorityV2
-	10, // 32: teleport.trust.v1.TrustService.RotateCertAuthority:output_type -> teleport.trust.v1.RotateCertAuthorityResponse
-	12, // 33: teleport.trust.v1.TrustService.RotateExternalCertAuthority:output_type -> teleport.trust.v1.RotateExternalCertAuthorityResponse
-	14, // 34: teleport.trust.v1.TrustService.GenerateHostCert:output_type -> teleport.trust.v1.GenerateHostCertResponse
-	20, // 35: teleport.trust.v1.TrustService.UpsertTrustedCluster:output_type -> types.TrustedClusterV2
-	20, // 36: teleport.trust.v1.TrustService.CreateTrustedCluster:output_type -> types.TrustedClusterV2
-	20, // 37: teleport.trust.v1.TrustService.UpdateTrustedCluster:output_type -> types.TrustedClusterV2
-	16, // 38: teleport.trust.v1.TrustService.ListTrustedClusters:output_type -> teleport.trust.v1.ListTrustedClustersResponse
-	18, // 39: teleport.trust.v1.TrustService.UpsertTunnelConnection:output_type -> teleport.trust.v1.UpsertTunnelConnectionResponse
-	25, // 40: teleport.trust.v1.TrustService.DeleteTunnelConnection:output_type -> google.protobuf.Empty
-	28, // [28:41] is the sub-list for method output_type
-	15, // [15:28] is the sub-list for method input_type
-	15, // [15:15] is the sub-list for extension type_name
-	15, // [15:15] is the sub-list for extension extendee
-	0,  // [0:15] is the sub-list for field type_name
+	26, // 7: teleport.trust.v1.RotationSchedule.update_clients:type_name -> google.protobuf.Timestamp
+	26, // 8: teleport.trust.v1.RotationSchedule.update_servers:type_name -> google.protobuf.Timestamp
+	26, // 9: teleport.trust.v1.RotationSchedule.standby:type_name -> google.protobuf.Timestamp
+	24, // 10: teleport.trust.v1.RotateExternalCertAuthorityRequest.cert_authority:type_name -> types.CertAuthorityV2
+	25, // 11: teleport.trust.v1.GenerateHostCertRequest.ttl:type_name -> google.protobuf.Duration
+	23, // 12: teleport.trust.v1.ListTrustedClustersResponse.trusted_clusters:type_name -> types.TrustedClusterV2
+	27, // 13: teleport.trust.v1.UpsertTunnelConnectionRequest.tunnel_connection:type_name -> types.TunnelConnectionV2
+	27, // 14: teleport.trust.v1.UpsertTunnelConnectionResponse.tunnel_connection:type_name -> types.TunnelConnectionV2
+	21, // 15: teleport.trust.v1.ListTunnelConnectionsRequest.filter:type_name -> teleport.trust.v1.ListTunnelConnectionsFilter
+	27, // 16: teleport.trust.v1.ListTunnelConnectionsResponse.tunnel_connections:type_name -> types.TunnelConnectionV2
+	3,  // 17: teleport.trust.v1.TrustService.GetCertAuthority:input_type -> teleport.trust.v1.GetCertAuthorityRequest
+	4,  // 18: teleport.trust.v1.TrustService.GetCertAuthorities:input_type -> teleport.trust.v1.GetCertAuthoritiesRequest
+	6,  // 19: teleport.trust.v1.TrustService.DeleteCertAuthority:input_type -> teleport.trust.v1.DeleteCertAuthorityRequest
+	7,  // 20: teleport.trust.v1.TrustService.UpsertCertAuthority:input_type -> teleport.trust.v1.UpsertCertAuthorityRequest
+	8,  // 21: teleport.trust.v1.TrustService.RotateCertAuthority:input_type -> teleport.trust.v1.RotateCertAuthorityRequest
+	11, // 22: teleport.trust.v1.TrustService.RotateExternalCertAuthority:input_type -> teleport.trust.v1.RotateExternalCertAuthorityRequest
+	13, // 23: teleport.trust.v1.TrustService.GenerateHostCert:input_type -> teleport.trust.v1.GenerateHostCertRequest
+	0,  // 24: teleport.trust.v1.TrustService.UpsertTrustedCluster:input_type -> teleport.trust.v1.UpsertTrustedClusterRequest
+	1,  // 25: teleport.trust.v1.TrustService.CreateTrustedCluster:input_type -> teleport.trust.v1.CreateTrustedClusterRequest
+	2,  // 26: teleport.trust.v1.TrustService.UpdateTrustedCluster:input_type -> teleport.trust.v1.UpdateTrustedClusterRequest
+	15, // 27: teleport.trust.v1.TrustService.ListTrustedClusters:input_type -> teleport.trust.v1.ListTrustedClustersRequest
+	17, // 28: teleport.trust.v1.TrustService.UpsertTunnelConnection:input_type -> teleport.trust.v1.UpsertTunnelConnectionRequest
+	19, // 29: teleport.trust.v1.TrustService.DeleteTunnelConnection:input_type -> teleport.trust.v1.DeleteTunnelConnectionRequest
+	20, // 30: teleport.trust.v1.TrustService.ListTunnelConnections:input_type -> teleport.trust.v1.ListTunnelConnectionsRequest
+	24, // 31: teleport.trust.v1.TrustService.GetCertAuthority:output_type -> types.CertAuthorityV2
+	5,  // 32: teleport.trust.v1.TrustService.GetCertAuthorities:output_type -> teleport.trust.v1.GetCertAuthoritiesResponse
+	28, // 33: teleport.trust.v1.TrustService.DeleteCertAuthority:output_type -> google.protobuf.Empty
+	24, // 34: teleport.trust.v1.TrustService.UpsertCertAuthority:output_type -> types.CertAuthorityV2
+	10, // 35: teleport.trust.v1.TrustService.RotateCertAuthority:output_type -> teleport.trust.v1.RotateCertAuthorityResponse
+	12, // 36: teleport.trust.v1.TrustService.RotateExternalCertAuthority:output_type -> teleport.trust.v1.RotateExternalCertAuthorityResponse
+	14, // 37: teleport.trust.v1.TrustService.GenerateHostCert:output_type -> teleport.trust.v1.GenerateHostCertResponse
+	23, // 38: teleport.trust.v1.TrustService.UpsertTrustedCluster:output_type -> types.TrustedClusterV2
+	23, // 39: teleport.trust.v1.TrustService.CreateTrustedCluster:output_type -> types.TrustedClusterV2
+	23, // 40: teleport.trust.v1.TrustService.UpdateTrustedCluster:output_type -> types.TrustedClusterV2
+	16, // 41: teleport.trust.v1.TrustService.ListTrustedClusters:output_type -> teleport.trust.v1.ListTrustedClustersResponse
+	18, // 42: teleport.trust.v1.TrustService.UpsertTunnelConnection:output_type -> teleport.trust.v1.UpsertTunnelConnectionResponse
+	28, // 43: teleport.trust.v1.TrustService.DeleteTunnelConnection:output_type -> google.protobuf.Empty
+	22, // 44: teleport.trust.v1.TrustService.ListTunnelConnections:output_type -> teleport.trust.v1.ListTunnelConnectionsResponse
+	31, // [31:45] is the sub-list for method output_type
+	17, // [17:31] is the sub-list for method input_type
+	17, // [17:17] is the sub-list for extension type_name
+	17, // [17:17] is the sub-list for extension extendee
+	0,  // [0:17] is the sub-list for field type_name
 }
 
 func init() { file_teleport_trust_v1_trust_service_proto_init() }
@@ -1812,7 +2068,7 @@ func file_teleport_trust_v1_trust_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_trust_v1_trust_service_proto_rawDesc), len(file_teleport_trust_v1_trust_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   20,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

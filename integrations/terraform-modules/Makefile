@@ -16,7 +16,7 @@ README_FILES := $(addsuffix /README.md,$(MODULE_DIRS))
 
 .PHONY: docs
 docs: $(README_FILES)
-	./gen/docs.sh $(VERSION) $(PUBLISHED_TF_MODULES)
+	./gen/docs.sh "$(VERSION)" $(PUBLISHED_TF_MODULES)
 
 %/README.md: force
 	terraform-docs markdown table --config .terraform-docs.yml $*
