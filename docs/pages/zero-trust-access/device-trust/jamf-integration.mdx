@@ -215,14 +215,16 @@ by the [Jamf Pro API](
 https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory).
 Jamf recommends a full sync no more than once every 24 hours.
 
-Where you apply the customization depends on your deployment. The default
-"inventory" configuration is roughly equivalent to:
+Where you apply the customization depends on how you run Jamf sync. The snippets
+under each option below spell out the default "inventory" configuration which
+the Jamf service and plugin use implicitly. Edit them to customize the sync
+schedule or the set of synced devices.
 
-<Tabs>
-<TabItem label="Self-Hosted">
+### In the `jamf_service` configuration file
 
-Edit the `jamf_service.inventory` list in your `teleport.yaml` and restart the
-`teleport` process:
+If you run Jamf sync as a self-hosted `jamf_service`, edit the
+`jamf_service.inventory` list in your `teleport.yaml` and restart the `teleport`
+process:
 
 ```yaml
 jamf_service:
@@ -236,13 +238,13 @@ jamf_service:
     filter_rsql: general.remoteManagement.managed==true
 ```
 
-</TabItem>
-<TabItem label="Teleport Cloud">
+### On the Jamf plugin resource
 
-The hosted Jamf plugin stores the same configuration on the plugin resource.
-Open it for editing with `tctl edit plugins/jamf` and update
-`spec.Settings.jamf.jamf_spec.inventory`. Updating the config restarts the
-plugin immediately with the changes applied.
+If you manage Jamf sync through the hosted Jamf plugin instead, the same
+configuration is stored on the plugin resource. This is the case for Teleport
+Cloud users who set up the plugin through the Web UI. Open it for editing with
+`tctl edit plugins/jamf` and update `spec.Settings.jamf.jamf_spec.inventory`.
+Updating the config restarts the plugin immediately with the changes applied.
 
 ```yaml
 kind: plugin
@@ -261,12 +263,9 @@ spec:
 version: v1
 ```
 
-</TabItem>
-</Tabs>
-
-Subsequent examples in this section show the self-hosted form for brevity. To
-apply them to the hosted plugin, copy the `inventory` entries into
-`spec.Settings.jamf.jamf_spec.inventory` on the plugin resource.
+Subsequent examples in this section show the `jamf_service` configuration file
+form for brevity. To apply them to the hosted plugin, copy the `inventory`
+entries into `spec.Settings.jamf.jamf_spec.inventory` on the plugin resource.
 
 Each inventory entry syncs a single device type. To also sync iOS and iPadOS
 mobile devices, add a second entry with `device_type: mobile_devices`:
