@@ -2366,6 +2366,35 @@ func (e *BeamsCreatedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEvent
 	}
 }
 
+// BeamsPublishedEvent is emitted when a beam app is published.
+type BeamsPublishedEvent prehogv1a.BeamsPublishedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsPublishedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsPublished{
+			BeamsPublished: &prehogv1a.BeamsPublishedEvent{
+				BeamId:   a.AnonymizeString(e.BeamId),
+				Protocol: e.Protocol,
+			},
+		},
+	}
+}
+
+// BeamsUnpublishedEvent is emitted when a beam app is unpublished.
+type BeamsUnpublishedEvent prehogv1a.BeamsUnpublishedEvent
+
+// Anonymize anonymizes the event.
+func (e *BeamsUnpublishedEvent) Anonymize(a utils.Anonymizer) *prehogv1a.SubmitEventRequest {
+	return &prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BeamsUnpublished{
+			BeamsUnpublished: &prehogv1a.BeamsUnpublishedEvent{
+				BeamId: a.AnonymizeString(e.BeamId),
+			},
+		},
+	}
+}
+
 // BeamsDestroyedEvent is emitted when a beam VM is destroyed.
 type BeamsDestroyedEvent prehogv1a.BeamsDestroyedEvent
 
