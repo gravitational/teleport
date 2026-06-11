@@ -153,12 +153,12 @@ func TestAccessGraphSettings(t *testing.T) {
 	// Create a new cache instance.
 	cache, err := NewCache(CacheConfig{
 		Upstream: &testUpstream{
-			accessGraphSettings: &clusterconfigpb.AccessGraphSettings{
+			accessGraphSettings: clusterconfigpb.AccessGraphSettings_builder{
 				Kind: types.KindAccessGraphSettings,
-				Metadata: &headerv1.Metadata{
+				Metadata: headerv1.Metadata_builder{
 					Name: "access-graph-settings",
-				},
-			},
+				}.Build(),
+			}.Build(),
 		},
 		TTL: time.Hour,
 	})

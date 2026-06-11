@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/userprovisioning/v2/statichostuser.proto
 
+//go:build !protoopaque
+
 package userprovisioningv2
 
 import (
@@ -26,7 +28,6 @@ import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 // StaticHostUser is a resource that represents host users that should be
 // created on matching nodes.
 type StaticHostUser struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// kind is a resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
 	// sub_kind is an optional resource sub kind, used in some resources.
@@ -81,11 +82,6 @@ func (x *StaticHostUser) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StaticHostUser.ProtoReflect.Descriptor instead.
-func (*StaticHostUser) Descriptor() ([]byte, []int) {
-	return file_teleport_userprovisioning_v2_statichostuser_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *StaticHostUser) GetKind() string {
 	if x != nil {
 		return x.Kind
@@ -121,9 +117,79 @@ func (x *StaticHostUser) GetSpec() *StaticHostUserSpec {
 	return nil
 }
 
+func (x *StaticHostUser) SetKind(v string) {
+	x.Kind = v
+}
+
+func (x *StaticHostUser) SetSubKind(v string) {
+	x.SubKind = v
+}
+
+func (x *StaticHostUser) SetVersion(v string) {
+	x.Version = v
+}
+
+func (x *StaticHostUser) SetMetadata(v *v1.Metadata) {
+	x.Metadata = v
+}
+
+func (x *StaticHostUser) SetSpec(v *StaticHostUserSpec) {
+	x.Spec = v
+}
+
+func (x *StaticHostUser) HasMetadata() bool {
+	if x == nil {
+		return false
+	}
+	return x.Metadata != nil
+}
+
+func (x *StaticHostUser) HasSpec() bool {
+	if x == nil {
+		return false
+	}
+	return x.Spec != nil
+}
+
+func (x *StaticHostUser) ClearMetadata() {
+	x.Metadata = nil
+}
+
+func (x *StaticHostUser) ClearSpec() {
+	x.Spec = nil
+}
+
+type StaticHostUser_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// kind is a resource kind.
+	Kind string
+	// sub_kind is an optional resource sub kind, used in some resources.
+	SubKind string
+	// version is the resource version. It must be specified.
+	// Supported values are: `v2`.
+	Version string
+	// metadata is resource metadata.
+	Metadata *v1.Metadata
+	// spec is the static host user spec.
+	Spec *StaticHostUserSpec
+}
+
+func (b0 StaticHostUser_builder) Build() *StaticHostUser {
+	m0 := &StaticHostUser{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Kind = b.Kind
+	x.SubKind = b.SubKind
+	x.Version = b.Version
+	x.Metadata = b.Metadata
+	x.Spec = b.Spec
+	return m0
+}
+
 // Matcher is a matcher for nodes to add the user to.
 type Matcher struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// node_labels is a map of node labels that will create a user from this
 	// resource.
 	NodeLabels []*v11.Label `protobuf:"bytes,1,rep,name=node_labels,json=nodeLabels,proto3" json:"node_labels,omitempty"`
@@ -169,11 +235,6 @@ func (x *Matcher) ProtoReflect() protoreflect.Message {
 		return ms
 	}
 	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Matcher.ProtoReflect.Descriptor instead.
-func (*Matcher) Descriptor() ([]byte, []int) {
-	return file_teleport_userprovisioning_v2_statichostuser_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *Matcher) GetNodeLabels() []*v11.Label {
@@ -232,9 +293,79 @@ func (x *Matcher) GetTakeOwnershipIfUserExists() bool {
 	return false
 }
 
+func (x *Matcher) SetNodeLabels(v []*v11.Label) {
+	x.NodeLabels = v
+}
+
+func (x *Matcher) SetNodeLabelsExpression(v string) {
+	x.NodeLabelsExpression = v
+}
+
+func (x *Matcher) SetGroups(v []string) {
+	x.Groups = v
+}
+
+func (x *Matcher) SetSudoers(v []string) {
+	x.Sudoers = v
+}
+
+func (x *Matcher) SetUid(v int64) {
+	x.Uid = v
+}
+
+func (x *Matcher) SetGid(v int64) {
+	x.Gid = v
+}
+
+func (x *Matcher) SetDefaultShell(v string) {
+	x.DefaultShell = v
+}
+
+func (x *Matcher) SetTakeOwnershipIfUserExists(v bool) {
+	x.TakeOwnershipIfUserExists = v
+}
+
+type Matcher_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// node_labels is a map of node labels that will create a user from this
+	// resource.
+	NodeLabels []*v11.Label
+	// node_labels_expression is a predicate expression to create a user from
+	// this resource.
+	NodeLabelsExpression string
+	// groups is a list of additional groups to add the user to.
+	Groups []string
+	// sudoers is a list of sudoer entries to add.
+	Sudoers []string
+	// uid is the new user's uid.
+	Uid int64
+	// gid is the new user's gid.
+	Gid int64
+	// default_shell is the new user's default shell
+	DefaultShell string
+	// take_ownership_if_user_exists will take ownership of existing, unmanaged users
+	TakeOwnershipIfUserExists bool
+}
+
+func (b0 Matcher_builder) Build() *Matcher {
+	m0 := &Matcher{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.NodeLabels = b.NodeLabels
+	x.NodeLabelsExpression = b.NodeLabelsExpression
+	x.Groups = b.Groups
+	x.Sudoers = b.Sudoers
+	x.Uid = b.Uid
+	x.Gid = b.Gid
+	x.DefaultShell = b.DefaultShell
+	x.TakeOwnershipIfUserExists = b.TakeOwnershipIfUserExists
+	return m0
+}
+
 // StaticHostUserSpec is the static host user spec.
 type StaticHostUserSpec struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Matchers      []*Matcher             `protobuf:"bytes,1,rep,name=matchers,proto3" json:"matchers,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -265,16 +396,29 @@ func (x *StaticHostUserSpec) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use StaticHostUserSpec.ProtoReflect.Descriptor instead.
-func (*StaticHostUserSpec) Descriptor() ([]byte, []int) {
-	return file_teleport_userprovisioning_v2_statichostuser_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *StaticHostUserSpec) GetMatchers() []*Matcher {
 	if x != nil {
 		return x.Matchers
 	}
 	return nil
+}
+
+func (x *StaticHostUserSpec) SetMatchers(v []*Matcher) {
+	x.Matchers = v
+}
+
+type StaticHostUserSpec_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Matchers []*Matcher
+}
+
+func (b0 StaticHostUserSpec_builder) Build() *StaticHostUserSpec {
+	m0 := &StaticHostUserSpec{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Matchers = b.Matchers
+	return m0
 }
 
 var File_teleport_userprovisioning_v2_statichostuser_proto protoreflect.FileDescriptor
@@ -300,18 +444,6 @@ const file_teleport_userprovisioning_v2_statichostuser_proto_rawDesc = "" +
 	"\x1dtake_ownership_if_user_exists\x18\b \x01(\bR\x19takeOwnershipIfUserExists\"W\n" +
 	"\x12StaticHostUserSpec\x12A\n" +
 	"\bmatchers\x18\x01 \x03(\v2%.teleport.userprovisioning.v2.MatcherR\bmatchersBdZbgithub.com/gravitational/teleport/api/gen/proto/go/teleport/userprovisioning/v2;userprovisioningv2b\x06proto3"
-
-var (
-	file_teleport_userprovisioning_v2_statichostuser_proto_rawDescOnce sync.Once
-	file_teleport_userprovisioning_v2_statichostuser_proto_rawDescData []byte
-)
-
-func file_teleport_userprovisioning_v2_statichostuser_proto_rawDescGZIP() []byte {
-	file_teleport_userprovisioning_v2_statichostuser_proto_rawDescOnce.Do(func() {
-		file_teleport_userprovisioning_v2_statichostuser_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_userprovisioning_v2_statichostuser_proto_rawDesc), len(file_teleport_userprovisioning_v2_statichostuser_proto_rawDesc)))
-	})
-	return file_teleport_userprovisioning_v2_statichostuser_proto_rawDescData
-}
 
 var file_teleport_userprovisioning_v2_statichostuser_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
 var file_teleport_userprovisioning_v2_statichostuser_proto_goTypes = []any{

@@ -118,7 +118,7 @@ func (process *TeleportProcess) reconnectToAuthService(role types.SystemRole) (*
 		case t := <-retry.After():
 			process.logger.DebugContext(process.ExitContext(), "Retrying connection to auth server.", "identity", role, "backoff", t.Sub(startedWait))
 			retry.Inc()
-		case <-process.ExitContext().Done():
+		case <-process.GracefulExitContext().Done():
 			process.logger.InfoContext(process.ExitContext(), "Stopping connection attempts, teleport is shutting down.", "identity", role)
 			return nil, ErrTeleportExited
 		}
@@ -1312,7 +1312,7 @@ func (process *TeleportProcess) rotate(conn *Connector, localState state.StateV2
 			conn.serverState.Store(connState)
 			return &rotationStatus{credentialsUpdated: true}, nil
 		default:
-			return nil, trace.BadParameter("unsupported state: %q", localState)
+			return nil, trace.BadParameter("unsupported state: %v", localState)
 		}
 	case types.RotationStateInProgress:
 		switch remote.Phase {
@@ -1497,7 +1497,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 		logger.DebugContext(process.ExitContext(), "Attempting to discover reverse tunnel address.")
 		logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
 
-		tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, connector.Role(), connector.ClientGetPool)
+		tunnelClient, pingResponse, err := process.newClientThroughProxy(tlsConfig, sshClientConfig, connector.Role(), connector.ClusterName(), connector.ClientGetPool)
 		if err != nil {
 			process.logger.ErrorContext(process.ExitContext(), "Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
 			process.logger.ErrorContext(process.ExitContext(), "- connecting to auth server directly", "error", directErr)
@@ -1521,7 +1521,7 @@ func (process *TeleportProcess) newClient(connector *Connector) (*authclient.Cli
 		if !proxyServer.IsEmpty() {
 			logger := process.logger.With("proxy_server", proxyServer.String())
 			logger.DebugContext(process.ExitContext(), "Attempting to connect to Auth Server through tunnel.")
-			tunnelClient, pingResponse, err := process.newClientThroughTunnel(tlsConfig, sshClientConfig, connector.Role(), connector.ClientGetPool)
+			tunnelClient, pingResponse, err := process.newClientThroughProxy(tlsConfig, sshClientConfig, connector.Role(), connector.ClusterName(), connector.ClientGetPool)
 			if err != nil {
 				return nil, nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
 			}
@@ -1553,8 +1553,8 @@ func (process *TeleportProcess) breakerConfigForRole(role types.SystemRole) brea
 	return servicebreaker.InstrumentBreakerForConnector(role, process.Config.CircuitBreakerConfig)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, sshConfig ssh.ClientConfig, role types.SystemRole, getClusterCAs func() (*x509.CertPool, error)) (*authclient.Client, *proto.PingResponse, error) {
-	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
+func (process *TeleportProcess) newClientThroughProxy(tlsConfig *tls.Config, sshConfig ssh.ClientConfig, role types.SystemRole, clusterName string, getClusterCAs func() (*x509.CertPool, error)) (*authclient.Client, *proto.PingResponse, error) {
+	dialer, err := reversetunnelclient.NewAuthDialerThroughProxy(reversetunnelclient.AuthDialerThroughProxyConfig{
 		Resolver:              process.resolver,
 		ClientConfig:          sshConfig,
 		Log:                   process.logger,
@@ -1562,6 +1562,7 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 		GetClusterCAs: func(context.Context) (*x509.CertPool, error) {
 			return getClusterCAs()
 		},
+		AllowALPNRouting: true,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1574,6 +1575,11 @@ func (process *TeleportProcess) newClientThroughTunnel(tlsConfig *tls.Config, ss
 		},
 		CircuitBreakerConfig: process.breakerConfigForRole(role),
 		DialTimeout:          process.Config.Testing.ClientTimeout,
+		// we are using a dialer that's confirming that we are connecting to an
+		// address that responds to /webapi/find by virtue of using a resolver,
+		// so there's no chance that we're going to get confused if we are
+		// accidentally pointed to an auth as if it was a proxy
+		ALPNSNIAuthDialClusterName: clusterName,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)

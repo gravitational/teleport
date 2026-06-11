@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/subca/v1/crl.proto
 
+//go:build !protoopaque
+
 package subcav1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // A CRL.
 type CertificateRevocationList struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// CRL encoded in PEM form.
 	Pem           string `protobuf:"bytes,1,opt,name=pem,proto3" json:"pem,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -69,16 +70,30 @@ func (x *CertificateRevocationList) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use CertificateRevocationList.ProtoReflect.Descriptor instead.
-func (*CertificateRevocationList) Descriptor() ([]byte, []int) {
-	return file_teleport_subca_v1_crl_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *CertificateRevocationList) GetPem() string {
 	if x != nil {
 		return x.Pem
 	}
 	return ""
+}
+
+func (x *CertificateRevocationList) SetPem(v string) {
+	x.Pem = v
+}
+
+type CertificateRevocationList_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// CRL encoded in PEM form.
+	Pem string
+}
+
+func (b0 CertificateRevocationList_builder) Build() *CertificateRevocationList {
+	m0 := &CertificateRevocationList{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Pem = b.Pem
+	return m0
 }
 
 var File_teleport_subca_v1_crl_proto protoreflect.FileDescriptor
@@ -88,18 +103,6 @@ const file_teleport_subca_v1_crl_proto_rawDesc = "" +
 	"\x1bteleport/subca/v1/crl.proto\x12\x11teleport.subca.v1\"-\n" +
 	"\x19CertificateRevocationList\x12\x10\n" +
 	"\x03pem\x18\x01 \x01(\tR\x03pemBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/subca/v1;subcav1b\x06proto3"
-
-var (
-	file_teleport_subca_v1_crl_proto_rawDescOnce sync.Once
-	file_teleport_subca_v1_crl_proto_rawDescData []byte
-)
-
-func file_teleport_subca_v1_crl_proto_rawDescGZIP() []byte {
-	file_teleport_subca_v1_crl_proto_rawDescOnce.Do(func() {
-		file_teleport_subca_v1_crl_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_subca_v1_crl_proto_rawDesc), len(file_teleport_subca_v1_crl_proto_rawDesc)))
-	})
-	return file_teleport_subca_v1_crl_proto_rawDescData
-}
 
 var file_teleport_subca_v1_crl_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_subca_v1_crl_proto_goTypes = []any{

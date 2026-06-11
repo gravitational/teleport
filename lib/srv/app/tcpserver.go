@@ -20,9 +20,11 @@ package app
 
 import (
 	"context"
+	"crypto/tls"
 	"log/slog"
 	"net"
 	"strconv"
+	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -31,24 +33,32 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/srv/app/common"
+	"github.com/gravitational/teleport/lib/srv/app/upstreamtls"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+type certificateAuthorityGetter interface {
+	// GetCertAuthority returns cert authority by id.
+	GetCertAuthority(context.Context, apitypes.CertAuthID, bool) (apitypes.CertAuthority, error)
+}
+
 type tcpServer struct {
-	emitter apievents.Emitter
-	hostID  string
-	log     *slog.Logger
+	emitter      apievents.Emitter
+	hostID       string
+	log          *slog.Logger
+	caGetter     certificateAuthorityGetter
+	clusterName  string
+	cipherSuites []uint16
+	insecureMode bool
 }
 
 // handleConnection handles connection from a TCP application.
 func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, identity *tlsca.Identity, app apitypes.Application) error {
-	uriAddr, err := utils.ParseAddr(app.GetURI())
+	// Validates the app is TCP.
+	uriAddr, isTLS, err := tcpAppAddr(app)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if uriAddr.AddrNetwork != "tcp" {
-		return trace.BadParameter(`unexpected app %q address network, expected "tcp": %+v`, app.GetName(), uriAddr)
 	}
 
 	dialer := net.Dialer{
@@ -58,9 +68,35 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	serverConn, err := dialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
-	if err != nil {
-		return trace.Wrap(err)
+
+	var serverConn net.Conn
+	switch {
+	case isTLS:
+		tlsConfig, err := upstreamtls.Configure(ctx, upstreamtls.Options{
+			Logger:       s.log,
+			CAGetter:     s.caGetter,
+			ClusterName:  s.clusterName,
+			App:          app,
+			CipherSuites: s.cipherSuites,
+			InsecureMode: s.insecureMode,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		tlsDialer := tls.Dialer{
+			NetDialer: &dialer,
+			Config:    tlsConfig,
+		}
+		serverConn, err = tlsDialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	default:
+		serverConn, err = dialer.DialContext(ctx, uriAddr.AddrNetwork, dialTarget)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	audit, err := common.NewAudit(common.AuditConfig{
@@ -144,4 +180,34 @@ func ensureZeroTargetPortOrEqualToPortFromURI(uriAddr *utils.NetAddr, targetPort
 	}
 
 	return nil
+}
+
+// tcpAppAddr this function validates the app is a TCP app, and parses its URI.
+//
+// Note, instead of changing the `utils.ParseAddr` (which is widely used across
+// Teleport) to include an internal scheme/protocol we handle this here,
+// avoiding introducing any regression.
+func tcpAppAddr(app apitypes.Application) (*utils.NetAddr, bool, error) {
+	uri := app.GetURI()
+	if !app.IsTCP() {
+		return nil, false, trace.BadParameter(`unexpected app %q address network, expected "tcp" or %q: %s`, app.GetName(), apitypes.SchemeTLS, uri)
+	}
+
+	uriAddr, err := utils.ParseAddr(uri)
+	if err == nil {
+		return uriAddr, false, nil
+	}
+
+	tlsScheme := apitypes.SchemeTLS + "://"
+	if !strings.HasPrefix(uri, tlsScheme) {
+		return nil, false, trace.Wrap(err)
+	}
+
+	// Replaces the "tls://" scheme with "tcp://" and try parsing again.
+	uriAddr, err = utils.ParseAddr(strings.Replace(uri, tlsScheme, "tcp://", 1))
+	if err != nil {
+		return nil, false, trace.Wrap(err)
+	}
+
+	return uriAddr, true, nil
 }

@@ -152,6 +152,7 @@ func (s *KeyAgentService) Run(ctx context.Context) error {
 	// 	   and permissions to restrict access to it - this is the same as the
 	// 	   internal.CreateListener method's behavior.
 	if dir.ACLsEnabled() {
+		//nolint:staticcheck // staticcheck doesn't like nop implementations in fs_other.go
 		if err := botfs.ConfigureACL(filepath.Join(dir.Path, libhwk.CertFileName), dir.Readers); err != nil {
 			return trace.Wrap(err)
 		}

@@ -216,7 +216,8 @@ export type KubernetesVerb =
   | 'watch'
   | 'deletecollection'
   | 'exec'
-  | 'portforward';
+  | 'portforward'
+  | 'proxy';
 
 export type Rule = {
   /**

@@ -50,30 +50,30 @@ func TestAccessGraphAuthorizedKeys(t *testing.T) {
 
 	// Test case 2: Non-empty list
 	authorizedKeys := []*accessgraphsecretspb.AuthorizedKeySpec{
-		{
+		accessgraphsecretspb.AuthorizedKeySpec_builder{
 			HostId:         "host1",
 			HostUser:       "user1",
 			KeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
 			KeyType:        "ssh-rsa",
-		},
-		{
+		}.Build(),
+		accessgraphsecretspb.AuthorizedKeySpec_builder{
 			HostId:         "host1",
 			HostUser:       "user2",
 			KeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
 			KeyType:        "ssh-rsa",
-		},
-		{
+		}.Build(),
+		accessgraphsecretspb.AuthorizedKeySpec_builder{
 			HostId:         "host2",
 			HostUser:       "user1",
 			KeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
 			KeyType:        "ssh-rsa",
-		},
-		{
+		}.Build(),
+		accessgraphsecretspb.AuthorizedKeySpec_builder{
 			HostId:         "host2",
 			HostUser:       "user2",
 			KeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
 			KeyType:        "ssh-rsa",
-		},
+		}.Build(),
 	}
 	var authKeys []*accessgraphsecretspb.AuthorizedKey
 	for _, key := range authorizedKeys {
@@ -89,7 +89,7 @@ func TestAccessGraphAuthorizedKeys(t *testing.T) {
 	require.Empty(t, cmp.Diff(authKeys, keys,
 		protocmp.Transform(),
 		cmpopts.SortSlices(func(a, b *accessgraphsecretspb.AuthorizedKey) bool {
-			return a.Metadata.Name < b.Metadata.Name
+			return a.GetMetadata().GetName() < b.GetMetadata().GetName()
 		})))
 	require.Empty(t, nextToken)
 
@@ -160,26 +160,26 @@ func TestAccessGraphPrivateKeys(t *testing.T) {
 
 	// Test case 2: Non-empty list
 	privateKeysSpec := []*accessgraphsecretspb.PrivateKeySpec{
-		{
+		accessgraphsecretspb.PrivateKeySpec_builder{
 			DeviceId:             "device1",
 			PublicKeyMode:        accessgraphsecretspb.PublicKeyMode_PUBLIC_KEY_MODE_DERIVED,
 			PublicKeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
-		},
-		{
+		}.Build(),
+		accessgraphsecretspb.PrivateKeySpec_builder{
 			DeviceId:             "device1",
 			PublicKeyMode:        accessgraphsecretspb.PublicKeyMode_PUBLIC_KEY_MODE_PUB_FILE,
 			PublicKeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
-		},
-		{
+		}.Build(),
+		accessgraphsecretspb.PrivateKeySpec_builder{
 			DeviceId:             "device2",
 			PublicKeyMode:        accessgraphsecretspb.PublicKeyMode_PUBLIC_KEY_MODE_DERIVED,
 			PublicKeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
-		},
-		{
+		}.Build(),
+		accessgraphsecretspb.PrivateKeySpec_builder{
 			DeviceId:             "device2",
 			PublicKeyMode:        accessgraphsecretspb.PublicKeyMode_PUBLIC_KEY_MODE_PUB_FILE,
 			PublicKeyFingerprint: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC...",
-		},
+		}.Build(),
 	}
 	var authKeys []*accessgraphsecretspb.PrivateKey
 	for _, key := range privateKeysSpec {
@@ -196,7 +196,7 @@ func TestAccessGraphPrivateKeys(t *testing.T) {
 	require.Empty(t, cmp.Diff(authKeys, keys,
 		protocmp.Transform(),
 		cmpopts.SortSlices(func(a, b *accessgraphsecretspb.PrivateKey) bool {
-			return a.Metadata.Name < b.Metadata.Name
+			return a.GetMetadata().GetName() < b.GetMetadata().GetName()
 		})))
 	require.Empty(t, nextToken)
 

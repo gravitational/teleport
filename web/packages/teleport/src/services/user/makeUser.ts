@@ -20,12 +20,24 @@ import { User } from './types';
 
 export default function makeUser(json: any): User {
   json = json || {};
-  const { name, roles, authType, origin, traits = {}, allTraits, isBot } = json;
+  const {
+    name,
+    roles,
+    authType,
+    origin,
+    traits = {},
+    allTraits,
+    isBot,
+    displayPrimary,
+    displaySecondary,
+  } = json;
 
   return {
     name,
+    displayPrimary,
+    displaySecondary,
     roles: roles ? roles.sort() : [],
-    authType: authType === 'local' ? 'teleport local user' : authType,
+    authType: authType === 'local' ? 'local user' : authType,
     isLocal: authType === 'local',
     isBot,
     origin: origin ? origin : '',

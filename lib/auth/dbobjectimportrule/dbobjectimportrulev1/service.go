@@ -103,11 +103,11 @@ func (rs *DatabaseObjectImportRuleService) GetDatabaseObjectImportRule(ctx conte
 		return nil, trace.Wrap(err)
 	}
 
-	if req.Name == "" {
+	if req.GetName() == "" {
 		return nil, trace.BadParameter("name: must be non-empty")
 	}
 
-	out, err := rs.backend.GetDatabaseObjectImportRule(ctx, req.Name)
+	out, err := rs.backend.GetDatabaseObjectImportRule(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -123,14 +123,14 @@ func (rs *DatabaseObjectImportRuleService) ListDatabaseObjectImportRules(
 		return nil, trace.Wrap(err)
 	}
 
-	out, next, err := rs.backend.ListDatabaseObjectImportRules(ctx, int(req.PageSize), req.PageToken)
+	out, next, err := rs.backend.ListDatabaseObjectImportRules(ctx, int(req.GetPageSize()), req.GetPageToken())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return &pb.ListDatabaseObjectImportRulesResponse{
+	return pb.ListDatabaseObjectImportRulesResponse_builder{
 		Rules:         out,
 		NextPageToken: next,
-	}, nil
+	}.Build(), nil
 }
 
 // CreateDatabaseObjectImportRule creates a new DatabaseObjectImportRule. It will return an error if the DatabaseObjectImportRule already
@@ -143,12 +143,12 @@ func (rs *DatabaseObjectImportRuleService) CreateDatabaseObjectImportRule(
 		return nil, trace.Wrap(err)
 	}
 
-	err = databaseobjectimportrule.ValidateDatabaseObjectImportRule(req.Rule)
+	err = databaseobjectimportrule.ValidateDatabaseObjectImportRule(req.GetRule())
 	if err != nil {
 		return nil, trace.Wrap(err, "validating rule")
 	}
 
-	out, err := rs.backend.CreateDatabaseObjectImportRule(ctx, req.Rule)
+	out, err := rs.backend.CreateDatabaseObjectImportRule(ctx, req.GetRule())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -180,12 +180,12 @@ func (rs *DatabaseObjectImportRuleService) UpdateDatabaseObjectImportRule(
 		return nil, trace.Wrap(err)
 	}
 
-	err = databaseobjectimportrule.ValidateDatabaseObjectImportRule(req.Rule)
+	err = databaseobjectimportrule.ValidateDatabaseObjectImportRule(req.GetRule())
 	if err != nil {
 		return nil, trace.Wrap(err, "validating rule")
 	}
 
-	rule, err := rs.backend.UpdateDatabaseObjectImportRule(ctx, req.Rule)
+	rule, err := rs.backend.UpdateDatabaseObjectImportRule(ctx, req.GetRule())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -215,7 +215,7 @@ func (rs *DatabaseObjectImportRuleService) DeleteDatabaseObjectImportRule(
 		return nil, trace.Wrap(err)
 	}
 
-	err = rs.backend.DeleteDatabaseObjectImportRule(ctx, req.Name)
+	err = rs.backend.DeleteDatabaseObjectImportRule(ctx, req.GetName())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

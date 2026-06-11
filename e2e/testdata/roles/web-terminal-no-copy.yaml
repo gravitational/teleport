@@ -1,0 +1,13 @@
+kind: role
+metadata:
+  name: web-terminal-no-copy
+spec:
+  allow:
+    logins:
+    - root
+    node_labels:
+      '*': '*'
+  options:
+    max_session_ttl: 8h0m0s
+    web_terminal_clipboard_mode: no-copy
+version: v7

@@ -14,32 +14,36 @@
 // You should have received a copy of the GNU Affero General Public License
 // along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-pub(crate) struct CursorBitmap {
-    width: u16,
-    height: u16,
-    hotspot_x: u16,
-    hotspot_y: u16,
-    data: Vec<u8>, // RGBA, 4 bytes per pixel
+use ironrdp_graphics::pointer::DecodedPointer;
+use std::sync::Arc;
+
+#[derive(Default)]
+pub(crate) enum CursorBitmap {
+    #[default]
+    Default,
+    Server(Arc<DecodedPointer>),
 }
 
 impl CursorBitmap {
-    pub(crate) unsafe fn write_metadata(
-        &self,
-        out_width: *mut u16,
-        out_height: *mut u16,
-        out_hotspot_x: *mut u16,
-        out_hotspot_y: *mut u16,
-    ) {
-        unsafe {
-            *out_width = self.width;
-            *out_height = self.height;
-            *out_hotspot_x = self.hotspot_x;
-            *out_hotspot_y = self.hotspot_y;
+    pub(crate) fn data(&self) -> &[u8] {
+        match self {
+            CursorBitmap::Default => &DEFAULT_CURSOR_RGBA,
+            CursorBitmap::Server(ptr) => &ptr.bitmap_data,
         }
     }
 
-    pub(crate) fn data_ptr(&self) -> *const u8 {
-        self.data.as_ptr()
+    pub(crate) fn dimensions(&self) -> (u16, u16) {
+        match self {
+            CursorBitmap::Default => (DEFAULT_CURSOR_WIDTH as u16, DEFAULT_CURSOR_HEIGHT as u16),
+            CursorBitmap::Server(ptr) => (ptr.width, ptr.height),
+        }
+    }
+
+    pub(crate) fn hotspot(&self) -> (u16, u16) {
+        match self {
+            CursorBitmap::Default => (0, 0),
+            CursorBitmap::Server(ptr) => (ptr.hotspot_x, ptr.hotspot_y),
+        }
     }
 }
 
@@ -48,26 +52,20 @@ pub(crate) struct CursorState {
     visible: bool,
     x: u16,
     y: u16,
-    bitmap: Option<CursorBitmap>,
+    bitmap: CursorBitmap,
 }
 
 impl CursorState {
-    pub(crate) fn set_bitmap(&mut self, pointer: &ironrdp_graphics::pointer::DecodedPointer) {
+    pub(crate) fn set_bitmap(&mut self, pointer: Arc<DecodedPointer>) {
         if pointer.bitmap_data.is_empty() {
             return;
         }
 
-        self.bitmap = Some(CursorBitmap {
-            width: pointer.width,
-            height: pointer.height,
-            hotspot_x: pointer.hotspot_x,
-            hotspot_y: pointer.hotspot_y,
-            data: pointer.bitmap_data.clone(),
-        });
+        self.bitmap = CursorBitmap::Server(pointer);
     }
 
     pub(crate) fn clear_bitmap(&mut self) {
-        self.bitmap = None;
+        self.bitmap = CursorBitmap::Default;
     }
 
     pub(crate) fn move_cursor(&mut self, x: u16, y: u16) {
@@ -87,10 +85,58 @@ impl CursorState {
         (self.x, self.y)
     }
 
-    pub(crate) fn bitmap(&self) -> Option<&CursorBitmap> {
-        self.bitmap.as_ref()
+    pub(crate) fn bitmap(&self) -> &CursorBitmap {
+        &self.bitmap
     }
 }
+
+// Synthetic default cursor used when the server signals `PTR_DEFAULT` (no
+// bitmap supplied) or when a PointerPosition arrives before any bitmap.
+const DEFAULT_CURSOR_WIDTH: usize = 12;
+const DEFAULT_CURSOR_HEIGHT: usize = 17;
+
+#[rustfmt::skip]
+const DEFAULT_CURSOR_SHAPE: [u8; DEFAULT_CURSOR_WIDTH*DEFAULT_CURSOR_HEIGHT] = [
+    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0, 0,
+    1, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0, 0,
+    1, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0, 0,
+    1, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0, 0,
+    1, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0, 0,
+    1, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0, 0,
+    1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0, 0,
+    1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 0,
+    1, 2, 2, 2, 2, 2, 2, 1, 1, 1, 1, 1,
+    1, 2, 2, 2, 1, 2, 2, 1, 0, 0, 0, 0,
+    1, 2, 2, 1, 0, 1, 2, 2, 1, 0, 0, 0,
+    1, 2, 1, 0, 0, 1, 2, 2, 1, 0, 0, 0,
+    1, 1, 0, 0, 0, 0, 1, 2, 1, 0, 0, 0,
+    1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0,
+];
+
+const DEFAULT_CURSOR_RGBA: [u8; DEFAULT_CURSOR_WIDTH * DEFAULT_CURSOR_HEIGHT * 4] = {
+    let mut data = [0; DEFAULT_CURSOR_WIDTH * DEFAULT_CURSOR_HEIGHT * 4];
+    let mut i = 0;
+    while i < DEFAULT_CURSOR_WIDTH * DEFAULT_CURSOR_HEIGHT {
+        let p = match DEFAULT_CURSOR_SHAPE[i] {
+            // black outline
+            1 => [0, 0, 0, 255],
+            // white body
+            2 => [255, 255, 255, 255],
+            _ => [0, 0, 0, 0],
+        };
+
+        data[4 * i] = p[0];
+        data[4 * i + 1] = p[1];
+        data[4 * i + 2] = p[2];
+        data[4 * i + 3] = p[3];
+        i += 1;
+    }
+
+    data
+};
 
 #[cfg(test)]
 mod tests {
@@ -100,23 +146,55 @@ mod tests {
     fn sample_pointer() -> DecodedPointer {
         DecodedPointer {
             width: 2,
-            height: 2,
-            hotspot_x: 0,
-            hotspot_y: 0,
-            bitmap_data: vec![0xFF; 2 * 2 * 4],
+            height: 3,
+            hotspot_x: 1,
+            hotspot_y: 2,
+            bitmap_data: vec![0xAB; 2 * 3 * 4],
         }
+    }
+
+    fn assert_is_default(bitmap: &CursorBitmap) {
+        let (width, height) = bitmap.dimensions();
+
+        assert_eq!(width, DEFAULT_CURSOR_WIDTH as u16);
+        assert_eq!(height, DEFAULT_CURSOR_HEIGHT as u16);
+
+        let (hotspot_x, hotspot_y) = bitmap.hotspot();
+
+        assert_eq!(hotspot_x, 0);
+        assert_eq!(hotspot_y, 0);
+
+        let data = bitmap.data();
+
+        assert_eq!(data, &DEFAULT_CURSOR_RGBA[..]);
     }
 
     #[test]
     fn pointer_default_clears_cached_bitmap() {
         let mut state = CursorState::default();
-        state.set_bitmap(&sample_pointer());
-        assert!(state.bitmap().is_some());
+
+        assert_is_default(state.bitmap());
+
+        state.set_bitmap(Arc::new(sample_pointer()));
+
+        let cached = state.bitmap();
+        let (width, height) = cached.dimensions();
+
+        assert_eq!(width, 2);
+        assert_eq!(height, 3);
+
+        let (hotspot_x, hotspot_y) = cached.hotspot();
+
+        assert_eq!(hotspot_x, 1);
+        assert_eq!(hotspot_y, 2);
+
+        let data = cached.data();
+        assert_eq!(data, &vec![0xAB; 2 * 3 * 4][..]);
 
         state.set_visible(true);
         state.clear_bitmap();
 
-        assert!(state.bitmap().is_none());
+        assert_is_default(state.bitmap());
         assert!(state.is_visible());
     }
 }

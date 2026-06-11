@@ -73,10 +73,10 @@ func getLoginRule(ctx context.Context, client *authclient.Client, ref services.R
 	loginRuleClient := client.LoginRuleClient()
 	if ref.Name == "" {
 		rules, err := stream.Collect(clientutils.Resources(ctx, func(ctx context.Context, limit int, token string) ([]*loginrulepb.LoginRule, string, error) {
-			resp, err := loginRuleClient.ListLoginRules(ctx, &loginrulepb.ListLoginRulesRequest{
+			resp, err := loginRuleClient.ListLoginRules(ctx, loginrulepb.ListLoginRulesRequest_builder{
 				PageSize:  int32(limit),
 				PageToken: token,
-			})
+			}.Build())
 			return resp.GetLoginRules(), resp.GetNextPageToken(), trace.Wrap(err)
 		}))
 		if err != nil {
@@ -85,9 +85,9 @@ func getLoginRule(ctx context.Context, client *authclient.Client, ref services.R
 
 		return &loginRuleCollection{rules}, nil
 	}
-	rule, err := loginRuleClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
+	rule, err := loginRuleClient.GetLoginRule(ctx, loginrulepb.GetLoginRuleRequest_builder{
 		Name: ref.Name,
-	})
+	}.Build())
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
@@ -102,16 +102,16 @@ func createLoginRule(ctx context.Context, client *authclient.Client, raw service
 
 	loginRuleClient := client.LoginRuleClient()
 	if opts.Force {
-		_, err := loginRuleClient.UpsertLoginRule(ctx, &loginrulepb.UpsertLoginRuleRequest{
+		_, err := loginRuleClient.UpsertLoginRule(ctx, loginrulepb.UpsertLoginRuleRequest_builder{
 			LoginRule: rule,
-		})
+		}.Build())
 		if err != nil {
 			return trail.FromGRPC(err)
 		}
 	} else {
-		_, err = loginRuleClient.CreateLoginRule(ctx, &loginrulepb.CreateLoginRuleRequest{
+		_, err = loginRuleClient.CreateLoginRule(ctx, loginrulepb.CreateLoginRuleRequest_builder{
 			LoginRule: rule,
-		})
+		}.Build())
 		if err != nil {
 			return trail.FromGRPC(err)
 		}
@@ -123,9 +123,9 @@ func createLoginRule(ctx context.Context, client *authclient.Client, raw service
 
 func deleteLoginRule(ctx context.Context, client *authclient.Client, ref services.Ref) error {
 	loginRuleClient := client.LoginRuleClient()
-	_, err := loginRuleClient.DeleteLoginRule(ctx, &loginrulepb.DeleteLoginRuleRequest{
+	_, err := loginRuleClient.DeleteLoginRule(ctx, loginrulepb.DeleteLoginRuleRequest_builder{
 		Name: ref.Name,
-	})
+	}.Build())
 	if err != nil {
 		return trail.FromGRPC(err)
 	}

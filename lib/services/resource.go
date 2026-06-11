@@ -40,7 +40,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	scopedaccess "github.com/gravitational/teleport/lib/scopes/access"
-	"github.com/gravitational/teleport/lib/subca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -828,17 +827,6 @@ func init() {
 		return types.Resource153ToLegacy(wid), nil
 	})
 
-	// Gate these behind the feature flag, as they have an effect on user-visible product surface
-	// (ie, "tctl get all").
-	if subca.Enabled() {
-		initSubCA()
-	}
-}
-
-func initSubCA() {
-	// TODO(codingllama): Remove this method and inline calls on init() once the
-	//  feature flag is no more.
-
 	RegisterResourceMarshaler(types.KindCertAuthorityOverride, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
 		unwrapper, ok := resource.(types.Resource153UnwrapperT[*subcav1.CertAuthorityOverride])
 		if !ok {
@@ -1001,7 +989,7 @@ func maybeResetProtoRevisionv2[T ProtoResource](preserveRevision bool, r T) T {
 	}
 
 	cp := proto.Clone(r).(T)
-	cp.GetMetadata().Revision = ""
+	cp.GetMetadata().SetRevision("")
 	return cp
 }
 
@@ -1037,10 +1025,10 @@ func UnmarshalProtoResource[T ProtoResourcePtr[U], U any](data []byte, opts ...M
 		return nil, trace.Wrap(err)
 	}
 	if cfg.Revision != "" {
-		resource.GetMetadata().Revision = cfg.Revision
+		resource.GetMetadata().SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
-		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
+		resource.GetMetadata().SetExpires(timestamppb.New(cfg.Expires))
 	}
 	return resource, nil
 }
@@ -1103,10 +1091,10 @@ func FastUnmarshalProtoResourceDeprecated[T ProtoResourcePtr[U], U any](data []b
 		return nil, trace.Wrap(err)
 	}
 	if cfg.Revision != "" {
-		resource.GetMetadata().Revision = cfg.Revision
+		resource.GetMetadata().SetRevision(cfg.Revision)
 	}
 	if !cfg.Expires.IsZero() {
-		resource.GetMetadata().Expires = timestamppb.New(cfg.Expires)
+		resource.GetMetadata().SetExpires(timestamppb.New(cfg.Expires))
 	}
 	return resource, nil
 }

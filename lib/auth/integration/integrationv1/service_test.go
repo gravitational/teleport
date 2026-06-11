@@ -104,9 +104,9 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
+				_, err := resourceSvc.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
 					Name: igName,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: noError,
@@ -115,9 +115,9 @@ func TestIntegrationCRUD(t *testing.T) {
 			Name: "no access to read integrations",
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
+				_, err := resourceSvc.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
 					Name: igName,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: trace.IsAccessDenied,
@@ -131,9 +131,9 @@ func TestIntegrationCRUD(t *testing.T) {
 				}}},
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{
+				_, err := resourceSvc.GetIntegration(ctx, integrationpb.GetIntegrationRequest_builder{
 					Name: igName,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: trace.IsAccessDenied,
@@ -155,10 +155,10 @@ func TestIntegrationCRUD(t *testing.T) {
 				}
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
+				_, err := resourceSvc.ListIntegrations(ctx, integrationpb.ListIntegrationsRequest_builder{
 					Limit:   0,
 					NextKey: "",
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: noError,
@@ -172,10 +172,10 @@ func TestIntegrationCRUD(t *testing.T) {
 				}}},
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
+				_, err := resourceSvc.ListIntegrations(ctx, integrationpb.ListIntegrationsRequest_builder{
 					Limit:   0,
 					NextKey: "",
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: trace.IsAccessDenied,
@@ -187,7 +187,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				ig := sampleIntegrationFn(t, igName)
-				_, err := resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: ig.(*types.IntegrationV1)})
+				_, err := resourceSvc.CreateIntegration(ctx, integrationpb.CreateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build())
 				return err
 			},
 			ErrAssertion: trace.IsAccessDenied,
@@ -203,7 +203,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			IntegrationName: "integration-allow-create-access",
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				ig := sampleIntegrationFn(t, igName)
-				_, err := resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: ig.(*types.IntegrationV1)})
+				_, err := resourceSvc.CreateIntegration(ctx, integrationpb.CreateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build())
 				return err
 			},
 			ErrAssertion: noError,
@@ -219,7 +219,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			IntegrationName: "integration-awsoidc-invalid.name",
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				ig := sampleIntegrationFn(t, igName)
-				_, err := resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: ig.(*types.IntegrationV1)})
+				_, err := resourceSvc.CreateIntegration(ctx, integrationpb.CreateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build())
 				return err
 			},
 			ErrAssertion: trace.IsBadParameter,
@@ -238,7 +238,7 @@ func TestIntegrationCRUD(t *testing.T) {
 					return trace.Wrap(err)
 				}
 
-				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: ig})
+				_, err = resourceSvc.CreateIntegration(ctx, integrationpb.CreateIntegrationRequest_builder{Integration: ig}.Build())
 				return trace.Wrap(err)
 			},
 			Validate: func(t *testing.T, igName string) {
@@ -253,7 +253,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				ig := sampleIntegrationFn(t, igName)
-				_, err := resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: ig.(*types.IntegrationV1)})
+				_, err := resourceSvc.UpdateIntegration(ctx, integrationpb.UpdateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build())
 				return err
 			},
 			ErrAssertion: trace.IsAccessDenied,
@@ -272,7 +272,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
 				ig := sampleIntegrationFn(t, igName)
-				_, err := resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: ig.(*types.IntegrationV1)})
+				_, err := resourceSvc.UpdateIntegration(ctx, integrationpb.UpdateIntegrationRequest_builder{Integration: ig.(*types.IntegrationV1)}.Build())
 				return err
 			},
 			ErrAssertion: noError,
@@ -290,7 +290,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: oldIg})
+				_, err = resourceSvc.CreateIntegration(ctx, integrationpb.CreateIntegrationRequest_builder{Integration: oldIg}.Build())
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -299,7 +299,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				_, err = resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: newIg})
+				_, err = resourceSvc.UpdateIntegration(ctx, integrationpb.UpdateIntegrationRequest_builder{Integration: newIg}.Build())
 				return err
 			},
 			Validate: func(t *testing.T, igName string) {
@@ -320,7 +320,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: oldIg})
+				_, err = resourceSvc.CreateIntegration(ctx, integrationpb.CreateIntegrationRequest_builder{Integration: oldIg}.Build())
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -329,7 +329,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				_, err = resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: newIg})
+				_, err = resourceSvc.UpdateIntegration(ctx, integrationpb.UpdateIntegrationRequest_builder{Integration: newIg}.Build())
 				return err
 			},
 			Validate: func(t *testing.T, igName string) {
@@ -350,7 +350,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: oldIg})
+				_, err = resourceSvc.CreateIntegration(ctx, integrationpb.CreateIntegrationRequest_builder{Integration: oldIg}.Build())
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -359,7 +359,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				_, err = resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: newIg})
+				_, err = resourceSvc.UpdateIntegration(ctx, integrationpb.UpdateIntegrationRequest_builder{Integration: newIg}.Build())
 				return err
 			},
 			Validate: func(t *testing.T, igName string) {
@@ -380,7 +380,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				_, err = resourceSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: oldIg})
+				_, err = resourceSvc.CreateIntegration(ctx, integrationpb.CreateIntegrationRequest_builder{Integration: oldIg}.Build())
 				if err != nil {
 					return trace.Wrap(err)
 				}
@@ -389,7 +389,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				_, err = resourceSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: newIg})
+				_, err = resourceSvc.UpdateIntegration(ctx, integrationpb.UpdateIntegrationRequest_builder{Integration: newIg}.Build())
 				return err
 			},
 			ErrAssertion: trace.IsBadParameter,
@@ -400,7 +400,7 @@ func TestIntegrationCRUD(t *testing.T) {
 			Name: "no access to delete integration",
 			Role: types.RoleSpecV6{},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: "x"})
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{Name: "x"}.Build())
 				return err
 			},
 			ErrAssertion: trace.IsAccessDenied,
@@ -420,7 +420,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{Name: igName}.Build())
 				return err
 
 			},
@@ -447,7 +447,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{Name: igName}.Build())
 				return err
 			},
 			Cleanup: func(t *testing.T, igName string) {
@@ -474,10 +474,10 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, localClient.CreatePlugin(ctx, NewIdentityCenterPlugin(igName, igName)))
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: "another-plugin"})
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{Name: "another-plugin"}.Build())
 				require.NoError(t, err)
 				require.NoError(t, localClient.DeletePlugin(ctx, types.PluginTypeMattermost))
-				_, err = resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				_, err = resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{Name: igName}.Build())
 				return err
 			},
 			Cleanup: func(t *testing.T, igName string) {
@@ -498,7 +498,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{Name: igName}.Build())
 				return err
 			},
 			ErrAssertion: noError,
@@ -554,7 +554,7 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NotNil(t, staticCreds)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: igName})
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{Name: igName}.Build())
 				return err
 			},
 			Validate: func(t *testing.T, igName string) {
@@ -584,9 +584,9 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
 					Name: igName,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: trace.IsBadParameter,
@@ -610,10 +610,10 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
 					Name:                      igName,
 					DeleteAssociatedResources: true,
-				})
+				}.Build())
 				return err
 			},
 			ErrAssertion: trace.IsAccessDenied,
@@ -650,10 +650,10 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
 					Name:                      igName,
 					DeleteAssociatedResources: true,
-				})
+				}.Build())
 				return err
 			},
 			Validate: func(t *testing.T, igName string) {
@@ -690,10 +690,10 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
 					Name:                      igName,
 					DeleteAssociatedResources: true,
-				})
+				}.Build())
 				return err
 			},
 			Validate: func(t *testing.T, igName string) {
@@ -737,10 +737,10 @@ func TestIntegrationCRUD(t *testing.T) {
 				require.NoError(t, err)
 			},
 			Test: func(ctx context.Context, resourceSvc *Service, igName string) error {
-				_, err := resourceSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{
+				_, err := resourceSvc.DeleteIntegration(ctx, integrationpb.DeleteIntegrationRequest_builder{
 					Name:                      igName,
 					DeleteAssociatedResources: true,
-				})
+				}.Build())
 				return err
 			},
 			Validate: func(t *testing.T, igName string) {

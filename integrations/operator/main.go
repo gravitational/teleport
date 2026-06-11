@@ -86,6 +86,7 @@ func main() {
 		os.Exit(1)
 	}
 
+	botConfig.Scoped = config.scoped
 	bot, err := embeddedtbot.New(botConfig, slogLogger.With(teleport.ComponentLabel, "embedded-tbot"))
 	if err != nil {
 		setupLog.Error(err, "unable to build tbot")
@@ -132,7 +133,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = resources.SetupAllControllers(setupLog, mgr, client, pong.ServerFeatures); err != nil {
+	if err = resources.SetupAllControllers(setupLog, mgr, client, pong.ServerFeatures, config.scoped); err != nil {
 		setupLog.Error(err, "failed to setup controllers")
 		os.Exit(1)
 	}

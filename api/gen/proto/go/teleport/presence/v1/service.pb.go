@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/presence/v1/service.proto
 
+//go:build !protoopaque
+
 package presencev1
 
 import (
@@ -27,7 +29,6 @@ import (
 	emptypb "google.golang.org/protobuf/types/known/emptypb"
 	fieldmaskpb "google.golang.org/protobuf/types/known/fieldmaskpb"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -40,7 +41,7 @@ const (
 
 // Request for GetRemoteCluster
 type GetRemoteClusterRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the RemoteCluster to retrieve.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -72,11 +73,6 @@ func (x *GetRemoteClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetRemoteClusterRequest.ProtoReflect.Descriptor instead.
-func (*GetRemoteClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *GetRemoteClusterRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -84,9 +80,28 @@ func (x *GetRemoteClusterRequest) GetName() string {
 	return ""
 }
 
+func (x *GetRemoteClusterRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetRemoteClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the RemoteCluster to retrieve.
+	Name string
+}
+
+func (b0 GetRemoteClusterRequest_builder) Build() *GetRemoteClusterRequest {
+	m0 := &GetRemoteClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Request for ListRemoteClusters
 type ListRemoteClustersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -122,11 +137,6 @@ func (x *ListRemoteClustersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRemoteClustersRequest.ProtoReflect.Descriptor instead.
-func (*ListRemoteClustersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *ListRemoteClustersRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -141,9 +151,37 @@ func (x *ListRemoteClustersRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListRemoteClustersRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListRemoteClustersRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListRemoteClustersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The page_token is the next_page_token value returned from a previous List
+	// request, if any.
+	PageToken string
+}
+
+func (b0 ListRemoteClustersRequest_builder) Build() *ListRemoteClustersRequest {
+	m0 := &ListRemoteClustersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // Response for ListRemoteClusters
 type ListRemoteClustersResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// RemoteClusters is the list of RemoteClusters that were retrieved.
 	RemoteClusters []*types.RemoteClusterV3 `protobuf:"bytes,1,rep,name=remote_clusters,json=remoteClusters,proto3" json:"remote_clusters,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -178,11 +216,6 @@ func (x *ListRemoteClustersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRemoteClustersResponse.ProtoReflect.Descriptor instead.
-func (*ListRemoteClustersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *ListRemoteClustersResponse) GetRemoteClusters() []*types.RemoteClusterV3 {
 	if x != nil {
 		return x.RemoteClusters
@@ -197,9 +230,36 @@ func (x *ListRemoteClustersResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListRemoteClustersResponse) SetRemoteClusters(v []*types.RemoteClusterV3) {
+	x.RemoteClusters = v
+}
+
+func (x *ListRemoteClustersResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListRemoteClustersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// RemoteClusters is the list of RemoteClusters that were retrieved.
+	RemoteClusters []*types.RemoteClusterV3
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListRemoteClustersResponse_builder) Build() *ListRemoteClustersResponse {
+	m0 := &ListRemoteClustersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RemoteClusters = b.RemoteClusters
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request for UpdateRemoteCluster
 type UpdateRemoteClusterRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// RemoteCluster is the RemoteCluster to update.
 	RemoteCluster *types.RemoteClusterV3 `protobuf:"bytes,1,opt,name=remote_cluster,json=remoteCluster,proto3" json:"remote_cluster,omitempty"`
 	// The update mask applied to the RemoteCluster.
@@ -234,11 +294,6 @@ func (x *UpdateRemoteClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpdateRemoteClusterRequest.ProtoReflect.Descriptor instead.
-func (*UpdateRemoteClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{3}
-}
-
 func (x *UpdateRemoteClusterRequest) GetRemoteCluster() *types.RemoteClusterV3 {
 	if x != nil {
 		return x.RemoteCluster
@@ -253,9 +308,58 @@ func (x *UpdateRemoteClusterRequest) GetUpdateMask() *fieldmaskpb.FieldMask {
 	return nil
 }
 
+func (x *UpdateRemoteClusterRequest) SetRemoteCluster(v *types.RemoteClusterV3) {
+	x.RemoteCluster = v
+}
+
+func (x *UpdateRemoteClusterRequest) SetUpdateMask(v *fieldmaskpb.FieldMask) {
+	x.UpdateMask = v
+}
+
+func (x *UpdateRemoteClusterRequest) HasRemoteCluster() bool {
+	if x == nil {
+		return false
+	}
+	return x.RemoteCluster != nil
+}
+
+func (x *UpdateRemoteClusterRequest) HasUpdateMask() bool {
+	if x == nil {
+		return false
+	}
+	return x.UpdateMask != nil
+}
+
+func (x *UpdateRemoteClusterRequest) ClearRemoteCluster() {
+	x.RemoteCluster = nil
+}
+
+func (x *UpdateRemoteClusterRequest) ClearUpdateMask() {
+	x.UpdateMask = nil
+}
+
+type UpdateRemoteClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// RemoteCluster is the RemoteCluster to update.
+	RemoteCluster *types.RemoteClusterV3
+	// The update mask applied to the RemoteCluster.
+	// Fields are masked according to their proto name.
+	UpdateMask *fieldmaskpb.FieldMask
+}
+
+func (b0 UpdateRemoteClusterRequest_builder) Build() *UpdateRemoteClusterRequest {
+	m0 := &UpdateRemoteClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RemoteCluster = b.RemoteCluster
+	x.UpdateMask = b.UpdateMask
+	return m0
+}
+
 // Request for DeleteRemoteCluster
 type DeleteRemoteClusterRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the RemoteCluster to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -287,11 +391,6 @@ func (x *DeleteRemoteClusterRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteRemoteClusterRequest.ProtoReflect.Descriptor instead.
-func (*DeleteRemoteClusterRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{4}
-}
-
 func (x *DeleteRemoteClusterRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -299,9 +398,28 @@ func (x *DeleteRemoteClusterRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteRemoteClusterRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteRemoteClusterRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the RemoteCluster to delete.
+	Name string
+}
+
+func (b0 DeleteRemoteClusterRequest_builder) Build() *DeleteRemoteClusterRequest {
+	m0 := &DeleteRemoteClusterRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Request for ListReverseTunnels
 type ListReverseTunnelsRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -337,11 +455,6 @@ func (x *ListReverseTunnelsRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListReverseTunnelsRequest.ProtoReflect.Descriptor instead.
-func (*ListReverseTunnelsRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{5}
-}
-
 func (x *ListReverseTunnelsRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -356,9 +469,37 @@ func (x *ListReverseTunnelsRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListReverseTunnelsRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListReverseTunnelsRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListReverseTunnelsRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The page_token is the next_page_token value returned from a previous List
+	// request, if any.
+	PageToken string
+}
+
+func (b0 ListReverseTunnelsRequest_builder) Build() *ListReverseTunnelsRequest {
+	m0 := &ListReverseTunnelsRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // Response for ListReverseTunnels
 type ListReverseTunnelsResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ReverseTunnels is the list of ReverseTunnels that were retrieved.
 	ReverseTunnels []*types.ReverseTunnelV2 `protobuf:"bytes,1,rep,name=reverse_tunnels,json=reverseTunnels,proto3" json:"reverse_tunnels,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -393,11 +534,6 @@ func (x *ListReverseTunnelsResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListReverseTunnelsResponse.ProtoReflect.Descriptor instead.
-func (*ListReverseTunnelsResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{6}
-}
-
 func (x *ListReverseTunnelsResponse) GetReverseTunnels() []*types.ReverseTunnelV2 {
 	if x != nil {
 		return x.ReverseTunnels
@@ -412,9 +548,36 @@ func (x *ListReverseTunnelsResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListReverseTunnelsResponse) SetReverseTunnels(v []*types.ReverseTunnelV2) {
+	x.ReverseTunnels = v
+}
+
+func (x *ListReverseTunnelsResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListReverseTunnelsResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ReverseTunnels is the list of ReverseTunnels that were retrieved.
+	ReverseTunnels []*types.ReverseTunnelV2
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListReverseTunnelsResponse_builder) Build() *ListReverseTunnelsResponse {
+	m0 := &ListReverseTunnelsResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ReverseTunnels = b.ReverseTunnels
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request for UpsertReverseTunnel
 type UpsertReverseTunnelRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// ReverseTunnel is the ReverseTunnel to upsert.
 	ReverseTunnel *types.ReverseTunnelV2 `protobuf:"bytes,1,opt,name=reverse_tunnel,json=reverseTunnel,proto3" json:"reverse_tunnel,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -446,11 +609,6 @@ func (x *UpsertReverseTunnelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use UpsertReverseTunnelRequest.ProtoReflect.Descriptor instead.
-func (*UpsertReverseTunnelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{7}
-}
-
 func (x *UpsertReverseTunnelRequest) GetReverseTunnel() *types.ReverseTunnelV2 {
 	if x != nil {
 		return x.ReverseTunnel
@@ -458,9 +616,39 @@ func (x *UpsertReverseTunnelRequest) GetReverseTunnel() *types.ReverseTunnelV2 {
 	return nil
 }
 
+func (x *UpsertReverseTunnelRequest) SetReverseTunnel(v *types.ReverseTunnelV2) {
+	x.ReverseTunnel = v
+}
+
+func (x *UpsertReverseTunnelRequest) HasReverseTunnel() bool {
+	if x == nil {
+		return false
+	}
+	return x.ReverseTunnel != nil
+}
+
+func (x *UpsertReverseTunnelRequest) ClearReverseTunnel() {
+	x.ReverseTunnel = nil
+}
+
+type UpsertReverseTunnelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// ReverseTunnel is the ReverseTunnel to upsert.
+	ReverseTunnel *types.ReverseTunnelV2
+}
+
+func (b0 UpsertReverseTunnelRequest_builder) Build() *UpsertReverseTunnelRequest {
+	m0 := &UpsertReverseTunnelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.ReverseTunnel = b.ReverseTunnel
+	return m0
+}
+
 // Request for DeleteReverseTunnel
 type DeleteReverseTunnelRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Name is the name of the ReverseTunnel to delete.
 	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -492,11 +680,6 @@ func (x *DeleteReverseTunnelRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteReverseTunnelRequest.ProtoReflect.Descriptor instead.
-func (*DeleteReverseTunnelRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{8}
-}
-
 func (x *DeleteReverseTunnelRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -504,9 +687,28 @@ func (x *DeleteReverseTunnelRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteReverseTunnelRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteReverseTunnelRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name of the ReverseTunnel to delete.
+	Name string
+}
+
+func (b0 DeleteReverseTunnelRequest_builder) Build() *DeleteReverseTunnelRequest {
+	m0 := &DeleteReverseTunnelRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Request message for the PresenceService.GetRelayServer rpc.
 type GetRelayServerRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -537,11 +739,6 @@ func (x *GetRelayServerRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetRelayServerRequest.ProtoReflect.Descriptor instead.
-func (*GetRelayServerRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{9}
-}
-
 func (x *GetRelayServerRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -549,9 +746,27 @@ func (x *GetRelayServerRequest) GetName() string {
 	return ""
 }
 
+func (x *GetRelayServerRequest) SetName(v string) {
+	x.Name = v
+}
+
+type GetRelayServerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Name string
+}
+
+func (b0 GetRelayServerRequest_builder) Build() *GetRelayServerRequest {
+	m0 := &GetRelayServerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Response message for the PresenceService.GetRelayServer rpc.
 type GetRelayServerResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	RelayServer   *RelayServer           `protobuf:"bytes,1,opt,name=relay_server,json=relayServer,proto3" json:"relay_server,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -582,11 +797,6 @@ func (x *GetRelayServerResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use GetRelayServerResponse.ProtoReflect.Descriptor instead.
-func (*GetRelayServerResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{10}
-}
-
 func (x *GetRelayServerResponse) GetRelayServer() *RelayServer {
 	if x != nil {
 		return x.RelayServer
@@ -594,9 +804,38 @@ func (x *GetRelayServerResponse) GetRelayServer() *RelayServer {
 	return nil
 }
 
+func (x *GetRelayServerResponse) SetRelayServer(v *RelayServer) {
+	x.RelayServer = v
+}
+
+func (x *GetRelayServerResponse) HasRelayServer() bool {
+	if x == nil {
+		return false
+	}
+	return x.RelayServer != nil
+}
+
+func (x *GetRelayServerResponse) ClearRelayServer() {
+	x.RelayServer = nil
+}
+
+type GetRelayServerResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	RelayServer *RelayServer
+}
+
+func (b0 GetRelayServerResponse_builder) Build() *GetRelayServerResponse {
+	m0 := &GetRelayServerResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.RelayServer = b.RelayServer
+	return m0
+}
+
 // Request message for the PresenceService.ListRelayServers rpc.
 type ListRelayServersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return. The service may return fewer than
 	// this value. If unspecified, the service will use a sensible default.
 	PageSize int64 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -632,11 +871,6 @@ func (x *ListRelayServersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRelayServersRequest.ProtoReflect.Descriptor instead.
-func (*ListRelayServersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{11}
-}
-
 func (x *ListRelayServersRequest) GetPageSize() int64 {
 	if x != nil {
 		return x.PageSize
@@ -651,9 +885,37 @@ func (x *ListRelayServersRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListRelayServersRequest) SetPageSize(v int64) {
+	x.PageSize = v
+}
+
+func (x *ListRelayServersRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListRelayServersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return. The service may return fewer than
+	// this value. If unspecified, the service will use a sensible default.
+	PageSize int64
+	// A pagination token returned from a previous request. If empty, the request
+	// will return the first page.
+	PageToken string
+}
+
+func (b0 ListRelayServersRequest_builder) Build() *ListRelayServersRequest {
+	m0 := &ListRelayServersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // Response message for the PresenceService.ListRelayServers rpc.
 type ListRelayServersResponse struct {
-	state  protoimpl.MessageState `protogen:"open.v1"`
+	state  protoimpl.MessageState `protogen:"hybrid.v1"`
 	Relays []*RelayServer         `protobuf:"bytes,1,rep,name=relays,proto3" json:"relays,omitempty"`
 	// A token that can be sent as the page_token to retrieve the next page. If
 	// this field is empty, there are no more pages.
@@ -687,11 +949,6 @@ func (x *ListRelayServersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListRelayServersResponse.ProtoReflect.Descriptor instead.
-func (*ListRelayServersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{12}
-}
-
 func (x *ListRelayServersResponse) GetRelays() []*RelayServer {
 	if x != nil {
 		return x.Relays
@@ -706,9 +963,35 @@ func (x *ListRelayServersResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListRelayServersResponse) SetRelays(v []*RelayServer) {
+	x.Relays = v
+}
+
+func (x *ListRelayServersResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListRelayServersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Relays []*RelayServer
+	// A token that can be sent as the page_token to retrieve the next page. If
+	// this field is empty, there are no more pages.
+	NextPageToken string
+}
+
+func (b0 ListRelayServersResponse_builder) Build() *ListRelayServersResponse {
+	m0 := &ListRelayServersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Relays = b.Relays
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request message for the PresenceService.DeleteRelayServer rpc.
 type DeleteRelayServerRequest struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	Name          string                 `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -739,11 +1022,6 @@ func (x *DeleteRelayServerRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteRelayServerRequest.ProtoReflect.Descriptor instead.
-func (*DeleteRelayServerRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{13}
-}
-
 func (x *DeleteRelayServerRequest) GetName() string {
 	if x != nil {
 		return x.Name
@@ -751,9 +1029,27 @@ func (x *DeleteRelayServerRequest) GetName() string {
 	return ""
 }
 
+func (x *DeleteRelayServerRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteRelayServerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	Name string
+}
+
+func (b0 DeleteRelayServerRequest_builder) Build() *DeleteRelayServerRequest {
+	m0 := &DeleteRelayServerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
 // Response message for the PresenceService.DeleteRelayServer rpc.
 type DeleteRelayServerResponse struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -783,14 +1079,21 @@ func (x *DeleteRelayServerResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DeleteRelayServerResponse.ProtoReflect.Descriptor instead.
-func (*DeleteRelayServerResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{14}
+type DeleteRelayServerResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteRelayServerResponse_builder) Build() *DeleteRelayServerResponse {
+	m0 := &DeleteRelayServerResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 // Request message for the PresenceService.ListAuthServers rpc.
 type ListAuthServersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -825,11 +1128,6 @@ func (x *ListAuthServersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAuthServersRequest.ProtoReflect.Descriptor instead.
-func (*ListAuthServersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{15}
-}
-
 func (x *ListAuthServersRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -844,9 +1142,36 @@ func (x *ListAuthServersRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListAuthServersRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListAuthServersRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListAuthServersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListAuthServersRequest_builder) Build() *ListAuthServersRequest {
+	m0 := &ListAuthServersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // Response message for the PresenceService.ListAuthServers rpc.
 type ListAuthServersResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A list of auth server resources.
 	Servers []*types.ServerV2 `protobuf:"bytes,1,rep,name=servers,proto3" json:"servers,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -881,11 +1206,6 @@ func (x *ListAuthServersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListAuthServersResponse.ProtoReflect.Descriptor instead.
-func (*ListAuthServersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{16}
-}
-
 func (x *ListAuthServersResponse) GetServers() []*types.ServerV2 {
 	if x != nil {
 		return x.Servers
@@ -900,9 +1220,36 @@ func (x *ListAuthServersResponse) GetNextPageToken() string {
 	return ""
 }
 
+func (x *ListAuthServersResponse) SetServers(v []*types.ServerV2) {
+	x.Servers = v
+}
+
+func (x *ListAuthServersResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListAuthServersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of auth server resources.
+	Servers []*types.ServerV2
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListAuthServersResponse_builder) Build() *ListAuthServersResponse {
+	m0 := &ListAuthServersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Servers = b.Servers
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
 // Request message for the PresenceService.ListProxyServers rpc.
 type ListProxyServersRequest struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// The maximum number of items to return.
 	// The server may impose a different page size at its discretion.
 	PageSize int32 `protobuf:"varint,1,opt,name=page_size,json=pageSize,proto3" json:"page_size,omitempty"`
@@ -937,11 +1284,6 @@ func (x *ListProxyServersRequest) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListProxyServersRequest.ProtoReflect.Descriptor instead.
-func (*ListProxyServersRequest) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{17}
-}
-
 func (x *ListProxyServersRequest) GetPageSize() int32 {
 	if x != nil {
 		return x.PageSize
@@ -956,9 +1298,36 @@ func (x *ListProxyServersRequest) GetPageToken() string {
 	return ""
 }
 
+func (x *ListProxyServersRequest) SetPageSize(v int32) {
+	x.PageSize = v
+}
+
+func (x *ListProxyServersRequest) SetPageToken(v string) {
+	x.PageToken = v
+}
+
+type ListProxyServersRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// The maximum number of items to return.
+	// The server may impose a different page size at its discretion.
+	PageSize int32
+	// The next_page_token value returned from a previous List request, if any.
+	PageToken string
+}
+
+func (b0 ListProxyServersRequest_builder) Build() *ListProxyServersRequest {
+	m0 := &ListProxyServersRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.PageSize = b.PageSize
+	x.PageToken = b.PageToken
+	return m0
+}
+
 // Response message for the PresenceService.ListProxyServers rpc.
 type ListProxyServersResponse struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// A list of proxy server resources.
 	Servers []*types.ServerV2 `protobuf:"bytes,1,rep,name=servers,proto3" json:"servers,omitempty"`
 	// Token to retrieve the next page of results, or empty if there are no
@@ -993,11 +1362,6 @@ func (x *ListProxyServersResponse) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use ListProxyServersResponse.ProtoReflect.Descriptor instead.
-func (*ListProxyServersResponse) Descriptor() ([]byte, []int) {
-	return file_teleport_presence_v1_service_proto_rawDescGZIP(), []int{18}
-}
-
 func (x *ListProxyServersResponse) GetServers() []*types.ServerV2 {
 	if x != nil {
 		return x.Servers
@@ -1010,6 +1374,279 @@ func (x *ListProxyServersResponse) GetNextPageToken() string {
 		return x.NextPageToken
 	}
 	return ""
+}
+
+func (x *ListProxyServersResponse) SetServers(v []*types.ServerV2) {
+	x.Servers = v
+}
+
+func (x *ListProxyServersResponse) SetNextPageToken(v string) {
+	x.NextPageToken = v
+}
+
+type ListProxyServersResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// A list of proxy server resources.
+	Servers []*types.ServerV2
+	// Token to retrieve the next page of results, or empty if there are no
+	// more results in the list.
+	NextPageToken string
+}
+
+func (b0 ListProxyServersResponse_builder) Build() *ListProxyServersResponse {
+	m0 := &ListProxyServersResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Servers = b.Servers
+	x.NextPageToken = b.NextPageToken
+	return m0
+}
+
+// Request message for the PresenceService.UpsertProxyServer rpc.
+type UpsertProxyServerRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Server is the Proxy server heartbeat to upsert.
+	Server        *types.ServerV2 `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertProxyServerRequest) Reset() {
+	*x = UpsertProxyServerRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[19]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertProxyServerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertProxyServerRequest) ProtoMessage() {}
+
+func (x *UpsertProxyServerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[19]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertProxyServerRequest) GetServer() *types.ServerV2 {
+	if x != nil {
+		return x.Server
+	}
+	return nil
+}
+
+func (x *UpsertProxyServerRequest) SetServer(v *types.ServerV2) {
+	x.Server = v
+}
+
+func (x *UpsertProxyServerRequest) HasServer() bool {
+	if x == nil {
+		return false
+	}
+	return x.Server != nil
+}
+
+func (x *UpsertProxyServerRequest) ClearServer() {
+	x.Server = nil
+}
+
+type UpsertProxyServerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Server is the Proxy server heartbeat to upsert.
+	Server *types.ServerV2
+}
+
+func (b0 UpsertProxyServerRequest_builder) Build() *UpsertProxyServerRequest {
+	m0 := &UpsertProxyServerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Server = b.Server
+	return m0
+}
+
+// Response message for the PresenceService.UpsertProxyServer rpc.
+type UpsertProxyServerResponse struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Server is the upserted Proxy server.
+	Server        *types.ServerV2 `protobuf:"bytes,1,opt,name=server,proto3" json:"server,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *UpsertProxyServerResponse) Reset() {
+	*x = UpsertProxyServerResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[20]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *UpsertProxyServerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*UpsertProxyServerResponse) ProtoMessage() {}
+
+func (x *UpsertProxyServerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[20]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *UpsertProxyServerResponse) GetServer() *types.ServerV2 {
+	if x != nil {
+		return x.Server
+	}
+	return nil
+}
+
+func (x *UpsertProxyServerResponse) SetServer(v *types.ServerV2) {
+	x.Server = v
+}
+
+func (x *UpsertProxyServerResponse) HasServer() bool {
+	if x == nil {
+		return false
+	}
+	return x.Server != nil
+}
+
+func (x *UpsertProxyServerResponse) ClearServer() {
+	x.Server = nil
+}
+
+type UpsertProxyServerResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Server is the upserted Proxy server.
+	Server *types.ServerV2
+}
+
+func (b0 UpsertProxyServerResponse_builder) Build() *UpsertProxyServerResponse {
+	m0 := &UpsertProxyServerResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Server = b.Server
+	return m0
+}
+
+// Request message for the PresenceService.DeleteProxyServer rpc.
+type DeleteProxyServerRequest struct {
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
+	// Name is the name (host UUID) of the Proxy server to delete.
+	Name          string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteProxyServerRequest) Reset() {
+	*x = DeleteProxyServerRequest{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[21]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteProxyServerRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteProxyServerRequest) ProtoMessage() {}
+
+func (x *DeleteProxyServerRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[21]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+func (x *DeleteProxyServerRequest) GetName() string {
+	if x != nil {
+		return x.Name
+	}
+	return ""
+}
+
+func (x *DeleteProxyServerRequest) SetName(v string) {
+	x.Name = v
+}
+
+type DeleteProxyServerRequest_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Name is the name (host UUID) of the Proxy server to delete.
+	Name string
+}
+
+func (b0 DeleteProxyServerRequest_builder) Build() *DeleteProxyServerRequest {
+	m0 := &DeleteProxyServerRequest{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Name = b.Name
+	return m0
+}
+
+// Response message for the PresenceService.DeleteProxyServer rpc.
+type DeleteProxyServerResponse struct {
+	state         protoimpl.MessageState `protogen:"hybrid.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DeleteProxyServerResponse) Reset() {
+	*x = DeleteProxyServerResponse{}
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[22]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DeleteProxyServerResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DeleteProxyServerResponse) ProtoMessage() {}
+
+func (x *DeleteProxyServerResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_presence_v1_service_proto_msgTypes[22]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+type DeleteProxyServerResponse_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+}
+
+func (b0 DeleteProxyServerResponse_builder) Build() *DeleteProxyServerResponse {
+	m0 := &DeleteProxyServerResponse{}
+	b, x := &b0, m0
+	_, _ = b, x
+	return m0
 }
 
 var File_teleport_presence_v1_service_proto protoreflect.FileDescriptor
@@ -1070,8 +1707,14 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"page_token\x18\x02 \x01(\tR\tpageToken\"m\n" +
 	"\x18ListProxyServersResponse\x12)\n" +
 	"\aservers\x18\x01 \x03(\v2\x0f.types.ServerV2R\aservers\x12&\n" +
-	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken2\x9b\n" +
-	"\n" +
+	"\x0fnext_page_token\x18\x02 \x01(\tR\rnextPageToken\"C\n" +
+	"\x18UpsertProxyServerRequest\x12'\n" +
+	"\x06server\x18\x01 \x01(\v2\x0f.types.ServerV2R\x06server\"D\n" +
+	"\x19UpsertProxyServerResponse\x12'\n" +
+	"\x06server\x18\x01 \x01(\v2\x0f.types.ServerV2R\x06server\".\n" +
+	"\x18DeleteProxyServerRequest\x12\x12\n" +
+	"\x04name\x18\x01 \x01(\tR\x04name\"\x1b\n" +
+	"\x19DeleteProxyServerResponse2\x87\f\n" +
 	"\x0fPresenceService\x12Y\n" +
 	"\x10GetRemoteCluster\x12-.teleport.presence.v1.GetRemoteClusterRequest\x1a\x16.types.RemoteClusterV3\x12w\n" +
 	"\x12ListRemoteClusters\x12/.teleport.presence.v1.ListRemoteClustersRequest\x1a0.teleport.presence.v1.ListRemoteClustersResponse\x12_\n" +
@@ -1084,21 +1727,11 @@ const file_teleport_presence_v1_service_proto_rawDesc = "" +
 	"\x10ListRelayServers\x12-.teleport.presence.v1.ListRelayServersRequest\x1a..teleport.presence.v1.ListRelayServersResponse\x12t\n" +
 	"\x11DeleteRelayServer\x12..teleport.presence.v1.DeleteRelayServerRequest\x1a/.teleport.presence.v1.DeleteRelayServerResponse\x12n\n" +
 	"\x0fListAuthServers\x12,.teleport.presence.v1.ListAuthServersRequest\x1a-.teleport.presence.v1.ListAuthServersResponse\x12q\n" +
-	"\x10ListProxyServers\x12-.teleport.presence.v1.ListProxyServersRequest\x1a..teleport.presence.v1.ListProxyServersResponseBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
+	"\x10ListProxyServers\x12-.teleport.presence.v1.ListProxyServersRequest\x1a..teleport.presence.v1.ListProxyServersResponse\x12t\n" +
+	"\x11UpsertProxyServer\x12..teleport.presence.v1.UpsertProxyServerRequest\x1a/.teleport.presence.v1.UpsertProxyServerResponse\x12t\n" +
+	"\x11DeleteProxyServer\x12..teleport.presence.v1.DeleteProxyServerRequest\x1a/.teleport.presence.v1.DeleteProxyServerResponseBTZRgithub.com/gravitational/teleport/api/gen/proto/go/teleport/presence/v1;presencev1b\x06proto3"
 
-var (
-	file_teleport_presence_v1_service_proto_rawDescOnce sync.Once
-	file_teleport_presence_v1_service_proto_rawDescData []byte
-)
-
-func file_teleport_presence_v1_service_proto_rawDescGZIP() []byte {
-	file_teleport_presence_v1_service_proto_rawDescOnce.Do(func() {
-		file_teleport_presence_v1_service_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_presence_v1_service_proto_rawDesc), len(file_teleport_presence_v1_service_proto_rawDesc)))
-	})
-	return file_teleport_presence_v1_service_proto_rawDescData
-}
-
-var file_teleport_presence_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_teleport_presence_v1_service_proto_msgTypes = make([]protoimpl.MessageInfo, 23)
 var file_teleport_presence_v1_service_proto_goTypes = []any{
 	(*GetRemoteClusterRequest)(nil),    // 0: teleport.presence.v1.GetRemoteClusterRequest
 	(*ListRemoteClustersRequest)(nil),  // 1: teleport.presence.v1.ListRemoteClustersRequest
@@ -1119,52 +1752,62 @@ var file_teleport_presence_v1_service_proto_goTypes = []any{
 	(*ListAuthServersResponse)(nil),    // 16: teleport.presence.v1.ListAuthServersResponse
 	(*ListProxyServersRequest)(nil),    // 17: teleport.presence.v1.ListProxyServersRequest
 	(*ListProxyServersResponse)(nil),   // 18: teleport.presence.v1.ListProxyServersResponse
-	(*types.RemoteClusterV3)(nil),      // 19: types.RemoteClusterV3
-	(*fieldmaskpb.FieldMask)(nil),      // 20: google.protobuf.FieldMask
-	(*types.ReverseTunnelV2)(nil),      // 21: types.ReverseTunnelV2
-	(*RelayServer)(nil),                // 22: teleport.presence.v1.RelayServer
-	(*types.ServerV2)(nil),             // 23: types.ServerV2
-	(*emptypb.Empty)(nil),              // 24: google.protobuf.Empty
+	(*UpsertProxyServerRequest)(nil),   // 19: teleport.presence.v1.UpsertProxyServerRequest
+	(*UpsertProxyServerResponse)(nil),  // 20: teleport.presence.v1.UpsertProxyServerResponse
+	(*DeleteProxyServerRequest)(nil),   // 21: teleport.presence.v1.DeleteProxyServerRequest
+	(*DeleteProxyServerResponse)(nil),  // 22: teleport.presence.v1.DeleteProxyServerResponse
+	(*types.RemoteClusterV3)(nil),      // 23: types.RemoteClusterV3
+	(*fieldmaskpb.FieldMask)(nil),      // 24: google.protobuf.FieldMask
+	(*types.ReverseTunnelV2)(nil),      // 25: types.ReverseTunnelV2
+	(*RelayServer)(nil),                // 26: teleport.presence.v1.RelayServer
+	(*types.ServerV2)(nil),             // 27: types.ServerV2
+	(*emptypb.Empty)(nil),              // 28: google.protobuf.Empty
 }
 var file_teleport_presence_v1_service_proto_depIdxs = []int32{
-	19, // 0: teleport.presence.v1.ListRemoteClustersResponse.remote_clusters:type_name -> types.RemoteClusterV3
-	19, // 1: teleport.presence.v1.UpdateRemoteClusterRequest.remote_cluster:type_name -> types.RemoteClusterV3
-	20, // 2: teleport.presence.v1.UpdateRemoteClusterRequest.update_mask:type_name -> google.protobuf.FieldMask
-	21, // 3: teleport.presence.v1.ListReverseTunnelsResponse.reverse_tunnels:type_name -> types.ReverseTunnelV2
-	21, // 4: teleport.presence.v1.UpsertReverseTunnelRequest.reverse_tunnel:type_name -> types.ReverseTunnelV2
-	22, // 5: teleport.presence.v1.GetRelayServerResponse.relay_server:type_name -> teleport.presence.v1.RelayServer
-	22, // 6: teleport.presence.v1.ListRelayServersResponse.relays:type_name -> teleport.presence.v1.RelayServer
-	23, // 7: teleport.presence.v1.ListAuthServersResponse.servers:type_name -> types.ServerV2
-	23, // 8: teleport.presence.v1.ListProxyServersResponse.servers:type_name -> types.ServerV2
-	0,  // 9: teleport.presence.v1.PresenceService.GetRemoteCluster:input_type -> teleport.presence.v1.GetRemoteClusterRequest
-	1,  // 10: teleport.presence.v1.PresenceService.ListRemoteClusters:input_type -> teleport.presence.v1.ListRemoteClustersRequest
-	3,  // 11: teleport.presence.v1.PresenceService.UpdateRemoteCluster:input_type -> teleport.presence.v1.UpdateRemoteClusterRequest
-	4,  // 12: teleport.presence.v1.PresenceService.DeleteRemoteCluster:input_type -> teleport.presence.v1.DeleteRemoteClusterRequest
-	5,  // 13: teleport.presence.v1.PresenceService.ListReverseTunnels:input_type -> teleport.presence.v1.ListReverseTunnelsRequest
-	7,  // 14: teleport.presence.v1.PresenceService.UpsertReverseTunnel:input_type -> teleport.presence.v1.UpsertReverseTunnelRequest
-	8,  // 15: teleport.presence.v1.PresenceService.DeleteReverseTunnel:input_type -> teleport.presence.v1.DeleteReverseTunnelRequest
-	9,  // 16: teleport.presence.v1.PresenceService.GetRelayServer:input_type -> teleport.presence.v1.GetRelayServerRequest
-	11, // 17: teleport.presence.v1.PresenceService.ListRelayServers:input_type -> teleport.presence.v1.ListRelayServersRequest
-	13, // 18: teleport.presence.v1.PresenceService.DeleteRelayServer:input_type -> teleport.presence.v1.DeleteRelayServerRequest
-	15, // 19: teleport.presence.v1.PresenceService.ListAuthServers:input_type -> teleport.presence.v1.ListAuthServersRequest
-	17, // 20: teleport.presence.v1.PresenceService.ListProxyServers:input_type -> teleport.presence.v1.ListProxyServersRequest
-	19, // 21: teleport.presence.v1.PresenceService.GetRemoteCluster:output_type -> types.RemoteClusterV3
-	2,  // 22: teleport.presence.v1.PresenceService.ListRemoteClusters:output_type -> teleport.presence.v1.ListRemoteClustersResponse
-	19, // 23: teleport.presence.v1.PresenceService.UpdateRemoteCluster:output_type -> types.RemoteClusterV3
-	24, // 24: teleport.presence.v1.PresenceService.DeleteRemoteCluster:output_type -> google.protobuf.Empty
-	6,  // 25: teleport.presence.v1.PresenceService.ListReverseTunnels:output_type -> teleport.presence.v1.ListReverseTunnelsResponse
-	21, // 26: teleport.presence.v1.PresenceService.UpsertReverseTunnel:output_type -> types.ReverseTunnelV2
-	24, // 27: teleport.presence.v1.PresenceService.DeleteReverseTunnel:output_type -> google.protobuf.Empty
-	10, // 28: teleport.presence.v1.PresenceService.GetRelayServer:output_type -> teleport.presence.v1.GetRelayServerResponse
-	12, // 29: teleport.presence.v1.PresenceService.ListRelayServers:output_type -> teleport.presence.v1.ListRelayServersResponse
-	14, // 30: teleport.presence.v1.PresenceService.DeleteRelayServer:output_type -> teleport.presence.v1.DeleteRelayServerResponse
-	16, // 31: teleport.presence.v1.PresenceService.ListAuthServers:output_type -> teleport.presence.v1.ListAuthServersResponse
-	18, // 32: teleport.presence.v1.PresenceService.ListProxyServers:output_type -> teleport.presence.v1.ListProxyServersResponse
-	21, // [21:33] is the sub-list for method output_type
-	9,  // [9:21] is the sub-list for method input_type
-	9,  // [9:9] is the sub-list for extension type_name
-	9,  // [9:9] is the sub-list for extension extendee
-	0,  // [0:9] is the sub-list for field type_name
+	23, // 0: teleport.presence.v1.ListRemoteClustersResponse.remote_clusters:type_name -> types.RemoteClusterV3
+	23, // 1: teleport.presence.v1.UpdateRemoteClusterRequest.remote_cluster:type_name -> types.RemoteClusterV3
+	24, // 2: teleport.presence.v1.UpdateRemoteClusterRequest.update_mask:type_name -> google.protobuf.FieldMask
+	25, // 3: teleport.presence.v1.ListReverseTunnelsResponse.reverse_tunnels:type_name -> types.ReverseTunnelV2
+	25, // 4: teleport.presence.v1.UpsertReverseTunnelRequest.reverse_tunnel:type_name -> types.ReverseTunnelV2
+	26, // 5: teleport.presence.v1.GetRelayServerResponse.relay_server:type_name -> teleport.presence.v1.RelayServer
+	26, // 6: teleport.presence.v1.ListRelayServersResponse.relays:type_name -> teleport.presence.v1.RelayServer
+	27, // 7: teleport.presence.v1.ListAuthServersResponse.servers:type_name -> types.ServerV2
+	27, // 8: teleport.presence.v1.ListProxyServersResponse.servers:type_name -> types.ServerV2
+	27, // 9: teleport.presence.v1.UpsertProxyServerRequest.server:type_name -> types.ServerV2
+	27, // 10: teleport.presence.v1.UpsertProxyServerResponse.server:type_name -> types.ServerV2
+	0,  // 11: teleport.presence.v1.PresenceService.GetRemoteCluster:input_type -> teleport.presence.v1.GetRemoteClusterRequest
+	1,  // 12: teleport.presence.v1.PresenceService.ListRemoteClusters:input_type -> teleport.presence.v1.ListRemoteClustersRequest
+	3,  // 13: teleport.presence.v1.PresenceService.UpdateRemoteCluster:input_type -> teleport.presence.v1.UpdateRemoteClusterRequest
+	4,  // 14: teleport.presence.v1.PresenceService.DeleteRemoteCluster:input_type -> teleport.presence.v1.DeleteRemoteClusterRequest
+	5,  // 15: teleport.presence.v1.PresenceService.ListReverseTunnels:input_type -> teleport.presence.v1.ListReverseTunnelsRequest
+	7,  // 16: teleport.presence.v1.PresenceService.UpsertReverseTunnel:input_type -> teleport.presence.v1.UpsertReverseTunnelRequest
+	8,  // 17: teleport.presence.v1.PresenceService.DeleteReverseTunnel:input_type -> teleport.presence.v1.DeleteReverseTunnelRequest
+	9,  // 18: teleport.presence.v1.PresenceService.GetRelayServer:input_type -> teleport.presence.v1.GetRelayServerRequest
+	11, // 19: teleport.presence.v1.PresenceService.ListRelayServers:input_type -> teleport.presence.v1.ListRelayServersRequest
+	13, // 20: teleport.presence.v1.PresenceService.DeleteRelayServer:input_type -> teleport.presence.v1.DeleteRelayServerRequest
+	15, // 21: teleport.presence.v1.PresenceService.ListAuthServers:input_type -> teleport.presence.v1.ListAuthServersRequest
+	17, // 22: teleport.presence.v1.PresenceService.ListProxyServers:input_type -> teleport.presence.v1.ListProxyServersRequest
+	19, // 23: teleport.presence.v1.PresenceService.UpsertProxyServer:input_type -> teleport.presence.v1.UpsertProxyServerRequest
+	21, // 24: teleport.presence.v1.PresenceService.DeleteProxyServer:input_type -> teleport.presence.v1.DeleteProxyServerRequest
+	23, // 25: teleport.presence.v1.PresenceService.GetRemoteCluster:output_type -> types.RemoteClusterV3
+	2,  // 26: teleport.presence.v1.PresenceService.ListRemoteClusters:output_type -> teleport.presence.v1.ListRemoteClustersResponse
+	23, // 27: teleport.presence.v1.PresenceService.UpdateRemoteCluster:output_type -> types.RemoteClusterV3
+	28, // 28: teleport.presence.v1.PresenceService.DeleteRemoteCluster:output_type -> google.protobuf.Empty
+	6,  // 29: teleport.presence.v1.PresenceService.ListReverseTunnels:output_type -> teleport.presence.v1.ListReverseTunnelsResponse
+	25, // 30: teleport.presence.v1.PresenceService.UpsertReverseTunnel:output_type -> types.ReverseTunnelV2
+	28, // 31: teleport.presence.v1.PresenceService.DeleteReverseTunnel:output_type -> google.protobuf.Empty
+	10, // 32: teleport.presence.v1.PresenceService.GetRelayServer:output_type -> teleport.presence.v1.GetRelayServerResponse
+	12, // 33: teleport.presence.v1.PresenceService.ListRelayServers:output_type -> teleport.presence.v1.ListRelayServersResponse
+	14, // 34: teleport.presence.v1.PresenceService.DeleteRelayServer:output_type -> teleport.presence.v1.DeleteRelayServerResponse
+	16, // 35: teleport.presence.v1.PresenceService.ListAuthServers:output_type -> teleport.presence.v1.ListAuthServersResponse
+	18, // 36: teleport.presence.v1.PresenceService.ListProxyServers:output_type -> teleport.presence.v1.ListProxyServersResponse
+	20, // 37: teleport.presence.v1.PresenceService.UpsertProxyServer:output_type -> teleport.presence.v1.UpsertProxyServerResponse
+	22, // 38: teleport.presence.v1.PresenceService.DeleteProxyServer:output_type -> teleport.presence.v1.DeleteProxyServerResponse
+	25, // [25:39] is the sub-list for method output_type
+	11, // [11:25] is the sub-list for method input_type
+	11, // [11:11] is the sub-list for extension type_name
+	11, // [11:11] is the sub-list for extension extendee
+	0,  // [0:11] is the sub-list for field type_name
 }
 
 func init() { file_teleport_presence_v1_service_proto_init() }
@@ -1179,7 +1822,7 @@ func file_teleport_presence_v1_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_teleport_presence_v1_service_proto_rawDesc), len(file_teleport_presence_v1_service_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   23,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

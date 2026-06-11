@@ -351,7 +351,7 @@ export class TdpClient extends EventEmitter<EventMap> {
     // select the wasm log level
     let wasmLogLevel = LogType.OFF;
     if (import.meta.env.MODE === 'development') {
-      wasmLogLevel = LogType.WARN;
+      wasmLogLevel = LogType.TRACE;
     }
 
     // Convert the inlined (base64) WASM to a raw buffer. The init function will

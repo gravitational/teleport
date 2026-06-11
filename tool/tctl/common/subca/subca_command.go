@@ -219,9 +219,9 @@ func (c *createOverrideCSRCommand) Run(
 
 	var pubKey *subcav1.PublicKeyHash
 	if c.publicKey != "" {
-		pubKey = &subcav1.PublicKeyHash{
+		pubKey = subcav1.PublicKeyHash_builder{
 			Value: c.publicKey,
-		}
+		}.Build()
 	}
 
 	var customSubject *subcav1.DistinguishedName
@@ -245,31 +245,31 @@ func (c *createOverrideCSRCommand) Run(
 	subCA := authClient.SubCAClient()
 
 	// Request CSRs.
-	resp, err := subCA.CreateCSR(ctx, &subcav1.CreateCSRRequest{
+	resp, err := subCA.CreateCSR(ctx, subcav1.CreateCSRRequest_builder{
 		CaType:        caType,
 		PublicKeyHash: pubKey,
 		CustomSubject: customSubject,
-	})
+	}.Build())
 	if err != nil {
 		return trace.Wrap(err, "create CSRs")
 	}
 	// Defensive. Should fail server-side if that's the case.
-	if len(resp.Csrs) == 0 {
+	if len(resp.GetCsrs()) == 0 {
 		return trace.BadParameter("no CSRs created")
 	}
 
 	// If writing to stdout there's no need to parse the PEMs or form filenames.
 	if c.out == "" {
-		for _, csr := range resp.Csrs {
-			fmt.Fprintln(s.Stdout, csr.Pem)
+		for _, csr := range resp.GetCsrs() {
+			fmt.Fprintln(s.Stdout, csr.GetPem())
 		}
 		return nil
 	}
 
 	// Parse CSRs and calculate public key hashes.
-	publicKeyHashes := make([]string, len(resp.Csrs))
-	for i, csr := range resp.Csrs {
-		block, _ := pem.Decode([]byte(csr.Pem))
+	publicKeyHashes := make([]string, len(resp.GetCsrs()))
+	for i, csr := range resp.GetCsrs() {
+		block, _ := pem.Decode([]byte(csr.GetPem()))
 		if block == nil {
 			return trace.BadParameter("csrs[%d]: CSR is not a valid PEM", i)
 		}
@@ -284,9 +284,9 @@ func (c *createOverrideCSRCommand) Run(
 	minHashes := findMinHashes(publicKeyHashes)
 
 	// Write output files.
-	for i, csr := range resp.Csrs {
+	for i, csr := range resp.GetCsrs() {
 		name := c.out + caType + "-" + minHashes[i] + "-csr.pem"
-		if err := os.WriteFile(name, []byte(csr.Pem), 0644); err != nil {
+		if err := os.WriteFile(name, []byte(csr.GetPem()), 0644); err != nil {
 			return trace.Wrap(err)
 		}
 		fmt.Fprintf(s.Stdout, "Wrote %s\n", name)

@@ -342,6 +342,10 @@ message SessionEvent {
   google.protobuf.Duration end_offset = 19;
   // InferenceErrorMessage is an error message if the inference provider failed to analyze this command.
   string inference_error_message = 20;
+  // OutputIncompleteReason explains why this command's reconstructed output was incomplete - for example, output
+  // scrolled off the screen faster than it could be captured or was truncated to bound size - and so the command
+  // was only partially analyzed. Empty when the output was fully captured.
+  string output_incomplete_reason = 23;
   // Details is the type-specific details of the event.
   oneof details {
     // CommandEventDetails holds the details for a command ran during a TTY session.
@@ -453,6 +457,10 @@ enum NeedsReviewReason {
   // NeedsReviewReasonAccessRequestResourceMismatch indicates that the session's access requests do not reference the
   // resource being connected to.
   NEEDS_REVIEW_REASON_ACCESS_REQUEST_RESOURCE_MISMATCH = 4;
+  // NeedsReviewReasonOutputNotFullyCaptured indicates that one or more commands' reconstructed output was incomplete -
+  // it scrolled off the screen faster than it could be captured or was truncated to bound size - and so was only
+  // partially analyzed.
+  NEEDS_REVIEW_REASON_OUTPUT_NOT_FULLY_CAPTURED = 5;
 }
 
 // RiskScoreReason represents a reason that contributed to the overall risk score of a session.

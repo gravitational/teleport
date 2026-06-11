@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
 	decisionpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1"
+	scopesv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/scopes/v1"
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -50,6 +51,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/decision"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/scopes/pinning"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshca"
@@ -204,6 +206,10 @@ type Server interface {
 	// ChildLogConfig returns the log configuration for handling logs from
 	// child processes.
 	ChildLogConfig() ChildLogConfig
+
+	// GetPresenceMaxDuration returns the max duration that a moderated session
+	// can continue between presence verifications.
+	GetPresenceMaxDuration() time.Duration
 }
 
 // ChildLogConfig is the log configuration for handling logs from child processes.
@@ -459,10 +465,10 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	)
 	switch {
 	case identityContext.AccessPermit != nil:
-		clientIdleTimeout = identityContext.AccessPermit.ClientIdleTimeout.AsDuration()
-		disconnectExpiredCert = timestampToGoTime(identityContext.AccessPermit.DisconnectExpiredCert)
-		lockTargets = decision.LockTargetsFromProto(identityContext.AccessPermit.LockTargets)
-		lockingMode = constants.LockingMode(identityContext.AccessPermit.LockingMode)
+		clientIdleTimeout = identityContext.AccessPermit.GetClientIdleTimeout().AsDuration()
+		disconnectExpiredCert = timestampToGoTime(identityContext.AccessPermit.GetDisconnectExpiredCert())
+		lockTargets = decision.LockTargetsFromProto(identityContext.AccessPermit.GetLockTargets())
+		lockingMode = constants.LockingMode(identityContext.AccessPermit.GetLockingMode())
 
 	case identityContext.ProxyingPermit != nil:
 		clientIdleTimeout = identityContext.ProxyingPermit.ClientIdleTimeout
@@ -721,7 +727,7 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 	}
 
 	// check if ssh access permit is defined and authorizes file copying
-	if permit := c.Identity.AccessPermit; permit != nil && permit.SshFileCopy {
+	if permit := c.Identity.AccessPermit; permit != nil && permit.GetSshFileCopy() {
 		return nil
 	}
 
@@ -921,6 +927,24 @@ func (c *ServerContext) ShouldHandleSessionRecording() bool {
 	return c.srv.Component() != teleport.ComponentNode || !services.IsRecordAtProxy(c.SessionRecordingConfig.GetMode())
 }
 
+// AuditEmitter returns the emitter to use for session-level audit events.
+// On a Teleport Node in proxy recording mode it returns a discard emitter
+// so the node does not duplicate events the proxy forwarding node already emits.
+func (c *ServerContext) AuditEmitter() apievents.Emitter {
+	if c.ShouldHandleSessionRecording() {
+		return c.srv
+	}
+	return events.NewDiscardAuditLog()
+}
+
+// BPFEmitter returns the emitter to use for Enhanced Session Recording
+// (BPF) events. BPF programs only run on the Teleport Node where the
+// session executes, so these events must always reach the audit log
+// regardless of cluster recording mode.
+func (c *ServerContext) BPFEmitter() apievents.Emitter {
+	return c.srv
+}
+
 func (c *ServerContext) Close() error {
 	// If the underlying connection is holding tracking information, report that
 	// to the audit log at close.
@@ -1002,7 +1026,7 @@ func getPAMConfig(c *ServerContext) (*reexec.PAMConfig, error) {
 	environment := make(map[string]string)
 	environment["TELEPORT_USERNAME"] = c.Identity.TeleportUser
 	environment["TELEPORT_LOGIN"] = c.Identity.Login
-	environment["TELEPORT_ROLES"] = strings.Join(c.Identity.AccessPermit.MappedRoles, " ")
+	environment["TELEPORT_ROLES"] = strings.Join(c.Identity.AccessPermit.GetMappedRoles(), " ")
 	if localPAMConfig.Environment != nil {
 		for key, value := range localPAMConfig.Environment {
 			expr, err := parse.NewTraitsTemplateExpression(value)
@@ -1075,7 +1099,7 @@ func (c *ServerContext) ExecCommand() (*reexec.ExecCommand, error) {
 	var mappedRoles []string
 	switch {
 	case c.Identity.AccessPermit != nil:
-		mappedRoles = c.Identity.AccessPermit.MappedRoles
+		mappedRoles = c.Identity.AccessPermit.GetMappedRoles()
 	case c.Identity.ProxyingPermit != nil:
 		mappedRoles = c.Identity.ProxyingPermit.MappedRoles
 	default:
@@ -1122,6 +1146,14 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		userKind = apievents.UserKind_USER_KIND_BOT
 	}
 
+	// Extract scoped info from the scope pin if it's present. Since scopes do
+	// not support trusted clusters, the scope pin should always be available
+	// on the unmapped identity for all scoped identities.
+	var scopePin *scopesv1.Pin
+	if id.UnmappedIdentity != nil {
+		scopePin = id.UnmappedIdentity.ScopePin
+	}
+
 	return apievents.UserMetadata{
 		Login:           id.Login,
 		User:            id.TeleportUser,
@@ -1134,6 +1166,7 @@ func (id *IdentityContext) GetUserMetadata() apievents.UserMetadata {
 		UserClusterName: id.OriginClusterName,
 		UserRoles:       slices.Clone(id.MappedRoles),
 		UserTraits:      id.Traits.Clone(),
+		ScopePin:        pinning.ToEventsPin(scopePin),
 	}
 }
 

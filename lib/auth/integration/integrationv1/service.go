@@ -218,10 +218,10 @@ func (s *Service) ListIntegrations(ctx context.Context, req *integrationpb.ListI
 		igs[i] = v1
 	}
 
-	return &integrationpb.ListIntegrationsResponse{
+	return integrationpb.ListIntegrationsResponse_builder{
 		Integrations: igs,
 		NextKey:      nextKey,
-	}, nil
+	}.Build(), nil
 }
 
 // GetIntegration returns the specified Integration resource.
@@ -260,25 +260,25 @@ func (s *Service) CreateIntegration(ctx context.Context, req *integrationpb.Crea
 		return nil, trace.Wrap(err)
 	}
 
-	switch req.Integration.GetSubKind() {
+	switch req.GetIntegration().GetSubKind() {
 	case types.IntegrationSubKindGitHub:
 		if s.modules.BuildType() != modules.BuildEnterprise {
 			return nil, trace.AccessDenied("GitHub integration requires a Teleport Enterprise license")
 		}
-		if err := s.createGitHubCredentials(ctx, req.Integration); err != nil {
+		if err := s.createGitHubCredentials(ctx, req.GetIntegration()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case types.IntegrationSubKindAWSOIDC, types.IntegrationSubKindAWSRolesAnywhere:
-		if err := awscommon.ValidIntegrationName(req.Integration.GetName()); err != nil {
+		if err := awscommon.ValidIntegrationName(req.GetIntegration().GetName()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		if err := validateAWSRolesAnywhereProfileFilters(req.Integration); err != nil {
+		if err := validateAWSRolesAnywhereProfileFilters(req.GetIntegration()); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
 
-	ig, err := s.backend.CreateIntegration(ctx, req.Integration)
+	ig, err := s.backend.CreateIntegration(ctx, req.GetIntegration())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -324,15 +324,15 @@ func (s *Service) UpdateIntegration(ctx context.Context, req *integrationpb.Upda
 		return nil, trace.Wrap(err)
 	}
 
-	if err := validateAWSRolesAnywhereProfileFilters(req.Integration); err != nil {
+	if err := validateAWSRolesAnywhereProfileFilters(req.GetIntegration()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.maybeUpdateStaticCredentials(ctx, req.Integration); err != nil {
+	if err := s.maybeUpdateStaticCredentials(ctx, req.GetIntegration()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ig, err := s.backend.UpdateIntegration(ctx, req.Integration)
+	ig, err := s.backend.UpdateIntegration(ctx, req.GetIntegration())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -411,7 +411,7 @@ func (s *Service) DeleteIntegration(ctx context.Context, req *integrationpb.Dele
 		return nil, trace.Wrap(err)
 	}
 
-	if req.DeleteAssociatedResources {
+	if req.GetDeleteAssociatedResources() {
 		if err := s.deleteAssociatedResources(ctx, authCtx, ig); err != nil {
 			return nil, trace.Wrap(err)
 		}

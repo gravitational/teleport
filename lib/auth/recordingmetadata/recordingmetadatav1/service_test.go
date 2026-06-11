@@ -50,7 +50,7 @@ func TestService_GetThumbnail(t *testing.T) {
 
 	thumbnail := newThumbnail()
 
-	thumbnail.Svg = []byte("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"50\" height=\"50\"><rect width=\"100%\" height=\"100%\" fill=\"red\"/></svg>")
+	thumbnail.SetSvg([]byte("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"50\" height=\"50\"><rect width=\"100%\" height=\"100%\" fill=\"red\"/></svg>"))
 
 	err := uploadThumbnail(ctx, uploader, session.ID("test-session"), thumbnail)
 	require.NoError(t, err, "failed to upload thumbnail")
@@ -60,13 +60,13 @@ func TestService_GetThumbnail(t *testing.T) {
 		downloadHandler: uploader,
 	}
 
-	resp, err := service.GetThumbnail(ctx, &recordingmetadatav1pb.GetThumbnailRequest{
+	resp, err := service.GetThumbnail(ctx, recordingmetadatav1pb.GetThumbnailRequest_builder{
 		SessionId: "test-session",
-	})
+	}.Build())
 	require.NoError(t, err, "failed to get thumbnail")
 	require.NotNil(t, resp, "expected non-nil response")
 
-	require.Equal(t, thumbnail.Svg, resp.Thumbnail.Svg, "thumbnail SVG does not match expected value")
+	require.Equal(t, thumbnail.GetSvg(), resp.GetThumbnail().GetSvg(), "thumbnail SVG does not match expected value")
 }
 
 func TestService_GetThumbnailNotFound(t *testing.T) {
@@ -80,9 +80,9 @@ func TestService_GetThumbnailNotFound(t *testing.T) {
 		downloadHandler: uploader,
 	}
 
-	_, err := service.GetThumbnail(ctx, &recordingmetadatav1pb.GetThumbnailRequest{
+	_, err := service.GetThumbnail(ctx, recordingmetadatav1pb.GetThumbnailRequest_builder{
 		SessionId: "test-session",
-	})
+	}.Build())
 	require.Error(t, err, "expected error for test session")
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
 }
@@ -145,9 +145,9 @@ func TestService_GetThumbnailAuthorized(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			_, err := service.GetThumbnail(ctx, &recordingmetadatav1pb.GetThumbnailRequest{
+			_, err := service.GetThumbnail(ctx, recordingmetadatav1pb.GetThumbnailRequest_builder{
 				SessionId: tc.sessionID,
-			})
+			}.Build())
 
 			if tc.wantError {
 				require.Error(t, err)
@@ -174,7 +174,7 @@ func TestService_GetMetadata(t *testing.T) {
 		newThumbnail(),
 	}
 
-	metadata.ClusterName = "test-cluster"
+	metadata.SetClusterName("test-cluster")
 
 	err := uploadMetadata(ctx, uploader, session.ID("test-session"), metadata, frames)
 	require.NoError(t, err, "failed to upload metadata")
@@ -185,9 +185,9 @@ func TestService_GetMetadata(t *testing.T) {
 	}
 
 	stream := &fakeServerStream{ctx: ctx}
-	err = service.GetMetadata(&recordingmetadatav1pb.GetMetadataRequest{
+	err = service.GetMetadata(recordingmetadatav1pb.GetMetadataRequest_builder{
 		SessionId: "test-session",
-	}, stream)
+	}.Build(), stream)
 
 	require.NoError(t, err, "failed to get metadata")
 	require.NotNil(t, stream, "expected non-nil stream")
@@ -200,7 +200,7 @@ func TestService_GetMetadata(t *testing.T) {
 		require.NotNil(t, chunk, "expected non-nil chunk")
 
 		require.NotNil(t, chunk.GetMetadata(), "expected metadata in chunk")
-		require.Equal(t, metadata.ClusterName, chunk.GetMetadata().ClusterName, "metadata cluster name does not match expected value")
+		require.Equal(t, metadata.GetClusterName(), chunk.GetMetadata().GetClusterName(), "metadata cluster name does not match expected value")
 	}
 
 	{
@@ -211,7 +211,7 @@ func TestService_GetMetadata(t *testing.T) {
 		require.NotNil(t, chunk, "expected non-nil chunk")
 
 		require.NotNil(t, chunk.GetFrame(), "expected frame in chunk")
-		require.Equal(t, frames[0].Svg, chunk.GetFrame().Svg,
+		require.Equal(t, frames[0].GetSvg(), chunk.GetFrame().GetSvg(),
 			"first frame SVG does not match expected value")
 	}
 
@@ -223,7 +223,7 @@ func TestService_GetMetadata(t *testing.T) {
 		require.NotNil(t, chunk, "expected non-nil chunk")
 
 		require.NotNil(t, chunk.GetFrame(), "expected frame in chunk")
-		require.Equal(t, frames[1].Svg, chunk.GetFrame().Svg,
+		require.Equal(t, frames[1].GetSvg(), chunk.GetFrame().GetSvg(),
 			"second frame SVG does not match expected value")
 	}
 }
@@ -240,9 +240,9 @@ func TestService_GetMetadataNotFound(t *testing.T) {
 	}
 
 	stream := &fakeServerStream{ctx: ctx}
-	err := service.GetMetadata(&recordingmetadatav1pb.GetMetadataRequest{
+	err := service.GetMetadata(recordingmetadatav1pb.GetMetadataRequest_builder{
 		SessionId: "test-session",
-	}, stream)
+	}.Build(), stream)
 
 	require.Error(t, err, "expected error for test session")
 	require.True(t, trace.IsNotFound(err), "expected NotFound error, got %v", err)
@@ -306,9 +306,9 @@ func TestService_GetMetadataAuthorized(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			stream := &fakeServerStream{ctx: context.Background()}
 
-			err := service.GetMetadata(&recordingmetadatav1pb.GetMetadataRequest{
+			err := service.GetMetadata(recordingmetadatav1pb.GetMetadataRequest_builder{
 				SessionId: tc.sessionID,
-			}, stream)
+			}.Build(), stream)
 
 			if tc.wantError {
 				require.Error(t, err)
@@ -334,22 +334,22 @@ func TestService_AuthorizerError(t *testing.T) {
 		authorizer: authorizer,
 	}
 
-	_, err := service.GetThumbnail(ctx, &recordingmetadatav1pb.GetThumbnailRequest{
+	_, err := service.GetThumbnail(ctx, recordingmetadatav1pb.GetThumbnailRequest_builder{
 		SessionId: "any-session",
-	})
+	}.Build())
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 
 	stream := &fakeServerStream{ctx: ctx}
-	err = service.GetMetadata(&recordingmetadatav1pb.GetMetadataRequest{
+	err = service.GetMetadata(recordingmetadatav1pb.GetMetadataRequest_builder{
 		SessionId: "any-session",
-	}, stream)
+	}.Build(), stream)
 	require.Error(t, err)
 	require.True(t, trace.IsAccessDenied(err))
 }
 
 func newThumbnail() *recordingmetadatav1pb.SessionRecordingThumbnail {
-	return &recordingmetadatav1pb.SessionRecordingThumbnail{
+	return recordingmetadatav1pb.SessionRecordingThumbnail_builder{
 		Svg:         []byte("<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"100\" height=\"100\"><rect width=\"100%\" height=\"100%\" fill=\"red\"/></svg>"),
 		Cols:        80,
 		Rows:        24,
@@ -357,18 +357,18 @@ func newThumbnail() *recordingmetadatav1pb.SessionRecordingThumbnail {
 		CursorY:     0,
 		StartOffset: durationpb.New(0),
 		EndOffset:   durationpb.New(60),
-	}
+	}.Build()
 }
 
 func newMetadata() *recordingmetadatav1pb.SessionRecordingMetadata {
-	return &recordingmetadatav1pb.SessionRecordingMetadata{
+	return recordingmetadatav1pb.SessionRecordingMetadata_builder{
 		Duration:    durationpb.New(60),
 		StartCols:   80,
 		StartRows:   24,
 		StartTime:   timestamppb.New(time.Now().Add(-time.Minute)),
 		EndTime:     timestamppb.New(time.Now()),
 		ClusterName: "test-cluster",
-	}
+	}.Build()
 }
 
 func uploadThumbnail(ctx context.Context, uploader events.UploadHandler, sessionID session.ID, thumbnail *recordingmetadatav1pb.SessionRecordingThumbnail) error {

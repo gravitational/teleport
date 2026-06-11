@@ -619,14 +619,14 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.NoError(t, err)
 	mockFederationClient := &mockFederationClient{
 		t: t,
-		spiffeFed: &machineidv1pb.SPIFFEFederation{
-			Metadata: &v1.Metadata{
+		spiffeFed: machineidv1pb.SPIFFEFederation_builder{
+			Metadata: v1.Metadata_builder{
 				Name: preInitFed.TrustDomain().Name(),
-			},
-			Status: &machineidv1pb.SPIFFEFederationStatus{
+			}.Build(),
+			Status: machineidv1pb.SPIFFEFederationStatus_builder{
 				CurrentBundle: string(marshaledPreInitFed),
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}
 
 	cache, err := NewTrustBundleCache(TrustBundleCacheConfig{
@@ -699,15 +699,15 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.NoError(t, err)
 	mockWatcher.events <- types.Event{
 		Type: types.OpPut,
-		Resource: types.Resource153ToLegacy(&machineidv1pb.SPIFFEFederation{
+		Resource: types.Resource153ToLegacy(machineidv1pb.SPIFFEFederation_builder{
 			Kind: types.KindSPIFFEFederation,
-			Metadata: &v1.Metadata{
+			Metadata: v1.Metadata_builder{
 				Name: preInitFed.TrustDomain().Name(),
-			},
-			Status: &machineidv1pb.SPIFFEFederationStatus{
+			}.Build(),
+			Status: machineidv1pb.SPIFFEFederationStatus_builder{
 				CurrentBundle: string(marshaledPreInitFed),
-			},
-		}),
+			}.Build(),
+		}.Build()),
 	}
 	// Check we receive a bundle with the updated federated bundle
 	select {
@@ -743,15 +743,15 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	require.NoError(t, err)
 	mockWatcher.events <- types.Event{
 		Type: types.OpPut,
-		Resource: types.Resource153ToLegacy(&machineidv1pb.SPIFFEFederation{
+		Resource: types.Resource153ToLegacy(machineidv1pb.SPIFFEFederation_builder{
 			Kind: types.KindSPIFFEFederation,
-			Metadata: &v1.Metadata{
+			Metadata: v1.Metadata_builder{
 				Name: afterInitFed.TrustDomain().Name(),
-			},
-			Status: &machineidv1pb.SPIFFEFederationStatus{
+			}.Build(),
+			Status: machineidv1pb.SPIFFEFederationStatus_builder{
 				CurrentBundle: string(marshaledAfterInitFed),
-			},
-		}),
+			}.Build(),
+		}.Build()),
 	}
 	// Check we receive a bundle with the new federated bundle
 	gotBundleSet = waitUpdatedBundleSet(t, gotBundleSet, cache)
@@ -778,12 +778,12 @@ func TestTrustBundleCache_Run(t *testing.T) {
 	// Delete the newly added federated bundle
 	mockWatcher.events <- types.Event{
 		Type: types.OpDelete,
-		Resource: types.Resource153ToLegacy(&machineidv1pb.SPIFFEFederation{
+		Resource: types.Resource153ToLegacy(machineidv1pb.SPIFFEFederation_builder{
 			Kind: types.KindSPIFFEFederation,
-			Metadata: &v1.Metadata{
+			Metadata: v1.Metadata_builder{
 				Name: afterInitFed.TrustDomain().Name(),
-			},
-		}),
+			}.Build(),
+		}.Build()),
 	}
 	// Check we receive a bundle with the new federated bundle deleted
 	gotBundleSet = waitUpdatedBundleSet(t, gotBundleSet, cache)
@@ -956,14 +956,14 @@ func TestTrustBundleCache_Run_WithUnsupportedCAs(t *testing.T) {
 	require.NoError(t, err)
 	mockFederationClient := &mockFederationClient{
 		t: t,
-		spiffeFed: &machineidv1pb.SPIFFEFederation{
-			Metadata: &v1.Metadata{
+		spiffeFed: machineidv1pb.SPIFFEFederation_builder{
+			Metadata: v1.Metadata_builder{
 				Name: preInitFed.TrustDomain().Name(),
-			},
-			Status: &machineidv1pb.SPIFFEFederationStatus{
+			}.Build(),
+			Status: machineidv1pb.SPIFFEFederationStatus_builder{
 				CurrentBundle: string(marshaledPreInitFed),
-			},
-		},
+			}.Build(),
+		}.Build(),
 	}
 
 	cache, err := NewTrustBundleCache(TrustBundleCacheConfig{
@@ -1026,13 +1026,13 @@ func (m *mockTrustClient) GetCertAuthority(
 	in *trustv1.GetCertAuthorityRequest,
 	opts ...grpc.CallOption,
 ) (*types.CertAuthorityV2, error) {
-	if in.IncludeKey {
+	if in.GetIncludeKey() {
 		return nil, trace.BadParameter("unexpected include key")
 	}
-	if in.Domain != "example.com" {
+	if in.GetDomain() != "example.com" {
 		return nil, trace.BadParameter("unexpected domain")
 	}
-	switch in.Type {
+	switch in.GetType() {
 	case string(types.SPIFFECA):
 		return m.ca, nil
 	case string(types.AppClientCA):
@@ -1059,11 +1059,11 @@ func (m *mockFederationClient) ListSPIFFEFederations(
 	in *machineidv1pb.ListSPIFFEFederationsRequest,
 	opts ...grpc.CallOption,
 ) (*machineidv1pb.ListSPIFFEFederationsResponse, error) {
-	return &machineidv1pb.ListSPIFFEFederationsResponse{
+	return machineidv1pb.ListSPIFFEFederationsResponse_builder{
 		SpiffeFederations: []*machineidv1pb.SPIFFEFederation{
 			m.spiffeFed,
 		},
-	}, nil
+	}.Build(), nil
 }
 
 type mockEventsClient struct {

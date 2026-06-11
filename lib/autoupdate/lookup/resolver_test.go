@@ -94,13 +94,13 @@ func TestAutoUpdateAgentVersion(t *testing.T) {
 	}{
 		{
 			name: "version is looked up from rollout if it is here",
-			rollout: &autoupdatepb.AutoUpdateAgentRollout{
-				Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+			rollout: autoupdatepb.AutoUpdateAgentRollout_builder{
+				Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 					TargetVersion:  testVersionHigh,
 					Schedule:       autoupdate.AgentsScheduleImmediate,
-				},
-			},
+				}.Build(),
+			}.Build(),
 			channel:         &automaticupgrades.Channel{StaticVersion: testVersionLow},
 			expectError:     require.NoError,
 			expectedVersion: semver.Must(version.EnsureSemver(testVersionHigh)),
@@ -201,26 +201,26 @@ func TestAutoUpdateAgentShouldUpdate(t *testing.T) {
 	}{
 		{
 			name: "trigger is looked up from rollout if it is here, trigger firing",
-			rollout: &autoupdatepb.AutoUpdateAgentRollout{
-				Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+			rollout: autoupdatepb.AutoUpdateAgentRollout_builder{
+				Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
 					AutoupdateMode: autoupdate.AgentsUpdateModeEnabled,
 					TargetVersion:  testVersionHigh,
 					Schedule:       autoupdate.AgentsScheduleImmediate,
-				},
-			},
+				}.Build(),
+			}.Build(),
 			channel:         &automaticupgrades.Channel{StaticVersion: testVersionLow},
 			expectError:     require.NoError,
 			expectedTrigger: true,
 		},
 		{
 			name: "trigger is looked up from rollout if it is here, trigger not firing",
-			rollout: &autoupdatepb.AutoUpdateAgentRollout{
-				Spec: &autoupdatepb.AutoUpdateAgentRolloutSpec{
+			rollout: autoupdatepb.AutoUpdateAgentRollout_builder{
+				Spec: autoupdatepb.AutoUpdateAgentRolloutSpec_builder{
 					AutoupdateMode: autoupdate.AgentsUpdateModeDisabled,
 					TargetVersion:  testVersionHigh,
 					Schedule:       autoupdate.AgentsScheduleImmediate,
-				},
-			},
+				}.Build(),
+			}.Build(),
 			channel:         &automaticupgrades.Channel{StaticVersion: testVersionLow},
 			expectError:     require.NoError,
 			expectedTrigger: false,

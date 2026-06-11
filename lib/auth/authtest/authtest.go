@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/scopes"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
@@ -122,6 +123,8 @@ type AuthServerConfig struct {
 	InsecureMode   bool
 	// Modules defines build time constraints and licensed features.
 	Modules modules.Modules
+	// ScopesFeatures dictates which scoped components are enabled for the test auth server.
+	ScopesFeatures scopes.Features
 }
 
 // CheckAndSetDefaults checks and sets defaults
@@ -391,6 +394,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		FakePasswordHash:             []byte(FakePasswordHash),
 		FakeRecoveryCodeHash:         []byte(FakeRecoveryCodeHash),
 		InsecureMode:                 cfg.InsecureMode,
+		ScopesFeatures:               cfg.ScopesFeatures,
 	},
 		// Reduce auth.Server bcrypt costs when testing.
 		WithBcryptCost(bcrypt.MinCost),
@@ -540,6 +544,7 @@ func NewAuthServer(cfg AuthServerConfig) (*AuthServer, error) {
 		ReadOnlyAccessPoint: srv.AuthServer.ReadOnlyCache,
 		ScopedRoleReader:    srv.AuthServer.ScopedAccessCache,
 		LockWatcher:         srv.LockWatcher,
+		ScopesFeatures:      cfg.ScopesFeatures,
 		// AuthServer does explicit device authorization checks.
 		DeviceAuthorization: authz.DeviceAuthorizationOpts{
 			DisableGlobalMode: true,
@@ -1238,8 +1243,9 @@ func TestUnauthenticated(role types.UnauthenticatedRole) TestIdentity {
 	}
 }
 
-// TestScopedHost returns TestIdentity for a scoped host
-func TestScopedHost(clusterName, hostID, scope string, role types.SystemRole) TestIdentity {
+// TestScopedHost returns TestIdentity for a scoped host. One or more roles may be provided;
+// all are included as AdditionalSystemRoles on an instance cert identity.
+func TestScopedHost(clusterName, hostID, scope string, roles ...types.SystemRole) TestIdentity {
 	username := hostID
 	if clusterName != "" {
 		username = utils.HostFQDN(hostID, clusterName)
@@ -1248,7 +1254,7 @@ func TestScopedHost(clusterName, hostID, scope string, role types.SystemRole) Te
 		I: authz.BuiltinRole{
 			Role:                  types.RoleInstance,
 			Username:              username,
-			AdditionalSystemRoles: types.SystemRoles{role},
+			AdditionalSystemRoles: types.SystemRoles(roles),
 			Identity: tlsca.Identity{
 				AgentScope: scope,
 			},

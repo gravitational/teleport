@@ -3,7 +3,7 @@ title: "Audit Event Reference"
 description: "Provides a comprehensive list of Teleport audit events and their fields."
 ---
 {/* Generated file. Do not edit. */}
-{/* To regenerate, navigate to docs/gen-event-reference and run pnpm gen-docs */}
+{/* To regenerate, run `make audit-event-reference` */}
 
 {/*cSpell:disable*/}
 
@@ -1177,6 +1177,84 @@ Example:
   "status": "API call failed",
   "time": "2026-04-01T00:00:01.000Z",
   "uid": "22222222-2222-2222-2222-222222222220"
+}
+```
+
+## beams.config.create
+
+Beams Config Created
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM001I",
+  "ei": 0,
+  "event": "beams.config.create",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:21.869Z",
+  "uid": "e1973df2-4bee-4a67-9925-575c1d38cc80",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
+## beams.config.delete
+
+Beams Config Deleted
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM003I",
+  "ei": 0,
+  "event": "beams.config.delete",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:23.869Z",
+  "uid": "a3973df2-4bee-4a67-9925-575c1d38cc82",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
+}
+```
+
+## beams.config.update
+
+Beams Config Updated
+
+Example:
+
+```json
+{
+  "addr.remote": "127.0.0.1:62460",
+  "cluster_name": "my-tenant.beams.run",
+  "code": "TBEAM002I",
+  "ei": 0,
+  "event": "beams.config.update",
+  "name": "beams_config",
+  "success": true,
+  "time": "2025-03-04T15:49:22.869Z",
+  "uid": "f2973df2-4bee-4a67-9925-575c1d38cc81",
+  "user": "admin@example.com",
+  "user_cluster_name": "my-tenant.beams.run",
+  "user_kind": 1,
+  "user_roles": [
+    "editor"
+  ]
 }
 ```
 
@@ -7452,7 +7530,7 @@ Example:
   "code": "T1014W",
   "cluster_name": "root.cluster",
   "event": "user.login",
-  "method": "headdless",
+  "method": "headless",
   "ei": 0,
   "success": false,
   "time": "2019-04-22T00:49:03Z",

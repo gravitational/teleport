@@ -11,9 +11,9 @@
   },
   "license": "Apache-2.0",
   "devDependencies": {
-    "@playwright/test": "^1.59.1",
+    "@playwright/test": "^1.60.0",
     "cbor-x": "^1.6.4",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.3",
     "undici": "^7.24.5"
   }
 }

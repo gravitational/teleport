@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/decision/v1alpha1/request_metadata.proto
 
+//go:build !protoopaque
+
 package decisionpb
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -76,14 +77,9 @@ func (x DecisionFeature) Number() protoreflect.EnumNumber {
 	return protoreflect.EnumNumber(x)
 }
 
-// Deprecated: Use DecisionFeature.Descriptor instead.
-func (DecisionFeature) EnumDescriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_request_metadata_proto_rawDescGZIP(), []int{0}
-}
-
 // Metadata for evaluation requests.
 type RequestMetadata struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// FeatureAssertions is a list of DecisionFeature that the PDP (Policy
 	// Decision Point) *must* implement in order to correctly evaluate the
 	// decision request. Note that changes that require new features in the PDP in
@@ -133,11 +129,6 @@ func (x *RequestMetadata) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use RequestMetadata.ProtoReflect.Descriptor instead.
-func (*RequestMetadata) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_request_metadata_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *RequestMetadata) GetFeatureAssertions() []DecisionFeature {
 	if x != nil {
 		return x.FeatureAssertions
@@ -166,9 +157,72 @@ func (x *RequestMetadata) GetDryRunOptions() *DryRunOptions {
 	return nil
 }
 
+func (x *RequestMetadata) SetFeatureAssertions(v []DecisionFeature) {
+	x.FeatureAssertions = v
+}
+
+func (x *RequestMetadata) SetPepVersionHint(v string) {
+	x.PepVersionHint = v
+}
+
+func (x *RequestMetadata) SetDryRun(v bool) {
+	x.DryRun = v
+}
+
+func (x *RequestMetadata) SetDryRunOptions(v *DryRunOptions) {
+	x.DryRunOptions = v
+}
+
+func (x *RequestMetadata) HasDryRunOptions() bool {
+	if x == nil {
+		return false
+	}
+	return x.DryRunOptions != nil
+}
+
+func (x *RequestMetadata) ClearDryRunOptions() {
+	x.DryRunOptions = nil
+}
+
+type RequestMetadata_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// FeatureAssertions is a list of DecisionFeature that the PDP (Policy
+	// Decision Point) *must* implement in order to correctly evaluate the
+	// decision request. Note that changes that require new features in the PDP in
+	// order for it to understand a decision request are rare and should be
+	// avoided if possible.
+	FeatureAssertions []DecisionFeature
+	// PepVersionHint is the *likely* version of the PEP that will enforce the
+	// decision. Not all decision requests can guarantee that the expected PEP
+	// (Policy Enforcement Point) version will actually be the version that ends
+	// up enforcing the decision. Hard compatibility requirements must be enforced
+	// via feature assertions so that PEPs can correctly reject decisions that
+	// they cannot enforce.
+	PepVersionHint string
+	// DryRun indicates that the request is a dry-run if set to true. Decisions returned by
+	// dry run requests are for informational/audit purposes only and must not be used to make
+	// access-control decisions.
+	DryRun bool
+	// DryRunOptions customize the behavior of dry-run decision requests. Specification of any
+	// dry run options when the dry run flag is false is an error.
+	DryRunOptions *DryRunOptions
+}
+
+func (b0 RequestMetadata_builder) Build() *RequestMetadata {
+	m0 := &RequestMetadata{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.FeatureAssertions = b.FeatureAssertions
+	x.PepVersionHint = b.PepVersionHint
+	x.DryRun = b.DryRun
+	x.DryRunOptions = b.DryRunOptions
+	return m0
+}
+
 // DryRunOptions customize the behavior of dry-run decision requests.
 type DryRunOptions struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// GenerateIdentity customizes a dry run by having the PDP generate an identity locally
 	// rather than using a caller-provided identity derived from a cert.
 	GenerateIdentity *DryRunIdentity `protobuf:"bytes,1,opt,name=generate_identity,json=generateIdentity,proto3" json:"generate_identity,omitempty"`
@@ -201,11 +255,6 @@ func (x *DryRunOptions) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DryRunOptions.ProtoReflect.Descriptor instead.
-func (*DryRunOptions) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_request_metadata_proto_rawDescGZIP(), []int{1}
-}
-
 func (x *DryRunOptions) GetGenerateIdentity() *DryRunIdentity {
 	if x != nil {
 		return x.GenerateIdentity
@@ -213,10 +262,41 @@ func (x *DryRunOptions) GetGenerateIdentity() *DryRunIdentity {
 	return nil
 }
 
+func (x *DryRunOptions) SetGenerateIdentity(v *DryRunIdentity) {
+	x.GenerateIdentity = v
+}
+
+func (x *DryRunOptions) HasGenerateIdentity() bool {
+	if x == nil {
+		return false
+	}
+	return x.GenerateIdentity != nil
+}
+
+func (x *DryRunOptions) ClearGenerateIdentity() {
+	x.GenerateIdentity = nil
+}
+
+type DryRunOptions_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// GenerateIdentity customizes a dry run by having the PDP generate an identity locally
+	// rather than using a caller-provided identity derived from a cert.
+	GenerateIdentity *DryRunIdentity
+}
+
+func (b0 DryRunOptions_builder) Build() *DryRunOptions {
+	m0 := &DryRunOptions{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.GenerateIdentity = b.GenerateIdentity
+	return m0
+}
+
 // DryRunIdentity is a dry run option that allows the caller to request a fake identity be used
 // for the decision request.
 type DryRunIdentity struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// Username is the teleport username of the identity to be used.
 	Username      string `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -248,16 +328,30 @@ func (x *DryRunIdentity) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use DryRunIdentity.ProtoReflect.Descriptor instead.
-func (*DryRunIdentity) Descriptor() ([]byte, []int) {
-	return file_teleport_decision_v1alpha1_request_metadata_proto_rawDescGZIP(), []int{2}
-}
-
 func (x *DryRunIdentity) GetUsername() string {
 	if x != nil {
 		return x.Username
 	}
 	return ""
+}
+
+func (x *DryRunIdentity) SetUsername(v string) {
+	x.Username = v
+}
+
+type DryRunIdentity_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// Username is the teleport username of the identity to be used.
+	Username string
+}
+
+func (b0 DryRunIdentity_builder) Build() *DryRunIdentity {
+	m0 := &DryRunIdentity{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Username = b.Username
+	return m0
 }
 
 var File_teleport_decision_v1alpha1_request_metadata_proto protoreflect.FileDescriptor
@@ -276,18 +370,6 @@ const file_teleport_decision_v1alpha1_request_metadata_proto_rawDesc = "" +
 	"\busername\x18\x01 \x01(\tR\busername*3\n" +
 	"\x0fDecisionFeature\x12 \n" +
 	"\x1cDECISION_FEATURE_UNSPECIFIED\x10\x00BZZXgithub.com/gravitational/teleport/api/gen/proto/go/teleport/decision/v1alpha1;decisionpbb\x06proto3"
-
-var (
-	file_teleport_decision_v1alpha1_request_metadata_proto_rawDescOnce sync.Once
-	file_teleport_decision_v1alpha1_request_metadata_proto_rawDescData []byte
-)
-
-func file_teleport_decision_v1alpha1_request_metadata_proto_rawDescGZIP() []byte {
-	file_teleport_decision_v1alpha1_request_metadata_proto_rawDescOnce.Do(func() {
-		file_teleport_decision_v1alpha1_request_metadata_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_decision_v1alpha1_request_metadata_proto_rawDesc), len(file_teleport_decision_v1alpha1_request_metadata_proto_rawDesc)))
-	})
-	return file_teleport_decision_v1alpha1_request_metadata_proto_rawDescData
-}
 
 var file_teleport_decision_v1alpha1_request_metadata_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
 var file_teleport_decision_v1alpha1_request_metadata_proto_msgTypes = make([]protoimpl.MessageInfo, 3)

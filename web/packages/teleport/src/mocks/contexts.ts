@@ -60,6 +60,7 @@ export const allAccessAcl: Acl = {
   directorySharingEnabled: true,
   reviewRequests: true,
   fileTransferAccess: true,
+  webTerminalClipboardMode: '',
   license: fullAccess,
   download: fullAccess,
   plugins: fullAccess,

@@ -18,6 +18,8 @@
 // 	protoc        (unknown)
 // source: teleport/accessmonitoringrules/v1/access_monitoring_rules_service.proto
 
+//go:build !protoopaque
+
 package accessmonitoringrulesv1
 
 import (

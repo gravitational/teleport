@@ -380,3 +380,26 @@ tests:
             name: docker-config
             mountPath: "/mnt/docker"
             readOnly: true
+
+  - it: sets the pod security context
+    documentIndex: 0
+    values:
+      - ../.lint/updater.yaml
+    set:
+      podSecurityContext:
+        seccompProfile:
+          type: RuntimeDefault
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        runAsNonRoot: true
+      asserts:
+        - equal:
+            path: spec.template.spec.securityContext
+            value:
+              seccompProfile:
+                type: RuntimeDefault
+              runAsUser: 65532
+              runAsGroup: 65532
+              fsGroup: 65532
+              runAsNonRoot: true

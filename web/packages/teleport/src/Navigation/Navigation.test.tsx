@@ -18,7 +18,9 @@
 
 import { MemoryRouter } from 'react-router';
 
-import { render, screen } from 'design/utils/testing';
+import { Beams } from 'design/Icon';
+import { act, render, screen, tick } from 'design/utils/testing';
+import { SideNavDrawerMode } from 'gen-proto-ts/teleport/userpreferences/v1/sidenav_preferences_pb';
 
 import cfg from 'teleport/config';
 import { getOSSFeatures } from 'teleport/features';
@@ -26,11 +28,29 @@ import { FeaturesContextProvider } from 'teleport/FeaturesContext';
 import { ContextProvider } from 'teleport/index';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
-import { NavTitle } from 'teleport/types';
+import { NavTitle, type TeleportFeature } from 'teleport/types';
 import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import { Navigation } from '.';
+import { NavigationCategory } from './categories';
+
+const beamsFeature: TeleportFeature = {
+  category: NavigationCategory.Beams,
+  hasAccess: () => true,
+  route: {
+    title: 'Quickstart',
+    path: '/web/beams/get-started',
+    exact: true,
+    component: () => null,
+  },
+  navigationItem: {
+    title: NavTitle.BeamsQuickstart,
+    icon: Beams,
+    exact: true,
+    getLink: () => '/web/beams/get-started',
+  },
+};
 
 test('show all dashboard navigation items', async () => {
   const expectedItems = [
@@ -75,5 +95,153 @@ test('show all dashboard navigation items', async () => {
     expect(
       screen.queryByText(item.navigationItem.title)
     ).not.toBeInTheDocument();
+  });
+});
+
+describe('Beams nav category', () => {
+  const originalIsDashboard = cfg.isDashboard;
+
+  beforeEach(() => {
+    cfg.isDashboard = false;
+    localStorage.clear();
+  });
+
+  afterEach(() => {
+    cfg.isDashboard = originalIsDashboard;
+    jest.restoreAllMocks();
+    localStorage.clear();
+  });
+
+  function renderNav(initialPath = '/') {
+    mockUserContextProviderWith(
+      makeTestUserContext({ preferences: makeDefaultUserPreferences() })
+    );
+    const ctx = createTeleportContext();
+    const features = [beamsFeature];
+
+    return render(
+      <MemoryRouter initialEntries={[initialPath]}>
+        <ContextProvider ctx={ctx}>
+          <FeaturesContextProvider value={features}>
+            <Navigation />
+          </FeaturesContextProvider>
+        </ContextProvider>
+      </MemoryRouter>
+    );
+  }
+
+  test('renders Beams above Resources when beamsUi is true', () => {
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(true);
+
+    renderNav();
+
+    const beamsButton = screen.getByRole('button', { name: 'Beams' });
+    const resourcesButton = screen.getByRole('button', { name: 'Resources' });
+    const buttons = screen.getAllByRole('button');
+
+    expect(buttons.indexOf(beamsButton)).toBeLessThan(
+      buttons.indexOf(resourcesButton)
+    );
+  });
+
+  test('renders Beams below Resources when beamsUi is false', () => {
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(false);
+
+    renderNav();
+
+    const beamsButton = screen.getByRole('button', { name: 'Beams' });
+    const resourcesButton = screen.getByRole('button', { name: 'Resources' });
+    const buttons = screen.getAllByRole('button');
+
+    expect(buttons.indexOf(resourcesButton)).toBeLessThan(
+      buttons.indexOf(beamsButton)
+    );
+  });
+});
+
+describe('Beams default sticky drawer', () => {
+  const originalIsDashboard = cfg.isDashboard;
+
+  // The drawer panel has no dedicated open/closed attribute: it slides into
+  // view (translateX(0)) when open and off-screen (translateX(-100%)) when
+  // closed. Assert on that slide transform to verify the expanded state.
+  function expectBeamsDrawerOpen(open: boolean) {
+    expect(document.getElementById('panel-Beams')).toHaveStyle({
+      transform: open ? 'translateX(0)' : 'translateX(-100%)',
+    });
+  }
+
+  beforeEach(() => {
+    cfg.isDashboard = false;
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(true);
+  });
+
+  afterEach(() => {
+    cfg.isDashboard = originalIsDashboard;
+    jest.restoreAllMocks();
+  });
+
+  async function mountNav({
+    drawerMode,
+    updatePreferences = jest.fn(),
+    initialPath = '/web/beams/get-started',
+  }: {
+    drawerMode: SideNavDrawerMode;
+    updatePreferences?: jest.Mock;
+    initialPath?: string;
+  }) {
+    const preferences = makeDefaultUserPreferences();
+    preferences.sideNavDrawerMode = drawerMode;
+    mockUserContextProviderWith(
+      makeTestUserContext({ preferences, updatePreferences })
+    );
+    const ctx = createTeleportContext();
+    const features = [beamsFeature];
+
+    render(
+      <MemoryRouter initialEntries={[initialPath]}>
+        <ContextProvider ctx={ctx}>
+          <FeaturesContextProvider value={features}>
+            <Navigation />
+          </FeaturesContextProvider>
+        </ContextProvider>
+      </MemoryRouter>
+    );
+    await act(tick);
+    return { updatePreferences };
+  }
+
+  test('defaults to a sticky, expanded drawer when the user has no prior preference', async () => {
+    const { updatePreferences } = await mountNav({
+      drawerMode: SideNavDrawerMode.UNSPECIFIED,
+    });
+
+    expectBeamsDrawerOpen(true);
+    expect(updatePreferences).not.toHaveBeenCalled();
+  });
+
+  test('honors an explicit COLLAPSED preference', async () => {
+    const { updatePreferences } = await mountNav({
+      drawerMode: SideNavDrawerMode.COLLAPSED,
+    });
+
+    expectBeamsDrawerOpen(false);
+    expect(updatePreferences).not.toHaveBeenCalled();
+  });
+
+  test('honors an explicit STICKY preference', async () => {
+    await mountNav({ drawerMode: SideNavDrawerMode.STICKY });
+
+    expectBeamsDrawerOpen(true);
+  });
+
+  test('does not default to sticky when beamsUi is false', async () => {
+    jest.spyOn(cfg, 'getBeamsUi').mockReturnValue(false);
+    const { updatePreferences } = await mountNav({
+      drawerMode: SideNavDrawerMode.UNSPECIFIED,
+    });
+
+    expectBeamsDrawerOpen(false);
+    expect(updatePreferences).not.toHaveBeenCalled();
   });
 });

@@ -18,13 +18,14 @@
 // 	protoc        (unknown)
 // source: teleport/trait/v1/trait.proto
 
+//go:build !protoopaque
+
 package traitv1
 
 import (
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	reflect "reflect"
-	sync "sync"
 	unsafe "unsafe"
 )
 
@@ -37,7 +38,7 @@ const (
 
 // Trait is a trait that can be use in various resources.
 type Trait struct {
-	state protoimpl.MessageState `protogen:"open.v1"`
+	state protoimpl.MessageState `protogen:"hybrid.v1"`
 	// key is the name of the trait.
 	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
 	// values is the list of trait values.
@@ -71,11 +72,6 @@ func (x *Trait) ProtoReflect() protoreflect.Message {
 	return mi.MessageOf(x)
 }
 
-// Deprecated: Use Trait.ProtoReflect.Descriptor instead.
-func (*Trait) Descriptor() ([]byte, []int) {
-	return file_teleport_trait_v1_trait_proto_rawDescGZIP(), []int{0}
-}
-
 func (x *Trait) GetKey() string {
 	if x != nil {
 		return x.Key
@@ -90,6 +86,32 @@ func (x *Trait) GetValues() []string {
 	return nil
 }
 
+func (x *Trait) SetKey(v string) {
+	x.Key = v
+}
+
+func (x *Trait) SetValues(v []string) {
+	x.Values = v
+}
+
+type Trait_builder struct {
+	_ [0]func() // Prevents comparability and use of unkeyed literals for the builder.
+
+	// key is the name of the trait.
+	Key string
+	// values is the list of trait values.
+	Values []string
+}
+
+func (b0 Trait_builder) Build() *Trait {
+	m0 := &Trait{}
+	b, x := &b0, m0
+	_, _ = b, x
+	x.Key = b.Key
+	x.Values = b.Values
+	return m0
+}
+
 var File_teleport_trait_v1_trait_proto protoreflect.FileDescriptor
 
 const file_teleport_trait_v1_trait_proto_rawDesc = "" +
@@ -98,18 +120,6 @@ const file_teleport_trait_v1_trait_proto_rawDesc = "" +
 	"\x05Trait\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x16\n" +
 	"\x06values\x18\x02 \x03(\tR\x06valuesBNZLgithub.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1;traitv1b\x06proto3"
-
-var (
-	file_teleport_trait_v1_trait_proto_rawDescOnce sync.Once
-	file_teleport_trait_v1_trait_proto_rawDescData []byte
-)
-
-func file_teleport_trait_v1_trait_proto_rawDescGZIP() []byte {
-	file_teleport_trait_v1_trait_proto_rawDescOnce.Do(func() {
-		file_teleport_trait_v1_trait_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_teleport_trait_v1_trait_proto_rawDesc), len(file_teleport_trait_v1_trait_proto_rawDesc)))
-	})
-	return file_teleport_trait_v1_trait_proto_rawDescData
-}
 
 var file_teleport_trait_v1_trait_proto_msgTypes = make([]protoimpl.MessageInfo, 1)
 var file_teleport_trait_v1_trait_proto_goTypes = []any{
