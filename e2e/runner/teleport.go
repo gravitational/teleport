@@ -157,10 +157,12 @@ type TeleportConfig struct {
 	DataDir        string
 	AuthServerPort int
 	ProxyPort      int
+	KubeServerPort int
 	KeyFilePath    string
 	CertFilePath   string
 	LicenseFile    string
 	LogLevel       string
+	KubeConfigPath string
 }
 
 func generateTeleportConfig(templatePath, outPath string, data *TeleportConfig) (string, error) {
@@ -195,6 +197,30 @@ func resolveDockerHost() (string, error) {
 	defer conn.Close()
 
 	return conn.LocalAddr().(*net.UDPAddr).IP.String(), nil
+}
+
+// resolveDockerEndpointHost returns the hostname portion of a remote Docker
+// endpoint (for example "docker" from DOCKER_HOST=tcp://docker:2375).
+// Returns empty string when Docker is local (unix/npipe/default).
+func resolveDockerEndpointHost() (string, error) {
+	dockerHost := os.Getenv("DOCKER_HOST")
+	if dockerHost == "" {
+		return "", nil
+	}
+
+	u, err := url.Parse(dockerHost)
+	if err != nil {
+		return "", fmt.Errorf("parsing DOCKER_HOST: %w", err)
+	}
+	if u.Scheme != "tcp" {
+		return "", nil
+	}
+
+	host := u.Hostname()
+	if host == "" {
+		return "", fmt.Errorf("tcp DOCKER_HOST has empty hostname: %q", dockerHost)
+	}
+	return host, nil
 }
 
 func generateStateFile(templatePath string, state *stateConfig) (string, error) {
