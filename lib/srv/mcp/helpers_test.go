@@ -530,7 +530,10 @@ func (r *testHTTPRequestRecorder) registerHttpRequest(t *testing.T, req *http.Re
 	data, err := utils.GetAndReplaceRequestBody(req)
 	require.NoError(t, err)
 	req = req.Clone(t.Context())
-	utils.WriteRequestBody(req, data)
+	// The requests is now cloned, but it's a shallow clone holding a pointer to the original
+	// body. Let's now set a the cloned body.
+	utils.OverwriteRequestBodyNoDrain(req, data)
+	require.NoError(t, err)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
