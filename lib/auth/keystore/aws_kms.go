@@ -42,7 +42,6 @@ import (
 	rgttypes "github.com/aws/aws-sdk-go-v2/service/resourcegroupstaggingapi/types"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 
-	ststypes "github.com/aws/aws-sdk-go-v2/service/sts/types"
 	"github.com/aws/smithy-go/tracing/smithyoteltracing"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -109,13 +108,6 @@ func newAWSKMSKeystore(ctx context.Context, cfg *servicecfg.AWSKMSConfig, opts *
 				cfg.RoleARN,
 				func(o *stscreds.AssumeRoleOptions) {
 					o.RoleSessionName = "teleport-aws-kms"
-					o.Tags = make([]ststypes.Tag, 0, len(cfg.Tags))
-					for key, value := range cfg.Tags {
-						o.Tags = append(o.Tags, ststypes.Tag{
-							Key:   aws.String(key),
-							Value: aws.String(value),
-						})
-					}
 					if cfg.ExternalID != "" {
 						o.ExternalID = aws.String(cfg.ExternalID)
 					}
