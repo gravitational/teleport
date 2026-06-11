@@ -499,4 +499,18 @@ var (
 		kind:          types.KindVnetConfig,
 		verbs:         []string{types.VerbRead},
 	}
+	// UnpinnedReadSPIFFEFederation is a special authorization to complete an
+	// unscoped access check to read a SPIFFE federation.
+	UnpinnedReadSPIFFEFederation = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindSPIFFEFederation,
+		verbs:         []string{types.VerbRead},
+	}
+	// UnpinnedReadSPIFFEFederations is a special authorization to complete an
+	// unscoped access check to list and read SPIFFE federations.
+	UnpinnedReadSPIFFEFederations = UnpinnedReadAuthorization{
+		resourceScope: scopes.Root,
+		kind:          types.KindSPIFFEFederation,
+		verbs:         []string{types.VerbList, types.VerbRead},
+	}
 )
