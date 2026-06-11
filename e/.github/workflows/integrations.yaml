@@ -70,7 +70,7 @@ jobs:
     steps:
       - name: Checkout repo
         # TODO: Bump to v4 when https://github.com/actions/checkout/issues/1487 is resolved
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
       - name: Install test dependencies
         working-directory: ./assets/systemd-unit-upgrader-tests/scripts
         run: |
@@ -126,7 +126,7 @@ jobs:
 
       - name: Checkout repo
         # TODO: Bump to v4 when https://github.com/actions/checkout/issues/1487 is resolved
-        uses: actions/checkout@v3
+        uses: actions/checkout@v6
       - name: Install test dependencies
         working-directory: ./assets/systemd-unit-upgrader-tests/scripts
         run: |

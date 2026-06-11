@@ -27,7 +27,7 @@ jobs:
       VAR_PREFIX: TEST_VAR_PREFIX_
     steps:
       - name: Checkout the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Run the action ${{ matrix.test.name }}
         uses: ./.github/actions/get-gha-environment-vars
         with:

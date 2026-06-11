@@ -24,7 +24,7 @@ jobs:
       id-token: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           # Only master branch can publish to production
           ref: ${{ inputs.environment == 'prod/publish' && 'master' || inputs.oss-teleport-ref }}

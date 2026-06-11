@@ -32,7 +32,7 @@ jobs:
         with:
           version: ${{ steps.latest-version.outputs.latest-version }}
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0  # Get all branches
           sparse-checkout: non-existant-directory # Don't actually pull files in, only history

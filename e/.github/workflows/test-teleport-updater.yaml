@@ -19,7 +19,7 @@ jobs:
       artifact-version: ${{ steps.gen-version.outputs.artifact-version }}
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - name: Generate a new unique version based on the nearest tag
@@ -76,7 +76,7 @@ jobs:
 
           echo "workflow-ref=refs/heads/master" >> "$GITHUB_OUTPUT"
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.refs.outputs.workflow-ref }}
       - name: Deploy package to `stable/${{ env.VERSION_CHANNEL }}` ${{ matrix.repo-type }} repos

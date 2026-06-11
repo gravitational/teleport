@@ -20,7 +20,7 @@ jobs:
       labels: generic-${{ matrix.architecture }}-runner
     steps:
       - name: Checkout the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Run the setup action
         uses: ./.github/actions/setup-self-hosted-runner

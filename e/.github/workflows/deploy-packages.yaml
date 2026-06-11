@@ -134,7 +134,7 @@ jobs:
       RELEASE_CHANNEL: ${{ inputs.release-channel }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           sparse-checkout: .environments
       - name: Assume env-loader secrets decryption AWS role
@@ -208,7 +208,7 @@ jobs:
         uses: gravitational/teleport.e/.github/actions/setup-self-hosted-runner@master
       # Future TODO package the tool as an action or separate workflow
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Setup Go
         uses: actions/setup-go@v6
         with:
@@ -439,7 +439,7 @@ jobs:
       auto-updates-domain-name: ${{ steps.set-auto-updates-domain-name.outputs.domain-name }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           sparse-checkout: .environments
       - name: Load environment values
