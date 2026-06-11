@@ -91,11 +91,10 @@ func TestClientNew_KeyboardLayout(t *testing.T) {
 
 func createConfig() Config {
 	return Config{
-		Addr:        "example.com",
-		AuthorizeFn: func(login string) error { return nil },
-		Logger:      slog.Default(),
-		Width:       1,
-		Height:      1,
+		Addr:   "example.com",
+		Logger: slog.Default(),
+		Width:  1,
+		Height: 1,
 	}
 }
 

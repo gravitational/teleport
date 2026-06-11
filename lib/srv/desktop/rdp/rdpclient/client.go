@@ -203,10 +203,6 @@ func New(conn tdp.MessageReadWriteCloser, hello *tdpb.ClientHello, cfg Config) (
 	c.username = hello.Username
 	c.keyboardLayout = hello.KeyboardLayout
 
-	if err := cfg.AuthorizeFn(hello.Username); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	return c, trace.Wrap(c.setClientSize(hello.ScreenSpec.GetWidth(), hello.ScreenSpec.GetHeight()))
 }
 
