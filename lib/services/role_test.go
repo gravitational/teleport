@@ -3378,6 +3378,39 @@ func TestCheckRuleSorting(t *testing.T) {
 	}
 }
 
+// TestApplyTraits_NormalizesWildcardKubeVerbAfterExpansion verifies that when a
+// templated kube_resources verb expands (via traits) into a wildcard mixed with
+// other verbs - a combination role validation rejects at creation but cannot
+// catch post-expansion - ApplyTraits normalizes it to just the wildcard.
+func TestApplyTraits_NormalizesWildcardKubeVerbAfterExpansion(t *testing.T) {
+	role, err := types.NewRoleWithVersion("kube-verb-tmpl", types.V8, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubernetesResources: []types.KubernetesResource{{
+				Kind: "secrets", APIGroup: types.Wildcard, Namespace: types.Wildcard, Name: types.Wildcard,
+				Verbs: []string{types.Wildcard},
+			}},
+		},
+		Deny: types.RoleConditions{
+			KubernetesResources: []types.KubernetesResource{{
+				Kind: "secrets", APIGroup: types.Wildcard, Namespace: "prod", Name: types.Wildcard,
+				Verbs: []string{"{{external.kube_verbs}}"},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	out, err := ApplyTraits(role, map[string][]string{
+		"kube_verbs": {types.KubeVerbCreate, types.KubeVerbUpdate, types.KubeVerbDelete, types.Wildcard},
+	})
+	require.NoError(t, err)
+
+	denied := out.GetKubeResources(types.Deny)
+	require.Len(t, denied, 1)
+	require.Equal(t, []string{types.Wildcard}, denied[0].Verbs,
+		"trait-expanded wildcard mixed with other verbs must normalize to just the wildcard")
+}
+
 func TestApplyTraits(t *testing.T) {
 	type rule struct {
 		inLogins                []string
