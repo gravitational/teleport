@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"io"
 	"log/slog"
+	"strconv"
 	"strings"
 	"time"
 
@@ -55,6 +56,28 @@ func (v timeValue) String() string {
 	}
 
 	return v.target.Format(time.RFC3339)
+}
+
+// optionalFloat32 is a kingpin Value that distinguishes 0 from "not set".
+type optionalFloat32 struct {
+	target **float32
+}
+
+func (v optionalFloat32) Set(s string) error {
+	f, err := strconv.ParseFloat(s, 32)
+	if err != nil {
+		return trace.BadParameter("invalid float %q: %v", s, err)
+	}
+	f32 := float32(f)
+	*v.target = &f32
+	return nil
+}
+
+func (v optionalFloat32) String() string {
+	if v.target == nil || *v.target == nil {
+		return ""
+	}
+	return strconv.FormatFloat(float64(**v.target), 'f', -1, 32)
 }
 
 func parseTimeFilterValue(s string, now time.Time) (time.Time, error) {
@@ -129,6 +152,13 @@ func fetchAllLogs(
 		to = params.EndTime.Format(time.RFC3339)
 	}
 	slog.DebugContext(ctx, "logs query", "query", strPtrToStr(params.Query), "from", from, "to", to, "max_results", maxResults)
+
+	// Request one more than maxResults so we can detect
+	// if the results were truncated by the maxResults limit
+	if maxResults > 0 {
+		overfetch := maxResults + 1
+		params.Limit = &overfetch
+	}
 
 	var (
 		cursor *string
@@ -231,14 +261,16 @@ func displayEventsText(out io.Writer, events []logmodels.AccessgraphStorageV1alp
 		if resource == "" && ev.Target.Id != "" {
 			resource = ev.Target.Id
 		}
+		// Event fields originate from activity-log data external clients can
+		// influence, so escape control characters before writing the row.
 		table.AddRow([]string{
 			ev.Time.Format(time.RFC3339),
-			identity,
-			ev.EventType,
-			ev.Action,
-			ev.Status,
-			resource,
-			strings.TrimSpace(string(ev.EventSource)),
+			utils.EscapeControl(identity),
+			utils.EscapeControl(ev.EventType),
+			utils.EscapeControl(ev.Action),
+			utils.EscapeControl(ev.Status),
+			utils.EscapeControl(resource),
+			utils.EscapeControl(strings.TrimSpace(string(ev.EventSource))),
 		})
 	}
 	_, err := fmt.Fprintln(out, table.AsBuffer().String())

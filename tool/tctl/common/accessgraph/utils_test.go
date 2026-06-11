@@ -36,6 +36,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
+	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
 )
 
 func TestParseRelativeDuration(t *testing.T) {
@@ -479,4 +480,54 @@ func TestWriteOutput(t *testing.T) {
 		})
 		require.ErrorIs(t, err, want)
 	})
+}
+
+func TestOptionalFloat32(t *testing.T) {
+	t.Run("set valid float", func(t *testing.T) {
+		var target *float32
+		v := optionalFloat32{target: &target}
+		require.NoError(t, v.Set("37.7749"))
+		require.NotNil(t, target)
+		require.InDelta(t, 37.7749, *target, 1e-4)
+		require.Equal(t, "37.7749", v.String())
+	})
+
+	t.Run("set zero", func(t *testing.T) {
+		var target *float32
+		v := optionalFloat32{target: &target}
+		require.NoError(t, v.Set("0"))
+		require.NotNil(t, target, "0 must be distinguishable from 'flag not set'")
+		require.InDelta(t, 0.0, *target, 1e-9)
+	})
+
+	t.Run("invalid input → BadParameter", func(t *testing.T) {
+		var target *float32
+		v := optionalFloat32{target: &target}
+		err := v.Set("not-a-number")
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+		require.Nil(t, target, "target must remain nil on parse failure")
+	})
+}
+
+func TestDisplayEventsTextEscapesControlSequences(t *testing.T) {
+	// An event field carrying an OSC 52 clipboard-write plus a screen clear:
+	// without escaping these reach the operator's terminal verbatim.
+	const inject = "evil\x1b]52;c;AAAA\a\x1b[2Jspoofed"
+	events := []logmodels.AccessgraphStorageV1alphaEvent{{
+		Time:        time.Unix(0, 0).UTC(),
+		Identity:    logmodels.AccessgraphStorageV1alphaIdentity{Name: inject},
+		EventType:   "auth",
+		Action:      "login",
+		Status:      "success",
+		Target:      logmodels.AccessgraphStorageV1alphaTarget{Resource: inject},
+		EventSource: logmodels.EventSource("okta"),
+	}}
+
+	var buf strings.Builder
+	require.NoError(t, displayEventsText(&buf, events))
+
+	out := buf.String()
+	require.NotContains(t, out, "\x1b", "raw escape byte leaked to terminal")
+	require.NotContains(t, out, "\a", "raw BEL byte leaked to terminal")
+	require.Contains(t, out, `\x1b`, "control sequence should be rendered as a visible escape")
 }

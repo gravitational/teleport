@@ -35,6 +35,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	accessgraph "github.com/gravitational/teleport/lib/accessgraph/apiclient"
+	logmodels "github.com/gravitational/teleport/lib/accessgraph/apiclient/models/logs"
 )
 
 // logsStatsQueryPath pins the AG path so a generated-client drift fails the test.
@@ -126,6 +127,35 @@ func TestInvestigateValidateRawQueryExclusive(t *testing.T) {
 	})
 }
 
+func TestInvestigateValidateGeo(t *testing.T) {
+	f := func(v float32) *float32 { return &v }
+
+	t.Run("none set → OK", func(t *testing.T) {
+		a := &investigateArgs{}
+		require.NoError(t, a.validateGeo())
+	})
+
+	t.Run("all three set → OK", func(t *testing.T) {
+		a := &investigateArgs{latitude: f(37.7), longitude: f(-122.4), radius: f(10)}
+		require.NoError(t, a.validateGeo())
+	})
+
+	t.Run("partial geo lists every missing flag", func(t *testing.T) {
+		a := &investigateArgs{latitude: f(37.7)}
+		err := a.validateGeo()
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+		_, missing, _ := strings.Cut(err.Error(), "missing: ")
+		require.Equal(t, "--longitude, --radius", missing)
+	})
+
+	t.Run("geo with --facets-only → BadParameter", func(t *testing.T) {
+		a := &investigateArgs{latitude: f(37.7), longitude: f(-122.4), radius: f(10), facetsOnly: true}
+		err := a.validateGeo()
+		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
+		require.Contains(t, err.Error(), "--facets-only cannot be combined with geo filters")
+	})
+}
+
 // TestStripUnmatchedFacets covers the count<0 sentinel: the backend uses
 // count == -1 for values present in the window but absent from the filter.
 func TestStripUnmatchedFacets(t *testing.T) {
@@ -153,6 +183,25 @@ func TestStripUnmatchedFacets(t *testing.T) {
 		require.Len(t, out, 1, "user-agent facet should have been dropped")
 		require.Equal(t, "user", out[0].Name)
 	})
+}
+
+func TestDisplayFacetsTextEscapesControlSequences(t *testing.T) {
+	// A user-agent facet value carrying an OSC 52 clipboard-write plus a
+	// screen clear, exercised through both the normal and --show-unmatched
+	// (count == -1) render branches.
+	const inject = "evil\x1b]52;c;AAAA\a\x1b[2Jspoofed"
+	facets := []logsFacet{{Name: "user-agent", Values: []logsFacetValue{
+		{Value: inject, Count: 3},
+		{Value: inject, Count: -1},
+	}}}
+
+	var buf bytes.Buffer
+	require.NoError(t, displayFacetsText(&buf, facets, true /* allFacets */))
+
+	out := buf.String()
+	require.NotContains(t, out, "\x1b", "raw escape byte leaked to terminal")
+	require.NotContains(t, out, "\a", "raw BEL byte leaked to terminal")
+	require.Contains(t, out, `\x1b`, "control sequence should be rendered as a visible escape")
 }
 
 // statsResponse builds a stats endpoint body for table tests.
@@ -497,6 +546,120 @@ func TestInvestigate(t *testing.T) {
 		require.Len(t, out.Data, 1)
 	})
 
+	t.Run("text format renders period, matches, facet panel, and events table", func(t *testing.T) {
+		h := &investigateHandler{
+			stats: statsResponse(
+				statsColumn{name: "event_type", values: []statsValue{{value: "session.start", count: 2}}},
+				statsColumn{name: "identity_id", values: []statsValue{
+					{value: "alice", count: 2},
+				}},
+			),
+			logsPages: []fetchAllLogsPage{{data: eventsAsMaps(t, []logmodels.AccessgraphStorageV1alphaEvent{
+				eventFixture(fixtureLogUIDs[0], time.Minute),
+			})}},
+		}
+		ag := newAccessGraphTestClient(t, h.serve(t))
+
+		c, buf := newInvestigateCommand(t, teleport.Text)
+		require.NoError(t, c.Investigate(context.Background(), ag))
+		out := buf.String()
+
+		require.Contains(t, out, "Period: "+investigateFixtureFrom.Format(time.RFC3339))
+		require.Contains(t, out, investigateFixtureTo.Format(time.RFC3339))
+		require.Contains(t, out, "Matches: ~2 (showing 1)")
+		require.Contains(t, out, "Facets:")
+		require.Contains(t, out, "user")
+		require.Contains(t, out, "alice (2)")
+		require.Contains(t, out, "event-type")
+		require.Contains(t, out, "Event Type")
+	})
+
+	t.Run("text format with --facets-only omits the events suffix and table", func(t *testing.T) {
+		h := &investigateHandler{
+			stats: statsResponse(
+				statsColumn{name: "event_type", values: []statsValue{{value: "session.start", count: 3}}},
+			),
+		}
+		ag := newAccessGraphTestClient(t, h.serve(t))
+
+		c, buf := newInvestigateCommand(t, teleport.Text)
+		c.investigate.facetsOnly = true
+		require.NoError(t, c.Investigate(context.Background(), ag))
+		out := buf.String()
+
+		require.Contains(t, out, "Matches: ~3")
+		require.NotContains(t, out, "showing")
+		require.NotContains(t, out, "Event Type")
+	})
+
+	t.Run("text format on zero-facet result prints 'Facets: none'", func(t *testing.T) {
+		h := &investigateHandler{
+			stats:     statsResponse(),
+			logsPages: []fetchAllLogsPage{{data: nil}},
+		}
+		ag := newAccessGraphTestClient(t, h.serve(t))
+
+		c, buf := newInvestigateCommand(t, teleport.Text)
+		require.NoError(t, c.Investigate(context.Background(), ag))
+		require.Contains(t, buf.String(), "Facets: none")
+	})
+
+	t.Run("text format facet truncation", func(t *testing.T) {
+		// Six values so the default top-5 cap drops the lowest-count one.
+		newHandler := func() *investigateHandler {
+			return &investigateHandler{
+				stats: statsResponse(
+					statsColumn{name: "event_type", values: []statsValue{{value: "x", count: 21}}},
+					statsColumn{name: "identity_id", values: []statsValue{
+						{value: "a", count: 6}, {value: "b", count: 5}, {value: "c", count: 4},
+						{value: "d", count: 3}, {value: "e", count: 2}, {value: "f", count: 1},
+					}},
+				),
+				logsPages: []fetchAllLogsPage{{data: nil}},
+			}
+		}
+
+		t.Run("default caps at top N", func(t *testing.T) {
+			ag := newAccessGraphTestClient(t, newHandler().serve(t))
+			c, buf := newInvestigateCommand(t, teleport.Text)
+			require.NoError(t, c.Investigate(context.Background(), ag))
+			out := buf.String()
+			require.Contains(t, out, "(top 5 of 6)")
+			require.NotContains(t, out, "f (1)")
+		})
+
+		t.Run("--all-facets shows every value", func(t *testing.T) {
+			ag := newAccessGraphTestClient(t, newHandler().serve(t))
+			c, buf := newInvestigateCommand(t, teleport.Text)
+			c.investigate.allFacets = true
+			require.NoError(t, c.Investigate(context.Background(), ag))
+			out := buf.String()
+			require.NotContains(t, out, "top 5 of")
+			require.Contains(t, out, "f (1)")
+		})
+	})
+
+	t.Run("text format renders --show-unmatched values as (unmatched)", func(t *testing.T) {
+		h := &investigateHandler{
+			stats: statsResponse(
+				statsColumn{name: "event_type", values: []statsValue{{value: "x", count: 1}}},
+				statsColumn{name: "identity_id", values: []statsValue{
+					{value: "alice", count: 2},
+					{value: "bob", count: -1},
+				}},
+			),
+			logsPages: []fetchAllLogsPage{{data: nil}},
+		}
+		ag := newAccessGraphTestClient(t, h.serve(t))
+
+		c, buf := newInvestigateCommand(t, teleport.Text)
+		c.investigate.showUnmatched = true
+		require.NoError(t, c.Investigate(context.Background(), ag))
+		out := buf.String()
+		require.Contains(t, out, "bob (unmatched)")
+		require.NotContains(t, out, "bob (-1)")
+	})
+
 	t.Run("stats HTTP 500 surfaces as apiResponseError", func(t *testing.T) {
 		ag := newAccessGraphTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			switch r.URL.Path {
@@ -517,6 +680,48 @@ func TestInvestigate(t *testing.T) {
 		require.Equal(t, http.StatusInternalServerError, agErr.StatusCode)
 		require.Equal(t, "stats kaput", agErr.Message)
 	})
+
+	t.Run("geo filter parameters are forwarded to the logs endpoint", func(t *testing.T) {
+		h := &investigateHandler{
+			stats:     statsResponse(statsColumn{name: "event_type", values: []statsValue{{value: "x", count: 1}}}),
+			logsPages: []fetchAllLogsPage{{data: nil}},
+		}
+		ag := newAccessGraphTestClient(t, h.serve(t))
+
+		c, _ := newInvestigateCommand(t, teleport.JSON)
+		lat, lon, rad := float32(37.7), float32(-122.4), float32(10)
+		c.investigate.latitude = &lat
+		c.investigate.longitude = &lon
+		c.investigate.radius = &rad
+
+		require.NoError(t, c.Investigate(context.Background(), ag))
+		require.Equal(t, "37.7", h.logsLatitude)
+		require.Equal(t, "-122.4", h.logsLongitude)
+		require.Equal(t, "10", h.logsRadius)
+	})
+
+	t.Run("text format prints the geo note when geo is active", func(t *testing.T) {
+		h := &investigateHandler{
+			stats:     statsResponse(statsColumn{name: "event_type", values: []statsValue{{value: "x", count: 1}}}),
+			logsPages: []fetchAllLogsPage{{data: nil}},
+		}
+		ag := newAccessGraphTestClient(t, h.serve(t))
+
+		c, buf := newInvestigateCommand(t, teleport.Text)
+		lat, lon, rad := float32(37.7), float32(-122.4), float32(10)
+		c.investigate.latitude = &lat
+		c.investigate.longitude = &lon
+		c.investigate.radius = &rad
+
+		require.NoError(t, c.Investigate(context.Background(), ag))
+		require.Contains(t, buf.String(), "geo filters apply to events only")
+	})
+}
+
+func TestWriteWrappedList(t *testing.T) {
+	var buf bytes.Buffer
+	require.NoError(t, writeWrappedList(&buf, "user:  ", []string{"alice (1)", "bob (1)", "carol (1)"}, 20))
+	require.Equal(t, "user:  alice (1),\n       bob (1),\n       carol (1)\n", buf.String())
 }
 
 // TestInitInvestigateFlags exercises kingpin wiring without going through TryRun.
@@ -538,7 +743,7 @@ func TestInitInvestigateFlags(t *testing.T) {
 		after := time.Now()
 		require.NoError(t, err)
 
-		require.Equal(t, teleport.YAML, got.format)
+		require.Equal(t, teleport.Text, got.format)
 		require.Equal(t, string(accessgraph.Desc), got.order)
 		require.Equal(t, 100, got.limit)
 		require.False(t, got.facetsOnly)
@@ -569,5 +774,20 @@ func TestInitInvestigateFlags(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, got.showUnmatched)
 		require.True(t, got.facetsOnly)
+	})
+
+	t.Run("geo flags populate pointers", func(t *testing.T) {
+		got, err := parse(t, "investigate",
+			"--latitude", "37.7",
+			"--longitude=-122.4",
+			"--radius", "10",
+		)
+		require.NoError(t, err)
+		require.NotNil(t, got.latitude)
+		require.NotNil(t, got.longitude)
+		require.NotNil(t, got.radius)
+		require.InDelta(t, 37.7, *got.latitude, 1e-4)
+		require.InDelta(t, -122.4, *got.longitude, 1e-4)
+		require.InDelta(t, 10, *got.radius, 1e-9)
 	})
 }
