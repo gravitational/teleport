@@ -88,3 +88,33 @@ func (s *Service) DeleteTunnelConnection(ctx context.Context, req *trustpb.Delet
 
 	return &emptypb.Empty{}, nil
 }
+
+// ListTunnelConnections returns a page of tunnel connection resources,
+// optionally filtered by cluster name.
+func (s *Service) ListTunnelConnections(ctx context.Context, req *trustpb.ListTunnelConnectionsRequest) (*trustpb.ListTunnelConnectionsResponse, error) {
+	authCtx, err := s.authorizer.Authorize(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := authCtx.CheckAccessToKind(types.KindTunnelConnection, types.VerbList, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conns, next, err := s.cache.ListTunnelConnections(ctx, int(req.GetPageSize()), req.GetPageToken(), req.GetFilter())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	tcs := make([]*types.TunnelConnectionV2, 0, len(conns))
+	for _, c := range conns {
+		v2, ok := c.(*types.TunnelConnectionV2)
+		if !ok {
+			return nil, trace.Errorf("unexpected TunnelConnection type: %T", c)
+		}
+		tcs = append(tcs, v2)
+	}
+	return trustpb.ListTunnelConnectionsResponse_builder{
+		TunnelConnections: tcs,
+		NextPageToken:     next,
+	}.Build(), nil
+}

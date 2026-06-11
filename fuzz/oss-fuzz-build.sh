@@ -131,6 +131,12 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/httplib/sse \
     FuzzRead fuzz_read_sse_events
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/scopes \
+    FuzzParseQualifiedName fuzz_parse_qualified_name
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/scopes \
+    FuzzValidateQualifiedName fuzz_validate_qualified_name
+
 }
 
 build_teleport_api_fuzzers() {

@@ -302,6 +302,9 @@ var eventsMap = map[string]apievents.AuditEvent{
 	CertAuthOverrideUpdateEvent:                   &apievents.CertAuthorityOverrideEvent{},
 	CertAuthOverrideUpsertEvent:                   &apievents.CertAuthorityOverrideEvent{},
 	CertAuthOverrideDeleteEvent:                   &apievents.CertAuthorityOverrideEvent{},
+	BeamsConfigCreateEvent:                        &apievents.BeamsConfigCreate{},
+	BeamsConfigUpdateEvent:                        &apievents.BeamsConfigUpdate{},
+	BeamsConfigDeleteEvent:                        &apievents.BeamsConfigDelete{},
 }
 
 // TestJSON tests JSON marshal events
@@ -1693,6 +1696,57 @@ func TestInferenceEvents(t *testing.T) {
 			},
 			eventType:  RetrievalModelDeleteEvent,
 			eventCode:  RetrievalModelDeleteCode,
+			hasPayload: false,
+		},
+		{
+			name: "BeamsConfigCreate",
+			event: &apievents.BeamsConfigCreate{
+				Metadata: apievents.Metadata{
+					Type:        BeamsConfigCreateEvent,
+					Code:        BeamsConfigCreateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  BeamsConfigCreateEvent,
+			eventCode:  BeamsConfigCreateCode,
+			hasPayload: false,
+		},
+		{
+			name: "BeamsConfigUpdate",
+			event: &apievents.BeamsConfigUpdate{
+				Metadata: apievents.Metadata{
+					Type:        BeamsConfigUpdateEvent,
+					Code:        BeamsConfigUpdateCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  BeamsConfigUpdateEvent,
+			eventCode:  BeamsConfigUpdateCode,
+			hasPayload: false,
+		},
+		{
+			name: "BeamsConfigDelete",
+			event: &apievents.BeamsConfigDelete{
+				Metadata: apievents.Metadata{
+					Type:        BeamsConfigDeleteEvent,
+					Code:        BeamsConfigDeleteCode,
+					Time:        testTime,
+					ClusterName: "test-cluster",
+				},
+				UserMetadata: apievents.UserMetadata{
+					User: "test-user",
+				},
+			},
+			eventType:  BeamsConfigDeleteEvent,
+			eventCode:  BeamsConfigDeleteCode,
 			hasPayload: false,
 		},
 	}

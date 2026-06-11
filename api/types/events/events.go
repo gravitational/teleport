@@ -3026,3 +3026,15 @@ func (m *AppSessionLLMRequest) TrimToMaxSize(maxSize int) AuditEvent {
 		}
 	})
 }
+
+func (m *BeamsConfigCreate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *BeamsConfigUpdate) TrimToMaxSize(int) AuditEvent {
+	return m
+}
+
+func (m *BeamsConfigDelete) TrimToMaxSize(int) AuditEvent {
+	return m
+}
