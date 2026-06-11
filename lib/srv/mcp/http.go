@@ -46,7 +46,7 @@ const (
 	mcpSessionIDHeader = "Mcp-Session-Id"
 )
 
-func (s *Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.Handler) error {
+func (*Server) serveHTTPConn(ctx context.Context, conn net.Conn, handler http.Handler) error {
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
