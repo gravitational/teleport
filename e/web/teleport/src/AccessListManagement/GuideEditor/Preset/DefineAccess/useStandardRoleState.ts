@@ -379,7 +379,7 @@ export function useStandardRoleState(): StandardRoleState {
         case 'gcp_service_accounts':
           return requiredAppIdentities[field] != null;
         case 'mcp':
-          return requiredAppIdentities['mcp'].tools != null;
+          return requiredAppIdentities['mcp']?.tools != null;
         default:
           field satisfies never;
       }
@@ -449,7 +449,10 @@ export function useStandardRoleState(): StandardRoleState {
               }
               continue;
             case 'mcp':
-              if (requiredAppIdentities[field].tools && roleConditions[field]) {
+              if (
+                requiredAppIdentities[field]?.tools &&
+                roleConditions[field]
+              ) {
                 newAppIdentities[field] = {
                   tools: roleConditions[field].tools,
                 };
@@ -542,7 +545,7 @@ export function useStandardRoleState(): StandardRoleState {
                 case 'gcp_service_accounts':
                   return roleConditions[field]?.length > 0;
                 case 'mcp':
-                  return roleConditions[field].tools?.length > 0;
+                  return roleConditions[field]?.tools?.length > 0;
                 default:
                   field satisfies never;
               }

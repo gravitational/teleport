@@ -59,6 +59,7 @@ export const StepButtons = ({
       px={6}
       py={3}
       css={`
+        z-index: 100;
         position: sticky;
         bottom: 0;
         background-color: ${props => props.theme.colors.levels.sunken};

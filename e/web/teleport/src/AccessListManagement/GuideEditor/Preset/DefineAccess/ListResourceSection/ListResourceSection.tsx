@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 
 import { Box, Flex } from 'design';
 import { Plus } from 'design/Icon';
@@ -10,6 +10,7 @@ import {
   UnifiedResources as SharedUnifiedResources,
   UnifiedResourceDefinition,
   UnifiedResourcesQueryParams,
+  useUnifiedResourcesFetch,
 } from 'shared/components/UnifiedResources';
 import {
   getResourceId,
@@ -21,20 +22,26 @@ import { useAccessListManagementContext } from 'e-teleport/AccessListManagement/
 import { URLResourceFilter } from 'teleport/components/hooks/useUrlFiltering/useUrlFiltering';
 import cfg from 'teleport/config';
 import { UnifiedResource } from 'teleport/services/agents';
+import ResourceService from 'teleport/services/resources';
 import { StatusInfo } from 'teleport/UnifiedResources/StatusInfo';
 import { ResizingResourceWrapper } from 'teleport/UnifiedResources/UnifiedResources';
 import { useUser } from 'teleport/User/UserContext';
 
+import { defaultStandardRoleConditions } from '../../role/conditions';
 import { ListResourceAccessFields } from '../../role/listaccess';
 import { EmptyList } from '../EmptyList';
 import { getResourceKindName } from '../shared';
-import { getPredicateExpression } from '../unifiedResource';
+import {
+  getPredicateExpression,
+  getUnifiedResourceKind,
+} from '../unifiedResource';
 import { EmptyAccess } from './EmptyAccess';
 import { Header } from './Header';
 import {
   ResourceLabelInput,
   ResourceLabelInputHandle,
 } from './ResourceLabelInput';
+import { ResourceTab, ResourceTabs } from './ResourceTabs';
 
 /**
  * Lists specified resource using the unified resource component.
@@ -62,11 +69,95 @@ export function ListResourceSection({
   const hasDefinedStandardAccess =
     standardRoleState.definedAccess(selectedResourceTab);
 
+  /**
+   * Default to the "matched" tab when access is already defined
+   * so the rendered list shows only matched labels.
+   */
+  const [activeTab, setActiveTab] = useState(
+    hasDefinedStandardAccess
+      ? ResourceTab.MatchedResources
+      : ResourceTab.AllResources
+  );
+
   const {
     fetch: fetchResources,
     resources,
     attempt: resourcesFetchAttempt,
   } = fetchedResources;
+
+  /**
+   * Keeps a separate pagination state/cache for the "all resources" tab. The
+   * "matched" resources fetch (defined outside of this component) is tied to the
+   * user's label query; reusing it here would require clearing/refetching
+   * whenever the user switches tabs, or risk mixing pages from filtered and
+   * unfiltered queries.
+   */
+  const baseQuery = useMemo(
+    () =>
+      getPredicateExpression({
+        accessField: selectedResourceTab,
+        roleConditions: defaultStandardRoleConditions(),
+      }),
+    [selectedResourceTab]
+  );
+  const baseKind = useMemo(
+    () => getUnifiedResourceKind(selectedResourceTab),
+    [selectedResourceTab]
+  );
+  const baseFetch = useUnifiedResourcesFetch({
+    fetchFunc: useCallback(
+      async (paginationParams, signal) => {
+        const resourceService = new ResourceService();
+        return resourceService.fetchUnifiedResources(
+          cfg.proxyCluster,
+          {
+            ...resourceFilters,
+            query: baseQuery,
+            sort: resourceFilters.sort ?? { fieldName: 'name', dir: 'ASC' },
+            kinds: [baseKind],
+            limit: paginationParams.limit,
+            startKey: paginationParams.startKey,
+          },
+          signal
+        );
+      },
+      [baseQuery, baseKind, resourceFilters]
+    ),
+  });
+
+  // Reset the all-kind pagination state when filters change.
+  const [prevFilters, setPrevFilters] = useState(resourceFilters);
+  if (prevFilters !== resourceFilters) {
+    setPrevFilters(resourceFilters);
+    baseFetch.clear();
+  }
+
+  const isGitServer = selectedResourceTab === 'github_permissions';
+  const isAllResourcesTab = activeTab === ResourceTab.AllResources;
+
+  /**
+   * Returns the resources, fetch function, and attempt for the
+   * currently active tab. The "all resources" tab uses an unfiltered
+   * fetch, while the "matched" tab (and git servers) uses the
+   * label-filtered fetch passed in by props.
+   */
+  function getActiveFetchedResources() {
+    if (!isGitServer && isAllResourcesTab) {
+      return {
+        activeResources: baseFetch.resources,
+        activeFetch: baseFetch.fetch,
+        activeAttempt: baseFetch.attempt,
+      };
+    }
+    return {
+      activeResources: resources,
+      activeFetch: fetchResources,
+      activeAttempt: resourcesFetchAttempt,
+    };
+  }
+
+  const { activeResources, activeFetch, activeAttempt } =
+    getActiveFetchedResources();
 
   const { setInfoGuideConfig } = useInfoGuide();
   const resourceLabelInputRef = useRef<ResourceLabelInputHandle>(null);
@@ -127,10 +218,35 @@ export function ListResourceSection({
     return { kind: 'outline-primary' };
   }
 
-  const fetchResourceSuccess = resourcesFetchAttempt.status === 'success';
+  function showResourceSelectedIcon() {
+    if (isGitServer) {
+      return true;
+    }
+    if (!hasDefinedStandardAccess || resources.length === 0) {
+      return false;
+    }
+    if (activeTab === ResourceTab.MatchedResources) {
+      return true;
+    }
+
+    // Show selected icon only for resources whose labels match
+    // the user defined label condition.
+    const definedLabels = standardRoleState.roleConditions[selectedResourceTab];
+    return (resourceLabels: ResourceLabel[]) =>
+      Object.entries(definedLabels).every(([key, vals]) => {
+        if (!Array.isArray(vals)) {
+          vals = [vals];
+        }
+        return resourceLabels.some(
+          label => label.name === key && vals.includes(label.value)
+        );
+      });
+  }
 
   const noResourcesFoundInCluster =
-    fetchResourceSuccess && !resources.length && !hasDefinedStandardAccess;
+    activeAttempt.status === 'success' &&
+    !activeResources.length &&
+    !hasDefinedStandardAccess;
 
   let header;
   let onLabelClick;
@@ -145,6 +261,7 @@ export function ListResourceSection({
 
       onLabelClick = (label: ResourceLabel) => {
         resourceLabelInputRef.current?.onLabelClick(label);
+        setActiveTab(ResourceTab.MatchedResources);
       };
 
       header = (
@@ -174,11 +291,17 @@ export function ListResourceSection({
                       roleConditions: updatedRoleConditions,
                     }),
                   });
+                  const hasLabels = Object.keys(labels).length > 0;
+                  setActiveTab(
+                    hasLabels
+                      ? ResourceTab.MatchedResources
+                      : ResourceTab.AllResources
+                  );
                 }}
               />
             </Box>
           </Flex>
-          {fetchResourceSuccess && !hasDefinedStandardAccess && (
+          {activeAttempt.status === 'success' && !hasDefinedStandardAccess && (
             <EmptyAccess resourceField={selectedResourceTab} />
           )}
         </>
@@ -213,7 +336,7 @@ export function ListResourceSection({
         }
         onShowStatusInfo={onShowStatusInfo}
         onLabelClick={onLabelClick}
-        showResourceSelectedIcon={hasDefinedStandardAccess}
+        showResourceSelectedIcon={showResourceSelectedIcon()}
         visibleFilterPanelFields={{
           checkbox: false,
           clusterOpts: false,
@@ -233,8 +356,8 @@ export function ListResourceSection({
           processLabel,
         }}
         params={resourceFilters}
-        fetchResources={fetchResources}
-        resourcesFetchAttempt={resourcesFetchAttempt}
+        fetchResources={activeFetch}
+        resourcesFetchAttempt={activeAttempt}
         unifiedResourcePreferences={{
           ...preferences.unifiedResourcePreferences,
           // Default to labels view expanded for list mode.
@@ -245,7 +368,7 @@ export function ListResourceSection({
         }}
         availableKinds={[]}
         pinning={{ kind: 'hidden' }}
-        resources={resources.map(resource => {
+        resources={activeResources.map(resource => {
           if (resource.kind === 'git_server') {
             return {
               resource,
@@ -264,6 +387,16 @@ export function ListResourceSection({
         setParams={updateResourceFilters}
         NoResources={<EmptyList resourceField={selectedResourceTab} />}
         Header={<>{header}</>}
+        FilterPanelLeftContent={
+          isGitServer ? undefined : (
+            <ResourceTabs
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              hasDefinedStandardAccess={hasDefinedStandardAccess}
+              resourceField={selectedResourceTab}
+            />
+          )
+        }
       />
     </ResizingResourceWrapper>
   );

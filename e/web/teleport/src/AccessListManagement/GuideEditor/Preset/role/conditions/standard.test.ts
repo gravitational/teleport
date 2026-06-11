@@ -58,6 +58,31 @@ describe('extractAllowRoleConditionsFromRole', () => {
       github_permissions: [],
     });
   });
+
+  test('returns empty defaults when allow is missing', () => {
+    const role = createRole({});
+    delete role.spec.allow;
+
+    expect(extractAllowRoleConditionsFromRole(role)).toEqual({
+      app_labels: {},
+      aws_role_arns: [],
+      azure_identities: [],
+      gcp_service_accounts: [],
+      mcp: { tools: [] },
+      db_labels: {},
+      db_names: [],
+      db_users: [],
+      windows_desktop_labels: {},
+      windows_desktop_logins: [],
+      kubernetes_labels: {},
+      kubernetes_groups: [],
+      kubernetes_users: [],
+      kubernetes_resources: [],
+      node_labels: {},
+      logins: [],
+      github_permissions: [],
+    });
+  });
 });
 
 describe('extractRequiredAppIdentitiesFromRole', () => {
@@ -81,6 +106,19 @@ describe('extractRequiredAppIdentitiesFromRole', () => {
 
   test('returns undefined for fields that are undefined in the role', () => {
     const role = createRole({});
+
+    expect(extractRequiredAppIdentitiesFromRole(role)).toEqual({
+      aws_role_arns: undefined,
+      azure_identities: undefined,
+      gcp_service_accounts: undefined,
+      mcp: undefined,
+      allPagesFetched: false,
+    });
+  });
+
+  test('returns undefined fields when allow is missing', () => {
+    const role = createRole({});
+    delete role.spec.allow;
 
     expect(extractRequiredAppIdentitiesFromRole(role)).toEqual({
       aws_role_arns: undefined,

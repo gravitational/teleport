@@ -80,7 +80,7 @@ export const requiredRoleConditionFieldNames = Object.keys(
 export function extractAllowRoleConditionsFromRole(
   role: Role
 ): StandardRoleConditions {
-  const allow = role.spec.allow;
+  const allow = role.spec.allow ?? {};
   return {
     // app access + identities
     app_labels: allow.app_labels || {},
@@ -116,7 +116,7 @@ export function extractAllowRoleConditionsFromRole(
 export function extractRequiredAppIdentitiesFromRole(
   role: Role
 ): RequiredAppIdentitiesWithFetchResult {
-  const allow = role.spec.allow;
+  const allow = role.spec.allow ?? {};
 
   return {
     aws_role_arns: allow.aws_role_arns?.length ? [] : undefined,

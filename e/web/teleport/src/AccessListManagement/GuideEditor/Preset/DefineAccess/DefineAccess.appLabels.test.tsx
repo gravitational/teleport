@@ -355,7 +355,6 @@ test(`typing, clicking, and deleting labels`, async () => {
     {
       kinds: ['app'],
       limit: 48,
-      // this is the default filter for "application tab"
       query: 'labels["teleport.dev/origin"] != "aws-identity-center"',
       startKey: '',
       sort: { dir: 'ASC', fieldName: 'name' },
@@ -363,5 +362,4 @@ test(`typing, clicking, and deleting labels`, async () => {
     },
     expect.anything()
   );
-  spiedUnifiedResource.mockClear();
 }, 15000);
