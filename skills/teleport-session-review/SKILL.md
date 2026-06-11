@@ -49,6 +49,11 @@ scoped further with a `where` clause). If a command returns
 `access denied to perform action "read" on "session"`, the user's role lacks this
 rule — tell them to add `session` / `[list, read]` (or use an auditor-style role).
 
+Credentials can also **expire mid-session** — a command that worked earlier then
+returns ``your credentials have expired, please log in using `tsh login` ``. Have
+the user re-run `tsh login --proxy=<proxy>` and retry (in an interactive Claude Code
+session they can run it inline with `! tsh login …`).
+
 ## Step 1: Choose the Right Command
 
 Pick based on what the user is asking — but note the two command groups have very
@@ -70,6 +75,23 @@ When in doubt, prefer search if the user describes *what happened* in a session,
 and `ls` if they describe *a time window* or just want the latest activity. If
 search isn't available, `ls` is the universal fallback.
 
+### Resolve a person's name to a username first
+
+When the ask names a person ("what did **Ben** do"), the Teleport username is
+usually **not** the literal name — it's a handle (`benarent`), GitHub login, or
+email. Resolve it before filtering: pull the distinct `user` values from a wide
+`recordings ls` window and fuzzy-match the name against them (this stays within the
+allowed commands — `tctl users ls` is **not** on this skill's allow list):
+
+```bash
+$TCTL recordings ls --format=json --from-utc=<wide-range> --limit=10000 \
+  | jq -r '[.[].user] | unique | .[]'
+```
+
+If there's exactly one plausible match, **state the assumption and confirm with the
+user** before attributing activity to them. If there are several (or none), show the
+candidates and ask which one they mean.
+
 ## Step 2: List Recent Recordings
 
 ```bash
@@ -84,9 +106,18 @@ $TCTL recordings ls --format=json --from-utc=YYYY-MM-DD --limit=50
 - Do **not** rely on `--last` — it only exists in newer `tctl` versions. Use
   `--from-utc` for portability.
 
-Each element is a raw `session.end` audit event: session id is in **`sid`**,
-times are RFC3339, and the target is `server_hostname` (ssh), `database_name`
-(db), `kubernetes_cluster` (k8s), or `desktop_name` (desktop).
+**`ls` returns more than one event type — segment by `.event` before counting.**
+Most rows are recording-end events (`session.end` for ssh/kube, `db.session.end`,
+`windows.desktop.session.end`) with the session id in **`sid`**, RFC3339 times, and
+a target of `server_hostname` (ssh), `database_name` (db), `kubernetes_cluster`
+(k8s), or `desktop_name` (desktop). But the output **also** includes
+`app.session.chunk` events from application access — these have **no**
+`session_start` / `server_hostname` / `login` / `proto`, and emit **many chunks per
+app session**, so a naïve count wildly overstates activity (e.g. 49 chunk rows = 3
+app sessions). So: group by `.event` first; dedupe `app.session.chunk` by `sid` for
+an app-session count; and use the **`interactive`** boolean to distinguish a
+recorded interactive session from a non-interactive exec (the latter is often not
+playable — see Step 5).
 
 If the output is an empty array, tell the user no recordings exist in that range
 and stop (or widen the range).
@@ -145,7 +176,14 @@ $TCTL recordings search "<natural-language query>" --format=json --limit=50
   TUI that will hang a non-interactive agent — never run search without
   `--format=json`.
 - The positional query is matched against session content via hybrid (keyword +
-  semantic) search. Omit it to filter by flags only.
+  semantic) search. To filter by flags only, **omit the positional entirely**
+  (`$TCTL recordings search --username=<u> --format=json …` works and returns
+  flag-filtered results ordered by `session_start` desc). **Never pass an empty
+  string `""`** — it errors in every mode: `input text is required`
+  (hybrid/embeddings) or `KEYWORD_ONLY search requires at least one query with text`
+  (keyword). A flag-only (no-query) search is also the *unbiased* way to pull a
+  user's sessions for severity triage: adding a content query ranks results by
+  relevance and skews the set (see [PLAYBOOKS.md](references/PLAYBOOKS.md)).
 - Parse results per
   [JSON schema reference](references/SCHEMA.md#recordings-search---formatjson).
   **Watch the serialization quirks:** timestamps are `{"seconds":…,"nanos":…}`
@@ -264,13 +302,24 @@ anything that writes to disk:
 - **Play back a recording**:
 
   ```bash
-  $TSH play <session-id>            # interactive playback in the terminal
-  $TSH play --format=json <session-id>   # print session events as JSON
+  $TSH play <session-id>                  # interactive, rendered playback in the terminal
+  $TSH play --format=json <session-id>    # event timeline as JSON — see caveat below
   ```
 
   Notes: SSH, Kubernetes, and database (PostgreSQL interactive; all db protocols
   via `--format=json`) sessions play with `$TSH play`; **desktop recordings play
   only in the Web UI**. `$TSH play` needs an active `tsh` login for the same user.
+
+  **`--format=json` gives the event *timeline/structure*, not the terminal content.**
+  For SSH, `print` events carry only `bytes` (a count), `offset`, and `ms` — **not
+  the bytes that were displayed** — so you cannot reconstruct what was typed or
+  output from the JSON. To actually read a session's content, use the web player, or
+  interactive `$TSH play` (which renders in real time but animates, so it is not
+  agent-parseable). Also: **non-interactive exec sessions are frequently not
+  recorded** — `$TSH play <sid>` on one returns `a recording … was not found`, even
+  though its `session.end` row appears in `recordings ls`. To learn *what* ran when
+  there is no prose summary, see the keyword-bisection playbook in
+  [PLAYBOOKS.md](references/PLAYBOOKS.md).
 
 - **Open in the Web UI**: deep-link straight to the session player:
 

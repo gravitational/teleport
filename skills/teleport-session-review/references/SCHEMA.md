@@ -8,8 +8,19 @@ serialized from protobuf. Read the right section.
 
 ## `recordings ls --format=json`
 
-Returns a JSON array of **`session.end` audit events** (one per recorded
-session). Timestamps are RFC3339 strings. The most useful fields:
+Returns a JSON array of **audit events — *not all the same type***. Segment by
+`.event` before counting. Timestamps are RFC3339 strings. Event types you'll see:
+
+- `session.end` (ssh/kube), `db.session.end`, `windows.desktop.session.end` — one
+  per recorded session; the rows you usually want.
+- `app.session.chunk` — application-access activity. There are **many chunks per app
+  session** and they **lack** `session_start` / `server_hostname` / `login` /
+  `proto` / `interactive`, so counting them as sessions overstates activity (49
+  chunk rows observed for just 3 app sessions). Dedupe by `sid` for an app-session
+  count, or drop them with `select(.event == "session.end")` when you only want
+  shell recordings.
+
+The most useful fields (present on the `*.session.end` rows):
 
 | Field | Type | Description |
 |---|---|---|
@@ -56,7 +67,7 @@ several non-obvious shapes — read carefully.
 | `kind` | string | Session protocol: `ssh`, `db`, `k8s`, `desktop`. |
 | `session_start` | object | `{"seconds": <epoch>, "nanos": <int>}` — **NOT RFC3339**. Convert from epoch seconds. |
 | `session_end` | object | Same `{seconds,nanos}` shape. **Omitted** when unknown. |
-| `username` | string | Teleport user who started the session. |
+| `username` | string | Teleport user who started the session. **Field name differs from `ls`:** here it is `username`, in `recordings ls` it is `user` — querying the wrong one yields `null`. |
 | `user_roles` | string[] | Roles held during the session. |
 | `user_traits` | object | Map of trait name → string[] (e.g. `logins`, `github_teams`). |
 | `participants` | string[] | Users who joined the session. |
@@ -198,3 +209,31 @@ edition**; `recordings search` (+ AI summaries) needs `edition=ent` **and**
   genuinely different result sets for the same query (hybrid tends to track
   `embeddings`; `keyword` diverges most). Mode only matters when a text query is
   given.
+- **Positional query — omit vs empty string are NOT equivalent.** Omitting the
+  query entirely is valid and filters by flags only (`search --username=u …` →
+  flag-filtered, `session_start`-desc). Passing an explicit empty string **errors**:
+  `search "" …` → `generating embeddings for search query: input text is required`
+  (hybrid/embeddings) or `KEYWORD_ONLY search requires at least one query with text`
+  (keyword). An agent that templates `"$QUERY"` will hit this when `$QUERY` is empty
+  — build the arg conditionally instead.
+- **Content query biases the result set.** With a query, results are ranked by
+  relevance to it *and* capped at `--limit`, so a severity histogram over them is
+  not a population statistic. For an unbiased per-user/per-host severity sweep, run
+  **without** a positional query (flag-only) and filter `severity` client-side.
+
+---
+
+## `tsh play --format=json`
+
+Prints the session's **event timeline — not its rendered content.** For an SSH
+session the stream is `session.start`, `resize`, `print`×N, `session.leave`,
+`session.end`, but each `print` event carries only `bytes` (a byte *count*),
+`offset`, and `ms` — **the displayed bytes are not in the JSON**. So you can derive
+timing, event counts, and structure, but you **cannot** reconstruct the terminal
+output or the commands typed. For actual content use the web player, or interactive
+`tsh play` (rendered in real time, but it animates — not agent-parseable).
+
+Non-interactive exec sessions are frequently **not recorded**: `tsh play <sid>`
+prints `[]` then `ERROR: a recording for session <sid> was not found`, even though
+the `session.end` row is present in `recordings ls`. Check the `interactive` field
+from `ls` before promising playback or content extraction.
