@@ -402,7 +402,7 @@ func Test_handleAuthErrHTTP(t *testing.T) {
 	})
 }
 
-func Test_Server_serveHTTPCon_closes_idle_connections(t *testing.T) {
+func Test_Server_serveHTTPConn_closes_idle_connections(t *testing.T) {
 	t.Parallel()
 
 	acceptedHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -413,24 +413,43 @@ func Test_Server_serveHTTPCon_closes_idle_connections(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			ctx := t.Context()
 			clientConn, serverConn := net.Pipe()
+			t.Cleanup(func() { _ = clientConn.Close() })
 
-			go new(Server).serveHTTPConn(ctx, serverConn, acceptedHandler)
+			serveHTTPConnErrCh := make(chan error, 1)
+			go func() {
+				serveHTTPConnErrCh <- new(Server).serveHTTPConn(ctx, serverConn, acceptedHandler)
+			}()
 
 			// Idling without sending anything.
-			readConnErrCh := make(chan error)
+			readConnErrCh := make(chan error, 1)
 			go func() {
 				_, err := clientConn.Read(make([]byte, 1))
 				readConnErrCh <- err
 			}()
 
-			time.Sleep(defaults.ReadHeadersTimeout + 1*time.Nanosecond)
+			synctest.Wait()
 
-			// Check closed.
+			select {
+			case err := <-readConnErrCh:
+				t.Fatalf("Connection closed before read header timeout: %v", err)
+			default:
+			}
+
+			time.Sleep(defaults.ReadHeadersTimeout)
+			synctest.Wait()
+
 			select {
 			case err := <-readConnErrCh:
 				require.ErrorIs(t, err, io.EOF)
 			default:
-				t.Error("Expected the connection to be closed by idle timeout")
+				t.Error("Expected the connection to be closed by read header timeout")
+			}
+
+			select {
+			case err := <-serveHTTPConnErrCh:
+				require.NoError(t, err)
+			default:
+				t.Error("Expected server to return after closing connection")
 			}
 		})
 	})
@@ -439,35 +458,53 @@ func Test_Server_serveHTTPCon_closes_idle_connections(t *testing.T) {
 		synctest.Test(t, func(t *testing.T) {
 			ctx := t.Context()
 			clientConn, serverConn := net.Pipe()
+			t.Cleanup(func() { _ = clientConn.Close() })
 
-			go new(Server).serveHTTPConn(ctx, serverConn, acceptedHandler)
+			serveHTTPConnErrCh := make(chan error, 1)
+			go func() {
+				serveHTTPConnErrCh <- new(Server).serveHTTPConn(ctx, serverConn, acceptedHandler)
+			}()
 
 			// Establish the connection by sending a request.
-			req, err := http.NewRequest(http.MethodGet, "https://mcp.test", nil)
+			req, err := http.NewRequest(http.MethodGet, "http://mcp.test", nil)
 			require.NoError(t, err)
-			err = req.Write(clientConn)
-			require.NoError(t, err)
+			require.NoError(t, req.Write(clientConn))
 
 			resp, err := http.ReadResponse(bufio.NewReader(clientConn), req)
 			require.NoError(t, err)
-			defer resp.Body.Close()
 			require.Equal(t, http.StatusAccepted, resp.StatusCode)
+			require.NoError(t, resp.Body.Close())
 
 			// Idling now.
-			readConnErrCh := make(chan error)
+			readConnErrCh := make(chan error, 1)
 			go func() {
 				_, err := clientConn.Read(make([]byte, 1))
 				readConnErrCh <- err
 			}()
 
-			time.Sleep(apidefaults.DefaultIdleTimeout + 1*time.Nanosecond)
+			synctest.Wait()
 
-			// Check closed.
+			select {
+			case err := <-readConnErrCh:
+				t.Fatalf("Connection closed before idle timeout: %v", err)
+			default:
+			}
+
+			time.Sleep(apidefaults.DefaultIdleTimeout)
+			synctest.Wait()
+
 			select {
 			case err := <-readConnErrCh:
 				require.ErrorIs(t, err, io.EOF)
 			default:
 				t.Error("Expected the connection to be closed by idle timeout")
+			}
+
+			select {
+			case err := <-serveHTTPConnErrCh:
+				require.NoError(t, err)
+			default:
+				t.Error("Expected server to return after closing connection")
 			}
 		})
 	})
