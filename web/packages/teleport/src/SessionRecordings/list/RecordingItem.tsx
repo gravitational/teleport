@@ -124,20 +124,16 @@ export function RecordingItem({
     >
       {BadgeComponent && (
         <RecordingItemHeader>
-          {BadgeComponent && (
-            <BadgeContainer viewMode={viewMode}>
-              <BadgeComponent
-                durationMs={recording.duration}
-                createdDate={recording.createdDate}
-                recordingType={recording.recordingType}
-                sessionId={recording.sid}
-                username={recording.user}
-                hostname={recording.hostname}
-              />
-            </BadgeContainer>
-          )}
-
-          <div style={{ flex: 1 }} />
+          <BadgeContainer viewMode={viewMode}>
+            <BadgeComponent
+              durationMs={recording.duration}
+              createdDate={recording.createdDate}
+              recordingType={recording.recordingType}
+              sessionId={recording.sid}
+              username={recording.user}
+              hostname={recording.hostname}
+            />
+          </BadgeContainer>
 
           <Duration viewMode={viewMode}>{duration}</Duration>
         </RecordingItemHeader>
