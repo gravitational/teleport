@@ -898,6 +898,11 @@ const (
 	// RetrievalModelDeleteCode is the retrieval model delete event code.
 	RetrievalModelDeleteCode = "INF013I"
 
+	// ClassifierCreateCode is the classifier create event code.
+	ClassifierCreateCode = "INF014I"
+	// ClassifierUpdateCode is the classifier update event code.
+	ClassifierUpdateCode = "INF015I"
+
 	// CertAuthOverrideCreateCode is the cert_auth_override create event code.
 	CertAuthOverrideCreateCode = "TCO01I"
 	// CertAuthOverrideUpdateCode is the cert_auth_override update event code.
