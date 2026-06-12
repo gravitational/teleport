@@ -24,7 +24,6 @@ import (
 	"github.com/jonboulle/clockwork"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	devicetrustpublicv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/public/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	proxyinsecureclient "github.com/gravitational/teleport/lib/client/proxy/insecure"
 )
@@ -87,17 +86,17 @@ func (c *Client) CreateMobileEnrollToken(pairingToken string, deviceData *Device
 	}
 	defer grpcConn.Close()
 
-	client := devicetrustpublicv1.NewDeviceTrustServiceClient(grpcConn)
-	resp, err := client.CreateMobileDeviceEnrollToken(ctx,
-		&devicetrustpublicv1.CreateMobileDeviceEnrollTokenRequest{
-			EnrollPairingToken: pairingToken,
-			DeviceData:         toPBDeviceData(deviceData),
+	// TODO(ravicious): Replace this with a call to the public gRPC service.
+	client := devicepb.NewDeviceTrustServiceClient(grpcConn)
+	resp, err := client.CreateDeviceEnrollToken(ctx,
+		&devicepb.CreateDeviceEnrollTokenRequest{
+			DeviceData: toPBDeviceData(deviceData),
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &DeviceEnrollToken{
-		Token: resp.GetDeviceEnrollToken().GetToken(),
+		Token: resp.GetToken(),
 	}, nil
 }
 
