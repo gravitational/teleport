@@ -461,6 +461,15 @@ type ExecuteLogsStatsQueryV1Params struct {
 	// Query Query to execute
 	Query *string `form:"query,omitempty" json:"query,omitempty"`
 
+	// Latitude Center latitude for the logs
+	Latitude *float32 `form:"latitude,omitempty" json:"latitude,omitempty"`
+
+	// Longitude Center longitude for the logs
+	Longitude *float32 `form:"longitude,omitempty" json:"longitude,omitempty"`
+
+	// Radius Radius for the logs
+	Radius *float32 `form:"radius,omitempty" json:"radius,omitempty"`
+
 	// StartTime Start time for the logs
 	StartTime *time.Time `form:"start_time,omitempty" json:"start_time,omitempty"`
 
@@ -1661,6 +1670,21 @@ func NewExecuteLogsStatsQueryV1Request(server string, params *ExecuteLogsStatsQu
 
 		}
 
+		if params.Latitude != nil {
+			queryValues.Add("latitude", strconv.FormatFloat(float64(*params.Latitude), 'f', -1, 32))
+
+		}
+
+		if params.Longitude != nil {
+			queryValues.Add("longitude", strconv.FormatFloat(float64(*params.Longitude), 'f', -1, 32))
+
+		}
+
+		if params.Radius != nil {
+			queryValues.Add("radius", strconv.FormatFloat(float64(*params.Radius), 'f', -1, 32))
+
+		}
+
 		if params.StartTime != nil {
 			queryValues.Add("start_time", (*params.StartTime).Format(time.RFC3339Nano))
 
@@ -1990,6 +2014,7 @@ type ListAlertStatsV1Response struct {
 	JSON200      *GetAlertsStatsResponse
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2019,6 +2044,7 @@ type ListAlertsV1Response struct {
 	JSON200      *ListAlertsResponse
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2048,6 +2074,7 @@ type GetAlertV1Response struct {
 	JSON200      *GetAlertResponse
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2076,6 +2103,7 @@ type UpdateAlertStatusV1Response struct {
 	HTTPResponse *http.Response
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2329,6 +2357,7 @@ type ExecuteLogsQueryV1Response struct {
 	JSON400      *BadRequest
 	JSON404      *BadRequest
 	JSON500      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2358,6 +2387,7 @@ type GetEventCountSinceResponse struct {
 	JSON200      *NewLogEntriesResponse
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2387,6 +2417,7 @@ type ExecuteLogsStatsQueryV1Response struct {
 	JSON200      *GetLogsStatsResponse
 	JSON400      *BadRequest
 	JSON404      *BadRequest
+	JSON501      *BadRequest
 }
 
 // Status returns HTTPResponse.Status
@@ -2853,6 +2884,13 @@ func ParseListAlertStatsV1Response(rsp *http.Response) (*ListAlertStatsV1Respons
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -2892,6 +2930,13 @@ func ParseListAlertsV1Response(rsp *http.Response) (*ListAlertsV1Response, error
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -2933,6 +2978,13 @@ func ParseGetAlertV1Response(rsp *http.Response) (*GetAlertV1Response, error) {
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -2965,6 +3017,13 @@ func ParseUpdateAlertStatusV1Response(rsp *http.Response) (*UpdateAlertStatusV1R
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 
@@ -3270,6 +3329,13 @@ func ParseExecuteLogsQueryV1Response(rsp *http.Response) (*ExecuteLogsQueryV1Res
 		}
 		response.JSON500 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -3310,6 +3376,13 @@ func ParseGetEventCountSinceResponse(rsp *http.Response) (*GetEventCountSinceRes
 		}
 		response.JSON404 = &dest
 
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
+
 	}
 
 	return response, nil
@@ -3349,6 +3422,13 @@ func ParseExecuteLogsStatsQueryV1Response(rsp *http.Response) (*ExecuteLogsStats
 			return nil, err
 		}
 		response.JSON404 = &dest
+
+	case strings.Contains(rsp.Header.Get("Content-Type"), "json") && rsp.StatusCode == 501:
+		var dest BadRequest
+		if err := json.Unmarshal(bodyBytes, &dest); err != nil {
+			return nil, err
+		}
+		response.JSON501 = &dest
 
 	}
 

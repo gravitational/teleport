@@ -267,11 +267,13 @@ func (c *AccessGraphCommand) Investigate(ctx context.Context, client *accessgrap
 	g, gctx := errgroup.WithContext(ctx)
 	g.Go(func() error {
 		var err error
-		// TODO(ghassanachi): when gravitational/access-graph#2006 update the params to take in geo filters
 		facets, total, err = fetchLogsFacets(gctx, client, accessgraph.ExecuteLogsStatsQueryV1Params{
 			StartTime: &fromUTC,
 			EndTime:   &toUTC,
 			Query:     params.Query,
+			Latitude:  args.latitude,
+			Longitude: args.longitude,
+			Radius:    args.radius,
 		}, args.luceneToFlagMap())
 		return trace.Wrap(err)
 	})
@@ -304,11 +306,8 @@ func (c *AccessGraphCommand) Investigate(ctx context.Context, client *accessgrap
 
 	// --facets-only implies --all-facets in text output
 	allFacets := args.allFacets || args.facetsOnly
-	// Geo applies to events only; stats has no geo params.
-	geoActive := args.latitude != nil || args.longitude != nil || args.radius != nil
-
 	return writeOutput(c.stdout, output, args.format, func(w io.Writer) error {
-		return displayInvestigateText(w, output, args.from, args.to, args.limit, truncated, allFacets, args.facetsOnly, geoActive)
+		return displayInvestigateText(w, output, args.from, args.to, args.limit, truncated, allFacets, args.facetsOnly)
 	})
 }
 
@@ -459,11 +458,7 @@ func (a *investigateArgs) validateGeo() error {
 		// No geo flags set.
 		return nil
 	case 0:
-		// Geo filters events only, so --facets-only would silently do nothing.
-		// TODO(ghassanachi): when gravitational/access-graph#2006 is merged remove this condition
-		if a.facetsOnly {
-			return trace.BadParameter("--facets-only cannot be combined with geo filters (--latitude/--longitude/--radius); geo applies to events, which --facets-only skips")
-		}
+		// All geo flags set.
 		return nil
 	default:
 		return trace.BadParameter("geo filter requires all of --latitude, --longitude, and --radius; missing: %s", strings.Join(missing, ", "))
@@ -471,7 +466,7 @@ func (a *investigateArgs) validateGeo() error {
 }
 
 // displayInvestigateText renders the period header, the facet panel and the events table
-func displayInvestigateText(out io.Writer, output investigateOutput, from, to time.Time, limit int, truncated, allFacets, facetsOnly, geoActive bool) error {
+func displayInvestigateText(out io.Writer, output investigateOutput, from, to time.Time, limit int, truncated, allFacets, facetsOnly bool) error {
 	if _, err := fmt.Fprintf(out, "Period: %s → %s\n", from.Format(time.RFC3339), to.Format(time.RFC3339)); err != nil {
 		return trace.Wrap(err)
 	}
@@ -483,12 +478,6 @@ func displayInvestigateText(out io.Writer, output investigateOutput, from, to ti
 	}
 	if _, err := fmt.Fprintf(out, "%s\n", matches); err != nil {
 		return trace.Wrap(err)
-	}
-	// TODO(ghassanachi): when gravitational/access-graph#2006 is merged remove this condition
-	if geoActive {
-		if _, err := fmt.Fprintln(out, warningStyle.Render("Note: geo filters apply to events only; total and facet counts cover the window+query without these filters.")); err != nil {
-			return trace.Wrap(err)
-		}
 	}
 	if _, err := fmt.Fprintln(out); err != nil {
 		return trace.Wrap(err)

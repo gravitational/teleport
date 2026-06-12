@@ -147,13 +147,6 @@ func TestInvestigateValidateGeo(t *testing.T) {
 		_, missing, _ := strings.Cut(err.Error(), "missing: ")
 		require.Equal(t, "--longitude, --radius", missing)
 	})
-
-	t.Run("geo with --facets-only → BadParameter", func(t *testing.T) {
-		a := &investigateArgs{latitude: f(37.7), longitude: f(-122.4), radius: f(10), facetsOnly: true}
-		err := a.validateGeo()
-		require.True(t, trace.IsBadParameter(err), "want BadParameter, got %v", err)
-		require.Contains(t, err.Error(), "--facets-only cannot be combined with geo filters")
-	})
 }
 
 // TestStripUnmatchedFacets covers the count<0 sentinel: the backend uses
@@ -322,20 +315,23 @@ func newInvestigateCommand(t *testing.T, format string) (*AccessGraphCommand, *b
 // investigateHandler serves the AG stats and logs endpoints; nil logsPages
 // asserts the logs route is never hit.
 type investigateHandler struct {
-	stats         map[string]any
-	statsCalls    atomic.Int64
-	statsQuery    string
-	statsStart    string
-	statsEnd      string
-	logsPages     []fetchAllLogsPage
-	logsCalls     atomic.Int64
-	logsQuery     string
-	logsStart     string
-	logsEnd       string
-	logsOrder     string
-	logsLatitude  string
-	logsLongitude string
-	logsRadius    string
+	stats          map[string]any
+	statsCalls     atomic.Int64
+	statsQuery     string
+	statsStart     string
+	statsEnd       string
+	statsLatitude  string
+	statsLongitude string
+	statsRadius    string
+	logsPages      []fetchAllLogsPage
+	logsCalls      atomic.Int64
+	logsQuery      string
+	logsStart      string
+	logsEnd        string
+	logsOrder      string
+	logsLatitude   string
+	logsLongitude  string
+	logsRadius     string
 }
 
 func (h *investigateHandler) serve(t *testing.T) http.Handler {
@@ -348,6 +344,9 @@ func (h *investigateHandler) serve(t *testing.T) http.Handler {
 			h.statsQuery = r.URL.Query().Get("query")
 			h.statsStart = r.URL.Query().Get("start_time")
 			h.statsEnd = r.URL.Query().Get("end_time")
+			h.statsLatitude = r.URL.Query().Get("latitude")
+			h.statsLongitude = r.URL.Query().Get("longitude")
+			h.statsRadius = r.URL.Query().Get("radius")
 			_ = json.NewEncoder(w).Encode(h.stats)
 		case logsQueryPath:
 			idx := int(h.logsCalls.Add(1) - 1)
@@ -681,7 +680,7 @@ func TestInvestigate(t *testing.T) {
 		require.Equal(t, "stats kaput", agErr.Message)
 	})
 
-	t.Run("geo filter parameters are forwarded to the logs endpoint", func(t *testing.T) {
+	t.Run("geo filter parameters are forwarded to the logs and stats endpoint", func(t *testing.T) {
 		h := &investigateHandler{
 			stats:     statsResponse(statsColumn{name: "event_type", values: []statsValue{{value: "x", count: 1}}}),
 			logsPages: []fetchAllLogsPage{{data: nil}},
@@ -698,23 +697,9 @@ func TestInvestigate(t *testing.T) {
 		require.Equal(t, "37.7", h.logsLatitude)
 		require.Equal(t, "-122.4", h.logsLongitude)
 		require.Equal(t, "10", h.logsRadius)
-	})
-
-	t.Run("text format prints the geo note when geo is active", func(t *testing.T) {
-		h := &investigateHandler{
-			stats:     statsResponse(statsColumn{name: "event_type", values: []statsValue{{value: "x", count: 1}}}),
-			logsPages: []fetchAllLogsPage{{data: nil}},
-		}
-		ag := newAccessGraphTestClient(t, h.serve(t))
-
-		c, buf := newInvestigateCommand(t, teleport.Text)
-		lat, lon, rad := float32(37.7), float32(-122.4), float32(10)
-		c.investigate.latitude = &lat
-		c.investigate.longitude = &lon
-		c.investigate.radius = &rad
-
-		require.NoError(t, c.Investigate(context.Background(), ag))
-		require.Contains(t, buf.String(), "geo filters apply to events only")
+		require.Equal(t, "37.7", h.statsLatitude)
+		require.Equal(t, "-122.4", h.statsLongitude)
+		require.Equal(t, "10", h.statsRadius)
 	})
 }
 
