@@ -173,6 +173,31 @@ Flags:
 |`--token`|*no default*|Invitation token or path to file with token value to register with an auth server.|
 |`--version`|`v3`|Teleport configuration version.|
 
+## teleport configure migrate
+
+Transform an existing Teleport config for a suffixed migrated agent. Also
+accepts configure flags --output, --auth-server, --data-dir, and --join-method.
+
+Usage:
+
+```code
+$ teleport configure migrate [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`--disable-services`|*no default*|Comma-separated list of services to disable: ssh,kube,app,db,discovery,windows_desktop,okta,jamf,debug.|
+|`--input`|`/etc/teleport.yaml`|Path to the existing Teleport configuration file \[/etc/teleport.yaml\].|
+|`--install-suffix`|*no default*|Suffix used by teleport-update --install-suffix.|
+|`--label`|*no default*|Static SSH label to add in key=value form. Can be repeated.|
+|`--[no-]diff`|`false`|Print a redacted unified diff and write nothing. Listener conflicts fail; log file conflicts are shown as rewrites.|
+|`--[no-]force`|`false`|Allow overwriting an existing non-empty output file.|
+|`--proxy-server`|*no default*|Target cluster proxy server address.|
+|`--token-name`|*no default*|Scoped token stable name.|
+|`--token-secret-file`|*no default*|Path to a file containing the scoped token secret. Required only for --join-method=token.|
+
 ## teleport db configure aws create-iam
 
 Generate, create and attach IAM policies.
@@ -341,6 +366,22 @@ Flags:
 |`--protocol`|*no default*|Proxied database protocol. Supported are: \[postgres mysql mongodb oracle cockroachdb redis snowflake sqlserver cassandra elasticsearch opensearch dynamodb clickhouse clickhouse-http spanner\].|
 |`--token`|*no default*|Invitation token or path to file with token value to register with an auth server \[none\].|
 |`--uri`|*no default*|Address the proxied database is reachable at.|
+
+## teleport debug
+
+Debug commands
+
+Usage:
+
+```code
+$ teleport debug [<flags>]
+```
+
+Flags:
+
+|Flag|Default|Description|
+|---|---|---|
+|`-c`, `--config`|*no default*|Path to a configuration file \[/etc/teleport.yaml\].|
 
 ## teleport debug check-session-helper
 

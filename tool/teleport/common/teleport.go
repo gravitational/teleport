@@ -101,6 +101,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		configureDatabaseAWSCreateFlags  configureDatabaseAWSCreateFlags
 		configureDiscoveryBootstrapFlags configureDiscoveryBootstrapFlags
 		dbConfigCreateFlags              createDatabaseConfigFlags
+		configureMigrateFlags            configureMigrateFlags
 		systemdInstallFlags              installSystemdFlags
 		installAutoDiscoverNodeFlags     installAutoDiscoverNodeFlags
 		waitFlags                        waitFlags
@@ -437,7 +438,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		"Unique cluster name, e.g. example.com.").StringVar(&dumpFlags.ClusterName)
 	dump.Flag("output",
 		`Write to stdout with "--output=stdout", default config file with "--output=file" or custom path with --output=file:///path`).Short('o').Default(
-		teleport.SchemeStdout).StringVar(&dumpFlags.output)
+		teleport.SchemeStdout).IsSetByUser(&dumpFlags.outputSet).StringVar(&dumpFlags.output)
 	dump.Flag("acme",
 		"Get automatic certificate from Letsencrypt.org using ACME.").BoolVar(&dumpFlags.ACMEEnabled)
 	dump.Flag("acme-email",
@@ -447,7 +448,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("public-addr", "The hostport that the proxy advertises for the HTTP endpoint.").StringVar(&dumpFlags.PublicAddr)
 	dump.Flag("cert-file", "Path to a TLS certificate file for the proxy.").ExistingFileVar(&dumpFlags.CertFile)
 	dump.Flag("key-file", "Path to a TLS key file for the proxy.").ExistingFileVar(&dumpFlags.KeyFile)
-	dump.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).StringVar(&dumpFlags.DataDir)
+	dump.Flag("data-dir", "Path to a directory where Teleport keep its data.").Default(defaults.DataDir).IsSetByUser(&dumpFlags.dataDirSet).StringVar(&dumpFlags.DataDir)
 	dump.Flag("token", "Invitation token or path to file with token value to register with an auth server.").StringVar(&dumpFlags.AuthToken)
 	dump.Flag("join-method", "Method to use to join the cluster.").Default("token").EnumVar(&dumpFlags.JoinMethod, joinMethods...)
 	dump.Flag("roles", "Comma-separated list of roles to create config with.").StringVar(&dumpFlags.Roles)
@@ -458,6 +459,17 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("mcp-demo-server", "Enables the Teleport demo MCP server that shows current user and session information.").BoolVar(&dumpFlags.MCPDemoServer)
 	dump.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
+
+	configureMigrate := dump.Command("migrate", "Transform an existing Teleport config for a suffixed migrated agent. Also accepts configure flags --output, --auth-server, --data-dir, and --join-method.")
+	configureMigrate.Flag("input", fmt.Sprintf("Path to the existing Teleport configuration file [%s].", defaults.ConfigFilePath)).Default(defaults.ConfigFilePath).StringVar(&configureMigrateFlags.input)
+	configureMigrate.Flag("install-suffix", "Suffix used by teleport-update --install-suffix.").StringVar(&configureMigrateFlags.installSuffix)
+	configureMigrate.Flag("proxy-server", "Target cluster proxy server address.").StringVar(&configureMigrateFlags.proxyServer)
+	configureMigrate.Flag("token-name", "Scoped token stable name.").StringVar(&configureMigrateFlags.tokenName)
+	configureMigrate.Flag("token-secret-file", "Path to a file containing the scoped token secret. Required only for --join-method=token.").StringVar(&configureMigrateFlags.tokenSecretFile)
+	configureMigrate.Flag("disable-services", "Comma-separated list of services to disable: ssh,kube,app,db,discovery,windows_desktop,okta,jamf,debug.").StringVar(&configureMigrateFlags.disableServices)
+	configureMigrate.Flag("label", "Static SSH label to add in key=value form. Can be repeated.").StringsVar(&configureMigrateFlags.labels)
+	configureMigrate.Flag("diff", "Print a redacted unified diff and write nothing. Listener conflicts fail; log file conflicts are shown as rewrites.").BoolVar(&configureMigrateFlags.diff)
+	configureMigrate.Flag("force", "Allow overwriting an existing non-empty output file.").BoolVar(&configureMigrateFlags.force)
 
 	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
 
@@ -755,6 +767,16 @@ Examples:
 		err = onStatus()
 	case dump.FullCommand():
 		err = onConfigDump(dumpFlags)
+	case configureMigrate.FullCommand():
+		if dumpFlags.outputSet {
+			configureMigrateFlags.output = dumpFlags.output
+		}
+		if dumpFlags.dataDirSet {
+			configureMigrateFlags.dataDir = dumpFlags.DataDir
+		}
+		configureMigrateFlags.authServer = dumpFlags.AuthServer
+		configureMigrateFlags.joinMethod = dumpFlags.JoinMethod
+		err = onConfigureMigrate(configureMigrateFlags)
 	case dumpNodeConfigure.FullCommand():
 		dumpFlags.Roles = defaults.RoleNode
 		err = onConfigDump(dumpFlags)
@@ -988,6 +1010,8 @@ func onStatus() error {
 type dumpFlags struct {
 	config.SampleFlags
 	output         string
+	outputSet      bool
+	dataDirSet     bool
 	testConfigFile string
 	stdout         io.Writer
 }

@@ -103,6 +103,39 @@ func anyVisibleFlags(f []*kingpin.FlagModel) bool {
 	})
 }
 
+// anyVisibleArgs returns whether any args in a are visible.
+func anyVisibleArgs(a []*kingpin.ArgModel) bool {
+	return slices.ContainsFunc(a, func(m *kingpin.ArgModel) bool {
+		return !m.Hidden
+	})
+}
+
+// docsCommands returns the commands that should be rendered in CLI docs.
+//
+// kingpin's FlattenedCommands only returns leaf commands. Teleport has some
+// executable commands that also own subcommands, such as "teleport configure",
+// so include non-leaf commands when they have their own visible flags or args.
+func docsCommands(app *kingpin.ApplicationModel) []*kingpin.CmdModel {
+	if app == nil || app.CmdGroupModel == nil {
+		return nil
+	}
+	return docsCommandsFromGroup(app.CmdGroupModel)
+}
+
+func docsCommandsFromGroup(group *kingpin.CmdGroupModel) []*kingpin.CmdModel {
+	if group == nil {
+		return nil
+	}
+	var out []*kingpin.CmdModel
+	for _, cmd := range group.Commands {
+		if len(cmd.Commands) == 0 || anyVisibleFlags(cmd.Flags) || anyVisibleArgs(cmd.Args) {
+			out = append(out, cmd)
+		}
+		out = append(out, docsCommandsFromGroup(cmd.CmdGroupModel)...)
+	}
+	return out
+}
+
 // anyEnvVarsForCmd indicates whether at least one of the arguments and flags
 // provided exposes an environment variable for configuration.
 func anyEnvVarsForCmd(args []*kingpin.ArgModel, flags []*kingpin.FlagModel) bool {
@@ -374,6 +407,7 @@ func updateAppUsageTemplate(r io.Reader, config generatorConfig, app *kingpin.Ap
 		"AnyEnvVarsForCmd":            anyEnvVarsForCmd,
 		"AnyVisibleFlags":             anyVisibleFlags,
 		"ArgsToRows":                  argsToRows,
+		"DocsCommands":                docsCommands,
 		"EnvVarsToRows":               envVarsToRows,
 		"FlagsToRows":                 flagsToRows,
 		"FormatThreeColMarkdownTable": formatThreeColMarkdownTable,

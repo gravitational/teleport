@@ -729,6 +729,11 @@ func (p *ProvisionTokenV2) GetSafeName() string {
 		return name
 	}
 
+	return MaskTokenName(name)
+}
+
+// MaskTokenName sanitizes a token name that may itself be secret.
+func MaskTokenName(name string) string {
 	// If the token name is short, we just blank the whole thing.
 	if len(name) < 16 {
 		return strings.Repeat("*", len(name))

@@ -5,7 +5,7 @@
 
 {{ define "FormatCommands" -}}
 {{$appName := .Name -}}
-{{range .FlattenedCommands|SortCommandsByName -}}
+{{range .|DocsCommands|SortCommandsByName -}}
 {{if not .Hidden -}}
 ## {{$appName}} {{.FullCommand}}
 

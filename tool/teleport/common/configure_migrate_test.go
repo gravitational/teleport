@@ -1,0 +1,214 @@
+/*
+ * Teleport
+ * Copyright (C) 2026  Gravitational, Inc.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program.  If not, see <http://www.gnu.org/licenses/>.
+ */
+
+package common
+
+import (
+	"bytes"
+	"os"
+	"path/filepath"
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
+)
+
+func TestConfigureMigrateWritesOverEmptyOutput(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	inputPath := writeMigrateInput(t, dir)
+	outputPath := filepath.Join(dir, "teleport_scope.yaml")
+	require.NoError(t, os.WriteFile(outputPath, []byte(" \n\t"), 0o640))
+	secretPath := filepath.Join(dir, "token-secret")
+	require.NoError(t, os.WriteFile(secretPath, []byte("secret-value"), 0o600))
+
+	var stdout bytes.Buffer
+	err := onConfigureMigrate(configureMigrateFlags{
+		input:           inputPath,
+		installSuffix:   "scope",
+		output:          "file://" + outputPath,
+		proxyServer:     "target.example.com:443",
+		joinMethod:      string(types.JoinMethodToken),
+		tokenName:       "scope-migrate-ip-10-2-4-17",
+		tokenSecretFile: secretPath,
+		dataDir:         filepath.Join(dir, "data"),
+		stdout:          &stdout,
+		stderr:          &bytes.Buffer{},
+	})
+	require.NoError(t, err)
+	require.Contains(t, stdout.String(), "Wrote migrated Teleport configuration")
+
+	rendered, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+	require.Contains(t, string(rendered), "token_secret: "+secretPath)
+	require.NotContains(t, string(rendered), "secret-value")
+
+	fc, err := config.ReadFromFile(outputPath)
+	require.NoError(t, err)
+	cfg := servicecfg.MakeDefaultConfig()
+	require.NoError(t, config.ApplyFileConfig(fc, cfg))
+	secret, err := cfg.TokenSecret()
+	require.NoError(t, err)
+	require.Equal(t, "secret-value", secret)
+}
+
+func TestConfigureMigrateRefusesNonEmptyOutput(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	inputPath := writeMigrateInput(t, dir)
+	outputPath := filepath.Join(dir, "teleport_scope.yaml")
+	require.NoError(t, os.WriteFile(outputPath, []byte("already here"), 0o640))
+
+	err := onConfigureMigrate(configureMigrateFlags{
+		input:           inputPath,
+		installSuffix:   "scope",
+		output:          "file://" + outputPath,
+		proxyServer:     "target.example.com:443",
+		joinMethod:      string(types.JoinMethodToken),
+		tokenName:       "scope-migrate-ip-10-2-4-17",
+		tokenSecretFile: filepath.Join(dir, "token-secret"),
+		dataDir:         filepath.Join(dir, "data"),
+		stdout:          &bytes.Buffer{},
+		stderr:          &bytes.Buffer{},
+	})
+	require.Error(t, err)
+	require.Contains(t, err.Error(), "will not overwrite existing non-empty file")
+}
+
+func TestConfigureMigrateDiffIsRedactedAndDoesNotWrite(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	inputPath := writeMigrateInput(t, dir)
+	outputPath := filepath.Join(dir, "teleport_scope.yaml")
+	require.NoError(t, os.WriteFile(outputPath, []byte("already here"), 0o640))
+
+	var stdout, stderr bytes.Buffer
+	err := onConfigureMigrate(configureMigrateFlags{
+		input:           inputPath,
+		installSuffix:   "scope",
+		output:          "file://" + outputPath,
+		proxyServer:     "target.example.com:443",
+		joinMethod:      string(types.JoinMethodToken),
+		tokenName:       "scope-migrate-ip-10-2-4-17",
+		tokenSecretFile: filepath.Join(dir, "token-secret"),
+		dataDir:         filepath.Join(dir, "data"),
+		diff:            true,
+		stdout:          &stdout,
+		stderr:          &stderr,
+	})
+	require.NoError(t, err)
+	require.Contains(t, stderr.String(), "writing would require --force")
+	require.Contains(t, stdout.String(), "<redacted>")
+	require.NotContains(t, stdout.String(), "SUPERSECRET")
+	require.NotContains(t, stdout.String(), "scope-migrate-ip-10-2-4-17")
+	onDisk, err := os.ReadFile(outputPath)
+	require.NoError(t, err)
+	require.Equal(t, "already here", string(onDisk))
+}
+
+func TestConfigureMigrateStdoutIsRedacted(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	inputPath := writeMigrateInput(t, dir)
+	var stdout bytes.Buffer
+	err := onConfigureMigrate(configureMigrateFlags{
+		input:           inputPath,
+		installSuffix:   "scope",
+		output:          "stdout://",
+		proxyServer:     "target.example.com:443",
+		joinMethod:      string(types.JoinMethodToken),
+		tokenName:       "scope-migrate-ip-10-2-4-17",
+		tokenSecretFile: filepath.Join(dir, "token-secret"),
+		dataDir:         filepath.Join(dir, "data"),
+		stdout:          &stdout,
+		stderr:          &bytes.Buffer{},
+	})
+	require.NoError(t, err)
+	require.Contains(t, stdout.String(), "token_secret: <redacted>")
+	require.NotContains(t, stdout.String(), "SUPERSECRET")
+	require.NotContains(t, stdout.String(), "scope-migrate-ip-10-2-4-17")
+}
+
+func TestConfigureMigrateFlagValidation(t *testing.T) {
+	t.Parallel()
+
+	base := configureMigrateFlags{
+		input:         "/tmp/teleport.yaml",
+		installSuffix: "scope",
+		proxyServer:   "target.example.com:443",
+		tokenName:     "scope-migrate-ip-10-2-4-17",
+	}
+
+	tokenNoSecret := base
+	tokenNoSecret.joinMethod = string(types.JoinMethodToken)
+	require.Error(t, tokenNoSecret.CheckAndSetDefaults())
+
+	iamWithSecret := base
+	iamWithSecret.joinMethod = string(types.JoinMethodIAM)
+	iamWithSecret.tokenSecretFile = "/tmp/secret"
+	require.Error(t, iamWithSecret.CheckAndSetDefaults())
+
+	iamNoSecret := base
+	iamNoSecret.joinMethod = string(types.JoinMethodIAM)
+	require.NoError(t, iamNoSecret.CheckAndSetDefaults())
+}
+
+func TestConfigureMigrateBoundKeypairNotice(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	inputPath := writeMigrateInput(t, dir)
+	var stderr bytes.Buffer
+	err := onConfigureMigrate(configureMigrateFlags{
+		input:         inputPath,
+		installSuffix: "scope",
+		output:        "stdout://",
+		proxyServer:   "target.example.com:443",
+		joinMethod:    string(types.JoinMethodBoundKeypair),
+		tokenName:     "scope-migrate-ip-10-2-4-17",
+		dataDir:       filepath.Join(dir, "data"),
+		stdout:        &bytes.Buffer{},
+		stderr:        &stderr,
+	})
+	require.NoError(t, err)
+	require.Contains(t, stderr.String(), "bound_keypair joins require")
+}
+
+func writeMigrateInput(t *testing.T, dir string) string {
+	t.Helper()
+	inputPath := filepath.Join(dir, "teleport.yaml")
+	require.NoError(t, os.WriteFile(inputPath, []byte(`
+version: v3
+teleport:
+  auth_token: SUPERSECRET
+ssh_service:
+  enabled: yes
+auth_service:
+  enabled: no
+proxy_service:
+  enabled: no
+`), 0o600))
+	return inputPath
+}
