@@ -185,11 +185,11 @@ describe('searchParamsToState', () => {
     expect(state.filters.hideNonInteractive).toBe(true);
   });
 
-  it('defaults hideNonInteractive to false when not provided', () => {
+  it('defaults hideNonInteractive to true when not provided', () => {
     const params = new URLSearchParams();
     const state = searchParamsToState(mockRanges, params);
 
-    expect(state.filters.hideNonInteractive).toBe(false);
+    expect(state.filters.hideNonInteractive).toBe(true);
   });
 
   it('ignores invalid hideNonInteractive values', () => {
