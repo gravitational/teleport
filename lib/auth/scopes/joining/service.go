@@ -358,6 +358,19 @@ func (s *Server) UpdateScopedToken(ctx context.Context, req *scopedjoiningv1.Upd
 
 func (s *Server) emitEvent(ctx context.Context, kind string, token *scopedjoiningv1.ScopedToken) {
 	userMetadata := authz.ClientUserMetadata(ctx)
+	resourceMetadata := apievents.ResourceMetadata{
+		Name:      token.GetMetadata().GetName(),
+		Expires:   token.GetMetadata().GetExpires().AsTime(),
+		UpdatedBy: userMetadata.GetUser(),
+		Scope:     token.GetScope(),
+	}
+	scopedTokenMetadata := apievents.ScopedTokenMetadata{
+		Roles:         token.GetSpec().GetRoles(),
+		JoinMethod:    token.GetSpec().GetJoinMethod(),
+		UsageMode:     token.GetSpec().GetUsageMode(),
+		AssignedScope: token.GetSpec().GetAssignedScope(),
+	}
+
 	var event apievents.AuditEvent
 	switch kind {
 	case events.ScopedTokenCreateEvent:
@@ -366,17 +379,9 @@ func (s *Server) emitEvent(ctx context.Context, kind string, token *scopedjoinin
 				Type: events.ScopedTokenCreateEvent,
 				Code: events.ScopedTokenCreateCode,
 			},
-			ResourceMetadata: apievents.ResourceMetadata{
-				Name:      token.GetMetadata().GetName(),
-				Expires:   token.GetMetadata().GetExpires().AsTime(),
-				UpdatedBy: userMetadata.GetUser(),
-			},
-			UserMetadata:  userMetadata,
-			Roles:         token.GetSpec().GetRoles(),
-			JoinMethod:    token.GetSpec().GetJoinMethod(),
-			Scope:         token.GetScope(),
-			UsageMode:     token.GetSpec().GetUsageMode(),
-			AssignedScope: token.GetSpec().GetAssignedScope(),
+			ResourceMetadata:    resourceMetadata,
+			UserMetadata:        userMetadata,
+			ScopedTokenMetadata: scopedTokenMetadata,
 		}
 	case events.ScopedTokenUpsertEvent:
 		event = &apievents.ScopedTokenCreate{
@@ -384,17 +389,9 @@ func (s *Server) emitEvent(ctx context.Context, kind string, token *scopedjoinin
 				Type: events.ScopedTokenUpsertEvent,
 				Code: events.ScopedTokenUpsertCode,
 			},
-			ResourceMetadata: apievents.ResourceMetadata{
-				Name:      token.GetMetadata().GetName(),
-				Expires:   token.GetMetadata().GetExpires().AsTime(),
-				UpdatedBy: userMetadata.GetUser(),
-			},
-			UserMetadata:  userMetadata,
-			Roles:         token.GetSpec().GetRoles(),
-			JoinMethod:    token.GetSpec().GetJoinMethod(),
-			Scope:         token.GetScope(),
-			UsageMode:     token.GetSpec().GetUsageMode(),
-			AssignedScope: token.GetSpec().GetAssignedScope(),
+			ResourceMetadata:    resourceMetadata,
+			UserMetadata:        userMetadata,
+			ScopedTokenMetadata: scopedTokenMetadata,
 		}
 	case events.ScopedTokenUpdateEvent:
 		event = &apievents.ScopedTokenUpdate{
@@ -402,17 +399,9 @@ func (s *Server) emitEvent(ctx context.Context, kind string, token *scopedjoinin
 				Type: events.ScopedTokenUpdateEvent,
 				Code: events.ScopedTokenUpdateCode,
 			},
-			ResourceMetadata: apievents.ResourceMetadata{
-				Name:      token.GetMetadata().GetName(),
-				Expires:   token.GetMetadata().GetExpires().AsTime(),
-				UpdatedBy: userMetadata.GetUser(),
-			},
-			UserMetadata:  userMetadata,
-			Roles:         token.GetSpec().GetRoles(),
-			JoinMethod:    token.GetSpec().GetJoinMethod(),
-			Scope:         token.GetScope(),
-			UsageMode:     token.GetSpec().GetUsageMode(),
-			AssignedScope: token.GetSpec().GetAssignedScope(),
+			ResourceMetadata:    resourceMetadata,
+			UserMetadata:        userMetadata,
+			ScopedTokenMetadata: scopedTokenMetadata,
 		}
 	case events.ScopedTokenDeleteEvent:
 		event = &apievents.ScopedTokenDelete{
@@ -420,12 +409,8 @@ func (s *Server) emitEvent(ctx context.Context, kind string, token *scopedjoinin
 				Type: events.ScopedTokenDeleteEvent,
 				Code: events.ScopedTokenDeleteCode,
 			},
-			ResourceMetadata: apievents.ResourceMetadata{
-				Name:      token.GetMetadata().GetName(),
-				Expires:   token.GetMetadata().GetExpires().AsTime(),
-				UpdatedBy: userMetadata.GetUser(),
-			},
-			UserMetadata: userMetadata,
+			ResourceMetadata: resourceMetadata,
+			UserMetadata:     userMetadata,
 		}
 	default:
 		return
