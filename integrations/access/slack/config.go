@@ -19,6 +19,7 @@
 package slack
 
 import (
+	"cmp"
 	"net/url"
 	"strings"
 
@@ -96,10 +97,6 @@ func (c *Config) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if c.Slack.APIURL == "" {
-		c.Slack.APIURL = slackAPIURL
-	}
-
 	if c.AccessTokenProvider == nil {
 		if c.Slack.Token == "" {
 			return trace.BadParameter("missing required value slack.token")
@@ -171,7 +168,11 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 		}
 	}
 
-	client := makeSlackClient(c.Slack.APIURL).
+	// We must set the defaut slack API URL here since cloud-hosted Slack
+	// does not check defaults.
+	apiURL := cmp.Or(c.Slack.APIURL, slackAPIURL)
+
+	client := makeSlackClient(apiURL).
 		OnBeforeRequest(func(_ *resty.Client, r *resty.Request) error {
 			botToken, err := c.AccessTokenProvider.GetAccessToken()
 			if err != nil {
@@ -183,7 +184,7 @@ func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, 
 		OnAfterResponse(onAfterResponseSlack(c.StatusSink))
 
 	// For native review, we require a client with a separate auth header using the app-level token.
-	appClient := makeSlackClient(c.Slack.APIURL).
+	appClient := makeSlackClient(apiURL).
 		OnBeforeRequest(func(_ *resty.Client, r *resty.Request) error {
 			appToken, err := c.AppTokenProvider.GetAccessToken()
 			if err != nil {
