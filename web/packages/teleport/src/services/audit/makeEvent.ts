@@ -2669,6 +2669,12 @@ export const formatters: Formatters = {
     format: ({ name, user }) =>
       `Classifier [${name}] failed to be updated by [${user}]`,
   },
+  [eventCodes.CLASSIFIER_DELETE]: {
+    type: 'classifier.delete',
+    desc: 'Classifier Deleted',
+    format: ({ name, user }) =>
+      `Classifier [${name}] was deleted by [${user}]`,
+  },
   [eventCodes.SESSION_SUMMARIZED]: {
     type: 'session.summarized',
     desc: 'Session Summarized',

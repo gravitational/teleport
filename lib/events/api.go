@@ -1042,6 +1042,8 @@ const (
 	ClassifierCreateEvent = "classifier.create"
 	// ClassifierUpdateEvent is emitted when a classifier resource is updated.
 	ClassifierUpdateEvent = "classifier.update"
+	// ClassifierDeleteEvent is emitted when a classifier resource is deleted.
+	ClassifierDeleteEvent = "classifier.delete"
 
 	// SessionSummarizedEvent is emitted when a session summary is created.
 	SessionSummarizedEvent = "session.summarized"
