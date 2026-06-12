@@ -93,6 +93,7 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 0C94C85D2FA232E700C13C9A /* Build configuration list for PBXNativeTarget "Verify" */;
 			buildPhases = (
+				CD19504B2FD76D8C00BD1F82 /* ShellScript */,
 				0C94C84E2FA232E600C13C9A /* Sources */,
 				0C94C84F2FA232E600C13C9A /* Frameworks */,
 				0C94C8502FA232E600C13C9A /* Resources */,
@@ -155,6 +156,30 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		CD19504B2FD76D8C00BD1F82 /* ShellScript */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(SRCROOT)/Scripts/build-enroll-framework.sh",
+				"$(SRCROOT)/Scripts/helpers.sh",
+			);
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "$SRCROOT/Scripts/build-enroll-framework.sh\n";
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		0C94C84E2FA232E600C13C9A /* Sources */ = {
@@ -301,6 +326,15 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = K497G57PDJ;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64",
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64_x86_64-simulator",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Verify/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Teleport Verify";
@@ -314,6 +348,10 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					Enroll,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gravitational.Verify;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
@@ -339,6 +377,15 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = K497G57PDJ;
 				ENABLE_PREVIEWS = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = NO;
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphoneos*]" = (
+					"$(inherited)",
+					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64",
+				);
+				"FRAMEWORK_SEARCH_PATHS[sdk=iphonesimulator*]" = (
+					"$(inherited)",
+					"$(TARGET_TEMP_DIR)/GeneratedFrameworks/Enroll.xcframework/ios-arm64_x86_64-simulator",
+				);
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Verify/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Teleport Verify";
@@ -352,6 +399,10 @@
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
+				OTHER_LDFLAGS = (
+					"-framework",
+					Enroll,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.gravitational.Verify;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				STRING_CATALOG_GENERATE_SYMBOLS = YES;
