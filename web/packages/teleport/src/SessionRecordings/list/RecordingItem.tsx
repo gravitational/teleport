@@ -18,11 +18,11 @@
 
 import { format } from 'date-fns';
 import {
-  Suspense,
-  useMemo,
   type ComponentType,
   type MouseEventHandler,
   type PropsWithChildren,
+  Suspense,
+  useMemo,
 } from 'react';
 import { ErrorBoundary } from 'react-error-boundary';
 import { Link } from 'react-router';
@@ -67,6 +67,7 @@ export interface RecordingActionProps {
 
 export interface RecordingItemProps {
   actionComponent?: ComponentType<RecordingActionProps>;
+  badgeComponent?: ComponentType<RecordingActionProps>;
   density: Density;
   recording: Recording;
   thumbnailStyles: string;
@@ -75,6 +76,7 @@ export interface RecordingItemProps {
 
 export function RecordingItem({
   actionComponent: ActionComponent,
+  badgeComponent: BadgeComponent,
   density,
   recording,
   thumbnailStyles,
@@ -120,6 +122,27 @@ export function RecordingItem({
       viewMode={viewMode}
       onClick={handleClick}
     >
+      {BadgeComponent && (
+        <RecordingItemHeader>
+          {BadgeComponent && (
+            <BadgeContainer viewMode={viewMode}>
+              <BadgeComponent
+                durationMs={recording.duration}
+                createdDate={recording.createdDate}
+                recordingType={recording.recordingType}
+                sessionId={recording.sid}
+                username={recording.user}
+                hostname={recording.hostname}
+              />
+            </BadgeContainer>
+          )}
+
+          <div style={{ flex: 1 }} />
+
+          <Duration viewMode={viewMode}>{duration}</Duration>
+        </RecordingItemHeader>
+      )}
+
       <ThumbnailContainer density={density} viewMode={viewMode}>
         {recording.playable ? (
           hasThumbnail ? (
@@ -145,7 +168,9 @@ export function RecordingItem({
           </ThumbnailError>
         )}
 
-        <Duration viewMode={viewMode}>{duration}</Duration>
+        {!BadgeComponent && (
+          <FloatingDuration viewMode={viewMode}>{duration}</FloatingDuration>
+        )}
       </ThumbnailContainer>
 
       <Flex width="100%">
@@ -236,6 +261,15 @@ export const RecordingItemContainer = styled(Link).withConfig({
   `
 );
 
+export const RecordingItemHeader = styled(Flex)`
+  background: ${p => p.theme.colors.levels.sunken};
+  flex: 0 0 40px;
+  align-items: center;
+  padding: 0 ${p => p.theme.space[2]}px;
+  justify-content: space-between;
+  border-bottom: 1px solid ${p => p.theme.colors.interactive.tonal.neutral[0]};
+`;
+
 export const ThumbnailContainer = styled.div<
   Pick<RecordingItemProps, 'viewMode' | 'density'>
 >(
@@ -294,16 +328,13 @@ export const RecordingDetails = styled.div<
   `
 );
 
-export const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
+// BadgeContainer overlays the badge slot on the thumbnail, mirroring the
+// Duration placement on the opposite side, so badges appearing after the
+// initial render never shift the item layout.
+export const BadgeContainer = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
   p => css`
-    background: rgba(0, 0, 0, 0.5);
-    border-radius: ${p.theme.radii[3]}px;
-    color: white;
-    font-weight: bold;
-    position: absolute;
-    line-height: 1;
-    padding: ${p.theme.space[1]}px ${p.theme.space[2]}px;
-    right: ${p.theme.space[2]}px;
+    display: flex;
+    gap: ${p.theme.space[1]}px;
 
     ${p.viewMode === ViewMode.List
       ? css`
@@ -314,6 +345,30 @@ export const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
         `}
   `
 );
+
+export const Duration = styled.div<Pick<RecordingItemProps, 'viewMode'>>(
+  p => css`
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: ${p.theme.radii[3]}px;
+    color: white;
+    font-weight: bold;
+    line-height: 1;
+    padding: ${p.theme.space[1]}px ${p.theme.space[2]}px;
+
+    ${p.viewMode === ViewMode.List
+      ? css`
+          bottom: ${p.theme.space[2]}px;
+        `
+      : css`
+          top: ${p.theme.space[2]}px;
+        `}
+  `
+);
+
+const FloatingDuration = styled(Duration)`
+  position: absolute;
+  right: ${p => p.theme.space[2]}px;
+`;
 
 export const ItemSpan = styled.span`
   background: ${p => p.theme.colors.spotBackground[0]};
