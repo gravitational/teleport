@@ -9,9 +9,9 @@ tags:
 ---
 
 <Admonition type="tip" title="CLI Tools">
-Beams require `tsh` version 18.8.0 or newer. To install `tsh`, visit [Download
-Client Tools](https://goteleport.com/download/client-tools/), select your
-platform, and choose "CLI Client Tools" in the **Download Type** menu.
+  Beams require `tsh` version 18.8.0 or newer. To install `tsh`, visit [Download
+  Client Tools](https://goteleport.com/download/client-tools/), select your
+  platform, and choose "CLI Client Tools" in the **Download Type** menu.
 </Admonition>
 
 [Beams](https://beams.run) are ephemeral, isolated runtimes for AI agents. Each
@@ -61,8 +61,12 @@ endpoints. This means no API keys are stored on the beam, and no configuration
 is necessary in order to make requests.
 
 In the beta release, inference credentials are configured automatically by
-Teleport. Future iterations will allow users to configure their own inference
-endpoints and bring their own credentials.
+Teleport.
+
+<Admonition type="tip">
+  See [Route requests to your own inference provider](./byoi.mdx) to configure
+  your own inference provider through Amazon Bedrock.
+</Admonition>
 
 ## Use cases
 
@@ -114,15 +118,15 @@ the app as a TCP application.
 
 All beam operations are performed through the `tsh beams` subcommand.
 
-| Command | Description |
-|---|---|
-| `tsh beams ls` | List running beam instances. |
-| `tsh beams add` | Create a new beam instance. |
-| `tsh beams ssh <name>` | Start an interactive shell in a beam. |
-| `tsh beams rm <name>` | Delete a running beam instance. |
-| `tsh beams exec <name> <cmd>` | Run a command on an existing beam. |
-| `tsh beams publish <name>` | Publish an HTTP or TCP service running in a beam. |
-| `tsh beams scp <src> <dst>` | Copy files into or out of beams. |
+| Command                       | Description                                       |
+| ----------------------------- | ------------------------------------------------- |
+| `tsh beams ls`                | List running beam instances.                      |
+| `tsh beams add`               | Create a new beam instance.                       |
+| `tsh beams ssh <name>`        | Start an interactive shell in a beam.             |
+| `tsh beams rm <name>`         | Delete a running beam instance.                   |
+| `tsh beams exec <name> <cmd>` | Run a command on an existing beam.                |
+| `tsh beams publish <name>`    | Publish an HTTP or TCP service running in a beam. |
+| `tsh beams scp <src> <dst>`   | Copy files into or out of beams.                  |
 
 ### Creating a beam
 
@@ -254,7 +258,7 @@ spec:
       contains(user.spec.traits.username, labels["teleport.internal/beams/owner"])
     rules:
       - resources: [beam]
-        verbs: ["*"]
+        verbs: ['*']
     beam_labels:
       teleport.internal/beams/owner: '{{internal.username}}'
 ```
@@ -290,12 +294,12 @@ Environment](../agentic-identity-framework/secure-agent-environment.mdx).
 
 Each beam is provisioned with the following compute resources:
 
-| Component | CPU | Memory | Ephemeral Storage |
-|---|---|---|---|
-| User container | 1700m | 7808 Mi | 20 Gi |
-| `tbot` sidecar | 100m | 128 Mi | 1 Gi |
-| Envoy sidecar | 200m | 256 Mi | 1 Gi |
-| **Total per beam** | **2 vCPU** | **8 GiB** | **22 Gi** |
+| Component          | CPU        | Memory    | Ephemeral Storage |
+| ------------------ | ---------- | --------- | ----------------- |
+| User container     | 1700m      | 7808 Mi   | 20 Gi             |
+| `tbot` sidecar     | 100m       | 128 Mi    | 1 Gi              |
+| Envoy sidecar      | 200m       | 256 Mi    | 1 Gi              |
+| **Total per beam** | **2 vCPU** | **8 GiB** | **22 Gi**         |
 
 During the beta period, we enforce the following limits:
 
