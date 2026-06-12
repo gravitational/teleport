@@ -36,6 +36,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	tdpbv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/desktop/v1"
@@ -364,6 +365,7 @@ func (h *Handler) createDesktopConnection(
 	ws *websocket.Conn,
 ) error {
 	defer ws.Close()
+	ws.SetReadLimit(teleport.MaxHTTPRequestSize)
 	ctx := r.Context()
 
 	// Client may speak TDP or TDPB. We'll know based on the existence of the 'tdpb' query parameter.

@@ -27,6 +27,7 @@ import (
 
 	"github.com/gorilla/websocket"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/utils"
@@ -69,6 +70,7 @@ func ReceivePlaybackActions(
 	logger *slog.Logger,
 	ws *websocket.Conn,
 	player *player.Player) {
+	ws.SetReadLimit(teleport.MaxHTTPRequestSize)
 	// playback always starts in a playing state
 	playing := true
 

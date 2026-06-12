@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/player"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
@@ -130,6 +131,7 @@ func (h *Handler) ttyPlaybackHandle(
 		// (this means we don't need to return an error here)
 		return nil, nil
 	}
+	ws.SetReadLimit(teleport.MaxHTTPRequestSize)
 
 	player, err := player.New(&player.Config{
 		Clock:     h.clock,
